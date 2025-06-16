@@ -1,0 +1,42 @@
+[lint]
+# https://docs.astral.sh/ruff/rules/
+select = [
+  # flake8-bugbear
+  "B",
+  # pydocstyle (D)
+  "D",
+  # pydoclint
+  "DOC",
+  # pycodestyle
+  "E",
+  # Pyflakes
+  "F",
+  # isort
+  "I",
+]
+
+# Never enforce `E501` (line length violations). This should be handled by formatters.
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"*.ipynb" = ["I001", "D", "DOC"]
+"tests/**" = ["D", "DOC"]
+"src/fenic/_backends/**" = ["D", "DOC"]
+"src/fenic/_inference/**" = ["D", "DOC"]
+
+
+[lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+[format]
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
+docstring-code-format = true
+
+# Set the line length limit used when formatting code snippets in
+# docstrings.
+#
+# This only has an effect when the `docstring-code-format` setting is
+# enabled.
+docstring-code-line-length = "dynamic"

@@ -1,0 +1,36 @@
+---
+name: docs
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      # read needed for checkout
+      # write needed to push docs branch
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        name: checkout
+        with:
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref || '' }}
+      - name: setup just
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
+      - name: setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          activate-environment: true
+      - name: deploy docs
+        shell: bash
+        env:
+          GIT_COMMITTER_NAME: typedef-gha
+          GIT_COMMITTER_EMAIL: noreply@typedef.ai
+        run: |
+          just docs-deploy \
+            "${{ github.ref_name }}" ${{ startsWith(github.ref, 'refs/tags/') }}

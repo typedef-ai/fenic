@@ -1,0 +1,76 @@
+---
+# This file controls the behavior of Trunk: https://docs.trunk.io/cli
+# To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
+version: 0.1
+cli:
+  version: 1.22.15
+# Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.6.8
+      uri: https://github.com/trunk-io/plugins
+# Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
+runtimes:
+  enabled:
+    - node@18.20.5
+    - python@3.10.8
+# This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
+lint:
+  enabled:
+    - block-manual-version
+    - gitleaks@8.26.0
+    - trufflehog-git@3.88.31
+    - actionlint@1.7.7
+    - renovate@40.0.6
+    - shellcheck@0.10.0
+    - shfmt@3.6.0
+    - rustfmt@1.87.0
+    - clippy@1.87.0
+    - ruff@0.11.10
+    - taplo@0.9.3
+    - checkov@3.2.427
+    - git-diff-check
+    - markdownlint@0.45.0
+    - osv-scanner@2.0.2
+    - prettier@3.5.3
+    - trivy@0.62.1
+    - trufflehog@3.88.31
+    - yamllint@1.37.1
+    - bandit@1.8.3
+  definitions:
+    - name: block-manual-version
+      description: Blocks manual version changes in Cargo.toml and pyproject.toml except release-please
+      files: [toml]
+      commands:
+        - name: check-block-manual-version
+          run: ".trunk/scripts/check-block-manual-version.sh ${target}"
+          success_codes: [0]
+          read_output_from: stdout
+          parser:
+            run: 'sed -E "s/([^:]*):([0-9]+):(.*)/\1:\2:0: [error] manual version change detected - versions should be handled by release-please (version-field)/"'
+          output: regex
+          parse_regex: "(?P<path>.*):(?P<line>-?\\d+):(?P<col>-?\\d+): \\[(?P<severity>[^\\]]*)\\] (?P<message>[^\\(]*) \\((?P<code>[^\\)]*)\\)"
+  ignore:
+    # Allow assert statements in tests.
+    - linters: [bandit]
+      paths:
+        - tests
+    - linters: [markdownlint, prettier]
+      paths:
+        - CHANGELOG.md # let release-please be release-please
+actions:
+  disabled:
+    - trunk-upgrade-available
+  enabled:
+    - trufflehog-pre-commit
+    - buf-gen
+    - gitleaks-pre-commit
+    - trunk-announce
+    - trunk-check-pre-push
+    - trunk-fmt-pre-commit
+  definitions:
+    - id: gitleaks-pre-commit
+      run: .trunk/tools/gitleaks git --staged --no-banner -v --exit-code 1
+      triggers:
+        - git_hooks: [pre-commit]

@@ -1,0 +1,21 @@
+---
+name: trunk.io
+on:
+  # yamllint disable-line rule:empty-values
+  pull_request:
+permissions:
+  contents: read # required for actions/checkout
+jobs:
+  trunk-check:
+    name: trunk check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required for actions/checkout
+      checks: write # required for trunk-io/trunk-action
+    steps:
+      - name: checkout
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: trunk check
+        # yamllint disable-line rule:line-length
+        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1
