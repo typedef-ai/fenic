@@ -1,0 +1,25 @@
+---
+name: trunk upgrade
+on:
+  schedule:
+    - cron: 0 16 * * 2 # At 16:00 on Tuesday
+  workflow_dispatch: {}
+permissions: read-all
+jobs:
+  trunk_upgrade:
+    name: run trunk upgrade
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # For trunk to create PRs
+      pull-requests: write # For trunk to create PRs
+    steps:
+      - name: Checkout
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Trunk Upgrade
+        # yamllint disable-line rule:line-length
+        uses: trunk-io/trunk-action/upgrade@4d5ecc89b2691705fd08c747c78652d2fc806a94 # v1
+        with:
+          prefix: "chore: "
+          lowercase-title: true
+          sign-commits: true

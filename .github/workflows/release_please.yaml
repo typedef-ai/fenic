@@ -1,0 +1,39 @@
+---
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+  pull-requests: write
+name: release-please
+jobs:
+  release-please:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      # Generate token from GitHub App associated with repository
+      - name: generate app token
+        id: generate_app_token
+        # yamllint disable-line rule:line-length
+        uses: suzuki-shunsuke/github-token-action@350d7506222e3a0016491abe85b5c4dd475b67d1 # v0.2.1
+        with:
+          github_app_id: ${{ secrets.APP_ID }}
+          github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          # yamllint disable rule:line-length
+          github_app_permissions: >-
+            {"contents": "read", "contents": "write", "pull_requests": "read", "pull_requests": "write", "issues": "read", "issues": "write"}
+          github_app_repositories: >-
+            ["${{github.event.repository.name}}"]
+      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445 # v4
+        # yamllint enable rule:line-length
+        id: release
+        with:
+          config-file: .release-please-config.json
+          include-component-in-tag: true
+          manifest-file: .release-please-manifest.json
+          token: ${{ steps.generate_app_token.outputs.token }}

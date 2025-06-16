@@ -1,0 +1,22 @@
+---
+name: semantic pull request
+on:
+  pull_request_target:
+    types: [edited, opened, reopened, synchronize]
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read # required for actions/checkout
+  pull-requests: read
+jobs:
+  semantic_pull_request:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      # https://github.com/amannn/action-semantic-pull-request
+      # yamllint disable-line rule:line-length
+      - uses: amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

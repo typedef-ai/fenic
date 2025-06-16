@@ -1,0 +1,308 @@
+---
+name: build and release
+on:
+  pull_request:
+    types: [labeled, opened, reopened, synchronize]
+    branches-ignore:
+      - release-please**
+    paths:
+      - rust/**
+      - src/**
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  labeled-filter:
+    name: label filter
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.allowed_labels.outputs.should-run }}
+    steps:
+      - name: label filter (only rebuild on specific label events)
+        id: allowed_labels
+        run: |
+          IF_LABELED="publish"
+
+          if [[ "${{ github.event.action }}" == "labeled" ]]; then
+            LABEL_NAME="${{ github.event.label.name }}"
+            if [[ ",$IF_LABELED," == *",$LABEL_NAME,"* ]]; then
+              # shellcheck disable=SC2086
+              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "Label '$LABEL_NAME' should trigger a build"
+            else
+              # shellcheck disable=SC2086
+              echo "should-run=false" >> $GITHUB_OUTPUT
+              echo "Label '$LABEL_NAME' is not in list of trigger labels: $ALLOWED_LABELS"
+            fi
+          else
+            # shellcheck disable=SC2086
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "Event is not 'labeled', proceeding normally"
+          fi
+  build-wheels-linux:
+    name: build wheels linux
+    runs-on: ubuntu-latest
+    needs: [labeled-filter]
+    # NOTE: skipping builds on pr by default to reduce actions usage.
+    #  For future use-case, use the following to enable always:
+    #   if: always() && needs.labeled-filter.outputs.should-run == 'true'
+    if: |
+      always() && (
+        startsWith(github.ref, 'refs/tags/') || (
+          github.event_name == 'pull_request' &&
+          contains(github.event.pull_request.labels.*.name, 'publish')
+        )
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          ## linux
+          - target: x86_64
+            builds: on_release
+            manylinux: auto
+            python_arch: x64
+            ## linux cross
+            # TODO: enable
+            # - target: i686
+            #   builds: on_release
+            #   manylinux: auto
+            #   python_arch: x64
+          - target: aarch64
+            builds: on_release
+            manylinux: auto
+            python_arch: ""
+            ## linux-musl
+            # TODO: enable
+            # - target: x86_64-unknown-linux-musl
+            #   builds: on_release
+            #   manylinux: musllinux_1_2
+            #   python_arch: x64
+            # - target: i686-unknown-linux-musl
+            #   builds: on_release
+            #   manylinux: musllinux_1_2
+            #   python_arch: x64
+            ## linux-musl cross
+            # - target: aarch64-unknown-linux-musl
+            #   builds: on_release
+            #   manylinux: musllinux_1_2
+            #   python_arch: ""
+            # - target: armv7-unknown-linux-musleabihf
+            #   builds: on_release
+            #   manylinux: musllinux_1_2
+            #   python_arch: ""
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Python version from .python-version file
+        id: python_version
+        run: |
+          # shellcheck disable=SC2086
+          echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+      - uses: ./.github/actions/maturin-build
+        # matrix.platform.builds -> only run the 'on_all' on non-tag pushes (pr)
+        if: |
+          matrix.platform.builds == 'on_all' || (
+            startsWith(github.ref, 'refs/tags/')
+          )
+        with:
+          artifact-prefix: linux
+          interpreter: 3.10 3.11 3.12
+          manylinux: ${{ matrix.platform.manylinux }}
+          python-version: ${{ steps.python_version.outputs.python_version }}
+          python-architecture: ${{ matrix.platform.python_arch }}
+          target: ${{ matrix.platform.target }}
+  build-wheels-macos:
+    name: build wheels macos
+    runs-on: macos-latest
+    needs: [labeled-filter]
+    if: |
+      always() && (
+        startsWith(github.ref, 'refs/tags/') || (
+          github.event_name == 'pull_request' &&
+          contains(github.event.pull_request.labels.*.name, 'publish')
+        )
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - target: universal2-apple-darwin
+            python_arch: x64
+            builds: on_all
+          - target: x86_64
+            python_arch: x64
+            builds: on_release
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Python version from .python-version file
+        id: python_version
+        run: |
+          # shellcheck disable=SC2086
+          echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+      - uses: ./.github/actions/maturin-build
+        # matrix.platform.builds -> only run the 'on_all' on non-tag pushes (pr)
+        if: |
+          matrix.platform.builds == 'on_all' || (
+            startsWith(github.ref, 'refs/tags/')
+          )
+        with:
+          artifact-prefix: macos
+          interpreter: 3.10 3.11 3.12
+          manylinux: auto
+          python-version: ${{ steps.python_version.outputs.python_version }}
+          python-architecture: ${{ matrix.platform.python_arch }}
+          target: ${{ matrix.platform.target }}
+  build-wheels-windows:
+    name: build wheels windows
+    runs-on: windows-latest
+    needs: [labeled-filter]
+    if: |
+      always() && (
+        needs.labeled-filter.outputs.should-run == 'true'
+      ) && startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - target: x64
+            python_arch: x64
+            # TODO: enable
+            # - target: x86
+            #   python_arch: x86
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Python version from .python-version file
+        id: python_version
+        run: |
+          # shellcheck disable=SC2086
+          echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+      - uses: ./.github/actions/maturin-build
+        with:
+          artifact-prefix: windows
+          interpreter: 3.10 3.11 3.12
+          manylinux: auto
+          python-version: ${{ steps.python_version.outputs.python_version }}
+          python-architecture: ${{ matrix.platform.python_arch }}
+          target: ${{ matrix.platform.target }}
+  publish-wheels-pypi:
+    name: publish wheels pypi
+    permissions:
+      id-token: write # Mandatory for OIDC token generation
+      contents: read # Needed for repository access
+    runs-on: ubuntu-latest
+    needs:
+      - labeled-filter
+      - build-wheels-linux
+      - build-wheels-macos
+      - build-wheels-windows
+    if: |
+      always() && (
+          needs.labeled-filter.outputs.should-run == 'true'
+        ) && (
+          startsWith(github.ref, 'refs/tags/')
+        ) && (
+          needs.build-wheels-linux.result == 'success' && (
+          needs.build-wheels-macos.result == 'success' ||
+          needs.build-wheels-macos.result == 'skipped'
+        ) && (
+          needs.build-wheels-windows.result == 'success' ||
+          needs.build-wheels-windows.result == 'skipped'
+        )
+      )
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Download Artifacts
+        id: download_artifacts
+        # yamllint disable-line rule:line-length
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: wheels*
+          path: dist
+      - name: Python version from .python-version file
+        id: python_version
+        run: |
+          # shellcheck disable=SC2086
+          echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ steps.python_version.outputs.python_version }}
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@aef21716ff3dcae8a1c301d23ec3e4446972a6e3 # v1
+        # NOTE: auth uses OIDC
+        with:
+          command: upload
+          args: --skip-existing dist/*/*.*
+  publish-wheels-s3:
+    name: publish wheels s3
+    permissions:
+      contents: read # needed for checkout
+      id-token: write # required for requesting the JWT (AWS OIDC)
+    runs-on: ubuntu-latest
+    needs:
+      - labeled-filter
+      - build-wheels-linux
+      - build-wheels-macos
+    if: |
+      always() && (
+          needs.labeled-filter.outputs.should-run == 'true'
+      ) && (
+        github.event_name == 'pull_request'
+      ) && (
+        contains(github.event.pull_request.labels.*.name, 'publish')
+      ) && (
+        needs.build-wheels-linux.result == 'success' &&
+        needs.build-wheels-macos.result == 'success'
+      )
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: download artifacts
+        # yamllint disable-line rule:line-length
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: wheels*
+          path: dist
+      - name: install aws cli
+        shell: bash
+        run: |
+          if aws --version >/dev/null 2>&1; then
+            echo "AWS CLI is already installed:"
+            aws --version
+            echo "Skipping installation"
+          else
+            echo "AWS CLI not found, installing..."
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+              -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+          fi
+      - name: configure aws credentials
+        # yamllint disable-line rule:line-length
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          # NOTE: auth uses OIDC
+          role-to-assume: ${{ secrets.AWS_S3_BUCKET_ASSETS_ROLE }}
+          role-session-name: github-actions-oidc
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: upload to s3
+        shell: bash
+        env:
+          S3_BUCKET: ${{ secrets.AWS_S3_BUCKET_ASSETS }}
+          S3_PATH: fenic/pr/${{ github.event.pull_request.number }}
+        run: |
+          echo "Uploading wheels:"
+          find dist -name "*.whl" -type f
+          echo ""
+
+          aws s3 cp dist/ \
+            "s3://$S3_BUCKET/$S3_PATH/" \
+            --recursive --include "*.whl"
+
+          echo "Wheels uploaded to s3://$S3_BUCKET/$S3_PATH/"

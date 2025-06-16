@@ -1,0 +1,73 @@
+---
+name: test
+on:
+  pull_request:
+    types: [labeled, opened, reopened, synchronize]
+    branches-ignore:
+      - release-please**
+    paths:
+      - rust/**
+      - src/**
+  schedule:
+    # daily at 8am Pacific (15:00 UTC)
+    - cron: 0 15 * * *
+  workflow_dispatch:
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Build test matrix
+        id: matrix
+        # yamllint disable rule:line-length
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Run all combinations on scheduled runs
+            matrix='{"dependency": ["true", "min", "max"], "test": ["local", "cloud"], "python-version": ["3.10", "3.11", "3.12"]}'
+          else
+            # Run only true/local/3.11 on PR/manual runs
+            matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.11"}]}'
+          fi
+          # shellcheck disable=SC2086
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+        # yamllint enable rule:line-length
+  test:
+    needs: matrix
+    # yamllint disable-line rule:line-length
+    name: test ${{ matrix.python-version }}, ${{ matrix.test }}, ${{ matrix.dependency }}
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: setup just
+        # yamllint disable-line rule:line-length
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
+      - name: setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: true
+      - name: setup rust
+        # yamllint disable-line rule:line-length
+        uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # v1
+        with:
+          toolchain: stable
+          cache: true
+          cache-shared-key: shared-rust-cache
+      # yamllint disable-line rule:line-length
+      - name: run ${{ matrix.test }} tests with ${{ matrix.dependency == 'true' && 'synced' || matrix.dependency }} dependencies
+        shell: bash
+        run: |
+          just sync="${{ matrix.dependency }}" test-${{ matrix.test }}

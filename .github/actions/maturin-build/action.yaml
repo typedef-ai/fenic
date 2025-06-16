@@ -1,0 +1,64 @@
+---
+name: Maturin Build
+description: Wraps the maturin build action
+inputs:
+  artifact-prefix:
+    description: Prefix for artifact name
+    required: true
+  interpreter:
+    description: |
+      The python versions to build wheels for, given as the executables of
+      interpreters such as `python3.9` or `/usr/bin/python3.8`
+    required: true
+  manylinux:
+    description: manylinux to pass to maturin
+    required: false
+    default: auto
+  python-version:
+    description: python version
+    required: true
+  python-architecture:
+    description: architecture to for python install
+    required: false
+  target:
+    description: maturin target
+    required: true
+  upload:
+    description: toggle uploading artifacts
+    default: "true"
+    required: false
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: ${{ steps.python_version.outputs.python_version }}
+        architecture: ${{ inputs.python-architecture }}
+    - uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # v1
+      with:
+        toolchain: stable
+        cache: true
+        cache-shared-key: shared-rust-cache
+    - name: Build wheels
+      uses: PyO3/maturin-action@aef21716ff3dcae8a1c301d23ec3e4446972a6e3 # v1
+      with:
+        rust-toolchain: stable
+        target: ${{ inputs.target }}
+        manylinux: ${{ inputs.manylinux }}
+        args: --release --out dist -i ${{ inputs.interpreter }}
+        before-script-linux: |
+          if command -v yum &> /dev/null; then
+            yum install -y perl-IPC-Cmd
+          elif command -v dnf &> /dev/null; then
+            dnf install -y perl-IPC-Cmd
+          elif command -v apt-get &> /dev/null; then
+            apt-get update && apt-get install -y libmodule-build-perl
+          fi
+    - name: Upload wheels
+      if: inputs.upload == 'true'
+      # yamllint disable-line rule:line-length
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        # yamllint disable-line rule:line-length
+        name: wheels-${{ inputs.artifact-prefix }}-${{ inputs.target }}-py${{ inputs.python-version }}
+        path: dist

@@ -1,0 +1,4 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['github>typedef-ai/renovate:default.json5'],
+}
