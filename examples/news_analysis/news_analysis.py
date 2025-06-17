@@ -23,23 +23,23 @@ from fenic import col, lit
 def main():
     """Main analysis pipeline for news article bias detection."""
     # Configure session with semantic capabilities
-    # Set your `GEMINI_API_KEY` environment variable.
-    # Alternatively, you can run the example with an OpenAI(`OPENAI_API_KEY`) model by uncommenting the provided additional model configurations.
+    # Set your `OPENAI_API_KEY` environment variable.
+    # Alternatively, you can run the example with an Gemini (`GEMINI_API_KEY`) model by uncommenting the provided additional model configurations.
     # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
     print("🔧 Configuring fenic session...")
     config = fc.SessionConfig(
         app_name="news_analysis",
         semantic=fc.SemanticConfig(
             language_models={
-                "gemini": fc.GoogleGLAModelConfig(
-                    model_name="gemini-2.0-flash",
+                "openai": fc.OpenAIModelConfig(
+                    model_name="gpt-4o-mini",
                     rpm=500,
-                    tpm=1_000_000
+                    tpm=200_000
                 ),
-                # "openai": fc.OpenAIModelConfig(
-                #     model_name="gpt-4.1-mini",
+                # "gemini": fc.GoogleGLAModelConfig(
+                #     model_name="gemini-2.0-flash",
                 #     rpm=500,
-                #     tpm=200_000
+                #     tpm=1_000_000
                 # ),
                 # "anthropic": fc.AnthropicModelConfig(
                 #     model_name="claude-sonnet-4-0",
@@ -358,7 +358,8 @@ def main():
                Journalistic Style: {journalistic_style}
 
                Summarize the information provided without explicitly referencing it.
-            """
+            """,
+            max_output_tokens=512,
         ).alias("source_profile"),
     ).select(col("source"), col("source_profile")).cache()
     

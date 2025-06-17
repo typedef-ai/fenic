@@ -124,8 +124,6 @@ The pipeline generates comprehensive analysis including:
 
 - **Multi-dimensional classifications** across topic and political bias spectrum
 - **Language pattern analysis** extracting bias indicators, emotional language, and opinion markers
-- **Source consistency analysis** showing bias distribution patterns across articles
-- **Quality metrics** including factual claim density per article
 - **AI-generated source profiles** using semantic.reduce to summarize editorial characteristics
 
 ## Use Cases
@@ -200,12 +198,6 @@ Available in both script and notebook formats, with the notebook providing step-
 
 ## Expected Results
 
-The pipeline demonstrates:
+### Generated Source Profile
 
-- **Two-stage analysis approach** improving classification accuracy through grounded context
-- **Detailed bias spectrum classification** across 5 political categories from far-left to far-right
-- **Source consistency patterns** showing editorial consistency across multiple articles
-- **Language pattern extraction** identifying specific bias indicators and emotional language
-- **Comprehensive AI-generated source profiles** synthesizing analysis into readable insights
-
-This example showcases fenic's semantic operations working together to provide sophisticated media analysis with both educational value and practical applications.
+> The Balanced Tribune presents a diverse range of topics, primarily focusing on business, technology, climate, and healthcare. It exhibits a right-leaning bias in its business and technology coverage, emphasizing themes like Wall Street stability and American free enterprise, while adopting a far-left perspective on climate issues, critiquing fossil fuel companies. The publication often employs sensationalist and informational journalistic styles, utilizing emotional language to evoke strong reactions, such as the impact of inflation and the urgency of climate action. Opinion markers frequently reflect a mix of support for innovation and criticism of regulatory frameworks, indicating a complex stance on various issues.
