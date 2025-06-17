@@ -75,6 +75,20 @@ def test_leaf_level_single_batch(reduce_instance, mock_language_model):
         in user_message["content"]
     )
 
+def test_context_window_reduction_factor(reduce_instance, mock_language_model):
+    """Tests that there is no combination of max_output_tokens and max_context_window_length that would result in a negative max_input_tokens."""
+    mock_language_model.max_context_window_length = 1000
+    mock_language_model.model_parameters.max_output_tokens = 640 # > 1/3 of the max context window length
+    # the maximum allowed input tokens should be (1000 - 640) / 3 = 120, so the first request should be fine
+    mock_language_model.count_tokens.side_effect = [10, 50]
+    reduce_instance._build_request_messages_batch([{"TITLE": "Title 1", "BODY": "Body 1"}], 0)
+
+    # the second request should be too large
+    mock_language_model.count_tokens.side_effect = [10, 120]
+    with pytest.raises(ValueError) as exc_info:
+        reduce_instance._build_request_messages_batch([{"TITLE": "Title 1", "BODY": "Body 1"}], 0)
+    assert "sem.reduce document is too large" in str(exc_info.value)
+
 
 def test_node_level_multiple_batches(reduce_instance, mock_language_model):
     """Tests batching at the node level when documents require multiple batches."""
