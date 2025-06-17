@@ -26,7 +26,6 @@ def main():
     # Set your `GEMINI_API_KEY` environment variable.
     # Alternatively, you can run the example with an OpenAI(`OPENAI_API_KEY`) model by uncommenting the provided additional model configurations.
     # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
-    fc.configure_logging()
     print("🔧 Configuring fenic session...")
     config = fc.SessionConfig(
         app_name="news_analysis",
@@ -211,7 +210,7 @@ def main():
     
     print("📰 News Bias Detection Pipeline")
     print("=" * 70)
-    print(f"Analyzing {df.count()[0]} news articles from {df.select('source').drop_duplicates(['source']).count()[0]} sources")
+    print(f"Analyzing {df.count()} news articles from {df.select('source').drop_duplicates(['source']).count()} sources")
     
     # Show dataset composition
     print("\n📊 Dataset Composition:")
@@ -335,9 +334,9 @@ def main():
     # Summary Statistics
     print("\n📈 Summary Statistics:")
     print("-" * 30)
-    total_articles = results_df.count()[0]
-    neutral_articles = results_df.filter(fc.col("content_bias") == "neutral").count()[0]
-    biased_articles = results_df.filter((fc.col("content_bias") != "neutral")).count()[0]
+    total_articles = results_df.count()
+    neutral_articles = results_df.filter(fc.col("content_bias") == "neutral").count()
+    biased_articles = results_df.filter((fc.col("content_bias") != "neutral")).count()
     
     print(f"Total articles analyzed: {total_articles}")
     print(f"Neutral articles: {neutral_articles} ({neutral_articles/total_articles:.1%})")
