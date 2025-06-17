@@ -1,0 +1,1 @@
+../../examples/semantic_search/README.md

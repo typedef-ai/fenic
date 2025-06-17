@@ -1,0 +1,88 @@
+---
+site_name: fenic, by typedef
+docs_dir: docs
+repo_url: https://github.com/typedef-ai/fenic
+theme:
+  name: material
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.instant
+    - navigation.path
+    - navigation.tracking
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+nav:
+  - Overview:
+      - What is fenic?: index.md
+      - Examples:
+          - Introduction:
+              - Hello World!: examples/hello_world.md
+              - Log Enrichment: examples/enrichment.md
+          - Unstructured Data Clustering/Classification:
+              - Feedback Clustering: examples/feedback_clustering.md
+          - Semantic Joins on Unstructured Data: examples/semantic_search.md
+          - Extracting Structured Data from Unstructured Text:
+              - Document Extraction: examples/document_extraction.md
+          - Semi-Structured Data Processing/Enrichment:
+              - Named Entity Recognition: examples/named_entity_recognition.md
+              - Podcast Summarization: examples/podcast_summarization.md
+              - Meeting Transcript Processing: examples/meeting_transcript_processing.md
+              - JSON Processing: examples/json_processing.md
+              - Markdown Processing: examples/markdown_processing.md
+      - Contributing: CONTRIBUTING.md
+  - API Reference
+watch:
+  - src/fenic/api
+  - docs
+  - mkdocs.yml
+extra:
+  version:
+    provider: mike
+extra_css:
+  - stylesheets/extra.css
+plugins:
+  - search
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_section_style: list # table/list/spacy
+            docstring_style: google
+            filters: ["!^_"]
+            heading_level: 1
+            merge_init_into_class: true
+            parameter_headings: false
+            separate_signature: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_inheritance_diagram: true
+            summary:
+              modules: false
+              attributes: true
+              classes: true
+              functions: true
+  - api-autonav:
+      modules: [src/fenic]
+      exclude:
+        - fenic.api.window # WIP
+      exclude_private: true
+      nav_section_title: API Reference
+  - mike:
+      canonical_version: latest
+      version_selector: true
