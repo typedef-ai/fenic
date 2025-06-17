@@ -13,7 +13,6 @@ from fenic.api.session.config import OpenAIModelConfig
 pytest.importorskip("grpc")
 pytest.importorskip("fenic_cloud.hasura_client")
 
-from grpc import RpcError, StatusCode
 from fenic_cloud.protos.engine.v1.engine_pb2 import (
     ConfigSessionRequest,
     ConfigSessionResponse,
@@ -34,6 +33,7 @@ from fenic_cloud.protos.omnitype.v1.entrypoint_pb2 import (
 from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import (
     EntrypointServiceServicer,
 )
+from grpc import RpcError, StatusCode
 
 from fenic import ColumnField, IntegerType, Schema, StringType, configure_logging
 from fenic._backends.cloud.engine_config import CloudSessionConfig
