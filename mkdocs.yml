@@ -31,11 +31,12 @@ nav:
               - Log Enrichment: examples/enrichment.md
           - Unstructured Data Clustering/Classification:
               - Feedback Clustering: examples/feedback_clustering.md
+              - News Bias Classification: examples/news_analysis.md
           - Semantic Joins on Unstructured Data: examples/semantic_search.md
           - Extracting Structured Data from Unstructured Text:
               - Document Extraction: examples/document_extraction.md
-          - Semi-Structured Data Processing/Enrichment:
               - Named Entity Recognition: examples/named_entity_recognition.md
+          - Semi-Structured Data Processing/Enrichment:
               - Podcast Summarization: examples/podcast_summarization.md
               - Meeting Transcript Processing: examples/meeting_transcript_processing.md
               - JSON Processing: examples/json_processing.md
