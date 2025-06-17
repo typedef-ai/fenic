@@ -1,4 +1,5 @@
 import logging
+import math
 from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl
@@ -13,6 +14,9 @@ from fenic._inference.types import LMRequestMessages
 
 logger = logging.getLogger(__name__)
 
+# Applied to the max context window length to set an upper bound on the input tokens for each request.
+# This is to avoid sending one massive request that would be slow to retry on failure.
+CONTEXT_WINDOW_REDUCTION_FACTOR = 1/3
 
 class Reduce:
     SYSTEM_PROMPT = (
@@ -161,10 +165,9 @@ class Reduce:
         user_message_tokens = (
             self.model.count_tokens(user_template) + self.prefix_tokens
         )
-        # Divide by 3 to avoid sending one massive request that would be slow to retry on failure.
-        reduce_ctx_window_length = self.model.max_context_window_length / 3
-        max_input_tokens = (
-            reduce_ctx_window_length - self.model.model_parameters.max_output_tokens
+        # Multiply by CONTEXT_WINDOW_REDUCTION_FACTOR to avoid sending one massive request that would be slow to retry on failure.
+        max_input_tokens = math.floor(
+            (self.model.max_context_window_length - self.model.model_parameters.max_output_tokens) * CONTEXT_WINDOW_REDUCTION_FACTOR
         )
 
         messages_batch: list[LMRequestMessages] = []
@@ -181,7 +184,7 @@ class Reduce:
 
             if user_message_tokens + doc_tokens > max_input_tokens:
                 raise ValueError(
-                    f"sem.reduce document is too large ({doc_tokens} tokens) and exceeds the maximum allowed size ({max_input_tokens} tokens). "
+                    f"sem.reduce document is too large ({user_message_tokens + doc_tokens} tokens) and exceeds the maximum allowed size ({max_input_tokens} tokens) for the chosen model's context window.. "
                     f"Please reduce the document size by either: "
                     f"1) Summarizing the content before processing, or "
                     f"2) Breaking it into smaller chunks using methods like text.recursive_character_chunk() or text.token_chunk(). "
