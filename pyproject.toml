@@ -7,7 +7,7 @@ fenic is a Python DataFrame library for processing text data with APIs inspired 
 It includes text-specific utilities and special operators called semantic operators,
 which use LLMs to batch transform data.
 """
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10,<3.13"
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -61,6 +61,7 @@ build-backend = "maturin"
 [tool.maturin]
 python-source = "src"
 module-name = "fenic._polars_plugins"
+include = ["README.md"]
 
 [tool.pytest.ini_options]
 markers = [
