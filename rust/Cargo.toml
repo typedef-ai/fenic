@@ -1,0 +1,33 @@
+[package]
+name = "polars_plugins"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+name = "polars_plugins"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = "1.0.98"
+memchr = "2.7.4"
+polars-arrow = "0.48.1"
+pyo3 = { version = "0.24.2", features = ["extension-module", "abi3-py39"] }
+pyo3-polars = { version = "0.21.0", features = ["derive", "dtype-struct"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+tiktoken-rs = "0.7.0"
+polars = { version = "0.48.1", features = ["dtype-struct", "dtype-array"] }
+jaq-core = "2.2.0"
+jaq-json = { version = "1.1.2", features = ["serde_json"] }
+jaq-std = "2.1.1"
+markdown = "1.0.0"
+
+[dev-dependencies]
+criterion = "0.5.1"
+indoc = "2.0"
+rstest = "0.25.0"
+reqwest = { version = "0.12.15", features = ["json", "blocking"] }
+
+[[bench]]
+name = "transcript_parsing"
+harness = false

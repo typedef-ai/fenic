@@ -23,6 +23,8 @@ ignore = ["E501"]
 "tests/**" = ["D", "DOC"]
 "src/fenic/_backends/**" = ["D", "DOC"]
 "src/fenic/_inference/**" = ["D", "DOC"]
+"tools/**" = ["D", "DOC"]
+"examples/**" = ["D", "DOC"]
 
 
 [lint.pydocstyle]

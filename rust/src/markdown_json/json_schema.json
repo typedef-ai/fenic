@@ -1,0 +1,264 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Document",
+  "type": "object",
+  "required": ["type", "children"],
+  "properties": {
+    "type": {
+      "const": "document"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "title": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "date": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/BlockNode" }
+    }
+  },
+  "definitions": {
+    "BlockNode": {
+      "oneOf": [
+        { "$ref": "#/definitions/Heading" },
+        { "$ref": "#/definitions/Paragraph" },
+        { "$ref": "#/definitions/List" },
+        { "$ref": "#/definitions/Blockquote" },
+        { "$ref": "#/definitions/CodeBlock" },
+        { "$ref": "#/definitions/Table" },
+        { "$ref": "#/definitions/ThematicBreak" },
+        { "$ref": "#/definitions/HtmlBlock" }
+      ]
+    },
+    "Heading": {
+      "type": "object",
+      "required": ["type", "level", "content", "children"],
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/BlockNode" }
+        }
+      }
+    },
+    "Paragraph": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        }
+      }
+    },
+    "List": {
+      "type": "object",
+      "required": ["type", "ordered", "tight", "items"],
+      "properties": {
+        "type": { "const": "list" },
+        "ordered": { "type": "boolean" },
+        "start": { "type": "integer" },
+        "tight": { "type": "boolean" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ListItem" }
+        }
+      }
+    },
+    "ListItem": {
+      "type": "object",
+      "required": ["children"],
+      "properties": {
+        "checked": { "type": ["boolean", "null"] },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/BlockNode" }
+        }
+      }
+    },
+    "Blockquote": {
+      "type": "object",
+      "required": ["type", "children"],
+      "properties": {
+        "type": { "const": "blockquote" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/BlockNode" }
+        }
+      }
+    },
+    "CodeBlock": {
+      "type": "object",
+      "required": ["type", "text", "fenced"],
+      "properties": {
+        "type": { "const": "code_block" },
+        "info": { "type": "string" },
+        "language": { "type": "string" },
+        "text": { "type": "string" },
+        "fenced": { "type": "boolean" },
+        "fence_char": { "type": "string" },
+        "fence_length": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Table": {
+      "type": "object",
+      "required": ["type", "alignments", "header", "rows"],
+      "properties": {
+        "type": { "const": "table" },
+        "alignments": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"],
+            "enum": ["left", "center", "right", null]
+          }
+        },
+        "header": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/InlineNode" }
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/InlineNode" }
+            }
+          }
+        }
+      }
+    },
+    "ThematicBreak": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "thematic_break" }
+      }
+    },
+    "HtmlBlock": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "html_block" },
+        "text": { "type": "string" }
+      }
+    },
+    "InlineNode": {
+      "oneOf": [
+        { "$ref": "#/definitions/Text" },
+        { "$ref": "#/definitions/Strong" },
+        { "$ref": "#/definitions/Emphasis" },
+        { "$ref": "#/definitions/Link" },
+        { "$ref": "#/definitions/InlineCode" },
+        { "$ref": "#/definitions/Image" },
+        { "$ref": "#/definitions/Strikethrough" },
+        { "$ref": "#/definitions/HtmlInline" },
+        { "$ref": "#/definitions/HardBreak" }
+      ]
+    },
+    "Text": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" }
+      }
+    },
+    "Strong": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "strong" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        }
+      }
+    },
+    "Emphasis": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "emphasis" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        }
+      }
+    },
+    "Link": {
+      "type": "object",
+      "required": ["type", "href", "content"],
+      "properties": {
+        "type": { "const": "link" },
+        "href": { "type": "string" },
+        "title": { "type": "string" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        }
+      }
+    },
+    "InlineCode": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "inline_code" },
+        "text": { "type": "string" }
+      }
+    },
+    "Image": {
+      "type": "object",
+      "required": ["type", "src"],
+      "properties": {
+        "type": { "const": "image" },
+        "src": { "type": "string" },
+        "alt": { "type": "string" },
+        "title": { "type": "string" }
+      }
+    },
+    "Strikethrough": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": { "const": "strikethrough" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/InlineNode" }
+        }
+      }
+    },
+    "HtmlInline": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "html_inline" },
+        "text": { "type": "string" }
+      }
+    },
+    "HardBreak": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "hardbreak" }
+      }
+    }
+  }
+}

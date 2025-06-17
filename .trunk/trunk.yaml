@@ -39,6 +39,10 @@ lint:
     - yamllint@1.37.1
     - bandit@1.8.3
   definitions:
+    - name: osv-scanner
+      commands:
+        - name: scan
+          run: osv-scanner --lockfile=${target} --format json --config=.trunk/configs/osv-scanner.toml
     - name: block-manual-version
       description: Blocks manual version changes in Cargo.toml and pyproject.toml except release-please
       files: [toml]
@@ -59,6 +63,7 @@ lint:
     - linters: [markdownlint, prettier]
       paths:
         - CHANGELOG.md # let release-please be release-please
+        - examples/markdown_processing/attention_is_all_you_need.md
 actions:
   disabled:
     - trunk-upgrade-available

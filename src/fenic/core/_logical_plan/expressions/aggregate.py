@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan import LogicalPlan
+
+from fenic.core._logical_plan.expressions.base import LogicalExpr
+from fenic.core._logical_plan.expressions.basic import LiteralExpr
+from fenic.core.types import (
+    ArrayType,
+    BooleanType,
+    ColumnField,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    StringType,
+)
+
+SUMMABLE_TYPES = (IntegerType, FloatType, DoubleType, BooleanType)
+
+
+class AggregateExpr(LogicalExpr):
+    def __init__(self, agg_name: str, expr: LogicalExpr):
+        self.agg_name = agg_name
+        self.expr = expr
+
+    def __str__(self):
+        return f"{self.agg_name}({str(self.expr)})"
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class MdGroupSchemaExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("md_group_schema", expr)
+
+    def _validate_types(self, plan: LogicalPlan):
+        input_field = self.expr.to_column_field(plan)
+        if input_field.data_type != StringType:
+            raise TypeError(
+                f"md_group_schema requires a string input, got {input_field.data_type}"
+            )
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_types(plan)
+        return ColumnField(name=str(self), data_type=StringType)
+
+
+class SumExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("sum", expr)
+
+    def _validate_types(self, plan: LogicalPlan):
+        expr_type = self.expr.to_column_field(plan).data_type
+        if expr_type not in SUMMABLE_TYPES:
+            raise TypeError(
+                f"Type mismatch: Cannot apply sum function to non-numeric types. "
+                f"Type: {expr_type}. "
+                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
+            )
+
+        return
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_types(plan)
+        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+
+
+class AvgExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("avg", expr)
+
+    def _validate_types(self, plan: LogicalPlan):
+        expr_type = self.expr.to_column_field(plan).data_type
+
+        if expr_type not in SUMMABLE_TYPES:
+            raise TypeError(
+                f"Type mismatch: Cannot apply avg function to non-numeric types. "
+                f"Type: {expr_type}. "
+                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
+            )
+        return
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_types(plan)
+        return ColumnField(str(self), DoubleType)
+
+
+class MinExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("min", expr)
+
+    def _validate_types(self, plan: LogicalPlan):
+        expr_type = self.expr.to_column_field(plan).data_type
+
+        if expr_type not in SUMMABLE_TYPES:
+            raise TypeError(
+                f"Type mismatch: Cannot apply min function to non-numeric types. "
+                f"Type: {expr_type}. "
+                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
+            )
+        return
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_types(plan)
+        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+
+
+class MaxExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("max", expr)
+
+    def _validate_types(self, plan: LogicalPlan):
+        expr_type = self.expr.to_column_field(plan).data_type
+
+        if expr_type not in SUMMABLE_TYPES:
+            raise TypeError(
+                f"Type mismatch: Cannot apply max function to non-numeric types. "
+                f"Type: {expr_type}. "
+                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
+            )
+        return
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_types(plan)
+        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+
+
+class CountExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("count", expr)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self.expr.to_column_field(plan)
+        return ColumnField(str(self), IntegerType)
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class ListExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("collect_list", expr)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        if isinstance(self.expr, LiteralExpr):
+            raise TypeError(
+                f"Type mismatch: Cannot apply collect_list function to literal value."
+                f"Type: {self.expr.to_column_field(plan).data_type}. "
+                f"Only non-literal values are supported."
+            )
+        else:
+            return ColumnField(
+                str(self), ArrayType(self.expr.to_column_field(plan).data_type)
+            )
