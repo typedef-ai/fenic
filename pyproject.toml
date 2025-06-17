@@ -1,0 +1,68 @@
+[project]
+name = "fenic"
+version = "0.0.0"
+authors = [{ name = "typedef", email = "hello@typedef.ai" }]
+description = """
+fenic is a Python DataFrame library for processing text data with APIs inspired by PySpark.
+It includes text-specific utilities and special operators called semantic operators,
+which use LLMs to batch transform data.
+"""
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+license = "Apache-2.0"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+  "boto3>=1.38.28",
+  "botocore>=1.38.28",
+  "duckdb>=1.1.3",
+  "numpy>=2.0.0",
+  "polars>=1.20.0",
+  "tiktoken>=0.9.0",
+  "pylance>=0.23.2",
+  "lancedb>=0.22.0",
+  "openai>=1.82.0",
+  "sqlglot>=26.25.3",
+  "pandas>=2.2.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/typedef-ai/fenic"
+Issues = "https://github.com/typedef-ai/fenic/issues"
+
+[dependency-groups]
+dev = ["pytest>=8.3.5", "maturin>=1.8.6", "requests>=2.32.0"]
+docs = [
+  "mike>=2.1.3",
+  "mkdocs>=1.6.1",
+  "mkdocs-api-autonav>=0.2.2",
+  "mkdocs-section-index>=0.3.10",
+  "mkdocstrings-python>=1.16.11",
+  "mkdocs-material>=9.6.14",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.52.2"]
+google = [] # empty for now, until we switch to google-genai
+cloud = [
+  "pyarrow<20.0.0,>=19.0.0",
+  "grpcio>=1.60.0",
+  "pydantic_settings",
+  "fenic-cloud>=0.1.2",
+]
+
+[build-system]
+requires = ["maturin>=1.8.6"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "src"
+module-name = "fenic._polars_plugins"
+
+[tool.pytest.ini_options]
+markers = [
+  "cloud: marks tests that test client interactions with typedef cloud",
+]

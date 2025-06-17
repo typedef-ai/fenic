@@ -1,0 +1,6 @@
+[[PackageOverrides]]
+name = "paste"
+ecosystem = "crates.io"
+reason = "dep of dep - not maintained"
+effectiveUntil = 2026-01-31
+ignore = true
