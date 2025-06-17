@@ -71,30 +71,30 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.38.37"
+version = "1.38.38"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/ad/e2ec99e8d7a32286bfcb14fdc3e5452a5c29ad979731cce1686029e64f2b/boto3-1.38.37.tar.gz", hash = "sha256:4ccd700a2a36de0cd63bd8c79cca6164cb684e34fc1126de5c41525e4d0bfaee", size = 111840 }
+sdist = { url = "https://files.pythonhosted.org/packages/98/a1/f2b68cba5d1907e004f4d88a028eda35a4f619c1e81d764e5cf58491eb46/boto3-1.38.38.tar.gz", hash = "sha256:0fe6b7d1974851588ec1edd39c66d9525d539133e02c7f985f9ebec5e222c0db", size = 111847 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/81/cb2504afc314ae60f99f3a14e2417f13086ecfd7055a07a7751595777c22/boto3-1.38.37-py3-none-any.whl", hash = "sha256:46a512b1fbc4c51a9abfef8e2130db0806cb00ef137e161f6f751421c78a7c0c", size = 139939 },
+    { url = "https://files.pythonhosted.org/packages/e4/dc/43d4ab839b84876bdf7baeba0a3ffcef4c3d52d81f3ce1979b4195c0e213/boto3-1.38.38-py3-none-any.whl", hash = "sha256:6f4163cd9e030afd1059e8a6daa178835165b79eb0b5325a8cd447020b895921", size = 139934 },
 ]
 
 [[package]]
 name = "botocore"
-version = "1.38.37"
+version = "1.38.38"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/96/2250aa68686a5d1d27224942bc5ab1285e8ddb2848e85f3ded985933f707/botocore-1.38.37.tar.gz", hash = "sha256:06ce46da5420ea7cf542ece4ff1ec9045922fef977adf4bbec618c96c7a478bf", size = 13971125 }
+sdist = { url = "https://files.pythonhosted.org/packages/22/f5/d05258ac4ae68769a956779192bfbd322e571ef9fc17a27f02d35c026b4b/botocore-1.38.38.tar.gz", hash = "sha256:acf9ae5b2d99c1f416f94fa5b4f8c044ecb76ffcb7fb1b1daec583f36892a8e2", size = 14009715 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/22/37/bc7f691f9e3ea6bf85d8d78398a0e447fb5b757ba1708021ef67a8e03749/botocore-1.38.37-py3-none-any.whl", hash = "sha256:f8ad063b7dcdbf12f2c1b5a4405f390ce52beff3b2861af2e5169816ee0146f2", size = 13630408 },
+    { url = "https://files.pythonhosted.org/packages/7b/c6/74f27ffe941dc1438b7fef620b402b982a9f9ab90a04ee47bd0314a02384/botocore-1.38.38-py3-none-any.whl", hash = "sha256:aa5cc63bf885819d862852edb647d6276fe423c60113e8db375bb7ad8d88a5d9", size = 13669107 },
 ]
 
 [[package]]
@@ -261,8 +261,8 @@ anthropic = [
     { name = "anthropic" },
 ]
 cloud = [
+    { name = "fenic-cloud" },
     { name = "grpcio" },
-    { name = "langframe-cloud" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
 ]
@@ -288,9 +288,9 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.28" },
     { name = "botocore", specifier = ">=1.38.28" },
     { name = "duckdb", specifier = ">=1.1.3" },
+    { name = "fenic-cloud", marker = "extra == 'cloud'", specifier = ">=0.1.2" },
     { name = "grpcio", marker = "extra == 'cloud'", specifier = ">=1.60.0" },
     { name = "lancedb", specifier = ">=0.22.0" },
-    { name = "langframe-cloud", marker = "extra == 'cloud'", specifier = ">=0.1.1" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "openai", specifier = ">=1.82.0" },
     { name = "pandas", specifier = ">=2.2.2" },
@@ -315,6 +315,23 @@ docs = [
     { name = "mkdocs-material", specifier = ">=9.6.14" },
     { name = "mkdocs-section-index", specifier = ">=0.3.10" },
     { name = "mkdocstrings-python", specifier = ">=1.16.11" },
+]
+
+[[package]]
+name = "fenic-cloud"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "httpx" },
+    { name = "protobuf" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/2a/16cee206b61477b2b526a60935503c695be1a4dbb821aaa15b544fd7a323/fenic_cloud-0.1.2.tar.gz", hash = "sha256:652eac88664c02564256d63873638303e5725936dc26533e839c8693e6f599c8", size = 116811 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/20/365144ade04cb0d5b43b8601edb13ff79a491b22cade5d2b47487ef6e113/fenic_cloud-0.1.2-py3-none-any.whl", hash = "sha256:c5b1e10476a1bccb85db03e9706785283958d94019e057358e1823352f687ebf", size = 131138 },
 ]
 
 [[package]]
@@ -542,23 +559,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/99/2a/ea3777179685ee81b93948cfbe38ada76ecd545e2d7650df9f38c081b19e/lancedb-0.23.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:5bdb93377e6fc5c318a91874222542c19b0b1c8c1c40408c3a9a0ef045e80a4b", size = 29869149 },
     { url = "https://files.pythonhosted.org/packages/11/25/9c77a24b205ea5f2068d108251140d4bd90a3edbe790d61a6d40649907df/lancedb-0.23.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c9743fc7a3806882f96ddfd1cf1b6b988155d57b76153af7b1633a86cd8136f1", size = 32992767 },
     { url = "https://files.pythonhosted.org/packages/a5/f6/da9af8a96236364e2bdb3702026ecb4703f2f3aaa83c51046f845333fa4d/lancedb-0.23.0-cp39-abi3-win_amd64.whl", hash = "sha256:577cd9f6ecb6fae9d57a8b8cfc31a679fb711f342185bd020c92a034dcc33bb3", size = 34805236 },
-]
-
-[[package]]
-name = "langframe-cloud"
-version = "0.1.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "grpcio" },
-    { name = "httpx" },
-    { name = "protobuf" },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "websockets" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0c/a7/3ee6d4a1dafd5d27bb2b432064b8d895db21e19b74c597e186b0dadfdc4c/langframe_cloud-0.1.2.tar.gz", hash = "sha256:d2fde49ac8f394c93d320b7651d90e31b65713aaac5f293b901d8673987504f9", size = 107358 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/5f/ea6a92e96b91e4810bec1d2eb06d8f6f4aa4e55a8992e355d7700572e807/langframe_cloud-0.1.2-py3-none-any.whl", hash = "sha256:ee970301b9025f191ced270eeb3f1061da9f5ac1ceee7b8c00d25322079712db", size = 111710 },
 ]
 
 [[package]]
@@ -1396,11 +1396,11 @@ wheels = [
 
 [[package]]
 name = "sqlglot"
-version = "26.28.1"
+version = "26.29.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/05/93/cc69485de3f33f78c99abb499eb1bdb1e6be2b9306ff7dfd4c83c232d8fc/sqlglot-26.28.1.tar.gz", hash = "sha256:0ec81847b2828563964074f39de57a3cd4751476718a6f4c443fb8ae4a5d62cd", size = 5331324 }
+sdist = { url = "https://files.pythonhosted.org/packages/07/53/ee0985ee4a86fadb80a26b3388d1a109b8fe4a8671202b6aff0196fa2c25/sqlglot-26.29.0.tar.gz", hash = "sha256:023f1f9c35f0b5c9e5614e87624567bf20a69940995a4cbfe89c5481b9239474", size = 5335487 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/1c/8c12a753150c508087302f116de3ce7bfdb81a58801c2a65bdf9675c5fdc/sqlglot-26.28.1-py3-none-any.whl", hash = "sha256:94e1b536c869d28b620d8b00a15d6fa2db3562de3d0d9b9233ff48ad656bd041", size = 468075 },
+    { url = "https://files.pythonhosted.org/packages/ef/9e/14f111ddbc0b7f15e3ce886a69548c26fa1eb3571a63c1bf5f060cbe9f43/sqlglot-26.29.0-py3-none-any.whl", hash = "sha256:373376bab433d55b291ccbbf9fd59e08a59cde059bdb64e32d1f15accc07ac65", size = 470167 },
 ]
 
 [[package]]

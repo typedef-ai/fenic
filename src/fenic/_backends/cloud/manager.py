@@ -7,14 +7,14 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import grpc
-from langframe_cloud.auth_client.client import authenticate_user, get_user_token
-from langframe_cloud.hasura_client import (
+from fenic_cloud.auth_client.client import authenticate_user, get_user_token
+from fenic_cloud.hasura_client import (
     HasuraClient,
 )
-from langframe_cloud.hasura_client.generated_graphql_client import (
+from fenic_cloud.hasura_client.generated_graphql_client import (
     Client as HasuraUserClient,
 )
-from langframe_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
+from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
 
 from fenic._backends.cloud.session_state import CloudSessionState
 from fenic._backends.cloud.settings import CloudSettings

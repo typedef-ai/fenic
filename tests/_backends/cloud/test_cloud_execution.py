@@ -11,10 +11,10 @@ import pytest
 from fenic.api.session.config import OpenAIModelConfig
 
 pytest.importorskip("grpc")
-pytest.importorskip("langframe_cloud.hasura_client")
+pytest.importorskip("fenic_cloud.hasura_client")
 
 from grpc import RpcError, StatusCode
-from langframe_cloud.protos.engine.v1.engine_pb2 import (
+from fenic_cloud.protos.engine.v1.engine_pb2 import (
     ConfigSessionRequest,
     ConfigSessionResponse,
     GetExecutionResultRequest,
@@ -24,14 +24,14 @@ from langframe_cloud.protos.engine.v1.engine_pb2 import (
     StartExecutionRequest,
     StartExecutionResponse,
 )
-from langframe_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceServicer
-from langframe_cloud.protos.omnitype.v1.common_pb2 import EngineRequestUris
-from langframe_cloud.protos.omnitype.v1.entrypoint_pb2 import (
+from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceServicer
+from fenic_cloud.protos.omnitype.v1.common_pb2 import EngineRequestUris
+from fenic_cloud.protos.omnitype.v1.entrypoint_pb2 import (
     GetOrCreateSessionResponse,
     RegisterAppResponse,
     TerminateSessionResponse,
 )
-from langframe_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import (
+from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import (
     EntrypointServiceServicer,
 )
 

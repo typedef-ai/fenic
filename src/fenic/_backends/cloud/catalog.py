@@ -8,24 +8,24 @@ from uuid import UUID
 
 import polars as pl
 import pyarrow as pa
-from langframe_cloud.hasura_client.generated_graphql_client.client import (
+from fenic_cloud.hasura_client.generated_graphql_client.client import (
     CatalogDispatchInput,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.enums import (
+from fenic_cloud.hasura_client.generated_graphql_client.enums import (
     CatalogDatasetTypeReferenceEnum,
     FileFormat,
     TypedefCatalogTypeReferenceEnum,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.input_types import (
+from fenic_cloud.hasura_client.generated_graphql_client.input_types import (
     CatalogNamespaceInsertInput,
     CreateTableInput,
     NestedFieldInput,
     SchemaInput,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.list_catalogs_for_organization import (
+from fenic_cloud.hasura_client.generated_graphql_client.list_catalogs_for_organization import (
     ListCatalogsForOrganization,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.load_table import (
+from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
 )
 

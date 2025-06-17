@@ -8,14 +8,14 @@ import grpc
 import polars as pl
 import pyarrow as pa
 import pyarrow.flight as flight  # noqa: F401 # Required to import flight.
-from langframe_cloud.hasura_client.generated_graphql_client import (
+from fenic_cloud.hasura_client.generated_graphql_client import (
     TypedefExecutionStatusReferenceEnum as QUERY_STATE,
 )
-from langframe_cloud.hasura_client.hasura_execution import (
+from fenic_cloud.hasura_client.hasura_execution import (
     get_query_execution_by_id,
     query_execution_subscription,
 )
-from langframe_cloud.protos.engine.v1.engine_pb2 import (
+from fenic_cloud.protos.engine.v1.engine_pb2 import (
     CollectExecutionRequest,
     CountExecutionRequest,
     GetExecutionResultRequest,
@@ -30,7 +30,7 @@ from langframe_cloud.protos.engine.v1.engine_pb2 import (
     StartExecutionRequest,
     TableIdentifier,
 )
-from langframe_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
+from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic.core._interfaces import BaseExecution

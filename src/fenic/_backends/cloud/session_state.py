@@ -3,20 +3,20 @@ import logging
 from typing import Optional
 
 import grpc
-from langframe_cloud.protos.engine.v1.engine_pb2 import (
+from fenic_cloud.protos.engine.v1.engine_pb2 import (
     ConfigSessionRequest,
 )
-from langframe_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
-from langframe_cloud.protos.omnitype.v1.common_pb2 import (
+from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
+from fenic_cloud.protos.omnitype.v1.common_pb2 import (
     EngineInstanceMetadata,
     InstanceSize,
 )
-from langframe_cloud.protos.omnitype.v1.entrypoint_pb2 import (
+from fenic_cloud.protos.omnitype.v1.entrypoint_pb2 import (
     GetOrCreateSessionRequest,
     RegisterAppRequest,
     TerminateSessionRequest,
 )
-from langframe_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
+from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
 
 from fenic._backends.cloud.engine_config import CloudSessionConfig
 from fenic._backends.cloud.execution import CloudExecution

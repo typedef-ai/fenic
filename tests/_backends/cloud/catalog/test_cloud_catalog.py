@@ -8,49 +8,49 @@ from unittest.mock import MagicMock
 
 import pytest
 
-pytest.importorskip("langframe_cloud")
-from langframe_cloud.hasura_client.generated_graphql_client import Client
-from langframe_cloud.hasura_client.generated_graphql_client.create_namespace import (
+pytest.importorskip("fenic_cloud")
+from fenic_cloud.hasura_client.generated_graphql_client import Client
+from fenic_cloud.hasura_client.generated_graphql_client.create_namespace import (
     CreateNamespace,
     CreateNamespaceInsertCatalogNamespaceOne,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.enums import (
+from fenic_cloud.hasura_client.generated_graphql_client.enums import (
     FileFormat,
     TypedefObjectStateReferenceEnum,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.fragments import (
+from fenic_cloud.hasura_client.generated_graphql_client.fragments import (
     SimpleCatalogSchemaDetailsFields,
     SimpleCatalogTableDetailsSchema,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.get_dataset_names_for_catalog_namespace import (
+from fenic_cloud.hasura_client.generated_graphql_client.get_dataset_names_for_catalog_namespace import (
     GetDatasetNamesForCatalogNamespace,
     GetDatasetNamesForCatalogNamespaceCatalogDataset,
     GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.list_catalogs_for_organization import (
+from fenic_cloud.hasura_client.generated_graphql_client.list_catalogs_for_organization import (
     ListCatalogsForOrganization,
     ListCatalogsForOrganizationCatalogs,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.list_namespaces import (
+from fenic_cloud.hasura_client.generated_graphql_client.list_namespaces import (
     ListNamespaces,
     ListNamespacesSimpleCatalog,
     ListNamespacesSimpleCatalogListNamespaces,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.load_table import (
+from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTable,
     LoadTableSimpleCatalog,
     LoadTableSimpleCatalogLoadTable,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.sc_create_table import (
+from fenic_cloud.hasura_client.generated_graphql_client.sc_create_table import (
     ScCreateTable,
     ScCreateTableSimpleCatalog,
     ScCreateTableSimpleCatalogCreateTable,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.sc_drop_dataset import (
+from fenic_cloud.hasura_client.generated_graphql_client.sc_drop_dataset import (
     ScDropDataset,
     ScDropDatasetSimpleCatalog,
 )
-from langframe_cloud.hasura_client.generated_graphql_client.sc_drop_namespace import (
+from fenic_cloud.hasura_client.generated_graphql_client.sc_drop_namespace import (
     ScDropNamespace,
     ScDropNamespaceSimpleCatalog,
 )
