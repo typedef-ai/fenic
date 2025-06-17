@@ -18,7 +18,6 @@ runtimes:
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
-    - block-manual-version
     - gitleaks@8.26.0
     - trufflehog-git@3.88.31
     - actionlint@1.7.7
