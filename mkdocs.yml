@@ -50,6 +50,8 @@ nav:
               - Meeting Transcript Processing: examples/meeting_transcript_processing.md
               - JSON Processing: examples/json_processing.md
               - Markdown Processing: examples/markdown_processing.md
+      - Topics:
+          - Markdown -> JSON: topics/markdown-json.md
       - Contributing: CONTRIBUTING.md
   - API Reference
 watch:
