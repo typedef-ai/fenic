@@ -1,5 +1,7 @@
 # Podcast Summarization with Fenic
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/podcast_summarization/README.md)
+
 This example demonstrates comprehensive podcast transcript summarization using Fenic's semantic operations and unstructured data processing capabilities.
 
 ## Overview

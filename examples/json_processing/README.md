@@ -1,5 +1,7 @@
 # JSON Processing with Fenic
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/json_processing/README.md)
+
 This example demonstrates comprehensive JSON processing capabilities using fenic's JSON type system and JQ integration. It processes a complex nested JSON file containing whisper transcription data and transforms it into multiple structured DataFrames for analysis.
 
 ## What This Example Shows

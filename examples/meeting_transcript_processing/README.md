@@ -1,5 +1,7 @@
 # Meeting Transcript Processing with Fenic
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/README.md)
+
 This example demonstrates how to use Fenic to automatically extract actionable insights from engineering meeting transcripts using semantic extraction and structured data processing.
 
 ## Overview

@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Trunk Upgrade
         # yamllint disable-line rule:line-length
-        uses: trunk-io/trunk-action/upgrade@4d5ecc89b2691705fd08c747c78652d2fc806a94 # v1
+        uses: trunk-io/trunk-action/upgrade@75699af9e26881e564e9d832ef7dc3af25ec031b # v1
         with:
           prefix: "chore: "
           lowercase-title: true

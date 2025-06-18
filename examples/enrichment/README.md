@@ -1,5 +1,7 @@
 # Log Enrichment Pipeline
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/enrichment/README.md)
+
 A log processing system using fenic's text extraction and semantic enrichment capabilities to transform unstructured logs into actionable incident response data.
 
 ## Overview
