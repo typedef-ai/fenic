@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2](https://github.com/typedef-ai/fenic/compare/v0.0.1...v0.0.2) (2025-06-18)
+
+
+### Documentation
+
+* use "supports" instead of "requires supports" in readme ([#22](https://github.com/typedef-ai/fenic/issues/22)) ([0500f42](https://github.com/typedef-ai/fenic/commit/0500f425493779d4ee655598a8083c7eb6de23b2))
+
 ## [0.0.1](https://github.com/typedef-ai/fenic/compare/v0.0.0...v0.0.1) (2025-06-18)
 
 
