@@ -34,7 +34,12 @@ Homepage = "https://github.com/typedef-ai/fenic"
 Issues = "https://github.com/typedef-ai/fenic/issues"
 
 [dependency-groups]
-dev = ["pytest>=8.3.5", "maturin>=1.8.6", "requests>=2.32.0"]
+dev = [
+  "pytest>=8.3.5",
+  "maturin>=1.8.6",
+  "requests>=2.32.0",
+  "ipykernel>=6.29.0",
+]
 docs = [
   "mike>=2.1.3",
   "mkdocs>=1.6.1",

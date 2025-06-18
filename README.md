@@ -93,7 +93,7 @@ Goes beyond typical multimodal data types (audio, images) by creating specialize
 
 #### Production-Ready Infrastructure
 
-- Multi-provider support (OpenAI, Anthropic)
+- Multi-provider support (OpenAI, Anthropic, Gemini)
 - Local and cloud execution backends
 - Comprehensive error handling and logging
 - Pydantic integration for type safety
@@ -121,7 +121,7 @@ fenic creates a clear separation between heavy inference tasks and real-time age
 
 DataFrames aren't just for data practitioners. The fluent, composable API design makes it accessible to any engineer:
 
-- Chain operations naturally: `df.filter(...).semantic.group_by()`
+- Chain operations naturally: `df.filter(...).semantic.group_by(...)`
 - Mix imperative and declarative styles seamlessly
 - Get started quickly with familiar patterns from pandas/PySpark or SQL
 
