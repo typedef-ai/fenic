@@ -61,8 +61,8 @@
 
 ### Indexing
 
-- Full-text search indices on fenic-managed tables
-- Semantic search indices on fenic-managed tables
+- Full-text search indices on fenic managed tables
+- Semantic search indices on fenic managed tables
 
 ### AI Observability Integration
 
