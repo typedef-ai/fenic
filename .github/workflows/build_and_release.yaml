@@ -6,6 +6,8 @@ on:
     branches-ignore:
       - release-please**
     paths:
+      - .github/workflows/build_and_release.yaml
+      - .github/actions/maturin-build/**
       - rust/**
       - src/**
   push:
