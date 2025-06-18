@@ -62,9 +62,14 @@ def main():
     print("🔧 JSON Processing with Fenic")
     print("=" * 50)
 
-    # Read JSON file as plain text string
-    with open("examples/json_processing/whisper-transcript.json", "r") as f:
-        json_content = f.read()
+    try:
+        # Try reading from source root first
+        with open("examples/json_processing/whisper-transcript.json", "r") as f:
+            json_content = f.read()
+    except FileNotFoundError:
+        # Fall back to current directory
+        with open("whisper-transcript.json", "r") as f:
+            json_content = f.read()
 
     # Create dataframe with the JSON string
     df = session.create_dataframe([{"json_string": json_content}])
