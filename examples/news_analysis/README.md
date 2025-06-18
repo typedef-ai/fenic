@@ -1,5 +1,7 @@
 # News Article Bias Detection
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/news_analysis/README.md)
+
 A comprehensive demonstration of fenic's semantic classification capabilities for detecting editorial bias and analyzing news articles. This example shows how to use semantic operations to identify bias patterns across multiple news sources and generate AI-powered media profiles.
 
 ## Overview
@@ -82,10 +84,10 @@ enriched_df = df.select(
 ```python
 # Combine extracted information for context-aware classification
 combined_extracts = fc.text.concat(
-    lit("Primary Topic: "), fc.col("primary_topic"),
-    lit("Political Bias Indicators: "), fc.col("bias_indicators"),
-    lit("Emotional Language: "), fc.col("emotional_language"),
-    lit("Opinion Markers: "), fc.col("opinion_markers")
+    fc.lit("Primary Topic: "), fc.col("primary_topic"),
+    fc.lit("Political Bias Indicators: "), fc.col("bias_indicators"),
+    fc.lit("Emotional Language: "), fc.col("emotional_language"),
+    fc.lit("Opinion Markers: "), fc.col("opinion_markers")
 )
 
 # Classify bias using extracted context
