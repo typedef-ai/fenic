@@ -1,5 +1,7 @@
 # Document Metadata Extraction with Fenic
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/document_extraction/README.md)
+
 This example demonstrates how to extract structured metadata from unstructured text data, using Fenic's semantic extraction capabilities. It compares two different approaches for defining extraction schemas.
 
 ## Overview

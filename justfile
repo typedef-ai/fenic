@@ -101,7 +101,7 @@ test-local: sync
 alias test-not-cloud := test-local
 
 # run fenic cloud related tests
-fenic: sync-cloud
+test-cloud: sync-cloud
   uv run pytest -m cloud tests
 
 # preview generated docs

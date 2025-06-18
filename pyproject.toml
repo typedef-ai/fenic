@@ -1,16 +1,20 @@
 [project]
 name = "fenic"
-version = "0.0.0"
+version = "0.0.2"
 authors = [{ name = "typedef", email = "hello@typedef.ai" }]
 description = """
 fenic is a Python DataFrame library for processing text data with APIs inspired by PySpark.
 It includes text-specific utilities and special operators called semantic operators,
 which use LLMs to batch transform data.
 """
-readme = { file = "README.md", content-type = "text/markdown" }
+readme = { file = "PYPI.rst", content-type = "text/x-rst" }
 requires-python = ">=3.10,<3.13"
 classifiers = [
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Operating System :: OS Independent",
 ]
 license = "Apache-2.0"
@@ -66,7 +70,7 @@ build-backend = "maturin"
 [tool.maturin]
 python-source = "src"
 module-name = "fenic._polars_plugins"
-include = ["README.md"]
+include = ["PYPI.rst"]
 
 [tool.pytest.ini_options]
 markers = [

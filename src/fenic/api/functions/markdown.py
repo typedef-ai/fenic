@@ -28,7 +28,7 @@ def to_json(column: ColumnOrName) -> Column:
           semantic analysis, and `jq` queries.
         - The output conforms to a custom schema that organizes content into nested sections based
           on heading levels. This makes it more expressive than flat ASTs like `mdast`.
-        - The full JSON schema is available at: TODO: link from docs.
+        - The full JSON schema is available at: docs.fenic.ai/topics/markdown-json
 
     Supported Markdown Features:
         - Headings with nested hierarchy (e.g., h2 → h3 → h4)
