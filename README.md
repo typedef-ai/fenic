@@ -1,15 +1,27 @@
-# fenic: The dataframe (re)built for LLM inference
+<!-- markdownlint-disable MD041 MD033 -->
+<div align="center">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/typedef-fenic-logo-dark.png">
+        <img src="docs/images/typedef-fenic-logo.png" alt="fenic, by typedef" width="90%">
+    </picture>
+</div>
+
+# fenic: the dataframe (re)built for LLM inference
 
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/aAvsqRW3)
 
-fenic is an opinionated, PySpark-inspired DataFrame framework for building AI and agentic applications. Transform unstructured and structured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
+---
+
+## **Documentation**: [docs.fenic.ai](https://docs.fenic.ai/)
+
+fenic is an opinionated, PySpark-inspired DataFrame framework from typedef.ai for building AI and agentic applications. Transform unstructured and structured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
 
 ## Install
 
-fenic requires Python 3.9 or later.
+fenic requires supports Python `[3.10, 3.11, 3.12]`
 
 ```bash
 pip install fenic
@@ -43,7 +55,7 @@ Below is a quick list of the examples in this repo:
 | [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing, Pydantic schema integration, and complex aggregations shown through meeting analysis.                    |
 | [News Analysis](examples/news_analysis)                                 | Analyze and extract insights from news articles using semantic operators and structured data processing.                            |
 | [Podcast Summarization](examples/podcast_summarization)                 | Process and summarize podcast transcripts with speaker-aware analysis and key point extraction.                                     |
-| [Semantic Join](examples/semantic_search)                               | Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.                     |
+| [Semantic Join](examples/semantic_joins)                                | Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.                     |
 | [Named Entity Recognition](examples/named_entity_recognition)           | Extract and classify named entities from text using semantic extraction and classification.                                         |
 | [Markdown Processing](examples/markdown_processing)                     | Process and transform markdown documents with structured data extraction and formatting.                                            |
 | [JSON Processing](examples/json_processing)                             | Handle complex JSON data structures with semantic operations and schema validation.                                                 |

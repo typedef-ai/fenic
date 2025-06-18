@@ -1,6 +1,6 @@
 # Semantic Joins with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/semantic_search/README.md)
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/semantic_joins/README.md)
 
 This example demonstrates how to use Fenic's semantic joins to perform LLM-powered data matching based on natural language reasoning rather than exact equality or similarity scores.
 

@@ -41,7 +41,7 @@ nav:
           - Unstructured Data Clustering/Classification:
               - Feedback Clustering: examples/feedback_clustering.md
               - News Bias Classification: examples/news_analysis.md
-          - Semantic Joins on Unstructured Data: examples/semantic_search.md
+          - Semantic Joins on Unstructured Data: examples/semantic_joins.md
           - Extracting Structured Data from Unstructured Text:
               - Document Extraction: examples/document_extraction.md
               - Named Entity Recognition: examples/named_entity_recognition.md
