@@ -1,5 +1,7 @@
 # Hello World
 
+[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/hello_world/README.md)
+
 An error log analyzer using Fenic's semantic extraction capabilities to parse and analyze application errors without regex patterns.
 
 ## Overview
