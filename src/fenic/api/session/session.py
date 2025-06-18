@@ -68,7 +68,6 @@ class Session:
         Returns:
             A Session instance configured with the provided settings
         """
-        resolved_config = config._to_resolved_config()
         if config.cloud:
             from fenic._backends.cloud.manager import CloudSessionManager
 
@@ -79,13 +78,13 @@ class Session:
                 )
                 cloud_session_manager.configure(session_manager_dependencies)
             future = asyncio.run_coroutine_threadsafe(
-                cloud_session_manager.get_or_create_session_state(resolved_config),
+                cloud_session_manager.get_or_create_session_state(config),
                 cloud_session_manager._asyncio_loop,
             )
             cloud_session_state = future.result()
             return Session._create_cloud_session(cloud_session_state)
 
-        local_session_state: LocalSessionState = LocalSessionManager().get_or_create_session_state(resolved_config)
+        local_session_state: LocalSessionState = LocalSessionManager().get_or_create_session_state(config._to_resolved_config())
         return Session._create_local_session(local_session_state)
 
     @classmethod

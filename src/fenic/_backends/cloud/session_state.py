@@ -18,6 +18,7 @@ from fenic_cloud.protos.omnitype.v1.entrypoint_pb2 import (
 )
 from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
 
+from fenic import SessionConfig
 from fenic._backends.cloud.engine_config import CloudSessionConfig
 from fenic._backends.cloud.execution import CloudExecution
 from fenic._backends.cloud.settings import CloudSettings
@@ -42,6 +43,7 @@ class CloudSessionState(BaseSessionState):
     """Maintains the state for a cloud session, including database connections and cached dataframes and indices."""
     app_name: str
     config: ResolvedSessionConfig
+    unresolved_config: SessionConfig
     settings: CloudSettings
     asyncio_loop: Optional[asyncio.AbstractEventLoop] = None
     entrypoint_channel: Optional[grpc.Channel] = None

@@ -4,13 +4,13 @@ import copy
 import os
 import pickle  # nosec: B403
 
+from fenic import SessionConfig
 from fenic._constants import API_KEY_SUFFIX
 from fenic._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
-    ResolvedSessionConfig,
 )
 from fenic.core.error import ConfigurationError, InternalError
 
@@ -25,9 +25,11 @@ class CloudSessionConfig:
     Upon initialization, will read the API keys required for the SemanticConfig from the environment variables
     """
 
-    def __init__(self, session_config: ResolvedSessionConfig):
+    def __init__(self, session_config: SessionConfig):
         self.model_api_keys = {}
-        self.session_config = copy.deepcopy(session_config)
+        self.unresolved_session_config = copy.deepcopy(session_config)
+        self.session_config = copy.deepcopy(session_config._to_resolved_config())
+        self.unresolved_session_config.cloud = None
         self.session_config.cloud = None
         semantic_config = self.session_config.semantic
 
