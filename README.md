@@ -21,7 +21,7 @@ fenic is an opinionated, PySpark-inspired DataFrame framework from typedef.ai fo
 
 ## Install
 
-fenic requires supports Python `[3.10, 3.11, 3.12]`
+fenic supports Python `[3.10, 3.11, 3.12]`
 
 ```bash
 pip install fenic
