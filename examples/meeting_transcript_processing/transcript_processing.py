@@ -5,6 +5,8 @@ transcript processing capabilities, including format detection, parsing, and sem
 extraction of structured information from unstructured meeting content.
 """
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 import fenic as fc
@@ -113,10 +115,10 @@ Emma (00:02:35)
 # Create DataFrame with meeting transcripts
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Process meeting transcripts to extract insights using fenic's semantic operations."""
     # 1. Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="meeting_transcript_processing",
         semantic=fc.SemanticConfig(
             language_models={

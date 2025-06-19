@@ -1,3 +1,5 @@
+from typing import Optional
+
 import fenic as fc
 
 # Create schema for extracting error analysis information
@@ -31,9 +33,9 @@ ERROR_PATTERN_SCHEMA = fc.ExtractSchema([
     ])
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     # 1. Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="hello_debug",
         semantic=fc.SemanticConfig(
             language_models= {

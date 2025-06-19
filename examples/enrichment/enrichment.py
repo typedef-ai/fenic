@@ -1,11 +1,13 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     # Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="log_enrichment",
         semantic=fc.SemanticConfig(
             language_models= {

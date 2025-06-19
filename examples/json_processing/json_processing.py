@@ -21,10 +21,13 @@ This showcases how Fenic bridges JSON processing with traditional DataFrame
 analytics for real-world use cases like audio transcript analysis.
 """
 
+from pathlib import Path
+from typing import Optional
+
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Process whisper transcript JSON data into structured DataFrames.
 
     This function demonstrates a complete JSON processing pipeline that:
@@ -43,7 +46,7 @@ def main():
         None: Prints results and analysis to console
     """
     # Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="json_processing",
         semantic=fc.SemanticConfig(
             language_models={
@@ -58,18 +61,13 @@ def main():
 
     # Create session
     session = fc.Session.get_or_create(config)
-
+    transcript_path = Path(__file__).parent / "whisper-transcript.json"
     print("🔧 JSON Processing with Fenic")
     print("=" * 50)
 
-    try:
-        # Try reading from source root first
-        with open("examples/json_processing/whisper-transcript.json", "r") as f:
-            json_content = f.read()
-    except FileNotFoundError:
-        # Fall back to current directory
-        with open("whisper-transcript.json", "r") as f:
-            json_content = f.read()
+    # Try reading from source root first
+    with open(transcript_path, "r") as f:
+        json_content = f.read()
 
     # Create dataframe with the JSON string
     df = session.create_dataframe([{"json_string": json_content}])

@@ -6,14 +6,15 @@ and few-shot prompting, and recursive summarization techniques.
 """
 
 from pathlib import Path
+from typing import Optional
 
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Process podcast transcript to generate various types of summaries."""
     # 1. Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="podcast_summarization",
         semantic=fc.SemanticConfig(
             language_models={
