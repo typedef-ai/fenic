@@ -11,7 +11,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
-[![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/aAvsqRW3)
+[![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/Enfa5Kgxtc)
 
 ---
 
@@ -139,7 +139,7 @@ DataFrames aren't just for data practitioners. The fluent, composable API design
 
 ## Support
 
-Join our community on [Discord](https://discord.gg/aAvsqRW3) where you can connect with other users, ask questions, and get help with your fenic projects. Our community is always happy to welcome newcomers!
+Join our community on [Discord](https://discord.gg/Enfa5Kgxtc) where you can connect with other users, ask questions, and get help with your fenic projects. Our community is always happy to welcome newcomers!
 
 If you find fenic useful, consider giving us a ⭐ at the top of this repository. Your support helps us grow and improve the framework for everyone!
 
