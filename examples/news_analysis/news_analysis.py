@@ -14,20 +14,22 @@ Usage:
     python news_analysis.py
 """
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 import fenic as fc
 from fenic import col, lit
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Main analysis pipeline for news article bias detection."""
     # Configure session with semantic capabilities
     # Set your `OPENAI_API_KEY` environment variable.
     # Alternatively, you can run the example with an Gemini (`GEMINI_API_KEY`) model by uncommenting the provided additional model configurations.
     # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
     print("🔧 Configuring fenic session...")
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="news_analysis",
         semantic=fc.SemanticConfig(
             language_models={

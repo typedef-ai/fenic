@@ -4,17 +4,17 @@ This example demonstrates how to extract structured metadata from unstructured
 document text using both ExtractSchema and Pydantic model approaches.
 """
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Extract metadata from document excerpts using semantic operations."""
     # Configure session with semantic capabilities
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="document_extraction",
         semantic=fc.SemanticConfig(
             language_models={
