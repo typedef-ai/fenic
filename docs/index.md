@@ -11,11 +11,10 @@
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
-[![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/aAvsqRW3)
+[![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/Enfa5Kgxtc)
+[![GitHub Repo Stars](https://img.shields.io/github/stars/typedef-ai/fenic)](https://github.com/typedef-ai/fenic)
 
 ---
-
-## **Documentation**: [docs.fenic.ai](https://docs.fenic.ai/)
 
 fenic is an opinionated, PySpark-inspired DataFrame framework from typedef.ai for building AI and agentic applications. Transform unstructured and structured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
 
@@ -139,9 +138,9 @@ DataFrames aren't just for data practitioners. The fluent, composable API design
 
 ## Support
 
-Join our community on [Discord](https://discord.gg/aAvsqRW3) where you can connect with other users, ask questions, and get help with your fenic projects. Our community is always happy to welcome newcomers!
+Join our community on [Discord](https://discord.gg/Enfa5Kgxtc) where you can connect with other users, ask questions, and get help with your fenic projects. Our community is always happy to welcome newcomers!
 
-If you find fenic useful, consider giving us a ⭐ at the top of this repository. Your support helps us grow and improve the framework for everyone!
+If you find fenic useful, consider giving us a ⭐ at the top of [our repository](https://github.com/typedef-ai/fenic). Your support helps us grow and improve the framework for everyone!
 
 ## Contributing
 
