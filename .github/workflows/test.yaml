@@ -46,6 +46,7 @@ jobs:
     name: test ${{ matrix.python-version }}, ${{ matrix.test }}, ${{ matrix.dependency }}
     runs-on: ubuntu-latest
     env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
