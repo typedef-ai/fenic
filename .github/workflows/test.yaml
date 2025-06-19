@@ -9,6 +9,7 @@ on:
       - .github/workflows/test.yaml
       - rust/**
       - src/**
+      - tests/**
   schedule:
     # daily at 8am Pacific (15:00 UTC)
     - cron: 0 15 * * *
