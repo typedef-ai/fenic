@@ -1,6 +1,6 @@
 [project]
 name = "fenic"
-version = "0.0.2"
+version = "0.0.3"
 authors = [{ name = "typedef", email = "hello@typedef.ai" }]
 description = """
 fenic is a Python DataFrame library for processing text data with APIs inspired by PySpark.
