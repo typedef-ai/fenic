@@ -12,11 +12,12 @@ We'll use the "Attention Is All You Need" paper to show:
 """
 
 from pathlib import Path
+from typing import Optional
 
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Process academic paper markdown content using fenic's specialized functions.
 
     This function demonstrates the key capabilities of fenic for processing structured markdown:
@@ -32,7 +33,7 @@ def main():
     The example uses the "Attention Is All You Need" paper to show real-world document processing.
     """
     # Configure session with semantic capabilities (not used in this example but shows proper setup)
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="markdown_processing",
         semantic=fc.SemanticConfig(
             language_models= {

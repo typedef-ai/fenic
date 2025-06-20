@@ -9,6 +9,7 @@ on:
       - .github/workflows/test.yaml
       - rust/**
       - src/**
+      - tests/**
   schedule:
     # daily at 8am Pacific (15:00 UTC)
     - cron: 0 15 * * *
@@ -45,6 +46,7 @@ jobs:
     name: test ${{ matrix.python-version }}, ${{ matrix.test }}, ${{ matrix.dependency }}
     runs-on: ubuntu-latest
     env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}

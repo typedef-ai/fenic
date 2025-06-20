@@ -25,8 +25,8 @@ def get_example_scripts():
 
 # This smoke test runs each script we provide as examples to ensure they run without errors after changes.
 @pytest.mark.parametrize("script_path", get_example_scripts())
-def test_example_script(script_path):
+def test_example_script(script_path, examples_session_config):
     """Test that each example script's main function runs without errors."""
     module = import_module_from_path(script_path)
     assert hasattr(module, "main"), f"Script {script_path} does not have a main() function"
-    module.main()  # Run the main function
+    module.main(examples_session_config)  # Run the main function

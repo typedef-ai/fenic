@@ -16,9 +16,9 @@ from fenic_cloud.hasura_client.generated_graphql_client import (
 )
 from fenic_cloud.protos.omnitype.v1.entrypoint_pb2_grpc import EntrypointServiceStub
 
+from fenic import SessionConfig
 from fenic._backends.cloud.session_state import CloudSessionState
 from fenic._backends.cloud.settings import CloudSettings
-from fenic.core._resolved_session_config import ResolvedSessionConfig
 from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class CloudSessionManager:
             hasura_client=hasura_client,
         )
 
-    async def get_or_create_session_state(self, session_config: ResolvedSessionConfig) -> CloudSessionState:
+    async def get_or_create_session_state(self, session_config: SessionConfig) -> CloudSessionState:
         """Get or create a cloud session."""
         if not self.initialized:
             raise InternalError(
@@ -144,7 +144,8 @@ class CloudSessionManager:
 
             # Create the session state
             cloud_session_state = CloudSessionState(
-                config=session_config,
+                config=session_config._to_resolved_config(),
+                unresolved_config=session_config,
                 settings=self._settings,
                 asyncio_loop=self._asyncio_loop,
                 entrypoint_channel=self._entrypoint_channel,
