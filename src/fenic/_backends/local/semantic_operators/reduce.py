@@ -87,7 +87,7 @@ class Reduce:
         )
 
     def execute(self) -> pl.Series:
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=min(10, len(self.input))) as executor:
             results = list(
                 executor.map(lambda x: self._reduce_group(*x), enumerate(self.input))
             )
