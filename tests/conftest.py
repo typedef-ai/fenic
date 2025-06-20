@@ -125,6 +125,30 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture
+def examples_session_config(app_name) -> SessionConfig:
+    """Creates a test session config."""
+    embedding_model = OpenAIModelConfig(
+        model_name="text-embedding-3-small",
+        rpm=3000,
+        tpm=1_000_000
+    )
+    # limits are small so we can run the examples in parallel
+    flash_lite_model = GoogleGLAModelConfig(
+        model_name="gemini-2.0-flash-lite",
+        rpm=250,
+        tpm=125_000,
+    )
+    return SessionConfig(
+        app_name=app_name,
+        semantic=SemanticConfig(
+            language_models={
+                "flash-lite": flash_lite_model,
+            },
+            embedding_models={"oai-small": embedding_model},
+        ),
+    )
+
+@pytest.fixture
 def multi_model_local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))

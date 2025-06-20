@@ -5,13 +5,15 @@ to automatically cluster customer feedback into themes and generate summaries
 for each discovered category.
 """
 
+from typing import Optional
+
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Analyze customer feedback using semantic clustering and summarization."""
     # Configure session with both language models and embedding models
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="feedback_clustering",
         semantic=fc.SemanticConfig(
             language_models={

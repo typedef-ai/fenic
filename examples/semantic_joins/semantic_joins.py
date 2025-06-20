@@ -4,13 +4,15 @@ This example demonstrates how to perform LLM-powered semantic joins that use
 natural language reasoning to match data across different DataFrames.
 """
 
+from typing import Optional
+
 import fenic as fc
 
 
-def main():
+def main(config: Optional[fc.SessionConfig] = None):
     """Demonstrate semantic join capabilities using LLM reasoning."""
     # Configure session with language models (no embeddings needed)
-    config = fc.SessionConfig(
+    config = config or fc.SessionConfig(
         app_name="semantic_joins",
         semantic=fc.SemanticConfig(
             language_models={
