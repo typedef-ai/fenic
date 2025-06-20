@@ -32,8 +32,8 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
 )
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
+from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
-from fenic._backends.utils.catalog_utils import get_query_execution_metrics
 from fenic.core._interfaces import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
