@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.0](https://github.com/typedef-ai/fenic/compare/v0.0.3...v0.1.0) (2025-06-20)
+
+
+### Features
+
+* add simple avg() aggregate function for the embedding type ([#33](https://github.com/typedef-ai/fenic/issues/33)) ([e467841](https://github.com/typedef-ai/fenic/commit/e467841ef6f4f4e950373d502f2cc28521534dab))
+
+
+### Bug Fixes
+
+* Update tests to use the unresolved config session ([#31](https://github.com/typedef-ai/fenic/issues/31)) ([09cdc93](https://github.com/typedef-ai/fenic/commit/09cdc9364133b57c62b00fc09980e7efc815dc12))
+
+
+### Documentation
+
+* update discord link to a non-expired invite ([#27](https://github.com/typedef-ai/fenic/issues/27)) ([c4848e6](https://github.com/typedef-ai/fenic/commit/c4848e6c9d89f9539516b8ca38c74ac826c92dff))
+* update discord link to match the one from website ([#29](https://github.com/typedef-ai/fenic/issues/29)) ([fd99722](https://github.com/typedef-ai/fenic/commit/fd9972296048b3bbb52ecf5567691ac9d6f84f2b))
+
 ## [0.0.3](https://github.com/typedef-ai/fenic/compare/v0.0.2...v0.0.3) (2025-06-19)
 
 
