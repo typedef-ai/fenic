@@ -103,6 +103,7 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    EmbeddingType,
     IntegerType,
     JsonType,
     StringType,
@@ -229,15 +230,52 @@ class ExprConverter:
         return result
 
 
+    def _convert_avg_expr(self, logical: AvgExpr) -> pl.Expr:
+        """Convert AvgExpr, handling embeddings specially."""
+        converted_expr = self._convert_expr(logical.expr)
+
+        # Check if we're averaging embeddings
+        if isinstance(logical.input_type, EmbeddingType):
+            def embedding_avg(series: pl.Series, embedding_dim: int) -> pl.Series:
+                # TODO(rohitrastogi): Benchmark processing each group concurrently using a threadpool.
+                # NumPy's mean() is already multi-threaded via C bindings, so additional threading may
+                # not be faster. Test with realistic embedding sizes and group counts.
+                result = []
+
+                for emb_list in series.to_list():
+                    if not emb_list:
+                        result.append(None)
+                        continue
+
+                    filtered = [emb for emb in emb_list if emb is not None]
+                    if not filtered:
+                        result.append(None)
+                    else:
+                        mean_emb = np.mean(filtered, axis=0).astype(np.float32)
+                        result.append(mean_emb)
+
+                arrow_type = pa.list_(pa.float32(), embedding_dim)
+                return pl.from_arrow(pa.array(result, type=arrow_type))
+
+            return converted_expr.map_batches(
+                lambda batch: embedding_avg(batch, logical.input_type.dimensions),
+                return_dtype=pl.Array(pl.Float32, logical.input_type.dimensions),
+                agg_list=True,
+                returns_scalar=True
+            )
+        else:
+            return converted_expr.mean()
+
     @_convert_expr.register(AggregateExpr)
     def _convert_aggregate_expr(self, logical: AggregateExpr) -> pl.Expr:
+        # Special handling for AvgExpr
+        if isinstance(logical, AvgExpr):
+            return self._convert_avg_expr(logical)
+
         agg_handlers = {
             SumExpr: lambda expr: self._convert_expr(
                 expr.expr
             ).sum(),
-            AvgExpr: lambda expr: self._convert_expr(
-                expr.expr
-            ).mean(),
             MinExpr: lambda expr: self._convert_expr(
                 expr.expr,
             ).min(),

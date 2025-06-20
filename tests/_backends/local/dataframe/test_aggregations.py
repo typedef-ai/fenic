@@ -433,3 +433,85 @@ def test_groupby_nested_aggregation(local_session):
         ValueError, match="Nested aggregation functions are not allowed"
     ):
         df.group_by("age").agg(sum(sum("salary"))).to_polars()
+
+
+def test_avg_embedding_aggregation(local_session):
+    """Test that avg() works correctly on EmbeddingType columns."""
+    data = {
+        "group": ["A", "A", "B", "B"],
+        "vectors": [
+            [1.0, 2.0, 3.0],    # Group A
+            [3.0, 4.0, 5.0],    # Group A - avg should be [2.0, 3.0, 4.0]
+            [2.0, 0.0, 1.0],    # Group B
+            [4.0, 2.0, 3.0],    # Group B - avg should be [3.0, 1.0, 2.0]
+        ]
+    }
+    df = local_session.create_dataframe(data)
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+
+    # Cast vectors to embedding type and compute group-wise averages
+    fenic_df = (
+        df.select(
+            col("group"),
+            col("vectors").cast(embedding_type).alias("embeddings")
+        )
+        .group_by("group")
+        .agg(avg("embeddings").alias("avg_embedding"))
+        .sort("group")
+    )
+    assert fenic_df.schema.column_fields == [
+        ColumnField("group", StringType),
+        ColumnField("avg_embedding", EmbeddingType(dimensions=3, embedding_model="test")),
+    ]
+
+    result = fenic_df.to_polars()
+    assert result.schema == {
+        "group": pl.Utf8,
+        "avg_embedding": pl.Array(pl.Float32, 3)
+    }
+
+    # Float-friendly comparisons
+    group_a_result = result.filter(pl.col("group") == "A")["avg_embedding"][0].to_list()
+    group_b_result = result.filter(pl.col("group") == "B")["avg_embedding"][0].to_list()
+
+    assert group_a_result == pytest.approx([2.0, 3.0, 4.0], rel=1e-6)
+    assert group_b_result == pytest.approx([3.0, 1.0, 2.0], rel=1e-6)
+
+
+def test_avg_embedding_with_nulls(local_session):
+    """Test that avg() on EmbeddingType handles null values correctly."""
+    data = {
+        "group": ["A", "A", "A", "B", "B"],
+        "vectors": [
+            [1.0, 2.0],     # Group A
+            None,           # Group A - should be ignored
+            [3.0, 4.0],     # Group A - avg should be [2.0, 3.0]
+            [2.0, 0.0],     # Group B
+            [4.0, 2.0],     # Group B - avg should be [3.0, 1.0]
+        ]
+    }
+    df = local_session.create_dataframe(data)
+    embedding_type = EmbeddingType(dimensions=2, embedding_model="test")
+
+    fenic_df = (
+        df.select(
+            col("group"),
+            col("vectors").cast(embedding_type).alias("embeddings")
+        )
+        .group_by("group")
+        .agg(avg("embeddings").alias("avg_embedding"))
+        .sort("group")
+    )
+    assert fenic_df.schema.column_fields == [
+        ColumnField("group", StringType),
+        ColumnField("avg_embedding", EmbeddingType(dimensions=2, embedding_model="test")),
+    ]
+    result = fenic_df.to_polars()
+    assert result.schema == {
+        "group": pl.Utf8,
+        "avg_embedding": pl.Array(pl.Float32, 2)
+    }
+    group_a_result = result.filter(pl.col("group") == "A")["avg_embedding"][0].to_list()
+    group_b_result = result.filter(pl.col("group") == "B")["avg_embedding"][0].to_list()
+    assert group_a_result == pytest.approx([2.0, 3.0], rel=1e-6)
+    assert group_b_result == pytest.approx([3.0, 1.0], rel=1e-6)
