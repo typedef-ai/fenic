@@ -66,7 +66,7 @@ class GeminiOAIChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicC
         )
         model_parameters = model_catalog.get_completion_model_parameters(model_provider, model)
         additional_parameters = {}
-        if reasoning_effort and model_parameters.requires_reasoning_effort:
+        if reasoning_effort and model_parameters.supports_reasoning:
             additional_parameters["reasoning_effort"] = reasoning_effort
 
         self._core = OpenAIChatCompletionsCore(
