@@ -1,11 +1,7 @@
-import logging
 from dataclasses import dataclass
 from typing import List, Optional
 
 from fenic.core.error import ValidationError
-
-logger = logging.getLogger(__name__)
-
 
 class QualifiedNameParser:
     """Parse strings like:
