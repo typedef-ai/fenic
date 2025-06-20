@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from fenic.core.error import ValidationError
 
+
 class QualifiedNameParser:
     """Parse strings like:
       - database names:        catalog.database  OR  database
