@@ -127,6 +127,12 @@ def main(): # noqa: D103
     df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
     df.show()
 
+    logger.info("Testing collect")
+    df = session.create_dataframe(data)
+    df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
+    result = df.collect()
+    logger.info("Collect result: %s", result)
+
     logger.info("Testing simple to_polars")
     df = session.create_dataframe(data)
     result = df.to_polars()

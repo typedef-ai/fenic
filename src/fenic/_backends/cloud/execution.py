@@ -90,12 +90,7 @@ class CloudExecution(BaseExecution):
             self.session_state.asyncio_loop,
         )
         execution_id = future.result()
-
-        result_future = asyncio.run_coroutine_threadsafe(
-            self._get_execution_result_from_arrow(execution_id),
-            self.session_state.asyncio_loop,
-        )
-        df = result_future.result()
+        df = self._get_execution_result_from_arrow(execution_id)
 
         return df, self._get_query_execution_metrics(execution_id)
 
@@ -364,7 +359,7 @@ class CloudExecution(BaseExecution):
             ) from e
         return result_response
 
-    async def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
+    def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
         """Get the result of an execution as a Polars DataFrame."""
         try:
             arrow_client = pa.flight.connect(
