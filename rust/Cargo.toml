@@ -1,6 +1,6 @@
 [package]
 name = "polars_plugins"
-version = "0.0.3"
+version = "0.1.0"
 edition = "2021"
 
 [lib]
