@@ -61,6 +61,7 @@ class CloudSessionState(BaseSessionState):
     def __init__(
         self,
         config: ResolvedSessionConfig,
+        unresolved_config: SessionConfig,
         settings: CloudSettings,
         asyncio_loop: asyncio.AbstractEventLoop,
         entrypoint_channel: grpc.Channel,
@@ -73,6 +74,7 @@ class CloudSessionState(BaseSessionState):
         self.asyncio_loop = asyncio_loop
         self.entrypoint_channel = entrypoint_channel
         self.entrypoint_stub = entrypoint_stub
+        self.unresolved_config = unresolved_config
 
     async def configure_cloud_session(self):
         """Configure the cloud session."""
@@ -257,7 +259,7 @@ class CloudSessionState(BaseSessionState):
     async def _send_config_session_request_to_engine(self):
         """Configure the session with the engine service."""
         # copy the config and remove the cloud config
-        config = CloudSessionConfig(self.config)
+        config = CloudSessionConfig(self.unresolved_config)
         request = ConfigSessionRequest(session_config=config.serialize())
 
         logger.info(f"Sending config session request: {request}")

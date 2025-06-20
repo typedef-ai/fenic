@@ -393,7 +393,7 @@ def test_session_configuration_errors(monkeypatch_session, cloud_session, cloud_
         ConfigurationError,
         match="OPENAI_API_KEY is not set. Please set it in your environment",
     ):
-        CloudSessionConfig(cloud_session_config._to_resolved_config())
+        CloudSessionConfig(cloud_session_config)
 
     monkeypatch_session.setenv("OPENAI_API_KEY", "test_api_key")
 
