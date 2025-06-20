@@ -33,6 +33,7 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
+from fenic._backends.utils.catalog_utils import get_query_execution_metrics
 from fenic.core._interfaces import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
@@ -96,13 +97,7 @@ class CloudExecution(BaseExecution):
         )
         df = result_future.result()
 
-        return df, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return df, self._get_query_execution_metrics(execution_id)
 
     def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows."""
@@ -130,14 +125,7 @@ class CloudExecution(BaseExecution):
                 f"Result of show execution '{execution_id}' did not include show string."
             )
 
-        # TODO: Get the metrics from hasura
-        return result_response.show_result, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return result_response.show_result, self._get_query_execution_metrics(execution_id)
 
     def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows."""
@@ -164,14 +152,7 @@ class CloudExecution(BaseExecution):
                 f"Result of count execution '{execution_id}' did not include count field."
             )
 
-        # TODO: Get the metrics from hasura
-        return result_response.count_result, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return result_response.count_result, self._get_query_execution_metrics(execution_id)
 
     def build_lineage(self, plan: LogicalPlan) -> BaseLineage:
         """Build a lineage graph from a logical plan."""
@@ -402,3 +383,11 @@ class CloudExecution(BaseExecution):
             raise CloudSessionError(
                 "Failed while connecting to arrow IPC"
             ) from e
+
+    def _get_query_execution_metrics(self, execution_id: str) -> QueryMetrics:
+        """Get query execution metrics from the cloud catalog."""
+        future = asyncio.run_coroutine_threadsafe(
+            get_query_execution_metrics(self.session_state.hasura_user_client, execution_id),
+            self.session_state.asyncio_loop,
+        )
+        return future.result()
