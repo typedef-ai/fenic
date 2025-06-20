@@ -69,9 +69,10 @@ def main(): # noqa: D103
                 size=CloudExecutorSize.SMALL,
             ),
             semantic=SemanticConfig(
-                language_model=OpenAIModelConfig(
+                language_models={ "model1": OpenAIModelConfig(
                     model_name="gpt-4o-mini", rpm=1000, tpm=1000000
-                ),
+                )},
+                default_language_model="model1",
             ),
         )
     )
