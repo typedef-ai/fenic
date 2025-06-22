@@ -153,7 +153,8 @@ def test_aggregate_plans(local_session):
     # Test SemanticAggregate
     semantic_aggregate = (
         df.with_column("group_embeddings", semantic.embed(col("group")))
-        .semantic.group_by(col("group_embeddings"), 2)
+        .semantic.cluster(col("group_embeddings"), 2)
+        .group_by(col("_cluster_id"))
         .agg({"value": "sum"})
     )
     deserialized_df = _test_plan_serialization(semantic_aggregate._logical_plan, local_session._session_state)

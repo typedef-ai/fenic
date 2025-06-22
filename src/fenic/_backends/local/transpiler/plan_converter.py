@@ -16,7 +16,7 @@ from fenic._backends.local.physical_plan import (
     LimitExec,
     PhysicalPlan,
     ProjectionExec,
-    SemanticAggregateExec,
+    SemanticClusterExec,
     SemanticJoinExec,
     SemanticSimilarityJoinExec,
     SortExec,
@@ -46,7 +46,7 @@ from fenic.core._logical_plan.plans import (
     Limit,
     LogicalPlan,
     Projection,
-    SemanticAggregate,
+    SemanticCluster,
     SemanticJoin,
     SemanticSimilarityJoin,
     Sort,
@@ -253,23 +253,19 @@ class PlanConverter:
                 return_similarity_scores=logical.return_similarity_scores(),
             )
 
-        elif isinstance(logical, SemanticAggregate):
+        elif isinstance(logical, SemanticCluster):
             child_physical = self.convert(
                 logical.children()[0]
             )
             physical_group_expr = self.expr_converter.convert(
-                logical.group_expr()
+                logical.by_expr()
             )
-            physical_agg_exprs = [
-                self.expr_converter.convert(log_expr)
-                for log_expr in logical.agg_exprs()
-            ]
-            return SemanticAggregateExec(
+            return SemanticClusterExec(
                 child_physical,
                 physical_group_expr,
-                str(logical.group_expr()),
-                physical_agg_exprs,
+                str(logical.by_expr()),
                 logical.num_clusters(),
+                logical.centroid_dimensions(),
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
             )

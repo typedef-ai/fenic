@@ -155,3 +155,10 @@ class ListExpr(AggregateExpr):
             return ColumnField(
                 str(self), ArrayType(self.expr.to_column_field(plan).data_type)
             )
+
+class FirstExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("first", expr)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)

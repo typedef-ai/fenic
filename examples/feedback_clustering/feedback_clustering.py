@@ -151,14 +151,16 @@ def main(config: Optional[fc.SessionConfig] = None):
     print()
 
     # Step 2: Cluster feedback into semantic themes
-    print("Step 2: Clustering feedback into themes using semantic.group_by()...")
+    print("Step 2: Clustering feedback into themes using semantic.cluster()...")
     print("-" * 60)
 
     # Use semantic group_by to cluster feedback into 4 thematic groups
     # and apply semantic.reduce directly in the aggregation
-    feedback_clusters = feedback_with_embeddings.semantic.group_by(
+    feedback_clusters = feedback_with_embeddings.semantic.cluster(
         fc.col("feedback_embeddings"),
         4  # Number of clusters - expecting themes like bugs, performance, features, praise
+    ).group_by(
+        "_cluster_id"
     ).agg(
         fc.count("*").alias("feedback_count"),
         fc.avg("rating").alias("avg_rating"),

@@ -14,6 +14,7 @@ from fenic.core._logical_plan.expressions import (
     AvgExpr,
     CoalesceExpr,
     CountExpr,
+    FirstExpr,
     ListExpr,
     MaxExpr,
     MinExpr,
@@ -156,6 +157,19 @@ def collect_list(column: ColumnOrName) -> Column:
         ListExpr(Column._from_col_or_name(column)._logical_expr)
     )
 
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def first(column: ColumnOrName) -> Column:
+    """Aggregate function: returns the first value in the specified column.
+
+    Args:
+        column: Column or column name to return the first value of
+
+    Returns:
+        A Column expression representing the first value aggregation
+    """
+    return Column._from_logical_expr(
+        FirstExpr(Column._from_col_or_name(column)._logical_expr)
+    )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def array_agg(column: ColumnOrName) -> Column:

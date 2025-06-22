@@ -1,7 +1,9 @@
 import logging
+from typing import Optional, Tuple
 
 import numpy as np
 import polars as pl
+import pyarrow as pa
 from lance.util import KMeans
 
 from fenic._backends.local.semantic_operators.utils import (
@@ -17,7 +19,7 @@ class Cluster:
         input: pl.DataFrame,
         embedding_column_name: str,
         num_centroids: int,
-        app_name: str,
+        centroid_dimensions: Optional[int],
         num_iter: int = 20,
     ):
         self.input = input
@@ -30,32 +32,40 @@ class Cluster:
             )
         self.num_centroids = min(num_centroids, input_height)
         self.num_iter = num_iter
-        self.app_name = app_name
+        self.centroid_dimensions = centroid_dimensions
 
     def execute(self) -> pl.DataFrame:
         """Perform semantic clustering on the DataFrame.
 
         Returns:
-            pl.DataFrame: The DataFrame with the cluster assignments - a new column called "_cluster_id"
+            pl.DataFrame: The DataFrame with cluster assignments and centroids - adds "_cluster_id" and "_cluster_centroid" columns
         """
-        return self.input.with_columns(
-            pl.Series(self._cluster_by_column()).alias("_cluster_id")
+        cluster_ids, centroids = self._cluster_by_column()
+        res =  self.input.with_columns(
+            pl.Series(cluster_ids).alias("_cluster_id")
         )
+        if self.centroid_dimensions is not None:
+            res = res.with_columns(
+                pl.from_arrow(pa.array(centroids, type=pa.list_(pa.float32(), self.centroid_dimensions))).alias("_cluster_centroid")
+            )
+        return res
 
     def _cluster_by_column(
         self,
-    ) -> list[int | None]:
-        """Returns cluster IDs for each row using kmeans clustering on the embedding column.
+    ) -> Tuple[list[int | None], list[np.ndarray | None] | None]:
+        """Returns cluster IDs and centroids for each row using kmeans clustering.
 
         Returns:
-            list[int | None]: A list of cluster IDs, with None for rows with invalid embeddings
+            tuple: A tuple of (cluster_ids, centroids) where:
+                - cluster_ids: list[int | None] - cluster ID for each row, None for invalid embeddings
+                - centroids: list[list[float] | None] - centroid embedding for each row, None for invalid embeddings
         """
         df = self.input
         valid_mask = df.select(filter_invalid_embeddings_expr(self.embedding_column_name)).to_series()
         valid_df = df.filter(valid_mask)
 
         if valid_df.is_empty():
-            return [None] * df.height
+            return [None] * df.height, [None] * df.height
 
         # Perform clustering on valid embeddings
         embeddings = np.stack(valid_df[self.embedding_column_name])
@@ -63,11 +73,17 @@ class Cluster:
         kmeans.fit(embeddings)
         predicted = kmeans.predict(embeddings).tolist()
 
-        # Build full result with None for invalid rows
+        # Get centroids - they should be in order corresponding to cluster IDs
+        cluster_centroids = np.stack(kmeans.centroids.to_numpy(zero_copy_only=False))
+
+        # Build full results with None for invalid rows
         cluster_ids = [None] * df.height
+        centroids = [None] * df.height if self.centroid_dimensions is not None else None
         valid_indices = valid_mask.to_numpy().nonzero()[0]
 
         for idx, cluster_id in zip(valid_indices, predicted, strict=True):
             cluster_ids[idx] = cluster_id
+            if self.centroid_dimensions is not None:
+                centroids[idx] = cluster_centroids[cluster_id]
 
-        return cluster_ids
+        return cluster_ids, centroids

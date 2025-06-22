@@ -4,14 +4,10 @@ import polars as pl
 import pytest
 
 from fenic import (
-    ColumnField,
-    EmbeddingType,
-    IntegerType,
-    StringType,
     avg,
     col,
-    collect_list,
     count,
+    first,
     lit,
     max,
     mean,
@@ -19,7 +15,6 @@ from fenic import (
     semantic,
     sum,
 )
-from fenic.core.error import TypeMismatchError
 
 
 def test_sum_aggregation(sample_df):
@@ -242,39 +237,6 @@ def test_empty_groupby(local_session):
     assert direct_result.equals(grouped_result)
 
 
-def test_semantic_grouping(local_session):
-    source = local_session.create_dataframe(
-        {
-            "blurb": [
-                "Rust is a memory-safe systems programming language with zero-cost abstractions.",
-                "Tokio is an asynchronous runtime for Rust that powers many high-performance applications.",
-                "Hiking in the Alps offers breathtaking views and serene landscapes",
-                None,
-            ],
-        }
-    )
-    df = (
-        source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.group_by(col("embeddings"), 2)
-        .agg(collect_list(col("blurb")).alias("blurbs"))
-    )
-    result = df.to_polars()
-    assert result.schema == {
-        "_cluster_id": pl.Int64,
-        "blurbs": pl.List(pl.String),
-    }
-    assert set(result["_cluster_id"].to_list()) == {0, 1, None}
-
-    with pytest.raises(
-        TypeMismatchError,
-        match="semantic.group_by grouping expression must be an embedding column type",
-    ):
-        df = source.semantic.group_by(col("blurb"), 2).agg(
-            collect_list(col("blurb")).alias("blurbs")
-        )
-        result = df.to_polars()
-
-
 def test_semantic_reduce_with_groupby(local_session):
     """Test semantic.reduce() method."""
     data = {
@@ -318,80 +280,6 @@ def test_semantic_reduce_with_groupby(local_session):
     }
 
 
-def test_semantic_cluster_and_reduce(local_session):
-    """Test combining semantic clustering with semantic reduction."""
-    data = {
-        "feedback": [
-            "The mobile app crashes frequently when uploading photos. Very frustrating experience.",
-            "App keeps freezing during image uploads. Need urgent fix for the crash issues.",
-            "Love the new dark mode theme! The UI is much easier on the eyes now.",
-            "Great update with the dark mode. The contrast is perfect for night time use.",
-            "Customer service was unhelpful and took days to respond to my ticket.",
-            "Support team is slow to respond. Had to wait 3 days for a simple question.",
-        ],
-        "submission_date": ["2024-03-01"] * 6,
-        "user_id": [1, 2, 3, 4, 5, 6],
-    }
-    df = local_session.create_dataframe(data)
-
-    # First cluster the feedback, then summarize each cluster
-    result = (
-        df.with_column("embeddings", semantic.embed(col("feedback")))
-        .semantic.group_by(col("embeddings"), 2)
-        .agg(
-            count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
-                "theme_summary"
-            ),
-        )
-        .to_polars()
-    )
-
-    assert result.schema == {
-        "_cluster_id": pl.Int64,
-        "feedback_count": pl.UInt32,
-        "theme_summary": pl.Utf8,
-    }
-
-
-def test_groupby_saved_embeddings_table(local_session):
-    """Test groupBy() with a saved embeddings table."""
-    data = {
-        "feedback": [
-            "The mobile app crashes frequently when uploading photos. Very frustrating experience.",
-            "App keeps freezing during image uploads. Need urgent fix for the crash issues.",
-            "Love the new dark mode theme! The UI is much easier on the eyes now.",
-            "Great update with the dark mode. The contrast is perfect for night time use.",
-            "Customer service was unhelpful and took days to respond to my ticket.",
-            "Support team is slow to respond. Had to wait 3 days for a simple question.",
-        ],
-        "submission_date": ["2024-03-01"] * 6,
-        "user_id": [1, 2, 3, 4, 5, 6],
-    }
-    df = local_session.create_dataframe(data)
-    df.with_column("embeddings", semantic.embed(col("feedback"))).write.save_as_table(
-        "feedback_embeddings", mode="overwrite"
-    )
-    df_embeddings = local_session.table("feedback_embeddings")
-    assert df_embeddings.schema.column_fields == [
-        ColumnField("feedback", StringType),
-        ColumnField("submission_date", StringType),
-        ColumnField("user_id", IntegerType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
-    ]
-    result = (
-        df_embeddings.semantic.group_by(col("embeddings"), 2)
-        .agg(
-            count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
-                "grouped_feedback"
-            ),
-        )
-        .to_polars()
-    )
-    assert len(result) == 2
-
-
 def test_groupby_derived_columns(local_session):
     """Test groupBy() with a derived column."""
     data = {
@@ -433,3 +321,20 @@ def test_groupby_nested_aggregation(local_session):
         ValueError, match="Nested aggregation functions are not allowed"
     ):
         df.group_by("age").agg(sum(sum("salary"))).to_polars()
+
+def test_first_aggregation(local_session):
+    data = {
+        "age": [25, 25, 30],
+        "salary": [5, 5, 15],
+    }
+    df = local_session.create_dataframe(data)
+    result = df.group_by("age").agg(first("salary")).to_polars()
+    expected = pl.DataFrame({
+        "age": [25, 30],
+        "first(salary)": [5, 15],
+    })
+    assert result.schema == {
+        "age": pl.Int64,
+        "first(salary)": pl.Int64,
+    }
+    assert result.equals(expected)

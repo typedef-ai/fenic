@@ -9,6 +9,7 @@ import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
+from fenic._backends.local.semantic_operators.cluster import Cluster
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.error import InternalError
 
@@ -328,3 +329,46 @@ class SQLExec(PhysicalPlan):
         # Lineage can work with SQLExec, but the traversal API needs to support more than two children.
         # Currently, when traversing the plan backwards, the API only allows traversing left or right children.
         raise NotImplementedError("Lineage not supported for SQLExec")
+
+class SemanticClusterExec(PhysicalPlan):
+    def __init__(
+        self,
+        child: PhysicalPlan,
+        group_expr: pl.Expr,
+        group_expr_name: str,
+        num_clusters: int,
+        return_centroids: bool,
+        cache_info: Optional[CacheInfo],
+        session_state: LocalSessionState,
+    ):
+        super().__init__([child], cache_info=cache_info, session_state=session_state)
+        self.group_expr = group_expr
+        self.group_expr_name = group_expr_name
+        self.num_clusters = num_clusters
+        self.return_centroids = return_centroids
+
+    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        if len(child_dfs) != 1:
+            raise ValueError("Unreachable: SemanticClusterExec expects 1 child")
+        child_df = child_dfs[0]
+        child_df = child_df.with_columns(self.group_expr.alias(self.group_expr_name))
+
+        # Perform clustering and add cluster metadata columns
+        clustered_df = Cluster(
+            child_df,
+            self.group_expr_name,
+            self.num_clusters,
+            self.return_centroids,
+        ).execute()
+
+        # Remove the temporary column we added for clustering if it wasn't in the original
+        if self.group_expr_name not in child_dfs[0].columns:
+            clustered_df = clustered_df.drop(self.group_expr_name)
+
+        return clustered_df
+
+    def _build_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        return self._build_row_subset_lineage(leaf_nodes)

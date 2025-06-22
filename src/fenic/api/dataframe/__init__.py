@@ -4,7 +4,6 @@ from fenic.api.dataframe.dataframe import DataFrame
 from fenic.api.dataframe.grouped_data import GroupedData
 from fenic.api.dataframe.semantic_extensions import (
     SemanticExtensions,
-    SemGroupedData,
 )
 
-__all__ = ["DataFrame", "GroupedData", "SemGroupedData", "SemanticExtensions"]
+__all__ = ["DataFrame", "GroupedData", "SemanticExtensions"]
