@@ -385,7 +385,7 @@ def test_stddev_aggregation(local_session):
     # Check group keys match
     assert result["age"].to_list() == expected["age"].to_list()
 
-    for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=False):
+    for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=True):
         assert res_val == pytest.approx(exp_val, rel=1e-9)
 
 def test_avg_embedding_aggregation(local_session):
