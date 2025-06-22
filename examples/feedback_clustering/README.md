@@ -2,7 +2,7 @@
 
 [View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/feedback_clustering/README.md)
 
-This example demonstrates how to use Fenic's `semantic.group_by()` and `semantic.reduce()` to automatically cluster customer feedback into themes and generate intelligent summaries for each discovered category.
+This example demonstrates how to use Fenic's `semantic.cluster()` and `semantic.reduce()` to automatically cluster customer feedback into themes and generate intelligent summaries for each discovered category.
 
 ## Overview
 
@@ -15,7 +15,7 @@ Customer feedback analysis is a critical business process that traditionally req
 
 ## Key Features Demonstrated
 
-- **Semantic Clustering**: Using `semantic.group_by()` for embedding-based clustering
+- **Semantic Clustering**: Using `semantic.cluster()` for embedding-based clustering
 - **AI Summarization**: Using `semantic.reduce()` for intelligent theme analysis
 - **Automatic Theme Discovery**: No manual categorization required
 - **Sentiment Analysis**: Understanding positive vs negative feedback patterns
@@ -56,9 +56,11 @@ feedback_with_embeddings = feedback_df.select(
 Use both operations together in a single aggregation:
 
 ```python
-feedback_clusters = feedback_with_embeddings.semantic.group_by(
+feedback_clusters = feedback_with_embeddings.semantic.cluster(
     fc.col("feedback_embeddings"),
-    4  # Number of clusters to discover
+    4  # Number of clusters - expecting themes like bugs, performance, features, praise
+).group_by(
+    "_cluster_id"
 ).agg(
     fc.count("*").alias("feedback_count"),
     fc.avg("rating").alias("avg_rating"),
@@ -146,10 +148,9 @@ config = fc.SessionConfig(
 
 ### Key Operations
 
-**`semantic.group_by(embedding_column, num_clusters)`**
+**`semantic.cluster(embedding_column, num_clusters)`**
 
 - Uses K-means clustering on embedding vectors
-- Groups semantically similar feedback together
 - Assigns `_cluster_id` to each group
 
 **`semantic.reduce(instruction)`**

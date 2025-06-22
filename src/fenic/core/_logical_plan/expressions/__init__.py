@@ -9,6 +9,7 @@ from fenic.core._logical_plan.expressions.aggregate import FirstExpr as FirstExp
 from fenic.core._logical_plan.expressions.aggregate import ListExpr as ListExpr
 from fenic.core._logical_plan.expressions.aggregate import MaxExpr as MaxExpr
 from fenic.core._logical_plan.expressions.aggregate import MinExpr as MinExpr
+from fenic.core._logical_plan.expressions.aggregate import StdDevExpr as StdDevExpr
 from fenic.core._logical_plan.expressions.aggregate import SumExpr as SumExpr
 from fenic.core._logical_plan.expressions.arithmetic import (
     ArithmeticExpr as ArithmeticExpr,

@@ -1,6 +1,6 @@
 """Customer feedback clustering and analysis example using fenic.
 
-This example demonstrates how to use semantic.group_by() and semantic.reduce()
+This example demonstrates how to use semantic.cluster() and semantic.reduce()
 to automatically cluster customer feedback into themes and generate summaries
 for each discovered category.
 """
@@ -38,7 +38,7 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     print("Customer Feedback Clustering & Analysis")
     print("=" * 50)
-    print("Demonstrating semantic.group_by() and semantic.reduce()")
+    print("Demonstrating semantic.cluster() and semantic.reduce()")
     print()
 
     # Sample customer feedback data with various themes
