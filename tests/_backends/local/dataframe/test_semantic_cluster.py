@@ -6,9 +6,7 @@ from fenic import (
     ColumnField,
     EmbeddingType,
     IntegerType,
-    first,
     StringType,
-    avg,
     col,
     collect_list,
     count,
@@ -31,7 +29,6 @@ def test_semantic_cluster_with_centroids(local_session):
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
         .semantic.cluster(col("embeddings"), 2, return_centroids=True)
-        .cache()
     )
 
     assert df.schema.column_fields == [
@@ -47,13 +44,6 @@ def test_semantic_cluster_with_centroids(local_session):
         "_cluster_id": pl.Int64,
         "_cluster_centroid": pl.Array(pl.Float32, 1536),
     }
-
-    df = df.group_by(col("_cluster_id")).agg(
-        first("_cluster_centroid").alias("centroid"),
-        avg(col("embeddings")).alias("avg_embedding"),
-    )
-    print(df.to_polars())
-    assert False
 
 def test_semantic_clustering_groups_by_cluster_id_with_aggregation(local_session):
     source = local_session.create_dataframe(
