@@ -15,7 +15,7 @@ from fenic import (
     semantic,
     sum,
 )
-from fenic.core.types import EmbeddingType, ColumnField, StringType
+from fenic.core.types import ColumnField, EmbeddingType, StringType
 
 
 def test_sum_aggregation(sample_df):
