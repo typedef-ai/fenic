@@ -14,6 +14,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
+    SemanticSummarizeExpr
 )
 from fenic.core._utils.extract import (
     convert_extract_schema_to_pydantic_type,
@@ -24,6 +25,8 @@ from fenic.core.types import (
     ExtractSchema,
     MapExampleCollection,
     PredicateExampleCollection,
+    KeyPoints,
+    Paragraph,
 )
 
 
@@ -392,4 +395,28 @@ def embed(
     """
     return Column._from_logical_expr(
         EmbeddingsExpr(Column._from_col_or_name(column)._logical_expr, model_alias=model_alias)
+    )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def summarize(
+    column: ColumnOrName,
+    format: Union[KeyPoints, Paragraph] = Paragraph(),
+    temperature: float=0,
+    model_alias: Optional[str] = None
+) -> Column:
+    """Summarizes strings from a column.
+    Args:
+        column: Column or column name containing text for summarization
+        format: Format for summarization- either Paragraph or Bullet points
+        temperature: Temperature for the summarization model
+        model_alias: Optional alias for the summarization model
+    Returns:
+        Column: Expression containing the summarized string
+    Raises:
+        ValueError: If column is invalid or cannot be resolved.
+    Example:
+        >>> semantic.summarize(col('user_comment'))
+    """
+    return Column._from_logical_expr(
+        SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, model_alias=model_alias)
     )

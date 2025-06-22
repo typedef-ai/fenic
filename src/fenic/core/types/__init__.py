@@ -39,6 +39,11 @@ from fenic.core.types.semantic_examples import (
     PredicateExampleCollection,
 )
 
+from fenic.core.types.summarize_structures import (
+    KeyPoints,
+    Paragraph,
+)
+
 __all__ = [
     "ArrayType",
     "BooleanType",
@@ -73,5 +78,8 @@ __all__ = [
     "StringType",
     "StructField",
     "StructType",
+    "KeyPoints",
+    "Paragraph",
     "TranscriptType",
 ]
+

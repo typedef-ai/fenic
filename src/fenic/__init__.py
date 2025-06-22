@@ -84,6 +84,8 @@ from fenic.core import (
     StructField,
     StructType,
     TranscriptType,
+    KeyPoints,
+    Paragraph,
 )
 from fenic.logging import configure_logging
 

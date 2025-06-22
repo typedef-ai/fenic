@@ -40,6 +40,8 @@ from fenic.core.types import (
     StructField,
     StructType,
     TranscriptType,
+    KeyPoints,
+    Paragraph,
 )
 
 __all__ = [
@@ -74,6 +76,8 @@ __all__ = [
     "PredicateExample",
     "PredicateExampleCollection",
     "SemanticSimilarityMetric",
+    "KeyPoints",
+    "Paragraph",
     # Metrics
     "QueryMetrics",
     "LMMetrics",
