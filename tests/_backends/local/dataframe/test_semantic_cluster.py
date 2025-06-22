@@ -45,6 +45,29 @@ def test_semantic_cluster_with_centroids(local_session):
         "_cluster_centroid": pl.Array(pl.Float32, 1536),
     }
 
+def test_semantic_cluster_derived_column(local_session):
+    source = local_session.create_dataframe(
+        {
+            "blurb": [
+                "Rust is a memory-safe systems programming language with zero-cost abstractions.",
+                "Tokio is an asynchronous runtime for Rust that powers many high-performance applications.",
+                "Hiking in the Alps offers breathtaking views and serene landscapes",
+                None,
+            ],
+        }
+    )
+    df = source.semantic.cluster(semantic.embed(col("blurb")), 2)
+
+    assert df.schema.column_fields == [
+        ColumnField("blurb", StringType),
+        ColumnField("_cluster_id", IntegerType),
+    ]
+    polars_df = df.to_polars()
+    assert polars_df.schema == {
+        "blurb": pl.Utf8,
+        "_cluster_id": pl.Int64,
+    }
+
 def test_semantic_clustering_groups_by_cluster_id_with_aggregation(local_session):
     source = local_session.create_dataframe(
         {
