@@ -13,6 +13,12 @@ from fenic.api.session.config import OpenAIModelConfig
 pytest.importorskip("grpc")
 pytest.importorskip("fenic_cloud.hasura_client")
 
+from fenic_cloud.hasura_client.generated_graphql_client.list_query_execution_metric_by_query_execution_id import (
+    ListQueryExecutionMetricByQueryExecutionId,
+)
+from fenic_cloud.hasura_client.generated_graphql_client.list_query_execution_metric_by_query_execution_id import (
+    ListQueryExecutionMetricByQueryExecutionIdTypedefQueryExecutionByPk as QueryExecutionMetricByPk,
+)
 from fenic_cloud.protos.engine.v1.engine_pb2 import (
     ConfigSessionRequest,
     ConfigSessionResponse,
@@ -105,6 +111,13 @@ class MockHasuraUserClient:
 
     def query_execution_details(self, query_execution_id):
         return MockAsyncIterator(self.updates)
+
+    async def list_query_execution_metric_by_query_execution_id(self, query_execution_id):
+        return ListQueryExecutionMetricByQueryExecutionId(
+            typedef_query_execution_by_pk=QueryExecutionMetricByPk(
+                query_execution_metrics=[]
+            )
+        )
 
 
 class MockHasuraClient:
