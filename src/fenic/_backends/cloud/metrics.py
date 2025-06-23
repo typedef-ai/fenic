@@ -43,6 +43,8 @@ async def get_query_execution_metrics(client: Client, execution_id: str) -> Quer
                 query_metrics.total_rm_metrics.num_requests = metric.metric_value
             elif metric.metric_name == "rm_cost":
                 query_metrics.total_rm_metrics.cost = metric.metric_value
+            else:
+                logger.error(f"unknown metric: {metric.metric_name} for execution_id: {execution_id}")
     else:
         logger.error(f"couldn't find metrics for execution_id: {execution_id}")
 
