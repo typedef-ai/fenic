@@ -1,3 +1,4 @@
+from pydoc import text
 import polars as pl
 
 from fenic import Paragraph, KeyPoints, col, semantic
@@ -26,10 +27,8 @@ def test_semantic_summarization_default_case(local_session):
         semantic.summarize(col("text")).alias("summarized_text")
     )
     result = df.to_polars()
-    # assert result.schema["summarized_text"] == pl.String
-    # assert len(result['summarized_text'])<120
-    # print(result['summarized_text'])
-    print(result)
+    assert result.schema["summarized_text"] == pl.String
+    assert len(result['summarized_text'])<120
 
 def test_semantic_summarization_keypoints(local_session):
     source = local_session.create_dataframe(
@@ -76,6 +75,5 @@ def test_semantic_summarization_keypoints(local_session):
     )
     result = df.to_polars()
     assert result.schema["summarized_text"] == pl.String
-    print(result)
     # should not exceed 10 key points
-    # assert len([s for s in result['summarized_text'].replace('!', '.').replace('?', '.').split('.') if s.strip()]) <= 10
+    assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ")) <= 10

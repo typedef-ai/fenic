@@ -12,10 +12,6 @@ from fenic.core.types import (
     Paragraph,
 )
 
-from fenic._backends.local.semantic_operators.types import (
-    SimpleStringOutputModelResponse,
-)
-
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 
 
@@ -60,7 +56,6 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
-                    response_format=SimpleStringOutputModelResponse,
                 ),
                 model=model,
             ),
@@ -68,7 +63,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
         )
 
     def postprocess(self, responses):
-        return super().postprocess(responses)
+        return responses
 
     def build_system_message(self) -> str:
         return self.SYSTEM_PROMPT.format(format_description=str(self.format))
