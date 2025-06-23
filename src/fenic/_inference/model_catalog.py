@@ -129,16 +129,11 @@ GOOGLE_GLA_AVAILABLE_MODELS = Literal[
     "gemini-2.0-flash-exp",
 ]
 
-GOOGLE_VERTEX_AVAILABLE_EMBEDDING_MODELS = Literal[
-    "gemini-embedding-001",
-    "text-embedding-005",
-    "text-multilingual-embedding-002",
-]
 
-GOOGLE_VERTEX_AVAILABLE_MODELS = Union[GOOGLE_GLA_AVAILABLE_MODELS, GOOGLE_VERTEX_AVAILABLE_EMBEDDING_MODELS]
+GOOGLE_VERTEX_AVAILABLE_MODELS = Union[GOOGLE_GLA_AVAILABLE_MODELS]
 
 AVAILABLE_LANGUAGE_MODELS = Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, ANTHROPIC_AVAILABLE_LANGUAGE_MODELS, GOOGLE_GLA_AVAILABLE_MODELS]
-AVAILABLE_EMBEDDING_MODELS = Union[OPENAI_AVAILABLE_EMBEDDING_MODELS, GOOGLE_VERTEX_AVAILABLE_EMBEDDING_MODELS]
+AVAILABLE_EMBEDDING_MODELS = Union[OPENAI_AVAILABLE_EMBEDDING_MODELS]
 
 class ModelCatalog:
     """Catalog of supported models and their parameters for different providers.
@@ -276,25 +271,6 @@ class ModelCatalog:
                 output_dimensions=3072,
                 max_input_size=8192,
             ),
-        }
-
-        self._vertex_embedding_models = {
-            "gemini-embedding-001" : EmbeddingModelParameters(
-                input_token_cost=0.00015 / 1000, # $0.00015 per 1K CHARACTERS
-                output_dimensions=3072,
-                max_input_size=2048,
-            ),
-            "text-embedding-005" : EmbeddingModelParameters(
-                input_token_cost=0.000025 / 1000,  # $0.000025 per 1K CHARACTERS
-                output_dimensions=768,
-                max_input_size=2048,
-            ),
-            "text-multilingual-embedding-002": EmbeddingModelParameters(
-                input_token_cost=0.000025 / 1000,  # $0.000025 per 1K CHARACTERS
-                output_dimensions=768,
-                max_input_size=2048,
-            ),
-
         }
 
         self._google_vertex_completion_models = {

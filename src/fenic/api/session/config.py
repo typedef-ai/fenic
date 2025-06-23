@@ -11,13 +11,13 @@ from pydantic import BaseModel, Field, model_validator
 from fenic._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     GOOGLE_GLA_AVAILABLE_MODELS,
+    GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,
     ModelProvider,
-    model_catalog, GOOGLE_VERTEX_AVAILABLE_MODELS,
+    model_catalog,
 )
 from fenic.core._resolved_session_config import (
-    ReasoningEffort,
     ResolvedAnthropicModelConfig,
     ResolvedCloudConfig,
     ResolvedGoogleModelConfig,

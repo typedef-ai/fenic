@@ -2,16 +2,18 @@ import hashlib
 import json
 import os
 from functools import cache
-from typing import Any, Literal, Optional, Union
+from typing import Optional, Union
 
 from google import genai
 from google.genai.errors import ClientError, ServerError
-from google.genai.client import AsyncClient
-from google.genai.types import GenerateContentConfigDict, GenerateContentResponse, ThinkingConfigDict
+from google.genai.types import (
+    GenerateContentConfigDict,
+    GenerateContentResponse,
+    ThinkingConfigDict,
+)
 from pydantic import BaseModel
 
 from fenic._inference.model_catalog import (
-    GOOGLE_GLA_AVAILABLE_MODELS,
     ModelProvider,
     model_catalog,
 )
@@ -83,21 +85,14 @@ class GeminiNativeChatCompletionsClient(
             self._additional_generation_config.update({"thinking_config" : default_thinking_config})
 
 
-    # ---------------------------------------------------------------------
-    # Public helpers
-    # ---------------------------------------------------------------------
     def reset_metrics(self):
         self._metrics = LMMetrics()
 
-    def get_metrics(self) -> LMMetrics:  # noqa: D401  # simple verb form
+    def get_metrics(self) -> LMMetrics:
         return self._metrics
 
     def _convert_messages(self, messages: LMRequestMessages) -> list[genai.types.ContentUnion]:
-        """Convert Fenic LMRequestMessages → list of google-genai `Content` objects.
-
-        The *system* message is **not** included here; it must be passed separately
-        via the `system_instruction` argument of `generate_content`.
-        """
+        """Convert Fenic LMRequestMessages → list of google-genai `Content` objects."""
         contents: list[genai.types.ContentUnion] = []
         # few-shot examples
         for example in messages.examples:
