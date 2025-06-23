@@ -1,6 +1,6 @@
 from typing import get_args
 
-from fenic._inference.model_catalog import (
+from fenic.core._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,

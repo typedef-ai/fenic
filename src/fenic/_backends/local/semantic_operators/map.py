@@ -9,6 +9,7 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     convert_row_to_instruction_context,
+    extract_model_preset,
     uppercase_instruction_placeholder,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
@@ -51,6 +52,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
                     max_output_tokens=max_tokens,
                     response_format=response_format,
                     temperature=temperature,
+                    model_preset=extract_model_preset(model_alias),
                 ),
             ),
             examples,

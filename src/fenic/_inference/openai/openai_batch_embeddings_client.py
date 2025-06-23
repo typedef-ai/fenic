@@ -7,15 +7,18 @@ from openai import AsyncOpenAI
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
-from fenic._inference.model_catalog import ModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
-    TokenEstimate,
+    RequestT,
     TransientException,
+)
+from fenic._inference.rate_limit_strategy import (
+    TokenEstimate,
     UnifiedTokenRateLimitStrategy,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import RMMetrics
 
 
@@ -76,8 +79,9 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: str) -> TokenEstimate:
-        """Estimate the number of tokens for a request.
+    def estimate_tokens_for_request(self, request: str, batch_id: str) -> TokenEstimate:
+        """Estimate the number of tokens for a request. Overriding the behavior in the base class
+           as Embedding models do not generate any output tokens.
 
         Args:
             request: The request to estimate tokens for
@@ -98,3 +102,6 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
             The current metrics
         """
         return self._core.get_metrics()
+
+    def _get_max_output_tokens(self, request: RequestT) -> int:
+        return 0
