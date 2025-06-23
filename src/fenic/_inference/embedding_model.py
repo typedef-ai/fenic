@@ -1,7 +1,7 @@
 import pyarrow as pa
 
-from fenic._inference.model_catalog import model_catalog
 from fenic._inference.model_client import ModelClient
+from fenic.core._inference.model_catalog import model_catalog
 from fenic.core.metrics import RMMetrics
 
 

@@ -2,12 +2,15 @@
 
 from fenic.api.session.config import (
     AnthropicModelConfig,
+    AnthropicModelPreset,
     CloudConfig,
     CloudExecutorSize,
     GoogleGLAModelConfig,
+    GoogleModelPreset,
     GoogleVertexModelConfig,
     ModelConfig,
     OpenAIModelConfig,
+    OpenAIModelPreset,
     SemanticConfig,
     SessionConfig,
 )
@@ -18,8 +21,11 @@ __all__ = [
     "SessionConfig",
     "SemanticConfig",
     "OpenAIModelConfig",
+    "OpenAIModelPreset",
     "AnthropicModelConfig",
+    "AnthropicModelPreset",
     "GoogleGLAModelConfig",
+    "GoogleModelPreset",
     "GoogleVertexModelConfig",
     "ModelConfig",
     "CloudConfig",

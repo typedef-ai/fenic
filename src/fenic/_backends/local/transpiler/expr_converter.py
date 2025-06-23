@@ -319,6 +319,7 @@ class ExprConverter:
                     model=self.session_state.get_language_model(logical.model_alias),
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
+                    model_alias=logical.model_alias,
                 ).execute()
 
             struct = pl.struct(
@@ -432,6 +433,7 @@ class ExprConverter:
                 max_tokens=logical.max_tokens,
                 temperature=logical.temperature,
                 response_format=logical.response_format,
+                model_alias=logical.model_alias,
             ).execute()
 
         struct = pl.struct(
@@ -522,6 +524,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -538,12 +541,14 @@ class ExprConverter:
             expanded_df = pl.DataFrame(
                 {field: batch.struct.field(field) for field in batch.struct.fields}
             )
+
             return SemanticPredicate(
                 input=expanded_df,
                 user_instruction=logical.instruction,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
                 examples=logical.examples,
+                model_alias=logical.model_alias,
             ).execute()
 
         struct = pl.struct(
@@ -564,6 +569,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
                 examples=logical.examples,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -578,6 +584,7 @@ class ExprConverter:
                 input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(

@@ -9,9 +9,13 @@ from fenic._inference import (
     OpenAIBatchEmbeddingsClient,
 )
 from fenic._inference.model_client import (
+    ModelClient,
+)
+from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,
@@ -193,26 +197,37 @@ class SessionModelRegistry:
 
         return EmbeddingModel(client=client)
 
-    def _initialize_language_model(self, model_config: ResolvedModelConfig) -> LanguageModel:
+    def _initialize_language_models(self, model_alias: str, model_config: ResolvedModelConfig) -> dict[str, LanguageModel]:
         """Initialize a language model with the given configuration.
 
         Args:
-            alias (str): Alias for the language model.
+            model_alias: Base alias for the model
             model_config (ModelConfig): Configuration for the language model.
 
         Returns:
-            LanguageModel: Initialized language model.
+            dict[str, LanguageModel]: Dictionary mapping alias (and presets if configured) to initialized language models.
 
         Raises:
             SessionError: If model initialization fails.
             ConfigurationError: If the model configuration is not supported.
             ImportError: If required dependencies for Anthropic models are not installed.
         """
+        configured_clients: dict[str, ModelClient] = {}
         try:
             if isinstance(model_config, ResolvedOpenAIModelConfig):
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
-                client = OpenAIBatchChatCompletionsClient(rate_limit_strategy=rate_limit_strategy,
-                                                          model=model_config.model_name)
+                client = OpenAIBatchChatCompletionsClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    preset_configurations=model_config.presets,
+                    default_preset_name=model_config.default_preset,
+                )
+                configured_clients[model_alias]= client
+
+                if model_config.presets is not None:
+                    for preset in model_config.presets.keys():
+                        configured_clients[f"{model_alias}.{preset}"] = client
+
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
                 try:
                     from fenic._inference.anthropic.anthropic_batch_chat_completions_client import (
@@ -222,11 +237,22 @@ class SessionModelRegistry:
                     raise ImportError(
                         "To use Anthropic models, please install the required dependencies by running: pip install fenic[anthropic]"
                     ) from err
-                rate_limit_strategy = SeparatedTokenRateLimitStrategy(rpm=model_config.rpm,
-                                                                      input_tpm=model_config.input_tpm,
-                                                                      output_tpm=model_config.output_tpm)
-                client = AnthropicBatchCompletionsClient(rate_limit_strategy=rate_limit_strategy,
-                                                         model=model_config.model_name)
+                rate_limit_strategy = SeparatedTokenRateLimitStrategy(
+                    rpm=model_config.rpm,
+                    input_tpm=model_config.input_tpm,
+                    output_tpm=model_config.output_tpm
+                )
+                client = AnthropicBatchCompletionsClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    preset_configurations=model_config.presets,
+                    default_preset_name=model_config.default_preset,
+                )
+                configured_clients[model_alias]= client
+                if model_config.presets is not None:
+                    for preset in model_config.presets.keys():
+                        configured_clients[f"{model_alias}.{preset}"] = client
+
             elif isinstance(model_config, ResolvedGoogleModelConfig):
                 try:
                     from fenic._inference.google.gemini_native_chat_completions_client import (
@@ -238,14 +264,22 @@ class SessionModelRegistry:
                     ) from err
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
                 client = GeminiNativeChatCompletionsClient(
-                    rate_limit_strategy=rate_limit_strategy,
-                    model_provider=model_config.model_provider,
-                    model=model_config.model_name,
-                    default_thinking_budget=model_config.default_thinking_budget,
-                )
+                        model=model_config.model_name,
+                        model_provider=model_config.model_provider,
+                        rate_limit_strategy=rate_limit_strategy,
+                        preset_configurations=model_config.presets,
+                        default_preset_name=model_config.default_preset,
+                    )
+                configured_clients[model_alias]= client
+                if model_config.presets is not None:
+                    for preset in model_config.presets.keys():
+                        configured_clients[f"{model_alias}.{preset}"] = client
+
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
-            return LanguageModel(client=client)
+            return {
+                alias: LanguageModel(client=client) for alias, client in configured_clients.items()
+            }
 
         except Exception as e:
             raise SessionError(f"Failed to create language model client: {e}") from e
