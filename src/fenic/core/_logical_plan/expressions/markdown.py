@@ -117,10 +117,7 @@ class MdExtractHeaderChunks(LogicalExpr):
     def _build_jq_query(self, header_level: int) -> str:
         query = f'''
 # Extract all text content and normalize whitespace
-def extract_text:
-  try (
-    [.. | .text? // empty] | join(" ") | gsub("\\\\s+"; " ") | gsub("^\\\\s+|\\\\s+$"; "")
-  ) catch "";
+def extract_text: [.. | .text? // ""] | join(" ") | gsub("\\\\s+"; " ") | gsub("^\\\\s+|\\\\s+$"; "");
 
 # Walk AST collecting chunks at target level, tracking breadcrumb path
 def walk_headings($node; $path):
