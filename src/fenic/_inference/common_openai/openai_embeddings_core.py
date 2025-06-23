@@ -11,16 +11,16 @@ from openai import (
     RateLimitError,
 )
 
-from fenic._inference.model_catalog import (
+from fenic._inference.model_client import (
+    FatalException,
+    TransientException,
+)
+from fenic._inference.rate_limit_strategy import TokenEstimate
+from fenic._inference.token_counter import TokenCounter
+from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
-from fenic._inference.model_client import (
-    FatalException,
-    TokenEstimate,
-    TransientException,
-)
-from fenic._inference.token_counter import TokenCounter
 from fenic.core.metrics import RMMetrics
 
 

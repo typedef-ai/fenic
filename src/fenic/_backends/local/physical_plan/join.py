@@ -130,6 +130,7 @@ class SemanticJoinExec(PhysicalPlan):
             self.session_state.get_language_model(self.model_alias),
             examples=self.examples,
             temperature=self.temperature,
+            model_alias=self.model_alias,
         ).execute()
 
     def _build_lineage(
