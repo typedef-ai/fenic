@@ -14,12 +14,16 @@ from fenic import (
     SessionConfig,
     configure_logging,
 )
-from fenic._inference.model_catalog import ModelProvider
 from fenic.api.session.config import (
     AnthropicModelConfig,
+    AnthropicModelPreset,
     GoogleGLAModelConfig,
+    GoogleModelPreset,
+    GoogleVertexModelConfig,
     OpenAIModelConfig,
+    OpenAIModelPreset,
 )
+from fenic.core._inference.model_catalog import ModelProvider
 
 MODEL_NAME_ARG = "--model-name"
 
@@ -173,7 +177,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         language_models = {
             "model_1": nano,
             "model_2" : AnthropicModelConfig(
-                model_name="claude-3-5-haiku-latest",
+                model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=500,
                 input_tpm=50_000,
                 output_tpm=20_000,
@@ -234,7 +238,13 @@ def local_session_config(app_name, request) -> SessionConfig:
         language_model = OpenAIModelConfig(
             model_name=request.config.getoption(MODEL_NAME_ARG),
             rpm=500,
-            tpm=100_000
+            tpm=100_000,
+            presets = {
+                "low" : OpenAIModelPreset(
+                    reasoning_effort="low"
+                )
+            },
+            default_preset="low"
         )
     elif model_provider == ModelProvider.ANTHROPIC:
         language_model = AnthropicModelConfig(
@@ -242,18 +252,37 @@ def local_session_config(app_name, request) -> SessionConfig:
             rpm=500,
             input_tpm=50_000,
             output_tpm=10_000,
+            presets = {
+                "shallow" : AnthropicModelPreset(
+                    thinking_token_budget=1024
+                )
+            },
+            default_preset="shallow"
         )
     elif model_provider == ModelProvider.GOOGLE_GLA:
         language_model = GoogleGLAModelConfig(
             model_name=request.config.getoption(MODEL_NAME_ARG),
             rpm=1000,
             tpm=500_000,
+            presets = {
+                "thinking_disabled": GoogleModelPreset(),
+                "auto": GoogleModelPreset(
+                    thinking_token_budget=-1
+                )
+            },
+            default_preset="auto"
         )
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
         language_model = GoogleVertexModelConfig(
             model_name=request.config.getoption(MODEL_NAME_ARG),
             rpm=1000,
             tpm=500_000,
+            presets = {
+                "auto": GoogleModelPreset(
+                    thinking_token_budget=-1
+                )
+            },
+            default_preset="auto"
         )
     else:
         raise ValueError(f"Unsupported model provider: {model_provider}")

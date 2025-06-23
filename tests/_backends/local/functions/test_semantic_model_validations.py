@@ -33,6 +33,6 @@ def test_invalid_max_tokens(local_session):
         df_select = source.select(
             semantic.map(state_prompt).alias("state"),
             col("name"),
-            semantic.map(instruction="What is the typical weather in {city} in summer?", max_output_tokens=65536).alias("weather"),
+            semantic.map(instruction="What is the typical weather in {city} in summer?", max_output_tokens=250_000).alias("weather"),
         )
         df_select.to_polars()

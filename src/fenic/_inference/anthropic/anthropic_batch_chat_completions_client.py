@@ -1,7 +1,6 @@
 import functools
-import hashlib
-import json
 import math
+from dataclasses import dataclass
 from typing import Any, Optional, Union
 
 import anthropic
@@ -15,39 +14,103 @@ from anthropic import (
 from anthropic.types import (
     CacheControlEphemeralParam,
     MessageParam,
-    TextBlock,
     TextBlockParam,
     ToolChoiceToolParam,
     ToolParam,
-    ToolUseBlock,
 )
 from pydantic import BaseModel
 
-from fenic._inference.model_catalog import ModelProvider, model_catalog
 from fenic._inference.model_client import (
     FatalException,
     FenicCompletionsRequest,
     FenicCompletionsResponse,
     ModelClient,
-    SeparatedTokenRateLimitStrategy,
-    TokenEstimate,
+    ResponseUsage,
     TransientException,
 )
+from fenic._inference.preset_config_manager import (
+    BasePresetConfiguration,
+    PresetConfigurationManager,
+)
+from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
+from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import LMRequestMessages
+from fenic.core._inference.model_catalog import (
+    CompletionModelParameters,
+    ModelProvider,
+    model_catalog,
+)
+from fenic.core._resolved_session_config import (
+    ResolvedAnthropicModelPreset,
+)
 from fenic.core.metrics import LMMetrics
 
+TEXT_DELTA = "text_delta"
+
+MESSAGE_STOP = "message_stop"
+
+INPUT_JSON_DELTA = "input_json_delta"
+
+CONTENT_BLOCK_DELTA = "content_block_delta"
+
 EPHEMERAL_CACHE_CONTROL = CacheControlEphemeralParam(type="ephemeral")
+
+@dataclass
+class AnthropicPresetConfiguration(BasePresetConfiguration):
+    thinking_enabled: bool
+    thinking_token_budget: int
+    thinking_config: anthropic.types.ThinkingConfigParam
+
+
+class AnthropicPresetConfigurationManager(PresetConfigurationManager[ResolvedAnthropicModelPreset, AnthropicPresetConfiguration]):
+    """Manages Anthropic-specific preset configurations."""
+
+    def __init__(self,
+                 model_parameters : CompletionModelParameters,
+                 preset_configurations: Optional[dict[str, ResolvedAnthropicModelPreset]] = None,
+                 default_preset_name: Optional[str] = None):
+        self.model_parameters = model_parameters
+        super().__init__(preset_configurations, default_preset_name)
+
+    def _process_preset(self, preset: ResolvedAnthropicModelPreset) -> AnthropicPresetConfiguration:
+        """Process Anthropic preset configuration."""
+        if preset.thinking_token_budget and self.model_parameters.supports_reasoning:
+            return AnthropicPresetConfiguration(
+                thinking_enabled=True,
+                thinking_token_budget=preset.thinking_token_budget,
+                thinking_config=anthropic.types.ThinkingConfigEnabledParam(
+                    type="enabled",
+                    budget_tokens=preset.thinking_token_budget
+                )
+            )
+        else:
+            return AnthropicPresetConfiguration(
+                thinking_enabled=False,
+                thinking_token_budget=0,
+                thinking_config=anthropic.types.ThinkingConfigDisabledParam(type="disabled")
+            )
+
+    def _get_default_configuration(self) -> AnthropicPresetConfiguration:
+        """Get default Anthropic configuration."""
+        return AnthropicPresetConfiguration(
+            thinking_enabled=False,
+            thinking_token_budget=0,
+            thinking_config=anthropic.types.ThinkingConfigDisabledParam(type="disabled")
+        )
 
 class AnthropicBatchCompletionsClient(
     ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
-    def __init__(self,
-                 rate_limit_strategy: SeparatedTokenRateLimitStrategy,
-                 queue_size: int = 100,
-                 model: str = "claude-3-5-haiku-latest",
-                 max_backoffs: int = 10,
-                 ):
+    def __init__(
+        self,
+        rate_limit_strategy: SeparatedTokenRateLimitStrategy,
+        queue_size: int = 100,
+        model: str = "claude-3-5-haiku-latest",
+        max_backoffs: int = 10,
+        preset_configurations: Optional[dict[str, ResolvedAnthropicModelPreset]] = None,
+        default_preset_name: Optional[str] = None,
+    ):
         super().__init__(
             model=model,
             model_provider=ModelProvider.ANTHROPIC,
@@ -66,72 +129,104 @@ class AnthropicBatchCompletionsClient(
         self.output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
         self.model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model)
 
-    def validate_request(self, request: FenicCompletionsRequest) -> Optional[FatalException]:
-        """Validate the request before making it to the Anthropic API."""
-        if request.temperature < 0 or request.temperature > self.model_parameters.max_temperature:
-            return FatalException(ValueError(f"[{self.model_provider}:{self.model}] temperature must be between 0 and {self.model_parameters.max_temperature}"))
-        return None
+        # Use the preset configuration manager
+        self.preset_manager = AnthropicPresetConfigurationManager(
+            model_parameters=self.model_parameters,
+            preset_configurations=preset_configurations or {},
+            default_preset_name=default_preset_name
+        )
 
     async def make_single_request(self, request: FenicCompletionsRequest) -> Union[
         None, FenicCompletionsResponse, TransientException, FatalException]:
-        if validation_result := self.validate_request(request):
-            return validation_result
         system_prompt, message_params = self.convert_messages(request.messages)
+        preset_configuration = self.preset_manager.get_preset_configuration(request.model_preset)
+        request_max_tokens = request.max_completion_tokens + preset_configuration.thinking_token_budget
+        messages_creation_payload: dict[str, Any] = {
+            "model": self.model,
+            "system": [system_prompt],
+            "messages": message_params,
+            "max_tokens": request_max_tokens,
+            "thinking": preset_configuration.thinking_config,
+        }
+        if request.structured_output:
+            tool_param = self.create_response_format_tool(request.structured_output)
+            messages_creation_payload.update({"tools": [tool_param]})
+            if not preset_configuration.thinking_enabled:
+                # Anthropic does not allow forced tool use if thinking is enabled.
+                messages_creation_payload.update({"tool_choice": ToolChoiceToolParam(
+                    name=self.output_formatter_tool_name,
+                    type="tool"
+                )})
+
+        if not preset_configuration.thinking_enabled:
+            # Anthropic does not allow configuring temperature if thinking is enabled.
+            messages_creation_payload.update({"temperature": request.temperature})
+
         try:
             if request.structured_output:
-                tool_param = self.create_response_format_tool(request.structured_output)
-                result = await self.client.messages.create(
-                    model=self.model,
-                    temperature=request.temperature,
-                    system=[system_prompt],
-                    messages=message_params,
-                    max_tokens=request.max_completion_tokens,
-                    tools=[tool_param],
-                    tool_choice=ToolChoiceToolParam(
-                        name=self.output_formatter_tool_name,
-                        type="tool"
-                    )
-                )
+                content, usage_data = await self._handle_structured_output_streaming_response(messages_creation_payload)
             else:
-                result = await self.client.messages.create(
-                    model=self.model,
-                    system=[system_prompt],
-                    messages=message_params,
-                    max_tokens=request.max_completion_tokens,
-                    temperature=request.temperature,
-                )
-            content = None
-            for block in result.content:
-                if isinstance(block, TextBlock):
-                    content = block.text
-                    break
-                if isinstance(block, ToolUseBlock):
-                    if block.name == self.output_formatter_tool_name:
-                        content = block.input
-                        if isinstance(content, dict):
-                            content = json.dumps(content)
+                content, usage_data = await self._handle_text_streaming_response(messages_creation_payload)
             if content is None:
                 return FenicCompletionsResponse(completion="", logprobs=None)
-            num_pre_cached_tokens = result.usage.cache_read_input_tokens
-            num_uncached_tokens = result.usage.input_tokens + result.usage.cache_read_input_tokens
-            self.metrics.num_cached_input_tokens += num_pre_cached_tokens
-            self.metrics.num_uncached_input_tokens += num_uncached_tokens
-            self.metrics.num_output_tokens += result.usage.output_tokens
-            self.metrics.num_requests += 1
-            self.metrics.cost += model_catalog.calculate_completion_model_cost(
-                model_provider=ModelProvider.ANTHROPIC,
-                model_name=self.model,
-                uncached_input_tokens=num_uncached_tokens,
-                cached_input_tokens_read=num_pre_cached_tokens,
-                cached_input_tokens_written=result.usage.cache_creation_input_tokens,
-                output_tokens=result.usage.output_tokens,
-            )
+            if usage_data:
+                # Extract usage metrics
+                num_pre_cached_tokens = usage_data.cache_read_input_tokens
+                total_input_tokens = usage_data.input_tokens + usage_data.cache_read_input_tokens
+                output_tokens = usage_data.output_tokens
+
+                # Create ResponseUsage object
+                usage = ResponseUsage(
+                    prompt_tokens=total_input_tokens,
+                    completion_tokens=output_tokens,  # For Anthropic, all output tokens are completion tokens
+                    total_tokens=total_input_tokens + output_tokens,
+                    cached_tokens=num_pre_cached_tokens,
+                    thinking_tokens=0  # Anthropic doesn't separate thinking tokens yet
+                )
+
+                # Update metrics (existing logic)
+                self.metrics.num_cached_input_tokens += num_pre_cached_tokens
+                self.metrics.num_uncached_input_tokens += total_input_tokens
+                self.metrics.num_output_tokens += output_tokens
+                self.metrics.num_requests += 1
+                self.metrics.cost += model_catalog.calculate_completion_model_cost(
+                    model_provider=ModelProvider.ANTHROPIC,
+                    model_name=self.model,
+                    uncached_input_tokens=total_input_tokens,
+                    cached_input_tokens_read=num_pre_cached_tokens,
+                    cached_input_tokens_written=usage_data.cache_creation_input_tokens,
+                    output_tokens=output_tokens,
+                )
         except (RateLimitError, APITimeoutError, APIConnectionError) as e:  # consider the various APIStatusErrors
             return TransientException(e)
         except AnthropicError as e:
             return FatalException(e)
 
-        return FenicCompletionsResponse(completion=content, logprobs=None)
+        return FenicCompletionsResponse(completion=content, logprobs=None, usage=usage)
+
+    async def _handle_text_streaming_response(self, payload: dict[str, Any]) -> (str, anthropic.types.Usage):
+        content = ""
+        usage_data: anthropic.types.Usage | None = None
+        async with self.client.messages.stream(**payload) as stream:
+            async for chunk in stream:
+                if chunk.type == CONTENT_BLOCK_DELTA:
+                    if chunk.delta.type == TEXT_DELTA:
+                        content += chunk.delta.text
+                elif chunk.type == MESSAGE_STOP:
+                    usage_data = chunk.message.usage if hasattr(chunk.message, 'usage') else None
+        return content, usage_data
+
+    async def _handle_structured_output_streaming_response(self, payload: dict[str, Any]) -> (str, anthropic.types.Usage):
+        tool_use_content: str = ""
+        usage_data: anthropic.types.Usage | None = None
+        async with self.client.messages.stream(**payload) as stream:
+            async for chunk in stream:
+                if chunk.type == CONTENT_BLOCK_DELTA:
+                    if chunk.delta.type == INPUT_JSON_DELTA:
+                        tool_use_content += chunk.delta.partial_json
+                elif chunk.type == MESSAGE_STOP:
+                    usage_data = chunk.message.usage if hasattr(chunk.message, 'usage') else None
+            return tool_use_content, usage_data
 
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
@@ -150,22 +245,22 @@ class AnthropicBatchCompletionsClient(
         )
         return approx_tool_tokens.input_tokens
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
-        auxiliary_input_tokens = 0
-        if request.structured_output:
-            auxiliary_input_tokens += self.estimate_response_format_tokens(request.structured_output)
-        message_tokens = self.count_tokens(request.messages.to_message_list())
-        return TokenEstimate(input_tokens=message_tokens + auxiliary_input_tokens,
-                             output_tokens=request.max_completion_tokens)
+    def _estimate_structured_output_overhead(self, response_format) -> int:
+        """Use Anthropic's API-based token counting for structured output."""
+        return self.estimate_response_format_tokens(response_format)
+
+    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Conservative estimate: max_completion_tokens + thinking token budget."""
+        return request.max_completion_tokens + self.preset_manager.get_preset_configuration(request.model_preset).thinking_token_budget
+
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
     # This is a rough estimate, but it's good enough for our purposes.
     def count_tokens(self, messages: Tokenizable) -> int:
         return math.ceil(super().count_tokens(messages) * self.tokenizer_adjustment_ratio)
 
-    def get_request_key(self, request: FenicCompletionsRequest) -> Any:
-        contents_json = json.dumps(request.messages.to_message_list(), sort_keys=True)
-        return hashlib.sha256(contents_json.encode()).hexdigest()[:10]
+    def get_request_key(self, request: FenicCompletionsRequest) -> str:
+        return generate_completion_request_key(request)
 
     def get_metrics(self) -> LMMetrics:
         return self.metrics
