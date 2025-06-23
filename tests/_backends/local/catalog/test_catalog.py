@@ -1,4 +1,5 @@
 import pytest
+import codecs
 
 from fenic import (
     ColumnField,
@@ -13,6 +14,8 @@ from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
 )
+from fenic._backends.schema_serde import deserialize_schema, serialize_schema
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
@@ -177,6 +180,31 @@ def test_does_table_exist(local_session: Session):
         f"{DEFAULT_DATABASE_NAME}.{NON_EXISTING_TABLE_NAME}"
     )
 
+def test_does_view_exist(local_session: Session):
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    view_blob1 = LogicalPlanSerde.serialize(df1._logical_plan)
+    schema_blob1 = serialize_schema(df1.schema)
+    view_name = "df1"
+    non_existing_view_name = "df2"
+
+    local_session.catalog.create_view(view_name, schema_blob1, view_blob1)
+
+    assert local_session.catalog.does_view_exist(view_name)
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME}.{view_name}"
+    )
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME.upper()}.{view_name}"
+    )
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME.upper()}.{view_name}".upper()
+    )
+    assert not local_session.catalog.does_view_exist(non_existing_view_name)
+    assert not local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME}.{non_existing_view_name}"
+    )
 
 def test_list_tables(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
@@ -185,6 +213,36 @@ def test_list_tables(local_session: Session):
     assert TABLE_NAME_T1 in tables
     assert TABLE_NAME_T2 in tables
 
+def test_list_views(local_session: Session):
+
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    view_blob1 = LogicalPlanSerde.serialize(df1._logical_plan)
+    schema_blob1 = serialize_schema(df1.schema)
+
+    df2 = local_session.create_dataframe({"b": [1, 2, 3]})
+    view_blob2 = LogicalPlanSerde.serialize(df2._logical_plan)
+    schema_blob2 = serialize_schema(df2.schema)
+
+    local_session.catalog.create_view("df1", schema_blob1, view_blob1)
+    local_session.catalog.create_view("df2", schema_blob2, view_blob2)
+    tables = local_session.catalog.list_views()
+    assert "df1" in tables
+    assert "df2" in tables
+
+def test_describe_view(local_session: Session):
+
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    view_blob1 = LogicalPlanSerde.serialize(df1._logical_plan)
+    schema_blob1 = serialize_schema(df1.schema)
+
+    local_session.catalog.create_view("df1", schema_blob1, view_blob1)
+    result_schema_blob, result_view_blob = local_session.catalog.describe_view("df1")
+
+    result_schema = deserialize_schema(result_schema_blob)
+    result_view_plan = LogicalPlanSerde.deserialize(codecs.decode(result_view_blob, "unicode_escape").encode("latin1"))
+
+    assert result_view_plan.schema().column_names() == ["a"]
+    assert result_schema.column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
@@ -248,6 +306,30 @@ def test_drop_table(local_session: Session):
             NON_EXISTING_TABLE_NAME, ignore_if_not_exists=False
         )
 
+def test_drop_view(local_session: Session):
+    view_name_1 = "df1"
+    view_name_2 = "df2"
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    view_blob1 = LogicalPlanSerde.serialize(df1._logical_plan)
+    schema_blob1 = serialize_schema(df1.schema)
+
+    local_session.catalog.create_view(view_name_1, schema_blob1, view_blob1)
+    assert local_session.catalog.does_view_exist(view_name_1)
+    assert local_session.catalog.drop_view(view_name_1)
+    assert not local_session.catalog.does_view_exist(view_name_1)
+
+    local_session.catalog.create_view(view_name_2, schema_blob1, view_blob1)
+    assert local_session.catalog.does_view_exist(view_name_2)
+    assert local_session.catalog.drop_view(f"{DEFAULT_DATABASE_NAME}.{view_name_2}")
+    assert not local_session.catalog.does_view_exist(view_name_2)
+
+    with pytest.raises(
+        TableNotFoundError,
+        match="Table 'typedef_default.df3' does not exist",
+    ):
+        local_session.catalog.drop_view(
+            "typedef_default.df3", ignore_if_not_exists=False
+        )
 
 def test_create_table(local_session: Session):
     assert local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)

@@ -9,7 +9,7 @@ SCHEMA = Schema(
 
 
 def test_single_table_schema_storage(local_session: Session):
-    schema_storage = local_session.catalog.catalog.schema_storage
+    schema_storage = local_session.catalog.catalog.system_tables
     schema_storage.save_schema("test_database", "test_table", SCHEMA)
     retrieved_schema = schema_storage.get_schema("test_database", "test_table")
     assert retrieved_schema == SCHEMA
@@ -18,7 +18,7 @@ def test_single_table_schema_storage(local_session: Session):
 
 
 def test_multiple_table_schema_storage(local_session: Session):
-    schema_storage = local_session.catalog.catalog.schema_storage
+    schema_storage = local_session.catalog.catalog.system_tables
     schema_storage.save_schema("test_database", "test_table_1", SCHEMA)
     schema_storage.save_schema("test_database", "test_table_2", SCHEMA)
     schema_storage.save_schema("test_database2", "test_table_1", SCHEMA)

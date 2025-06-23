@@ -46,6 +46,15 @@ class BaseExecution(ABC):
         pass
 
     @abstractmethod
+    def save_as_view(
+        self,
+        logical_plan: LogicalPlan,
+        view_name: str,
+    ) -> None:
+        """Save the dataframe as a view in the current database."""
+        pass
+
+    @abstractmethod
     def save_to_file(
         self,
         logical_plan: LogicalPlan,
