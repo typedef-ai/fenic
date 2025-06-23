@@ -17,7 +17,8 @@ from fenic._inference.model_catalog import ModelProvider
 from fenic.api.session.config import (
     AnthropicModelConfig,
     GoogleGLAModelConfig,
-    OpenAIModelConfig, GoogleVertexModelConfig,
+    GoogleVertexModelConfig,
+    OpenAIModelConfig,
 )
 
 MODEL_NAME_ARG = "--model-name"

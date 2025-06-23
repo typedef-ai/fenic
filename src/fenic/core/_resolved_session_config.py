@@ -15,8 +15,9 @@ from typing import Literal, Optional, Union
 from fenic._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     GOOGLE_GLA_AVAILABLE_MODELS,
+    GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
-    OPENAI_AVAILABLE_LANGUAGE_MODELS, GOOGLE_VERTEX_AVAILABLE_MODELS,
+    OPENAI_AVAILABLE_LANGUAGE_MODELS,
 )
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
