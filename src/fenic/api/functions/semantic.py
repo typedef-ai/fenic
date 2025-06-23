@@ -400,7 +400,7 @@ def embed(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def summarize(
     column: ColumnOrName,
-    format: Union[KeyPoints, Paragraph] = Paragraph,
+    format: Union[KeyPoints, Paragraph] = None,
     temperature: float = 0,
     max_output_tokens: int = 1024,
     model_alias: Optional[str] = None
@@ -423,6 +423,8 @@ def summarize(
     Example:
         >>> semantic.summarize(col('user_comment')).
     """
+    if format is None:
+        format = Paragraph() 
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, max_tokens=max_output_tokens, model_alias=model_alias)
     )
