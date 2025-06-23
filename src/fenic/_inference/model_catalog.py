@@ -449,11 +449,6 @@ class ModelCatalog:
                 self._openai_embedding_models,
                 self._embedding_model_snapshots,
                 ModelProvider.OPENAI
-            ),
-            ModelProvider.GOOGLE_VERTEX: self._create_complete_model_collection(
-                self._vertex_embedding_models,
-                self._embedding_model_snapshots,
-                ModelProvider.GOOGLE_VERTEX
             )
         }
 
