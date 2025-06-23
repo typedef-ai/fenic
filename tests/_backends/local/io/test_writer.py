@@ -341,6 +341,6 @@ def test_view_writer_roundtrip(local_session):
     df = local_session.view(view_name)
     assert df.columns == ["a"]
 
-    result, _ = df.select(col("a")).collect()
+    result = df.select(col("a")).collect("polars").data
     values = result["a"].to_list()
     assert values == [1, 2, 3]
