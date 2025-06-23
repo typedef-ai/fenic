@@ -1,6 +1,7 @@
 import logging
 import re
 from enum import Enum
+from typing import Any, Dict, Optional, Type
 from typing import (
     Annotated,
     Any,
@@ -16,6 +17,8 @@ from typing import (
 
 import polars as pl
 from pydantic import BaseModel, create_model
+
+from fenic.core._logical_plan.utils import parse_model_alias
 
 
 def convert_row_to_instruction_context(row: Dict[str, Any]) -> str:
@@ -218,3 +221,16 @@ def validate_structured_response(
             exc_info=True,
         )
         return None
+def extract_model_preset(model_alias: Optional[str]) -> Optional[str]:
+    """Extract preset name from model alias.
+
+    Args:
+        model_alias: Model alias in format 'model' or 'model.preset'
+
+    Returns:
+        Preset name if present, None otherwise
+    """
+    if model_alias:
+        _, preset_name = parse_model_alias(model_alias)
+        return preset_name
+    return None

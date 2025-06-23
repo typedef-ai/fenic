@@ -6,7 +6,7 @@ import pickle  # nosec: B403
 
 from fenic import SessionConfig
 from fenic._constants import API_KEY_SUFFIX
-from fenic._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,

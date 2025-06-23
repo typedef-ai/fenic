@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, Tuple
 
-from fenic._inference.model_catalog import (
+from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
     model_catalog,
@@ -11,6 +11,23 @@ from fenic.core._resolved_session_config import (
     ResolvedSessionConfig,
 )
 from fenic.core.error import ValidationError
+
+
+def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
+    """Parse a model alias to extract base model and preset name.
+
+    Args:
+        model_alias: Model alias in format 'model' or 'model.preset'
+
+    Returns:
+        Tuple of (base_model_alias, preset_name)
+        If no dot present, preset_name will be None
+    """
+    if "." in model_alias:
+        parts = model_alias.split(".", 1)  # Split on first dot only
+        return parts[0], parts[1]
+    else:
+        return model_alias, None
 
 
 def validate_completion_parameters(
@@ -54,7 +71,7 @@ def validate_completion_parameters(
             f"Available models: {', '.join(available_models)}"
         )
 
-    model_config = language_model_config.model_configs[model_alias]
+    model_config = language_model_config.model_configs[model_alias_base]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):
@@ -66,3 +83,5 @@ def validate_completion_parameters(
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
+
+    return model_alias, preset_name
