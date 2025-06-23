@@ -14,9 +14,11 @@ from fenic.core._logical_plan.expressions import (
     AvgExpr,
     CoalesceExpr,
     CountExpr,
+    FirstExpr,
     ListExpr,
     MaxExpr,
     MinExpr,
+    StdDevExpr,
     StructExpr,
     SumExpr,
     UDFExpr,
@@ -162,6 +164,35 @@ def array_agg(column: ColumnOrName) -> Column:
     """Alias for collect_list()."""
     return collect_list(column)
 
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def first(column: ColumnOrName) -> Column:
+    """Aggregate function: returns the first non-null value in the specified column.
+
+    Typically used in aggregations to select the first observed value per group.
+
+    Args:
+        column: Column or column name.
+
+    Returns:
+        Column expression for the first value.
+    """
+    return Column._from_logical_expr(
+        FirstExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def stddev(column: ColumnOrName) -> Column:
+    """Aggregate function: returns the sample standard deviation of the specified column.
+
+    Args:
+        column: Column or column name.
+
+    Returns:
+        Column expression for sample standard deviation.
+    """
+    return Column._from_logical_expr(
+        StdDevExpr(Column._from_col_or_name(column)._logical_expr)
+    )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def struct(

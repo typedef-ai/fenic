@@ -1,3 +1,4 @@
+import math
 import re
 
 import polars as pl
@@ -5,6 +6,7 @@ import pytest
 
 from fenic import (
     ColumnField,
+    DoubleType,
     EmbeddingType,
     IntegerType,
     StringType,
@@ -12,11 +14,13 @@ from fenic import (
     col,
     collect_list,
     count,
+    first,
     lit,
     max,
     mean,
     min,
     semantic,
+    stddev,
     sum,
 )
 from fenic.core.error import TypeMismatchError
@@ -515,3 +519,60 @@ def test_avg_embedding_with_nulls(local_session):
     group_b_result = result.filter(pl.col("group") == "B")["avg_embedding"][0].to_list()
     assert group_a_result == pytest.approx([2.0, 3.0], rel=1e-6)
     assert group_b_result == pytest.approx([3.0, 1.0], rel=1e-6)
+
+def test_first_aggregation(local_session):
+    data = {
+        "age": [25, 25, 30],
+        "salary": [5, 5, 15],
+    }
+    df = local_session.create_dataframe(data)
+    result = df.group_by("age").agg(first("salary")).sort("age").to_polars()
+    expected = pl.DataFrame({
+        "age": [25, 30],
+        "first(salary)": [5, 15],
+    })
+    assert result.schema == {
+        "age": pl.Int64,
+        "first(salary)": pl.Int64,
+    }
+    assert result.equals(expected)
+
+def test_stddev_aggregation(local_session):
+    data = {
+        "age": [25, 25, 30, 30, 30],
+        "salary": [10, 20, 30, 40, 50],
+    }
+    df = local_session.create_dataframe(data)
+
+    fenic_df = (
+        df
+        .select(
+            col("age"),
+            col("salary")
+        )
+        .group_by("age")
+        .agg(stddev("salary"))
+        .sort("age")
+    )
+
+    assert fenic_df.schema.column_fields == [
+        ColumnField("age", IntegerType),
+        ColumnField("stddev(salary)", DoubleType),
+    ]
+    result = fenic_df.to_polars()
+
+    expected = pl.DataFrame({
+        "age": [25, 30],
+        "stddev(salary)": [math.sqrt(50), 10.0],
+    })
+
+    assert result.schema == {
+        "age": pl.Int64,
+        "stddev(salary)": pl.Float64,
+    }
+
+    # Check group keys match
+    assert result["age"].to_list() == expected["age"].to_list()
+
+    for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=True):
+        assert res_val == pytest.approx(exp_val, rel=1e-9)
