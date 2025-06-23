@@ -50,6 +50,7 @@ from fenic.core._logical_plan.expressions import (
     EmbeddingSimilarityExpr,
     EndsWithExpr,
     EqualityComparisonExpr,
+    FirstExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -83,6 +84,7 @@ from fenic.core._logical_plan.expressions import (
     SortExpr,
     SplitPartExpr,
     StartsWithExpr,
+    StdDevExpr,
     StringCasingExpr,
     StripCharsExpr,
     StrLengthExpr,
@@ -290,6 +292,12 @@ class ExprConverter:
             ListExpr: lambda expr: self._convert_expr(
                 expr.expr
             ),
+            FirstExpr: lambda expr: self._convert_expr(
+                expr.expr
+            ).first(),
+            StdDevExpr: lambda expr: self._convert_expr(
+                expr.expr
+            ).std(),
         }
 
         for expr_type, handler in agg_handlers.items():
