@@ -185,7 +185,7 @@ def convert_custom_dtype_to_polars(
     elif custom_dtype == JsonType:
         return pl.String
     elif isinstance(custom_dtype, EmbeddingType):
-        return pl.Array(pl.Float32, list_length=custom_dtype.dimensions)
+        return pl.Array(pl.Float32, custom_dtype.dimensions)
     else:
         raise ValueError(f"Unsupported custom data type: {custom_dtype}")
 

@@ -159,6 +159,7 @@ __all__ = [
     "desc",
     "desc_nulls_first",
     "desc_nulls_last",
+    "first",
     "max",
     "mean",
     "min",

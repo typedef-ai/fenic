@@ -65,4 +65,6 @@ __all__ = [
     "array_join",
     "replace",
     "when",
+    "first",
+    "stddev",
 ]

@@ -93,6 +93,7 @@ __all__ = [
     "stddev",
     "struct",
     "sum",
+    "stddev",
     "udf",
     "when",
     "col",

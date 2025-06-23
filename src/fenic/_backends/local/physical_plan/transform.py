@@ -337,7 +337,9 @@ class SemanticClusterExec(PhysicalPlan):
         group_expr: pl.Expr,
         group_expr_name: str,
         num_clusters: int,
-        return_centroids: bool,
+        cluster_id_column: str,
+        centroid_column: Optional[str],
+        centroid_dimensions: Optional[int],
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
     ):
@@ -345,7 +347,7 @@ class SemanticClusterExec(PhysicalPlan):
         self.group_expr = group_expr
         self.group_expr_name = group_expr_name
         self.num_clusters = num_clusters
-        self.return_centroids = return_centroids
+        self.centroid_dimensions = centroid_dimensions
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
@@ -358,7 +360,7 @@ class SemanticClusterExec(PhysicalPlan):
             child_df,
             self.group_expr_name,
             self.num_clusters,
-            self.return_centroids,
+            self.centroid_dimensions,
         ).execute()
 
         # Remove the temporary column we added for clustering if it wasn't in the original

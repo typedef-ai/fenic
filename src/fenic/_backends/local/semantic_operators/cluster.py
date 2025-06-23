@@ -19,6 +19,8 @@ class Cluster:
         input: pl.DataFrame,
         embedding_column_name: str,
         num_centroids: int,
+        cluster_id_column: str,
+        centroid_column: Optional[str],
         centroid_dimensions: Optional[int],
         num_iter: int = 20,
     ):
@@ -32,6 +34,8 @@ class Cluster:
             )
         self.num_centroids = min(num_centroids, input_height)
         self.num_iter = num_iter
+        self.cluster_id_column = cluster_id_column
+        self.centroid_column = centroid_column
         self.centroid_dimensions = centroid_dimensions
 
     def execute(self) -> pl.DataFrame:
@@ -42,11 +46,11 @@ class Cluster:
         """
         cluster_ids, centroids = self._cluster_by_column()
         res =  self.input.with_columns(
-            pl.Series(cluster_ids).alias("_cluster_id")
+            pl.Series(cluster_ids).alias(self.cluster_id_column)
         )
         if self.centroid_dimensions is not None:
             res = res.with_columns(
-                pl.from_arrow(pa.array(centroids, type=pa.list_(pa.float32(), self.centroid_dimensions))).alias("_cluster_centroid")
+                pl.from_arrow(pa.array(centroids, type=pa.list_(pa.float32(), self.centroid_dimensions))).alias(self.centroid_column)
             )
         return res
 

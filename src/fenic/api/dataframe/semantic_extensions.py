@@ -35,32 +35,36 @@ class SemanticExtensions:
         """
         self._df = df
 
-    def cluster(self, by: ColumnOrName, num_clusters: int, return_centroids: bool = False) -> DataFrame:
-        """Cluster rows by an embedding column and add cluster metadata columns.
+    def with_cluster_labels(self, by: ColumnOrName, num_clusters: int, cluster_id_column: str = "cluster_id", centroid_column: Optional[str] = None) -> DataFrame:
+        """
+        Cluster rows using K-means and add cluster metadata columns.
 
-        This method performs K-means clustering on the specified embedding column and adds two new columns:
-        - `_cluster_id`: Integer cluster assignment for each row (0, 1, 2, ..., num_clusters-1)
-        - `_cluster_centroid`: The centroid embedding for the assigned cluster if `return_centroids` is True
-
-        This is useful for discovering natural themes or groupings in your data, and then you can use
-        regular `group_by("_cluster_id")` operations for any aggregations you need.
+        This method clusters rows based on the given embedding column or expression using K-means.
+        It adds a new column with cluster assignments, and optionally includes the centroid embedding
+        for each assigned cluster.
 
         Args:
-            by: Column containing embeddings to cluster (e.g., from embeddings(text_column))
-            num_clusters: Number of clusters to create
-            return_centroids: Whether to return the centroids of the clusters
+            by: Column or expression producing embeddings to cluster (e.g., `embed(col("text"))`).
+            num_clusters: Number of clusters to compute (must be > 0).
+            cluster_id_column: Name of the output column for cluster IDs. Default is "cluster_id".
+            centroid_column: If provided, adds a column with this name containing the centroid embedding
+                            for each row's assigned cluster.
 
         Returns:
-            DataFrame: A new DataFrame with the original columns plus `_cluster_id` and `_cluster_centroid` if `return_centroids` is True
+            A DataFrame with all original columns plus:
+            - `<cluster_id_column>`: integer cluster assignment (0 to num_clusters - 1)
+            - `<centroid_column>`: cluster centroid embedding, if specified
 
         Raises:
             ValidationError: If num_clusters is not a positive integer
+            ValidationError: If cluster_id_column is not a non-empty string
+            ValidationError: If centroid_column is not a non-empty string
             TypeMismatchError: If the column is not an EmbeddingType
 
         Example: Basic clustering
             ```python
             # Cluster customer feedback and add cluster metadata
-            clustered_df = df.semantic.cluster("feedback_embeddings", 5)
+            clustered_df = df.semantic.with_cluster_labels("feedback_embeddings", 5)
 
             # Then use regular operations to analyze clusters
             clustered_df.group_by("_cluster_id").agg(count("*"), avg("rating"))
@@ -69,32 +73,42 @@ class SemanticExtensions:
         Example: Filter outliers using centroids
             ```python
             # Cluster and filter out rows far from their centroid
-            clustered_df = df.semantic.cluster("embeddings", 3, return_centroids=True)
+            clustered_df = df.semantic.with_cluster_labels("embeddings", 3, centroid_column="cluster_centroid")
             clean_df = clustered_df.filter(
-                embedding.compute_similarity("embeddings", "_cluster_centroid", metric="cosine") > 0.7
+                embedding.compute_similarity("embeddings", "cluster_centroid", metric="cosine") > 0.7
             )
             ```
         """
+        # Validate num_clusters
         if not isinstance(num_clusters, int) or num_clusters <= 0:
-            raise ValidationError(
-                "`num_clusters` must be a positive integer greater than 0."
-            )
+            raise ValidationError("`num_clusters` must be a positive integer greater than 0.")
+
+        # Validate clustering target
         if not isinstance(by, ColumnOrName):
             raise ValidationError(
-                f"Invalid cluster by: expected a column name (str) or Column object, but got {type(by).__name__}."
+                f"Invalid cluster by: expected a column name (str) or Column object, got {type(by).__name__}."
             )
 
-        by_expr = Column._from_col_or_name(by)._logical_expr
+        # Validate cluster_id_column
+        if not isinstance(cluster_id_column, str) or not cluster_id_column:
+            raise ValidationError("`cluster_id_column` must be a non-empty string.")
 
+        # Validate centroid_column if provided
+        if centroid_column is not None:
+            if not isinstance(centroid_column, str) or not centroid_column:
+                raise ValidationError("`centroid_column` must be a non-empty string if provided.")
+
+        # Check that the expression isn't a literal
+        by_expr = Column._from_col_or_name(by)._logical_expr
         if isinstance(by_expr, LiteralExpr):
             raise ValidationError(
-                f"Invalid cluster by: Cannot cluster by a literal value: {by_expr}. Use a column name or a valid expression instead."
+                f"Invalid cluster by: Cannot cluster by a literal value: {by_expr}."
             )
 
         return self._df._from_logical_plan(
             SemanticCluster(
-                self._df._logical_plan, by_expr, num_clusters, return_centroids
-            ),
+                self._df._logical_plan, by_expr, num_clusters, cluster_id_column, centroid_column
+            )
         )
 
     def join(
