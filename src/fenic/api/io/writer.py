@@ -80,10 +80,11 @@ class DataFrameWriter:
         view_name: str,
     ) -> None:
         """Saves the content of the DataFrame as a view.
+
         Args:
             view_name: Name of the view to save to
         Returns:
-            None
+            None.
         """
         self._dataframe._logical_plan.session_state.execution.save_as_view(
             logical_plan=self._dataframe._logical_plan, view_name=view_name

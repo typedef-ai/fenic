@@ -244,10 +244,11 @@ class Session:
 
     def view(self, view_name: str) -> DataFrame:
         """Returns the specified view as a DataFrame.
+
         Args:
             view_name: Name of the view
         Returns:
-            DataFrame: Dataframe with the given view
+            DataFrame: Dataframe with the given view.
         """
         if not self._session_state.catalog.does_view_exist(view_name):
             raise CatalogError(f"View {view_name} does not exist")

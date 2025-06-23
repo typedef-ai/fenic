@@ -16,11 +16,6 @@ from fenic.core._logical_plan.plans.source import (
     InMemorySource,
     TableSource,
 )
-from fenic.core._logical_plan.plans.source import (
-    FileSource,
-    InMemorySource,
-    TableSource,
-)
 from fenic.core._logical_plan.plans.transform import (
     SQL,
     DropDuplicates,

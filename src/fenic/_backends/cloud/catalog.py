@@ -3,7 +3,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Coroutine, Dict, List, Tuple, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import polars as pl
