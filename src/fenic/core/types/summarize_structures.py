@@ -22,4 +22,4 @@ class Paragraph(SummaryFormat):
         return "The summary should be written as a cohesive narrative that flows naturally and does not exceed the max_words limit of " + str(self.max_words)
 
     def max_tokens(self) -> int:
-        return self.max_words * 1.5
+        return int(self.max_words * 1.5)

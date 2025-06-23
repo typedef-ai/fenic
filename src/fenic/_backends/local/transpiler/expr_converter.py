@@ -580,6 +580,7 @@ class ExprConverter:
                 input=batch,
                 format=logical.format,
                 temperature=logical.temperature,
+                model=self.session_state.get_language_model(logical.model_alias),
 
             ).execute()
 

@@ -370,10 +370,12 @@ class EmbeddingsExpr(SemanticExpr):
 
 class SemanticSummarizeExpr(SemanticExpr):
 
-    def __init__(self, expr: LogicalExpr, format: Union[KeyPoints, Paragraph], temperature: float, model_alias: Optional[str] = None):
+    def __init__(self, expr: LogicalExpr, format: Union[KeyPoints, Paragraph], temperature: float, max_tokens: int, model_alias: Optional[str] = None):
+        super().__init__()
         self.expr = expr
         self.format = format
         self.temperature = temperature
+        self.max_tokens = max_tokens
         self.model_alias = model_alias
 
     def __str__(self) -> str:
@@ -383,7 +385,7 @@ class SemanticSummarizeExpr(SemanticExpr):
         return self.expr
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature, self.max_tokens)
         input_field = self.expr.to_column_field(plan)
         if input_field.data_type != StringType:
             raise TypeError(

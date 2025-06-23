@@ -401,7 +401,8 @@ def embed(
 def summarize(
     column: ColumnOrName,
     format: Union[KeyPoints, Paragraph] = Paragraph(),
-    temperature: float=0,
+    temperature: float = 0,
+    max_output_tokens: int = 1024,
     model_alias: Optional[str] = None
 ) -> Column:
     """Summarizes strings from a column.
@@ -418,5 +419,5 @@ def summarize(
         >>> semantic.summarize(col('user_comment'))
     """
     return Column._from_logical_expr(
-        SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, model_alias=model_alias)
+        SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, max_tokens=max_output_tokens, model_alias=model_alias)
     )
