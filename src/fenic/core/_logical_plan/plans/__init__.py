@@ -16,6 +16,11 @@ from fenic.core._logical_plan.plans.source import (
     InMemorySource,
     TableSource,
 )
+from fenic.core._logical_plan.plans.source import (
+    FileSource,
+    InMemorySource,
+    TableSource,
+)
 from fenic.core._logical_plan.plans.transform import (
     SQL,
     DropDuplicates,
@@ -27,18 +32,21 @@ from fenic.core._logical_plan.plans.transform import (
     Union,
 )
 from fenic.core._logical_plan.plans.transform import Unnest as Unnest
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 
 __all__ = [
     "Aggregate",
     "SemanticAggregate",
     "CacheInfo",
     "LogicalPlan",
+    "LogicalPlanSerde",
     "Join",
     "SemanticJoin",
     "SemanticSimilarityJoin",
     "FileSink",
     "TableSink",
     "FileSource",
+    "ViewSource",
     "InMemorySource",
     "TableSource",
     "SQL",

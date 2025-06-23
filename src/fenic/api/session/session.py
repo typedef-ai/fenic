@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -15,6 +16,7 @@ from fenic.api.dataframe import DataFrame
 from fenic.api.io.reader import DataFrameReader
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans import SQL, InMemorySource, TableSource
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 
 if TYPE_CHECKING:
     from fenic._backends.cloud.session_state import CloudSessionState
@@ -23,7 +25,7 @@ from pydantic import ConfigDict, validate_call
 
 from fenic.api.catalog import Catalog
 from fenic.api.session.config import SessionConfig
-from fenic.core.error import PlanError, ValidationError
+from fenic.core.error import CatalogError, PlanError, ValidationError
 from fenic.core.types.query_result import DataLike
 
 
@@ -240,6 +242,28 @@ class Session:
             TableSource(table_name, self._session_state),
         )
 
+    def view(self, view_name: str) -> DataFrame:
+        """Returns the specified view as a DataFrame.
+        Args:
+            view_name: Name of the view
+        Returns:
+            DataFrame: Dataframe with the given view
+        """
+        if not self._session_state.catalog.does_view_exist(view_name):
+            raise CatalogError(f"View {view_name} does not exist")
+
+        _, view_blob = self._session_state.catalog.describe_view(view_name)
+        view_plan = LogicalPlanSerde.deserialize(
+            codecs.decode(view_blob, "unicode_escape").encode("latin1")
+        )
+
+        view_plan_with_session_state = LogicalPlanSerde.build_logical_plan_with_session_state(view_plan, self._session_state)
+        self._session_state.catalog.validate_view_schema(view_plan_with_session_state)
+
+        return DataFrame._from_logical_plan(
+            view_plan_with_session_state,
+        )
+    
     def sql(self, query: str, /, **tables: DataFrame) -> DataFrame:
         """Execute a read-only SQL query against one or more DataFrames using named placeholders.
 
