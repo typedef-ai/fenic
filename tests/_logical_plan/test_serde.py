@@ -127,7 +127,7 @@ def test_join_plans(local_session):
             left_on=col("name_embeddings"),
             right_on=col("value_embeddings"),
             k=2,
-            return_similarity_scores=True,
+            similarity_score_column="similarity_score",
         )
         .order_by("id")
     )

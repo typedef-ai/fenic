@@ -250,7 +250,7 @@ class PlanConverter:
                 logical.similarity_metric(),
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
-                return_similarity_scores=logical.return_similarity_scores(),
+                similarity_score_column=logical.similarity_score_column(),
             )
 
         elif isinstance(logical, SemanticAggregate):

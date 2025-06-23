@@ -4,7 +4,7 @@ import pytest
 from fenic import (
     EmbeddingType,
 )
-from fenic.api.functions import col, lit, semantic, text
+from fenic import col, lit, semantic, text, ColumnField, IntegerType, StringType, EmbeddingType, ArrayType
 from fenic.core.error import TypeMismatchError
 
 
@@ -160,17 +160,28 @@ def test_semantic_sim_join(local_session, metric):
             k=1,
             similarity_metric=metric,
         )
-        .drop("course_embeddings", "skill_embeddings")
     )
+    assert df.schema.column_fields == [
+        ColumnField("course_id", IntegerType),
+        ColumnField("course_name", StringType),
+        ColumnField("other_col_left", StringType),
+        ColumnField("course_embeddings", EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small")),
+        ColumnField("skill_id", IntegerType),
+        ColumnField("skill", StringType),
+        ColumnField("other_col_right", StringType),
+        ColumnField("skill_embeddings", EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small")),
+    ]
     result = df.to_polars()
     assert result.schema == pl.Schema(
         {
             "course_id": pl.Int64,
             "course_name": pl.String,
             "other_col_left": pl.String,
+            "course_embeddings": pl.Array(pl.Float32, 1536),
             "skill_id": pl.Int64,
             "skill": pl.String,
             "other_col_right": pl.String,
+            "skill_embeddings": pl.Array(pl.Float32, 1536),
         }
     )
 
@@ -201,7 +212,7 @@ def test_semantic_sim_join_empty_result(local_session):
         empty_right,
         left_on=semantic.embed(col("course_name")),
         right_on=semantic.embed(col("skill")),
-        return_similarity_scores=True,
+        similarity_score_column="similarity_score",
     )
     result = df.to_polars()
     assert result.is_empty()
@@ -213,7 +224,7 @@ def test_semantic_sim_join_empty_result(local_session):
             "skill_id": pl.Int64,
             "skill": pl.String,
             "other_col_right": pl.String,
-            "_similarity_score": pl.Float64,
+            "similarity_score": pl.Float64,
         }
     )
 
@@ -227,7 +238,7 @@ def test_semantic_sim_join_with_sim_scores(local_session):
             left_on=col("course_embeddings"),
             right_on=col("skill_embeddings"),
             k=1,
-            return_similarity_scores=True,
+            similarity_score_column="similarity_score",
         )
         .drop("course_embeddings", "skill_embeddings")
     )
@@ -240,17 +251,17 @@ def test_semantic_sim_join_with_sim_scores(local_session):
             "skill_id": pl.Int64,
             "skill": pl.String,
             "other_col_right": pl.String,
-            "_similarity_score": pl.Float64,
+            "similarity_score": pl.Float64,
         }
     )
-    assert result.columns[-1] == "_similarity_score"
+    assert result.columns[-1] == "similarity_score"
 
-    result_score_selected = df.select(col("_similarity_score"))
+    result_score_selected = df.select(col("similarity_score"))
     result_score_selected_result = result_score_selected.to_polars()
     assert result_score_selected_result.schema == pl.Schema(
-        {"_similarity_score": pl.Float64}
+        {"similarity_score": pl.Float64}
     )
-    assert len(result_score_selected_result["_similarity_score"].to_list()) == len(
+    assert len(result_score_selected_result["similarity_score"].to_list()) == len(
         result
     )
 

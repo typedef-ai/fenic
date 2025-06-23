@@ -162,7 +162,7 @@ class SemanticExtensions:
         model_alias: Optional[str] = None,
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
-        
+
         That evaluates to either true or false for each potential row pair.
 
         The join works by:
@@ -279,30 +279,30 @@ class SemanticExtensions:
         right_on: ColumnOrName,
         k: int = 1,
         similarity_metric: SemanticSimilarityMetric = "cosine",
-        return_similarity_scores: bool = False,
+        similarity_score_column: Optional[str] = None,
     ) -> DataFrame:
-        """Performs a semantic similarity join between two DataFrames using precomputed text embeddings.
+        """Performs a semantic similarity join between two DataFrames using embedding expressions.
 
-        For each row in the left DataFrame, finds the top `k` most semantically similar rows in the right DataFrame
-        based on the cosine similarity between their text embeddings. This is useful for fuzzy matching tasks when exact matches aren't possible.
+        For each row in the left DataFrame, returns the top `k` most semantically similar rows
+        from the right DataFrame based on the specified similarity metric.
 
         Args:
             other: The right-hand DataFrame to join with.
-            left_on: Column in this DataFrame containing text embeddings to compare.
-            right_on: Column in the other DataFrame containing text embeddings to compare.
-            k: Number of most similar matches to return per row from the left DataFrame.
-            similarity_metric: The metric to use for calculating distances between vectors.
-                Supported distance metrics: "l2", "cosine", "dot"
-            return_similarity_scores: If True, include a `_similarity_score` column in the output DataFrame
-                                    representing the match confidence (cosine similarity).
+            left_on: Expression or column representing embeddings in the left DataFrame.
+            right_on: Expression or column representing embeddings in the right DataFrame.
+            k: Number of most similar matches to return per row.
+            similarity_metric: Similarity metric to use: "l2", "cosine", or "dot".
+            similarity_score_column: If set, adds a column with this name containing similarity scores.
+                If None, the scores are omitted.
 
         Returns:
-            DataFrame: A new DataFrame containing matched rows from both sides and optionally similarity scores.
+            A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.
+            The result includes all columns from both DataFrames, optionally augmented with a similarity score column
+            if `similarity_score_column` is provided.
 
         Raises:
-            TypeError: If argument types are incorrect.
-            ValueError: If `k` is not positive or if the columns are invalid.
-            ValueError: If `similarity_metric` is not one of "l2", "cosine", "dot"
+            ValidationError: If `k` is not positive or if the columns are invalid.
+            ValidationError: If `similarity_metric` is not one of "l2", "cosine", "dot"
 
         Example: Match queries to FAQ entries
             ```python
@@ -379,7 +379,7 @@ class SemanticExtensions:
                 Column._from_col_or_name(right_on)._logical_expr,
                 k,
                 similarity_metric,
-                return_similarity_scores,
+                similarity_score_column,
             ),
         )
 
