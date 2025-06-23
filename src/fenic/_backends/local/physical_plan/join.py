@@ -9,9 +9,9 @@ from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.semantic_operators import Join as SemanticJoin
 from fenic._backends.local.semantic_operators import SimJoin as SemanticSimJoin
 from fenic._backends.local.semantic_operators.sim_join import (
+    DISTANCE_COL_NAME,
     LEFT_ON_COL_NAME,
     RIGHT_ON_COL_NAME,
-    DISTANCE_COL_NAME,
 )
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.types import JoinExampleCollection

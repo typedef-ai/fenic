@@ -2,9 +2,15 @@ import polars as pl
 import pytest
 
 from fenic import (
+    ColumnField,
     EmbeddingType,
+    IntegerType,
+    StringType,
+    col,
+    lit,
+    semantic,
+    text,
 )
-from fenic import col, lit, semantic, text, ColumnField, IntegerType, StringType, EmbeddingType, ArrayType
 from fenic.core.error import TypeMismatchError
 
 
