@@ -9,10 +9,10 @@ from pydantic import BaseModel
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.types import (
     ClassifyExampleCollection,
-    MapExampleCollection,
-    PredicateExampleCollection,
     KeyPoints,
+    MapExampleCollection,
     Paragraph,
+    PredicateExampleCollection,
 )
 
 if TYPE_CHECKING:

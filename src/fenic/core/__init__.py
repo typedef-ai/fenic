@@ -28,9 +28,11 @@ from fenic.core.types import (
     JoinExample,
     JoinExampleCollection,
     JsonType,
+    KeyPoints,
     MapExample,
     MapExampleCollection,
     MarkdownType,
+    Paragraph,
     PredicateExample,
     PredicateExampleCollection,
     QueryResult,
@@ -40,8 +42,6 @@ from fenic.core.types import (
     StructField,
     StructType,
     TranscriptType,
-    KeyPoints,
-    Paragraph,
 )
 
 __all__ = [

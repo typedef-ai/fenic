@@ -68,11 +68,13 @@ from fenic.core import (
     JoinExample,
     JoinExampleCollection,
     JsonType,
+    KeyPoints,
     LMMetrics,
     MapExample,
     MapExampleCollection,
     MarkdownType,
     OperatorMetrics,
+    Paragraph,
     PredicateExample,
     PredicateExampleCollection,
     QueryMetrics,
@@ -84,8 +86,6 @@ from fenic.core import (
     StructField,
     StructType,
     TranscriptType,
-    KeyPoints,
-    Paragraph,
 )
 from fenic.logging import configure_logging
 
@@ -124,6 +124,7 @@ __all__ = [
     "HtmlType",
     "IntegerType",
     "JsonType",
+    "KeyPoints",
     "MapExample",
     "MapExampleCollection",
     "MarkdownType",
@@ -134,6 +135,7 @@ __all__ = [
     "ClassifyExampleCollection",
     "JoinExample",
     "JoinExampleCollection",
+    "Paragraph",
     "Schema",
     "SemanticSimilarityMetric",
     "StringType",

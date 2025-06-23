@@ -1,7 +1,7 @@
-from pydoc import text
+
 import polars as pl
 
-from fenic import Paragraph, KeyPoints, col, semantic
+from fenic import KeyPoints, col, semantic
 
 
 def test_semantic_summarization_default_case(local_session):

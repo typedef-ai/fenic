@@ -7,13 +7,11 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
     CompletionOnlyRequestSender,
 )
+from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core.types import (
     KeyPoints,
     Paragraph,
 )
-
-from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-
 
 logger = logging.getLogger(__name__)
 
