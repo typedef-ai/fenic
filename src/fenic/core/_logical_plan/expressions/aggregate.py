@@ -163,3 +163,26 @@ class ListExpr(AggregateExpr):
             return ColumnField(
                 str(self), ArrayType(self.expr.to_column_field(plan).data_type)
             )
+
+class FirstExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("first", expr)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+
+class StdDevExpr(AggregateExpr):
+    def __init__(self, expr: LogicalExpr):
+        super().__init__("stddev", expr)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        return ColumnField(str(self), DoubleType)
+
+    def _validate_types(self, plan: LogicalPlan):
+        expr_type = self.expr.to_column_field(plan).data_type
+        if expr_type not in SUMMABLE_TYPES:
+            raise TypeError(
+                f"Type mismatch: Cannot apply stddev function to non-numeric types. "
+                f"Type: {expr_type}. "
+                f"Only numeric types ({', '.join(str(t) for t in SUMMABLE_TYPES)}) are supported."
+            )
