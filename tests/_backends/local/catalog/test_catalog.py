@@ -1,5 +1,6 @@
-import pytest
 import codecs
+
+import pytest
 
 from fenic import (
     ColumnField,

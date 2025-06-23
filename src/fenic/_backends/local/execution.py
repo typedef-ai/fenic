@@ -13,9 +13,8 @@ from fenic._backends.local.utils.io_utils import (
     query_files,
 )
 from fenic._backends.schema_serde import serialize_schema
-from fenic.core._logical_plan.serde import LogicalPlan, LogicalPlanSerde
 from fenic.core._interfaces.execution import BaseExecution
-from fenic.core._logical_plan import LogicalPlan
+from fenic.core._logical_plan.serde import LogicalPlan, LogicalPlanSerde
 from fenic.core._utils.schema import (
     convert_polars_schema_to_custom_schema,
 )
