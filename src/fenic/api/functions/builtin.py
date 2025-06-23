@@ -166,12 +166,15 @@ def array_agg(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def first(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the first value in the specified column.
+    """Aggregate function: returns the first non-null value in the specified column.
+
+    Typically used in aggregations to select the first observed value per group.
 
     Args:
-        column: Column or column name to return the first value of
+        column: Column or column name.
+
     Returns:
-        A Column expression representing the first value aggregation.
+        Column expression for the first value.
     """
     return Column._from_logical_expr(
         FirstExpr(Column._from_col_or_name(column)._logical_expr)
@@ -179,12 +182,13 @@ def first(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def stddev(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the sample standard deviation of all values in the specified column.
+    """Aggregate function: returns the sample standard deviation of the specified column.
 
     Args:
-        column: Column or column name to compute the standard deviation of
+        column: Column or column name.
+
     Returns:
-        A Column expression representing the standard deviation aggregation.
+        Column expression for sample standard deviation.
     """
     return Column._from_logical_expr(
         StdDevExpr(Column._from_col_or_name(column)._logical_expr)
