@@ -12,6 +12,7 @@ from fenic.core.types import (
     BooleanType,
     ColumnField,
     DoubleType,
+    EmbeddingType,
     FloatType,
     IntegerType,
     StringType,
@@ -71,21 +72,28 @@ class SumExpr(AggregateExpr):
 class AvgExpr(AggregateExpr):
     def __init__(self, expr: LogicalExpr):
         super().__init__("avg", expr)
+        self.input_type = None  # Will be set during validation
 
     def _validate_types(self, plan: LogicalPlan):
         expr_type = self.expr.to_column_field(plan).data_type
+        self.input_type = expr_type
 
-        if expr_type not in SUMMABLE_TYPES:
+        if expr_type not in SUMMABLE_TYPES and not isinstance(expr_type, EmbeddingType):
             raise TypeError(
                 f"Type mismatch: Cannot apply avg function to non-numeric types. "
                 f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
+                f"Only numeric types ({', '.join(str(t) for t in SUMMABLE_TYPES)}) and EmbeddingType are supported."
             )
         return
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         self._validate_types(plan)
-        return ColumnField(str(self), DoubleType)
+
+        # If averaging embeddings, return the same embedding type
+        if isinstance(self.input_type, EmbeddingType):
+            return ColumnField(str(self), self.input_type)
+        else:
+            return ColumnField(str(self), DoubleType)
 
 
 class MinExpr(AggregateExpr):
