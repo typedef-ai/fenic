@@ -90,7 +90,6 @@ __all__ = [
     "max",
     "mean",
     "min",
-    "stddev",
     "struct",
     "sum",
     "stddev",

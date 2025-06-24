@@ -2,7 +2,7 @@
 
 [View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/feedback_clustering/README.md)
 
-This example demonstrates how to use Fenic's `semantic.with_cluster)labels()` and `semantic.reduce()` to automatically cluster customer feedback into themes and generate intelligent summaries for each discovered category.
+This example demonstrates how to use Fenic's `semantic.with_cluster_labels()` and `semantic.reduce()` to automatically cluster customer feedback into themes and generate intelligent summaries for each discovered category.
 
 ## Overview
 

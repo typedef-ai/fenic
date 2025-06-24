@@ -48,7 +48,6 @@ from fenic._backends.local.physical_plan.transform import UnnestExec as UnnestEx
 
 __all__ = [
     "AggregateExec",
-    "SemanticAggregateExec",
     "SemanticClusterExec",
     "PhysicalPlan",
     "JoinExec",
