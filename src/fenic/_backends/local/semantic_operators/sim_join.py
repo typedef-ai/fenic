@@ -15,7 +15,6 @@ DISTANCE_COL_NAME = "_distance"
 # IMPORTANT: Lance expects a column named "vector" in the table.
 VECTOR_COL_NAME = "vector"
 
-SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 LEFT_ON_COL_NAME = "_left_on"
 RIGHT_ON_COL_NAME = "_right_on"
 
@@ -55,8 +54,8 @@ class SimJoin:
             .drop(["_left_id", "_right_id"])
         )
         # Reorder columns to have similarity score last
-        cols = [col for col in result.columns if col != SIMILARITY_SCORE_COL_NAME]
-        cols.append(SIMILARITY_SCORE_COL_NAME)
+        cols = [col for col in result.columns if col != DISTANCE_COL_NAME]
+        cols.append(DISTANCE_COL_NAME)
         result = result.select(cols)
         return result
 
@@ -86,7 +85,7 @@ class SimJoin:
                     {
                         "_left_id": left_id,
                         "_right_id": result["_right_id"],
-                        SIMILARITY_SCORE_COL_NAME: result["_distance"],
+                        DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
                     }
                 )
             return matches
@@ -106,7 +105,7 @@ class SimJoin:
                             {
                                 "_left_id": pl.Int32,
                                 "_right_id": pl.Int32,
-                                SIMILARITY_SCORE_COL_NAME: pl.Float64,
+                                DISTANCE_COL_NAME: pl.Float64,
                             }
                         )
                     ),
@@ -121,7 +120,7 @@ class SimJoin:
         self, left: pl.DataFrame, right: pl.DataFrame
     ) -> pl.DataFrame:
         extra_cols = [
-            ("_similarity_score", pl.Float64),
+            (DISTANCE_COL_NAME, pl.Float64),
         ]
 
         # Drop the ID columns after join

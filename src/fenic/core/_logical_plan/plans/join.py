@@ -236,11 +236,11 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         right_on: LogicalExpr,
         k: int,
         similarity_metric: SemanticSimilarityMetric,
-        return_similarity_scores: bool = False,
+        similarity_score_column: Optional[str] = None,
     ):
         self._k = k
         self._similarity_metric = similarity_metric
-        self._return_similarity_scores = return_similarity_scores
+        self._similarity_score_column = similarity_score_column
         super().__init__(left, right, left_on, right_on)
 
     def _validate_columns(self) -> None:
@@ -261,8 +261,8 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
     def similarity_metric(self) -> SemanticSimilarityMetric:
         return self._similarity_metric
 
-    def return_similarity_scores(self) -> bool:
-        return self._return_similarity_scores
+    def similarity_score_column(self) -> Optional[str]:
+        return self._similarity_score_column
 
     def _repr(self) -> str:
         return (
@@ -275,10 +275,10 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         self._validate_columns()
         # add scores field if requested by user.
         additional_fields = []
-        if self._return_similarity_scores:
+        if self._similarity_score_column:
             additional_fields.append(
                 ColumnField(
-                    name=SIMILARITY_SCORE_COL_NAME,
+                    name=self._similarity_score_column,
                     data_type=DoubleType,
                 )
             )
@@ -301,7 +301,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             right_on=self._right_on,
             k=self._k,
             similarity_metric=self._similarity_metric,
-            return_similarity_scores=self._return_similarity_scores,
+            similarity_score_column=self._similarity_score_column,
         )
         result.set_cache_info(self.cache_info)
         return result
