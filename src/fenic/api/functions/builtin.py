@@ -159,34 +159,6 @@ def collect_list(column: ColumnOrName) -> Column:
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def first(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the first value in the specified column.
-
-    Args:
-        column: Column or column name to return the first value of
-
-    Returns:
-        A Column expression representing the first value aggregation
-    """
-    return Column._from_logical_expr(
-        FirstExpr(Column._from_col_or_name(column)._logical_expr)
-    )
-
-@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def stddev(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the sample standard deviation of all values in the specified column.
-
-    Args:
-        column: Column or column name to compute the standard deviation of
-
-    Returns:
-        A Column expression representing the standard deviation aggregation
-    """
-    return Column._from_logical_expr(
-        StdDevExpr(Column._from_col_or_name(column)._logical_expr)
-    )
-
-@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def array_agg(column: ColumnOrName) -> Column:
     """Alias for collect_list()."""
     return collect_list(column)

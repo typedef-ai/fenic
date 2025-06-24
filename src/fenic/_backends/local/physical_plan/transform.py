@@ -334,38 +334,39 @@ class SemanticClusterExec(PhysicalPlan):
     def __init__(
         self,
         child: PhysicalPlan,
-        group_expr: pl.Expr,
-        group_expr_name: str,
+        by_expr: pl.Expr,
+        by_expr_name: str,
         num_clusters: int,
-        cluster_id_column: str,
-        centroid_column: Optional[str],
-        centroid_dimensions: Optional[int],
+        label_column: str,
+        centroid_info: Optional[Tuple[str, int]],
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
     ):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
-        self.group_expr = group_expr
-        self.group_expr_name = group_expr_name
+        self.by_expr = by_expr
+        self.by_expr_name = by_expr_name
         self.num_clusters = num_clusters
-        self.centroid_dimensions = centroid_dimensions
+        self.label_column = label_column
+        self.centroid_info = centroid_info
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: SemanticClusterExec expects 1 child")
         child_df = child_dfs[0]
-        child_df = child_df.with_columns(self.group_expr.alias(self.group_expr_name))
+        child_df = child_df.with_columns(self.by_expr.alias(self.by_expr_name))
 
         # Perform clustering and add cluster metadata columns
         clustered_df = Cluster(
             child_df,
-            self.group_expr_name,
+            self.by_expr_name,
             self.num_clusters,
-            self.centroid_dimensions,
+            self.label_column,
+            self.centroid_info,
         ).execute()
 
         # Remove the temporary column we added for clustering if it wasn't in the original
-        if self.group_expr_name not in child_dfs[0].columns:
-            clustered_df = clustered_df.drop(self.group_expr_name)
+        if self.by_expr_name not in child_dfs[0].columns:
+            clustered_df = clustered_df.drop(self.by_expr_name)
 
         return clustered_df
 

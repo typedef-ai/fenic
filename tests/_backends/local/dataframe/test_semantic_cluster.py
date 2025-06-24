@@ -28,21 +28,21 @@ def test_semantic_cluster_with_centroids(local_session):
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.cluster(col("embeddings"), 2, return_centroids=True)
+        .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
     )
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
         ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
-        ColumnField("_cluster_id", IntegerType),
-        ColumnField("_cluster_centroid", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("cluster_label", IntegerType),
+        ColumnField("cluster_centroid", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
     ]
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
         "embeddings": pl.Array(pl.Float32, 1536),
-        "_cluster_id": pl.Int64,
-        "_cluster_centroid": pl.Array(pl.Float32, 1536),
+        "cluster_label": pl.Int64,
+        "cluster_centroid": pl.Array(pl.Float32, 1536),
     }
 
 def test_semantic_cluster_derived_column(local_session):
@@ -56,19 +56,19 @@ def test_semantic_cluster_derived_column(local_session):
             ],
         }
     )
-    df = source.semantic.cluster(semantic.embed(col("blurb")), 2)
+    df = source.semantic.with_cluster_labels(semantic.embed(col("blurb")), 2)
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
-        ColumnField("_cluster_id", IntegerType),
+        ColumnField("cluster_label", IntegerType),
     ]
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
-        "_cluster_id": pl.Int64,
+        "cluster_label": pl.Int64,
     }
 
-def test_semantic_clustering_groups_by_cluster_id_with_aggregation(local_session):
+def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_session):
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -81,22 +81,22 @@ def test_semantic_clustering_groups_by_cluster_id_with_aggregation(local_session
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.cluster(col("embeddings"), 2)
-        .group_by(col("_cluster_id"))
+        .semantic.with_cluster_labels(col("embeddings"), 2)
+        .group_by(col("cluster_label"))
         .agg(collect_list(col("blurb")).alias("blurbs"))
     )
     result = df.to_polars()
     assert result.schema == {
-        "_cluster_id": pl.Int64,
+        "cluster_label": pl.Int64,
         "blurbs": pl.List(pl.String),
     }
-    assert set(result["_cluster_id"].to_list()) == {0, 1, None}
+    assert set(result["cluster_label"].to_list()) == {0, 1, None}
 
     with pytest.raises(
         TypeMismatchError,
-        match="semantic.cluster by expression must be an embedding column type",
+        match="semantic.with_cluster_labels by expression must be an embedding column type",
     ):
-        df = source.semantic.cluster(col("blurb"), 2).group_by(col("_cluster_id")).agg(
+        df = source.semantic.with_cluster_labels(col("blurb"), 2).group_by(col("cluster_label")).agg(
             collect_list(col("blurb")).alias("blurbs")
         ).to_polars()
 
@@ -119,8 +119,8 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     # First cluster the feedback, then summarize each cluster
     result = (
         df.with_column("embeddings", semantic.embed(col("feedback")))
-        .semantic.cluster(col("embeddings"), 2)
-        .group_by(col("_cluster_id"))
+        .semantic.with_cluster_labels(col("embeddings"), 2)
+        .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
             semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
@@ -131,7 +131,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     )
 
     assert result.schema == {
-        "_cluster_id": pl.Int64,
+        "cluster_label": pl.Int64,
         "feedback_count": pl.UInt32,
         "theme_summary": pl.Utf8,
     }
@@ -163,8 +163,8 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session):
         ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
     ]
     result = (
-        df_embeddings.semantic.cluster(col("embeddings"), 2)
-        .group_by(col("_cluster_id"))
+        df_embeddings.semantic.with_cluster_labels(col("embeddings"), 2)
+        .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
             semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(

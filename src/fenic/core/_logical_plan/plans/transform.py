@@ -414,22 +414,21 @@ class SQL(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
-
 class SemanticCluster(LogicalPlan):
     def __init__(
         self,
         input: LogicalPlan,
         by_expr: LogicalExpr,
         num_clusters: int,
-        cluster_id_column: str,
+        label_column: str,
         centroid_column: Optional[str],
     ):
         self._input = input
         self._by_expr = by_expr
         self._num_clusters = num_clusters
-        self._cluster_id_column = cluster_id_column
+        self._label_column = label_column
         self._centroid_column = centroid_column
-        self._centroid_dimensions = None
+        self._centroid_info: Optional[Tuple[str, int]] = None
         super().__init__(self._input.session_state)
 
     def children(self) -> List[LogicalPlan]:
@@ -439,14 +438,14 @@ class SemanticCluster(LogicalPlan):
         by_expr_type = self._by_expr.to_column_field(self._input).data_type
         if not isinstance(by_expr_type, EmbeddingType):
             raise TypeMismatchError.from_message(
-                f"semantic.cluster by expression must be an embedding column type (EmbeddingType); "
+                f"semantic.with_cluster_labels by expression must be an embedding column type (EmbeddingType); "
                 f"got: {by_expr_type}"
             )
 
-        new_fields = [ColumnField(self._cluster_id_column, IntegerType)]
+        new_fields = [ColumnField(self._label_column, IntegerType)]
         if self._centroid_column:
             new_fields.append(ColumnField(self._centroid_column, by_expr_type))
-            self._centroid_dimensions = by_expr_type.dimensions
+            self._centroid_info = (self._centroid_column, by_expr_type.dimensions)
 
         return Schema(column_fields=self._input.schema().column_fields + new_fields)
 
@@ -456,23 +455,20 @@ class SemanticCluster(LogicalPlan):
     def num_clusters(self) -> int:
         return self._num_clusters
 
-    def centroid_dimensions(self) -> Optional[int]:
-        return self._centroid_dimensions
+    def centroid_info(self) -> Optional[Tuple[str, int]]:
+        return self._centroid_info
 
     def by_expr(self) -> LogicalExpr:
         return self._by_expr
 
-    def cluster_id_column(self) -> str:
-        return self._cluster_id_column
-
-    def centroid_column(self) -> Optional[str]:
-        return self._centroid_column
+    def label_column(self) -> str:
+        return self._label_column
 
     def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("SemanticCluster must have exactly one child")
         result = SemanticCluster(
-            children[0], self._by_expr, self._num_clusters, self._cluster_id_column, self._centroid_column
+            children[0], self._by_expr, self._num_clusters, self._label_column, self._centroid_column
         )
         result.set_cache_info(self.cache_info)
         return result

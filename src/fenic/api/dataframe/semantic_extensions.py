@@ -35,9 +35,8 @@ class SemanticExtensions:
         """
         self._df = df
 
-    def with_cluster_labels(self, by: ColumnOrName, num_clusters: int, cluster_id_column: str = "cluster_id", centroid_column: Optional[str] = None) -> DataFrame:
-        """
-        Cluster rows using K-means and add cluster metadata columns.
+    def with_cluster_labels(self, by: ColumnOrName, num_clusters: int, label_column: str = "cluster_label", centroid_column: Optional[str] = None) -> DataFrame:
+        """Cluster rows using K-means and add cluster metadata columns.
 
         This method clusters rows based on the given embedding column or expression using K-means.
         It adds a new column with cluster assignments, and optionally includes the centroid embedding
@@ -46,18 +45,18 @@ class SemanticExtensions:
         Args:
             by: Column or expression producing embeddings to cluster (e.g., `embed(col("text"))`).
             num_clusters: Number of clusters to compute (must be > 0).
-            cluster_id_column: Name of the output column for cluster IDs. Default is "cluster_id".
+            label_column: Name of the output column for cluster IDs. Default is "cluster_label".
             centroid_column: If provided, adds a column with this name containing the centroid embedding
                             for each row's assigned cluster.
 
         Returns:
             A DataFrame with all original columns plus:
-            - `<cluster_id_column>`: integer cluster assignment (0 to num_clusters - 1)
+            - `<label_column>`: integer cluster assignment (0 to num_clusters - 1)
             - `<centroid_column>`: cluster centroid embedding, if specified
 
         Raises:
             ValidationError: If num_clusters is not a positive integer
-            ValidationError: If cluster_id_column is not a non-empty string
+            ValidationError: If label_column is not a non-empty string
             ValidationError: If centroid_column is not a non-empty string
             TypeMismatchError: If the column is not an EmbeddingType
 
@@ -67,7 +66,7 @@ class SemanticExtensions:
             clustered_df = df.semantic.with_cluster_labels("feedback_embeddings", 5)
 
             # Then use regular operations to analyze clusters
-            clustered_df.group_by("_cluster_id").agg(count("*"), avg("rating"))
+            clustered_df.group_by("cluster_label").agg(count("*"), avg("rating"))
             ```
 
         Example: Filter outliers using centroids
@@ -89,9 +88,9 @@ class SemanticExtensions:
                 f"Invalid cluster by: expected a column name (str) or Column object, got {type(by).__name__}."
             )
 
-        # Validate cluster_id_column
-        if not isinstance(cluster_id_column, str) or not cluster_id_column:
-            raise ValidationError("`cluster_id_column` must be a non-empty string.")
+        # Validate label_column
+        if not isinstance(label_column, str) or not label_column:
+            raise ValidationError("`label_column` must be a non-empty string.")
 
         # Validate centroid_column if provided
         if centroid_column is not None:
@@ -107,7 +106,7 @@ class SemanticExtensions:
 
         return self._df._from_logical_plan(
             SemanticCluster(
-                self._df._logical_plan, by_expr, num_clusters, cluster_id_column, centroid_column
+                self._df._logical_plan, by_expr, num_clusters, label_column, centroid_column
             )
         )
 
