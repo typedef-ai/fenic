@@ -155,7 +155,6 @@ __all__ = [
     "coalesce",
     "collect_list",
     "count",
-    "first",
     "desc",
     "desc_nulls_first",
     "desc_nulls_last",
