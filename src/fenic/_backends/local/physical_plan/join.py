@@ -9,9 +9,9 @@ from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.semantic_operators import Join as SemanticJoin
 from fenic._backends.local.semantic_operators import SimJoin as SemanticSimJoin
 from fenic._backends.local.semantic_operators.sim_join import (
+    DISTANCE_COL_NAME,
     LEFT_ON_COL_NAME,
     RIGHT_ON_COL_NAME,
-    SIMILARITY_SCORE_COL_NAME,
 )
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.types import JoinExampleCollection
@@ -173,7 +173,7 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         similarity_metric: SemanticSimilarityMetric,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
-        return_similarity_scores: bool = False,
+        similarity_score_column: Optional[str] = None,
     ):
         super().__init__(
             [left, right], cache_info=cache_info, session_state=session_state
@@ -182,7 +182,7 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         self.right_on = right_on
         self.k = k
         self.similarity_metric = similarity_metric
-        self.return_similarity_scores = return_similarity_scores
+        self.similarity_score_column = similarity_score_column
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 2:
@@ -203,8 +203,10 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         # TODO(rohitrastogi): Avoid regenerating embeddings if semantic index already exists
         result = SemanticSimJoin(left_df, right_df, self.k, self.similarity_metric).execute()
 
-        if not self.return_similarity_scores:
-            result = result.drop(SIMILARITY_SCORE_COL_NAME)
+        if self.similarity_score_column:
+            result = result.rename({DISTANCE_COL_NAME: self.similarity_score_column})
+        else:
+            result = result.drop(DISTANCE_COL_NAME)
 
         # Restore original column names or drop temporary columns
         result = self._restore_column(

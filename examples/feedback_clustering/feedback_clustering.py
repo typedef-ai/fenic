@@ -1,6 +1,6 @@
 """Customer feedback clustering and analysis example using fenic.
 
-This example demonstrates how to use semantic.group_by() and semantic.reduce()
+This example demonstrates how to use semantic.with_cluster_labels() and semantic.reduce()
 to automatically cluster customer feedback into themes and generate summaries
 for each discovered category.
 """
@@ -38,7 +38,7 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     print("Customer Feedback Clustering & Analysis")
     print("=" * 50)
-    print("Demonstrating semantic.group_by() and semantic.reduce()")
+    print("Demonstrating semantic.with_cluster_labels() and semantic.reduce()")
     print()
 
     # Sample customer feedback data with various themes
@@ -151,14 +151,16 @@ def main(config: Optional[fc.SessionConfig] = None):
     print()
 
     # Step 2: Cluster feedback into semantic themes
-    print("Step 2: Clustering feedback into themes using semantic.group_by()...")
+    print("Step 2: Clustering feedback into themes using semantic.with_cluster_labels()...")
     print("-" * 60)
 
     # Use semantic group_by to cluster feedback into 4 thematic groups
     # and apply semantic.reduce directly in the aggregation
-    feedback_clusters = feedback_with_embeddings.semantic.group_by(
+    feedback_clusters = feedback_with_embeddings.semantic.with_cluster_labels(
         fc.col("feedback_embeddings"),
         4  # Number of clusters - expecting themes like bugs, performance, features, praise
+    ).group_by(
+        "cluster_label"
     ).agg(
         fc.count("*").alias("feedback_count"),
         fc.avg("rating").alias("avg_rating"),
@@ -174,11 +176,11 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     # Display detailed analysis for each cluster
     feedback_clusters.select(
-        "_cluster_id",
+        "cluster_label",
         "feedback_count",
         "avg_rating",
         "theme_summary"
-    ).sort("_cluster_id").show()
+    ).sort("cluster_label").show()
     print()
 
     # Clean up

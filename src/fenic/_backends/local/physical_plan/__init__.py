@@ -8,9 +8,6 @@ part of the public API and should not be used directly.
 from fenic._backends.local.physical_plan.aggregate import (
     AggregateExec as AggregateExec,
 )
-from fenic._backends.local.physical_plan.aggregate import (
-    SemanticAggregateExec as SemanticAggregateExec,
-)
 from fenic._backends.local.physical_plan.base import PhysicalPlan as PhysicalPlan
 from fenic._backends.local.physical_plan.join import JoinExec as JoinExec
 from fenic._backends.local.physical_plan.join import (
@@ -41,6 +38,9 @@ from fenic._backends.local.physical_plan.transform import LimitExec as LimitExec
 from fenic._backends.local.physical_plan.transform import (
     ProjectionExec as ProjectionExec,
 )
+from fenic._backends.local.physical_plan.transform import (
+    SemanticClusterExec as SemanticClusterExec,
+)
 from fenic._backends.local.physical_plan.transform import SortExec as SortExec
 from fenic._backends.local.physical_plan.transform import SQLExec as SQLExec
 from fenic._backends.local.physical_plan.transform import UnionExec as UnionExec
@@ -48,7 +48,7 @@ from fenic._backends.local.physical_plan.transform import UnnestExec as UnnestEx
 
 __all__ = [
     "AggregateExec",
-    "SemanticAggregateExec",
+    "SemanticClusterExec",
     "PhysicalPlan",
     "JoinExec",
     "SemanticJoinExec",

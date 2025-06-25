@@ -127,7 +127,7 @@ def test_join_plans(local_session):
             left_on=col("name_embeddings"),
             right_on=col("value_embeddings"),
             k=2,
-            return_similarity_scores=True,
+            similarity_score_column="similarity_score",
         )
         .order_by("id")
     )
@@ -153,7 +153,8 @@ def test_aggregate_plans(local_session):
     # Test SemanticAggregate
     semantic_aggregate = (
         df.with_column("group_embeddings", semantic.embed(col("group")))
-        .semantic.group_by(col("group_embeddings"), 2)
+        .semantic.with_cluster_labels(col("group_embeddings"), 2)
+        .group_by(col("cluster_label"))
         .agg({"value": "sum"})
     )
     deserialized_df = _test_plan_serialization(semantic_aggregate._logical_plan, local_session._session_state)
