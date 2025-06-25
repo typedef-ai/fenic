@@ -18,6 +18,7 @@ from fenic._inference.model_catalog import (
     GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,
+    ModelProvider,
 )
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
@@ -49,10 +50,10 @@ class ResolvedAnthropicModelConfig:
 
 @dataclass
 class ResolvedGoogleModelConfig:
+    model_provider: Literal[ModelProvider.GOOGLE_GLA, ModelProvider.GOOGLE_VERTEX]
     model_name: Union[GOOGLE_GLA_AVAILABLE_MODELS, GOOGLE_VERTEX_AVAILABLE_MODELS]
     rpm: int
     tpm: int
-    use_vertex_ai: bool
     default_thinking_budget: Optional[int] = None
 
 ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]

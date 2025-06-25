@@ -221,9 +221,9 @@ class SessionModelRegistry:
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
                 client = GeminiNativeChatCompletionsClient(
                     rate_limit_strategy=rate_limit_strategy,
+                    model_provider=model_config.model_provider,
                     model=model_config.model_name,
                     default_thinking_budget=model_config.default_thinking_budget,
-                    use_vertex_ai=model_config.use_vertex_ai,
                 )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")

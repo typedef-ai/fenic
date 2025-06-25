@@ -40,6 +40,7 @@ from fenic.api.lineage import Lineage
 from fenic.api.session import (
     AnthropicModelConfig,
     GoogleGLAModelConfig,
+    GoogleVertexModelConfig,
     OpenAIModelConfig,
     SemanticConfig,
     Session,
@@ -53,6 +54,7 @@ __all__ = [
     "OpenAIModelConfig",
     "AnthropicModelConfig",
     "GoogleGLAModelConfig",
+    "GoogleVertexModelConfig",
     "SemanticConfig",
     # IO
     "DataFrameReader",

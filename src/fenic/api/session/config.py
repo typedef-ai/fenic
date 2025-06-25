@@ -50,8 +50,9 @@ class GoogleGLAModelConfig(BaseModel):
 class GoogleVertexModelConfig(BaseModel):
     """Configuration for Google Vertex models.
 
-    This class defines the configuration settings for models available in Google Developer AI Studio,
-    including model selection and rate limiting parameters. These models are accessible using a GEMINI_API_KEY environment variable.
+    This class defines the configuration settings for models available in Google Vertex AI,
+    including model selection and rate limiting parameters. In order to use these models, you must have a
+    Google Cloud service account, or use the `gcloud` cli tool to authenticate your local environment.
     """
     model_name: GOOGLE_VERTEX_AVAILABLE_MODELS = Field(..., description="The name of the Google Vertex model to use")
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
@@ -124,7 +125,7 @@ class AnthropicModelConfig(BaseModel):
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
 
 
-ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig]
+ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig, GoogleVertexModelConfig]
 
 
 class SemanticConfig(BaseModel):
@@ -301,19 +302,19 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, GoogleGLAModelConfig):
                 return ResolvedGoogleModelConfig(
+                    model_provider=ModelProvider.GOOGLE_GLA,
                     model_name=model.model_name,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     default_thinking_budget=model.default_thinking_budget,
-                    use_vertex_ai=False
                 )
             elif isinstance(model, GoogleVertexModelConfig):
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
+                    model_provider=ModelProvider.GOOGLE_VERTEX,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     default_thinking_budget=model.default_thinking_budget,
-                    use_vertex_ai=True
                 )
             else:
                 return ResolvedAnthropicModelConfig(
