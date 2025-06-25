@@ -55,7 +55,6 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 CLOUD_SUPPORTED_SCHEMES = ["s3"]
 
