@@ -365,8 +365,11 @@ class CloudExecution(BaseExecution):
             arrow_client = pa.flight.connect(
                 f"grpc://{self.session_state.arrow_ipc_uri}"
             )
+            # Make sure the headers are set for the arrow IPC Connection.
+            options = pa.flight.FlightCallOptions(headers=self._get_arrow_ipc_headers(execution_id))
             reader = arrow_client.do_get(
-                pa.flight.Ticket(str(execution_id).encode("utf-8"))
+                pa.flight.Ticket(str(execution_id).encode("utf-8")),
+                options,
             )
             table = reader.read_all()
             return pl.DataFrame(table)
@@ -386,3 +389,10 @@ class CloudExecution(BaseExecution):
             self.session_state.asyncio_loop,
         )
         return future.result()
+
+    def _get_arrow_ipc_headers(
+            self,
+            execution_id: str,
+        ) -> list[Tuple[str, str]]:
+        """Get the headers for the arrow IPC connection."""
+        return [("session-id", execution_id), ("verb", "results")]

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import grpc
 from fenic_cloud.protos.engine.v1.engine_pb2 import (
@@ -37,6 +37,7 @@ engine_instance_size_map = {
 }
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class CloudSessionState(BaseSessionState):
@@ -144,7 +145,7 @@ class CloudSessionState(BaseSessionState):
                 "are active and correct, and set in your environment. "
                 "If authentication is still failing, please file a ticket with Typedef support."
             )
-        return [("hasura-auth-token", self.client_token)]
+        return [("hasura-auth-token", self.client_token), ("session-id", self.session_uuid), ("verb", "actions")]
 
     def _get_entrypoint_grpc_metadata(self):
         """Get metadata with authorization header for gRPC requests."""
@@ -247,14 +248,24 @@ class CloudSessionState(BaseSessionState):
             # For cloud engines, use secure channel
             secure = True
             credentials = grpc.ssl_channel_credentials()
-            self.engine_channel = grpc.aio.secure_channel(self.engine_uri, credentials)
-            self.arrow_ipc_channel = grpc.aio.secure_channel(
-                self.arrow_ipc_uri, credentials
-            )
+
+            # TODO: This will change soon! We'll just do the URI (+ port added here)
+            # Session id here is what we've already have available, so don't need it.
+            # host, _ = self._get_grpc_uri_from_entrypoint_url(self.engine_uri)
+            self.engine_channel = grpc.aio.secure_channel(target=self.engine_uri, credentials=credentials)
+            self.arrow_ipc_channel = grpc.aio.secure_channel(target=self.arrow_ipc_uri, credentials=credentials)
         self.engine_stub = EngineServiceStub(self.engine_channel)
         logger.debug(
             f"Created {'secure' if secure else 'insecure'} gRPC channels to engine and arrow_ipc at {self.engine_uri} and {self.arrow_ipc_uri}"
         )
+
+    # def _get_grpc_uri_from_entrypoint_url(self, entrypoint_url: str) -> Tuple[str, str]:
+    #     """Get the gRPC URI from the entrypoint URL."""
+    #     modified_url = entrypoint_url.replace("https://", "")
+    #     modified_url = modified_url.split("/")
+    #     host = modified_url[0] + ":443"
+    #     session_id = modified_url[1]
+    #     return (host, session_id)
 
     async def _send_config_session_request_to_engine(self):
         """Configure the session with the engine service."""
