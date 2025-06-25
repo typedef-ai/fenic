@@ -77,7 +77,7 @@ syncMinMaxFlag := if sync == "min" {
 # sync project dependencies - set sync=false to skip in other target deps
 sync:
   [ "{{ sync }}" != "false" ] && \
-  uv sync {{ syncMinMaxFlag }} || true
+  uv sync --extra=google --extra=anthropic {{ syncMinMaxFlag }} || true
 
 alias sync-local := sync
 
@@ -106,5 +106,4 @@ test-cloud: sync-cloud
 
 # preview generated docs
 preview-docs:
-  uv sync --group=docs
-  uv run mkdocs serve
+  uv run --group=docs mkdocs serve

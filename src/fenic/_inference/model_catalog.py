@@ -64,7 +64,7 @@ class EmbeddingModelParameters:
     Attributes:
         input_token_cost: Cost per input token in USD
         output_dimensions: Number of dimensions in the embedding output
-        max_input_size: Maximum number of characters/tokens in the input string
+        max_input_size: Maximum number of tokens in the input string
     """
     def __init__(self, input_token_cost: float, output_dimensions: int, max_input_size: int):
         self.input_token_cost = input_token_cost
@@ -583,7 +583,7 @@ class ModelCatalog:
         Args:
             model_provider: The provider of the model
             model_name: The name of the model
-            billable_inputs: Number of tokens/characters to embed
+            billable_inputs: Number of tokens or characters to embed (some Google models charge per character)
 
         Returns:
             Total cost in USD
