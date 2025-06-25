@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 CLOUD_SUPPORTED_SCHEMES = ["s3"]
 
@@ -362,11 +363,14 @@ class CloudExecution(BaseExecution):
     def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
         """Get the result of an execution as a Polars DataFrame."""
         try:
+            logger.debug(f"Connecting to arrow IPC: {self.session_state.arrow_ipc_uri}")
             arrow_client = pa.flight.connect(
-                f"grpc://{self.session_state.arrow_ipc_uri}"
+                _get_arrow_grpc_uri(
+                    self.session_state.arrow_ipc_uri,
+                    self.session_state.arrow_ipc_uri_secure)
             )
-            # Make sure the headers are set for the arrow IPC Connection.
-            options = pa.flight.FlightCallOptions(headers=self._get_arrow_ipc_headers(execution_id))
+            options = pa.flight.FlightCallOptions(
+                headers=_get_arrow_ipc_headers(self.session_state.session_uuid))
             reader = arrow_client.do_get(
                 pa.flight.Ticket(str(execution_id).encode("utf-8")),
                 options,
@@ -390,9 +394,17 @@ class CloudExecution(BaseExecution):
         )
         return future.result()
 
-    def _get_arrow_ipc_headers(
-            self,
-            execution_id: str,
-        ) -> list[Tuple[str, str]]:
-        """Get the headers for the arrow IPC connection."""
-        return [("session-id", execution_id), ("verb", "results")]
+def _get_arrow_ipc_headers(
+        session_id: str,
+    ) -> list[Tuple[str, str]]:
+    """Get the headers for the arrow IPC connection."""
+    logger.debug(f"Getting arrow IPC headers for session: {session_id}")
+    return [(b"session-id", session_id.encode("utf-8")),
+            (b"content-type", b"application/grpc"),
+            (b"endpoint", b"results")]
+
+def _get_arrow_grpc_uri(
+    uri: str,
+    secure: bool) -> str:
+    """Get the gRPC URI for the arrow IPC connection."""
+    return f"grpc+tls://{uri}" if secure else f"grpc://{uri}"
