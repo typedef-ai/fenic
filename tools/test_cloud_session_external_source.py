@@ -167,7 +167,7 @@ def main(): # noqa: D103
         df.show()
 
     logger.info("Starting batch of 100 operations")
-    for i in range(10):
+    for i in range(100):
         df = _randomized_df(session)
 
         logger.info("--------------------------------")
