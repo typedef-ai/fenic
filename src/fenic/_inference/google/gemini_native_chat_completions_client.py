@@ -45,16 +45,15 @@ class GeminiNativeChatCompletionsClient(
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
+        model_provider: ModelProvider,
         model: str = "gemini-2.0-flash-lite",
         queue_size: int = 100,
         max_backoffs: int = 10,
         default_thinking_budget: Optional[int] = None,
-        use_vertex_ai: bool = False,
     ):
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
         )
-        model_provider = ModelProvider.GOOGLE_GLA
         super().__init__(
             model=model,
             model_provider=model_provider,
@@ -66,10 +65,13 @@ class GeminiNativeChatCompletionsClient(
 
         # Native gen-ai client. Passing `vertexai=True` automatically routes traffic
         # through Vertex-AI if the environment is configured for it.
-        if not use_vertex_ai and "GOOGLE_API_KEY" not in os.environ and "GEMINI_API_KEY" in os.environ:
-            self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        if model_provider == ModelProvider.GOOGLE_GLA:
+            if "GEMINI_API_KEY" in os.environ:
+                self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+            else:
+                self._base_client = genai.Client()
         else:
-            self._base_client = genai.Client(vertexai=use_vertex_ai)
+            self._base_client = genai.Client(vertexai=True)
         self._client = self._base_client.aio
         self._metrics = LMMetrics()
         self._token_counter = token_counter  # For type checkers
@@ -124,17 +126,12 @@ class GeminiNativeChatCompletionsClient(
         schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
         return self._token_counter.count_tokens(schema_str)
 
-    # ---------------------------------------------------------------------
-    # Uniqueness/dedup helpers
-    # ---------------------------------------------------------------------
+
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         return hashlib.sha256(
             json.dumps(request.messages.to_message_list(), sort_keys=True).encode()
         ).hexdigest()[:10]
 
-    # ---------------------------------------------------------------------
-    # Core – single request execution
-    # ---------------------------------------------------------------------
     async def make_single_request(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
