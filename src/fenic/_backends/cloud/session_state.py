@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 import grpc
 from fenic_cloud.protos.engine.v1.engine_pb2 import (
@@ -258,14 +258,6 @@ class CloudSessionState(BaseSessionState):
         logger.debug(
             f"Created {'secure' if secure else 'insecure'} gRPC channels to engine and arrow_ipc at {self.engine_uri} and {self.arrow_ipc_uri}"
         )
-
-    # def _get_grpc_uri_from_entrypoint_url(self, entrypoint_url: str) -> Tuple[str, str]:
-    #     """Get the gRPC URI from the entrypoint URL."""
-    #     modified_url = entrypoint_url.replace("https://", "")
-    #     modified_url = modified_url.split("/")
-    #     host = modified_url[0] + ":443"
-    #     session_id = modified_url[1]
-    #     return (host, session_id)
 
     async def _send_config_session_request_to_engine(self):
         """Configure the session with the engine service."""
