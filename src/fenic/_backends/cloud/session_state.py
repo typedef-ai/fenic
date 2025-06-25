@@ -37,7 +37,6 @@ engine_instance_size_map = {
 }
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class CloudSessionState(BaseSessionState):
