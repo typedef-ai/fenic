@@ -59,13 +59,17 @@ class OpenAIPresetConfigurationManager(
         """Process OpenAI preset configuration."""
         additional_parameters = {}
         additional_reasoning_tokens = 0
-        if self.model_parameters.supports_reasoning and preset.reasoning_effort:
-            additional_parameters["reasoning_effort"] = preset.reasoning_effort
-            if preset.reasoning_effort == "low":
+        if self.model_parameters.supports_reasoning:
+            reasoning_effort = preset.reasoning_effort
+            # OpenAI does not support disabling reasoning for o-series models, so we default to low
+            if not reasoning_effort:
+                reasoning_effort = "low"
+            additional_parameters["reasoning_effort"] = reasoning_effort
+            if reasoning_effort == "low":
                 additional_reasoning_tokens = 4096
-            elif preset.reasoning_effort == "medium":
+            elif reasoning_effort == "medium":
                 additional_reasoning_tokens = 8192
-            elif preset.reasoning_effort == "high":
+            elif reasoning_effort == "high":
                 additional_reasoning_tokens = 16384
 
         return OpenAIPresetConfiguration(

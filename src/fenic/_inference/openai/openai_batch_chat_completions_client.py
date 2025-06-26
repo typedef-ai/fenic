@@ -63,7 +63,6 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             default_preset_name=default_preset_name
         )
 
-        # Create core with no additional parameters by default - will be set per request
         self._core = OpenAIChatCompletionsCore(
             model=model,
             model_provider=ModelProvider.OPENAI,

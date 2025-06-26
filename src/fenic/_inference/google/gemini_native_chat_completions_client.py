@@ -42,23 +42,51 @@ from fenic.core.metrics import LMMetrics
 
 @dataclass
 class GooglePresetConfiguration(BasePresetConfiguration):
+    """Configuration for Google Gemini model presets.
+
+    Attributes:
+        thinking_enabled: Whether thinking/reasoning is enabled for this preset
+        thinking_token_budget: Token budget allocated for thinking/reasoning
+        additional_generation_config: Additional Google-specific generation configuration
+    """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
     additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
 
 
 class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogleModelPreset, GooglePresetConfiguration]):
-    """Manages Google-specific preset configurations."""
+    """Manages Google-specific preset configurations.
+
+    This class handles the conversion of Fenic preset configurations to
+    Google Gemini-specific configurations, including thinking/reasoning settings.
+    """
 
     def __init__(self,
                  model_parameters : CompletionModelParameters,
                  preset_configurations: Optional[dict[str, ResolvedGoogleModelPreset]] = None,
                  default_preset_name: Optional[str] = None):
+        """Initialize the Google preset configuration manager.
+
+        Args:
+            model_parameters: Parameters for the completion model
+            preset_configurations: Dictionary of preset configurations
+            default_preset_name: Name of the default preset to use
+        """
         self.model_parameters = model_parameters
         super().__init__(preset_configurations, default_preset_name)
 
     def _process_preset(self, preset: ResolvedGoogleModelPreset) -> GooglePresetConfiguration:
-        """Process Google preset configuration."""
+        """Process Google preset configuration.
+
+        Converts a Fenic preset configuration to a Google-specific configuration,
+        handling thinking/reasoning settings based on model capabilities.
+
+        Args:
+            preset: The Fenic preset configuration to process
+
+        Returns:
+            Google-specific preset configuration
+        """
         additional_generation_config: GenerateContentConfigDict = {}
         thinking_enabled = False
         expected_thinking_tokens = 0
@@ -94,7 +122,11 @@ class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogle
         )
 
     def _get_default_configuration(self) -> GooglePresetConfiguration:
-        """Get default Google configuration."""
+        """Get default Google configuration.
+
+        Returns:
+            Default configuration with thinking disabled
+        """
         return GooglePresetConfiguration()
 
 
@@ -102,6 +134,11 @@ class GeminiNativeChatCompletionsClient(
     ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Native (google-genai) Google Gemini chat-completions client.
+
+    This client handles communication with Google's Gemini models using the native
+    google-genai library. It supports both standard and Vertex AI environments,
+    thinking/reasoning capabilities, structured output, and comprehensive token
+    tracking.
 
     """
 
@@ -115,6 +152,17 @@ class GeminiNativeChatCompletionsClient(
         preset_configurations: Optional[dict[str, ResolvedGoogleModelPreset]] = None,
         default_preset_name: Optional[str] = None,
     ):
+        """Initialize the Gemini native chat completions client.
+
+        Args:
+            rate_limit_strategy: Strategy for rate limiting requests
+            model_provider: Google model provider (GLA or Vertex AI)
+            model: Gemini model name to use
+            queue_size: Maximum size of the request queue
+            max_backoffs: Maximum number of retry backoffs
+            preset_configurations: Dictionary of preset configurations
+            default_preset_name: Name of the default preset to use
+        """
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
         )
@@ -152,13 +200,29 @@ class GeminiNativeChatCompletionsClient(
 
 
     def reset_metrics(self):
+        """Reset metrics to initial state."""
         self._metrics = LMMetrics()
 
     def get_metrics(self) -> LMMetrics:
+        """Get current metrics.
+
+        Returns:
+            Current language model metrics
+        """
         return self._metrics
 
     def _convert_messages(self, messages: LMRequestMessages) -> list[genai.types.ContentUnion]:
-        """Convert Fenic LMRequestMessages → list of google-genai `Content` objects."""
+        """Convert Fenic LMRequestMessages → list of google-genai `Content` objects.
+
+        Converts Fenic message format to Google's Content format, including
+        few-shot examples and the final user prompt.
+
+        Args:
+            messages: Fenic message format
+
+        Returns:
+            List of Google Content objects
+        """
         contents: list[genai.types.ContentUnion] = []
         # few-shot examples
         for example in messages.examples:
@@ -170,31 +234,89 @@ class GeminiNativeChatCompletionsClient(
         return contents
 
     def count_tokens(self, messages: Tokenizable) -> int:  # type: ignore[override]
+        """Count tokens in messages.
+
+        Re-exposes the parent implementation for type checking.
+
+        Args:
+            messages: Messages to count tokens for
+
+        Returns:
+            Token count
+        """
         # Re-expose for mypy – same implementation as parent.
         return super().count_tokens(messages)
 
     def _estimate_structured_output_overhead(self, response_format) -> int:
-        """Use Google-specific response schema token estimation."""
+        """Use Google-specific response schema token estimation.
+
+        Args:
+            response_format: Pydantic model class defining the response format
+
+        Returns:
+            Estimated token overhead for structured output
+        """
         return self._estimate_response_schema_tokens(response_format)
 
     def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
-        """Conservative estimate: max_completion_tokens + thinking token budget."""
+        """Get maximum output tokens including thinking budget.
+
+        Conservative estimate that includes both completion tokens and
+        thinking token budget with a safety margin.
+
+        Args:
+            request: The completion request
+
+        Returns:
+            Maximum output tokens (completion + thinking budget with safety margin)
+        """
         preset_config = self.preset_manager.get_preset_configuration(request.model_preset)
         return request.max_completion_tokens + int(1.5 * preset_config.thinking_token_budget)
 
 
     @cache  # noqa: B019 – builtin cache OK here.
     def _estimate_response_schema_tokens(self, response_format: type[BaseModel]) -> int:
+        """Estimate token count for a response format schema.
+
+        Uses Google's tokenizer to count tokens in a JSON schema representation
+        of the response format. Results are cached for performance.
+
+        Args:
+            response_format: Pydantic model class defining the response format
+
+        Returns:
+            Estimated token count for the response format
+        """
         schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
         return self._token_counter.count_tokens(schema_str)
 
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
+        """Generate a unique key for the request.
+
+        Args:
+            request: The completion request
+
+        Returns:
+            Unique request key for caching
+        """
         return generate_completion_request_key(request)
 
     async def make_single_request(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
+        """Make a single completion request to Google Gemini.
+
+        Handles both text and structured output requests, with support for
+        thinking/reasoning when enabled. Processes responses and extracts
+        comprehensive usage metrics including thinking tokens.
+
+        Args:
+            request: The completion request to process
+
+        Returns:
+            Completion response, transient exception, or fatal exception
+        """
         
         # Get preset-specific configuration
         preset_config = self.preset_manager.get_preset_configuration(request.model_preset)
