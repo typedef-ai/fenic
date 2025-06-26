@@ -16,7 +16,7 @@ from fenic.core.types import (
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 import fenic.core._utils.misc as utils
-from fenic._inference.model_catalog import (
+from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )

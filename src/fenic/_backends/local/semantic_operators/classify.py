@@ -12,6 +12,7 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     create_classification_pydantic_model,
+    extract_model_preset,
     stringify_enum_type,
 )
 from fenic._constants import (
@@ -39,6 +40,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
         model: LanguageModel,
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
+        model_alias: Optional[str] = None,
     ):
         self.output_model = create_classification_pydantic_model(labels)
         self.labels = labels
@@ -51,7 +53,8 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
                     response_format=self.output_model,
-                )
+                    model_preset=extract_model_preset(model_alias),
+                ),
             ),
             examples,
         )

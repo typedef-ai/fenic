@@ -12,16 +12,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from fenic._inference.model_catalog import (
-    ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
-    GOOGLE_GLA_AVAILABLE_MODELS,
-    GOOGLE_VERTEX_AVAILABLE_MODELS,
-    OPENAI_AVAILABLE_EMBEDDING_MODELS,
-    OPENAI_AVAILABLE_LANGUAGE_MODELS,
-    ModelProvider,
-)
+from fenic.core._inference.model_catalog import ModelProvider
 
-ReasoningEffort = Literal["none", "low", "medium", "high"]
+ReasoningEffort = Literal["low", "medium", "high"]
 
 # --- Enums ---
 
@@ -35,26 +28,44 @@ class CloudExecutorSize(str, Enum):
 # --- Model Configs ---
 
 @dataclass
+class ResolvedAnthropicModelPreset:
+    thinking_token_budget: Optional[int] = None
+
+@dataclass
+class ResolvedGoogleModelPreset:
+    thinking_token_budget: Optional[int] = None
+
+
+@dataclass
+class ResolvedOpenAIModelPreset:
+    reasoning_effort: Optional[ReasoningEffort] = None
+
+@dataclass
 class ResolvedOpenAIModelConfig:
-    model_name: Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, OPENAI_AVAILABLE_EMBEDDING_MODELS]
+    model_name: str
     rpm: int
     tpm: int
+    presets: Optional[dict[str, ResolvedOpenAIModelPreset]] = None
+    default_preset: Optional[str] = None
 
 
 @dataclass
 class ResolvedAnthropicModelConfig:
-    model_name: ANTHROPIC_AVAILABLE_LANGUAGE_MODELS
+    model_name: str
     rpm: int
     input_tpm: int
     output_tpm: int
+    presets: Optional[dict[str, ResolvedAnthropicModelPreset]] = None
+    default_preset: Optional[str] = None
 
 @dataclass
 class ResolvedGoogleModelConfig:
+    model_name: str
     model_provider: Literal[ModelProvider.GOOGLE_GLA, ModelProvider.GOOGLE_VERTEX]
-    model_name: Union[GOOGLE_GLA_AVAILABLE_MODELS, GOOGLE_VERTEX_AVAILABLE_MODELS]
     rpm: int
     tpm: int
-    default_thinking_budget: Optional[int] = None
+    presets: Optional[dict[str, ResolvedGoogleModelPreset]] = None
+    default_preset: Optional[str] = None
 
 ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]
 
@@ -64,6 +75,7 @@ ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelCon
 @dataclass
 class ResolvedSemanticConfig:
     language_models: dict[str, ResolvedModelConfig]
+    all_language_model_aliases: set[str]
     default_language_model: str
     embedding_models: Optional[dict[str, ResolvedOpenAIModelConfig]] = None
     default_embedding_model: Optional[str] = None
