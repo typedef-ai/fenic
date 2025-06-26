@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from typing import Optional
 
 from fenic._inference import (
@@ -15,7 +14,6 @@ from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
-from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,
@@ -27,11 +25,6 @@ from fenic.core.error import ConfigurationError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
 
 logger = logging.getLogger(__name__)
-
-@dataclass(frozen=True)
-class RateLimitingGroupKey:
-    model_provider: ModelProvider
-    model_name: str
 
 class SessionModelRegistry:
     """Registry for managing language and embedding models in a session.

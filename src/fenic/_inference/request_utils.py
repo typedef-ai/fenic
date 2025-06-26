@@ -3,7 +3,7 @@
 import hashlib
 import json
 
-from fenic._inference.model_client import FenicCompletionsRequest
+from fenic._inference.types import FenicCompletionsRequest
 
 
 def generate_completion_request_key(request: FenicCompletionsRequest) -> str:

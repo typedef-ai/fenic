@@ -15,11 +15,9 @@ from openai.types import CompletionUsage
 
 from fenic._inference.model_client import (
     FatalException,
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
-    ResponseUsage,
     TransientException,
 )
+from fenic._inference.types import FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
 from fenic._inference.preset_config_manager import (
     BasePresetConfiguration,
     PresetConfigurationManager,

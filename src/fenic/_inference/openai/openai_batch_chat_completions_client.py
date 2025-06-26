@@ -10,11 +10,10 @@ from fenic._inference.common_openai.openai_chat_completions_core import (
 )
 from fenic._inference.model_client import (
     FatalException,
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
     ModelClient,
     TransientException,
 )
+from fenic._inference.types import FenicCompletionsResponse, FenicCompletionsRequest
 from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
