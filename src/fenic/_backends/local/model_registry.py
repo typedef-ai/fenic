@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from typing import Optional
 
 from fenic._inference import (
@@ -15,7 +14,6 @@ from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
-from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,

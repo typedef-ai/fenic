@@ -1,6 +1,6 @@
 import functools
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 import anthropic
@@ -22,10 +22,7 @@ from pydantic import BaseModel
 
 from fenic._inference.model_client import (
     FatalException,
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
     ModelClient,
-    ResponseUsage,
     TransientException,
 )
 from fenic._inference.preset_config_manager import (
@@ -35,7 +32,7 @@ from fenic._inference.preset_config_manager import (
 from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages
+from fenic._inference.types import LMRequestMessages, FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
@@ -67,7 +64,7 @@ class AnthropicPresetConfiguration(BasePresetConfiguration):
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
-    thinking_config: anthropic.types.ThinkingConfigParam = anthropic.types.ThinkingConfigDisabledParam(type="disabled")
+    thinking_config: anthropic.types.ThinkingConfigParam = field(default_factory= lambda : anthropic.types.ThinkingConfigDisabledParam(type="disabled"))
 
 
 class AnthropicPresetConfigurationManager(PresetConfigurationManager[ResolvedAnthropicModelPreset, AnthropicPresetConfiguration]):
