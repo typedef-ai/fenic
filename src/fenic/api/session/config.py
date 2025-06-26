@@ -189,7 +189,7 @@ class OpenAIModelPreset(BaseModel):
     Note:
         When using an o-series reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
 
-    Examples:
+    Example:
         Configuring a preset with medium reasoning effort:
 
         ```python
@@ -534,7 +534,7 @@ class CloudConfig(BaseModel):
         size: Size of the cloud executor instance.
             If None, the default size will be used.
 
-    Examples:
+    Example:
         Configuring cloud execution with a specific size:
 
         ```python
@@ -568,7 +568,7 @@ class SessionConfig(BaseModel):
         are available. The cloud configuration is optional and only needed for
         distributed processing.
 
-    Examples:
+    Example:
         Configuring a basic session with a single language model:
 
         ```python

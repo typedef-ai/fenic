@@ -8,7 +8,6 @@ import pytest
 import requests
 
 from fenic import (
-    GoogleVertexModelConfig,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -240,24 +239,24 @@ def local_session_config(app_name, request) -> SessionConfig:
             rpm=500,
             tpm=100_000,
             presets = {
-                "low" : OpenAIModelPreset(
-                    reasoning_effort="low"
+                "medium" : OpenAIModelPreset(
+                    reasoning_effort="medium"
                 )
             },
-            default_preset="low"
+            default_preset="medium"
         )
     elif model_provider == ModelProvider.ANTHROPIC:
         language_model = AnthropicModelConfig(
             model_name=request.config.getoption(MODEL_NAME_ARG),
             rpm=500,
-            input_tpm=50_000,
-            output_tpm=10_000,
+            input_tpm=100_000,
+            output_tpm=75_000,
             presets = {
-                "shallow" : AnthropicModelPreset(
-                    thinking_token_budget=1024
+                "deep" : AnthropicModelPreset(
+                    thinking_token_budget=4096
                 )
             },
-            default_preset="shallow"
+            default_preset="deep"
         )
     elif model_provider == ModelProvider.GOOGLE_GLA:
         language_model = GoogleGLAModelConfig(

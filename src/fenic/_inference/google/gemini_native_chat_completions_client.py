@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from functools import cache
@@ -16,10 +17,7 @@ from pydantic import BaseModel
 
 from fenic._inference.model_client import (
     FatalException,
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
     ModelClient,
-    ResponseUsage,
     TransientException,
 )
 from fenic._inference.preset_config_manager import (
@@ -29,7 +27,7 @@ from fenic._inference.preset_config_manager import (
 from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages
+from fenic._inference.types import LMRequestMessages, FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
@@ -39,6 +37,7 @@ from fenic.core._resolved_session_config import ResolvedGoogleModelPreset
 from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class GooglePresetConfiguration(BasePresetConfiguration):
@@ -350,19 +349,24 @@ class GeminiNativeChatCompletionsClient(
             completion_text = ""
             if candidate is None:
                 return FatalException(ExecutionError("No candidate found in response"))
-            elif candidate.finish_reason == FinishReason.MAX_TOKENS:
-                return FatalException(
-                    ExecutionError(
-                        "Candidate generation failed due to max tokens limit. "
-                        "Consider retrying the request with a higher max_completion_tokens value. "
-                        "If using a reasoning model, consider increasing the thinking_token_budget. "
-                        f"Current max_completions_tokens: {request.max_completion_tokens}, Current thinking_token_budget: {preset_config.thinking_token_budget}."))
-            elif candidate.finish_reason != FinishReason.STOP:
-                return FatalException(ExecutionError(f"Candidate generation failed due to stop reason: {candidate.finish_reason}"))
+            if candidate.content is None or candidate.content.parts is None:
+                if candidate.finish_reason == FinishReason.MAX_TOKENS:
+                    return FatalException(
+                        ExecutionError(
+                            "Candidate generation failed due to max tokens limit. "
+                            "Consider retrying the request with a higher max_completion_tokens value. "
+                            "If using a reasoning model, consider increasing the thinking_token_budget. "
+                            f"Current max_completions_tokens: {request.max_completion_tokens}, Current thinking_token_budget: {preset_config.thinking_token_budget}."))
+                else:
+                    return FatalException(
+                        ExecutionError(f"Candidate generation failed due to stop reason: {candidate.finish_reason}"))
             else:
                 for part in candidate.content.parts:
                     if not part.thought:
                         completion_text = part.text
+
+            if candidate.finish_reason != FinishReason.STOP:
+                logger.warning(f"Candidate generation for request {self.get_request_key(request)} was truncated for stop reason {candidate.finish_reason}")
 
             # Extract usage metrics
             usage_metadata = response.usage_metadata

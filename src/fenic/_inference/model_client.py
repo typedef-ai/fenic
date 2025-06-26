@@ -18,20 +18,18 @@ from typing import (
     Union,
 )
 
-from openai.types.chat.chat_completion_token_logprob import ChatCompletionTokenLogprob
 from pydantic import BaseModel
 from tqdm import tqdm
 
 from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
 from fenic._inference.batch_token_predictor import (
-    BatchTokenPredictor,
+    BatchTokenPredictor, CompletionsBatchTokenPredictor,
 )
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import LMMetrics
 
@@ -40,32 +38,6 @@ RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
 # Configure logging
 logger = logging.getLogger(__name__)
-
-@dataclass
-class ResponseUsage:
-    """Token usage information from API response."""
-    prompt_tokens: int
-    completion_tokens: int  # Actual completion tokens (non-thinking)
-    total_tokens: int
-    cached_tokens: int = 0
-    thinking_tokens: int = 0  # Separate thinking token count
-
-
-@dataclass
-class FenicCompletionsResponse:
-    completion: str
-    logprobs: Optional[List[ChatCompletionTokenLogprob]]
-    usage: Optional[ResponseUsage] = None
-
-
-@dataclass
-class FenicCompletionsRequest:
-    messages: LMRequestMessages
-    max_completion_tokens: int
-    top_logprobs: Optional[int]
-    structured_output: Optional[type[BaseModel]]
-    temperature: float
-    model_preset: Optional[str] = None
 
 
 # Exception classes
@@ -157,7 +129,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.num_backoffs: int = 0
 
         # Batch token prediction
-        self.batch_token_predictor = BatchTokenPredictor[RequestT, ResponseT](enable_batch_sampling=True)
+        self.completions_batch_token_predictor = CompletionsBatchTokenPredictor(enable_batch_sampling=True)
 
         # Thread-specific exception tracking
         self.thread_exceptions: Dict[int, Exception] = {}
@@ -268,7 +240,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
     def _predict_output_tokens(self, request: RequestT, batch_id: str) -> int:
         """Predict total output tokens using batch predictions if available."""
-        return self.batch_token_predictor.predict_output_tokens(
+        return self.completions_batch_token_predictor.predict_output_tokens(
             request, batch_id, self._get_max_output_tokens
         )
 
@@ -344,7 +316,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
 
-        if self.batch_token_predictor.should_use_sampling(valid_requests):
+        if self.completions_batch_token_predictor.should_use_sampling(valid_requests):
             return self._make_batch_requests_with_sampling(requests, operation_name, batch_id)
 
         # Continue with standard processing
@@ -453,7 +425,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         # Filter out None requests for sampling analysis
         valid_requests = [req for req in requests if req is not None]
 
-        if not self.batch_token_predictor.should_use_sampling(valid_requests):
+        if not self.completions_batch_token_predictor.should_use_sampling(valid_requests):
             # Fall back to standard processing
             return self._make_batch_requests_standard(requests, operation_name)
         sample_size = min(100, int(len(valid_requests) * 0.10))
@@ -470,14 +442,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         logger.info(f"Processing sample batch {batch_id} ({sample_size} requests)")
         sample_responses = self._make_batch_requests_standard(sample_requests, f"{operation_name}_sample", batch_id)
 
-        self.batch_token_predictor.generate_token_predictions(batch_id, sample_responses)
+        self.completions_batch_token_predictor.compute_batch_predictions(batch_id, sample_responses)
 
         # Process remaining requests with updated predictions
         logger.info(f"Processing remaining batch {batch_id} ({len(valid_requests) - sample_size} requests)")
         remaining_responses = self._make_batch_requests_standard(remaining_requests, f"{operation_name}_main", batch_id)
 
         final_responses = sample_responses + remaining_responses
-        self.batch_token_predictor.cleanup_batch_predictions(batch_id)
+        self.completions_batch_token_predictor.cleanup_batch_predictions(batch_id)
 
         return final_responses
 
@@ -687,7 +659,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 await self.retry_queue.put(queue_item)
                 current_time = time.time()
                 self.last_transient_exception_time = current_time
-                self.batch_token_predictor.update_transient_exception_time(current_time)
+                self.completions_batch_token_predictor.update_transient_exception_time(current_time)
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Fatal error encountered for model {self.model}: {maybe_response.exception}. Request failed."

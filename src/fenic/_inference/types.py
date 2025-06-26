@@ -1,5 +1,8 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from openai.types.chat import ChatCompletionTokenLogprob
+from pydantic import BaseModel
 
 
 @dataclass
@@ -22,3 +25,28 @@ class LMRequestMessages:
 
         messages.append({"role": "user", "content": self.user})
         return messages
+
+@dataclass
+class ResponseUsage:
+    """Token usage information from API response."""
+    prompt_tokens: int
+    completion_tokens: int  # Actual completion tokens (non-thinking)
+    total_tokens: int
+    cached_tokens: int = 0
+    thinking_tokens: int = 0  # Separate thinking token count
+
+@dataclass
+class FenicCompletionsResponse:
+    completion: str
+    logprobs: Optional[List[ChatCompletionTokenLogprob]]
+    usage: Optional[ResponseUsage] = None
+
+
+@dataclass
+class FenicCompletionsRequest:
+    messages: LMRequestMessages
+    max_completion_tokens: int
+    top_logprobs: Optional[int]
+    structured_output: Optional[type[BaseModel]]
+    temperature: float
+    model_preset: Optional[str] = None
