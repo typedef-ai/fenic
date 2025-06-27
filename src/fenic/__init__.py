@@ -9,6 +9,7 @@ from fenic.api import (
     DataFrameReader,
     DataFrameWriter,
     GoogleGLAModelConfig,
+    GoogleVertexModelConfig,
     GroupedData,
     Lineage,
     OpenAIModelConfig,
@@ -94,6 +95,7 @@ __all__ = [
     "OpenAIModelConfig",
     "AnthropicModelConfig",
     "GoogleGLAModelConfig",
+    "GoogleVertexModelConfig",
     "SemanticConfig",
     # IO
     "DataFrameReader",
