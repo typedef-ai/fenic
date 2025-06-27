@@ -259,40 +259,12 @@ class CloudSessionState(BaseSessionState):
             self.engine_channel = grpc.aio.secure_channel(
                 target=self.engine_uri,
                 credentials=credentials,
-                options=self._get_grpc_retry_policy())
+                options=_get_grpc_retry_policy())
             self.arrow_ipc_channel = grpc.aio.secure_channel(target=self.arrow_ipc_uri, credentials=credentials)
         self.engine_stub = EngineServiceStub(self.engine_channel)
         logger.debug(
             f"Created {'secure' if secure else 'insecure'} gRPC channels to engine and arrow_ipc at {self.engine_uri} and {self.arrow_ipc_uri}"
         )
-
-    def _get_grpc_retry_policy(self):
-        # check out https://github.com/grpc/grpc/blob/master/examples/python/retry/async_retry_client.py for more details
-        service_config_json = os.getenv(
-            "TYPEDEF_CLOUD_GRPC_RETRY_POLICY",
-            json.dumps(
-                {
-                    "methodConfig": [
-                        {
-                            "name": [{}],
-                            "retryPolicy": {
-                                "maxAttempts": 5,
-                                "initialBackoff": "10s",
-                                "maxBackoff": "120s",
-                                "backoffMultiplier": 2,
-                                "retryableStatusCodes": ["UNKNOWN", "UNAVAILABLE"],
-                            },
-                        }
-                    ]
-                }
-            )
-        )
-        logger.debug(f"Using retry policy: {service_config_json}")
-
-        options = []
-        options.append(("grpc.enable_retries", 1))
-        options.append(("grpc.service_config", service_config_json))
-        return options
 
     async def _send_config_session_request_to_engine(self):
         """Configure the session with the engine service."""
@@ -328,3 +300,31 @@ def _add_port_to_cloud_uri(uri: str) -> str:
     """Add the port to the cloud URI.
        It assumes 443 as the default port for cloud URIs."""
     return uri + ":443"
+
+def _get_grpc_retry_policy():
+    # check out https://github.com/grpc/grpc/blob/master/examples/python/retry/async_retry_client.py for more details
+    service_config_json = os.getenv(
+        "TYPEDEF_CLOUD_GRPC_RETRY_POLICY",
+        json.dumps(
+            {
+                "methodConfig": [
+                    {
+                        "name": [{}],
+                        "retryPolicy": {
+                            "maxAttempts": 5,
+                            "initialBackoff": "10s",
+                            "maxBackoff": "120s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNKNOWN", "UNAVAILABLE"],
+                        },
+                    }
+                ]
+            }
+        )
+    )
+    logger.debug(f"Using retry policy: {service_config_json}")
+
+    options = []
+    options.append(("grpc.enable_retries", 1))
+    options.append(("grpc.service_config", service_config_json))
+    return options
