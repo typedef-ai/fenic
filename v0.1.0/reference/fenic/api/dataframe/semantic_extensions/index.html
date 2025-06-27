@@ -1,0 +1,3612 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../grouped_data/">
+      
+      
+        <link rel="next" href="../../functions/">
+      
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>fenic.api.dataframe.semantic_extensions - fenic, by typedef</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#fenic.api.dataframe.semantic_extensions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="fenic, by typedef" class="md-header__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fenic, by typedef
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              fenic.api.dataframe.semantic_extensions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../.." class="md-tabs__link">
+          
+  
+  
+  Overview
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="fenic, by typedef" class="md-nav__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fenic, by typedef
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Overview
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    What is fenic?
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_1" id="__nav_1_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Introduction
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            Introduction
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/hello_world/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Hello World!
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/enrichment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Log Enrichment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_2" id="__nav_1_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Unstructured Data Clustering/Classification
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Unstructured Data Clustering/Classification
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/feedback_clustering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feedback Clustering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/news_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    News Bias Classification
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/semantic_joins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Semantic Joins on Unstructured Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_4" id="__nav_1_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Extracting Structured Data from Unstructured Text
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            Extracting Structured Data from Unstructured Text
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/document_extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Document Extraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/named_entity_recognition/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Named Entity Recognition
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_5" id="__nav_1_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Semi-Structured Data Processing/Enrichment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            Semi-Structured Data Processing/Enrichment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/podcast_summarization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Podcast Summarization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/meeting_transcript_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Meeting Transcript Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/json_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/markdown_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Markdown Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../topics/markdown-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Markdown -> JSON
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1" id="__nav_2_1_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1" id="__nav_2_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>catalog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../column/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>column
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_3" id="__nav_2_1_1_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dataframe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grouped_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>grouped_data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_extensions
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_extensions
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SemanticExtensions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SemanticExtensions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.join" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;join
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.sim_join" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;sim_join
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.with_cluster_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;with_cluster_labels
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../functions/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_4" id="__nav_2_1_1_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/builtin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>builtin
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>embedding
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>json
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/markdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>markdown
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/text/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>text
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../io/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_5" id="__nav_2_1_1_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../io/reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>reader
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../io/writer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>writer
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>lineage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../session/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_7" id="__nav_2_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../session/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../session/session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../core/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2" id="__nav_2_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>error
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../core/types/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_3" id="__nav_2_1_2_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/datatypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>datatypes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/enums/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>enums
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/extract_schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>extract_schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/query_result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>query_result
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/semantic_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_examples
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>logging
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SemanticExtensions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SemanticExtensions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.join" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;join
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.sim_join" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;sim_join
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.with_cluster_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;with_cluster_labels
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h1 id="fenic.api.dataframe.semantic_extensions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">fenic.api.dataframe.semantic_extensions</span>
+
+
+</h1>
+
+    <div class="doc doc-contents first">
+
+        <p>Semantic extensions for DataFrames providing clustering and semantic join operations.</p>
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SemanticExtensions&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.semantic_extensions.SemanticExtensions&lt;/code&gt;)" href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions">SemanticExtensions</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>A namespace for semantic dataframe operators.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.dataframe.semantic_extensions.SemanticExtensions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SemanticExtensions</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">SemanticExtensions</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+        <p>A namespace for semantic dataframe operators.</p>
+
+        <p>Initialize semantic extensions.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>df</code></b>
+              (<code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>The DataFrame to extend with semantic operations.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;join&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.semantic_extensions.SemanticExtensions.join&lt;/code&gt;)" href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.join">join</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Performs a semantic join between two DataFrames using a natural language predicate.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;sim_join&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.semantic_extensions.SemanticExtensions.sim_join&lt;/code&gt;)" href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.sim_join">sim_join</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Performs a semantic similarity join between two DataFrames using embedding expressions.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;with_cluster_labels&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.semantic_extensions.SemanticExtensions.with_cluster_labels&lt;/code&gt;)" href="#fenic.api.dataframe.semantic_extensions.SemanticExtensions.with_cluster_labels">with_cluster_labels</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Cluster rows using K-means and add cluster metadata columns.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/fenic/api/dataframe/semantic_extensions.py</code></summary>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize semantic extensions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        df: The DataFrame to extend with semantic operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_df</span> <span class="o">=</span> <span class="n">df</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.dataframe.semantic_extensions.SemanticExtensions.join" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">join</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">join</span><span class="p">(</span><span class="n">other</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span> <span class="n">join_instruction</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">examples</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">JoinExampleCollection</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">model_alias</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Performs a semantic join between two DataFrames using a natural language predicate.</p>
+<p>That evaluates to either true or false for each potential row pair.</p>
+<p>The join works by:
+1. Evaluating the provided join_instruction as a boolean predicate for each possible pair of rows
+2. Including ONLY the row pairs where the predicate evaluates to True in the result set
+3. Excluding all row pairs where the predicate evaluates to False</p>
+<p>The instruction must reference <strong>exactly two columns</strong>, one from each DataFrame,
+using the <code>:left</code> and <code>:right</code> suffixes to indicate column origin.</p>
+<p>This is useful when row pairing decisions require complex reasoning based on a custom predicate rather than simple equality or similarity matching.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>other</code></b>
+              (<code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>The DataFrame to join with.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>join_instruction</code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>A natural language description of how to match values.</p>
+<ul>
+<li>Must include one placeholder from the left DataFrame (e.g. <code>{resume_summary:left}</code>)
+and one from the right (e.g. <code>{job_description:right}</code>).</li>
+<li>This instruction is evaluated as a boolean predicate - pairs where it's <code>True</code> are included,
+pairs where it's <code>False</code> are excluded.</li>
+</ul>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>examples</code></b>
+              (<code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;JoinExampleCollection&lt;/span&gt; (&lt;code&gt;fenic.core.types.JoinExampleCollection&lt;/code&gt;)" href="../../../core/types/#fenic.core.types.JoinExampleCollection">JoinExampleCollection</a>]</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Optional JoinExampleCollection containing labeled pairs (<code>left</code>, <code>right</code>, <code>output</code>)
+to guide the semantic join behavior.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>model_alias</code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+<b><code>DataFrame</code></b> (              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+)          –
+          <div class="doc-md-description">
+            <p>A new DataFrame containing only the row pairs where the join_instruction
+      predicate evaluates to True.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><span title="TypeError">TypeError</span></code>
+            –
+          <div class="doc-md-description">
+            <p>If <code>other</code> is not a DataFrame or <code>join_instruction</code> is not a string.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><span title="ValueError">ValueError</span></code>
+            –
+          <div class="doc-md-description">
+            <p>If the instruction format is invalid or references invalid columns.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Basic semantic join</summary>
+  <pre><code class="language-python"># Match job listings with candidate resumes based on title/skills
+# Only includes pairs where the predicate evaluates to True
+df_jobs.semantic.join(df_resumes,
+    join_instruction=&quot;Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?&quot;
+)
+</code></pre>
+</details>
+
+<details class="example" open>
+  <summary>Semantic join with examples</summary>
+  <pre><code class="language-python"># Improve join quality with examples
+examples = JoinExampleCollection()
+examples.create_example(JoinExample(
+    left=&quot;5 years experience building backend services in Python using asyncio, FastAPI, and PostgreSQL&quot;,
+    right=&quot;Senior Software Engineer - Backend&quot;,
+    output=True))  # This pair WILL be included in similar cases
+examples.create_example(JoinExample(
+    left=&quot;5 years experience with growth strategy, private equity due diligence, and M&amp;A&quot;,
+    right=&quot;Product Manager - Hardware&quot;,
+    output=False))  # This pair will NOT be included in similar cases
+df_jobs.semantic.join(df_resumes,
+    join_instruction=&quot;Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?&quot;,
+    examples=examples)
+</code></pre>
+</details>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/dataframe/semantic_extensions.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">join</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">other</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">join_instruction</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">examples</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">JoinExampleCollection</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">model_alias</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs a semantic join between two DataFrames using a natural language predicate.</span>
+
+<span class="sd">    That evaluates to either true or false for each potential row pair.</span>
+
+<span class="sd">    The join works by:</span>
+<span class="sd">    1. Evaluating the provided join_instruction as a boolean predicate for each possible pair of rows</span>
+<span class="sd">    2. Including ONLY the row pairs where the predicate evaluates to True in the result set</span>
+<span class="sd">    3. Excluding all row pairs where the predicate evaluates to False</span>
+
+<span class="sd">    The instruction must reference **exactly two columns**, one from each DataFrame,</span>
+<span class="sd">    using the `:left` and `:right` suffixes to indicate column origin.</span>
+
+<span class="sd">    This is useful when row pairing decisions require complex reasoning based on a custom predicate rather than simple equality or similarity matching.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        other: The DataFrame to join with.</span>
+<span class="sd">        join_instruction: A natural language description of how to match values.</span>
+
+<span class="sd">            - Must include one placeholder from the left DataFrame (e.g. `{resume_summary:left}`)</span>
+<span class="sd">            and one from the right (e.g. `{job_description:right}`).</span>
+<span class="sd">            - This instruction is evaluated as a boolean predicate - pairs where it&#39;s `True` are included,</span>
+<span class="sd">            pairs where it&#39;s `False` are excluded.</span>
+<span class="sd">        examples: Optional JoinExampleCollection containing labeled pairs (`left`, `right`, `output`)</span>
+<span class="sd">            to guide the semantic join behavior.</span>
+<span class="sd">        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        DataFrame: A new DataFrame containing only the row pairs where the join_instruction</span>
+<span class="sd">                  predicate evaluates to True.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        TypeError: If `other` is not a DataFrame or `join_instruction` is not a string.</span>
+<span class="sd">        ValueError: If the instruction format is invalid or references invalid columns.</span>
+
+<span class="sd">    Example: Basic semantic join</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Match job listings with candidate resumes based on title/skills</span>
+<span class="sd">        # Only includes pairs where the predicate evaluates to True</span>
+<span class="sd">        df_jobs.semantic.join(df_resumes,</span>
+<span class="sd">            join_instruction=&quot;Given a candidate&#39;s resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?&quot;</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+
+<span class="sd">    Example: Semantic join with examples</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Improve join quality with examples</span>
+<span class="sd">        examples = JoinExampleCollection()</span>
+<span class="sd">        examples.create_example(JoinExample(</span>
+<span class="sd">            left=&quot;5 years experience building backend services in Python using asyncio, FastAPI, and PostgreSQL&quot;,</span>
+<span class="sd">            right=&quot;Senior Software Engineer - Backend&quot;,</span>
+<span class="sd">            output=True))  # This pair WILL be included in similar cases</span>
+<span class="sd">        examples.create_example(JoinExample(</span>
+<span class="sd">            left=&quot;5 years experience with growth strategy, private equity due diligence, and M&amp;A&quot;,</span>
+<span class="sd">            right=&quot;Product Manager - Hardware&quot;,</span>
+<span class="sd">            output=False))  # This pair will NOT be included in similar cases</span>
+<span class="sd">        df_jobs.semantic.join(df_resumes,</span>
+<span class="sd">            join_instruction=&quot;Given a candidate&#39;s resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?&quot;,</span>
+<span class="sd">            examples=examples)</span>
+<span class="sd">        ```</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">fenic.api.dataframe.dataframe</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataFrame</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">DataFrame</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;other argument must be a DataFrame, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">join_instruction</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;join_instruction argument must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">join_instruction</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="n">join_columns</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">parse_instruction</span><span class="p">(</span><span class="n">join_instruction</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">join_columns</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;join_instruction must contain exactly two columns, got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">join_columns</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="n">left_on</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">right_on</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">join_col</span> <span class="ow">in</span> <span class="n">join_columns</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">join_col</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;:left&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">left_on</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;join_instruction cannot contain multiple :left columns&quot;</span>
+                <span class="p">)</span>
+            <span class="n">left_on</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="n">join_col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">join_col</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;:right&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">right_on</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;join_instruction cannot contain multiple :right columns&quot;</span>
+                <span class="p">)</span>
+            <span class="n">right_on</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="n">join_col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">join_col</span><span class="si">}</span><span class="s2">&#39; must end with either :left or :right&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">left_on</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">right_on</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;join_instruction must contain exactly one :left and one :right column&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_from_logical_plan</span><span class="p">(</span>
+        <span class="n">SemanticJoin</span><span class="p">(</span>
+            <span class="n">left</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_logical_plan</span><span class="p">,</span>
+            <span class="n">right</span><span class="o">=</span><span class="n">other</span><span class="o">.</span><span class="n">_logical_plan</span><span class="p">,</span>
+            <span class="n">left_on</span><span class="o">=</span><span class="n">left_on</span><span class="o">.</span><span class="n">_logical_expr</span><span class="p">,</span>
+            <span class="n">right_on</span><span class="o">=</span><span class="n">right_on</span><span class="o">.</span><span class="n">_logical_expr</span><span class="p">,</span>
+            <span class="n">join_instruction</span><span class="o">=</span><span class="n">join_instruction</span><span class="p">,</span>
+            <span class="n">examples</span><span class="o">=</span><span class="n">examples</span><span class="p">,</span>
+            <span class="n">model_alias</span><span class="o">=</span><span class="n">model_alias</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.dataframe.semantic_extensions.SemanticExtensions.sim_join" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">sim_join</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">sim_join</span><span class="p">(</span><span class="n">other</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span> <span class="n">left_on</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span> <span class="n">right_on</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">similarity_metric</span><span class="p">:</span> <span class="n">SemanticSimilarityMetric</span> <span class="o">=</span> <span class="s1">&#39;cosine&#39;</span><span class="p">,</span> <span class="n">similarity_score_column</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Performs a semantic similarity join between two DataFrames using embedding expressions.</p>
+<p>For each row in the left DataFrame, returns the top <code>k</code> most semantically similar rows
+from the right DataFrame based on the specified similarity metric.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>other</code></b>
+              (<code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>)
+          –
+          <div class="doc-md-description">
+            <p>The right-hand DataFrame to join with.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>left_on</code></b>
+              (<code><span title="fenic.api.column.ColumnOrName">ColumnOrName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Expression or column representing embeddings in the left DataFrame.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>right_on</code></b>
+              (<code><span title="fenic.api.column.ColumnOrName">ColumnOrName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Expression or column representing embeddings in the right DataFrame.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>k</code></b>
+              (<code><span title="int">int</span></code>, default:
+                  <code>1</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Number of most similar matches to return per row.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>similarity_metric</code></b>
+              (<code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-attribute-name&quot;&gt;SemanticSimilarityMetric&lt;/span&gt;
+
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;fenic.core.types.enums.SemanticSimilarityMetric&lt;/code&gt;)" href="../../../core/types/enums/#fenic.core.types.enums.SemanticSimilarityMetric">SemanticSimilarityMetric</a></code>, default:
+                  <code>&#39;cosine&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Similarity metric to use: "l2", "cosine", or "dot".</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>similarity_score_column</code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>If set, adds a column with this name containing similarity scores.
+If None, the scores are omitted.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <p>A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <p>The result includes all columns from both DataFrames, optionally augmented with a similarity score column</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <p>if <code>similarity_score_column</code> is provided.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ValidationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ValidationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ValidationError">ValidationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If <code>k</code> is not positive or if the columns are invalid.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ValidationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ValidationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ValidationError">ValidationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If <code>similarity_metric</code> is not one of "l2", "cosine", "dot"</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Match queries to FAQ entries</summary>
+  <pre><code class="language-python"># Match customer queries to FAQ entries
+df_queries.semantic.sim_join(
+    df_faqs,
+    left_on=embeddings(col(&quot;query_text&quot;)),
+    right_on=embeddings(col(&quot;faq_question&quot;)),
+    k=1
+)
+</code></pre>
+</details>
+
+<details class="example" open>
+  <summary>Link headlines to articles</summary>
+  <pre><code class="language-python"># Link news headlines to full articles
+df_headlines.semantic.sim_join(
+    df_articles,
+    left_on=embeddings(col(&quot;headline&quot;)),
+    right_on=embeddings(col(&quot;content&quot;)),
+    k=3,
+    return_similarity_scores=True
+)
+</code></pre>
+</details>
+
+<details class="example" open>
+  <summary>Find similar job postings</summary>
+  <pre><code class="language-python"># Find similar job postings across two sources
+df_linkedin.semantic.sim_join(
+    df_indeed,
+    left_on=embeddings(col(&quot;job_title&quot;)),
+    right_on=embeddings(col(&quot;job_description&quot;)),
+    k=2
+)
+</code></pre>
+</details>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/dataframe/semantic_extensions.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">sim_join</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">other</span><span class="p">:</span> <span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">left_on</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span>
+    <span class="n">right_on</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">similarity_metric</span><span class="p">:</span> <span class="n">SemanticSimilarityMetric</span> <span class="o">=</span> <span class="s2">&quot;cosine&quot;</span><span class="p">,</span>
+    <span class="n">similarity_score_column</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Performs a semantic similarity join between two DataFrames using embedding expressions.</span>
+
+<span class="sd">    For each row in the left DataFrame, returns the top `k` most semantically similar rows</span>
+<span class="sd">    from the right DataFrame based on the specified similarity metric.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        other: The right-hand DataFrame to join with.</span>
+<span class="sd">        left_on: Expression or column representing embeddings in the left DataFrame.</span>
+<span class="sd">        right_on: Expression or column representing embeddings in the right DataFrame.</span>
+<span class="sd">        k: Number of most similar matches to return per row.</span>
+<span class="sd">        similarity_metric: Similarity metric to use: &quot;l2&quot;, &quot;cosine&quot;, or &quot;dot&quot;.</span>
+<span class="sd">        similarity_score_column: If set, adds a column with this name containing similarity scores.</span>
+<span class="sd">            If None, the scores are omitted.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.</span>
+<span class="sd">        The result includes all columns from both DataFrames, optionally augmented with a similarity score column</span>
+<span class="sd">        if `similarity_score_column` is provided.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValidationError: If `k` is not positive or if the columns are invalid.</span>
+<span class="sd">        ValidationError: If `similarity_metric` is not one of &quot;l2&quot;, &quot;cosine&quot;, &quot;dot&quot;</span>
+
+<span class="sd">    Example: Match queries to FAQ entries</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Match customer queries to FAQ entries</span>
+<span class="sd">        df_queries.semantic.sim_join(</span>
+<span class="sd">            df_faqs,</span>
+<span class="sd">            left_on=embeddings(col(&quot;query_text&quot;)),</span>
+<span class="sd">            right_on=embeddings(col(&quot;faq_question&quot;)),</span>
+<span class="sd">            k=1</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+
+<span class="sd">    Example: Link headlines to articles</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Link news headlines to full articles</span>
+<span class="sd">        df_headlines.semantic.sim_join(</span>
+<span class="sd">            df_articles,</span>
+<span class="sd">            left_on=embeddings(col(&quot;headline&quot;)),</span>
+<span class="sd">            right_on=embeddings(col(&quot;content&quot;)),</span>
+<span class="sd">            k=3,</span>
+<span class="sd">            return_similarity_scores=True</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+
+<span class="sd">    Example: Find similar job postings</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Find similar job postings across two sources</span>
+<span class="sd">        df_linkedin.semantic.sim_join(</span>
+<span class="sd">            df_indeed,</span>
+<span class="sd">            left_on=embeddings(col(&quot;job_title&quot;)),</span>
+<span class="sd">            right_on=embeddings(col(&quot;job_description&quot;)),</span>
+<span class="sd">            k=2</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">fenic.api.dataframe.dataframe</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataFrame</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right_on</span><span class="p">,</span> <span class="n">ColumnOrName</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;The `right_on` argument must be a `Column` or a string representing a column name, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;but got `</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">right_on</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">` instead.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">DataFrame</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;The `other` argument to `sim_join()` must be a DataFrame`, but got `</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">`.&quot;</span>
+                    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;The parameter `k` must be a positive integer, but received `</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">`.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">get_args</span><span class="p">(</span><span class="n">SemanticSimilarityMetric</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">similarity_metric</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;The `similarity_metric` argument must be one of </span><span class="si">{</span><span class="n">args</span><span class="si">}</span><span class="s2">, but got `</span><span class="si">{</span><span class="n">similarity_metric</span><span class="si">}</span><span class="s2">`.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_column</span><span class="p">(</span><span class="n">column</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">column</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` argument must not be None.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">ColumnOrName</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;The `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` argument must be a `Column` or a string representing a column name, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;but got `</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">column</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">` instead.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="n">_validate_column</span><span class="p">(</span><span class="n">left_on</span><span class="p">,</span> <span class="s2">&quot;left_on&quot;</span><span class="p">)</span>
+    <span class="n">_validate_column</span><span class="p">(</span><span class="n">right_on</span><span class="p">,</span> <span class="s2">&quot;right_on&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_from_logical_plan</span><span class="p">(</span>
+        <span class="n">SemanticSimilarityJoin</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_logical_plan</span><span class="p">,</span>
+            <span class="n">other</span><span class="o">.</span><span class="n">_logical_plan</span><span class="p">,</span>
+            <span class="n">Column</span><span class="o">.</span><span class="n">_from_col_or_name</span><span class="p">(</span><span class="n">left_on</span><span class="p">)</span><span class="o">.</span><span class="n">_logical_expr</span><span class="p">,</span>
+            <span class="n">Column</span><span class="o">.</span><span class="n">_from_col_or_name</span><span class="p">(</span><span class="n">right_on</span><span class="p">)</span><span class="o">.</span><span class="n">_logical_expr</span><span class="p">,</span>
+            <span class="n">k</span><span class="p">,</span>
+            <span class="n">similarity_metric</span><span class="p">,</span>
+            <span class="n">similarity_score_column</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.dataframe.semantic_extensions.SemanticExtensions.with_cluster_labels" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">with_cluster_labels</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">with_cluster_labels</span><span class="p">(</span><span class="n">by</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span> <span class="n">num_clusters</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">label_column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;cluster_label&#39;</span><span class="p">,</span> <span class="n">centroid_column</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Cluster rows using K-means and add cluster metadata columns.</p>
+<p>This method clusters rows based on the given embedding column or expression using K-means.
+It adds a new column with cluster assignments, and optionally includes the centroid embedding
+for each assigned cluster.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+            <b><code>by</code></b>
+              (<code><span title="fenic.api.column.ColumnOrName">ColumnOrName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Column or expression producing embeddings to cluster (e.g., <code>embed(col("text"))</code>).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>num_clusters</code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Number of clusters to compute (must be &gt; 0).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>label_column</code></b>
+              (<code><span title="str">str</span></code>, default:
+                  <code>&#39;cluster_label&#39;</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>Name of the output column for cluster IDs. Default is "cluster_label".</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>centroid_column</code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>If provided, adds a column with this name containing the centroid embedding
+            for each row's assigned cluster.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <p>A DataFrame with all original columns plus:</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <ul>
+<li><code>&lt;label_column&gt;</code>: integer cluster assignment (0 to num_clusters - 1)</li>
+</ul>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;DataFrame&lt;/span&gt; (&lt;code&gt;fenic.api.dataframe.DataFrame&lt;/code&gt;)" href="../#fenic.api.dataframe.DataFrame">DataFrame</a></code>
+          –
+          <div class="doc-md-description">
+            <ul>
+<li><code>&lt;centroid_column&gt;</code>: cluster centroid embedding, if specified</li>
+</ul>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ValidationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ValidationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ValidationError">ValidationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If num_clusters is not a positive integer</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ValidationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ValidationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ValidationError">ValidationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If label_column is not a non-empty string</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ValidationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ValidationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ValidationError">ValidationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If centroid_column is not a non-empty string</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+              <code><span title="TypeMismatchError">TypeMismatchError</span></code>
+            –
+          <div class="doc-md-description">
+            <p>If the column is not an EmbeddingType</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Basic clustering</summary>
+  <pre><code class="language-python"># Cluster customer feedback and add cluster metadata
+clustered_df = df.semantic.with_cluster_labels(&quot;feedback_embeddings&quot;, 5)
+
+# Then use regular operations to analyze clusters
+clustered_df.group_by(&quot;cluster_label&quot;).agg(count(&quot;*&quot;), avg(&quot;rating&quot;))
+</code></pre>
+</details>
+
+<details class="example" open>
+  <summary>Filter outliers using centroids</summary>
+  <pre><code class="language-python"># Cluster and filter out rows far from their centroid
+clustered_df = df.semantic.with_cluster_labels(&quot;embeddings&quot;, 3, centroid_column=&quot;cluster_centroid&quot;)
+clean_df = clustered_df.filter(
+    embedding.compute_similarity(&quot;embeddings&quot;, &quot;cluster_centroid&quot;, metric=&quot;cosine&quot;) &gt; 0.7
+)
+</code></pre>
+</details>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/dataframe/semantic_extensions.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 38</span>
+<span class="normal"> 39</span>
+<span class="normal"> 40</span>
+<span class="normal"> 41</span>
+<span class="normal"> 42</span>
+<span class="normal"> 43</span>
+<span class="normal"> 44</span>
+<span class="normal"> 45</span>
+<span class="normal"> 46</span>
+<span class="normal"> 47</span>
+<span class="normal"> 48</span>
+<span class="normal"> 49</span>
+<span class="normal"> 50</span>
+<span class="normal"> 51</span>
+<span class="normal"> 52</span>
+<span class="normal"> 53</span>
+<span class="normal"> 54</span>
+<span class="normal"> 55</span>
+<span class="normal"> 56</span>
+<span class="normal"> 57</span>
+<span class="normal"> 58</span>
+<span class="normal"> 59</span>
+<span class="normal"> 60</span>
+<span class="normal"> 61</span>
+<span class="normal"> 62</span>
+<span class="normal"> 63</span>
+<span class="normal"> 64</span>
+<span class="normal"> 65</span>
+<span class="normal"> 66</span>
+<span class="normal"> 67</span>
+<span class="normal"> 68</span>
+<span class="normal"> 69</span>
+<span class="normal"> 70</span>
+<span class="normal"> 71</span>
+<span class="normal"> 72</span>
+<span class="normal"> 73</span>
+<span class="normal"> 74</span>
+<span class="normal"> 75</span>
+<span class="normal"> 76</span>
+<span class="normal"> 77</span>
+<span class="normal"> 78</span>
+<span class="normal"> 79</span>
+<span class="normal"> 80</span>
+<span class="normal"> 81</span>
+<span class="normal"> 82</span>
+<span class="normal"> 83</span>
+<span class="normal"> 84</span>
+<span class="normal"> 85</span>
+<span class="normal"> 86</span>
+<span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">with_cluster_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">by</span><span class="p">:</span> <span class="n">ColumnOrName</span><span class="p">,</span> <span class="n">num_clusters</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">label_column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cluster_label&quot;</span><span class="p">,</span> <span class="n">centroid_column</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Cluster rows using K-means and add cluster metadata columns.</span>
+
+<span class="sd">    This method clusters rows based on the given embedding column or expression using K-means.</span>
+<span class="sd">    It adds a new column with cluster assignments, and optionally includes the centroid embedding</span>
+<span class="sd">    for each assigned cluster.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        by: Column or expression producing embeddings to cluster (e.g., `embed(col(&quot;text&quot;))`).</span>
+<span class="sd">        num_clusters: Number of clusters to compute (must be &gt; 0).</span>
+<span class="sd">        label_column: Name of the output column for cluster IDs. Default is &quot;cluster_label&quot;.</span>
+<span class="sd">        centroid_column: If provided, adds a column with this name containing the centroid embedding</span>
+<span class="sd">                        for each row&#39;s assigned cluster.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A DataFrame with all original columns plus:</span>
+<span class="sd">        - `&lt;label_column&gt;`: integer cluster assignment (0 to num_clusters - 1)</span>
+<span class="sd">        - `&lt;centroid_column&gt;`: cluster centroid embedding, if specified</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValidationError: If num_clusters is not a positive integer</span>
+<span class="sd">        ValidationError: If label_column is not a non-empty string</span>
+<span class="sd">        ValidationError: If centroid_column is not a non-empty string</span>
+<span class="sd">        TypeMismatchError: If the column is not an EmbeddingType</span>
+
+<span class="sd">    Example: Basic clustering</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Cluster customer feedback and add cluster metadata</span>
+<span class="sd">        clustered_df = df.semantic.with_cluster_labels(&quot;feedback_embeddings&quot;, 5)</span>
+
+<span class="sd">        # Then use regular operations to analyze clusters</span>
+<span class="sd">        clustered_df.group_by(&quot;cluster_label&quot;).agg(count(&quot;*&quot;), avg(&quot;rating&quot;))</span>
+<span class="sd">        ```</span>
+
+<span class="sd">    Example: Filter outliers using centroids</span>
+<span class="sd">        ```python</span>
+<span class="sd">        # Cluster and filter out rows far from their centroid</span>
+<span class="sd">        clustered_df = df.semantic.with_cluster_labels(&quot;embeddings&quot;, 3, centroid_column=&quot;cluster_centroid&quot;)</span>
+<span class="sd">        clean_df = clustered_df.filter(</span>
+<span class="sd">            embedding.compute_similarity(&quot;embeddings&quot;, &quot;cluster_centroid&quot;, metric=&quot;cosine&quot;) &gt; 0.7</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Validate num_clusters</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">num_clusters</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">num_clusters</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;`num_clusters` must be a positive integer greater than 0.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Validate clustering target</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">by</span><span class="p">,</span> <span class="n">ColumnOrName</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid cluster by: expected a column name (str) or Column object, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">by</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Validate label_column</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">label_column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">label_column</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;`label_column` must be a non-empty string.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Validate centroid_column if provided</span>
+    <span class="k">if</span> <span class="n">centroid_column</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">centroid_column</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">centroid_column</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;`centroid_column` must be a non-empty string if provided.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check that the expression isn&#39;t a literal</span>
+    <span class="n">by_expr</span> <span class="o">=</span> <span class="n">Column</span><span class="o">.</span><span class="n">_from_col_or_name</span><span class="p">(</span><span class="n">by</span><span class="p">)</span><span class="o">.</span><span class="n">_logical_expr</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">by_expr</span><span class="p">,</span> <span class="n">LiteralExpr</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid cluster by: Cannot cluster by a literal value: </span><span class="si">{</span><span class="n">by_expr</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_from_logical_plan</span><span class="p">(</span>
+        <span class="n">SemanticCluster</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">_logical_plan</span><span class="p">,</span> <span class="n">by_expr</span><span class="p">,</span> <span class="n">num_clusters</span><span class="p">,</span> <span class="n">label_column</span><span class="p">,</span> <span class="n">centroid_column</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../grouped_data/" class="md-footer__link md-footer__link--prev" aria-label="Previous: &lt;code class=&#34;doc-symbol doc-symbol-nav doc-symbol-module&#34;&gt;&lt;/code&gt;grouped_data">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>grouped_data
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../functions/" class="md-footer__link md-footer__link--next" aria-label="Next: &lt;code class=&#34;doc-symbol doc-symbol-nav doc-symbol-module&#34;&gt;&lt;/code&gt;functions">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["announce.dismiss", "content.action.edit", "content.action.view", "content.code.annotate", "content.code.copy", "content.tooltips", "navigation.footer", "navigation.instant", "navigation.path", "navigation.tracking", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
