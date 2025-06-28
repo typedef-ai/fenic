@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.0](https://github.com/typedef-ai/fenic/compare/v0.0.3...v0.1.0) (2025-06-25)
+
+
+### Features
+
+* add first and stddev aggregation functions ([#39](https://github.com/typedef-ai/fenic/issues/39)) ([86a142f](https://github.com/typedef-ai/fenic/commit/86a142f67a865600a80f13dc38b1830c8493cc85))
+* add simple avg() aggregate function for the embedding type ([#33](https://github.com/typedef-ai/fenic/issues/33)) ([e467841](https://github.com/typedef-ai/fenic/commit/e467841ef6f4f4e950373d502f2cc28521534dab))
+* Consume query metrics ([#32](https://github.com/typedef-ai/fenic/issues/32)) ([660ebae](https://github.com/typedef-ai/fenic/commit/660ebae4c227bf06c5896f6317b767be8111a5b4))
+* make distance column name configurable in semantic.sim_join. ([#40](https://github.com/typedef-ai/fenic/issues/40)) ([e297a8a](https://github.com/typedef-ai/fenic/commit/e297a8ab3e3e23d03624b236646f1c400dd662f6))
+* replace `semantic.group_by` with new `semantic.with_cluster_labels()` API ([#34](https://github.com/typedef-ai/fenic/issues/34)) ([83820e4](https://github.com/typedef-ai/fenic/commit/83820e4f4f918e6d07442b7557850528a713ae16))
+
+
+### Bug Fixes
+
+* fix bug in session.sql() when handling columns with embedding types ([#38](https://github.com/typedef-ai/fenic/issues/38)) ([b6a57ce](https://github.com/typedef-ai/fenic/commit/b6a57cefdc9fe3ed44ff097b43bbbab1cec6efa6))
+* make markdown.extract_header_chunks() resilient to empty inputs and fix language filtering logic in get_code_blocks() ([#42](https://github.com/typedef-ai/fenic/issues/42)) ([e5d631d](https://github.com/typedef-ai/fenic/commit/e5d631d4e76780379157bf2cba2faadda6edfe96))
+* Update tests to use the unresolved config session ([#31](https://github.com/typedef-ai/fenic/issues/31)) ([09cdc93](https://github.com/typedef-ai/fenic/commit/09cdc9364133b57c62b00fc09980e7efc815dc12))
+* use the right entry points for GRPC calls to the cloud service ([#43](https://github.com/typedef-ai/fenic/issues/43)) ([bf43ec7](https://github.com/typedef-ai/fenic/commit/bf43ec7eaf51b756d22f2083a93c97847696587e))
+
+
+### Documentation
+
+* update discord link to a non-expired invite ([#27](https://github.com/typedef-ai/fenic/issues/27)) ([c4848e6](https://github.com/typedef-ai/fenic/commit/c4848e6c9d89f9539516b8ca38c74ac826c92dff))
+* update discord link to match the one from website ([#29](https://github.com/typedef-ai/fenic/issues/29)) ([fd99722](https://github.com/typedef-ai/fenic/commit/fd9972296048b3bbb52ecf5567691ac9d6f84f2b))
+
 ## [0.0.3](https://github.com/typedef-ai/fenic/compare/v0.0.2...v0.0.3) (2025-06-19)
 
 
