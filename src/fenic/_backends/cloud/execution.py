@@ -193,6 +193,15 @@ class CloudExecution(BaseExecution):
             _plan_repr=PhysicalPlanRepr(operator_id="empty"),
         )
 
+    def save_as_view(
+        self,
+        logical_plan: LogicalPlan,
+        view_name: str,
+    ) -> None:
+        """Save the dataframe as a view."""
+        # TODO: Implement saving dataframe view
+        raise NotImplementedError("Saving a view of the dataframe not implemented for cloud execution")
+    
     def save_to_file(
         self,
         logical_plan: LogicalPlan,

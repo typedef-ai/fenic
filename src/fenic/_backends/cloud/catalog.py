@@ -3,7 +3,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Coroutine, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import polars as pl
@@ -275,7 +275,46 @@ class CloudCatalog(BaseCatalog):
                 table_name, schema, location, ignore_if_exists, file_format
             )
 
+    def create_view(
+        self,
+        view_name: str,
+        schema_blob: bytes,
+        view_blob: bytes,
+        ignore_if_exists: bool = True,
+    ) -> bool:
+        """Create a new view in the current database."""
+        # TODO: Implement view creation for the cloud
+        raise NotImplementedError(
+            "View creation not implemented for cloud catalog"
+        )
 
+    def drop_view(self, view_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a view from the current database."""
+        # TODO: Implement drop view for the cloud
+        raise NotImplementedError(
+            "Drop view not implemented for cloud catalog"
+        )
+
+    def describe_view(self, view_name: str) -> Tuple[object, object]:
+        # TODO: Implement describe view for the cloud
+        raise NotImplementedError(
+            "Describe view not implemented for cloud catalog"
+        )
+
+    def list_views(self) -> List[str]:
+        """Get a list of all views in the current database."""
+        # TODO: Implement list views for the cloud
+        raise NotImplementedError(
+            "List views not implemented for cloud catalog"
+        )
+
+    def does_view_exist(self, view_name: str) -> bool:
+        """Checks if a view with the specified name exists in the current database."""
+        # TODO: Implement does view exist for the cloud
+        raise NotImplementedError(
+            "Method to check if view exists not implemented for cloud catalog"
+        )
+    
     def _drop_database(
         self,
         database_name: str,
