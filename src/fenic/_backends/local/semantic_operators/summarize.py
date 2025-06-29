@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import List, Optional, Union
 
 import polars as pl
 
@@ -60,7 +60,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
             None,
         )
 
-    def postprocess(self, responses):
+    def postprocess(self, responses) -> List[Optional[str]]:
         return responses
 
     def build_system_message(self) -> str:
