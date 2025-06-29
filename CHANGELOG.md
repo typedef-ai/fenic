@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/typedef-ai/fenic/compare/v0.1.0...v0.1.1) (2025-06-29)
+
+
+### Documentation
+
+* adding missing notebooks for examples ([#46](https://github.com/typedef-ai/fenic/issues/46)) ([81517f1](https://github.com/typedef-ai/fenic/commit/81517f1637b23d225d4b88d0e861549581181796))
+
 ## [0.1.0](https://github.com/typedef-ai/fenic/compare/v0.0.3...v0.1.0) (2025-06-25)
 
 
