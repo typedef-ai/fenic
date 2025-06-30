@@ -4,7 +4,13 @@ from pydantic import BaseModel, Field
 
 
 class KeyPoints(BaseModel):
-    """Summary as a concise bulleted list."""
+    """Summary as a concise bulleted list.
+    
+    Each bullet should capture a distinct and essential idea, with a maximum number of points specified.
+
+    Attributes:
+        max_points: The maximum number of key points to include in the summary.
+    """
 
     max_points: int = Field(default=5, gt=0)
 
@@ -21,7 +27,13 @@ class KeyPoints(BaseModel):
         return self.max_points * 75
 
 class Paragraph(BaseModel):
-    """Summary as a cohesive narrative."""
+    """Summary as a cohesive narrative.
+    
+    The summary should flow naturally and not exceed a specified maximum word count.
+
+    Attributes:
+        max_words: The maximum number of words allowed in the summary.
+    """
 
     max_words: int = Field(default=120, gt=10)
 

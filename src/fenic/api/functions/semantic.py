@@ -400,7 +400,7 @@ def embed(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def summarize(
     column: ColumnOrName,
-    format: Union[KeyPoints, Paragraph] = None,
+    format: Union[KeyPoints, Paragraph, None] = None,
     temperature: float = 0,
     model_alias: Optional[str] = None
 ) -> Column:
@@ -408,10 +408,8 @@ def summarize(
 
     Args:
         column: Column or column name containing text for summarization
-        format: Format of the summary to generate. Can be either KeyPoints or Paragraph.
+        format: Format of the summary to generate. Can be either KeyPoints or Paragraph. If None, will default to Paragraph with a maximum of 120 words.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
-        max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
-            tokens, based on the model's context length and other operator-specific parameters.
         model_alias: Optional alias for the language model to use for the summarization. If None, will use the language model configured as the default.
 
     Returns:
