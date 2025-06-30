@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from fenic._inference.model_catalog import (
 from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._utils.extract import convert_extract_schema_to_pydantic_type
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core.types import (
@@ -30,6 +31,7 @@ from fenic.core.types import (
     EmbeddingType,
     StringType,
 )
+from fenic.core.types.extract_schema import ExtractSchema
 from fenic.core.types.schema import ColumnField
 
 
@@ -92,7 +94,7 @@ class SemanticExtractExpr(SemanticExpr):
     def __init__(
         self,
         expr: LogicalExpr,
-        schema: type[BaseModel],
+        schema: Union[ExtractSchema, type[BaseModel]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
@@ -118,8 +120,15 @@ class SemanticExtractExpr(SemanticExpr):
                 f"Type: {expr_field.data_type}. "
                 f"Only StringType is supported."
             )
+
+        pydantic_model = (
+            convert_extract_schema_to_pydantic_type(self.schema)
+            if isinstance(self.schema, ExtractSchema)
+            else self.schema
+        )
+
         return ColumnField(
-            str(self), convert_pydantic_type_to_custom_struct_type(self.schema)
+            str(self), convert_pydantic_type_to_custom_struct_type(pydantic_model)
         )
 
     def children(self) -> List[LogicalExpr]:
@@ -222,14 +231,15 @@ class SemanticClassifyExpr(SemanticExpr):
         model_alias: Optional[str] = None,
     ):
         self.expr = expr
-        self.labels = (
-            self._transform_labels_list_into_enum(labels)
-            if isinstance(labels, list)
-            else labels
-        )
+        self.labels = labels
         self.examples = None
         if examples:
-            examples._validate_with_enum(self.labels)
+            labels_enum = (
+                SemanticClassifyExpr.transform_labels_list_into_enum(labels)
+                if isinstance(labels, list)
+                else labels
+            )
+            examples._validate_with_enum(labels_enum)
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
@@ -261,20 +271,23 @@ class SemanticClassifyExpr(SemanticExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _transform_labels_list_into_enum(self, labels: list[str]) -> type[Enum]:
+
+    @staticmethod
+    def transform_labels_list_into_enum(labels: list[str]) -> type[Enum]:
         """Transforms a list of labels into an Enum."""
         label_enum_values = []
         for label_str in labels:
             label_enum_values.append(
                 (
-                    self._transform_value_into_enum_name(label_str),
+                    SemanticClassifyExpr.transform_value_into_enum_name(label_str),
                     label_str,
                 )
             )
 
         return Enum("Label", label_enum_values)
 
-    def _transform_value_into_enum_name(self, label_value: str) -> str:
+    @staticmethod
+    def transform_value_into_enum_name(label_value: str) -> str:
         """Transforms a label value into an enum name.
 
         >>> SemClassifyDataFrame._trasnform_value_into_enum_name("General Inquiry")

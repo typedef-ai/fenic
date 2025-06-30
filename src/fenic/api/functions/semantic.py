@@ -16,7 +16,6 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
 )
 from fenic.core._utils.extract import (
-    convert_extract_schema_to_pydantic_type,
     validate_extract_schema_structure,
 )
 from fenic.core.types import (
@@ -151,19 +150,13 @@ def extract(
     """
     validate_extract_schema_structure(schema)
 
-    pydantic_model = (
-        convert_extract_schema_to_pydantic_type(schema)
-        if isinstance(schema, ExtractSchema)
-        else schema
-    )
-
     return Column._from_logical_expr(
         SemanticExtractExpr(
             Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
             temperature=temperature,
             model_alias=model_alias,
-            schema=pydantic_model,
+            schema=schema,
         )
     )
 
