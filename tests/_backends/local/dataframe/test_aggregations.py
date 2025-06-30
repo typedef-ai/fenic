@@ -3,6 +3,7 @@ import re
 
 import polars as pl
 import pytest
+from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ColumnField,
@@ -24,8 +25,12 @@ from fenic import (
 )
 
 
-def test_sum_aggregation(sample_df):
-    result = sample_df.group_by("city").agg(sum(col("age"))).to_polars()
+def test_sum_aggregation(sample_df, local_session):
+    result = sample_df.group_by("city").agg(sum(col("age")))
+    deserialized_df = _test_df_serialization(result, local_session._session_state)
+    assert deserialized_df
+
+    result = result.to_polars()
     assert len(result) == 2
     assert "sum(age)" in result.columns
 
@@ -263,6 +268,8 @@ def test_semantic_reduce_with_groupby(local_session):
         ),
         sum("num_attendees").alias("num_attendees"),
     )
+    deserialized_df = _test_df_serialization(result, local_session._session_state)
+    assert deserialized_df
     result = result.to_polars()
 
     assert result.schema == {

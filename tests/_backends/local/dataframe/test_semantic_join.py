@@ -1,5 +1,6 @@
 import polars as pl
 import pytest
+from _utils.serde_utils import _test_df_serialization
 
 from fenic import JoinExample, JoinExampleCollection, col
 from fenic.core.error import PlanError
@@ -85,6 +86,10 @@ def test_semantic_join(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
     join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
     result = left.semantic.join(right, join_instruction)
+
+    deserialized_df = _test_df_serialization(result, local_session._session_state)
+    assert deserialized_df
+
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -105,6 +110,9 @@ def test_semantic_join_with_none(local_session):
     left, right = _create_semantic_join_dataframe_with_none(local_session)
     join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
     result = left.semantic.join(right, join_instruction)
+    deserialized_df = _test_df_serialization(result, local_session._session_state)
+    assert deserialized_df
+
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -180,6 +188,9 @@ def test_semantic_join_with_examples(local_session):
     )
     join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
     result = left.semantic.join(right, join_instruction, examples=collection)
+    deserialized_df = _test_df_serialization(result, local_session._session_state)
+    assert deserialized_df
+
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,

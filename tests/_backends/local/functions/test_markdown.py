@@ -1,6 +1,8 @@
 
 from textwrap import dedent
 
+from _utils.serde_utils import _test_df_serialization
+
 from fenic import (
     ArrayType,
     ColumnField,
@@ -29,6 +31,8 @@ def test_md_to_json(local_session):
     df = df.select(
         markdown.to_json(col("string_col").cast(MarkdownType)).alias("markdown_as_json")
     )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
     assert df.schema.column_fields == [
         ColumnField("markdown_as_json", JsonType)
     ]

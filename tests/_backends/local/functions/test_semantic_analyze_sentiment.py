@@ -1,4 +1,5 @@
 import polars as pl
+from _utils.serde_utils import _test_df_serialization
 
 from fenic import col, lit, semantic, text
 
@@ -20,6 +21,11 @@ def test_semantic_analyze_sentiment(local_session):
             "sentiment"
         ),
     )
+
+    # Verify the plan can be serialized.
+    deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
+    assert deserialized_df
+
     result = categorized_comments_df.to_polars()
 
     assert result.schema == {

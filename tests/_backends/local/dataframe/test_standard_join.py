@@ -1,5 +1,6 @@
 import polars as pl
 import pytest
+from _utils.serde_utils import _test_df_serialization
 from pydantic import ValidationError
 
 from fenic.api.functions import col
@@ -141,6 +142,9 @@ def test_left_join(local_session):
 
     # LEFT JOIN on "id"
     joined = df1.join(df2, on="id", how="left")
+    deserialized_df = _test_df_serialization(joined, local_session._session_state)
+    assert deserialized_df
+
     assert joined.schema.column_fields == [
         ColumnField("id", IntegerType),
         ColumnField("valA", StringType),

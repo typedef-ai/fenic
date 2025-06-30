@@ -1,6 +1,7 @@
 import numpy as np
 import polars as pl
 import pytest
+from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ColumnField,
@@ -15,7 +16,7 @@ from fenic import (
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_embeddings(extract_data_df):
+def test_embeddings(extract_data_df, local_session):
     df = extract_data_df.select(semantic.embed(col("review")).alias("embeddings"))
     assert df.schema.column_fields == [
         ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small"))
@@ -32,6 +33,8 @@ def test_embeddings(extract_data_df):
             )
         ).alias("embeddings")
     )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
     assert df.schema.column_fields == [
         ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small"))
     ]
@@ -50,8 +53,12 @@ def test_normalization(local_session):
     }
     df = local_session.create_dataframe(data)
     df = df.select(col("vectors").cast(EmbeddingType(dimensions=2, embedding_model="test")).alias("embeddings"))
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
 
     result_df = df.select(embedding.normalize(col("embeddings")).alias("normalized"))
+    deserialized_df = _test_df_serialization(result_df, local_session._session_state)
+    assert deserialized_df
     result = result_df.to_polars()
     normalized = result["normalized"].to_list()
 
@@ -89,6 +96,9 @@ def test_semantic_search_workflow(local_session):
         col("document"),
         embedding.compute_similarity(col("embeddings"), query_vector).alias("similarity")
     ).order_by(col("similarity").desc()).limit(3)
+
+    deserialized_df = _test_df_serialization(result_df, local_session._session_state)
+    assert deserialized_df
 
     result = result_df.to_polars()
     docs = result["document"].to_list()

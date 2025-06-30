@@ -1,5 +1,6 @@
 import polars as pl
 import pytest
+from _utils.serde_utils import _test_df_serialization
 from pydantic import BaseModel, Field, ValidationError
 
 from fenic import (
@@ -21,7 +22,7 @@ from fenic.core._utils.schema import (
 )
 
 
-def test_semantic_extract(extract_data_df):
+def test_semantic_extract(extract_data_df, local_session):
     # Test with basic extract schema
     output_schema = ExtractSchema(
         [
@@ -46,6 +47,8 @@ def test_semantic_extract(extract_data_df):
     df = extract_data_df.select(
         semantic.extract(col("review"), output_schema).alias("review")
     )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
     result = df.to_polars()
     pl_model = convert_custom_dtype_to_polars(
         convert_pydantic_type_to_custom_struct_type(
@@ -67,6 +70,8 @@ def test_semantic_extract(extract_data_df):
     df = extract_data_df.select(
         semantic.extract(col("review"), BasicReviewModel).alias("review_out")
     )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
     result = df.to_polars()
     assert result.schema == pl.Schema(
         {

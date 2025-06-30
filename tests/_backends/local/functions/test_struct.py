@@ -1,3 +1,5 @@
+from _utils.serde_utils import _test_df_serialization
+
 from fenic import (
     ColumnField,
     IntegerType,
@@ -17,6 +19,8 @@ def test_struct_aliasing(local_session):
             (col("a") + 1).alias("a_plus_1"), (col("a") + 2).alias("a_plus_2")
         ).alias("b"),
     )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
     expected_schema = Schema(
         [
             ColumnField("a", IntegerType),
