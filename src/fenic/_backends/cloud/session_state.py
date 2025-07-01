@@ -40,6 +40,8 @@ engine_instance_size_map = {
 
 logger = logging.getLogger(__name__)
 
+GRPC_MAX_MESSAGE_SIZE = 1024 * 1024 * 10  # 10MB
+
 class CloudSessionState(BaseSessionState):
     """Maintains the state for a cloud session, including database connections and cached dataframes and indices."""
     app_name: str
@@ -324,7 +326,11 @@ def _get_grpc_retry_policy():
     )
     logger.debug(f"Using retry policy: {service_config_json}")
 
-    options = []
-    options.append(("grpc.enable_retries", 1))
-    options.append(("grpc.service_config", service_config_json))
+    options = [
+        ("grpc.enable_retries", 1),
+        ("grpc.service_config", service_config_json),
+        ('grpc.max_send_message_length', os.getenv("TYPEDEF_CLOUD_GRPC_MAX_SEND_MESSAGE_LENGTH", GRPC_MAX_MESSAGE_SIZE)),
+        ('grpc.max_receive_message_length', os.getenv("TYPEDEF_CLOUD_GRPC_MAX_RECEIVE_MESSAGE_LENGTH", GRPC_MAX_MESSAGE_SIZE)),
+    ]
+
     return options
