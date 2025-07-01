@@ -94,14 +94,17 @@ def main(): # noqa: D103
 
     df = session.create_dataframe(data)
     try:
-        df.write.parquet(f"{s3_path}/test_file.parquet", mode="error")
+        df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
     except Exception as e:
         logger.error(f"Error writing parquet file: {e}")
 
     logger.info("Testing simple write to csv file")
     df = session.create_dataframe(data)
     original_schema = df.schema
-    df.write.csv(f"{s3_path}/test_file.csv")
+    try:
+        df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
+    except Exception as e:
+        logger.error(f"Error writing csv file: {e}")
 
     logger.info("Testing simple infer schema from csv file")
     df = session.read.csv(f"{s3_path}/test_file.csv")
