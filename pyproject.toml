@@ -55,12 +55,12 @@ docs = [
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.52.2"]
-google = [] # empty for now, until we switch to google-genai
+google = ["google-genai>=1.21.0"]
 cloud = [
   "pyarrow<20.0.0,>=19.0.0",
   "grpcio>=1.60.0",
   "pydantic_settings",
-  "fenic-cloud>=0.1.2",
+  "fenic-cloud>=0.1.3",
 ]
 
 [build-system]
