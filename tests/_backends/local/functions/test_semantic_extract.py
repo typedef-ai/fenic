@@ -22,6 +22,17 @@ from fenic.core._utils.schema import (
 )
 
 
+# Pydantic models have to be defined outside of a function for them to be serializable.
+class BasicReviewModel(BaseModel):
+    positive_feature: str = Field(
+        ..., description="Positive feature described in the review"
+    )
+    negative_feature: str = Field(
+        ..., description="Negative feature described in the review"
+    )
+    product_number: int = Field(..., description="Specific product number")
+
+
 def test_semantic_extract(extract_data_df, local_session):
     # Test with basic extract schema
     output_schema = ExtractSchema(
@@ -47,9 +58,12 @@ def test_semantic_extract(extract_data_df, local_session):
     df = extract_data_df.select(
         semantic.extract(col("review"), output_schema).alias("review")
     )
+
+    # test serialize with the output schema
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
     result = df.to_polars()
+
     pl_model = convert_custom_dtype_to_polars(
         convert_pydantic_type_to_custom_struct_type(
             convert_extract_schema_to_pydantic_type(output_schema)
@@ -57,19 +71,13 @@ def test_semantic_extract(extract_data_df, local_session):
     )
     assert result.schema == pl.Schema({"review": pl_model})
 
-    # Test with basic pydantic model
-    class BasicReviewModel(BaseModel):
-        positive_feature: str = Field(
-            ..., description="Positive feature described in the review"
-        )
-        negative_feature: str = Field(
-            ..., description="Negative feature described in the review"
-        )
-        product_number: int = Field(..., description="Specific product number")
-
     df = extract_data_df.select(
         semantic.extract(col("review"), BasicReviewModel).alias("review_out")
     )
+    # test serialize with the base model
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+
     result = df.to_polars()
     assert result.schema == pl.Schema(
         {
