@@ -31,6 +31,7 @@ dependencies = [
   "openai>=1.82.0",
   "sqlglot>=26.25.3",
   "pandas>=2.2.2",
+  "cloudpickle>=3.1.1",
 ]
 
 [project.urls]

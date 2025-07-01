@@ -1,4 +1,4 @@
-import pickle  # nosec: B403
+import cloudpickle  # nosec: B403
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
@@ -35,7 +35,7 @@ class LogicalPlanSerde:
 
         copied_plan = copy_plan(plan)
         remove_session_state(copied_plan)
-        return pickle.dumps(copied_plan)
+        return cloudpickle.dumps(copied_plan)
 
     @staticmethod
     def deserialize(data: bytes) -> LogicalPlan:
@@ -47,7 +47,7 @@ class LogicalPlanSerde:
         Returns:
             The deserialized plan
         """
-        return pickle.loads(data)  # nosec: B301
+        return cloudpickle.loads(data)  # nosec: B301
 
     @staticmethod
     def build_logical_plan_with_session_state(
