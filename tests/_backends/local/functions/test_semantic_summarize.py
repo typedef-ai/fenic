@@ -29,6 +29,8 @@ def test_semantic_summarization_default_case(local_session):
     result = df.to_polars()
     assert result.schema["summarized_text"] == pl.String
     assert len(result['summarized_text'])<120
+    assert len(result['summarized_text'])>0
+
 
 def test_semantic_summarization_keypoints(local_session):
     source = local_session.create_dataframe(
@@ -77,3 +79,4 @@ def test_semantic_summarization_keypoints(local_session):
     assert result.schema["summarized_text"] == pl.String
     # should not exceed 10 key points
     assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ")) <= 10
+    assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ")) >=1
