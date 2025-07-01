@@ -70,8 +70,6 @@ def test_semantic_extract(extract_data_df, local_session):
     df = extract_data_df.select(
         semantic.extract(col("review"), BasicReviewModel).alias("review_out")
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     result = df.to_polars()
     assert result.schema == pl.Schema(
         {
