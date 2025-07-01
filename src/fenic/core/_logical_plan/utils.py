@@ -6,7 +6,7 @@ from fenic._inference.model_catalog import (
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
-    ResolvedGoogleGLAModelConfig,
+    ResolvedGoogleModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSessionConfig,
 )
@@ -47,7 +47,7 @@ def validate_completion_parameters(
     model_config = resolved_session_config.semantic.language_models[model_alias]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
-    elif isinstance(model_config, ResolvedGoogleGLAModelConfig):
+    elif isinstance(model_config, ResolvedGoogleModelConfig):
         model_provider = ModelProvider.GOOGLE_GLA
     else:
         model_provider = ModelProvider.ANTHROPIC

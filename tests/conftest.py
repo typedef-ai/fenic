@@ -17,6 +17,7 @@ from fenic._inference.model_catalog import ModelProvider
 from fenic.api.session.config import (
     AnthropicModelConfig,
     GoogleGLAModelConfig,
+    GoogleVertexModelConfig,
     OpenAIModelConfig,
 )
 
@@ -135,8 +136,8 @@ def examples_session_config(app_name) -> SessionConfig:
     # limits are small so we can run the examples in parallel
     flash_lite_model = GoogleGLAModelConfig(
         model_name="gemini-2.0-flash-lite",
-        rpm=250,
-        tpm=125_000,
+        rpm=500,
+        tpm=250_000,
     )
     return SessionConfig(
         app_name=app_name,
@@ -191,7 +192,19 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
-                reasoning_effort="none" # will not be applied if model doesn't require it
+            )
+        }
+    elif model_provider == ModelProvider.GOOGLE_VERTEX:
+        language_models = {
+            "model_1": OpenAIModelConfig(
+                model_name="gpt-4.1-nano",
+                rpm=500,
+                tpm=100_000
+            ),
+            "model_2" : GoogleGLAModelConfig(
+                model_name=request.config.getoption(MODEL_NAME_ARG),
+                rpm=1000,
+                tpm=500_000,
             )
         }
     else:
@@ -245,7 +258,12 @@ def local_session_config(app_name, request) -> SessionConfig:
             model_name=request.config.getoption(MODEL_NAME_ARG),
             rpm=1000,
             tpm=500_000,
-            reasoning_effort="none"  # will not be applied if model doesn't require it
+        )
+    elif model_provider == ModelProvider.GOOGLE_VERTEX:
+        language_model = GoogleVertexModelConfig(
+            model_name=request.config.getoption(MODEL_NAME_ARG),
+            rpm=1000,
+            tpm=500_000,
         )
     else:
         raise ValueError(f"Unsupported model provider: {model_provider}")
