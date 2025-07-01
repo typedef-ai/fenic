@@ -9,6 +9,7 @@ from fenic._constants import API_KEY_SUFFIX
 from fenic._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
+    ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
 )
@@ -43,12 +44,37 @@ class CloudSessionConfig:
             get_model_provider_for_config(model_config) for model_config in semantic_config.language_models.values()
         ])
         for language_model_provider in language_model_providers:
-            completions_api_key = f"{language_model_provider.value.upper()}{API_KEY_SUFFIX}"
-            if completions_api_key not in env_keys.keys():
-                raise ConfigurationError(
-                    f"{completions_api_key} is not set. Please set it in your environment to use {language_model_provider} models."
-                )
-            self.model_api_keys[completions_api_key] = env_keys[completions_api_key]
+            if language_model_provider == ModelProvider.GOOGLE_GLA:
+                google_api_key = f"GOOGLE{API_KEY_SUFFIX}"
+                gemini_api_key = f"GEMINI{API_KEY_SUFFIX}"
+                if google_api_key not in env_keys.keys() and gemini_api_key not in env_keys.keys():
+                    raise ConfigurationError(
+                        f"{google_api_key} is not set. Please set it in your environment to use {language_model_provider} models."
+                    )
+                if google_api_key in env_keys.keys():
+                    self.model_api_keys[google_api_key] = env_keys[google_api_key]
+                if gemini_api_key in env_keys.keys():
+                    self.model_api_keys[google_api_key] = env_keys[gemini_api_key]
+            elif language_model_provider == ModelProvider.GOOGLE_VERTEX:
+                project_environment_var = "GOOGLE_CLOUD_PROJECT"
+                location_environment_var = "GOOGLE_CLOUD_LOCATION"
+                if project_environment_var not in env_keys.keys():
+                    raise ConfigurationError(
+                        f"{project_environment_var} is not set. Please set it in your environment to use {language_model_provider} models."
+                    )
+                if location_environment_var not in env_keys.keys():
+                    raise ConfigurationError(
+                        f"{location_environment_var} is not set. Please set it in your environment to use {language_model_provider} models."
+                    )
+                self.model_api_keys[project_environment_var] = env_keys[project_environment_var]
+                self.model_api_keys[location_environment_var] = env_keys[location_environment_var]
+            else:
+                completions_api_key = f"{language_model_provider.value.upper()}{API_KEY_SUFFIX}"
+                if completions_api_key not in env_keys.keys():
+                    raise ConfigurationError(
+                        f"{completions_api_key} is not set. Please set it in your environment to use {language_model_provider} models."
+                    )
+                self.model_api_keys[completions_api_key] = env_keys[completions_api_key]
 
         if self.session_config.semantic.embedding_models:
             embedding_model_providers: set[ModelProvider] = set([
@@ -77,5 +103,7 @@ def get_model_provider_for_config(model_config: ResolvedModelConfig) -> ModelPro
         return ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedAnthropicModelConfig):
         return ModelProvider.ANTHROPIC
+    if isinstance(model_config, ResolvedGoogleModelConfig):
+        return model_config.model_provider
     else:
         raise InternalError(f"Unsupported model {model_config} in semantic config.")
