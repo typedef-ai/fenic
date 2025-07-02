@@ -21,6 +21,12 @@ from pydantic import BaseModel, Field
 import fenic as fc
 from fenic import col, lit
 
+# Define Pydantic model for detailed article analysis
+class ArticleAnalysis(BaseModel):
+    """Comprehensive analysis of news article content and bias."""
+    bias_indicators: str = Field(..., description="Key words or phrases that indicate political bias")
+    emotional_language: str = Field(..., description="Emotionally charged words or neutral descriptive language")
+    opinion_markers: str = Field(..., description="Words or phrases that signal opinion vs. factual reporting")
 
 def main(config: Optional[fc.SessionConfig] = None):
     """Main analysis pipeline for news article bias detection."""
@@ -199,14 +205,7 @@ def main(config: Optional[fc.SessionConfig] = None):
             "content": "Recent pharmaceutical breakthroughs demonstrate the remarkable potential of modern drug development while highlighting persistent questions about treatment accessibility and pricing. Clinical trial results show significant improvements for patients with previously challenging conditions, reflecting decades of scientific research and development investment. However, high treatment costs continue to limit access for many patients, particularly in underserved communities. Healthcare systems are exploring various policy approaches to balance innovation incentives with broader treatment access."
         }
     ]
-    
-    # Define Pydantic model for detailed article analysis
-    class ArticleAnalysis(BaseModel):
-        """Comprehensive analysis of news article content and bias."""
-        bias_indicators: str = Field(..., description="Key words or phrases that indicate political bias")
-        emotional_language: str = Field(..., description="Emotionally charged words or neutral descriptive language")
-        opinion_markers: str = Field(..., description="Words or phrases that signal opinion vs. factual reporting")
-    
+
     # Create DataFrame from news articles
     df = session.create_dataframe(news_articles)
     

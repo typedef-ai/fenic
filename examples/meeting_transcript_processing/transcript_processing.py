@@ -11,6 +11,31 @@ from pydantic import BaseModel, Field
 
 import fenic as fc
 
+# Action items schema
+class ActionItemSchema(BaseModel):
+    has_action_item: str = Field(
+        description="Whether this segment contains an action item (yes/no)"
+    )
+    assignee: str = Field(
+        default=None, description="Person assigned to the action item (if any)"
+    )
+    task_description: str = Field(
+        description="Description of the task or action to be completed"
+    )
+    deadline: str = Field(
+        default=None, description="When the task should be completed (if mentioned)"
+    )
+
+
+# Decisions schema
+class DecisionSchema(BaseModel):
+    has_decision: str = Field(
+        description="Whether this segment contains a decision (yes/no)"
+    )
+    decision_summary: str = Field(description="Summary of the decision made")
+    decision_rationale: str = Field(
+        default=None, description="Why this decision was made (if mentioned)"
+    )
 # Data
 
 # Engineering Architecture Review Transcript
@@ -222,30 +247,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         ]
     )
 
-    # Action items schema
-    class ActionItemSchema(BaseModel):
-        has_action_item: str = Field(
-            description="Whether this segment contains an action item (yes/no)"
-        )
-        assignee: str = Field(
-            default=None, description="Person assigned to the action item (if any)"
-        )
-        task_description: str = Field(
-            description="Description of the task or action to be completed"
-        )
-        deadline: str = Field(
-            default=None, description="When the task should be completed (if mentioned)"
-        )
 
-    # Decisions schema
-    class DecisionSchema(BaseModel):
-        has_decision: str = Field(
-            description="Whether this segment contains a decision (yes/no)"
-        )
-        decision_summary: str = Field(description="Summary of the decision made")
-        decision_rationale: str = Field(
-            default=None, description="Why this decision was made (if mentioned)"
-        )
 
     print("Created schemas for:")
     print("- Technical entities (services, technologies, metrics, incidents)")

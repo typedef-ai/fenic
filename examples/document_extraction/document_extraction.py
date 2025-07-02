@@ -11,6 +11,19 @@ from pydantic import BaseModel, Field
 import fenic as fc
 
 
+# Define Pydantic model for document metadata
+# Note: Pydantic models for extraction support simple data types (str, int, float, bool, Literal)
+# Complex types like lists must be represented as strings (e.g., comma-separated values)
+class DocumentMetadata(BaseModel):
+    """Pydantic model for document metadata extraction."""
+    title: str = Field(..., description="The main title or subject of the document")
+    document_type: Literal[
+        "research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(
+        ..., description="Type of document")
+    date: str = Field(..., description="Any date mentioned in the document (publication date, meeting date, etc.)")
+    keywords: str = Field(..., description="Comma-separated list of key topics, technologies, or important terms mentioned in the document")
+    summary: str = Field(..., description="Brief one-sentence summary of the document's main purpose or content")
+
 def main(config: Optional[fc.SessionConfig] = None):
     """Extract metadata from document excerpts using semantic operations."""
     # Configure session with semantic capabilities
@@ -123,16 +136,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("Method 2: Pydantic Model Approach")
     print("-" * 40)
 
-    # Define Pydantic model for document metadata
-    # Note: Pydantic models for extraction support simple data types (str, int, float, bool, Literal)
-    # Complex types like lists must be represented as strings (e.g., comma-separated values)
-    class DocumentMetadata(BaseModel):
-        """Pydantic model for document metadata extraction."""
-        title: str = Field(..., description="The main title or subject of the document")
-        document_type: Literal["research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(..., description="Type of document")
-        date: str = Field(..., description="Any date mentioned in the document (publication date, meeting date, etc.)")
-        keywords: str = Field(..., description="Comma-separated list of key topics, technologies, or important terms mentioned in the document")
-        summary: str = Field(..., description="Brief one-sentence summary of the document's main purpose or content")
+
 
     # Apply extraction using Pydantic model
     pydantic_extracted_df = docs_df.select(
