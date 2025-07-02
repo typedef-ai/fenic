@@ -10,6 +10,7 @@ import polars as pl
 import pyarrow as pa
 
 from fenic._backends.local.manager import LocalSessionManager
+from fenic._backends.local.signal_handler import ensure_signal_handler
 from fenic._constants import SQL_PLACEHOLDER_RE
 from fenic.api.dataframe import DataFrame
 from fenic.api.io.reader import DataFrameReader
@@ -68,6 +69,9 @@ class Session:
         Returns:
             A Session instance configured with the provided settings
         """
+        # Install signal handler on first session creation
+        ensure_signal_handler()
+        
         if config.cloud:
             from fenic._backends.cloud.manager import CloudSessionManager
 

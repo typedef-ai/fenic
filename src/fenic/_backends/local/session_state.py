@@ -84,6 +84,10 @@ class LocalSessionState(BaseSessionState):
         """Get the catalog object."""
         return LocalCatalog(self.duckdb_conn)
 
+    def interrupt_operations(self):
+        """Interrupt all operations in this session using shutdown machinery."""
+        self.model_registry.interrupt_models()
+
     def stop(self):
         """Clean up the session state."""
         from fenic._backends.local.manager import LocalSessionManager

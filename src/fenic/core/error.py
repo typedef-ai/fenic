@@ -203,6 +203,12 @@ class ExecutionError(FenicError):
     pass
 
 
+class OperationCancelled(ExecutionError):
+    """Raised when an operation is cancelled by user interrupt."""
+
+    pass
+
+
 class CloudExecutionError(ExecutionError):
     """Errors during physical plan execution in a cloud session."""
 

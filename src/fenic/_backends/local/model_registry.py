@@ -138,6 +138,22 @@ class SessionModelRegistry:
             raise SessionError(f"Embedding Model with model name '{alias}' not found.")
         return embedding_model_for_model_alias
 
+    def interrupt_models(self):
+        """Interrupt all registered language and embedding models using shutdown machinery."""
+        for alias, language_model in self.language_models.items():
+            try:
+                language_model.client.shutdown(interrupt=True)  # Cancel everything
+                language_model.client.shutdown_event.clear()    # Reset immediately
+            except Exception as e:
+                logger.warning(f"Failed to interrupt language model client {alias}: {e}")
+        if self.embedding_models:
+            for alias, embedding_model in self.embedding_models.items():
+                try:
+                    embedding_model.client.shutdown(interrupt=True)  # Cancel everything  
+                    embedding_model.client.shutdown_event.clear()    # Reset immediately
+                except Exception as e:
+                    logger.warning(f"Failed to interrupt embedding model client {alias}: {e}")
+
     def shutdown_models(self):
         """Shutdown all registered language and embedding models."""
         for alias, language_model in self.language_models.items():

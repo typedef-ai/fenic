@@ -462,16 +462,23 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     #
     # Public methods (called from user threads)
     #
-    def shutdown(self):
+    def shutdown(self, interrupt: bool = False):
         """Shut down the model client and clean up resources.
 
         This method:
         1. Cancels all pending and in-flight requests
-        2. Unregisters the client from the ModelClientManager
+        2. Unregisters the client from the ModelClientManager (unless interrupt=True)
         3. Cleans up all associated resources
         4. Ensures all threads are properly notified of the shutdown
+
+        Args:
+            interrupt: If True, this is a user interrupt (Ctrl+C) - don't unregister client.
+                      If False, this is permanent shutdown - unregister from manager.
         """
-        exception = Exception(f"Model client for {self.model} has been shut down")
+        if interrupt:
+            exception = KeyboardInterrupt("Operation was interrupted")
+        else:
+            exception = Exception(f"Model client for {self.model} has been shut down")
 
         ModelClientManager().event_loop.call_soon_threadsafe(self.shutdown_event.set)
 
@@ -499,7 +506,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         )
         cancel_future.result()
 
-        ModelClientManager().unregister_client(self)
+        if not interrupt:
+            # Only unregister for permanent shutdown, not for interrupts
+            ModelClientManager().unregister_client(self)
 
     def make_batch_requests(
             self,

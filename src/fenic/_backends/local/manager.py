@@ -105,3 +105,9 @@ class LocalSessionManager:
             if app_name not in self._live_session_states:
                 raise ValueError(f"No session found for app name: {app_name}")
             return self._live_session_states[app_name]
+
+    def interrupt_all_operations(self):
+        """Interrupt operations across all sessions."""
+        with self._sessions_lock:
+            for session_state in self._live_session_states.values():
+                session_state.interrupt_operations()
