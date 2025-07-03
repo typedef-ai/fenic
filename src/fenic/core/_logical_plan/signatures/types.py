@@ -1,6 +1,6 @@
 """Simplified type signature classes for function validation.
 
-This module provides a streamlined TypeSignature hierarchy focused solely on 
+This module provides a streamlined TypeSignature hierarchy focused solely on
 validating LogicalExpr arguments with standard DataTypes.
 """
 
@@ -219,3 +219,58 @@ class ArrayWithMatchingElement(TypeSignature):
                 actual=actual_element_type,
                 context=f"{func_name} Argument 1",
             )
+
+
+class EqualTypes(TypeSignature):
+    """Validates that two arguments have the same DataType (including metadata equality).
+
+    Useful for non-singleton types like EmbeddingType, ArrayType, and StructType.
+    """
+
+    def __init__(self, expected_type: type):
+        self.expected_type = expected_type
+
+    def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
+        if len(actual_arg_types) != 2:
+            raise InternalError(
+                f"{func_name} expects 2 arguments, got {len(actual_arg_types)}"
+            )
+
+        # Check both arguments are instances of expected_type
+        for i, actual_arg_type in enumerate(actual_arg_types):
+            if not isinstance(actual_arg_type, self.expected_type):
+                raise TypeMismatchError.from_message(
+                    f"{func_name} expects argument {i} to be an instance of {self.expected_type.__name__}, "
+                    f"got {actual_arg_type}"
+                )
+
+        # Check that both arguments are equal (including metadata)
+        if actual_arg_types[0] != actual_arg_types[1]:
+            raise TypeMismatchError.from_message(
+                f"{func_name} expects both arguments to be equal. "
+                f"Argument 0 has type {actual_arg_types[0]}, but argument 1 has type {actual_arg_types[1]}"
+            )
+
+
+class InstanceOf(TypeSignature):
+    """Validates that arguments are instances of specific types.
+
+    More descriptive than manually checking isinstance for each argument.
+    """
+
+    def __init__(self, expected_types: List[type]):
+        self.expected_types = expected_types
+
+    def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
+        if len(actual_arg_types) != len(self.expected_types):
+            raise InternalError(
+                f"{func_name} expects {len(self.expected_types)} arguments, "
+                f"got {len(actual_arg_types)}"
+            )
+
+        for i, (expected_type, actual_arg_type) in enumerate(zip(self.expected_types, actual_arg_types, strict=False)):
+            if not isinstance(actual_arg_type, expected_type):
+                raise TypeMismatchError.from_message(
+                    f"{func_name} expects argument {i} to be an instance of {expected_type.__name__}, "
+                    f"got {actual_arg_type}"
+                )

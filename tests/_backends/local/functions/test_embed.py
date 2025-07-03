@@ -210,7 +210,7 @@ def test_similarity_validation_errors(local_session):
     df2 = df2.select(col("vectors2").cast(EmbeddingType(dimensions=2, embedding_model="different")).alias("embeddings2"))
 
     combined = df.join(df2, how="cross")
-    with pytest.raises(TypeMismatchError, match="Embedding types must match"):
+    with pytest.raises(TypeMismatchError, match="EmbeddingType model and dimensions must match"):
         combined.select(embedding.compute_similarity(col("embeddings"), col("embeddings2")).alias("similarity"))
 
 

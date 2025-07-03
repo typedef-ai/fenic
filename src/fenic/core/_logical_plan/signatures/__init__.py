@@ -15,7 +15,9 @@ from fenic.core._logical_plan.signatures.types import (
     # Specialized type signatures
     ArrayOfAny,
     ArrayWithMatchingElement,
+    EqualTypes,
     Exact,
+    InstanceOf,
     Numeric,
     OneOf,
     # Core signatures
@@ -30,6 +32,7 @@ from fenic.core._logical_plan.signatures.types import (
 __all__ = [
     "TypeSignature",
     "Exact",
+    "InstanceOf",
     "Uniform",
     "VariadicUniform",
     "VariadicAny",
@@ -37,7 +40,8 @@ __all__ = [
     "OneOf",
     # Specialized type signatures
     "ArrayOfAny",
-    "ArrayWithMatchingElement",
+    "ArrayWithMatchingElement", 
+    "EqualTypes",
     "FunctionSignature",
     "ReturnTypeStrategy",
     "FunctionRegistry",
