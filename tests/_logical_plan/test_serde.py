@@ -1,10 +1,30 @@
 import os
+from enum import Enum
 
 import polars as pl
-from _utils.serde_utils import _test_plan_serialization
+from _utils.serde_utils import _test_df_serialization, _test_plan_serialization
+from pydantic import BaseModel, Field
 
-from fenic import col, semantic
+from fenic import (
+    ExtractSchema,
+    ExtractSchemaField,
+    StringType,
+    col,
+    lit,
+    semantic,
+    text,
+)
 
+
+class TestCategory(Enum):
+    A = "a"
+    B = "b"
+    C = "c"
+
+class BasicReviewModel(BaseModel):
+    positive_feature: str = Field(
+        ..., description="Positive feature described in the review"
+    )
 
 def test_basic_plan(local_session):
     # Create a simple DataFrame
@@ -202,10 +222,127 @@ def test_table_source_plans(local_session):
     assert result.schema == expected.schema
     # grouping is not deterministic, so just test the schema matches
 
-def test_semantic_plans(local_session):
-    df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    plan = df.select(semantic.classify(col("b"), ["a", "b", "c"]))._logical_plan
-    deserialized_df = _test_plan_serialization(plan, local_session._session_state)
+def test_semantic_plans(local_session, extract_data_df):
+    # semantic cluster
+    source = local_session.create_dataframe(
+        {
+            "blurb": [
+                "Rust is a memory-safe systems programming language with zero-cost abstractions.",
+                None,
+            ],
+        }
+    )
+    df = (
+        source.with_column("embeddings", semantic.embed(col("blurb")))
+        .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
+    )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
 
-    # The test only cares about the plan being serializable.
-    assert deserialized_df is not None
+    # semantic classify
+    # test with a list of strings as categories
+    df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df = df.select(semantic.classify(col("b"), ["a", "b", "c"]))
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+
+    # test with an enum as categories
+    df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df = df.select(semantic.classify(col("b"), TestCategory))
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+
+    # semantic sim join
+    left = local_session.create_dataframe(
+        {
+            "course_id": [1, 2,],
+            "course_name": [
+                "History of The Atlantic World",
+                "Riemann Geometry",
+            ],
+            "other_col_left": ["a", "b"],
+        }
+    )
+    right = local_session.create_dataframe(
+        {
+            "skill_id": [1, 2],
+            "skill": ["Math", "Computer Science"],
+            "other_col_right": ["g", "h"],
+        }
+    )
+    df = (
+        left.with_column("course_embeddings", semantic.embed(col("course_name")))
+        .semantic.sim_join(
+            right.with_column("skill_embeddings", semantic.embed(col("skill"))),
+            left_on="course_embeddings",
+            right_on="skill_embeddings",
+            k=1,
+            similarity_metric="cosine",
+        )
+    )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+
+    # semantic analyze sentiment
+    comments_data = {
+        "user_comments": [
+            "best product ever",
+        ]
+    }
+    comments_df = local_session.create_dataframe(comments_data)
+    categorized_comments_df = comments_df.select(
+        col("user_comments"),
+        semantic.analyze_sentiment(text.concat(col("user_comments"), lit(" "))).alias(
+            "sentiment"
+        ),
+    )
+    deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
+    assert deserialized_df
+
+    # semantic extract
+    # test extract with the output schema
+    output_schema = ExtractSchema(
+        [
+            ExtractSchemaField(
+                name="product_name",
+                data_type=StringType,
+                description="The name of the product mentioned in the review or support ticket",
+            ),
+        ]
+    )
+    df = extract_data_df.select(
+        semantic.extract(col("review"), output_schema).alias("review")
+    )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+    # test extract with the base model
+    df = extract_data_df.select(
+        semantic.extract(col("review"), BasicReviewModel).alias("review_out")
+    )
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
+
+    # semantic map
+    source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
+    state_prompt = "What state does {name} live in given that they live in {city}?"
+    df_select = source.select(
+        semantic.map(state_prompt).alias("state"),
+        col("name"),
+        semantic.map(instruction="What is the typical weather in {city} in summer?").alias("weather"),
+    )
+    deserialized_df = _test_df_serialization(df_select, local_session._session_state)
+    assert deserialized_df
+
+    # semantic predicate
+    instruction = "This {blurb} has positive sentiment about apache spark."
+    source = local_session.create_dataframe(
+        {
+            "blurb": [
+                "Apache Spark is the worst piece of software I've ever used. It's so slow and inefficient and I hate the JVM.",
+            ]
+        }
+    )
+    df = source.filter(
+        semantic.predicate(instruction))
+    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    assert deserialized_df
