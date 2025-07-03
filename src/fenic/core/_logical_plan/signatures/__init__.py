@@ -8,8 +8,10 @@ and inferring return types.
 
 from fenic.core._logical_plan.signatures import (
     builtin,  # noqa: F401
+    embedding,  # noqa: F401
     json,  # noqa: F401
     markdown,  # noqa: F401
+    semantic,  # noqa: F401
     text,  # noqa: F401
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
@@ -22,7 +24,9 @@ from fenic.core._logical_plan.signatures.types import (
     # Specialized type signatures
     ArrayOfAny,
     ArrayWithMatchingElement,
+    EqualTypes,
     Exact,
+    InstanceOf,
     Numeric,
     OneOf,
     # Core signatures
@@ -32,12 +36,15 @@ from fenic.core._logical_plan.signatures.types import (
     Uniform,
     VariadicAny,
     VariadicUniform,
+    # Utility functions
+    require_equal_types,
 )
 
 __all__ = [
     "TypeSignature",
     "PositionalSignature",
     "Exact",
+    "InstanceOf",
     "Uniform",
     "VariadicUniform",
     "VariadicAny",
@@ -46,7 +53,10 @@ __all__ = [
     # Specialized type signatures
     "ArrayOfAny",
     "ArrayWithMatchingElement", 
+    "EqualTypes",
     "StructWithStringKey",
+    # Utility functions
+    "require_equal_types",
     "FunctionSignature",
     "ReturnTypeStrategy",
     "FunctionRegistry",
