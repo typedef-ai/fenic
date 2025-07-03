@@ -5,7 +5,10 @@ and inferring return types.
 """
 
 # Import signature modules to register them
-from fenic.core._logical_plan.signatures import builtin  # noqa: F401
+from fenic.core._logical_plan.signatures import (
+    builtin,  # noqa: F401
+    text,  # noqa: F401
+)
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core._logical_plan.signatures.signature import (
