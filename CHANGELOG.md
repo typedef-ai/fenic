@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0](https://github.com/typedef-ai/fenic/compare/v0.1.0...v0.2.0) (2025-07-03)
+
+
+### Features
+
+* migrate to google-genai package, support google vertex ([#35](https://github.com/typedef-ai/fenic/issues/35)) ([098f77d](https://github.com/typedef-ai/fenic/commit/098f77d515b70ddb0d64930dbdab76df425559b9))
+
+
+### Bug Fixes
+
+* add a grpc retry policy for the cloud engine ([#45](https://github.com/typedef-ai/fenic/issues/45)) ([8eb4cca](https://github.com/typedef-ai/fenic/commit/8eb4cca25bfc2f4464085c478f0a2328abfcfde4))
+* add the remaining metrics to fix the error message when running a cloud execution ([#50](https://github.com/typedef-ai/fenic/issues/50)) ([cc9f8ca](https://github.com/typedef-ai/fenic/commit/cc9f8caa6e13374a375e63621e35e68fa39d01ea))
+* increase the grpc default message size ([#51](https://github.com/typedef-ai/fenic/issues/51)) ([319d4d9](https://github.com/typedef-ai/fenic/commit/319d4d9ad89442fffe60e4cf4570da6da0c882c8))
+* use basic types for expressions ([#48](https://github.com/typedef-ai/fenic/issues/48)) ([9e4b1af](https://github.com/typedef-ai/fenic/commit/9e4b1afa4c3272240f6e5ef9d43d7e495dd28c75))
+* user should not have to provide admin secret for cloud session ([#49](https://github.com/typedef-ai/fenic/issues/49)) ([c608c6e](https://github.com/typedef-ai/fenic/commit/c608c6e5b0b08842b54c10236a57e6888f0a15fd))
+
+
+### Documentation
+
+* adding missing notebooks for examples ([#46](https://github.com/typedef-ai/fenic/issues/46)) ([81517f1](https://github.com/typedef-ai/fenic/commit/81517f1637b23d225d4b88d0e861549581181796))
+
 ## [0.1.0](https://github.com/typedef-ai/fenic/compare/v0.0.3...v0.1.0) (2025-06-25)
 
 
