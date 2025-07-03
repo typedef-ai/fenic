@@ -500,10 +500,6 @@ def array_join(column: ColumnOrName, delimiter: str) -> Column:
         df.select(text.array_join(col("array_column"), ","))
         ```
     """
-    if not isinstance(delimiter, str):
-        raise TypeError(
-            f"`array_join` expects a string for the delimiter, but got {type(delimiter).__name__}."
-        )
     return Column._from_logical_expr(
         ArrayJoinExpr(Column._from_col_or_name(column)._logical_expr, delimiter)
     )

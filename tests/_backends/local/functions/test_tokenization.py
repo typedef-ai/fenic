@@ -2,6 +2,7 @@ import polars as pl
 import pytest
 
 from fenic import col, text
+from fenic.core.error import TypeMismatchError
 
 
 def test_count_tokens_basic(large_text_df):
@@ -26,7 +27,7 @@ def test_count_tokens_basic(large_text_df):
 def test_count_tokens_raises_on_numeric(sample_df):
     df = sample_df
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeMismatchError):
         df = df.with_column(
             "token_count",
             text.count_tokens(col("age")),

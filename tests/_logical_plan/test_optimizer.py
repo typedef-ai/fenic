@@ -337,7 +337,7 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
           Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
             Filter(predicate=(semantic.analyze_sentiment(blurb1) = lit(positive)))
               Filter(predicate=semantic.predicate_c22500eb(blurb1))
-                Filter(predicate=(concat(lit(banana), semantic.map_bbe57368(blurb1)) = lit(banana)))
+                Filter(predicate=(text.concat(lit(banana), semantic.map_bbe57368(blurb1)) = lit(banana)))
                   Filter(predicate=((id > lit(100)) AND (status = lit(active))))
                     InMemorySource(
                       Schema(

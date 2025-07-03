@@ -4,7 +4,7 @@ This package provides a centralized system for validating function signatures
 and inferring return types.
 """
 
-# Note: signature modules are imported at the bottom to avoid circular imports
+# Note: signature modules are registered via registration import in expressions/__init__.py
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core._logical_plan.signatures.signature import (
