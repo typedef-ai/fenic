@@ -1,0 +1,79 @@
+"""Markdown function signatures for the fenic signature system.
+
+This module registers function signatures for markdown processing functions,
+providing centralized type validation and return type inference.
+"""
+from fenic.core._logical_plan.expressions.markdown import (
+    MdExtractHeaderChunks,
+    MdGenerateTocExpr,
+    MdGetCodeBlocksExpr,
+    MdToJsonExpr,
+)
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.signature import FunctionSignature
+from fenic.core._logical_plan.signatures.types import Exact
+from fenic.core.types.datatypes import (
+    ArrayType,
+    IntegerType,
+    JsonType,
+    MarkdownType,
+    StringType,
+    StructField,
+    StructType,
+)
+
+
+def register_markdown_signatures():
+    """Register all markdown function signatures for ScalarFunctions."""
+    # Markdown to JSON conversion
+    FunctionRegistry.register(
+        "markdown.to_json",
+        MdToJsonExpr,
+        FunctionSignature(
+            function_name="markdown.to_json",
+            type_signature=Exact([MarkdownType]),  # markdown input
+            return_type=JsonType
+        )
+    )
+    
+    # Get code blocks from markdown
+    FunctionRegistry.register(
+        "markdown.get_code_blocks",
+        MdGetCodeBlocksExpr,
+        FunctionSignature(
+            function_name="markdown.get_code_blocks",
+            type_signature=Exact([MarkdownType]),  # markdown input (language_filter is literal)
+            return_type=ArrayType(StructType([
+                StructField("language", StringType),
+                StructField("code", StringType)
+            ]))
+        )
+    )
+    
+    # Generate table of contents from markdown
+    FunctionRegistry.register(
+        "markdown.generate_toc",
+        MdGenerateTocExpr,
+        FunctionSignature(
+            function_name="markdown.generate_toc", 
+            type_signature=Exact([MarkdownType]),  # markdown input (max_level is literal)
+            return_type=MarkdownType
+        )
+    )
+    
+    # Extract header chunks from markdown
+    FunctionRegistry.register(
+        "markdown.extract_header_chunks",
+        MdExtractHeaderChunks,
+        FunctionSignature(
+            function_name="markdown.extract_header_chunks",
+            type_signature=Exact([MarkdownType]),  # markdown input (header_level is literal)
+            return_type=ArrayType(StructType([
+                StructField("heading", StringType),
+                StructField("level", IntegerType),
+                StructField("content", StringType),
+                StructField("parent_heading", StringType),
+                StructField("full_path", StringType)
+            ]))
+        )
+    )
