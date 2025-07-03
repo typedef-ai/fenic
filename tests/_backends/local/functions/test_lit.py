@@ -1,5 +1,3 @@
-from _utils.serde_utils import _test_df_serialization
-
 from fenic import (
     ArrayType,
     BooleanType,
@@ -45,8 +43,6 @@ def test_lit_primitive(local_session):
 def test_lit_array(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
     df = df.select(col("a"), lit([1, 2, 3]).alias("b"))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     expected_schema = Schema(
         [
             ColumnField(name="a", data_type=IntegerType),

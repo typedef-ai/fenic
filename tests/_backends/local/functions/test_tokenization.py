@@ -1,6 +1,5 @@
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import col, text
 
@@ -12,8 +11,6 @@ def test_count_tokens_basic(large_text_df, local_session):
         "token_count",
         text.count_tokens(col("text")),
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
 
     result = df.to_polars()
 

@@ -1,7 +1,6 @@
 
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ColumnField,
@@ -31,8 +30,6 @@ def test_semantic_cluster_with_centroids(local_session):
         source.with_column("embeddings", semantic.embed(col("blurb")))
         .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),

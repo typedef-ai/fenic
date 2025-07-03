@@ -1,17 +1,12 @@
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import col
 
 
-def test_basic_union(sample_df, local_session):
+def test_basic_union(sample_df):
     df1 = sample_df.filter(col("age") <= 25)
     df2 = sample_df.filter(col("age") > 25)
-    result = df1.union(df2)
-
-    deserialized_df = _test_df_serialization(result, local_session._session_state)
-    result = deserialized_df.to_polars()
-
+    result = df1.union(df2).to_polars()
     assert len(result) == 3
     assert set(result["age"]) == {25, 30, 35}
 

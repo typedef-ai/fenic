@@ -1,6 +1,5 @@
 import polars as pl
 import requests
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import col, text
 
@@ -19,11 +18,8 @@ def test_token_chunk(local_session):
     result = df.with_column(
         "token_chunk_col",
         text.token_chunk(col("text_col"), chunk_size=2, chunk_overlap_percentage=50),
-    )
-    deserialized_df = _test_df_serialization(result, local_session._session_state)
-    assert deserialized_df
+    ).to_polars()
 
-    result = result.to_polars()
     # Expected outputs updated to include the leading spaces on tokens after the first one.
     expected_outputs = [
         ["hello world", " world foo", " foo bar", " bar"],

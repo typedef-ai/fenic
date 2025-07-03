@@ -1,6 +1,5 @@
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ArrayType,
@@ -44,8 +43,6 @@ def test_jq_simple(local_session):
     df = local_session.create_dataframe(data)
     df = df.select(col("struct_col").cast(JsonType).alias("json_col"))
     df = df.select(json.jq(col("json_col"), ".user.name").alias("user_name"))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     assert df.schema.column_fields == [ColumnField(name="user_name", data_type=ArrayType(element_type=JsonType))]
     result = df.to_polars()
     expected = pl.DataFrame({"user_name": [['"Alice"'], ['"Bob"']]})

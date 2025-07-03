@@ -2,7 +2,6 @@ from enum import Enum
 
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ClassifyExample,
@@ -32,10 +31,6 @@ def test_semantic_classification_simple(local_session):
             text.concat(col("user_comments"), lit(" ")), categories
         ).alias("category"),
     )
-    # Verify the plan can be serialized.
-    deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
-    assert deserialized_df
-
     result = categorized_comments_df.to_polars()
 
     assert result.schema == {

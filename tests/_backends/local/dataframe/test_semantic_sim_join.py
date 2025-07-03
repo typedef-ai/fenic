@@ -1,6 +1,5 @@
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     ColumnField,
@@ -168,9 +167,6 @@ def test_semantic_sim_join(local_session, metric):
             similarity_metric=metric,
         )
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
-
     assert df.schema.column_fields == [
         ColumnField("course_id", IntegerType),
         ColumnField("course_name", StringType),

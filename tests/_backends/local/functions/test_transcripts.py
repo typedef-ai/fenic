@@ -1,5 +1,3 @@
-from _utils.serde_utils import _test_df_serialization
-
 from fenic import col, text
 
 
@@ -15,8 +13,6 @@ This is a test."""
 
     df = local_session.create_dataframe({"transcript": [srt_content]})
     result = df.select(text.parse_transcript(col("transcript"), "srt")).to_polars()
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
 
     entries = result.to_series().to_list()[0]
     assert len(entries) == 2

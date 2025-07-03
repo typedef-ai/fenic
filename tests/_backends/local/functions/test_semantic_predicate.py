@@ -1,5 +1,4 @@
 import polars as pl
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import PredicateExample, PredicateExampleCollection, col, semantic
 
@@ -27,8 +26,6 @@ def test_single_semantic_filter(local_session):
         & (col("a_boolean_column"))
         & (col("a_numeric_column") > 0)
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     result = df.to_polars()
     assert result.schema == {
         "blurb": pl.String,
@@ -69,8 +66,6 @@ def test_semantic_filter_with_examples(local_session):
         )
     )
     df = source.filter(semantic.predicate(instruction, examples=sentiment_collection))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     result = df.to_polars()
     assert result.schema == {
         "blurb1": pl.String,

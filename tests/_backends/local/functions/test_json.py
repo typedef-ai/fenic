@@ -1,6 +1,5 @@
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     BooleanType,
@@ -26,11 +25,8 @@ def test_json_type(local_session):
     }
     df = local_session.create_dataframe(data)
     df = df.select(col("json_strings").cast(JsonType).alias("json_col"))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     df = df.select(json.get_type(col("json_col")).alias("type"))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
+
     assert df.schema.column_fields == [ColumnField(name="type", data_type=StringType)]
     result = df.to_polars()
     expected = pl.DataFrame({

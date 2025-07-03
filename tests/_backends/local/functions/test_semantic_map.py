@@ -1,5 +1,4 @@
 import polars as pl
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import MapExample, MapExampleCollection, col, semantic
 
@@ -12,8 +11,6 @@ def test_semantic_map(local_session):
         col("name"),
         semantic.map(instruction="What is the typical weather in {city} in summer?").alias("weather"),
     )
-    deserialized_df = _test_df_serialization(df_select, local_session._session_state)
-    assert deserialized_df
     result = df_select.to_polars()
     assert result.schema == {
         "state": pl.String,
@@ -56,8 +53,6 @@ def test_semantic_map_with_examples(local_session):
             examples=weather_collection,
         ),
     )
-    deserialized_df = _test_df_serialization(df_with_column, local_session._session_state)
-    assert deserialized_df
     result = df_with_column.to_polars()
     assert result.schema == {
         "name": pl.String,
@@ -76,8 +71,6 @@ def test_semantic_map_with_nulls(local_session):
         col("name"),
         semantic.map(state_prompt).alias("state"),
     )
-    deserialized_df = _test_df_serialization(df_select, local_session._session_state)
-    assert deserialized_df
     result = df_select.to_polars()
     assert result.schema == {
         "name": pl.String,

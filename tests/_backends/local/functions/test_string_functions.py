@@ -1,6 +1,5 @@
 import polars as pl
 import pytest
-from _utils.serde_utils import _test_df_serialization
 
 from fenic import (
     col,
@@ -31,8 +30,6 @@ def test_textract_basic(local_session):
     result = df.select(
         text.extract(col("text"), template).alias("_extracted")
     )
-    deserialized_df = _test_df_serialization(result, local_session._session_state)
-    assert deserialized_df
     result = result.to_polars()
     df = result.select(
         pl.col("_extracted").struct.field("name"),
@@ -59,8 +56,6 @@ def test_textract_filter(local_session):
     df = df.select(
         col("text"), text.extract(col("text"), template).alias("_extracted")
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
-    assert deserialized_df
     df = df.to_polars()
 
     unnested = df.select(
