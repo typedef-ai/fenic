@@ -287,4 +287,3 @@ def test_cosine_similarity_special_cases(local_session):
     similarities = result["cosine_sim"].to_list()
 
     assert all(np.isnan(sim) for sim in similarities)
-    

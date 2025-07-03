@@ -4,7 +4,7 @@ import pytest
 from fenic import col, text
 
 
-def test_count_tokens_basic(large_text_df, local_session):
+def test_count_tokens_basic(large_text_df):
     df = large_text_df
 
     df = df.with_column(

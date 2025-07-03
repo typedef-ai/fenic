@@ -29,8 +29,7 @@ def test_textract_basic(local_session):
     template = "Name: ${name:csv}, Age: ${age:none}"
     result = df.select(
         text.extract(col("text"), template).alias("_extracted")
-    )
-    result = result.to_polars()
+    ).to_polars()
     df = result.select(
         pl.col("_extracted").struct.field("name"),
         pl.col("_extracted").struct.field("age"),
@@ -55,8 +54,7 @@ def test_textract_filter(local_session):
 
     df = df.select(
         col("text"), text.extract(col("text"), template).alias("_extracted")
-    )
-    df = df.to_polars()
+    ).to_polars()
 
     unnested = df.select(
         pl.col("_extracted").struct.field("name"),
