@@ -80,10 +80,10 @@ from fenic.core._logical_plan.expressions.semantic import (
     SemanticClassifyExpr as SemanticClassifyExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
-    SemanticExpr as SemanticExpr,
+    SemanticExtractExpr as SemanticExtractExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
-    SemanticExtractExpr as SemanticExtractExpr,
+    SemanticFunction as SemanticFunction,
 )
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticMapExpr as SemanticMapExpr,

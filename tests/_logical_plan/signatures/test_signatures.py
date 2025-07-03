@@ -189,8 +189,6 @@ class TestNumeric:
         with pytest.raises(InternalError, match="test_func expects 2 arguments, got 1"):
             sig.validate([IntegerType], "test_func")
 
-
-
 class TestUniform:
     """Test Uniform signature type."""
     
