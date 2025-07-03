@@ -6,14 +6,16 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
+    pass
 
 from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core.types import (
     ArrayType,
+DataType,
     BooleanType,
     ColumnField,
     DoubleType,
@@ -152,27 +154,23 @@ class ParsedTemplateFormat:
             ]
         )
 
-class TextractExpr(LogicalExpr):
+class TextractExpr(ScalarFunction):
+    function_name = "text.extract"
+
     def __init__(self, input_expr: LogicalExpr, template: str):
         self.input_expr = input_expr
         self.template = template
         self.parsed_template = ParsedTemplateFormat.parse(template)
 
+        super().__init__(input_expr)
+
     def __str__(self):
         return f"text.extract('{self.template}', {self.input_expr})"
 
-    def _validate_types(self, plan: LogicalPlan):
-        expr_field = self.input_expr.to_column_field(plan)
-        if expr_field.data_type != StringType:
-            raise TypeError(
-                f"text.extract requires string type for input expression, got {expr_field.data_type}. "
-                "The input must be a text column to extract fields from."
-            )
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return StructType with fields based on parsed template."""
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        result_field = ColumnField(str(self), self.parsed_template.to_struct_schema())
-        return result_field
+        return self.parsed_template.to_struct_schema()
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
@@ -197,7 +195,9 @@ class TextChunkExprConfiguration(BaseModel):
     chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
 
 
-class TextChunkExpr(LogicalExpr):
+class TextChunkExpr(ScalarFunction):
+    function_name = "text.chunk"
+
     def __init__(
         self,
         input_expr: LogicalExpr,
@@ -206,19 +206,11 @@ class TextChunkExpr(LogicalExpr):
         self.input_expr = input_expr
         self.chunk_configuration = chunk_configuration
 
+        # Only validate the string expression (chunk_configuration is literal)
+        super().__init__(input_expr)
+
     def __str__(self) -> str:
         return f"text_chunk({self.input_expr}, {self.chunk_configuration})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_chunk requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
@@ -229,7 +221,9 @@ class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_custom_characters: Optional[list[str]] = None
 
 
-class RecursiveTextChunkExpr(LogicalExpr):
+class RecursiveTextChunkExpr(ScalarFunction):
+    function_name = "text.recursive_chunk"
+
     def __init__(
         self,
         input_expr: LogicalExpr,
@@ -238,91 +232,49 @@ class RecursiveTextChunkExpr(LogicalExpr):
         self.input_expr = input_expr
         self.chunking_configuration = chunking_configuration
 
+        # Only validate the string expression (chunking_configuration is literal)
+        super().__init__(input_expr)
+
     def __str__(self) -> str:
         return f"text_chunk({self.input_expr}, {self.chunking_configuration})"
 
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_chunk requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
-
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
 
-class CountTokensExpr(LogicalExpr):
-    def __init__(
-        self,
-        input_expr: LogicalExpr,
-    ):
+class CountTokensExpr(ScalarFunction):
+    function_name = "text.count_tokens"
+
+    def __init__(self, input_expr: LogicalExpr):
         self.input_expr = input_expr
+        super().__init__(input_expr)
 
-    def __str__(self) -> str:
-        return f"count_tokens({self.input_expr})"
+class ConcatExpr(ScalarFunction):
+    function_name = "text.concat"
 
-    def _validate_types(self, plan: "LogicalPlan"):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"count_tokens requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: "LogicalPlan") -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=IntegerType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.input_expr]
-
-class ConcatExpr(LogicalExpr):
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-
-    def __str__(self) -> str:
-        return f"concat({', '.join(str(expr) for expr in self.exprs)})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        for arg in self.exprs:
-            arg_field = arg.to_column_field(plan)
-            if isinstance(arg_field.data_type, ArrayType) or isinstance(
-                arg_field.data_type, StructType
-            ):
-                raise TypeError(
-                    f"concat requires primitive types castable to strings, got {arg_field.data_type}"
-                )
-        return ColumnField(name=str(self), data_type=StringType)
-
-    def children(self) -> List[LogicalExpr]:
-        return self.exprs
+        super().__init__(*exprs)
 
 
-class ArrayJoinExpr(LogicalExpr):
+class ArrayJoinExpr(ScalarFunction):
+    function_name = "text.array_join"
+
     def __init__(self, expr: LogicalExpr, delimiter: str):
         self.expr = expr
         self.delimiter = delimiter
 
+        # Only validate the array expression (delimiter is literal)
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"array_join({self.expr}, {self.delimiter})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != ArrayType(element_type=StringType):
-            raise TypeError(
-                f"array_join requires an array of strings as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class ContainsExpr(LogicalExpr):
+class ContainsExpr(ScalarFunction):
     """Expression for checking if a string column contains a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -336,20 +288,17 @@ class ContainsExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.contains"
+
     def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
         self.expr = expr
         self.substr = substr
 
-    def __str__(self) -> str:
-        return f"contains({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"contains requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=BooleanType)
+        # Pass appropriate arguments to signature validation
+        if isinstance(substr, LogicalExpr):
+            super().__init__(expr, substr)  # Both string inputs
+        else:
+            super().__init__(expr)  # Only main string input
 
     def children(self) -> List[LogicalExpr]:
         if isinstance(self.substr, str):
@@ -358,7 +307,7 @@ class ContainsExpr(LogicalExpr):
             return [self.expr, self.substr]
 
 
-class ContainsAnyExpr(LogicalExpr):
+class ContainsAnyExpr(ScalarFunction):
     """Expression for checking if a string column contains any of multiple substrings.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -373,6 +322,8 @@ class ContainsAnyExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.contains_any"
+
     def __init__(
         self, expr: LogicalExpr, substrs: List[str], case_insensitive: bool = True
     ):
@@ -380,22 +331,17 @@ class ContainsAnyExpr(LogicalExpr):
         self.substrs = substrs
         self.case_insensitive = case_insensitive
 
+        # Only validate the main string expression (substrs and case_insensitive are literals)
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"contains_any({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"contains_any requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=BooleanType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class RLikeExpr(LogicalExpr):
+class RLikeExpr(ScalarFunction):
     """Expression for matching a string column against a regular expression pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -410,30 +356,29 @@ class RLikeExpr(LogicalExpr):
         ValueError: If the regular expression pattern is invalid
     """
 
+    function_name = "text.rlike"
+
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.pattern = pattern
 
+        # Validate regex pattern at construction time
+        try:
+            re.compile(pattern)
+        except Exception as e:
+            raise ValueError(f"Invalid regex pattern: {pattern}") from e
+
+        # Only validate the string expression
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"rlike({self.expr}, {self.pattern})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"rlike requires column of type string as input, got {input_field.data_type}"
-            )
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValueError(f"Invalid regex pattern: {self.pattern}") from e
-        return ColumnField(name=str(self), data_type=BooleanType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class LikeExpr(LogicalExpr):
+class LikeExpr(ScalarFunction):
     """Expression for matching a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -448,10 +393,21 @@ class LikeExpr(LogicalExpr):
         ValueError: If the LIKE pattern is invalid
     """
 
+    function_name = "text.like"
+
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.raw_pattern = pattern
         self.pattern = self._convert_to_regex(pattern)
+
+        # Validate the converted pattern
+        try:
+            re.compile(self.pattern)
+        except Exception as e:
+            raise ValueError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
+
+        # Only validate the string expression
+        super().__init__(expr)
 
     def _convert_to_regex(self, pattern: str) -> str:
         # Convert SQL LIKE pattern to regex pattern
@@ -465,23 +421,11 @@ class LikeExpr(LogicalExpr):
     def __str__(self) -> str:
         return f"like({self.expr}, {self.raw_pattern}, {self.pattern})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"like/ilike requires column of type string as input, got {input_field.data_type}"
-            )
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValueError(f"Invalid LIKE/ILIKE pattern: {self.raw_pattern}") from e
-        return ColumnField(name=str(self), data_type=BooleanType)
-
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class ILikeExpr(LikeExpr):
+class ILikeExpr(ScalarFunction):
     """Expression for case-insensitive matching of a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -497,29 +441,41 @@ class ILikeExpr(LikeExpr):
         ValueError: If the LIKE pattern is invalid
     """
 
+    function_name = "text.ilike"
+
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.raw_pattern = pattern
         self.pattern = self._convert_to_regex(pattern)
 
+        # Validate the converted pattern
+        try:
+            re.compile(self.pattern)
+        except Exception as e:
+            raise ValueError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
+
+        # Only validate the string expression
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"ilike({self.expr}, {self.raw_pattern}, {self.pattern})"
 
     def _convert_to_regex(self, pattern: str) -> str:
-        converted_pattern = super()._convert_to_regex(pattern)
-        return f"(?i){converted_pattern}"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return super().to_column_field(plan)
-
-    def count_semantic_predicate_expressions(self) -> int:
-        return self.expr.count_semantic_predicate_expressions()
+        # Convert SQL LIKE pattern to regex pattern with case insensitivity
+        # Escape special regex characters except % and _
+        special_chars = r"[](){}^$.|+\\"
+        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
+        # Convert SQL wildcards to regex wildcards
+        pattern = pattern.replace("%", ".*").replace("_", ".")
+        return f"(?i){pattern}"
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class TsParseExpr(LogicalExpr):
+class TsParseExpr(ScalarFunction):
+    function_name = "text.parse_transcript"
+
     # Unified schema for all transcript formats
     OUTPUT_TYPE = ArrayType(
         element_type=StructType(
@@ -539,27 +495,21 @@ class TsParseExpr(LogicalExpr):
         self.expr = expr
         self.format = format
 
+        # Only validate the string expression (format is literal)
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"parse_transcript({self.expr}, {self.format})"
 
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeMismatchError(
-                "text.parse_transcript()",
-                self.expr,
-                StringType,
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=self.OUTPUT_TYPE)
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return the predefined transcript output schema."""
+        return self.OUTPUT_TYPE
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class StartsWithExpr(LogicalExpr):
+class StartsWithExpr(ScalarFunction):
     """Expression for checking if a string column starts with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -574,22 +524,24 @@ class StartsWithExpr(LogicalExpr):
         ValueError: If the substring starts with a regular expression anchor (^)
     """
 
+    function_name = "text.starts_with"
+
     def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
         self.expr = expr
         self.substr = substr
 
+        # Validate substring if it's a string literal
+        if isinstance(substr, str) and substr.startswith("^"):
+            raise ValueError("substr should not start with a regular expression anchor")
+
+        # Pass appropriate arguments to signature validation
+        if isinstance(substr, LogicalExpr):
+            super().__init__(expr, substr)  # Both string inputs
+        else:
+            super().__init__(expr)  # Only main string input
+
     def __str__(self) -> str:
         return f"starts_with({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"starts_with requires column of type string as input, got {input_field.data_type}"
-            )
-        if isinstance(self.substr, str) and self.substr.startswith("^"):
-            raise ValueError("substr should not start with a regular expression anchor")
-        return ColumnField(name=str(self), data_type=BooleanType)
 
     def children(self) -> List[LogicalExpr]:
         if isinstance(self.substr, str):
@@ -598,7 +550,7 @@ class StartsWithExpr(LogicalExpr):
             return [self.expr, self.substr]
 
 
-class EndsWithExpr(LogicalExpr):
+class EndsWithExpr(ScalarFunction):
     """Expression for checking if a string column ends with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -613,22 +565,24 @@ class EndsWithExpr(LogicalExpr):
         ValueError: If the substring ends with a regular expression anchor ($)
     """
 
+    function_name = "text.ends_with"
+
     def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
         self.expr = expr
         self.substr = substr
 
+        # Validate substring if it's a string literal
+        if isinstance(substr, str) and substr.endswith("$"):
+            raise ValueError("substr should not end with a regular expression anchor")
+
+        # Pass appropriate arguments to signature validation
+        if isinstance(substr, LogicalExpr):
+            super().__init__(expr, substr)  # Both string inputs
+        else:
+            super().__init__(expr)  # Only main string input
+
     def __str__(self) -> str:
         return f"ends_with({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"ends_with requires column of type string as input, got {input_field.data_type}"
-            )
-        if isinstance(self.substr, str) and self.substr.endswith("$"):
-            raise ValueError("substr should not end with a regular expression anchor")
-        return ColumnField(name=str(self), data_type=BooleanType)
 
     def children(self) -> List[LogicalExpr]:
         if isinstance(self.substr, str):
@@ -637,7 +591,7 @@ class EndsWithExpr(LogicalExpr):
             return [self.expr, self.substr]
 
 
-class RegexpSplitExpr(LogicalExpr):
+class RegexpSplitExpr(ScalarFunction):
     """Expression for splitting a string column using a regular expression pattern.
 
     This expression creates an array of substrings by splitting the input string column
@@ -654,27 +608,24 @@ class RegexpSplitExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.regexp_split"
+
     def __init__(self, expr: LogicalExpr, pattern: str, limit: int = -1):
         self.expr = expr
         self.pattern = pattern
         self.limit = limit
 
+        # Only validate the string expression (pattern and limit are literals)
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"regexp_split({self.expr}, {self.pattern}, limit={self.limit})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"regexp_split requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class SplitPartExpr(LogicalExpr):
+class SplitPartExpr(ScalarFunction):
     """Expression for splitting a string column and returning a specific part.
 
     This expression splits each string by a delimiter and returns the specified part (1-based indexing).
@@ -698,6 +649,8 @@ class SplitPartExpr(LogicalExpr):
         ValueError: If part_number is 0
     """
 
+    function_name = "text.split_part"
+
     def __init__(
         self, expr: LogicalExpr, delimiter: Union[LogicalExpr, str], part_number: int
     ):
@@ -705,18 +658,16 @@ class SplitPartExpr(LogicalExpr):
         self.delimiter = delimiter
         self.part_number = part_number
 
+        # Only validate LogicalExpr arguments (delimiter might be string literal)
+        if isinstance(delimiter, LogicalExpr):
+            super().__init__(expr, delimiter)
+        else:
+            super().__init__(expr)
+
     def __str__(self) -> str:
         return (
             f"text_split({self.expr}, {self.delimiter}, part_number={self.part_number})"
         )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_split requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
 
     def children(self) -> List[LogicalExpr]:
         if isinstance(self.delimiter, str):
@@ -725,7 +676,7 @@ class SplitPartExpr(LogicalExpr):
             return [self.expr, self.delimiter]
 
 
-class StringCasingExpr(LogicalExpr):
+class StringCasingExpr(ScalarFunction):
     """Expression for converting the case of a string column.
 
     This expression creates a new string column with all values converted to the specified case.
@@ -738,26 +689,23 @@ class StringCasingExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.string_casing"
+
     def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
         self.expr = expr
         self.case = case
 
+        # Only validate the string expression (case is literal)
+        super().__init__(expr)
+
     def __str__(self) -> str:
         return f"string_casing({self.expr}, {self.case})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"string_casing requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class StripCharsExpr(LogicalExpr):
+class StripCharsExpr(ScalarFunction):
     """Expression for removing specified characters from string ends.
 
     This expression creates a new string column with specified characters removed from
@@ -773,6 +721,8 @@ class StripCharsExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.strip_chars"
+
     def __init__(
         self,
         expr: LogicalExpr,
@@ -783,22 +733,23 @@ class StripCharsExpr(LogicalExpr):
         self.chars = chars
         self.side = side
 
+        # Only validate LogicalExpr arguments (chars might be string literal or None)
+        if isinstance(chars, LogicalExpr):
+            super().__init__(expr, chars)
+        else:
+            super().__init__(expr)
+
     def __str__(self) -> str:
         return f"strip_chars({self.expr}, {self.chars}, side={self.side})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"strip_chars requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
-
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        if isinstance(self.chars, LogicalExpr):
+            return [self.expr, self.chars]
+        else:
+            return [self.expr]
 
 
-class ReplaceExpr(LogicalExpr):
+class ReplaceExpr(ScalarFunction):
     """Expression for replacing substrings in a string column.
 
     This expression creates a new string column with occurrences of a search pattern
@@ -818,6 +769,8 @@ class ReplaceExpr(LogicalExpr):
         ValueError: If replacement_count is not >= 1 or -1
     """
 
+    function_name = "text.replace"
+
     def __init__(
         self,
         expr: LogicalExpr,
@@ -832,24 +785,32 @@ class ReplaceExpr(LogicalExpr):
         self.replacement = replacement
         self.replacement_count = replacement_count
 
+        # Validate replacement_count at construction time
+        if replacement_count != -1 and replacement_count < 1:
+            raise ValueError("replacement_count must be >= 1 or -1 for all")
+
+        # Only validate LogicalExpr arguments
+        logical_args = [expr]
+        if isinstance(search, LogicalExpr):
+            logical_args.append(search)
+        if isinstance(replacement, LogicalExpr):
+            logical_args.append(replacement)
+
+        super().__init__(*logical_args)
+
     def __str__(self) -> str:
         return f"replace({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"replace requires column of type string as input, got {input_field.data_type}"
-            )
-        if self.replacement_count != -1 and self.replacement_count < 1:
-            raise ValueError("replacement_count must be >= 1 or -1 for all")
-        return ColumnField(name=str(self), data_type=StringType)
-
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        logical_children = [self.expr]
+        if isinstance(self.search, LogicalExpr):
+            logical_children.append(self.search)
+        if isinstance(self.replacement, LogicalExpr):
+            logical_children.append(self.replacement)
+        return logical_children
 
 
-class StrLengthExpr(LogicalExpr):
+class StrLengthExpr(ScalarFunction):
     """Expression for calculating the length of a string column.
 
     This expression creates a new integer column with the number of characters in each value
@@ -862,25 +823,14 @@ class StrLengthExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.str_length"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-
-    def __str__(self) -> str:
-        return f"str_length({self.expr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"str_length requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=IntegerType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        super().__init__(expr)
 
 
-class ByteLengthExpr(LogicalExpr):
+class ByteLengthExpr(ScalarFunction):
     """Expression for calculating the length of a string column in bytes.
 
     This expression creates a new integer column with the number of bytes in each value
@@ -893,19 +843,8 @@ class ByteLengthExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.byte_length"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-
-    def __str__(self) -> str:
-        return f"byte_length({self.expr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"byte_length requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=IntegerType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        super().__init__(expr)
