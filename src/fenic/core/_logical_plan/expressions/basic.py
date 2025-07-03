@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
+from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core.error import PlanError, TypeMismatchError
 from fenic.core.types import (
     ArrayType,
@@ -16,7 +17,6 @@ from fenic.core.types import (
     DoubleType,
     EmbeddingType,
     FloatType,
-    IntegerType,
     JsonType,
     MarkdownType,
     StringType,
@@ -157,51 +157,32 @@ class IndexExpr(LogicalExpr):
         return [self.expr]
 
 
-class ArrayExpr(LogicalExpr):
+class ArrayExpr(ScalarFunction):
+    function_name = "array"
+
     def __init__(self, args: List[LogicalExpr]):
-        self.args = args
+        super().__init__(*args)
 
-    def __str__(self):
-        return f"array({', '.join(str(arg) for arg in self.args)})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        for arg in self.args:
-            if (
-                arg.to_column_field(plan).data_type
-                != self.args[0].to_column_field(plan).data_type
-            ):
-                raise TypeError(
-                    f"Type mismatch: Cannot apply array to non-matching types. "
-                    f"Type: {arg.to_column_field(plan).data_type}. "
-                    f"All elements must be of the same type."
-                )
-        return ColumnField(
-            str(self), ArrayType(self.args[0].to_column_field(plan).data_type)
-        )
-
-    def children(self) -> List[LogicalExpr]:
-        return self.args
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return ArrayType with element type matching the first argument."""
+        # Signature validation ensures all args have the same type
+        return ArrayType(arg_types[0])
 
 
-class StructExpr(LogicalExpr):
+class StructExpr(ScalarFunction):
+    function_name = "struct"
+
     def __init__(self, args: List[LogicalExpr]):
-        self.args = args
+        super().__init__(*args)
 
-    def __str__(self):
-        return f"struct({', '.join(str(field) for field in self.args)})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return StructType with fields based on argument names and types."""
         struct_fields = []
-        for arg in self.args:
+        for _i, (arg, arg_type) in enumerate(zip(self.args, arg_types, strict=False)):
+            # Use alias name if available, otherwise use string representation
             field_name = str(arg) if not isinstance(arg, AliasExpr) else arg.name
-            struct_fields.append(
-                StructField(field_name, arg.to_column_field(plan).data_type)
-            )
-
-        return ColumnField(str(self), StructType(struct_fields))
-
-    def children(self) -> List[LogicalExpr]:
-        return self.args
+            struct_fields.append(StructField(field_name, arg_type))
+        return StructType(struct_fields)
 
 
 class UDFExpr(LogicalExpr):
@@ -243,54 +224,20 @@ class IsNullExpr(LogicalExpr):
         return [self.expr]
 
 
-class ArrayLengthExpr(LogicalExpr):
+class ArrayLengthExpr(ScalarFunction):
+    function_name = "array_size"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
+        super().__init__(expr)
 
-    def __str__(self):
-        return f"array_size({self.expr})"
+class ArrayContainsExpr(ScalarFunction):
+    function_name = "array_contains"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if not isinstance(self.expr.to_column_field(plan).data_type, ArrayType):
-            raise TypeError(
-                f"Type mismatch: Cannot apply array_size to non-array types. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only array types are supported."
-            )
-        return ColumnField(str(self), IntegerType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
-
-class ArrayContainsExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, value: LogicalExpr):
+        super().__init__(expr, value)
         self.expr = expr
         self.other = value
-
-    def __str__(self):
-        return f"array_contains({self.expr}, {self.other})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if not isinstance(self.expr.to_column_field(plan).data_type, ArrayType):
-            raise TypeError(
-                f"Type mismatch: Cannot apply array_contains to non-array types. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only array types are supported."
-            )
-        if (
-            self.expr.to_column_field(plan).data_type.element_type
-            != self.other.to_column_field(plan).data_type
-        ):
-            raise TypeError(
-                f"Type mismatch: Cannot apply array_contains to non-matching types. "
-                f"Array type: {self.expr.to_column_field(plan).data_type}. "
-                f"Value type: {self.other.to_column_field(plan).data_type}."
-            )
-        return ColumnField(str(self), BooleanType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr, self.other]
 
 class CastExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, dest_type: DataType):
@@ -333,30 +280,12 @@ class NotExpr(LogicalExpr):
         return [self.expr]
 
 
-class CoalesceExpr(LogicalExpr):
+class CoalesceExpr(ScalarFunction):
+    function_name = "coalesce"
+
     def __init__(self, exprs: List[LogicalExpr]):
+        super().__init__(*exprs)
         self.exprs = exprs
-
-    def __str__(self) -> str:
-        return f"coalesce({', '.join(str(expr) for expr in self.exprs)})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        expr_types = [(arg, arg.to_column_field(plan).data_type) for arg in self.exprs]
-        data_types = {data_type for _, data_type in expr_types}
-
-        if len(data_types) > 1:
-            type_details = [f"{expr}: {dtype}" for expr, dtype in expr_types]
-            type_info = "\n  ".join(type_details)
-
-            raise TypeError(
-                f"All expressions in coalesce must have the same data type, but found {len(data_types)} different types:\n  {type_info}"
-            )
-
-        data_type = next(iter(data_types))
-        return ColumnField(name=str(self), data_type=data_type)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.exprs]
 
 
 class InExpr(LogicalExpr):
