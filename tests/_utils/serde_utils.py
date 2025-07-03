@@ -36,7 +36,7 @@ def _test_plan_serialization(
 
     # Test children if any
     assert len(plan.children()) == len(deserialized_with_session_state.children())
-    # for orig_child, deser_child in zip(plan.children(), deserialized.children()):
-    #    assert orig_child._repr() == deser_child._repr()
+    for orig_child, deser_child in zip(plan.children(), deserialized.children()):
+        assert orig_child._repr() == deser_child._repr()
 
     return deserialized_df
