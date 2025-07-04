@@ -91,6 +91,11 @@ OPENAI_AVAILABLE_LANGUAGE_MODELS = Literal[
     "gpt-4",
     "gpt-4-0314",
     "gpt-4-0613",
+    "o1",
+    "o1-mini",
+    "o3",
+    "o3-mini",
+    "o4-mini"
 ]
 
 OPENAI_AVAILABLE_EMBEDDING_MODELS = Literal[
@@ -152,6 +157,7 @@ class ModelCatalog:
                 output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=32_000,
+                supports_reasoning=True,
             ),
             "claude-sonnet-4-0": CompletionModelParameters(
                 input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
@@ -160,6 +166,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=64_000,
+                supports_reasoning=True,
             ),
             "claude-3-7-sonnet-latest": CompletionModelParameters(
                 input_token_cost=3.0 / 1_000_000,  # $3 per 1M tokens
@@ -168,6 +175,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=128_000,
+                supports_reasoning=True,
             ),
             "claude-3-5-sonnet-latest": CompletionModelParameters(
                 input_token_cost=3 / 1_000_000,  # $3 per 1M tokens
@@ -258,6 +266,50 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
+            ),
+            "o1": CompletionModelParameters(
+                input_token_cost=15 / 1_000_000,  # $15 per 1M tokens
+                cached_input_token_read_cost=7.50 / 1_000_000,  # N/A
+                output_token_cost=60 / 1_000_000,  # $30 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=100_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "o1-mini": CompletionModelParameters(
+                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
+                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
+                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
+                context_window_length=128_000,
+                max_output_tokens=65_536,
+                supports_reasoning=True
+            ),
+            "o3" : CompletionModelParameters(
+                input_token_cost=2 / 1_000_000,  # $2 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $1.50 per 1M tokens
+                output_token_cost=8 / 1_000_000,  # $10 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=100_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "o3-mini" : CompletionModelParameters(
+                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
+                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
+                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=100_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "o4-mini" : CompletionModelParameters(
+                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
+                cached_input_token_read_cost=0.275 / 1_000_000,  # $0.275 per 1M tokens
+                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=100_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
             ),
         }
         self._openai_embedding_models = {

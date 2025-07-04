@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, Tuple
 
-from fenic._inference.model_catalog import (
+from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
     model_catalog,
@@ -13,12 +13,29 @@ from fenic.core._resolved_session_config import (
 from fenic.core.error import ValidationError
 
 
+def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
+    """Parse a model alias to extract base model and preset name.
+
+    Args:
+        model_alias: Model alias in format 'model' or 'model.preset'
+
+    Returns:
+        Tuple of (base_model_alias, preset_name)
+        If no dot present, preset_name will be None
+    """
+    if "." in model_alias:
+        parts = model_alias.split(".", 1)  # Split on first dot only
+        return parts[0], parts[1]
+    else:
+        return model_alias, None
+
+
 def validate_completion_parameters(
     model_alias: Optional[str],
     resolved_session_config: ResolvedSessionConfig,
     temperature: float,
     max_tokens: Optional[int] = None,
-):
+) -> Tuple[str, Optional[str]]:
     """Validates that the provided temperature and max_tokens are within the limits allowed by the specified language model.
 
     If no model alias is provided, the session's default language model is used.
@@ -34,17 +51,25 @@ def validate_completion_parameters(
         max_tokens (Optional[int]):
             Maximum number of tokens to generate. Must not exceed the model's limit.
 
+    Returns:
+        Tuple of (model_alias, preset_name) where preset_name is None if no preset specified.
+
     Raises:
         ValidationError: If temperature or max_tokens are out of bounds for the model.
     """
     if model_alias is None:
         model_alias = resolved_session_config.semantic.default_language_model
-    if model_alias not in resolved_session_config.semantic.language_models:
+        model_alias_base = model_alias
+        preset_name = None
+    else:
+        model_alias_base, preset_name = parse_model_alias(model_alias)
+
+    if model_alias not in resolved_session_config.semantic.all_language_model_aliases:
         raise ValidationError(
             f"Language model alias '{model_alias}' not found in SessionConfig. "
-            f"Available models: {', '.join(resolved_session_config.semantic.language_models.keys()) or 'none'}"
+            f"Available models: {', '.join(resolved_session_config.semantic.all_language_model_aliases) or 'none'}"
         )
-    model_config = resolved_session_config.semantic.language_models[model_alias]
+    model_config = resolved_session_config.semantic.language_models[model_alias_base]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):
@@ -56,3 +81,5 @@ def validate_completion_parameters(
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
+
+    return model_alias, preset_name

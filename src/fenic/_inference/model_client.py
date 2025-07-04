@@ -1,12 +1,12 @@
 import asyncio
+import json
 import logging
-import math
 import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Future
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -22,24 +22,40 @@ from openai.types.chat.chat_completion_token_logprob import ChatCompletionTokenL
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from fenic._inference.model_catalog import ModelProvider
+from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
+from fenic._inference.batch_token_predictor import (
+    BatchTokenPredictor,
+)
+from fenic._inference.rate_limit_strategy import (
+    RateLimitStrategy,
+    TokenEstimate,
+)
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import LMRequestMessages
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import LMMetrics
-
-# Constants
-MILLISECOND_IN_SECONDS = 0.001
-MINUTE_IN_SECONDS = 60
 
 # Type variables
 RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
+# Configure logging
+logger = logging.getLogger(__name__)
+
+@dataclass
+class ResponseUsage:
+    """Token usage information from API response."""
+    prompt_tokens: int
+    completion_tokens: int  # Actual completion tokens (non-thinking)
+    total_tokens: int
+    cached_tokens: int = 0
+    thinking_tokens: int = 0  # Separate thinking token count
 
 
 @dataclass
 class FenicCompletionsResponse:
     completion: str
     logprobs: Optional[List[ChatCompletionTokenLogprob]]
+    usage: Optional[ResponseUsage] = None
 
 
 @dataclass
@@ -49,29 +65,7 @@ class FenicCompletionsRequest:
     top_logprobs: Optional[int]
     structured_output: Optional[type[BaseModel]]
     temperature: float
-
-
-@dataclass
-class TokenEstimate:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = field(init=False)
-
-    def __post_init__(self):
-        self.total_tokens = self.input_tokens + self.output_tokens
-
-    def __str__(self):
-        return f"Input Tokens: {self.input_tokens}, Output Tokens: {self.output_tokens}, Total Tokens: {self.total_tokens}"
-
-    def __add__(self, other):
-        return TokenEstimate(
-            input_tokens=self.input_tokens + other.input_tokens,
-            output_tokens=self.output_tokens + other.output_tokens,
-        )
-
-
-# Configure logging
-logger = logging.getLogger(__name__)
+    model_preset: Optional[str] = None
 
 
 # Exception classes
@@ -88,7 +82,6 @@ class FatalException:
 
     exception: Exception
 
-
 @dataclass
 class QueueItem(Generic[RequestT]):
     """Represents an item in the request queue."""
@@ -97,219 +90,7 @@ class QueueItem(Generic[RequestT]):
     request: RequestT
     future: Future
     estimated_tokens: TokenEstimate
-
-
-class RateLimitBucket:
-    """Manages a token bucket for rate limiting."""
-    def __init__(self, max_capacity: int):
-        self.max_capacity = max_capacity
-        self.current_capacity_ = max_capacity
-        self.last_update_time_ = time.time()
-
-    def _get_available_capacity(self, curr_time: float) -> int:
-        """Calculates the available capacity based on the elapsed time and refill rate."""
-        time_since_last_check = curr_time - self.last_update_time_
-        replenished_amount = math.floor(
-            self.max_capacity * time_since_last_check / MINUTE_IN_SECONDS
-        )
-        return min(
-            replenished_amount + self.current_capacity_,
-            self.max_capacity,
-        )
-
-    def _set_capacity(self, capacity: int, curr_time: float):
-        """Updates the current capacity and last update time."""
-        self.current_capacity_ = capacity
-        self.last_update_time_ = curr_time
-
-
-class RateLimitStrategy(ABC):
-    """Base class for implementing rate limiting strategies for language model requests.
-
-    This abstract class defines the interface for rate limiting strategies that control
-    both request rate (RPM) and token usage rate (TPM) for language model API calls.
-    Subclasses must implement specific token rate limiting strategies.
-
-    Attributes:
-        rpm: Requests per minute limit. Must be greater than 0.
-        requests_bucket: Token bucket for tracking and limiting request rate.
-    """
-    def __init__(self, rpm: int):
-        if rpm <= 0:
-            raise ValueError("rpm must be greater than 0")
-        self.rpm = rpm
-        self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
-
-    @abstractmethod
-    def backoff(self, curr_time: float) -> int:
-        """Backoff the request/token rate limit bucket."""
-        pass
-
-    @abstractmethod
-    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
-        """Checks if there is enough capacity in both token and request rate limit buckets.
-
-        If there is sufficient capacity, this method will consume the required tokens
-        and request quota. This is an abstract method that must be implemented by subclasses.
-
-        Args:
-            token_estimate: A TokenEstimate object containing the estimated input, output,
-                          and total tokens for the request.
-
-        Returns:
-            bool: True if there was enough capacity and it was consumed, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def context_tokens_per_minute(self) -> int:
-        """Returns the total token rate limit per minute for this strategy.
-
-        This is an abstract method that must be implemented by subclasses to specify
-        their token rate limiting behavior.
-
-        Returns:
-            int: The total number of tokens allowed per minute.
-        """
-        pass
-
-
-class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
-    """Rate limiting strategy that uses a single token bucket for both input and output tokens.
-
-    This strategy enforces both a request rate limit (RPM) and a unified token rate limit (TPM)
-    where input and output tokens share the same quota.
-
-    Attributes:
-        tpm: Total tokens per minute limit. Must be greater than 0.
-        unified_tokens_bucket: Token bucket for tracking and limiting total token usage.
-    """
-    def __init__(self, rpm: int, tpm: int):
-        super().__init__(rpm)
-        self.tpm = tpm
-        self.unified_tokens_bucket = RateLimitBucket(max_capacity=self.tpm)
-
-    def backoff(self, curr_time: float) -> int:
-        """Backoff the request/token rate limit bucket."""
-        # Eliminate burst capacity, in case of rate limit errors
-        self.unified_tokens_bucket._set_capacity(0, curr_time)
-        self.requests_bucket._set_capacity(0, curr_time)
-
-    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
-        """Checks and consumes rate limits for both requests and total tokens.
-
-        This implementation uses a single token bucket for both input and output tokens,
-        enforcing the total token limit across all token types.
-
-        Args:
-            token_estimate: A TokenEstimate object containing the estimated input, output,
-                          and total tokens for the request.
-
-        Returns:
-            bool: True if there was enough capacity and it was consumed, False otherwise.
-        """
-        now = time.time()
-        available_tokens = self.unified_tokens_bucket._get_available_capacity(now)
-        available_requests = self.requests_bucket._get_available_capacity(now)
-        has_request_capacity = available_requests >= 1
-        has_token_capacity = available_tokens >= token_estimate.total_tokens
-        has_capacity = has_request_capacity and has_token_capacity
-        if has_capacity:
-            available_tokens -= token_estimate.total_tokens
-            available_requests -= 1
-            self.unified_tokens_bucket._set_capacity(available_tokens, now)
-            self.requests_bucket._set_capacity(available_requests, now)
-
-        return has_capacity
-
-    def context_tokens_per_minute(self) -> int:
-        """Returns the total token rate limit per minute.
-
-        Returns:
-            int: The total number of tokens allowed per minute (tpm).
-        """
-        return self.tpm
-
-    def __str__(self):
-        """Returns a string representation of the rate limit strategy.
-
-        Returns:
-            str: A string showing the RPM and TPM limits.
-        """
-        return f"UnifiedTokenRateLimitStrategy(rpm={self.rpm}, tpm={self.tpm})"
-
-
-class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
-    """Rate limiting strategy that uses separate token buckets for input and output tokens.
-
-    This strategy enforces both a request rate limit (RPM) and separate token rate limits
-    for input (input_tpm) and output (output_tpm) tokens.
-
-    Attributes:
-        input_tpm: Input tokens per minute limit. Must be greater than 0.
-        output_tpm: Output tokens per minute limit. Must be greater than 0.
-        input_tokens_bucket: Token bucket for tracking and limiting input token usage.
-        output_tokens_bucket: Token bucket for tracking and limiting output token usage.
-    """
-    def __init__(self, rpm: int, input_tpm: int, output_tpm: int):
-        super().__init__(rpm)
-        self.input_tpm = input_tpm
-        self.output_tpm = output_tpm
-        self.input_tokens_bucket = RateLimitBucket(max_capacity=self.input_tpm)
-        self.output_tokens_bucket = RateLimitBucket(max_capacity=self.output_tpm)
-
-    def backoff(self, curr_time: float) -> int:
-        """Backoff the request/token rate limit bucket."""
-        # Eliminate burst capacity, in case of rate limit errors
-        self.input_tokens_bucket._set_capacity(0, curr_time)
-        self.output_tokens_bucket._set_capacity(0, curr_time)
-        self.requests_bucket._set_capacity(0, curr_time)
-
-    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
-        """Checks and consumes rate limits for requests, input tokens, and output tokens.
-
-        This implementation uses separate token buckets for input and output tokens,
-        enforcing separate limits for each token type.
-
-        Args:
-            token_estimate: A TokenEstimate object containing the estimated input, output,
-                          and total tokens for the request.
-
-        Returns:
-            bool: True if there was enough capacity and it was consumed, False otherwise.
-        """
-        now = time.time()
-        available_input_tokens = self.input_tokens_bucket._get_available_capacity(now)
-        available_requests = self.requests_bucket._get_available_capacity(now)
-        available_output_tokens = self.output_tokens_bucket._get_available_capacity(now)
-        has_output_token_capacity = available_output_tokens >= token_estimate.output_tokens
-        has_request_capacity = available_requests >= 1
-        has_token_capacity = available_input_tokens >= token_estimate.input_tokens
-        has_capacity = has_request_capacity and has_token_capacity and has_output_token_capacity
-        if has_capacity:
-            available_input_tokens -= token_estimate.input_tokens
-            available_output_tokens -= token_estimate.output_tokens
-            available_requests -= 1
-            self.input_tokens_bucket._set_capacity(available_input_tokens, now)
-            self.output_tokens_bucket._set_capacity(available_output_tokens, now)
-            self.requests_bucket._set_capacity(available_requests, now)
-        return has_capacity
-
-    def context_tokens_per_minute(self) -> int:
-        """Returns the total token rate limit per minute.
-
-        Returns:
-            int: The sum of input and output tokens allowed per minute.
-        """
-        return self.input_tpm + self.output_tpm
-
-    def __str__(self):
-        """Returns a string representation of the rate limit strategy.
-
-        Returns:
-            str: A string showing the RPM, input TPM, and output TPM limits.
-        """
-        return f"SeparatedTokenRateLimitStrategy(rpm={self.rpm}, input_tpm={self.input_tpm}, output_tpm={self.output_tpm})"
+    batch_id: str
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -346,6 +127,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Args:
             model: The name or identifier of the model
             model_provider: The model provider (OPENAI, ANTHROPIC)
+            alias: The Model Client's alias, for logging purposes
             rate_limit_strategy: Strategy for rate limiting requests
             token_counter: Implementation for predicting input token counts
             queue_size: Maximum size of the request queue (default: 100)
@@ -373,6 +155,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.max_backoffs: int = max_backoffs
         self.last_transient_exception_time: float = 0
         self.num_backoffs: int = 0
+
+        # Batch token prediction
+        self.batch_token_predictor = BatchTokenPredictor[RequestT, ResponseT](enable_batch_sampling=True)
 
         # Thread-specific exception tracking
         self.thread_exceptions: Dict[int, Exception] = {}
@@ -404,20 +189,30 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         pass
 
-    @abstractmethod
-    def estimate_tokens_for_request(self, request: RequestT) -> TokenEstimate:
-        """Estimate the token usage for a given request.
+    def estimate_tokens_for_request(self, request: RequestT, batch_id: str) -> TokenEstimate:
+        """Estimate the token usage for a given request with batch context.
 
-        This method must be implemented by subclasses to accurately predict token usage
-        for both input and output tokens.
+        This method can be overridden by subclasses for provider-specific logic,
+        but provides a sensible default implementation.
 
         Args:
             request: The request to estimate tokens for
+            batch_id: The batch ID for context-aware prediction
 
         Returns:
             TokenEstimate: Object containing estimated input and output tokens
         """
-        pass
+        # Input tokens: message content + any auxiliary tokens
+        input_tokens = self.count_tokens(request.messages.to_message_list())
+        input_tokens += self._count_auxiliary_input_tokens(request)
+
+        # Output tokens: total output (completion + thinking) using batch predictions
+        output_tokens = self._predict_output_tokens(request, batch_id)
+
+        return TokenEstimate(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
 
     def count_tokens(self, messages: Tokenizable) -> int:
         """Count the number of tokens in a tokenizable object.
@@ -457,6 +252,29 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     @abstractmethod
     def reset_metrics(self):
         """Reset all metrics for this model client to their initial values."""
+        pass
+
+    def _count_auxiliary_input_tokens(self, request: RequestT) -> int:
+        """Count extra input tokens for structured output, tools, etc. Override as needed."""
+        if hasattr(request, 'structured_output') and request.structured_output:
+            return self._estimate_structured_output_overhead(request.structured_output)
+        return 0
+
+    def _estimate_structured_output_overhead(self, response_format: type[BaseModel]) -> int:
+        """Default structured output token estimation. Override for provider-specific logic."""
+
+        schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
+        return self.count_tokens(schema_str)
+
+    def _predict_output_tokens(self, request: RequestT, batch_id: str) -> int:
+        """Predict total output tokens using batch predictions if available."""
+        return self.batch_token_predictor.predict_output_tokens(
+            request, batch_id, self._get_max_output_tokens
+        )
+
+    @abstractmethod
+    def _get_max_output_tokens(self, request: RequestT) -> int:
+        """Get conservative output token estimate. Override in subclasses for provider-specific logic."""
         pass
 
     #
@@ -519,97 +337,31 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             List[ResponseT]: List of responses in the same order as the input requests
         """
-        request_futures: List[Future] = []
-        current_thread_id = threading.get_ident()
-        unique_futures: Dict[Any, Future] = {}
-
-        num_unique_requests = 0
-        total_token_estimate = TokenEstimate()
-        batch_id = uuid.uuid4()
+        # Check if we should use sampling-based processing
+        valid_requests = [req for req in requests if req is not None]
+        batch_id = str(uuid.uuid4())
         logger.info(
-            f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using model {self.model}"
+            f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
 
-        # Submit all requests with progress indicator
-        with tqdm(
-                total=len(requests),
-                desc=f"Submitting requests for batch: {batch_id}",
-                unit="req",
-        ) as pbar:
-            for request in requests:
-                # Check for exceptions from the event loop thread
-                self._maybe_raise_thread_exception()
+        if self.batch_token_predictor.should_use_sampling(valid_requests):
+            return self._make_batch_requests_with_sampling(requests, operation_name, batch_id)
 
-                # Eagerly handle empty requests
-                if request is None:
-                    req_future = Future()
-                    request_futures.append(req_future)
-                    req_future.set_result(None)
-                    pbar.update(1)
-                    pbar.set_postfix(
-                        estimated_input_tokens=total_token_estimate.input_tokens,
-                        estimated_output_tokens=total_token_estimate.output_tokens,
-                    )
-                    continue
-
-                req_future, estimated_tokens = self._get_or_create_request_future(
-                    unique_futures, request
-                )
-                request_futures.append(req_future)
-
-                # Only enqueue if this is a new, unique request
-                if estimated_tokens is not None:
-                    num_unique_requests += 1
-                    total_token_estimate += estimated_tokens
-                    queue_item = QueueItem(
-                        thread_id=current_thread_id,
-                        request=request,
-                        future=req_future,
-                        estimated_tokens=estimated_tokens,
-                    )
-                    enqueue_future: Future = asyncio.run_coroutine_threadsafe(
-                        self._enqueue_request(queue_item),
-                        ModelClientManager().event_loop,
-                    )
-                    enqueue_future.result()
-
-                pbar.update(1)
-                pbar.set_postfix(
-                    estimated_input_tokens=total_token_estimate.input_tokens,
-                    estimated_output_tokens=total_token_estimate.output_tokens,
-                )
-
-        logger.info(
-            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
-        )
-
-        # Wait for all responses with progress indicator
-        responses = []
-        with tqdm(
-                total=len(request_futures),
-                desc=f"Awaiting responses for batch {batch_id} (model: {self.model})",
-                unit="res",
-        ) as pbar:
-            for req_future in request_futures:
-                responses.append(req_future.result())
-                pbar.update(1)
-
-        logger.info(
-            f"Batch {batch_id}: Completed with {len(responses)} responses from model {self.model}"
-        )
-        return responses
+        # Continue with standard processing
+        return self._make_batch_requests_standard(requests, operation_name, batch_id)
 
     #
     # Producer methods (run on the user thread)
     #
     def _get_or_create_request_future(
-            self, unique_futures: Dict[Any, Future], request: RequestT
+            self, unique_futures: Dict[Any, Future], request: RequestT, batch_id: str
     ) -> tuple[Future, TokenEstimate | None]:
         """Retrieves an existing future for a duplicate request or creates a new one.
 
         Args:
             unique_futures: A dictionary mapping request keys to their futures.
             request: The current request being processed.
+            batch_id: The batch ID for context-aware token estimation.
 
         Returns:
             A tuple of the future for the request and the estimated number of tokens (0 for duplicates).
@@ -646,7 +398,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         # If it's a new request, create a future and estimate its token cost
         new_future = Future()
         unique_futures[key] = new_future
-        token_estimate = self.estimate_tokens_for_request(request)
+        token_estimate = self.estimate_tokens_for_request(request, batch_id)
         return new_future, token_estimate
 
     def _maybe_raise_thread_exception(self):
@@ -689,6 +441,167 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item to enqueue.
         """
         await self.request_queue.put(queue_item)
+
+
+    def _make_batch_requests_with_sampling(
+            self,
+            requests: List[Optional[RequestT]],
+            operation_name: str,
+            batch_id: str
+        ) -> List[ResponseT]:
+        """Process batch with sampling-based token estimation."""
+        # Filter out None requests for sampling analysis
+        valid_requests = [req for req in requests if req is not None]
+
+        if not self.batch_token_predictor.should_use_sampling(valid_requests):
+            # Fall back to standard processing
+            return self._make_batch_requests_standard(requests, operation_name)
+        sample_size = min(100, int(len(valid_requests) * 0.10))
+
+        # Split into sample and remaining (preserve None positions)
+        sample_requests = valid_requests[:sample_size]
+        remaining_requests = valid_requests[sample_size:]
+
+        logger.info(
+            f"Using sampling for batch {batch_id}: {sample_size} sample + {len(valid_requests) - sample_size} remaining requests"
+        )
+
+        # Process sample first with conservative estimates
+        logger.info(f"Processing sample batch {batch_id} ({sample_size} requests)")
+        sample_responses = self._make_batch_requests_standard(sample_requests, f"{operation_name}_sample", batch_id)
+
+        self.batch_token_predictor.generate_token_predictions(batch_id, sample_responses)
+
+        # Process remaining requests with updated predictions
+        logger.info(f"Processing remaining batch {batch_id} ({len(valid_requests) - sample_size} requests)")
+        remaining_responses = self._make_batch_requests_standard(remaining_requests, f"{operation_name}_main", batch_id)
+
+        final_responses = sample_responses + remaining_responses
+        self.batch_token_predictor.cleanup_batch_predictions(batch_id)
+
+        return final_responses
+
+    def _make_batch_requests_standard(self,
+                                    requests: List[Optional[RequestT]],
+                                    operation_name: str,
+                                    batch_id: Optional[str] = None) -> List[ResponseT]:
+        """Standard batch processing without sampling (used by both sampling and non-sampling flows)."""
+        if batch_id is None:
+            batch_id = str(uuid.uuid4())
+
+        logger.info(
+            f"Processing batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
+        )
+
+        # Submit requests and get futures
+        request_futures, num_unique_requests, total_token_estimate = self._submit_batch_requests(
+            requests, batch_id
+        )
+
+        logger.info(
+            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
+        )
+
+        # Wait for responses
+        responses = self._collect_batch_responses(request_futures, batch_id)
+
+        logger.info(
+            f"Batch {batch_id}: Completed with {len(responses)} responses from {self.model}"
+        )
+
+        return responses
+
+    def _submit_batch_requests(self,
+                             requests: List[Optional[RequestT]],
+                             batch_id: str) -> tuple[List[Future], int, TokenEstimate]:
+        """Submit all requests in a batch and return futures, unique request count, and token estimate.
+
+        Args:
+            requests: List of requests to submit
+            batch_id: Batch identifier for tracking
+
+        Returns:
+            Tuple of (request_futures, num_unique_requests, total_token_estimate)
+        """
+        request_futures: List[Future] = []
+        current_thread_id = threading.get_ident()
+        unique_futures: Dict[Any, Future] = {}
+        num_unique_requests = 0
+        total_token_estimate = TokenEstimate()
+
+        # Submit all requests with progress indicator
+        with tqdm(
+                total=len(requests),
+                desc=f"Submitting requests for batch: {batch_id} (model: {self.model})",
+                unit="req",
+        ) as pbar:
+            for request in requests:
+                # Check for exceptions from the event loop thread
+                self._maybe_raise_thread_exception()
+
+                # Eagerly handle empty requests
+                if request is None:
+                    req_future = Future()
+                    request_futures.append(req_future)
+                    req_future.set_result(None)
+                    pbar.update(1)
+                    pbar.set_postfix(
+                        estimated_input_tokens=total_token_estimate.input_tokens,
+                        estimated_output_tokens=total_token_estimate.output_tokens,
+                    )
+                    continue
+
+                req_future, estimated_tokens = self._get_or_create_request_future(
+                    unique_futures, request, batch_id
+                )
+                request_futures.append(req_future)
+
+                # Only enqueue if this is a new, unique request
+                if estimated_tokens is not None:
+                    num_unique_requests += 1
+                    total_token_estimate += estimated_tokens
+                    queue_item = QueueItem(
+                        thread_id=current_thread_id,
+                        request=request,
+                        future=req_future,
+                        estimated_tokens=estimated_tokens,
+                        batch_id=batch_id,
+                    )
+                    enqueue_future: Future = asyncio.run_coroutine_threadsafe(
+                        self._enqueue_request(queue_item),
+                        ModelClientManager().event_loop,
+                    )
+                    enqueue_future.result()
+
+                pbar.update(1)
+                pbar.set_postfix(
+                    estimated_input_tokens=total_token_estimate.input_tokens,
+                    estimated_output_tokens=total_token_estimate.output_tokens,
+                )
+
+        return request_futures, num_unique_requests, total_token_estimate
+
+    def _collect_batch_responses(self, request_futures: List[Future], batch_id: str) -> List[ResponseT]:
+        """Collect responses from all request futures with progress tracking.
+
+        Args:
+            request_futures: List of futures to wait for
+            batch_id: Batch identifier for logging
+
+        Returns:
+            List of responses in same order as input futures
+        """
+        responses = []
+        with tqdm(
+                total=len(request_futures),
+                desc=f"Awaiting responses for batch {batch_id} (model: {self.model})",
+                unit="res",
+        ) as pbar:
+            for req_future in request_futures:
+                responses.append(req_future.result())
+                pbar.update(1)
+
+        return responses
 
     #
     # Consumer methods (run on the shared asyncio event loop)
@@ -734,10 +647,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             try:
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
-                    timeout=30.0,
+                    timeout=120.0,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Request for model {self.model} timed out. Retrying.")
+                logger.warning(f"Request for model {self.model} in batch {queue_item.batch_id} timed out. Retrying.")
                 await self.retry_queue.put(queue_item)
                 return
 
@@ -772,7 +685,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 )
             else:
                 await self.retry_queue.put(queue_item)
-                self.last_transient_exception_time = time.time()
+                current_time = time.time()
+                self.last_transient_exception_time = current_time
+                self.batch_token_predictor.update_transient_exception_time(current_time)
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Fatal error encountered for model {self.model}: {maybe_response.exception}. Request failed."

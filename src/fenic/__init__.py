@@ -2,6 +2,7 @@
 
 from fenic.api import (
     AnthropicModelConfig,
+    AnthropicModelPreset,
     Catalog,
     CloudConfig,
     Column,
@@ -10,10 +11,12 @@ from fenic.api import (
     DataFrameReader,
     DataFrameWriter,
     GoogleGLAModelConfig,
+    GoogleModelPreset,
     GoogleVertexModelConfig,
     GroupedData,
     Lineage,
     OpenAIModelConfig,
+    OpenAIModelPreset,
     SemanticConfig,
     SemanticExtensions,
     Session,
@@ -95,8 +98,11 @@ __all__ = [
     "SessionConfig",
     "CloudConfig",
     "OpenAIModelConfig",
+    "OpenAIModelPreset",
     "AnthropicModelConfig",
+    "AnthropicModelPreset",
     "GoogleGLAModelConfig",
+    "GoogleModelPreset",
     "GoogleVertexModelConfig",
     "SemanticConfig",
     # IO
