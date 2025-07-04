@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 from fenic._inference.model_catalog import (
@@ -11,6 +13,22 @@ from fenic.core._resolved_session_config import (
     ResolvedSessionConfig,
 )
 from fenic.core.error import ValidationError
+from fenic.core.types.datatypes import (
+    ArrayType,
+    BooleanType,
+    DataType,
+    DocumentPathType,
+    DoubleType,
+    EmbeddingType,
+    FloatType,
+    JsonType,
+    MarkdownType,
+    StringType,
+    StructType,
+    TranscriptType,
+    _HtmlType,
+    _PrimitiveType,
+)
 
 
 def validate_completion_parameters(
@@ -56,3 +74,45 @@ def validate_completion_parameters(
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
+
+UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
+def can_cast(src: DataType, dst: DataType) -> bool:
+    if type(src) in UNIMPLEMENTED_TYPES or type(dst) in UNIMPLEMENTED_TYPES:
+        raise NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
+
+    if isinstance(src, EmbeddingType):
+        return NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
+
+    if (src == ArrayType(element_type=FloatType) or src == ArrayType(element_type=DoubleType)) and isinstance(dst, EmbeddingType):
+        return True
+
+    if src == dst:
+        return True
+
+    if dst == MarkdownType:
+        return can_cast(src, StringType)
+
+    if src == MarkdownType:
+        return can_cast(StringType, dst)
+
+    if dst == JsonType or src == JsonType:
+        return True
+
+    if isinstance(src, _PrimitiveType) and isinstance(dst, _PrimitiveType):
+        # Disallow string → bool
+        if src == StringType and dst == BooleanType:
+            return False
+        return True
+
+    if isinstance(src, ArrayType) and isinstance(dst, ArrayType):
+        return can_cast(src.element_type, dst.element_type)
+
+    if isinstance(src, StructType) and isinstance(dst, StructType):
+        src_fields = {f.name: f.data_type for f in src.struct_fields}
+        dst_fields = {f.name: f.data_type for f in dst.struct_fields}
+        for name, dst_type in dst_fields.items():
+            if name in src_fields and not can_cast(src_fields[name], dst_type):
+                return False
+        return True
+
+    return False
