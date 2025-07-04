@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/typedef-ai/fenic/compare/v0.2.0...v0.2.1) (2025-07-04)
+
+
+### Bug Fixes
+
+* support google models in cloud ([#52](https://github.com/typedef-ai/fenic/issues/52)) ([9031970](https://github.com/typedef-ai/fenic/commit/903197009fd5c4d9dfa8da086d40479e08d2b3e6))
+
 ## [0.2.0](https://github.com/typedef-ai/fenic/compare/v0.1.0...v0.2.0) (2025-07-03)
 
 
