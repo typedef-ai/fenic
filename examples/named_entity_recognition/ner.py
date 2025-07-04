@@ -4,7 +4,18 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 import fenic as fc
+from fenic.api.session import CloudConfig, CloudExecutorSize
 
+
+# Define Pydantic model for risk assessment
+class ExtractedRiskInfo(BaseModel):
+    """Directly extracted risk information from the report text. If a value is not present in the report, use an empty string."""
+    severity_rating: str = Field(...,
+                                 description="Explicit severity rating or risk level as stated in the report (e.g., 'critical', 'high', 'medium', 'low')")
+    cvss_score: str = Field(..., description="CVSS score as stated in the report")
+    mitigation_steps: str = Field(..., description="Quoted mitigation or remediation steps as stated in the report")
+    affected_systems: str = Field(...,
+                                  description="Exact systems, platforms, or users mentioned as affected in the report")
 
 def main(config: Optional[fc.SessionConfig] = None):
     # Configure session with semantic capabilities
@@ -329,14 +340,6 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     # Generate actionable intelligence using semantic operations
     print("\n🎯 Actionable Intelligence:")
-
-    # Define Pydantic model for risk assessment
-    class ExtractedRiskInfo(BaseModel):
-        """Directly extracted risk information from the report text. If a value is not present in the report, use an empty string."""
-        severity_rating: str = Field(..., description="Explicit severity rating or risk level as stated in the report (e.g., 'critical', 'high', 'medium', 'low')")
-        cvss_score: str = Field(..., description="CVSS score as stated in the report")
-        mitigation_steps: str = Field(..., description="Quoted mitigation or remediation steps as stated in the report")
-        affected_systems: str = Field(..., description="Exact systems, platforms, or users mentioned as affected in the report")
 
     # Assess risk for each report
     risk_assessment_df = enhanced_df.select(

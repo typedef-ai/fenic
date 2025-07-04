@@ -5,6 +5,13 @@ from pydantic import BaseModel, Field
 import fenic as fc
 
 
+# Define the Pydantic model for semantic error extraction
+class ErrorAnalysis(BaseModel):
+    """Pydantic model for semantic error extraction."""
+    error_category: str = Field(..., description="Main category of the error (e.g., database, network, authentication, resource)")
+    affected_component: str = Field(..., description="Specific component or resource affected")
+    potential_cause: str = Field(..., description="Most likely root cause of the issue")
+
 def main(config: Optional[fc.SessionConfig] = None):
     # Configure session with semantic capabilities
     config = config or fc.SessionConfig(
@@ -110,12 +117,6 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("\n🧠 Stage 3: Applying semantic enrichment with LLMs...")
     print("This may take a few moments as we process logs with language models...")
 
-    # Define the Pydantic model for semantic error extraction
-    class ErrorAnalysis(BaseModel):
-        """Pydantic model for semantic error extraction."""
-        error_category: str = Field(..., description="Main category of the error (e.g., database, network, authentication, resource)")
-        affected_component: str = Field(..., description="Specific component or resource affected")
-        potential_cause: str = Field(..., description="Most likely root cause of the issue")
     # Semantic extraction for error analysis using Pydantic model
     final_df = enriched_df.select(
         "timestamp",
