@@ -20,8 +20,8 @@ from fenic.core.types.schema import ColumnField
 class ScalarFunction(LogicalExpr):
     """Base class for scalar functions with signatures."""
     
-    function_name: str  # Each subclass must specify its function name
-    
+    function_name: str = None  # Each subclass must specify its function name
+
     def __init__(self, *args: LogicalExpr):
         """Initialize ScalarFunction with logical expression arguments."""
         self.args = list(args)

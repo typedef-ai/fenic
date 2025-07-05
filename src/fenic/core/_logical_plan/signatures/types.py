@@ -87,6 +87,9 @@ class PositionalSignature(TypeSignature):
                         actual=actual_arg_type,
                         context=f"{func_name} Argument {i}",
                     )
+            elif constraint is None:
+                # Skip validation for this position - will be handled by custom validator
+                continue
             elif isinstance(constraint, type):
                 # Check isinstance (non-singleton types)
                 if not isinstance(actual_arg_type, constraint):
@@ -98,6 +101,12 @@ class PositionalSignature(TypeSignature):
                     elif constraint == StructType:
                         raise TypeMismatchError.from_message(
                             f"{func_name} expects argument {i} to be a struct type, "
+                            f"got {actual_arg_type}"
+                        )
+                    elif constraint == DataType:
+                        # For DataType constraint, all DataTypes should pass - this shouldn't happen
+                        raise TypeMismatchError.from_message(
+                            f"{func_name} expects argument {i} to be a data type, "
                             f"got {actual_arg_type}"
                         )
                     else:

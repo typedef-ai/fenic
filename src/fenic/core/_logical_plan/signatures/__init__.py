@@ -5,8 +5,11 @@ and inferring return types.
 """
 
 # Import signature modules to register them
+
 from fenic.core._logical_plan.signatures import (
     builtin,  # noqa: F401
+    json,  # noqa: F401
+    markdown,  # noqa: F401
     text,  # noqa: F401
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
