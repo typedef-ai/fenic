@@ -4,9 +4,9 @@ This module registers function signatures for JSON processing functions,
 providing centralized type validation and return type inference.
 """
 from fenic.core._logical_plan.expressions.json import (
+    JqExpr,
     JsonContainsExpr,
     JsonTypeExpr,
-    JqExpr,
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.signature import FunctionSignature

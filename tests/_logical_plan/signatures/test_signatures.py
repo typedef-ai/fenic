@@ -156,10 +156,10 @@ class TestArrayWithMatchingElement:
     def test_requires_exactly_two_arguments(self):
         sig = ArrayWithMatchingElement()
         
-        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 1"):
+        with pytest.raises(ValidationError, match=r"test_func expects 2 arguments \(array, element\), got 1"):
             sig.validate([ArrayType(StringType)], "test_func")
         
-        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 3"):
+        with pytest.raises(ValidationError, match=r"test_func expects 2 arguments \(array, element\), got 3"):
             sig.validate([ArrayType(StringType), StringType, StringType], "test_func")
 
 
