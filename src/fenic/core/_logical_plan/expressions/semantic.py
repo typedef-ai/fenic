@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
@@ -23,25 +22,50 @@ from fenic._inference.model_catalog import (
 from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core._utils.extract import convert_extract_schema_to_pydantic_type
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
-from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.error import ValidationError
 from fenic.core.types import (
-    BooleanType,
+    DataType,
     EmbeddingType,
-    StringType,
 )
 from fenic.core.types.extract_schema import ExtractSchema
 from fenic.core.types.schema import ColumnField
 
 
-class SemanticExpr(LogicalExpr, ABC):
-    """Marker abstract class for semantic expressions."""
+class SemanticFunction(ScalarFunction):
+    """Base class for semantic functions that use LLM models.
+    
+    Provides common functionality for completion parameter validation
+    and model configuration handling.
+    """
+    
+    def __init__(self, *args: LogicalExpr):
+        """Initialize semantic function."""
+        super().__init__(*args)
+    
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters against session config."""
+        validate_completion_parameters(
+            self.model_alias, 
+            plan.session_state.session_config, 
+            self.temperature, 
+            self.max_tokens
+        )
+    
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Call parent to handle signature validation
+        result = super().to_column_field(plan)
+        # Then validate completion parameters
+        self._validate_completion_parameters(plan)
+        return result
 
-    pass
 
-
-class SemanticMapExpr(SemanticExpr):
+class SemanticMapExpr(SemanticFunction):
+    function_name = "semantic.map"
+    
     def __init__(
         self,
         instruction: str,
@@ -68,29 +92,23 @@ class SemanticMapExpr(SemanticExpr):
         if examples:
             examples._validate_with_instruction(instruction)
             self.examples = examples
+        
+        # Pass all parsed column expressions to signature validation
+        super().__init__(*self.exprs)
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature, self.max_tokens)
-        for arg in self.exprs:
-            expr_field = arg.to_column_field(plan)
-            if expr_field.data_type != StringType:
-                raise TypeError(
-                    f"Type mismatch: Cannot apply semantic.map to non-string type. "
-                    f"Type: {expr_field.data_type}. "
-                    f"Only StringType is supported."
-                )
-        return ColumnField(str(self), StringType)
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
 
-class SemanticExtractExpr(SemanticExpr):
+class SemanticExtractExpr(SemanticFunction):
+    function_name = "semantic.extract"
+    
     def __init__(
         self,
         expr: LogicalExpr,
@@ -99,43 +117,37 @@ class SemanticExtractExpr(SemanticExpr):
         temperature: float,
         model_alias: Optional[str] = None,
     ):
-        super().__init__()
         self.expr = expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
         self.schema = schema
+        
+        # Only validate the string expression (schema is parameter)
+        super().__init__(expr)
 
     def __str__(self):
         schema_hash = utils.get_content_hash(str(self.schema))
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature, self.max_tokens)
-        expr_field = self.expr.to_column_field(plan)
-        if expr_field.data_type != StringType:
-            raise TypeError(
-                f"Type mismatch: Cannot apply semantic.extract to non-string type. "
-                f"Type: {expr_field.data_type}. "
-                f"Only StringType is supported."
-            )
-
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return StructType based on the schema."""
         pydantic_model = (
             convert_extract_schema_to_pydantic_type(self.schema)
             if isinstance(self.schema, ExtractSchema)
             else self.schema
         )
+        return convert_pydantic_type_to_custom_struct_type(pydantic_model)
 
-        return ColumnField(
-            str(self), convert_pydantic_type_to_custom_struct_type(pydantic_model)
-        )
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class SemanticPredExpr(SemanticExpr):
+class SemanticPredExpr(SemanticFunction):
+    function_name = "semantic.predicate"
+    
     def __init__(
         self,
         instruction: str,
@@ -158,29 +170,26 @@ class SemanticPredExpr(SemanticExpr):
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        
+        # Pass all parsed column expressions to signature validation
+        super().__init__(*self.exprs)
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.predicate_{instruction_hash}({exprs_str})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters (no max_tokens for predicate)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
-        for arg in self.exprs:
-            expr_field = arg.to_column_field(plan)
-            if expr_field.data_type != StringType:
-                raise TypeError(
-                    f"Type mismatch: Cannot apply semantic.predicate to non-string type. "
-                    f"Type: {expr_field.data_type}. "
-                    f"Only StringType is supported."
-                )
-        return ColumnField(str(self), BooleanType)
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
 
-class SemanticReduceExpr(SemanticExpr, AggregateExpr):
+class SemanticReduceExpr(SemanticFunction, AggregateExpr):
+    function_name = "semantic.reduce"
+    
     def __init__(self,
          instruction: str,
          max_tokens: int,
@@ -199,29 +208,23 @@ class SemanticReduceExpr(SemanticExpr, AggregateExpr):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
+        
+        # Pass all parsed column expressions to signature validation
+        super().__init__(*self.exprs)
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.reduce_{instruction_hash}({exprs_str})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature, self.max_tokens)
-        for arg in self.exprs:
-            expr_field = arg.to_column_field(plan)
-            if expr_field.data_type != StringType:
-                raise TypeError(
-                    f"Type mismatch: Cannot apply semantic.reduce to non-string type. "
-                    f"Type: {expr_field.data_type}. "
-                    f"Only string types are supported."
-                )
-        return ColumnField(str(self), StringType)
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
 
-class SemanticClassifyExpr(SemanticExpr):
+class SemanticClassifyExpr(SemanticFunction):
+    function_name = "semantic.classify"
+    
     def __init__(
         self,
         expr: LogicalExpr,
@@ -243,20 +246,20 @@ class SemanticClassifyExpr(SemanticExpr):
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        
+        # Only validate the string expression (labels are parameters)
+        super().__init__(expr)
 
     def __str__(self):
         formatted_labels = "[" + ", ".join(f"'{label}'" for label in self.labels) + "]"
         return f"semantic.classify({self.expr}, {formatted_labels})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters (called after signature validation)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
-        if self.expr.to_column_field(plan).data_type != StringType:
-            raise TypeError(
-                f"Type mismatch: Cannot apply semantic.classify to non-string type. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only StringType is supported."
-            )
 
+    def _validate_labels(self, plan: LogicalPlan):
+        """Validate labels format."""
         if not isinstance(self.labels, List) and not isinstance(
                 next(iter(self.labels)).value, str
         ):
@@ -266,7 +269,16 @@ class SemanticClassifyExpr(SemanticExpr):
                 f"Only string enums are supported."
             )
 
-        return ColumnField(str(self), StringType)
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters (no max_tokens for classify)."""
+        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        # Call parent to handle signature validation
+        result = super().to_column_field(plan)
+        # Then validate labels
+        self._validate_labels(plan)
+        return result
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
@@ -296,7 +308,9 @@ class SemanticClassifyExpr(SemanticExpr):
         return label_value.upper().replace(" ", "_")
 
 
-class AnalyzeSentimentExpr(SemanticExpr):
+class AnalyzeSentimentExpr(SemanticFunction):
+    function_name = "semantic.analyze_sentiment"
+    
     def __init__(
         self,
         expr: LogicalExpr,
@@ -306,43 +320,49 @@ class AnalyzeSentimentExpr(SemanticExpr):
         self.expr = expr
         self.temperature = temperature
         self.model_alias = model_alias
+        
+        # Only validate the string expression
+        super().__init__(expr)
 
     def __str__(self):
         return f"semantic.analyze_sentiment({self.expr})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters (no max_tokens for analyze_sentiment)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
-        if self.expr.to_column_field(plan).data_type != StringType:
-            raise TypeError(
-                f"Type mismatch: Cannot apply semantic.analyze_sentiment to non-string type. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only StringType is supported."
-            )
-        return ColumnField(str(self), StringType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class EmbeddingsExpr(SemanticExpr):
+class EmbeddingsExpr(SemanticFunction):
     """Expression for generating embeddings for a string column.
 
     This expression creates a new column of embeddings for each value in the input string column.
     The embeddings are a list of floats generated using RM
     """
 
+    function_name = "semantic.embed"
+
     def __init__(self, expr: LogicalExpr, model_alias: Optional[str] = None):
         self.expr = expr
         self.model_alias = model_alias
         self.dimensions = None
+        
+        # Only validate the string expression (model_alias is parameter)
+        super().__init__(expr)
 
     def __str__(self) -> str:
         return f"semantic.embed({self.expr}, {self.model_alias})"
 
-    def expr(self) -> LogicalExpr:
-        return self.expr
+    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+        """Return EmbeddingType with specific dimensions based on model."""
+        # Note: This will be called after signature validation, so we need the plan context
+        # This is a limitation - we'll need to handle this in the override method
+        return EmbeddingType(embedding_model="unknown", dimensions=0)  # Placeholder
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def _validate_model_config(self, plan: LogicalPlan) -> EmbeddingType:
+        """Validate model configuration and return the correct EmbeddingType."""
         session_config = plan.session_state.session_config
         semantic_config = session_config.semantic
 
@@ -354,26 +374,26 @@ class EmbeddingsExpr(SemanticExpr):
                 f"Available models: {available}"
             )
 
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeMismatchError(
-                StringType,
-                input_field.data_type,
-                "semantic.embed requires a column of type string as input"
-            )
-
         model_config = semantic_config.embedding_models[model_alias]
         model_provider = ModelProvider.OPENAI
         model_name = model_config.model_name
         embedding_params = model_catalog.get_embedding_model_parameters(model_provider, model_name)
         self.dimensions = embedding_params.output_dimensions
-        return ColumnField(
-            name=str(self),
-            data_type=EmbeddingType(
-                embedding_model=f"{model_provider.value}/{model_name}",
-                dimensions=embedding_params.output_dimensions
-            )
+        return EmbeddingType(
+            embedding_model=f"{model_provider.value}/{model_name}",
+            dimensions=embedding_params.output_dimensions
         )
+
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Embeddings don't use completion parameters."""
+        pass
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        # Call parent to handle signature validation
+        super().to_column_field(plan)
+        # Then validate model config and get the correct return type
+        embedding_type = self._validate_model_config(plan)
+        return ColumnField(name=str(self), data_type=embedding_type)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
