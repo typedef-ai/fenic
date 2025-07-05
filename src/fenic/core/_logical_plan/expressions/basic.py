@@ -160,20 +160,25 @@ class IndexExpr(LogicalExpr):
 class ArrayExpr(ScalarFunction):
     function_name = "array"
 
-    def __init__(self, args: List[LogicalExpr]):
-        super().__init__(*args)
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        super().__init__(*exprs)
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
         """Return ArrayType with element type matching the first argument."""
         # Signature validation ensures all args have the same type
         return ArrayType(arg_types[0])
 
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
 
 class StructExpr(ScalarFunction):
     function_name = "struct"
 
-    def __init__(self, args: List[LogicalExpr]):
-        super().__init__(*args)
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        super().__init__(*exprs)
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
         """Return StructType with fields based on argument names and types."""
@@ -183,6 +188,9 @@ class StructExpr(ScalarFunction):
             field_name = str(arg) if not isinstance(arg, AliasExpr) else arg.name
             struct_fields.append(StructField(field_name, arg_type))
         return StructType(struct_fields)
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
 
 
 class UDFExpr(LogicalExpr):
@@ -231,13 +239,19 @@ class ArrayLengthExpr(ScalarFunction):
         self.expr = expr
         super().__init__(expr)
 
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
 class ArrayContainsExpr(ScalarFunction):
     function_name = "array_contains"
 
-    def __init__(self, expr: LogicalExpr, value: LogicalExpr):
-        super().__init__(expr, value)
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr):
         self.expr = expr
-        self.other = value
+        self.other = other
+        super().__init__(expr, other)
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]
 
 class CastExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, dest_type: DataType):
@@ -284,8 +298,11 @@ class CoalesceExpr(ScalarFunction):
     function_name = "coalesce"
 
     def __init__(self, exprs: List[LogicalExpr]):
-        super().__init__(*exprs)
         self.exprs = exprs
+        super().__init__(*exprs)
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
 
 
 class InExpr(LogicalExpr):
