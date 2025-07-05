@@ -12,12 +12,13 @@ from fenic._backends.local.utils.io_utils import (
     does_path_exist,
     query_files,
 )
+from fenic._backends.schema_serde import serialize_schema
 from fenic.core._interfaces.execution import BaseExecution
-from fenic.core._logical_plan import LogicalPlan
+from fenic.core._logical_plan.serde import LogicalPlan, LogicalPlanSerde
 from fenic.core._utils.schema import (
     convert_polars_schema_to_custom_schema,
 )
-from fenic.core.error import ExecutionError, PlanError, ValidationError
+from fenic.core.error import CatalogError, ExecutionError, PlanError, ValidationError
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types.datatypes import (
     BooleanType,
@@ -137,6 +138,22 @@ class LocalExecution(BaseExecution):
             raise ExecutionError(f"Failed to execute query: {e}") from e
         return metrics
 
+    def save_as_view(
+        self,
+        logical_plan: LogicalPlan,
+        view_name: str,
+    ) -> None:
+        """Save the table as a view in the current database."""
+        self.session_state._check_active()
+        view_exists = self.session_state.catalog.does_view_exist(view_name=view_name)
+        if view_exists:
+            raise CatalogError(f"View {view_name} already exists!")
+        view_blob = LogicalPlanSerde.serialize(logical_plan)
+        schema_blob = serialize_schema(logical_plan.schema())
+        self.session_state.catalog.create_view(
+            view_name=view_name, schema_blob=schema_blob, view_blob=view_blob
+        )
+        
      # infer schema and save_to_file methods are overridden in the engine execution
      # because the file IO is handled differently in cloud execution.
     def save_to_file(
