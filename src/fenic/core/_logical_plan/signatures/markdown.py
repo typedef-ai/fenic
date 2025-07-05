@@ -3,12 +3,6 @@
 This module registers function signatures for markdown processing functions,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.expressions.markdown import (
-    MdExtractHeaderChunks,
-    MdGenerateTocExpr,
-    MdGetCodeBlocksExpr,
-    MdToJsonExpr,
-)
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.signature import FunctionSignature
 from fenic.core._logical_plan.signatures.types import Exact
@@ -73,3 +67,5 @@ def register_markdown_signatures():
             ]))
         )
     )
+
+register_markdown_signatures()
