@@ -13,7 +13,7 @@ from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core.types import ArrayType, DataType, StructType
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class ColumnField:
     """Represents a typed column in a DataFrame schema.
 
@@ -73,7 +73,7 @@ class ColumnField:
         return f"{spaces}ColumnField(name='{self.name}', data_type={data_type_str})"
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class Schema:
     """Represents the schema of a DataFrame.
 

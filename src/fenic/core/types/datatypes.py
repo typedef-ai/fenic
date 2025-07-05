@@ -82,7 +82,7 @@ class _StringBackedType(DataType):
 # === Singleton Primitive Types ===
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class _StringType(_PrimitiveType):
     def __str__(self) -> str:
         """Return a string representation of the string type.
@@ -104,7 +104,7 @@ class _StringType(_PrimitiveType):
         return isinstance(other, _StringType)
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class _IntegerType(_PrimitiveType):
     def __str__(self) -> str:
         """Return a string representation of the integer type.
@@ -126,7 +126,7 @@ class _IntegerType(_PrimitiveType):
         return isinstance(other, _IntegerType)
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class _FloatType(_PrimitiveType):
     def __str__(self) -> str:
         """Return a string representation of the float type.
@@ -148,7 +148,7 @@ class _FloatType(_PrimitiveType):
         return isinstance(other, _FloatType)
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class _DoubleType(_PrimitiveType):
     def __str__(self) -> str:
         """Return a string representation of the double type.
@@ -170,7 +170,7 @@ class _DoubleType(_PrimitiveType):
         return isinstance(other, _DoubleType)
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class _BooleanType(_PrimitiveType):
     def __str__(self) -> str:
         """Return a string representation of the boolean type.
@@ -195,7 +195,7 @@ class _BooleanType(_PrimitiveType):
 # === Composite and Parameterized Types ===
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class ArrayType(DataType):
     """A type representing a homogeneous variable-length array (list) of elements.
 
@@ -232,7 +232,7 @@ class ArrayType(DataType):
         return isinstance(other, ArrayType) and self.element_type == other.element_type
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class StructField:
     """A field in a StructType. Fields are nullable.
 
@@ -269,7 +269,7 @@ class StructField:
         )
 
 
-@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class StructType(DataType):
     """A type representing a struct (record) with named fields.
 

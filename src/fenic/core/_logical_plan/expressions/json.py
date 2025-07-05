@@ -67,10 +67,8 @@ class JsonContainsExpr(ScalarFunction):
                 f"json.contains() requires a valid JSON string as the search value. "
                 f"Received: {repr(value)}."
             ) from e
-
-        # Use recursive descent with type-aware matching
+# Use recursive descent with type-aware matching
         self.jq_query = f'{{result: any(..; (type == "object" and contains({json_str})) or (type != "object" and . == {json_str}))}}'
-
         # Only validate the JSON expression (value is literal)
         super().__init__(expr)
 
