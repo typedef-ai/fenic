@@ -18,7 +18,6 @@ from fenic.core._logical_plan.signatures.types import (
     Numeric,
     TypeSignature,
     VariadicAny,
-    VariadicUniform,
 )
 from fenic.core._logical_plan.utils import can_cast
 from fenic.core.error import InternalError
@@ -143,14 +142,14 @@ class FunctionSignature:
         from fenic.core._logical_plan.expressions.basic import CastExpr
 
         # First, check what types the signature expects
-        expected_types = self._get_expected_types(arg_types)
+        expected_types = self.type_signature.get_expected_types(arg_types)
 
         # Apply casts where needed
         final_args = []
         final_types = []
 
         for _i, (arg, actual_type, expected_type) in enumerate(zip(args, arg_types, expected_types, strict=False)):
-            if actual_type != expected_type and self._can_cast(actual_type, expected_type):
+            if actual_type != expected_type and can_cast(actual_type, expected_type):
                 # Insert cast node
                 cast_expr = CastExpr(arg, expected_type)
                 final_args.append(cast_expr)
@@ -164,22 +163,3 @@ class FunctionSignature:
         self.type_signature.validate(final_types, self.function_name)
 
         return final_args, final_types
-
-    def _get_expected_types(self, arg_types: List[DataType]) -> List[DataType]:
-        """Determine what types the signature expects for each argument."""
-        # This logic depends on the signature type
-        if isinstance(self.type_signature, Exact):
-            return self.type_signature.expected_arg_types
-        elif isinstance(self.type_signature, VariadicUniform) and self.type_signature.required_type:
-            return [self.type_signature.required_type] * len(arg_types)
-        elif isinstance(self.type_signature, Numeric):
-            # Numeric accepts any numeric type, no specific expectation
-            return arg_types
-        else:
-            # For other signatures, we don't have a specific expectation
-            return arg_types
-
-    def _can_cast(self, from_type: DataType, to_type: DataType) -> bool:
-        """Check if casting is possible."""
-        # Delegate to existing cast compatibility logic
-        return can_cast(from_type, to_type)
