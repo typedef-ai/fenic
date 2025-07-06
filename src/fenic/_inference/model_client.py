@@ -20,7 +20,7 @@ from typing import (
 
 from openai.types.chat.chat_completion_token_logprob import ChatCompletionTokenLogprob
 from pydantic import BaseModel
-from tqdm import tqdm
+from fenic._inference.progress import get_progress_manager
 
 from fenic._inference.model_catalog import ModelProvider
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
@@ -531,11 +531,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         )
 
         # Submit all requests with progress indicator
-        with tqdm(
+        progress = get_progress_manager()
+        with progress:
+            task_id = progress.add_task(
+                f"Submitting requests for batch: {batch_id} (model: {self.model})",
                 total=len(requests),
-                desc=f"Submitting requests for batch: {batch_id}",
-                unit="req",
-        ) as pbar:
+                extra=f"model: {self.model}"
+            )
+
             for request in requests:
                 # Check for exceptions from the event loop thread
                 self._maybe_raise_thread_exception()
@@ -545,10 +548,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     req_future = Future()
                     request_futures.append(req_future)
                     req_future.set_result(None)
-                    pbar.update(1)
-                    pbar.set_postfix(
-                        estimated_input_tokens=total_token_estimate.input_tokens,
-                        estimated_output_tokens=total_token_estimate.output_tokens,
+                    progress.update(
+                        task_id,
+                        advance=1,
+                        extra=f"tokens: {total_token_estimate.input_tokens:,} in | {total_token_estimate.output_tokens:,} out"
                     )
                     continue
 
@@ -573,11 +576,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                     enqueue_future.result()
 
-                pbar.update(1)
-                pbar.set_postfix(
-                    estimated_input_tokens=total_token_estimate.input_tokens,
-                    estimated_output_tokens=total_token_estimate.output_tokens,
+                progress.update(
+                    task_id,
+                    advance=1,
+                    extra=f"tokens: {total_token_estimate.input_tokens:,} in | {total_token_estimate.output_tokens:,} out"
                 )
+            
+            # Remove the completed task
+            progress.remove_task(task_id)
 
         logger.info(
             f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
@@ -585,14 +591,23 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
         # Wait for all responses with progress indicator
         responses = []
-        with tqdm(
+        with progress:
+            task_id = progress.add_task(
+                f"Awaiting responses for batch {batch_id})",
                 total=len(request_futures),
-                desc=f"Awaiting responses for batch {batch_id} (model: {self.model})",
-                unit="res",
-        ) as pbar:
-            for req_future in request_futures:
+                extra=f"model: {self.model}"
+            )
+
+            for i, req_future in enumerate(request_futures):
                 responses.append(req_future.result())
-                pbar.update(1)
+                progress.update(
+                    task_id,
+                    advance=1,
+                    extra=f"requests completed: {i+1}/{len(request_futures)}"
+                )
+            
+            # Remove the completed task
+            progress.remove_task(task_id)
 
         logger.info(
             f"Batch {batch_id}: Completed with {len(responses)} responses from model {self.model}"
