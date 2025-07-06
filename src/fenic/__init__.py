@@ -3,6 +3,7 @@
 from fenic.api import (
     AnthropicModelConfig,
     Catalog,
+    CloudConfig,
     Column,
     ColumnOrName,
     DataFrame,
@@ -92,6 +93,7 @@ __all__ = [
     # Session
     "Session",
     "SessionConfig",
+    "CloudConfig",
     "OpenAIModelConfig",
     "AnthropicModelConfig",
     "GoogleGLAModelConfig",
