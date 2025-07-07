@@ -19,9 +19,9 @@ from fenic.core._logical_plan.expressions.text import (
     RLikeExpr,
     SplitPartExpr,
     StartsWithExpr,
-    StrLengthExpr,
     StringCasingExpr,
     StripCharsExpr,
+    StrLengthExpr,
     TextChunkExpr,
     TextractExpr,
     TsParseExpr,
@@ -32,8 +32,30 @@ from fenic.core._logical_plan.signatures.signature import (
     ReturnTypeStrategy,
 )
 from fenic.core._logical_plan.signatures.types import Exact, OneOf, VariadicAny
-from fenic.core.types.datatypes import ArrayType, BooleanType, IntegerType, StringType
+from fenic.core.types.datatypes import (
+    ArrayType,
+    BooleanType,
+    DoubleType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
+# Unified schema for all transcript formats
+TRANSCRIPT_OUTPUT_TYPE = ArrayType(
+    element_type=StructType(
+        [
+            StructField("index", IntegerType),  # Optional[int] - Entry index (1-based)
+            StructField("speaker", StringType),  # Optional[str] - Speaker name
+            StructField("start_time", DoubleType),  # float - Start time in seconds
+            StructField("end_time", DoubleType),  # Optional[float] - End time in seconds
+            StructField("duration", DoubleType),  # Optional[float] - Duration in seconds
+            StructField("content", StringType),  # str - Transcript content/text
+            StructField("format", StringType),  # str - Original format ("srt" or "generic")
+        ]
+    )
+)
 
 def register_text_signatures():
     """Register all text function signatures for ScalarFunctions."""
@@ -154,7 +176,7 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.parse_transcript",
             type_signature=Exact([StringType]),  # string input only
-            return_type=ReturnTypeStrategy.DYNAMIC  # Returns specific transcript schema
+            return_type=TRANSCRIPT_OUTPUT_TYPE  # Returns specific transcript schema
         )
     )
     

@@ -25,8 +25,6 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
-    RecursiveTextChunkExprConfiguration,
-    TextChunkExprConfiguration,
 )
 from fenic.core.types.enums import TranscriptFormatType
 
@@ -134,16 +132,14 @@ def recursive_character_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.CHARACTER,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.CHARACTER,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -196,16 +192,14 @@ def recursive_word_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.WORD,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -258,16 +252,14 @@ def recursive_token_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.TOKEN,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -295,14 +287,12 @@ def character_chunk(
         df.select(text.character_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.CHARACTER,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.CHARACTER,
         )
     )
 
@@ -330,14 +320,12 @@ def word_chunk(
         df.select(text.word_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.WORD,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
         )
     )
 
@@ -365,14 +353,12 @@ def token_chunk(
         df.select(text.token_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.TOKEN,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
         )
     )
 
