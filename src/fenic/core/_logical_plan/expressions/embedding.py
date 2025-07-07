@@ -78,10 +78,10 @@ class EmbeddingSimilarityExpr(ScalarFunction):
                 )
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        # If comparison field is a query vector, validate its dimensions
+        self._validate_query_vector_dimensions(plan)
         # Call parent to handle signature validation
         result = super().to_column_field(plan)
-        # Then validate additional constraints
-        self._validate_query_vector_dimensions(plan)
         return result
 
     def children(self) -> List[LogicalExpr]:

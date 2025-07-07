@@ -9,7 +9,9 @@ import pytest
 from fenic.core._logical_plan.signatures.types import (
     ArrayOfAny,
     ArrayWithMatchingElement,
+    EqualTypes,
     Exact,
+    InstanceOf,
     Numeric,
     OneOf,
     Uniform,
@@ -20,6 +22,7 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
+    EmbeddingType,
     FloatType,
     IntegerType,
     StringType,
@@ -239,3 +242,96 @@ class TestOneOf:
         
         with pytest.raises(TypeMismatchError, match="test_func does not match any valid signature"):
             sig.validate([StringType, StringType], "test_func")
+
+
+class TestEqualTypes:
+    """Test EqualTypes signature type."""
+    
+    def test_validates_equal_types(self):
+        sig = EqualTypes(ArrayType)
+        
+        # Should accept two arrays with same element type
+        array_int = ArrayType(IntegerType)
+        sig.validate([array_int, array_int], "test_func")
+        
+        # Should accept two arrays with same structure but different instances
+        array_int2 = ArrayType(IntegerType)
+        sig.validate([array_int, array_int2], "test_func")
+        
+        # Should reject arrays with different element types
+        array_str = ArrayType(StringType)
+        with pytest.raises(TypeMismatchError, match="test_func expects both arguments to be equal"):
+            sig.validate([array_int, array_str], "test_func")
+    
+    def test_validates_instance_type(self):
+        sig = EqualTypes(ArrayType)
+        
+        # Should reject non-array types
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an instance of ArrayType"):
+            sig.validate([StringType, ArrayType(IntegerType)], "test_func")
+            
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 1 to be an instance of ArrayType"):
+            sig.validate([ArrayType(IntegerType), StringType], "test_func")
+    
+    def test_requires_exactly_two_arguments(self):
+        sig = EqualTypes(ArrayType)
+        
+        with pytest.raises(InternalError, match="test_func expects 2 arguments, got 1"):
+            sig.validate([ArrayType(IntegerType)], "test_func")
+            
+        with pytest.raises(InternalError, match="test_func expects 2 arguments, got 3"):
+            sig.validate([ArrayType(IntegerType), ArrayType(IntegerType), ArrayType(IntegerType)], "test_func")
+    
+    def test_works_with_embedding_type(self):
+        sig = EqualTypes(EmbeddingType)
+        
+        # Should accept embeddings with same dimensions
+        emb1 = EmbeddingType(dimensions=128, embedding_model="test")
+        emb2 = EmbeddingType(dimensions=128, embedding_model="test")
+        sig.validate([emb1, emb2], "test_func")
+        
+        # Should reject embeddings with different dimensions
+        emb3 = EmbeddingType(dimensions=256, embedding_model="test")
+        with pytest.raises(TypeMismatchError, match="test_func expects both arguments to be equal"):
+            sig.validate([emb1, emb3], "test_func")
+
+
+class TestInstanceOf:
+    """Test InstanceOf signature type."""
+    
+    def test_validates_instance_types(self):
+        sig = InstanceOf([ArrayType, type(StringType)])
+        
+        # Should accept correct types
+        sig.validate([ArrayType(IntegerType), StringType], "test_func")
+        
+        # Should reject wrong types
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an instance of ArrayType"):
+            sig.validate([StringType, StringType], "test_func")
+            
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 1 to be an instance of _StringType"):
+            sig.validate([ArrayType(IntegerType), IntegerType], "test_func")
+    
+    def test_validates_argument_count(self):
+        sig = InstanceOf([ArrayType, type(StringType), type(IntegerType)])
+        
+        # Should accept exact count
+        sig.validate([ArrayType(StringType), StringType, IntegerType], "test_func")
+        
+        # Should reject wrong count
+        with pytest.raises(InternalError, match="test_func expects 3 arguments, got 2"):
+            sig.validate([ArrayType(StringType), StringType], "test_func")
+            
+        with pytest.raises(InternalError, match="test_func expects 3 arguments, got 4"):
+            sig.validate([ArrayType(StringType), StringType, IntegerType, BooleanType], "test_func")
+    
+    def test_works_with_single_type(self):
+        sig = InstanceOf([EmbeddingType])
+        
+        # Should accept embedding type
+        emb = EmbeddingType(dimensions=128, embedding_model="test")
+        sig.validate([emb], "test_func")
+        
+        # Should reject non-embedding type
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an instance of EmbeddingType"):
+            sig.validate([StringType], "test_func")
