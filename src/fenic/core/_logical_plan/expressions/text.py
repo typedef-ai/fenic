@@ -3,20 +3,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Set, Union
-
-if TYPE_CHECKING:
-    pass
+from typing import List, Literal, Optional, Set, Union
 
 from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core.error import ValidationError
 from fenic.core.types import (
-    ArrayType,
     DataType,
-    DoubleType,
-    IntegerType,
     StringType,
     StructField,
     StructType,
@@ -145,7 +140,7 @@ class TextractExpr(ScalarFunction):
         self.parsed_template = ParsedTemplateFormat()
         self.parsed_template.parse(template, set())
 
-        # Only validate the string expression (template is literal)
+        # Only validate the string expression (template is not LogicalExpr)
         super().__init__(input_expr)
 
     def __str__(self):
@@ -188,12 +183,18 @@ class TextChunkExpr(ScalarFunction):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        chunk_configuration: TextChunkExprConfiguration,
+        desired_chunk_size: int,
+        chunk_overlap_percentage: int = 0,
+        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
     ):
         self.input_expr = input_expr
-        self.chunk_configuration = chunk_configuration
+        self.chunk_configuration = TextChunkExprConfiguration(
+            desired_chunk_size=desired_chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=chunk_length_function_name,
+        )
 
-        # Only validate the string expression (chunk_configuration is literal)
+        # Only validate the string expression (chunk_configuration is not LogicalExpr)
         super().__init__(input_expr)
 
     def __str__(self) -> str:
@@ -214,12 +215,22 @@ class RecursiveTextChunkExpr(ScalarFunction):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        chunking_configuration: RecursiveTextChunkExprConfiguration,
+        desired_chunk_size: int,
+        chunk_overlap_percentage: int = 0,
+        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
+        chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
+        chunking_character_set_custom_characters: Optional[list[str]] = None
     ):
         self.input_expr = input_expr
-        self.chunking_configuration = chunking_configuration
+        self.chunking_configuration = RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=desired_chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=chunk_length_function_name,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
+        )
 
-        # Only validate the string expression (chunking_configuration is literal)
+        # Only validate the string expression (chunking_configuration is not LogicalExpr)
         super().__init__(input_expr)
 
     def __str__(self) -> str:
@@ -251,7 +262,7 @@ class ArrayJoinExpr(ScalarFunction):
         self.expr = expr
         self.delimiter = delimiter
 
-        # Only validate the array expression (delimiter is literal)
+        # Only validate the array expression (delimiter is not LogicalExpr)
         super().__init__(expr)
 
     def __str__(self) -> str:
@@ -318,7 +329,7 @@ class ContainsAnyExpr(ScalarFunction):
         self.substrs = substrs
         self.case_insensitive = case_insensitive
 
-        # Only validate the main string expression (substrs and case_insensitive are literals)
+        # Only validate the main string expression (substrs and case_insensitive are not LogicalExprs)
         super().__init__(expr)
 
     def __str__(self) -> str:
@@ -340,7 +351,7 @@ class RLikeExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the regular expression pattern is invalid
+        ValidationError: If the regular expression pattern is invalid
     """
 
     function_name = "text.rlike"
@@ -353,7 +364,7 @@ class RLikeExpr(ScalarFunction):
         try:
             re.compile(pattern)
         except Exception as e:
-            raise ValueError(f"Invalid regex pattern: {pattern}") from e
+            raise ValidationError(f"Invalid regex pattern: {pattern}") from e
 
         # Only validate the string expression
         super().__init__(expr)
@@ -377,7 +388,7 @@ class LikeExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the LIKE pattern is invalid
+        ValidationError: If the LIKE pattern is invalid
     """
 
     function_name = "text.like"
@@ -391,7 +402,7 @@ class LikeExpr(ScalarFunction):
         try:
             re.compile(self.pattern)
         except Exception as e:
-            raise ValueError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
+            raise ValidationError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
 
         # Only validate the string expression
         super().__init__(expr)
@@ -425,7 +436,7 @@ class ILikeExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the LIKE pattern is invalid
+        ValidationError: If the LIKE pattern is invalid
     """
 
     function_name = "text.ilike"
@@ -439,7 +450,7 @@ class ILikeExpr(ScalarFunction):
         try:
             re.compile(self.pattern)
         except Exception as e:
-            raise ValueError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
+            raise ValidationError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
 
         # Only validate the string expression
         super().__init__(expr)
@@ -463,34 +474,15 @@ class ILikeExpr(ScalarFunction):
 class TsParseExpr(ScalarFunction):
     function_name = "text.parse_transcript"
 
-    # Unified schema for all transcript formats
-    OUTPUT_TYPE = ArrayType(
-        element_type=StructType(
-            [
-                StructField("index", IntegerType),        # Optional[int] - Entry index (1-based)
-                StructField("speaker", StringType),       # Optional[str] - Speaker name
-                StructField("start_time", DoubleType),    # float - Start time in seconds
-                StructField("end_time", DoubleType),      # Optional[float] - End time in seconds
-                StructField("duration", DoubleType),      # Optional[float] - Duration in seconds
-                StructField("content", StringType),       # str - Transcript content/text
-                StructField("format", StringType),        # str - Original format ("srt" or "generic")
-            ]
-        )
-    )
-
     def __init__(self, expr: LogicalExpr, format: str):
         self.expr = expr
         self.format = format
 
-        # Only validate the string expression (format is literal)
+        # Only validate the string expression (format is not a LogicalExpr)
         super().__init__(expr)
 
     def __str__(self) -> str:
         return f"parse_transcript({self.expr}, {self.format})"
-
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
-        """Return the predefined transcript output schema."""
-        return self.OUTPUT_TYPE
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
@@ -508,7 +500,7 @@ class StartsWithExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the substring starts with a regular expression anchor (^)
+        ValidationError: If the substring starts with a regular expression anchor (^)
     """
 
     function_name = "text.starts_with"
@@ -517,9 +509,9 @@ class StartsWithExpr(ScalarFunction):
         self.expr = expr
         self.substr = substr
 
-        # Validate substring if it's a string literal
+        # Validate substring if it is `str`
         if isinstance(substr, str) and substr.startswith("^"):
-            raise ValueError("substr should not start with a regular expression anchor")
+            raise ValidationError("substr should not start with a regular expression anchor")
 
         # Pass appropriate arguments to signature validation
         if isinstance(substr, LogicalExpr):
@@ -549,7 +541,7 @@ class EndsWithExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the substring ends with a regular expression anchor ($)
+        ValidationError: If the substring ends with a regular expression anchor ($)
     """
 
     function_name = "text.ends_with"
@@ -558,9 +550,8 @@ class EndsWithExpr(ScalarFunction):
         self.expr = expr
         self.substr = substr
 
-        # Validate substring if it's a string literal
         if isinstance(substr, str) and substr.endswith("$"):
-            raise ValueError("substr should not end with a regular expression anchor")
+            raise ValidationError("substr should not end with a regular expression anchor")
 
         # Pass appropriate arguments to signature validation
         if isinstance(substr, LogicalExpr):
@@ -602,7 +593,7 @@ class RegexpSplitExpr(ScalarFunction):
         self.pattern = pattern
         self.limit = limit
 
-        # Only validate the string expression (pattern and limit are literals)
+        # Only validate the string expression (pattern and limit are not LogicalExprs)
         super().__init__(expr)
 
     def __str__(self) -> str:
@@ -633,7 +624,7 @@ class SplitPartExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If part_number is 0
+        ValidationError: If part_number is 0
     """
 
     function_name = "text.split_part"
@@ -645,7 +636,10 @@ class SplitPartExpr(ScalarFunction):
         self.delimiter = delimiter
         self.part_number = part_number
 
-        # Only validate LogicalExpr arguments (delimiter might be string literal)
+        if part_number == 0:
+            raise ValidationError("part_number cannot be 0")
+
+        # Only validate LogicalExpr arguments
         if isinstance(delimiter, LogicalExpr):
             super().__init__(expr, delimiter)
         else:
@@ -682,7 +676,7 @@ class StringCasingExpr(ScalarFunction):
         self.expr = expr
         self.case = case
 
-        # Only validate the string expression (case is literal)
+        # Only validate the string expression (case is not LogicalExpr)
         super().__init__(expr)
 
     def __str__(self) -> str:
@@ -753,7 +747,7 @@ class ReplaceExpr(ScalarFunction):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If replacement_count is not >= 1 or -1
+        ValidationError: If replacement_count is not >= 1 or -1
     """
 
     function_name = "text.replace"
@@ -774,7 +768,7 @@ class ReplaceExpr(ScalarFunction):
 
         # Validate replacement_count at construction time
         if replacement_count != -1 and replacement_count < 1:
-            raise ValueError("replacement_count must be >= 1 or -1 for all")
+            raise ValidationError("replacement_count must be >= 1 or -1 for all")
 
         # Only validate LogicalExpr arguments
         logical_args = [expr]

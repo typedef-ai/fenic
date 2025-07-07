@@ -4,7 +4,13 @@ This module is imported after the expression classes are fully loaded
 to avoid circular import issues.
 """
 
-from fenic.core._logical_plan.signatures import arithmetic, basic, case, comparison, text
+from fenic.core._logical_plan.signatures import (
+    arithmetic,
+    basic,
+    case,
+    comparison,
+    text,
+)
 
 # Register all signatures
 arithmetic.register_arithmetic_signatures()
