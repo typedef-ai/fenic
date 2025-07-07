@@ -43,7 +43,7 @@ class SemanticFunction(ScalarFunction):
     Provides common functionality for completion parameter validation
     and model configuration handling.
     """
-    
+
     def __init__(self, *args: LogicalExpr):
         """Initialize semantic function."""
         super().__init__(*args)
@@ -51,27 +51,27 @@ class SemanticFunction(ScalarFunction):
     @abstractmethod
     def _validate_completion_parameters(self, plan: LogicalPlan):
         pass
-    
+
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
         # Call parent to handle signature validation
         result = super().to_column_field(plan)
-        # Then validate completion parameters
-        self._validate_completion_parameters(plan)
         return result
 
 
 class SemanticMapExpr(SemanticFunction):
     function_name = "semantic.map"
-    
+
     def __init__(
-        self,
-        instruction: str,
-        max_tokens: int,
-        temperature: float,
-        model_alias: Optional[str] = None,
-        response_format: Optional[type[BaseModel]] = None,
-        examples: Optional[MapExampleCollection] = None,
+            self,
+            instruction: str,
+            max_tokens: int,
+            temperature: float,
+            model_alias: Optional[str] = None,
+            response_format: Optional[type[BaseModel]] = None,
+            examples: Optional[MapExampleCollection] = None,
     ):
         self.instruction = instruction
         self.exprs = [
@@ -90,7 +90,7 @@ class SemanticMapExpr(SemanticFunction):
         if examples:
             examples._validate_with_instruction(instruction)
             self.examples = examples
-        
+
         # Pass all parsed column expressions to signature validation
         super().__init__(*self.exprs)
 
@@ -108,28 +108,27 @@ class SemanticMapExpr(SemanticFunction):
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
-
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
 
 class SemanticExtractExpr(SemanticFunction):
     function_name = "semantic.extract"
-    
+
     def __init__(
-        self,
-        expr: LogicalExpr,
-        schema: Union[ExtractSchema, type[BaseModel]],
-        max_tokens: int,
-        temperature: float,
-        model_alias: Optional[str] = None,
+            self,
+            expr: LogicalExpr,
+            schema: Union[ExtractSchema, type[BaseModel]],
+            max_tokens: int,
+            temperature: float,
+            model_alias: Optional[str] = None,
     ):
         self.expr = expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
         self.schema = schema
-        
+
         # Only validate the string expression (schema is parameter)
         super().__init__(expr)
 
@@ -156,20 +155,19 @@ class SemanticExtractExpr(SemanticFunction):
         )
         return convert_pydantic_type_to_custom_struct_type(pydantic_model)
 
-
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
 class SemanticPredExpr(SemanticFunction):
     function_name = "semantic.predicate"
-    
+
     def __init__(
-        self,
-        instruction: str,
-        temperature: float,
-        model_alias: Optional[str] = None,
-        examples: Optional[PredicateExampleCollection] = None,
+            self,
+            instruction: str,
+            temperature: float,
+            model_alias: Optional[str] = None,
+            examples: Optional[PredicateExampleCollection] = None,
     ):
         self.instruction = instruction
         self.exprs = [
@@ -186,7 +184,7 @@ class SemanticPredExpr(SemanticFunction):
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
-        
+
         # Pass all parsed column expressions to signature validation
         super().__init__(*self.exprs)
 
@@ -205,13 +203,13 @@ class SemanticPredExpr(SemanticFunction):
 
 class SemanticReduceExpr(SemanticFunction, AggregateExpr):
     function_name = "semantic.reduce"
-    
+
     def __init__(self,
-         instruction: str,
-         max_tokens: int,
-         temperature: float,
-         model_alias: Optional[str] = None,
-    ):
+                 instruction: str,
+                 max_tokens: int,
+                 temperature: float,
+                 model_alias: Optional[str] = None,
+                 ):
         self.instruction = instruction
         self.exprs = [
             ColumnExpr(parsed_col)
@@ -224,7 +222,7 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
-        
+
         # Pass all parsed column expressions to signature validation
         super().__init__(*self.exprs)
 
@@ -237,12 +235,10 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
             self.max_tokens
         )
 
-
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.reduce_{instruction_hash}({exprs_str})"
-
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
@@ -250,14 +246,14 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
 
 class SemanticClassifyExpr(SemanticFunction):
     function_name = "semantic.classify"
-    
+
     def __init__(
-        self,
-        expr: LogicalExpr,
-        labels: List[str] | type[Enum],
-        temperature: float,
-        examples: Optional[ClassifyExampleCollection] = None,
-        model_alias: Optional[str] = None,
+            self,
+            expr: LogicalExpr,
+            labels: List[str] | type[Enum],
+            temperature: float,
+            examples: Optional[ClassifyExampleCollection] = None,
+            model_alias: Optional[str] = None,
     ):
         self.expr = expr
         self.labels = labels
@@ -272,7 +268,7 @@ class SemanticClassifyExpr(SemanticFunction):
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
-        
+
         # Only validate the string expression (labels are parameters)
         super().__init__(expr)
 
@@ -296,15 +292,13 @@ class SemanticClassifyExpr(SemanticFunction):
             )
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        self._validate_labels(plan)
         # Call parent to handle signature validation
         result = super().to_column_field(plan)
-        # Then validate labels
-        self._validate_labels(plan)
         return result
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
-
 
     @staticmethod
     def transform_labels_list_into_enum(labels: list[str]) -> type[Enum]:
@@ -332,17 +326,17 @@ class SemanticClassifyExpr(SemanticFunction):
 
 class AnalyzeSentimentExpr(SemanticFunction):
     function_name = "semantic.analyze_sentiment"
-    
+
     def __init__(
-        self,
-        expr: LogicalExpr,
-        temperature: float,
-        model_alias: Optional[str] = None,
+            self,
+            expr: LogicalExpr,
+            temperature: float,
+            model_alias: Optional[str] = None,
     ):
         self.expr = expr
         self.temperature = temperature
         self.model_alias = model_alias
-        
+
         # Only validate the string expression
         super().__init__(expr)
 
@@ -370,7 +364,7 @@ class EmbeddingsExpr(SemanticFunction):
         self.expr = expr
         self.model_alias = model_alias
         self.dimensions = None
-        
+
         # Only validate the string expression (model_alias is parameter)
         super().__init__(expr)
 
@@ -413,29 +407,25 @@ class EmbeddingsExpr(SemanticFunction):
         return [self.expr]
 
 
-class SemanticSummarizeExpr(SemanticExpr):
+class SemanticSummarizeExpr(SemanticFunction):
+    function_name = "semantic.summarize"
 
-    def __init__(self, expr: LogicalExpr, format: Union[KeyPoints, Paragraph], temperature: float, model_alias: Optional[str] = None):
-        super().__init__()
+    def __init__(
+            self,
+            expr: LogicalExpr,
+            format: Union[KeyPoints, Paragraph],
+            temperature: float,
+            model_alias: Optional[str] = None
+    ):
         self.expr = expr
         self.format = format
         self.temperature = temperature
         self.model_alias = model_alias
+        super().__init__(expr)
+
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters."""
+        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
     def __str__(self) -> str:
         return f"semantic.summarize({self.expr})"
-
-    def expr(self) -> LogicalExpr:
-        return self.expr
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"semantic.summarize requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(str(self), StringType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]

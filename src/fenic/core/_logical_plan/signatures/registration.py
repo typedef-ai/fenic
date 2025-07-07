@@ -4,7 +4,16 @@ This module is imported after the expression classes are fully loaded
 to avoid circular import issues.
 """
 
-from fenic.core._logical_plan.signatures import (arithmetic, basic, case, comparison, embedding, json, markdown, semantic, text,
+from fenic.core._logical_plan.signatures import (
+    arithmetic,
+    basic,
+    case,
+    comparison,
+    embedding,
+    json,
+    markdown,
+    semantic,
+    text,
 )
 
 # Register all signatures
