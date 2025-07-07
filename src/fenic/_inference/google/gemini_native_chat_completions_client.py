@@ -165,10 +165,15 @@ class GeminiNativeChatCompletionsClient(
             if completion_text is None:
                 completion_text = ""
             usage = response.usage_metadata
-            total_prompt_tokens = usage.prompt_token_count if usage else 0
-            cached_prompt_tokens = usage.cached_content_token_count if usage.cached_content_token_count else 0
-            uncached_prompt_tokens = total_prompt_tokens - cached_prompt_tokens
-            total_output_tokens = usage.candidates_token_count if usage else 0
+            if usage is None:
+                cached_prompt_tokens = 0
+                uncached_prompt_tokens = 0
+                total_output_tokens = 0
+            else:
+                total_prompt_tokens = usage.prompt_token_count if usage.prompt_token_count else 0
+                cached_prompt_tokens = usage.cached_content_token_count if usage.cached_content_token_count else 0
+                uncached_prompt_tokens = total_prompt_tokens - cached_prompt_tokens
+                total_output_tokens = usage.candidates_token_count if usage.candidates_token_count else 0
 
             self._metrics.num_uncached_input_tokens += uncached_prompt_tokens
             self._metrics.num_cached_input_tokens += cached_prompt_tokens
