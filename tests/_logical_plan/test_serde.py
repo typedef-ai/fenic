@@ -334,7 +334,6 @@ def test_semantic_plans(local_session, extract_data_df):
         ),
     )
     deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
-
     assert deserialized_df
     # test extract with the base model
     df = extract_data_df.select(
