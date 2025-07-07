@@ -50,7 +50,7 @@ class FunctionSignature:
         self, 
         args: List[LogicalExpr], 
         plan: LogicalPlan, 
-        dynamic_return_type_func: Optional[Callable[[List[DataType]], DataType]] = None
+        dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlan], DataType]] = None
     ) -> DataType:
         """Validate arguments and infer return type using the plan's schema."""
         # Get types of all arguments using to_column_field
@@ -63,7 +63,7 @@ class FunctionSignature:
         if self.return_type == ReturnTypeStrategy.DYNAMIC:
             if dynamic_return_type_func is None:
                 raise InternalError(f"DYNAMIC return type requires dynamic_return_type_func for {self.function_name}")
-            return_type = dynamic_return_type_func(arg_types)
+            return_type = dynamic_return_type_func(arg_types, plan)
         else:
             return_type = self.infer_return_type(arg_types)
 

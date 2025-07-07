@@ -165,7 +165,7 @@ class ArrayExpr(ScalarFunction):
         self.exprs = exprs
         super().__init__(*exprs)
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return ArrayType with element type matching the first argument."""
         # Signature validation ensures all args have the same type
         return ArrayType(arg_types[0])
@@ -178,7 +178,7 @@ class StructExpr(ScalarFunction):
         self.exprs = exprs
         super().__init__(*exprs)
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on argument names and types."""
         struct_fields = []
         for _i, (arg, arg_type) in enumerate(zip(self._children, arg_types, strict=False)):
