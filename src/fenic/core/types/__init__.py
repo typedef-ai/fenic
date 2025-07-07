@@ -18,11 +18,6 @@ from fenic.core.types.datatypes import (
     TranscriptType,
 )
 from fenic.core.types.enums import BranchSide, SemanticSimilarityMetric
-from fenic.core.types.extract_schema import (
-    ExtractSchema,
-    ExtractSchemaField,
-    ExtractSchemaList,
-)
 from fenic.core.types.query_result import DataLike, DataLikeType, QueryResult
 from fenic.core.types.schema import (
     ColumnField,
@@ -53,9 +48,6 @@ __all__ = [
     "DocumentPathType",
     "DoubleType",
     "EmbeddingType",
-    "ExtractSchema",
-    "ExtractSchemaField",
-    "ExtractSchemaList",
     "FloatType",
     "HtmlType",
     "IntegerType",

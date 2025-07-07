@@ -1,6 +1,6 @@
 """Utilities for converting between different schema representations."""
 import typing
-from typing import Union, get_origin
+from typing import List, Union, get_args, get_origin
 
 import polars as pl
 from pydantic import BaseModel
@@ -101,47 +101,39 @@ def convert_pydantic_type_to_custom_struct_type(
             raise ValueError(
                 f"Field {field_name} has no description.  Please specify a description for each field."
             )
-        if get_origin(field_info.annotation) is list:
-            element_type = field_info.annotation.__args__[0]
+        actual_type = _unwrap_optional_type(field_info.annotation)
+        origin = get_origin(actual_type)
+
+        if origin is list or origin is List:
+            element_type = get_args(actual_type)[0]
             if isinstance(element_type, type) and issubclass(element_type, BaseModel):
-                fields.append(
-                    StructField(
-                        field_name,
-                        data_type=ArrayType(
-                            element_type=convert_pydantic_type_to_custom_struct_type(
-                                element_type
-                            )
-                        ),
-                    )
+                struct_field = StructField(
+                    field_name,
+                    data_type=ArrayType(
+                        element_type=convert_pydantic_type_to_custom_struct_type(
+                            element_type
+                        )
+                    ),
                 )
             else:
-                fields.append(
-                    StructField(
-                        field_name,
-                        data_type=ArrayType(
-                            element_type=_convert_pytype_to_custom_dtype(element_type)
-                        ),
-                    )
-                )
-        elif isinstance(field_info.annotation, type) and issubclass(
-            field_info.annotation, BaseModel
-        ):
-            fields.append(
-                StructField(
+                struct_field = StructField(
                     field_name,
-                    convert_pydantic_type_to_custom_struct_type(field_info.annotation),
+                    data_type=ArrayType(
+                        element_type=_convert_pytype_to_custom_dtype(element_type)
+                    ),
                 )
+        elif isinstance(actual_type, type) and issubclass(actual_type, BaseModel):
+            struct_field = StructField(
+                field_name,
+                convert_pydantic_type_to_custom_struct_type(actual_type),
             )
         else:
-            fields.append(
-                StructField(
-                    field_name,
-                    data_type=_convert_pytype_to_custom_dtype(field_info.annotation),
-                )
+            struct_field = StructField(
+                field_name,
+                data_type=_convert_pytype_to_custom_dtype(actual_type),
             )
-
+        fields.append(struct_field)
     return StructType(fields)
-
 
 def convert_custom_dtype_to_polars(
     custom_dtype: Union[
@@ -255,3 +247,21 @@ def _convert_polars_dtype_to_custom_dtype(
         return StringType
     else:
         raise ValueError(f"Unsupported Polars data type: {polars_dtype}")
+
+def _unwrap_optional_type(annotation) -> type:
+    """Unwrap Optional type and return (actual_type, is_optional)."""
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    if origin is Union:
+        # Check if this is Optional (Union with exactly 2 args, one being None)
+        if len(args) == 2 and type(None) in args:
+            # This is Optional[T] - return the non-None type
+            non_none_type = next(arg for arg in args if arg is not type(None))
+            return non_none_type
+        else:
+            # This is a non-Optional Union - not supported
+            raise TypeError("Union types are not supported. Only Optional[T] is allowed.")
+
+    # Not Optional
+    return annotation

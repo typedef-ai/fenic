@@ -5,7 +5,7 @@ transcript processing capabilities, including format detection, parsing, and sem
 extraction of structured information from unstructured meeting content.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -197,37 +197,29 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("\\n=== Step 3: Define Semantic Extraction Schemas ===")
 
     # Technical entities schema
-    technical_entities_schema = fc.ExtractSchema(
-        [
-            fc.ExtractSchemaField(
-                name="services",
-                data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-                description="Technical services or systems mentioned (e.g., user-service, auth-service, payment-service)",
-            ),
-            fc.ExtractSchemaField(
-                name="technologies",
-                data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-                description="Technologies, databases, or tools mentioned (e.g., Redis, PostgreSQL, JWT, JVM)",
-            ),
-            fc.ExtractSchemaField(
-                name="metrics",
-                data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-                description="Performance metrics, numbers, or measurements mentioned (e.g., response times, memory usage)",
-            ),
-            fc.ExtractSchemaField(
-                name="incident_references",
-                data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-                description="Incident IDs, ticket numbers, or reference numbers mentioned",
-            ),
-        ]
-    )
+
+    class TechnicalEntitiesSchema(BaseModel):
+        services: List[str] = Field(
+            description="Technical services or systems mentioned (e.g., user-service, auth-service, payment-service)"
+        )
+        technologies: List[str] = Field(
+            description="Technologies, databases, or tools mentioned (e.g., Redis, PostgreSQL, JWT, JVM)"
+        )
+        metrics: List[str] = Field(
+            description="Performance metrics, numbers, or measurements mentioned "
+                        "(e.g., response times, memory usage)"
+        )
+        incident_references: List[str] = Field(
+            description="Incident IDs, ticket numbers, or reference numbers mentioned"
+        )
+
 
     # Action items schema
     class ActionItemSchema(BaseModel):
         has_action_item: str = Field(
             description="Whether this segment contains an action item (yes/no)"
         )
-        assignee: str = Field(
+        assignee: Optional[str] = Field(
             default=None, description="Person assigned to the action item (if any)"
         )
         task_description: str = Field(
@@ -243,7 +235,7 @@ def main(config: Optional[fc.SessionConfig] = None):
             description="Whether this segment contains a decision (yes/no)"
         )
         decision_summary: str = Field(description="Summary of the decision made")
-        decision_rationale: str = Field(
+        decision_rationale: Optional[str] = Field(
             default=None, description="Why this decision was made (if mentioned)"
         )
 
@@ -259,7 +251,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     enriched_df = (
         segments_df.with_column(
             "technical_entities",
-            fc.semantic.extract(fc.col("content"), technical_entities_schema),
+            fc.semantic.extract(fc.col("content"), TechnicalEntitiesSchema),
         )
         .with_column(
             "action_items", fc.semantic.extract(fc.col("content"), ActionItemSchema)

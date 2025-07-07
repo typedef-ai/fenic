@@ -1,37 +1,18 @@
 from typing import Optional
 
+from pydantic import BaseModel, Field
+
 import fenic as fc
 
-# Create schema for extracting error analysis information
-ERROR_ANALYSIS_SCHEMA = fc.ExtractSchema([
-        fc.ExtractSchemaField(
-            name="root_cause",
-            data_type=fc.StringType,
-            description="The root cause of this error"
-        ),
-        fc.ExtractSchemaField(
-            name="fix_recommendation",
-            data_type=fc.StringType,
-            description="How to fix this error"
-        )
-    ])
 
+# Create Pydantic models for extracting error analysis information
+class ErrorAnalysis(BaseModel):
+    root_cause: str = Field(description="The root cause of this error")
+    fix_recommendation: str = Field(description="How to fix this error")
 
-
-# Create schema for extracting error type and component"""
-ERROR_PATTERN_SCHEMA = fc.ExtractSchema([
-        fc.ExtractSchemaField(
-            name="error_type",
-            data_type=fc.StringType,
-            description="Type of error (e.g., NullPointer, Timeout, ConnectionRefused)"
-        ),
-        fc.ExtractSchemaField(
-            name="component",
-            data_type=fc.StringType,
-            description="Affected component or system"
-        )
-    ])
-
+class ErrorPattern(BaseModel):
+    error_type: str = Field(description="Type of error (e.g., NullPointer, Timeout, ConnectionRefused)")
+    component: str = Field(description="Affected component or system")
 
 def main(config: Optional[fc.SessionConfig] = None):
     # 1. Configure session with semantic capabilities
@@ -179,7 +160,7 @@ All events processed successfully
         # Extract key debugging information
         fc.semantic.extract(
             "error_log",
-            ERROR_ANALYSIS_SCHEMA
+            ErrorAnalysis
         ).alias("analysis")
     )
 
@@ -214,7 +195,7 @@ All events processed successfully
         "service",
         fc.semantic.extract(
             "error_log",
-            ERROR_PATTERN_SCHEMA
+            ErrorPattern
         ).alias("patterns")
     )
 

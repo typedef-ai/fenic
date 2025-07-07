@@ -268,7 +268,6 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         return (
             f"SemanticSimilarityJoin(left_on={self._left_on.name}, "
             f"right_on={self._right_on.name}, k={self._k}, "
-            f"return_similarity_scores={self._return_similarity_scores})"
         )
 
     def _build_schema(self) -> Schema:

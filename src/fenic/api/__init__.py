@@ -39,6 +39,7 @@ from fenic.api.io import DataFrameReader, DataFrameWriter
 from fenic.api.lineage import Lineage
 from fenic.api.session import (
     AnthropicModelConfig,
+    CloudConfig,
     GoogleGLAModelConfig,
     GoogleVertexModelConfig,
     OpenAIModelConfig,
@@ -56,6 +57,7 @@ __all__ = [
     "GoogleGLAModelConfig",
     "GoogleVertexModelConfig",
     "SemanticConfig",
+    "CloudConfig",
     # IO
     "DataFrameReader",
     "DataFrameWriter",

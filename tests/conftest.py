@@ -8,6 +8,7 @@ import pytest
 import requests
 
 from fenic import (
+    GoogleVertexModelConfig,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -17,7 +18,6 @@ from fenic._inference.model_catalog import ModelProvider
 from fenic.api.session.config import (
     AnthropicModelConfig,
     GoogleGLAModelConfig,
-    GoogleVertexModelConfig,
     OpenAIModelConfig,
 )
 
@@ -153,14 +153,16 @@ def examples_session_config(app_name) -> SessionConfig:
 def multi_model_local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
-    # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
-    if model_provider == ModelProvider.OPENAI:
-        language_models = {
-            "model_1": OpenAIModelConfig(
+    nano = OpenAIModelConfig(
                 model_name="gpt-4.1-nano",
                 rpm=250,
                 tpm=50_000
-            ),
+            )
+    # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
+
+    if model_provider == ModelProvider.OPENAI:
+        language_models = {
+            "model_1": nano,
             "model_2": OpenAIModelConfig(
                 model_name="gpt-4.1-mini",
                 rpm=250,
@@ -169,11 +171,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         }
     elif model_provider == ModelProvider.ANTHROPIC:
         language_models = {
-            "model_1": OpenAIModelConfig(
-                model_name="gpt-4.1-nano",
-                rpm=500,
-                tpm=100_000
-            ),
+            "model_1": nano,
             "model_2" : AnthropicModelConfig(
                 model_name="claude-3-5-haiku-latest",
                 rpm=500,
@@ -183,11 +181,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         }
     elif model_provider == ModelProvider.GOOGLE_GLA:
         language_models = {
-            "model_1": OpenAIModelConfig(
-                model_name="gpt-4.1-nano",
-                rpm=500,
-                tpm=100_000
-            ),
+            "model_1": nano,
             "model_2" : GoogleGLAModelConfig(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
@@ -196,12 +190,8 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         }
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
         language_models = {
-            "model_1": OpenAIModelConfig(
-                model_name="gpt-4.1-nano",
-                rpm=500,
-                tpm=100_000
-            ),
-            "model_2" : GoogleGLAModelConfig(
+            "model_1": nano,
+            "model_2" : GoogleVertexModelConfig(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
@@ -221,7 +211,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
             default_language_model="model_1",
             embedding_models={"oai-small": embedding_model},
             default_embedding_model="oai-small",
-        ),
+        )
     )
 
 @pytest.fixture
