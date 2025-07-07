@@ -46,18 +46,3 @@ class LogicalExpr(ABC):
     def children(self) -> List[LogicalExpr]:
         """Returns the children of the expression. Returns an empty list if the expression has no children."""
         pass
-
-
-class BinaryExpr(LogicalExpr):
-    """Base class for binary expressions (comparison, boolean, arithmetic)."""
-
-    def __init__(self, left: LogicalExpr, right: LogicalExpr, op: Operator):
-        self.left = left
-        self.right = right
-        self.op = op
-
-    def __str__(self):
-        return f"({self.left} {self.op.value} {self.right})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.left, self.right]

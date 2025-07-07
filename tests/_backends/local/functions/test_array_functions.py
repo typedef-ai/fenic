@@ -1,6 +1,7 @@
 import pytest
 
 from fenic import array, array_contains, array_size, col, lit, struct
+from fenic.core.error import TypeMismatchError
 
 
 def test_array_size_happy_path(local_session):
@@ -29,7 +30,7 @@ def test_array_size_happy_path(local_session):
 
 
 def test_array_size_error_cases(local_session):
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeMismatchError):
         data = {"my_col": [1, 2, 3]}
         df = local_session.create_dataframe(data)
         df.with_column("size_col", array_size(col("my_col"))).to_polars()
@@ -86,14 +87,14 @@ def test_array_contains_struct(local_session):
 
 
 def test_array_contains_error_cases(local_session):
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         data = {"my_col": ["a", "b", "c"]}
         df = local_session.create_dataframe(data)
         df.with_column(
             "contains_col", array_contains(col("my_col"), col("value"))
         ).to_polars()
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeMismatchError):
         data = {"my_col": [["a", "b", "c"], ["d", "e"], None]}
         df = local_session.create_dataframe(data)
         df.with_column("contains_col", array_contains(col("my_col"), lit(1))).to_polars()
