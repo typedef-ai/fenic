@@ -1,8 +1,5 @@
 """Expression classes for internal implementation of column operations."""
 
-from fenic.core._logical_plan.expressions.aggregate import (
-    AggregateExpr as AggregateExpr,
-)
 from fenic.core._logical_plan.expressions.aggregate import AvgExpr as AvgExpr
 from fenic.core._logical_plan.expressions.aggregate import CountExpr as CountExpr
 from fenic.core._logical_plan.expressions.aggregate import FirstExpr as FirstExpr
@@ -81,9 +78,6 @@ from fenic.core._logical_plan.expressions.semantic import (
 )
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticExtractExpr as SemanticExtractExpr,
-)
-from fenic.core._logical_plan.expressions.semantic import (
-    SemanticFunction as SemanticFunction,
 )
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticMapExpr as SemanticMapExpr,

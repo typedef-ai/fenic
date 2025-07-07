@@ -12,7 +12,6 @@ import sqlglot.expressions as sqlglot_exprs
 from fenic._constants import SQL_PLACEHOLDER_RE
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     ColumnExpr,
     LogicalExpr,
     SortExpr,
@@ -48,11 +47,8 @@ class Projection(LogicalPlan):
     def _build_schema(self) -> Schema:
         fields = []
         for expr in self._exprs:
-            if isinstance(expr, AggregateExpr):
-                raise ValueError(
-                    "Aggregate expressions are not allowed in projections. "
-                    "Please use the agg() method instead."
-                )
+            # AggregateExpr is no longer used - replaced by AggregateFunction
+            # Note: AggregateFunction expressions are not allowed in projections either
             fields.append(expr.to_column_field(self._input))
         return Schema(fields)
 
@@ -83,11 +79,8 @@ class Filter(LogicalPlan):
                 "- df.filter(col('status') == 'active')\n"
                 "- df.filter(col('is_valid'))"
             )
-        if isinstance(predicate, AggregateExpr):
-            raise ValueError(
-                "Aggregate expressions are not allowed in projections. "
-                "Please use the agg() method instead."
-            )
+        # AggregateExpr is no longer used - replaced by AggregateFunction
+        # Note: AggregateFunction expressions are not allowed in filter predicates either
         if isinstance(predicate, SortExpr):
             raise ValueError(
                 "Sort expressions are not allowed in projections. "

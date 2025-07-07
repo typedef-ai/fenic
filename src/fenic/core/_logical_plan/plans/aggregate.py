@@ -1,12 +1,12 @@
 from typing import List
 
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     AliasExpr,
     LogicalExpr,
     SortExpr,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.signatures import AggregateFunction
 from fenic.core.types import Schema
 
 
@@ -21,7 +21,7 @@ class Aggregate(LogicalPlan):
         self._group_exprs = group_exprs
         self._agg_exprs = agg_exprs
         for expr in agg_exprs:
-            if not isinstance(expr.expr, AggregateExpr):
+            if not isinstance(expr.expr, AggregateFunction):
                 raise ValueError(f"Expression {expr} is not an aggregation")
             _validate_agg_expr(expr.expr, group_exprs)
         for expr in group_exprs:
@@ -58,7 +58,7 @@ def _validate_agg_expr(
     in_agg_function: bool = False,
 ):
     """Validate aggregation expressions."""
-    if isinstance(expr, AggregateExpr):
+    if isinstance(expr, AggregateFunction):
         if in_agg_function:
             raise ValueError(
                 f"Nested aggregation functions are not allowed. Found inner aggregation '{expr.children()[0]}' inside outer aggregation '{expr}'. "
@@ -74,7 +74,7 @@ def _validate_agg_expr(
 
 def _validate_groupby_expr(expr: LogicalExpr):
     """Validate groupby expressions."""
-    if isinstance(expr, AggregateExpr):
+    if isinstance(expr, AggregateFunction):
         raise ValueError(
             f"Aggregate function: {expr} cannot be used in the group by clause."
         )

@@ -1,6 +1,6 @@
-"""ScalarFunction base class for functions with centralized signature validation.
+"""Base classes for functions with centralized signature validation.
 
-This module provides the ScalarFunction class that uses the registry system
+This module provides ScalarFunction and AggregateFunction classes that use the registry system
 for type validation and return type inference.
 """
 
@@ -58,3 +58,14 @@ class ScalarFunction(LogicalExpr):
     def __str__(self) -> str:
         args_str = ", ".join(str(arg) for arg in self._children)
         return f"{self.function_name}({args_str})"
+
+
+class AggregateFunction(ScalarFunction):
+    """Base class for aggregate functions - marker class that extends ScalarFunction."""
+
+    def __init__(self, *args: LogicalExpr):
+        """Initialize AggregateFunction with logical expression arguments."""
+        super().__init__(*args)
+        # Store expr for backward compatibility with existing single-arg aggregate code
+        if len(args) == 1:
+            self.expr = args[0]
