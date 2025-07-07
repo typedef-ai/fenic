@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.plans.base import LogicalPlan
 
 from pydantic import BaseModel, Field
 
@@ -159,7 +162,7 @@ class TextractExpr(ScalarFunction):
     def __str__(self):
         return f"text.extract('{self.template}', {self.input_expr})"
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on parsed template."""
         return self.parsed_template.to_struct_schema()
 

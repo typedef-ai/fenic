@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
@@ -46,15 +47,10 @@ class SemanticFunction(ScalarFunction):
         """Initialize semantic function."""
         super().__init__(*args)
 
+    @abstractmethod
     def _validate_completion_parameters(self, plan: LogicalPlan):
-        """Validate completion parameters against session config."""
-        validate_completion_parameters(
-            self.model_alias,
-            plan.session_state.session_config,
-            self.temperature,
-            self.max_tokens
-        )
-
+        pass
+    
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Call parent to handle signature validation
@@ -96,6 +92,15 @@ class SemanticMapExpr(SemanticFunction):
 
         # Pass all parsed column expressions to signature validation
         super().__init__(*self.exprs)
+
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters."""
+        validate_completion_parameters(
+            self.model_alias,
+            plan.session_state.session_config,
+            self.temperature,
+            self.max_tokens
+        )
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
@@ -208,6 +213,16 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
         # Pass all parsed column expressions to signature validation
         super().__init__(*self.exprs)
 
+    def _validate_completion_parameters(self, plan: LogicalPlan):
+        """Validate completion parameters."""
+        validate_completion_parameters(
+            self.model_alias,
+            plan.session_state.session_config,
+            self.temperature,
+            self.max_tokens
+        )
+
+
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
@@ -264,10 +279,6 @@ class SemanticClassifyExpr(SemanticFunction):
                 f"Type: {self.expr.to_column_field(plan).data_type}. "
                 f"Only string enums are supported."
             )
-
-    def _validate_completion_parameters(self, plan: LogicalPlan):
-        """Validate completion parameters (no max_tokens for classify)."""
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         # Call parent to handle signature validation
@@ -351,11 +362,10 @@ class EmbeddingsExpr(SemanticFunction):
     def __str__(self) -> str:
         return f"semantic.embed({self.expr}, {self.model_alias})"
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return EmbeddingType with specific dimensions based on model."""
-        # Note: This will be called after signature validation, so we need the plan context
-        # This is a limitation - we'll need to handle this in the override method
-        return EmbeddingType(embedding_model="unknown", dimensions=0)  # Placeholder
+        return_type = self._validate_model_config(plan)
+        return return_type
 
     def _validate_model_config(self, plan: LogicalPlan) -> EmbeddingType:
         """Validate model configuration and return the correct EmbeddingType."""
@@ -383,13 +393,6 @@ class EmbeddingsExpr(SemanticFunction):
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Embeddings don't use completion parameters."""
         pass
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        # Call parent to handle signature validation
-        super().to_column_field(plan)
-        # Then validate model config and get the correct return type
-        embedding_type = self._validate_model_config(plan)
-        return ColumnField(name=str(self), data_type=embedding_type)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]

@@ -111,7 +111,7 @@ class TestFunctionSignature:
         sig = FunctionSignature(function_name="array_constructor", type_signature=VariadicUniform(expected_min_args=1),
                                 return_type=ReturnTypeStrategy.DYNAMIC)
 
-        def dynamic_return_func(arg_types):
+        def dynamic_return_func(arg_types, logical_plan):
             return ArrayType(arg_types[0])
 
         string_col = MockColumn("text_col", StringType)

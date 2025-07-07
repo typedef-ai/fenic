@@ -42,8 +42,13 @@ class ScalarFunction(LogicalExpr):
         )
         return ColumnField(name=str(self), data_type=return_type)
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
-        """Override in subclasses that use DYNAMIC return type strategy."""
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        """Override in subclasses that use DYNAMIC return type strategy.
+
+        Args:
+            arg_types: List of input argument data types.q
+            plan: LogicalPlan object for the current query.
+        """
         raise NotImplementedError(f"{self.function_name} must implement _infer_dynamic_return_type")
 
     def children(self) -> List[LogicalExpr]:
