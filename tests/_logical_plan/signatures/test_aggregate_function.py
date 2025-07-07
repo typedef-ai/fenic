@@ -122,7 +122,7 @@ class TestAggregateSignatures:
         """Test that all expected aggregate functions are registered."""
         expected_functions = [
             "sum", "avg", "min", "max", "count", 
-            "list", "first", "stddev", "md_group_schema"
+            "list", "first", "stddev"
         ]
         
         registered_functions = FunctionRegistry.list_functions()

@@ -16,6 +16,7 @@ from fenic.core.types import (
     EmbeddingType,
 )
 
+
 class SumExpr(AggregateFunction):
     function_name = "sum"
 
