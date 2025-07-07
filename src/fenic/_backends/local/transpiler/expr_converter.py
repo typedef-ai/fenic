@@ -346,14 +346,14 @@ class ExprConverter:
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:
         return pl.struct(
-            [self._convert_expr(arg) for arg in logical.args]
+            [self._convert_expr(child) for child in logical.children()]
         )
 
 
     @_convert_expr.register(ArrayExpr)
     def _convert_array_expr(self, logical: ArrayExpr) -> pl.Expr:
         return pl.concat_list(
-            [self._convert_expr(arg) for arg in logical.args]
+            [self._convert_expr(child) for child in logical.children()]
         )
 
 
