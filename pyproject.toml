@@ -32,6 +32,7 @@ dependencies = [
   "sqlglot>=26.25.3",
   "pandas>=2.2.2",
   "rich>=14.0.0",
+  "ipywidgets>=8.1.7",
 ]
 
 [project.urls]

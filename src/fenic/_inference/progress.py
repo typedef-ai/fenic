@@ -1,8 +1,10 @@
 """Global progress tracking for model client operations using Rich."""
 
+from __future__ import annotations
+
 import threading
 from typing import Optional
-from rich.console import Console
+from fenic.logging import _shared_console
 from rich.progress import (
     Progress,
     SpinnerColumn,
@@ -17,7 +19,7 @@ from rich.progress import (
 class ProgressManager:
     """Singleton manager for Rich progress displays across multiple threads."""
 
-    _instance: Optional['ProgressManager'] = None
+    _instance: Optional[ProgressManager] = None
     _lock = threading.Lock()
 
     def __new__(cls):
@@ -29,16 +31,16 @@ class ProgressManager:
 
     def _initialize(self):
         """Initialize the Rich progress display."""
-        self.console = Console()
+        self.console = _shared_console
         self.progress = Progress(
             SpinnerColumn(),
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             MofNCompleteColumn(),
             TimeRemainingColumn(),
-            TextColumn("• {task.fields[extra]}"),  # 'extra' is a per-task annotation
+            TextColumn("• {task.fields[extra]}"),
             console=self.console,
-            transient=True,  # Remove completed tasks
+            transient=False,
             refresh_per_second=10,
         )
         self._context_count = 0

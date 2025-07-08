@@ -3,7 +3,10 @@
 import logging
 import sys
 from typing import Optional, TextIO
+from rich.console import Console
+from rich.logging import RichHandler
 
+_shared_console = Console()
 
 def configure_logging(
     log_level: int = logging.INFO,
@@ -26,23 +29,29 @@ def configure_logging(
     cases, you may not need to call this function.
     """
     stream = log_stream or sys.stderr
-    formatter = logging.Formatter(log_format)
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(formatter)
 
+    # Only configure if root logger has no handlers
     root_logger = logging.getLogger()
     if not root_logger.hasHandlers():
-        # Set up root logger only if not already configured
+        handler = RichHandler(
+            console=_shared_console,
+            rich_tracebacks=True,
+            markup=True,
+            show_time=False  # or True if you want timestamps in Rich
+        )
+
+        # Use user-supplied or default format (Rich usually handles format itself)
+        formatter = logging.Formatter(log_format or "%(message)s")
+        handler.setFormatter(formatter)
+
         root_logger.setLevel(log_level)
         root_logger.addHandler(handler)
 
         # Silence noisy dependencies
-        for noisy_logger_name in ("openai", "httpx"):
-            noisy_logger = logging.getLogger(noisy_logger_name)
-            noisy_logger.setLevel(logging.ERROR)
+        for noisy in ("openai", "httpx"):
+            logging.getLogger(noisy).setLevel(logging.ERROR)
 
-    # Set the library logger level and enable propagation
+    # Make sure your own loggers propagate to root
     library_root_name = __name__.split(".")[0]
-    library_logger = logging.getLogger(library_root_name)
-    library_logger.setLevel(log_level)
-    library_logger.propagate = True
+    logging.getLogger(library_root_name).setLevel(log_level)
+    logging.getLogger(library_root_name).propagate = True

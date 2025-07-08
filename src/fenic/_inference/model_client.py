@@ -15,12 +15,13 @@ from typing import (
     Optional,
     Set,
     TypeVar,
+    Tuple,
     Union,
 )
 
 from openai.types.chat.chat_completion_token_logprob import ChatCompletionTokenLogprob
 from pydantic import BaseModel
-from fenic._inference.progress import get_progress_manager
+from fenic._inference.progress import get_progress_manager, ProgressManager
 
 from fenic._inference.model_catalog import ModelProvider
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
@@ -519,53 +520,68 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             List[ResponseT]: List of responses in the same order as the input requests
         """
-        request_futures: List[Future] = []
         current_thread_id = threading.get_ident()
-        unique_futures: Dict[Any, Future] = {}
-
-        num_unique_requests = 0
-        total_token_estimate = TokenEstimate()
         batch_id = uuid.uuid4()
         logger.info(
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using model {self.model}"
         )
 
-        # Submit all requests with progress indicator
-        progress = get_progress_manager()
+        progress: ProgressManager = get_progress_manager()
         with progress:
-            task_id = progress.add_task(
-                f"Submitting requests for batch: {batch_id} (model: {self.model})",
-                total=len(requests),
-                extra=f"model: {self.model}"
+            request_futures, total_token_estimate, num_unique_requests = self._submit_requests(
+                requests,
+                batch_id,
+                current_thread_id,
+                progress,
             )
 
-            for request in requests:
-                # Check for exceptions from the event loop thread
-                self._maybe_raise_thread_exception()
+        logger.info(
+            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
+        )
 
-                # Eagerly handle empty requests
-                if request is None:
-                    req_future = Future()
-                    request_futures.append(req_future)
-                    req_future.set_result(None)
-                    progress.update(
-                        task_id,
-                        advance=1,
-                        extra=f"tokens: {total_token_estimate.input_tokens:,} in | {total_token_estimate.output_tokens:,} out"
-                    )
-                    continue
+        with progress:
+            responses = self._await_responses(request_futures, batch_id, progress)
 
-                req_future, estimated_tokens = self._get_or_create_request_future(
-                    unique_futures, request
-                )
-                request_futures.append(req_future)
+        logger.info(
+            f"Batch {batch_id}: Completed with {len(responses)} responses from model {self.model}"
+        )
+        return responses
 
-                # Only enqueue if this is a new, unique request
+    #
+    # Producer methods (run on the user thread)
+    #
+
+    def _submit_requests(
+        self,
+        requests: List[Optional[RequestT]],
+        batch_id: uuid.UUID,
+        thread_id: int,
+        progress: ProgressManager,
+    ) -> Tuple[List[Future], TokenEstimate, int]:
+        request_futures: List[Future] = []
+        unique_futures: Dict[Any, Future] = {}
+        total_token_estimate = TokenEstimate()
+        num_unique_requests = 0
+
+        task_id = progress.add_task(
+            f"Submitting requests for batch: {batch_id} (model: {self.model})",
+            total=len(requests),
+            extra=f"model: {self.model}"
+        )
+
+        for request in requests:
+            self._maybe_raise_thread_exception()
+
+            if request is None:
+                req_future = Future()
+                req_future.set_result(None)
+            else:
+                req_future, estimated_tokens = self._get_or_create_request_future(unique_futures, request)
                 if estimated_tokens is not None:
                     num_unique_requests += 1
                     total_token_estimate += estimated_tokens
                     queue_item = QueueItem(
-                        thread_id=current_thread_id,
+                        thread_id=thread_id,
                         request=request,
                         future=req_future,
                         estimated_tokens=estimated_tokens,
@@ -576,50 +592,41 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                     enqueue_future.result()
 
-                progress.update(
-                    task_id,
-                    advance=1,
-                    extra=f"tokens: {total_token_estimate.input_tokens:,} in | {total_token_estimate.output_tokens:,} out"
-                )
-            
-            # Remove the completed task
-            progress.remove_task(task_id)
-
-        logger.info(
-            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
-        )
-
-        # Wait for all responses with progress indicator
-        responses = []
-        with progress:
-            task_id = progress.add_task(
-                f"Awaiting responses for batch {batch_id})",
-                total=len(request_futures),
-                extra=f"model: {self.model}"
+            request_futures.append(req_future)
+            progress.update(
+                task_id,
+                advance=1,
+                extra=f"tokens: {total_token_estimate.input_tokens:,} in | {total_token_estimate.output_tokens:,} out"
             )
 
-            for i, req_future in enumerate(request_futures):
-                responses.append(req_future.result())
-                progress.update(
-                    task_id,
-                    advance=1,
-                    extra=f"requests completed: {i+1}/{len(request_futures)}"
-                )
-            
-            # Remove the completed task
-            progress.remove_task(task_id)
+        progress.remove_task(task_id)
+        return request_futures, total_token_estimate, num_unique_requests
 
-        logger.info(
-            f"Batch {batch_id}: Completed with {len(responses)} responses from model {self.model}"
+    def _await_responses(
+        self,
+        request_futures: List[Future],
+        batch_id: uuid.UUID,
+        progress: ProgressManager,
+    ) -> List[ResponseT]:
+        task_id = progress.add_task(
+            f"Awaiting responses for batch {batch_id})",
+            total=len(request_futures),
+            extra=f"model: {self.model}"
         )
+
+        responses = []
+        for i, future in enumerate(request_futures):
+            responses.append(future.result())
+            progress.update(
+                task_id,
+                advance=1,
+                extra=f"requests completed: {i+1}/{len(request_futures)}"
+            )
+
+        progress.remove_task(task_id)
         return responses
 
-    #
-    # Producer methods (run on the user thread)
-    #
-    def _get_or_create_request_future(
-            self, unique_futures: Dict[Any, Future], request: RequestT
-    ) -> tuple[Future, TokenEstimate | None]:
+    def _get_or_create_request_future(self, unique_futures: Dict[Any, Future], request: RequestT) -> tuple[Future, TokenEstimate | None]:
         """Retrieves an existing future for a duplicate request or creates a new one.
 
         Args:
