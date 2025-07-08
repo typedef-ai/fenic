@@ -108,6 +108,10 @@ class Schema:
         fields_content = "\n".join(field_strs)
         return f"Schema(\n{fields_content}\n)"
 
+    def _inline_str(self) -> str:
+        """Return a single line string representation of the Schema."""
+        return f"schema=[{', '.join([str(field) for field in self.column_fields])}]"
+
     def column_names(self) -> List[str]:
         """Get a list of all column names in the schema.
 

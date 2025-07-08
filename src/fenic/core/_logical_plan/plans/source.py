@@ -24,7 +24,7 @@ class InMemorySource(LogicalPlan):
         return convert_polars_schema_to_custom_schema(self._source.schema)
 
     def _repr(self) -> str:
-        return f"InMemorySource({self.schema()})"
+        return f"InMemorySource({self.schema()._inline_str()})"
 
     def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
         if len(children) != 0:
