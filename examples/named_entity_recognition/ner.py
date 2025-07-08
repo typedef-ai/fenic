@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -65,40 +65,29 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("🔍 Stage 1: Zero-shot entity extraction...")
 
     # Define basic NER schema for security entities
-    basic_ner_schema = fc.ExtractSchema([
-        fc.ExtractSchemaField(
-            name="cve_ids",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+    class BasicNERSchema(BaseModel):
+        cve_ids: List[str] = Field(
             description="CVE identifiers in format CVE-YYYY-NNNNN"
-        ),
-        fc.ExtractSchemaField(
-            name="software_packages",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        software_packages: List[str] = Field(
             description="Software names and versions mentioned"
-        ),
-        fc.ExtractSchemaField(
-            name="ip_addresses",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        ip_addresses: List[str] = Field(
             description="IP addresses (IPv4 or IPv6)"
-        ),
-        fc.ExtractSchemaField(
-            name="domains",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        domains: List[str] = Field(
             description="Domain names and URLs"
-        ),
-        fc.ExtractSchemaField(
-            name="file_hashes",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        file_hashes: List[str] = Field(
             description="File hashes (MD5, SHA1, SHA256)"
         )
-    ])
 
     # Apply basic extraction
     basic_extraction_df = reports_df.select(
         "report_id",
         "source",
         "title",
-        fc.semantic.extract("content", basic_ner_schema).alias("basic_entities")
+        fc.semantic.extract("content", BasicNERSchema).alias("basic_entities")
     )
 
     # Display sample results
@@ -114,60 +103,37 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("\n🧠 Stage 2: Enhanced domain-specific extraction...")
 
     # Define enhanced schema with security-specific entities
-    enhanced_ner_schema = fc.ExtractSchema([
-        # Include all basic entities
-        fc.ExtractSchemaField(
-            name="cve_ids",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+    class EnhancedNERSchema(BaseModel):
+        cve_ids: List[str] = Field(
             description="CVE identifiers in format CVE-YYYY-NNNNN"
-        ),
-        fc.ExtractSchemaField(
-            name="software_packages",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        software_packages: List[str] = Field(
             description="Software names with specific version numbers"
-        ),
-        fc.ExtractSchemaField(
-            name="ip_addresses",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        ip_addresses: List[str] = Field(
             description="IP addresses (IPv4 or IPv6)"
-        ),
-        fc.ExtractSchemaField(
-            name="domains",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        domains: List[str] = Field(
             description="Domain names, subdomains, and URLs"
-        ),
-        fc.ExtractSchemaField(
-            name="file_hashes",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        file_hashes: List[str] = Field(
             description="File hashes with hash type prefix (MD5:, SHA1:, SHA256:)"
-        ),
-        # Additional security-specific entities
-        fc.ExtractSchemaField(
-            name="attack_vectors",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        attack_vectors: List[str] = Field(
             description="Attack methods like buffer overflow, SQL injection, phishing"
-        ),
-        fc.ExtractSchemaField(
-            name="threat_actors",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        threat_actors: List[str] = Field(
             description="Threat actor names, APT groups, ransomware families"
-        ),
-        fc.ExtractSchemaField(
-            name="cvss_scores",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        cvss_scores: List[str] = Field(
             description="CVSS scores and severity ratings"
-        ),
-        fc.ExtractSchemaField(
-            name="mitre_techniques",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        mitre_techniques: List[str] = Field(
             description="MITRE ATT&CK technique IDs (TXXXX format)"
-        ),
-        fc.ExtractSchemaField(
-            name="affected_systems",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
+        )
+        affected_systems: List[str] = Field(
             description="Operating systems, platforms, or infrastructure affected"
         )
-    ])
 
     # Preprocess content for better extraction
     @fc.udf(return_type=fc.StringType)
@@ -192,7 +158,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         "source",
         "title",
         "content",
-        fc.semantic.extract("processed_content", enhanced_ner_schema).alias("entities")
+        fc.semantic.extract("processed_content", EnhancedNERSchema).alias("entities")
     )
 
     print("Enhanced extraction with security-specific entities:")
@@ -238,7 +204,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     chunk_entities_df = chunked_df.select(
         "report_id",
         "chunk",
-        fc.semantic.extract("chunk", enhanced_ner_schema).alias("chunk_entities")
+        fc.semantic.extract("chunk", EnhancedNERSchema).alias("chunk_entities")
     )
 
     # Aggregate entities across chunks
@@ -331,12 +297,31 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("\n🎯 Actionable Intelligence:")
 
     # Define Pydantic model for risk assessment
+
     class ExtractedRiskInfo(BaseModel):
-        """Directly extracted risk information from the report text. If a value is not present in the report, use an empty string."""
-        severity_rating: str = Field(..., description="Explicit severity rating or risk level as stated in the report (e.g., 'critical', 'high', 'medium', 'low')")
-        cvss_score: str = Field(..., description="CVSS score as stated in the report")
-        mitigation_steps: str = Field(..., description="Quoted mitigation or remediation steps as stated in the report")
-        affected_systems: str = Field(..., description="Exact systems, platforms, or users mentioned as affected in the report")
+        """
+        Directly extracted risk information from the report text.
+        If a value is not present in the report, use an empty string.
+        """
+
+        severity_rating: str = Field(
+            ...,
+            description="Explicit severity rating or risk level as stated in the report "
+                        "(e.g., 'critical', 'high', 'medium', 'low')"
+        )
+        cvss_score: str = Field(
+            ...,
+            description="CVSS score as stated in the report"
+        )
+        mitigation_steps: str = Field(
+            ...,
+            description="Quoted mitigation or remediation steps as stated in the report"
+        )
+        affected_systems: str = Field(
+            ...,
+            description="Exact systems, platforms, or users mentioned as affected in the report"
+        )
+
 
     # Assess risk for each report
     risk_assessment_df = enhanced_df.select(

@@ -1,7 +1,7 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
 from enum import Enum
-from typing import List, Optional, Type, Union
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
@@ -16,11 +16,12 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
 )
 from fenic.core._utils.extract import (
+    ExtractSchemaValidationError,
     validate_extract_schema_structure,
 )
+from fenic.core.error import ValidationError
 from fenic.core.types import (
     ClassifyExampleCollection,
-    ExtractSchema,
     MapExampleCollection,
     PredicateExampleCollection,
 )
@@ -89,12 +90,12 @@ def map(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def extract(
         column: ColumnOrName,
-        schema: Union[ExtractSchema, Type[BaseModel]],
+        schema: type[BaseModel],
         max_output_tokens: int = 1024,
         temperature: float = 0,
         model_alias: Optional[str] = None,
 ) -> Column:
-    """Extracts structured information from unstructured text using a provided schema.
+    """Extracts structured information from unstructured text using a provided Pydantic model schema.
 
     This function applies an instruction-driven extraction process to text columns, returning
     structured data based on the fields and descriptions provided. Useful for pulling out key entities,
@@ -102,10 +103,8 @@ def extract(
 
     Args:
         column: Column containing text to extract from.
-        schema: An ExtractSchema containing fields of type ExtractSchemaField that define
-            the output structure and field descriptions or a Pydantic model that defines the output structure with
-            descriptions for each field.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
+        schema: A Pydantic model type that defines the output structure with descriptions for each field.
+        model_alias: Optional alias for the language model to use for the extraction. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
             tokens, based on the model's context length and other operator-specific parameters.
@@ -113,42 +112,24 @@ def extract(
     Returns:
         Column: A new column with structured values (a struct) based on the provided schema.
 
-    Example: Extracting product metadata from a description using an explict ExtractSchema
+    Example: Extracting knowledge graph triples and named entities from text
         ```python
-        schema = ExtractSchema([
-             ExtractSchemaField(
-                 name="brand",
-                 data_type=DataType.STRING,
-                 description="The brand or manufacturer mentioned in the product description"
-             ),
-             ExtractSchemaField(
-                 name="capacity_gb",
-                 data_type=DataType.INTEGER,
-                 description="The storage capacity of the product in gigabytes, if mentioned"
-             ),
-             ExtractSchemaField(
-                 name="connectivity",
-                 data_type=DataType.STRING,
-                 description="The type of connectivity or ports described (e.g., USB-C, Thunderbolt)"
-             )
-         ])
-        df.select(semantic.extract("product_description", schema))
-        ```
+        class Triple(BaseModel):
+            subject: str = Field(description="The subject of the triple")
+            predicate: str = Field(description="The predicate or relation")
+            object: str = Field(description="The object of the triple")
 
-    Example: Extracting user intent from a support message using a Pydantic model
-        ```python
-        class UserRequest(BaseModel):
-            request_type: str = Field(..., description="The type of request (e.g., refund, technical issue, setup help)")
-            target_product: str = Field(..., description="The name or type of product the user is referring to")
-            preferred_resolution: str = Field(..., description="The action the user is expecting (e.g., replacement, callback)")
+        class KGResult(BaseModel):
+            triples: List[Triple] = Field(description="List of extracted knowledge graph triples")
+            entities: list[str] = Field(description="Flat list of all detected named entities")
 
-        df.select(semantic.extract("support_message", UserRequest))
+        df.select(semantic.extract("blurb", KGResult))
         ```
-    Raises:
-        ValueError: If any input expression is invalid, or if the schema
-            is empty or invalid, or if the schema contains fields with no descriptions.
     """
-    validate_extract_schema_structure(schema)
+    try:
+        validate_extract_schema_structure(schema)
+    except ExtractSchemaValidationError as e:
+        raise ValidationError(f"Invalid extraction schema: {str(e)}") from None
 
     return Column._from_logical_expr(
         SemanticExtractExpr(
@@ -271,7 +252,7 @@ def classify(
         temperature: float = 0,
 ) -> Column:
     """Classifies a string column into one of the provided labels.
-    
+
     This is useful for tagging incoming documents with predefined categories.
 
     Args:

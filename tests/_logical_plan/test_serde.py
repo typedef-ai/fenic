@@ -6,9 +6,6 @@ from pydantic import BaseModel, Field
 
 from fenic import (
     DataFrame,
-    ExtractSchema,
-    ExtractSchemaField,
-    StringType,
     col,
     lit,
     semantic,
@@ -56,7 +53,7 @@ def _test_plan_serialization(
 
     return deserialized_df
 
-class TestCategory(Enum):
+class CategoryEnum(Enum):
     A = "a"
     B = "b"
     C = "c"
@@ -288,7 +285,7 @@ def test_semantic_plans(local_session, extract_data_df):
 
     # test with an enum as categories
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    df = df.select(semantic.classify(col("b"), TestCategory))
+    df = df.select(semantic.classify(col("b"), CategoryEnum))
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
 
@@ -337,23 +334,6 @@ def test_semantic_plans(local_session, extract_data_df):
         ),
     )
     deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
-    assert deserialized_df
-
-    # semantic extract
-    # test extract with the output schema
-    output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="product_name",
-                data_type=StringType,
-                description="The name of the product mentioned in the review or support ticket",
-            ),
-        ]
-    )
-    df = extract_data_df.select(
-        semantic.extract(col("review"), output_schema).alias("review")
-    )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
     # test extract with the base model
     df = extract_data_df.select(

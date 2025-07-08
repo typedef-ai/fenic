@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional
 
 from pydantic import BaseModel
 
@@ -23,7 +23,6 @@ from fenic._inference.model_catalog import (
 from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
-from fenic.core._utils.extract import convert_extract_schema_to_pydantic_type
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core.types import (
@@ -31,7 +30,6 @@ from fenic.core.types import (
     EmbeddingType,
     StringType,
 )
-from fenic.core.types.extract_schema import ExtractSchema
 from fenic.core.types.schema import ColumnField
 
 
@@ -94,7 +92,7 @@ class SemanticExtractExpr(SemanticExpr):
     def __init__(
         self,
         expr: LogicalExpr,
-        schema: Union[ExtractSchema, type[BaseModel]],
+        schema: type[BaseModel],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
@@ -121,14 +119,8 @@ class SemanticExtractExpr(SemanticExpr):
                 f"Only StringType is supported."
             )
 
-        pydantic_model = (
-            convert_extract_schema_to_pydantic_type(self.schema)
-            if isinstance(self.schema, ExtractSchema)
-            else self.schema
-        )
-
         return ColumnField(
-            str(self), convert_pydantic_type_to_custom_struct_type(pydantic_model)
+            str(self), convert_pydantic_type_to_custom_struct_type(self.schema)
         )
 
     def children(self) -> List[LogicalExpr]:

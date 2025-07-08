@@ -1,348 +1,259 @@
+from dataclasses import dataclass
+from textwrap import dedent
+from typing import List, Literal, Optional, Union
+
 import polars as pl
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 from fenic import (
     BooleanType,
-    ExtractSchema,
-    ExtractSchemaField,
-    ExtractSchemaList,
     IntegerType,
     StringType,
     col,
     semantic,
 )
-from fenic.core._utils.extract import (
-    convert_extract_schema_to_pydantic_type,
-)
-from fenic.core._utils.schema import (
-    convert_custom_dtype_to_polars,
-    convert_pydantic_type_to_custom_struct_type,
-)
+from fenic.core.error import ValidationError as FenicValidationError
+from fenic.core.types import ArrayType, ColumnField, StructField, StructType
 
 
-def test_semantic_extract(extract_data_df):
-    # Test with basic extract schema
-    output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="product_name",
-                data_type=StringType,
-                description="The name of the product mentioned in the review or support ticket",
-            ),
-            ExtractSchemaField(
-                name="phone_version",
-                data_type=IntegerType,
-                description="specific product number",
-            ),
-            ExtractSchemaField(
-                name="contains_negative_feedback",
-                data_type=BooleanType,
-                description="the review contains some negative feedback",
-            ),
-        ]
-    )
-
-    df = extract_data_df.select(
-        semantic.extract(col("review"), output_schema).alias("review")
-    )
-    result = df.to_polars()
-    pl_model = convert_custom_dtype_to_polars(
-        convert_pydantic_type_to_custom_struct_type(
-            convert_extract_schema_to_pydantic_type(output_schema)
-        )
-    )
-    assert result.schema == pl.Schema({"review": pl_model})
-
-    # Test with basic pydantic model
+def test_extract_primitive_types(extract_data_df):
+    """Test semantic extraction with primitive types."""
     class BasicReviewModel(BaseModel):
-        positive_feature: str = Field(
-            ..., description="Positive feature described in the review"
-        )
-        negative_feature: str = Field(
-            ..., description="Negative feature described in the review"
-        )
-        product_number: int = Field(..., description="Specific product number")
+        product_name: str = Field(description="The name of the product mentioned in the review")
+        phone_version: int = Field(description="specific product number")
+        contains_negative_feedback: bool = Field(description="the review contains some negative feedback")
 
     df = extract_data_df.select(
-        semantic.extract(col("review"), BasicReviewModel).alias("review_out")
+        semantic.extract(col("review"), BasicReviewModel).alias("review")
     )
+    assert df.schema.column_fields == [
+        ColumnField(name="review", data_type=StructType([
+            StructField(name="product_name", data_type=StringType),
+            StructField(name="phone_version", data_type=IntegerType),
+            StructField(name="contains_negative_feedback", data_type=BooleanType),
+        ]))
+    ]
     result = df.to_polars()
-    assert result.schema == pl.Schema(
-        {
-            "review_out": pl.Struct(
-                {
-                    "positive_feature": pl.String,
-                    "negative_feature": pl.String,
-                    "product_number": pl.Int64,
-                }
-            )
-        }
-    )
 
-    # Test extract as derived column expressions
-    df = extract_data_df.select(
-        semantic.extract(col("review"), schema=output_schema).alias("review")
-    )
-    df = df.select(
-        col("review").get_item("product_name"),
-        col("review").get_item("phone_version"),
-        col("review").get_item("contains_negative_feedback"),
-    )
-    result = df.to_polars()
-    assert result.schema == pl.Schema(
-        {
-            "review[product_name]": pl.String,
-            "review[phone_version]": pl.Int64,
-            "review[contains_negative_feedback]": pl.Boolean,
-        }
-    )
-
-    df = extract_data_df.with_column(
-        "contains_negative_feedback",
-        semantic.extract(col("review"), schema=output_schema).get_item(
-            "contains_negative_feedback"
-        ),
-    )
-    result = df.to_polars()
-    assert result.schema == pl.Schema(
-        {
-            "review": pl.String,
+    expected_schema = pl.Schema({
+        "review": pl.Struct({
+            "product_name": pl.String,
+            "phone_version": pl.Int64,
             "contains_negative_feedback": pl.Boolean,
-        }
-    )
+        })
+    })
+    assert result.schema == expected_schema
 
+def test_extract_lists(local_session):
+    """Test extraction with complex nested Pydantic models containing lists and lists of objects."""
+    class Triple(BaseModel):
+        subject: str = Field(description="The subject of the triple")
+        predicate: str = Field(description="The predicate or relation")
+        object: str = Field(description="The object of the triple")
 
-def test_semantic_extract_list(extract_data_df):
-    # Test basic list
+    class KGResult(BaseModel):
+        triples: List[Triple] = Field(description="List of extracted knowledge graph triples")
+        entities: list[str] = Field(description="Flat list of all detected named entities")
 
-    list_output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="issues_reported",
-                data_type=ExtractSchemaList(element_type=StringType),
-                description="All issues reported about the product",
-            ),
-            ExtractSchemaField(
-                name="phone_version",
-                data_type=IntegerType,
-                description="specific product number",
-            ),
+    df = local_session.create_dataframe({
+        "blurb": [
+            "Anthropic, co-founded by Dario Amodei, is a leading AI research company. "
+            "Harrison Chase is the CEO of Langchain."
         ]
-    )
-    df = extract_data_df.select(
-        semantic.extract(col("review"), list_output_schema).alias("review_issues")
-    )
+    })
+
+    df = df.select(semantic.extract(col("blurb"), KGResult).alias("blurb"))
+    assert df.schema.column_fields == [
+        ColumnField(name="blurb", data_type=StructType([
+            StructField(name="triples", data_type=ArrayType(element_type=StructType([
+                StructField(name="subject", data_type=StringType),
+                StructField(name="predicate", data_type=StringType),
+                StructField(name="object", data_type=StringType),
+            ]))),
+            StructField(name="entities", data_type=ArrayType(element_type=StringType)),
+        ]))
+    ]
     result = df.to_polars()
-    pl_model = convert_custom_dtype_to_polars(
-        convert_pydantic_type_to_custom_struct_type(
-            convert_extract_schema_to_pydantic_type(list_output_schema)
+
+    assert result.schema == pl.Schema({"blurb": pl.Struct({
+        "triples": pl.List(pl.Struct({
+            "subject": pl.String,
+            "predicate": pl.String,
+            "object": pl.String,
+        })),
+        "entities": pl.List(pl.String),
+    })})
+
+def test_extract_nested_objects_with_optional_fields(local_session):
+    class WorkExperience(BaseModel):
+        company: str = Field(description="Name of the company")
+        title: str = Field(description="Job title held")
+        start_year: int = Field(description="Year the job started")
+        end_year: Optional[int] = Field(None, description="Year the job ended (if applicable)")
+        description: Optional[str] = Field(None, description="Short description of responsibilities")
+
+    class Education(BaseModel):
+        institution: str = Field(description="Name of the educational institution")
+        major: str = Field(description="Field of study")
+        graduation_year: Optional[int] = Field(None, description="Year of graduation")
+
+    class Resume(BaseModel):
+        name: str = Field(description="Full name of the candidate")
+        work_experience: List[WorkExperience] = Field(description="List of work experiences")
+        skills: List[str] = Field(description="List of individual skills mentioned")
+        education: Optional[Education] = Field(None, description="Education details")
+
+    df = local_session.create_dataframe({
+        "text": [dedent("""
+            Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a Machine Learning Engineer, focusing on NLP research.
+            Before that, she was at Google as a Software Engineer from 2018 to 2021, building distributed systems.
+
+            She is skilled in Python, PyTorch, and distributed computing. Also familiar with Rust and Kubernetes.
+
+            She graduated from MIT in 2017 with a degree in Computer Science.
+        """).strip()]
+    })
+
+    df = df.select(semantic.extract(col("text"), Resume).alias("resume"))
+    assert df.schema.column_fields == [
+        ColumnField(name="resume", data_type=StructType([
+            StructField(name="name", data_type=StringType),
+            StructField(name="work_experience", data_type=ArrayType(element_type=StructType([
+                StructField(name="company", data_type=StringType),
+                StructField(name="title", data_type=StringType),
+                StructField(name="start_year", data_type=IntegerType),
+                StructField(name="end_year", data_type=IntegerType),
+                StructField(name="description", data_type=StringType),
+            ]))),
+            StructField(name="skills", data_type=ArrayType(element_type=StringType)),
+            StructField(name="education", data_type=StructType([
+                StructField(name="institution", data_type=StringType),
+                StructField(name="major", data_type=StringType),
+                StructField(name="graduation_year", data_type=IntegerType),
+            ]))
+        ]))
+    ]
+
+    result = df.to_polars()
+
+    assert result.schema == pl.Schema({"resume": pl.Struct({
+        "name": pl.String,
+        "work_experience": pl.List(pl.Struct({
+            "company": pl.String,
+            "title": pl.String,
+            "start_year": pl.Int64,
+            "end_year": pl.Int64,
+            "description": pl.String,
+        })),
+        "skills": pl.List(pl.String),
+        "education": pl.Struct({
+            "institution": pl.String,
+            "major": pl.String,
+            "graduation_year": pl.Int64,
+        }),
+    })})
+
+def test_pydantic_model_with_literal_types(local_session):
+    """Test extraction with Pydantic models containing Literal types."""
+    class SentimentModel(BaseModel):
+        sentiment: Literal["positive", "neutral", "negative"] = Field(
+            description="The sentiment classification of the review text"
         )
-    )
-    assert result.schema == pl.Schema({"review_issues": pl_model})
 
-    # Test list of structs
-
-    list_output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="issues_reported",
-                data_type=ExtractSchemaList(
-                    element_type=ExtractSchema(
-                        [
-                            ExtractSchemaField(
-                                name="sentiment_positive",
-                                data_type=BooleanType,
-                                description="this sentiment is positive",
-                            ),
-                            ExtractSchemaField(
-                                name="sentiment_negative",
-                                data_type=BooleanType,
-                                description="this sentiment is negative",
-                            ),
-                            ExtractSchemaField(
-                                name="sentiment_summary",
-                                data_type=StringType,
-                                description="a summary of the sentiment",
-                            ),
-                        ]
-                    ),
-                ),
-                description="A list of sentiments about this product",
-            ),
-            ExtractSchemaField(
-                name="phone_version",
-                data_type=IntegerType,
-                description="specific product number",
-            ),
+    df = local_session.create_dataframe({
+        "review": [
+            "This product is amazing and exceeded my expectations!",
+            "It's okay, does the job.",
+            "Terrible experience, would not recommend."
         ]
-    )
+    })
 
-    df = extract_data_df.select(
-        semantic.extract(col("review"), list_output_schema).alias("review_issues")
+    df = df.select(
+        semantic.extract(col("review"), SentimentModel).alias("sentiment_out")
     )
+    assert df.schema.column_fields == [
+        ColumnField(name="sentiment_out", data_type=StructType([
+            StructField(name="sentiment", data_type=StringType),
+        ]))
+    ]
+
+    results = df.to_polars()
+
+    assert results.schema == pl.Schema({"sentiment_out": pl.Struct({
+        "sentiment": pl.String,
+    })})
+
+
+def test_null_input_handling(local_session):
+    """Test how semantic extraction handles None/null inputs."""
+    df = local_session.create_dataframe({
+        "review": [
+            "The iPhone 13 has a great camera but average battery life.",
+            "I love my Samsung Galaxy S21!",
+            None,  # Test null handling
+        ],
+    })
+
+    class ReviewModel(BaseModel):
+        product_name: str = Field(description="The name of the product mentioned")
+        contains_negative_feedback: bool = Field(description="the review contains negative feedback")
+
+    df = df.select(semantic.extract(col("review"), ReviewModel).alias("review"))
     result = df.to_polars()
-    pl_model = convert_custom_dtype_to_polars(
-        convert_pydantic_type_to_custom_struct_type(
-            convert_extract_schema_to_pydantic_type(list_output_schema)
-        )
-    )
-    assert result.schema == pl.Schema({"review_issues": pl_model})
 
+    # Verify that null input produces null output
+    assert result["review"].to_list()[2] is None
 
-def test_semantic_extract_bad_schema(extract_data_df):
-    # extract schema with no description
-    with pytest.raises(ValidationError):
-        ExtractSchema(
-            [
-                ExtractSchemaField(
-                    name="product_name",
-                    data_type=StringType,
-                ),
-            ]
-        )
-    # extract schema with no type
-    with pytest.raises(ValidationError):
-        ExtractSchema(
-            [
-                ExtractSchemaField(
-                    name="product_name",
-                    description="The name of the product mentioned in the review or support ticket",
-                ),
-            ]
-        )
-    # pydantic model with no description
-    with pytest.raises(ValueError):
-
+def test_extract_schema_validation_errors(extract_data_df):
+    """Test that Pydantic models without descriptions raise validation errors."""
+    # Missing description
+    with pytest.raises(FenicValidationError):
         class BadModel(BaseModel):
-            positive_feature: str = Field(
-                ...,
-            )
+            invalid_field: str = Field(...)
 
         extract_data_df.select(
             semantic.extract(col("review"), BadModel).alias("review_out")
         ).to_polars()
 
+    # Union not supported
+    with pytest.raises(FenicValidationError):
+        class BadModel(BaseModel):
+            invalid_field: Union[str, int] = Field(description="a description that doesn't matter")
 
-def test_semantic_extract_nested(extract_data_df):
-    # test nested struct, and list inside struct
-    nested_output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="product_data",
-                data_type=ExtractSchema(
-                    [
-                        ExtractSchemaField(
-                            name="manufacturer_data",
-                            data_type=ExtractSchema(
-                                [
-                                    ExtractSchemaField(
-                                        name="phone_version",
-                                        data_type=IntegerType,
-                                        description="specific product number",
-                                    ),
-                                    ExtractSchemaField(
-                                        name="manufacturer_name",
-                                        data_type=StringType,
-                                        description="The name of the manufacturer of the product",
-                                    ),
-                                ]
-                            ),
-                            description="Make and model information",
-                        ),
-                        ExtractSchemaField(
-                            name="issues_reported",
-                            data_type=ExtractSchemaList(element_type=StringType),
-                            description="All issues reported about the product",
-                        ),
-                    ]
-                ),
-                description="Pulling data about the product",
-            ),
-            ExtractSchemaField(
-                name="review_data",
-                data_type=ExtractSchema(
-                    [
-                        ExtractSchemaField(
-                            name="contains_negative_feedback",
-                            data_type=BooleanType,
-                            description="the review contains some negative feedback",
-                        ),
-                        ExtractSchemaField(
-                            name="positive_feature",
-                            data_type=StringType,
-                            description="A positive feature described in the review",
-                        ),
-                    ]
-                ),
-                description="Pulling data about the review",
-            ),
-        ]
-    )
+        extract_data_df.select(
+            semantic.extract(col("review"), BadModel).alias("review_out")
+        ).to_polars()
 
-    df = extract_data_df.select(
-        semantic.extract(col("review"), nested_output_schema).alias("review")
-    )
-    result = df.to_polars()
-    pl_model = convert_custom_dtype_to_polars(
-        convert_pydantic_type_to_custom_struct_type(
-            convert_extract_schema_to_pydantic_type(nested_output_schema)
-        )
-    )
-    assert result.schema == pl.Schema({"review": pl_model})
+    # Dict not supported
+    with pytest.raises(FenicValidationError):
+        class BadModel(BaseModel):
+            invalid_field: dict[str, int] = Field(description="a description that doesn't matter")
 
-    # Test field selection in nested struct
-    df = df.select(
-        col("review")
-        .get_item("product_data")
-        .get_item("manufacturer_data")
-        .get_item("phone_version"),
-        col("review").get_item("review_data").get_item("contains_negative_feedback"),
-    )
-    result = df.to_polars()
-    assert result.schema == pl.Schema(
-        {
-            "review[product_data][manufacturer_data][phone_version]": pl.Int64,
-            "review[review_data][contains_negative_feedback]": pl.Boolean,
-        }
-    )
+        extract_data_df.select(
+            semantic.extract(col("review"), BadModel).alias("review_out")
+        ).to_polars()
 
+    # Dataclass not supported
+    @dataclass
+    class Foo:
+        foo: str
+    with pytest.raises(FenicValidationError):
+        class BadModel(BaseModel):
+            invalid_field: Foo = Field(description="a description that doesn't matter")
 
-def test_semantic_extract_with_none(local_session):
-    # test with none values
+        extract_data_df.select(
+            semantic.extract(col("review"), BadModel).alias("review_out")
+        ).to_polars()
 
-    df = local_session.create_dataframe(
-        {
-            "review": [
-                "The iPhone 13 has a great camera but average battery life.",
-                "I love my Samsung Galaxy S21! It performs well and the screen is amazing.",
-                "The Google Pixel 6 heats up during gaming but has a solid build.",
-                None,
-            ],
-        }
-    )
-    # Test with basic extract schema
-    output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="product_name",
-                data_type=StringType,
-                description="The name of the product mentioned in the review or support ticket",
-            ),
-            ExtractSchemaField(
-                name="phone_version",
-                data_type=IntegerType,
-                description="specific product number",
-            ),
-            ExtractSchemaField(
-                name="contains_negative_feedback",
-                data_type=BooleanType,
-                description="the review contains some negative feedback",
-            ),
-        ]
-    )
+    # Custom class not supported
+    class Foo:
+        foo: str
+    with pytest.raises(FenicValidationError):
+        class BadModel(BaseModel):
+            invalid_field: Foo = Field(description="a description that doesn't matter")
+            model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Use the extended dataframe with None values.
-    df = df.select(semantic.extract(col("review"), output_schema).alias("review"))
-    result = df.to_polars()
-    assert result["review"].to_list()[3] is None
+        extract_data_df.select(
+            semantic.extract(col("review"), BadModel).alias("review_out")
+        ).to_polars()
