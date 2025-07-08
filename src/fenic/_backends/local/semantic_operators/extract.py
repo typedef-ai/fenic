@@ -4,6 +4,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Literal,
     Optional,
     Type,
     Union,
@@ -125,6 +126,9 @@ def convert_pydantic_model_to_key_descriptions(schema: Type[BaseModel]) -> str:
 
         if origin in (list, List):
             return f"list of {get_type_name(args[0])}" if args else "list"
+
+        if origin is Literal:
+            return " or ".join(repr(a) for a in args)
 
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):
             return "object"

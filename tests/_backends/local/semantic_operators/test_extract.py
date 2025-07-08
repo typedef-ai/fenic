@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import polars as pl
 from pydantic import BaseModel, Field
@@ -13,6 +13,9 @@ class WorkExperience(BaseModel):
     start_year: int = Field(description="Year the job started")
     end_year: Optional[int] = Field(None, description="Year the job ended (if applicable)")
     description: Optional[str] = Field(None, description="Short description of responsibilities")
+    employment_type: Optional[Literal["full-time", "part-time", "contractor"]] = Field(
+        None, description="Type of employment"
+    )
 
 class Education(BaseModel):
     institution: str = Field(description="Name of the educational institution")
@@ -31,8 +34,8 @@ class TestExtract:
     def test_build_prompts(self, local_session):
         jane_resume = dedent(
             """\
-            Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a Machine Learning Engineer, focusing on NLP research.
-            Before that, she was at Google as a Software Engineer from 2018 to 2021, building distributed systems.
+            Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a full-time Machine Learning Engineer, focusing on NLP research.
+            Before that, she was at Google as a full-time Software Engineer from 2018 to 2021, building distributed systems.
 
             She is skilled in Python, PyTorch, and distributed computing. Also familiar with Rust and Kubernetes.
 
@@ -80,6 +83,7 @@ class TestExtract:
                     "work_experience[item].start_year (int): Year the job started\n"
                     "work_experience[item].end_year (int (optional)): Year the job ended (if applicable)\n"
                     "work_experience[item].description (str (optional)): Short description of responsibilities\n"
+                    "work_experience[item].employment_type ('full-time' or 'part-time' or 'contractor' (optional)): Type of employment\n"
                     "skills (list of str): List of individual skills mentioned\n"
                     "education (object (optional)): Education details\n"
                     "education.institution (str): Name of the educational institution\n"
@@ -91,8 +95,8 @@ class TestExtract:
                 "role": "user",
                 "content": dedent(
                     """\
-                    Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a Machine Learning Engineer, focusing on NLP research.
-                    Before that, she was at Google as a Software Engineer from 2018 to 2021, building distributed systems.
+                    Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a full-time Machine Learning Engineer, focusing on NLP research.
+                    Before that, she was at Google as a full-time Software Engineer from 2018 to 2021, building distributed systems.
 
                     She is skilled in Python, PyTorch, and distributed computing. Also familiar with Rust and Kubernetes.
 

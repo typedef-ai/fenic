@@ -47,10 +47,10 @@ Break down transcripts into individual speaking segments with speaker, start_tim
 
 ### Step 3: Semantic Schema Definition
 
-Define extraction schemas using and Pydantic models:
+Define extraction schemas using Pydantic models:
 
 ```python
-class TechnicalEntities(BaseModel):
+class TechnicalEntitiesSchema(BaseModel):
     services: str = Field(description="Technical services or systems mentioned")
     # ... more fields
 
@@ -69,7 +69,7 @@ Apply AI-powered extraction to identify structured information from natural lang
 ```python
 enriched_df = segments_df.with_column(
     "technical_entities",
-    fc.semantic.extract(fc.col("content"), technical_entities_schema)
+    fc.semantic.extract(fc.col("content"), TechnicalEntitiesSchema)
 ).with_column(
     "action_items",
     fc.semantic.extract(fc.col("content"), ActionItemSchema)
