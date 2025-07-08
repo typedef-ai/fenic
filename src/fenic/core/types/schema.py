@@ -45,40 +45,32 @@ class ColumnField:
         Returns:
             A formatted string representation of the ColumnField.
         """
+
+        def indent_datatype(data_type: DataType, current_indent: int) -> str:
+            """Format a data type with proper indentation for nested structures."""
+            if isinstance(data_type, ArrayType):
+                spaces = PRETTY_PRINT_INDENT * current_indent
+                content_spaces = PRETTY_PRINT_INDENT * (current_indent + 1)
+                element_type_str = indent_datatype(data_type.element_type, current_indent + 1)
+                return f"ArrayType(\n{content_spaces}element_type={element_type_str}\n{spaces})"
+
+            elif isinstance(data_type, StructType):
+                spaces = PRETTY_PRINT_INDENT * current_indent
+                content_spaces = PRETTY_PRINT_INDENT * (current_indent + 1)
+                field_strs = []
+                for field in data_type.struct_fields:
+                    field_data_type_str = indent_datatype(field.data_type, current_indent + 1)
+                    field_strs.append(f"{content_spaces}StructField(name='{field.name}', data_type={field_data_type_str})")
+
+                fields_content = "\n".join(field_strs)
+                return f"StructType(\n{fields_content}\n{spaces})"
+
+            else:
+                return str(data_type)
+
         spaces = PRETTY_PRINT_INDENT * indent
-        data_type_str = self._format_data_type(self.data_type, indent)
+        data_type_str = indent_datatype(self.data_type, indent)
         return f"{spaces}ColumnField(name='{self.name}', data_type={data_type_str})"
-
-    def _format_data_type(self, data_type: DataType, indent: int) -> str:
-        """Format a data type with proper indentation for nested structures.
-
-        Args:
-            data_type: The data type to format.
-            indent: Current indentation level.
-
-        Returns:
-            A formatted string representation of the data type.
-        """
-        if isinstance(data_type, ArrayType):
-            spaces = PRETTY_PRINT_INDENT * indent
-            content_spaces = PRETTY_PRINT_INDENT * (indent + 1)
-            element_type_str = self._format_data_type(data_type.element_type, indent + 1)
-            return f"ArrayType(\n{content_spaces}element_type={element_type_str}\n{spaces})"
-
-        elif isinstance(data_type, StructType):
-            spaces = PRETTY_PRINT_INDENT * indent
-            content_spaces = PRETTY_PRINT_INDENT * (indent + 1)
-            field_strs = []
-            for field in data_type.struct_fields:
-                field_data_type_str = self._format_data_type(field.data_type, indent + 1)
-                field_strs.append(f"{content_spaces}StructField(name='{field.name}', data_type={field_data_type_str})")
-
-            fields_content = "\n".join(field_strs)
-            return f"StructType(\n{fields_content}\n{spaces})"
-
-        else:
-            # For primitive types, just return their string representation
-            return str(data_type)
 
 
 @dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
