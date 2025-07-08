@@ -9,7 +9,9 @@ from pydantic import BaseModel
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.types import (
     ClassifyExampleCollection,
+    KeyPoints,
     MapExampleCollection,
+    Paragraph,
     PredicateExampleCollection,
 )
 
@@ -374,6 +376,34 @@ class EmbeddingsExpr(SemanticExpr):
                 dimensions=embedding_params.output_dimensions
             )
         )
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class SemanticSummarizeExpr(SemanticExpr):
+
+    def __init__(self, expr: LogicalExpr, format: Union[KeyPoints, Paragraph], temperature: float, model_alias: Optional[str] = None):
+        super().__init__()
+        self.expr = expr
+        self.format = format
+        self.temperature = temperature
+        self.model_alias = model_alias
+
+    def __str__(self) -> str:
+        return f"semantic.summarize({self.expr})"
+
+    def expr(self) -> LogicalExpr:
+        return self.expr
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        input_field = self.expr.to_column_field(plan)
+        if input_field.data_type != StringType:
+            raise TypeError(
+                f"semantic.summarize requires column of type string as input, got {input_field.data_type}"
+            )
+        return ColumnField(str(self), StringType)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]

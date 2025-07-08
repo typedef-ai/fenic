@@ -22,6 +22,7 @@ from fenic._backends.local.semantic_operators import Extract as SemanticExtract
 from fenic._backends.local.semantic_operators import Map as SemanticMap
 from fenic._backends.local.semantic_operators import Predicate as SemanticPredicate
 from fenic._backends.local.semantic_operators import Reduce as SemanticReduce
+from fenic._backends.local.semantic_operators import Summarize as SemanticSummarize
 from fenic._backends.local.template import TemplateFormatReader
 from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
@@ -81,6 +82,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
+    SemanticSummarizeExpr,
     SortExpr,
     SplitPartExpr,
     StartsWithExpr,
@@ -581,6 +583,22 @@ class ExprConverter:
             sem_sentiment_fn, return_dtype=pl.Utf8
         )
 
+    @_convert_expr.register(SemanticSummarizeExpr)
+    def _convert_semantic_summarize_expr(self,
+        logical: SemanticSummarizeExpr
+    ) -> pl.Expr:
+        def sem_summarize_fn(batch: pl.Series) -> pl.Series:
+            return SemanticSummarize(
+                input=batch,
+                format=logical.format,
+                temperature=logical.temperature,
+                model=self.session_state.get_language_model(logical.model_alias),
+
+            ).execute()
+
+        return self._convert_expr(logical.expr).map_batches(
+            sem_summarize_fn, return_dtype=pl.Utf8
+        )
 
     @_convert_expr.register(ArrayJoinExpr)
     def _convert_array_join_expr(self, logical: ArrayJoinExpr) -> pl.Expr:
