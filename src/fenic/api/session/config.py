@@ -11,16 +11,16 @@ from pydantic import BaseModel, Field, model_validator
 from fenic._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     GOOGLE_GLA_AVAILABLE_MODELS,
+    GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,
     ModelProvider,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
-    ReasoningEffort,
     ResolvedAnthropicModelConfig,
     ResolvedCloudConfig,
-    ResolvedGoogleGLAModelConfig,
+    ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSemanticConfig,
@@ -38,7 +38,32 @@ class GoogleGLAModelConfig(BaseModel):
     model_name: GOOGLE_GLA_AVAILABLE_MODELS
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
-    reasoning_effort: Optional[ReasoningEffort] = Field(default=None, description="Reasoning effort level. Required for Gemini 2.5 models.")
+    default_thinking_budget: Optional[int] = Field(
+        default=None,
+        description="""
+            If configuring a reasoning model, provide a default thinking budget in tokens. If not provided, we will defer to 
+            the model's default settings. To have the model automatically determine a thinking budget based on the complexity of 
+            the prompt, set this to -1. To disable thinking for the model, set this to 0 (not supported on gemini-2.5-pro).
+        """, ge=-1)
+
+
+class GoogleVertexModelConfig(BaseModel):
+    """Configuration for Google Vertex models.
+
+    This class defines the configuration settings for models available in Google Vertex AI,
+    including model selection and rate limiting parameters. In order to use these models, you must have a
+    Google Cloud service account, or use the `gcloud` cli tool to authenticate your local environment.
+    """
+    model_name: GOOGLE_VERTEX_AVAILABLE_MODELS = Field(..., description="The name of the Google Vertex model to use")
+    rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
+    tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    default_thinking_budget: Optional[int] = Field(
+        default=None,
+        description="""
+            If configuring a reasoning model, provide a default thinking budget in tokens. If not provided, we will defer to 
+            the model's default settings. To have the model automatically determine a thinking budget based on the complexity of 
+            the prompt, set this to -1. To disable thinking for the model, set this to 0 (not supported on gemini-2.5-pro).
+        """, ge=-1)
 
 class OpenAIModelConfig(BaseModel):
     """Configuration for OpenAI models.
@@ -100,7 +125,7 @@ class AnthropicModelConfig(BaseModel):
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
 
 
-ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig]
+ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig, GoogleVertexModelConfig]
 
 
 class SemanticConfig(BaseModel):
@@ -172,6 +197,9 @@ class SemanticConfig(BaseModel):
             elif isinstance(language_model, GoogleGLAModelConfig):
                 language_model_provider = ModelProvider.GOOGLE_GLA
                 language_model_name = language_model.model_name
+            elif isinstance(language_model, GoogleVertexModelConfig):
+                language_model_provider = ModelProvider.GOOGLE_VERTEX
+                language_model_name = language_model.model_name
             else:
                 raise ConfigurationError(
                     f"Invalid language model: {model_alias}: {language_model} unsupported model type.")
@@ -185,10 +213,6 @@ class SemanticConfig(BaseModel):
                         language_model_name
                     )
                 )
-            if isinstance(language_model, GoogleGLAModelConfig) and completion_model.requires_reasoning_effort:
-                if language_model.reasoning_effort is None:
-                    raise ConfigurationError(f"Reasoning effort level is required for {language_model_provider.value}:{language_model_name} Please specify reasoning_effort for model {model_alias}.")
-
         if self.embedding_models is not None:
             if self.default_embedding_model is None and len(self.embedding_models) > 1:
                 raise ConfigurationError("embedding_models is set but default_embedding_model is missing (ambiguous).")
@@ -277,11 +301,20 @@ class SessionConfig(BaseModel):
                     tpm=model.tpm
                 )
             elif isinstance(model, GoogleGLAModelConfig):
-                return ResolvedGoogleGLAModelConfig(
+                return ResolvedGoogleModelConfig(
+                    model_provider=ModelProvider.GOOGLE_GLA,
                     model_name=model.model_name,
                     rpm=model.rpm,
                     tpm=model.tpm,
-                    reasoning_effort=model.reasoning_effort
+                    default_thinking_budget=model.default_thinking_budget,
+                )
+            elif isinstance(model, GoogleVertexModelConfig):
+                return ResolvedGoogleModelConfig(
+                    model_name=model.model_name,
+                    model_provider=ModelProvider.GOOGLE_VERTEX,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                    default_thinking_budget=model.default_thinking_budget,
                 )
             else:
                 return ResolvedAnthropicModelConfig(

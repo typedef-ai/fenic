@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import duckdb
 import polars as pl
@@ -23,11 +23,13 @@ from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
     convert_polars_schema_to_custom_schema,
 )
-from fenic.core.error import InternalError, PlanError
+from fenic.core.error import InternalError, PlanError, TypeMismatchError
 from fenic.core.types import (
     ArrayType,
     BooleanType,
     ColumnField,
+    EmbeddingType,
+    IntegerType,
     Schema,
     StructType,
 )
@@ -409,6 +411,65 @@ class SQL(LogicalPlan):
         if len(children) == 0:
             raise InternalError("SQL node must have at least one child")
         result = SQL(children, self._template_names, self._templated_query, self.session_state)
+        result.set_cache_info(self.cache_info)
+        return result
+
+class SemanticCluster(LogicalPlan):
+    def __init__(
+        self,
+        input: LogicalPlan,
+        by_expr: LogicalExpr,
+        num_clusters: int,
+        label_column: str,
+        centroid_column: Optional[str],
+    ):
+        self._input = input
+        self._by_expr = by_expr
+        self._num_clusters = num_clusters
+        self._label_column = label_column
+        self._centroid_column = centroid_column
+        self._centroid_info: Optional[Tuple[str, int]] = None
+        super().__init__(self._input.session_state)
+
+    def children(self) -> List[LogicalPlan]:
+        return [self._input]
+
+    def _build_schema(self) -> Schema:
+        by_expr_type = self._by_expr.to_column_field(self._input).data_type
+        if not isinstance(by_expr_type, EmbeddingType):
+            raise TypeMismatchError.from_message(
+                f"semantic.with_cluster_labels by expression must be an embedding column type (EmbeddingType); "
+                f"got: {by_expr_type}"
+            )
+
+        new_fields = [ColumnField(self._label_column, IntegerType)]
+        if self._centroid_column:
+            new_fields.append(ColumnField(self._centroid_column, by_expr_type))
+            self._centroid_info = (self._centroid_column, by_expr_type.dimensions)
+
+        return Schema(column_fields=self._input.schema().column_fields + new_fields)
+
+    def _repr(self) -> str:
+        return f"SemanticCluster(by_expr={str(self._by_expr)}, num_clusters={self._num_clusters})"
+
+    def num_clusters(self) -> int:
+        return self._num_clusters
+
+    def centroid_info(self) -> Optional[Tuple[str, int]]:
+        return self._centroid_info
+
+    def by_expr(self) -> LogicalExpr:
+        return self._by_expr
+
+    def label_column(self) -> str:
+        return self._label_column
+
+    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+        if len(children) != 1:
+            raise ValueError("SemanticCluster must have exactly one child")
+        result = SemanticCluster(
+            children[0], self._by_expr, self._num_clusters, self._label_column, self._centroid_column
+        )
         result.set_cache_info(self.cache_info)
         return result
 

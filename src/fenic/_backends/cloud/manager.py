@@ -115,7 +115,6 @@ class CloudSessionManager:
         hasura_client = HasuraClient(
             graphql_uri=settings.hasura_graphql_uri,
             graphql_ws_uri=settings.hasura_graphql_ws_uri,
-            admin_secret=settings.hasura_admin_secret,
         )
         return CloudSessionManagerConfigDependencies(
             settings=settings,

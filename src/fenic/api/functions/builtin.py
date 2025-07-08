@@ -158,7 +158,6 @@ def collect_list(column: ColumnOrName) -> Column:
         ListExpr(Column._from_col_or_name(column)._logical_expr)
     )
 
-
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def array_agg(column: ColumnOrName) -> Column:
     """Alias for collect_list()."""

@@ -37,6 +37,10 @@ async def get_query_execution_metrics(client: Client, execution_id: str) -> Quer
                 query_metrics.total_lm_metrics.num_cached_input_tokens = metric.metric_value
             elif metric.metric_name == "lm_num_output_tokens":
                 query_metrics.total_lm_metrics.num_output_tokens = metric.metric_value
+            elif metric.metric_name == "lm_num_requests":
+                query_metrics.total_lm_metrics.num_requests = metric.metric_value
+            elif metric.metric_name == "lm_cost":
+                query_metrics.total_lm_metrics.cost = metric.metric_value
             elif metric.metric_name == "rm_num_input_tokens":
                 query_metrics.total_rm_metrics.num_input_tokens = metric.metric_value
             elif metric.metric_name == "rm_num_requests":

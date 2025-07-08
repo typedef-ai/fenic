@@ -3,12 +3,14 @@
 from fenic.api import (
     AnthropicModelConfig,
     Catalog,
+    CloudConfig,
     Column,
     ColumnOrName,
     DataFrame,
     DataFrameReader,
     DataFrameWriter,
     GoogleGLAModelConfig,
+    GoogleVertexModelConfig,
     GroupedData,
     Lineage,
     OpenAIModelConfig,
@@ -93,9 +95,11 @@ __all__ = [
     # Session
     "Session",
     "SessionConfig",
+    "CloudConfig",
     "OpenAIModelConfig",
     "AnthropicModelConfig",
     "GoogleGLAModelConfig",
+    "GoogleVertexModelConfig",
     "SemanticConfig",
     # IO
     "DataFrameReader",

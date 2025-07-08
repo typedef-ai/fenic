@@ -90,7 +90,7 @@ class OpenAIEmbeddingsCore:
             self._metrics.cost += model_catalog.calculate_embedding_model_cost(
                 model_provider=self._model_provider,
                 model_name=self._model,
-                tokens=total_tokens
+                billable_inputs=total_tokens
             )
             return response.data[0].embedding
 

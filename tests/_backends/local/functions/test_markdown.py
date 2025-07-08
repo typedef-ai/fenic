@@ -138,6 +138,18 @@ def test_md_get_code_blocks(local_session):
                         x: int
                         y: int
                     ```
+                    # No language section
+                    ```
+                    from dataclasses import dataclass
+
+                    @dataclass
+                    class Point:
+                        x: int
+                        y: int
+                    ```
+
+                    ```
+                    ```
                 """).strip(),
 
                 # 5. No code blocks
@@ -176,11 +188,12 @@ def test_md_get_code_blocks(local_session):
         [
             {'language': 'rust', 'code': 'struct Point {\n    x: i32,\n    y: i32,\n}'},
             {'language': 'rust', 'code': 'impl Point {\n    fn new(x: i32, y: i32) -> Self {\n        Self { x, y }\n    }\n}'},
-            {'language': 'python', 'code': 'from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: int\n    y: int'}
+            {'language': 'python', 'code': 'from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: int\n    y: int'},
+            {'language': None, 'code': 'from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: int\n    y: int'},
+            {'language': None, 'code': ''}
         ],
         [],
     ]
-
     assert result_list == expected
 
     rust_code_blocks = df.select(markdown.get_code_blocks(col("markdown"), language_filter="rust").alias("code_blocks"))
@@ -196,7 +209,6 @@ def test_md_get_code_blocks(local_session):
     ]
 
     assert result_list == expected
-
 
 def test_md_generate_toc(local_session):
     test_markdown = dedent("""
@@ -357,6 +369,28 @@ def test_md_generate_toc(local_session):
     # Third document has no h1, so should be empty
     assert toc_list[2] is None
 
+
+def test_md_generate_toc_empty_string(local_session):
+    df = local_session.create_dataframe({"markdown": [""]})
+    df = df.select(col("markdown").cast(MarkdownType).alias("md_col"))
+    toc_df = df.select(markdown.generate_toc(col("md_col")).alias("toc"))
+    result = toc_df.to_polars()
+    assert result["toc"].to_list() == [None]
+
+def test_md_generate_toc_empty_headers(local_session):
+    test_markdown = dedent(
+        """
+        #
+        ##
+        ###
+        #
+        """
+    ).strip()
+    df = local_session.create_dataframe({"markdown": [test_markdown]})
+    df = df.select(col("markdown").cast(MarkdownType).alias("md_col"))
+    toc_df = df.select(markdown.generate_toc(col("md_col")).alias("toc"))
+    result = toc_df.to_polars()
+    assert result["toc"].to_list() == ['# \n## \n### \n# ']
 
 def test_md_chunk_by_headings(local_session):
     test_markdown = dedent(
@@ -750,3 +784,46 @@ def test_md_chunk_by_headings_no_h1(local_session):
     assert chunk2["heading"] == "Configuration"
     assert chunk2["parent_heading"] is None
     assert chunk2["full_path"] == "Configuration"
+
+def test_md_chunk_by_headings_empty_string(local_session):
+    """Test chunking when document is an empty string."""
+    df = local_session.create_dataframe({"markdown": [""]})
+    df = df.select(col("markdown").cast(MarkdownType).alias("md_col"))
+    chunks_df = df.select(markdown.extract_header_chunks(col("md_col"), header_level=2).alias("chunks"))
+    result = chunks_df.to_polars()
+    chunks = result["chunks"][0]
+    assert len(chunks) == 0
+
+def test_md_chunk_by_headings_empty_headers(local_session):
+    """Test chunking when document is an empty string."""
+    test_markdown = dedent(
+        """
+        #
+        ##
+        ###
+        #
+        ##
+        ###
+        ####
+        #####
+        ######
+        """
+    )
+    df = local_session.create_dataframe({"markdown": [test_markdown]})
+    df = df.select(col("markdown").cast(MarkdownType).alias("md_col"))
+    chunks_df = df.select(markdown.extract_header_chunks(col("md_col"), header_level=2).alias("chunks"))
+    result = chunks_df.to_polars()
+    chunks = result["chunks"][0]
+    assert len(chunks) == 2
+
+    chunk1 = chunks[0]
+    assert chunk1["heading"] == ""
+    assert chunk1["parent_heading"] == ""
+    assert chunk1["full_path"] == " > "
+    assert chunk1["content"] == ""
+
+    chunk2 = chunks[1]
+    assert chunk2["heading"] == ""
+    assert chunk2["parent_heading"] == ""
+    assert chunk2["full_path"] == " > "
+    assert chunk2["content"] == ""

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Union, get_args
+from typing import TYPE_CHECKING, Optional, get_args
 
-from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.error import ValidationError
 from fenic.core.types import (
     JoinExampleCollection,
 )
@@ -14,103 +14,14 @@ if TYPE_CHECKING:
 
 import fenic.core._utils.misc as utils
 from fenic.api.column import Column, ColumnOrName
-from fenic.api.dataframe._base_grouped_data import BaseGroupedData
 from fenic.api.functions import col
 from fenic.core._logical_plan.expressions import LiteralExpr
 from fenic.core._logical_plan.plans import (
-    SemanticAggregate,
+    SemanticCluster,
     SemanticJoin,
     SemanticSimilarityJoin,
 )
-from fenic.core.types.datatypes import EmbeddingType
 from fenic.core.types.enums import SemanticSimilarityMetric
-
-
-class SemGroupedData(BaseGroupedData):
-    """Methods for aggregations on a semantically clustered DataFrame."""
-
-    def __init__(self, df: DataFrame, by: ColumnOrName, num_clusters: int):
-        """Initialize semantic grouped data.
-
-        Args:
-            df: The DataFrame to group.
-            by: Column containing embeddings to cluster.
-            num_clusters: Number of semantic clusters to create.
-        """
-        super().__init__(df)
-        if not isinstance(num_clusters, int) or num_clusters <= 0:
-            raise ValidationError(
-                "`num_clusters` must be a positive integer greater than 0."
-            )
-        if not isinstance(by, ColumnOrName):
-            raise ValidationError(
-                f"Invalid group by: expected a column name (str) or Column object, but got {type(by).__name__}."
-            )
-
-        self._num_clusters = num_clusters
-        self._by_expr = Column._from_col_or_name(by)._logical_expr
-
-        if isinstance(self._by_expr, LiteralExpr):
-            raise ValidationError(
-                f"Invalid group by: Cannot group by a literal value: {self._by_expr}. Group by a column name or a valid expression instead."
-            )
-
-        if not isinstance(self._by_expr.to_column_field(self._df._logical_plan).data_type, EmbeddingType):
-            raise TypeMismatchError.from_message(
-                f"semantic.group_by grouping expression must be an embedding column type (EmbeddingType); "
-                f"got: {self._by_expr.to_column_field(self._df._logical_plan).data_type}"
-            )
-
-    def agg(self, *exprs: Union[Column, Dict[str, str]]) -> DataFrame:
-        """Compute aggregations on semantically clustered data and return the result as a DataFrame.
-
-        This method applies aggregate functions to data that has been grouped by semantic similarity,
-        allowing you to discover patterns and insights across natural language clusters.
-
-        Args:
-            *exprs: Aggregation expressions. Can be:
-
-                - Column expressions with aggregate functions (e.g., `count("*")`, `avg("sentiment")`)
-                - A dictionary mapping column names to aggregate function names (e.g., {"sentiment": "avg", "count": "sum"})
-
-        Returns:
-            DataFrame: A new DataFrame with one row per semantic cluster and columns for aggregated values
-
-        Raises:
-            ValueError: If arguments are not Column expressions or a dictionary
-            ValueError: If dictionary values are not valid aggregate function names
-
-        Example: Count items per cluster
-            ```python
-            # Group customer feedback into 5 clusters and count items per cluster
-            df.semantic.group_by("feedback_embeddings", 5).agg(count("*").alias("feedback_count"))
-            ```
-
-        Example: Analyze multiple metrics across clusters
-            ```python
-            # Analyze multiple metrics across semantic clusters
-            df.semantic.group_by("product_review_embeddings", 3).agg(
-                count("*").alias("review_count"),
-                avg("rating").alias("avg_rating"),
-                avg("sentiment_score").alias("avg_sentiment")
-            )
-            ```
-
-        Example: Dictionary style aggregations
-            ```python
-            # Dictionary style for simple aggregations
-            df.semantic.group_by("support_ticket_embeddings", 4).agg({"priority": "avg", "resolution_time": "max"})
-            ```
-        """
-        self._validate_agg_exprs(*exprs)
-        if len(exprs) == 1 and isinstance(exprs[0], dict):
-            return self.agg(*self._process_agg_dict(exprs[0]))
-        agg_exprs = self._process_agg_exprs(exprs)
-        return self._df._from_logical_plan(
-            SemanticAggregate(
-                self._df._logical_plan, self._by_expr, agg_exprs, self._num_clusters
-            ),
-        )
 
 
 class SemanticExtensions:
@@ -124,35 +35,80 @@ class SemanticExtensions:
         """
         self._df = df
 
-    def group_by(self, by: ColumnOrName, num_clusters: int) -> SemGroupedData:
-        """Semantically group rows by clustering an embedding column into the specified number of centroids.
+    def with_cluster_labels(self, by: ColumnOrName, num_clusters: int, label_column: str = "cluster_label", centroid_column: Optional[str] = None) -> DataFrame:
+        """Cluster rows using K-means and add cluster metadata columns.
 
-        This method is useful when you want to uncover natural themes, topics, or intent in embedded free-form text,
-        without needing predefined categories.
+        This method clusters rows based on the given embedding column or expression using K-means.
+        It adds a new column with cluster assignments, and optionally includes the centroid embedding
+        for each assigned cluster.
 
         Args:
-            by: Column containing embeddings to cluster
-            num_clusters: Number of semantic clusters to create
+            by: Column or expression producing embeddings to cluster (e.g., `embed(col("text"))`).
+            num_clusters: Number of clusters to compute (must be > 0).
+            label_column: Name of the output column for cluster IDs. Default is "cluster_label".
+            centroid_column: If provided, adds a column with this name containing the centroid embedding
+                            for each row's assigned cluster.
 
         Returns:
-            SemGroupedData: Object for performing aggregations on the clustered data.
+            A DataFrame with all original columns plus:
+            - `<label_column>`: integer cluster assignment (0 to num_clusters - 1)
+            - `<centroid_column>`: cluster centroid embedding, if specified
 
-        Example: Basic semantic grouping
+        Raises:
+            ValidationError: If num_clusters is not a positive integer
+            ValidationError: If label_column is not a non-empty string
+            ValidationError: If centroid_column is not a non-empty string
+            TypeMismatchError: If the column is not an EmbeddingType
+
+        Example: Basic clustering
             ```python
-            # Group customer feedback into 5 clusters
-            df.semantic.group_by("feedback_embeddings", 5).agg(count("*"))
+            # Cluster customer feedback and add cluster metadata
+            clustered_df = df.semantic.with_cluster_labels("feedback_embeddings", 5)
+
+            # Then use regular operations to analyze clusters
+            clustered_df.group_by("cluster_label").agg(count("*"), avg("rating"))
             ```
 
-        Example: Analyze sentiment by semantic group
+        Example: Filter outliers using centroids
             ```python
-            # Analyze sentiment by semantic group
-            df.semantic.group_by("feedback_embeddings", 5).agg(
-                count("*").alias("count"),
-                avg("sentiment_score").alias("avg_sentiment")
+            # Cluster and filter out rows far from their centroid
+            clustered_df = df.semantic.with_cluster_labels("embeddings", 3, centroid_column="cluster_centroid")
+            clean_df = clustered_df.filter(
+                embedding.compute_similarity("embeddings", "cluster_centroid", metric="cosine") > 0.7
             )
             ```
         """
-        return SemGroupedData(self._df, by, num_clusters)
+        # Validate num_clusters
+        if not isinstance(num_clusters, int) or num_clusters <= 0:
+            raise ValidationError("`num_clusters` must be a positive integer greater than 0.")
+
+        # Validate clustering target
+        if not isinstance(by, ColumnOrName):
+            raise ValidationError(
+                f"Invalid cluster by: expected a column name (str) or Column object, got {type(by).__name__}."
+            )
+
+        # Validate label_column
+        if not isinstance(label_column, str) or not label_column:
+            raise ValidationError("`label_column` must be a non-empty string.")
+
+        # Validate centroid_column if provided
+        if centroid_column is not None:
+            if not isinstance(centroid_column, str) or not centroid_column:
+                raise ValidationError("`centroid_column` must be a non-empty string if provided.")
+
+        # Check that the expression isn't a literal
+        by_expr = Column._from_col_or_name(by)._logical_expr
+        if isinstance(by_expr, LiteralExpr):
+            raise ValidationError(
+                f"Invalid cluster by: Cannot cluster by a literal value: {by_expr}."
+            )
+
+        return self._df._from_logical_plan(
+            SemanticCluster(
+                self._df._logical_plan, by_expr, num_clusters, label_column, centroid_column
+            )
+        )
 
     def join(
         self,
@@ -162,7 +118,7 @@ class SemanticExtensions:
         model_alias: Optional[str] = None,
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
-        
+
         That evaluates to either true or false for each potential row pair.
 
         The join works by:
@@ -279,30 +235,30 @@ class SemanticExtensions:
         right_on: ColumnOrName,
         k: int = 1,
         similarity_metric: SemanticSimilarityMetric = "cosine",
-        return_similarity_scores: bool = False,
+        similarity_score_column: Optional[str] = None,
     ) -> DataFrame:
-        """Performs a semantic similarity join between two DataFrames using precomputed text embeddings.
+        """Performs a semantic similarity join between two DataFrames using embedding expressions.
 
-        For each row in the left DataFrame, finds the top `k` most semantically similar rows in the right DataFrame
-        based on the cosine similarity between their text embeddings. This is useful for fuzzy matching tasks when exact matches aren't possible.
+        For each row in the left DataFrame, returns the top `k` most semantically similar rows
+        from the right DataFrame based on the specified similarity metric.
 
         Args:
             other: The right-hand DataFrame to join with.
-            left_on: Column in this DataFrame containing text embeddings to compare.
-            right_on: Column in the other DataFrame containing text embeddings to compare.
-            k: Number of most similar matches to return per row from the left DataFrame.
-            similarity_metric: The metric to use for calculating distances between vectors.
-                Supported distance metrics: "l2", "cosine", "dot"
-            return_similarity_scores: If True, include a `_similarity_score` column in the output DataFrame
-                                    representing the match confidence (cosine similarity).
+            left_on: Expression or column representing embeddings in the left DataFrame.
+            right_on: Expression or column representing embeddings in the right DataFrame.
+            k: Number of most similar matches to return per row.
+            similarity_metric: Similarity metric to use: "l2", "cosine", or "dot".
+            similarity_score_column: If set, adds a column with this name containing similarity scores.
+                If None, the scores are omitted.
 
         Returns:
-            DataFrame: A new DataFrame containing matched rows from both sides and optionally similarity scores.
+            A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.
+            The result includes all columns from both DataFrames, optionally augmented with a similarity score column
+            if `similarity_score_column` is provided.
 
         Raises:
-            TypeError: If argument types are incorrect.
-            ValueError: If `k` is not positive or if the columns are invalid.
-            ValueError: If `similarity_metric` is not one of "l2", "cosine", "dot"
+            ValidationError: If `k` is not positive or if the columns are invalid.
+            ValidationError: If `similarity_metric` is not one of "l2", "cosine", "dot"
 
         Example: Match queries to FAQ entries
             ```python
@@ -379,11 +335,9 @@ class SemanticExtensions:
                 Column._from_col_or_name(right_on)._logical_expr,
                 k,
                 similarity_metric,
-                return_similarity_scores,
+                similarity_score_column,
             ),
         )
 
     # Spark aliases
-    groupBy = group_by
-    groupby = group_by
     simJoin = sim_join

@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings
 class CloudSettings(BaseSettings):
     client_id: str = Field(..., alias="TYPEDEF_CLIENT_ID")
     client_secret: str = Field(..., alias="TYPEDEF_CLIENT_SECRET")
-    hasura_admin_secret: str = Field(..., alias="HASURA_GRAPHQL_ADMIN_SECRET")
     auth_provider_uri: str = Field(..., alias="CLOUD_SESSION_AUTH_PROVIDER_URI")
     typedef_instance: str = Field(
         default="dev1", alias="CLOUD_SESSION_TYPEDEF_INSTANCE"
@@ -53,5 +52,6 @@ class CloudSettings(BaseSettings):
             f"  settings.auth_provider_uri={self.auth_provider_uri}\n"
             f"  settings.hasura_graphql_uri={self.hasura_graphql_uri}\n"
             f"  settings.hasura_graphql_ws_uri={self.hasura_graphql_ws_uri}\n"
-            f"  settings.api_auth_uri={self.api_auth_uri}"
+            f"  settings.api_auth_uri={self.api_auth_uri}\n"
+            f"  settings.entrypoint_uri={self.entrypoint_uri}\n"
         )

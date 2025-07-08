@@ -70,7 +70,7 @@ def main(): # noqa: D103
             ),
             semantic=SemanticConfig(
                 language_models={ "model1": OpenAIModelConfig(
-                    model_name="gpt-4o-mini", rpm=1000, tpm=1000000
+                    model_name="gpt-4.1-nano", rpm=500, tpm=200_000
                 )},
                 default_language_model="model1",
             ),
@@ -94,16 +94,19 @@ def main(): # noqa: D103
 
     df = session.create_dataframe(data)
     try:
-        df.write.parquet(f"{s3_path}/test_file.parquet", mode="error")
+        df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
     except Exception as e:
         logger.error(f"Error writing parquet file: {e}")
 
     logger.info("Testing simple write to csv file")
     df = session.create_dataframe(data)
     original_schema = df.schema
-    df.write.csv(f"{s3_path}/test_file.csv")
+    try:
+        df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
+    except Exception as e:
+        logger.error(f"Error writing csv file: {e}")
 
-    logger.info("Testing simple infer schema from parquet file")
+    logger.info("Testing simple infer schema from csv file")
     df = session.read.csv(f"{s3_path}/test_file.csv")
     assert df.schema == original_schema  # nosec: B101
     df.show()

@@ -49,7 +49,7 @@ class MdGetCodeBlocksExpr(LogicalExpr):
         if language_filter:
             escaped_filter = language_filter.replace('"', '\\"')
             selection = (
-                f'.type? == "code_block" and (.language == "{escaped_filter}" or .language == null)'
+                f'.type? == "code_block" and (.language == "{escaped_filter}")'
             )
         else:
             selection = '.type? == "code_block"'
@@ -117,22 +117,22 @@ class MdExtractHeaderChunks(LogicalExpr):
     def _build_jq_query(self, header_level: int) -> str:
         query = f'''
 # Extract all text content and normalize whitespace
-def extract_text: [.. | .text? // empty] | join(" ") | gsub("\\\\s+"; " ") | gsub("^\\\\s+|\\\\s+$"; "");
+def extract_text: [.. | .text? // ""] | join(" ") | gsub("\\\\s+"; " ") | gsub("^\\\\s+|\\\\s+$"; "");
 
 # Walk AST collecting chunks at target level, tracking breadcrumb path
 def walk_headings($node; $path):
   if $node.type == "heading" and $node.level == {header_level} then
     # Target level heading - create chunk with content and breadcrumbs
     {{
-      heading: ($node.content | extract_text),
+      heading: (($node.content // []) | extract_text),
       level: $node.level,
       content: (($node.children // []) | extract_text),
       parent_heading: (if $path | length > 0 then $path[-1] else null end),
-      full_path: ($path + [$node.content | extract_text] | join(" > "))
+      full_path: ($path + [($node.content // []) | extract_text] | join(" > "))
     }}
   elif $node.type == "heading" and $node.level < {header_level} then
     # Higher level heading - add to path and recurse
-    ($node.children // []) | map(walk_headings(.; $path + [$node.content | extract_text])) | flatten
+    ($node.children // []) | map(walk_headings(.; $path + [($node.content // []) | extract_text])) | flatten
   else
     # Content or deeper headings - just recurse
     ($node.children // []) | map(walk_headings(.; $path)) | flatten

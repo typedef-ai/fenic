@@ -7,16 +7,13 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
-from fenic._inference.google.gemini_oai_chat_completions_client import (
-    GeminiOAIChatCompletionsClient,
-)
 from fenic._inference.model_client import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
-    ResolvedGoogleGLAModelConfig,
+    ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSemanticConfig,
@@ -212,12 +209,21 @@ class SessionModelRegistry:
                                                                       output_tpm=model_config.output_tpm)
                 client = AnthropicBatchCompletionsClient(rate_limit_strategy=rate_limit_strategy,
                                                          model=model_config.model_name)
-            elif isinstance(model_config, ResolvedGoogleGLAModelConfig):
+            elif isinstance(model_config, ResolvedGoogleModelConfig):
+                try:
+                    from fenic._inference.google.gemini_native_chat_completions_client import (
+                        GeminiNativeChatCompletionsClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use Google models, please install the required dependencies by running: pip install fenic[google]"
+                    ) from err
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
-                client = GeminiOAIChatCompletionsClient(
+                client = GeminiNativeChatCompletionsClient(
                     rate_limit_strategy=rate_limit_strategy,
+                    model_provider=model_config.model_provider,
                     model=model_config.model_name,
-                    reasoning_effort=model_config.reasoning_effort
+                    default_thinking_budget=model_config.default_thinking_budget,
                 )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
