@@ -9,6 +9,7 @@ from typing import List
 
 from pydantic.dataclasses import ConfigDict, dataclass
 
+from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core.types import ArrayType, DataType, StructType
 
 
@@ -35,7 +36,7 @@ class ColumnField:
         """
         return f"ColumnField(name='{self.name}', data_type={self.data_type})"
 
-    def _pretty_str(self, indent: int = 0) -> str:
+    def _str_with_indent(self, indent: int = 0) -> str:
         """Return a pretty-printed string representation with indentation.
 
         Args:
@@ -44,7 +45,7 @@ class ColumnField:
         Returns:
             A formatted string representation of the ColumnField.
         """
-        spaces = "  " * indent
+        spaces = PRETTY_PRINT_INDENT * indent
         data_type_str = self._format_data_type(self.data_type, indent)
         return f"{spaces}ColumnField(name='{self.name}', data_type={data_type_str})"
 
@@ -59,14 +60,14 @@ class ColumnField:
             A formatted string representation of the data type.
         """
         if isinstance(data_type, ArrayType):
-            spaces = "  " * indent
-            content_spaces = "  " * (indent + 1)
+            spaces = PRETTY_PRINT_INDENT * indent
+            content_spaces = PRETTY_PRINT_INDENT * (indent + 1)
             element_type_str = self._format_data_type(data_type.element_type, indent + 1)
             return f"ArrayType(\n{content_spaces}element_type={element_type_str}\n{spaces})"
 
         elif isinstance(data_type, StructType):
-            spaces = "  " * indent
-            content_spaces = "  " * (indent + 1)
+            spaces = PRETTY_PRINT_INDENT * indent
+            content_spaces = PRETTY_PRINT_INDENT * (indent + 1)
             field_strs = []
             for field in data_type.struct_fields:
                 field_data_type_str = self._format_data_type(field.data_type, indent + 1)
@@ -112,10 +113,10 @@ class Schema:
         Returns:
             A multi-line string with proper indentation relative to base_indent.
         """
-        base_spaces = "  " * base_indent
+        base_spaces = PRETTY_PRINT_INDENT * base_indent
         field_strs = []
         for field in self.column_fields:
-            field_strs.append(field._pretty_str(indent=base_indent + 1))
+            field_strs.append(field._str_with_indent(indent=base_indent + 1))
 
         fields_content = "\n".join(field_strs)
         return f"{base_spaces}Schema(\n{fields_content}\n{base_spaces})"
