@@ -99,7 +99,7 @@ class Schema:
         """Return a string representation of the Schema.
 
         Returns:
-            A string containing a comma-separated list of column field representations.
+            A multi-line string with proper indentation showing the schema structure.
         """
         field_strs = []
         for field in self.column_fields:
