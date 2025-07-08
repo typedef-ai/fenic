@@ -98,6 +98,4 @@ def test_schema_str_representation(local_session):
           ))
         )""")
 
-    print(str(df.schema))
-    print(expected)
     assert str(df.schema) == expected
