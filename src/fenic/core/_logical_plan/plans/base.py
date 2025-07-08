@@ -63,13 +63,17 @@ class LogicalPlan(ABC):
         """Return the string representation for this logical plan."""
         pass
 
+    def _repr_with_indent(self, level: int) -> str:
+        """Default: just call _repr() for backward compatibility."""
+        return self._repr()
+
     def __str__(self) -> str:
         """Recursively pretty-print with indentation."""
 
         def pretty_print(plan: LogicalPlan, level: int) -> str:
             indent = "  " * level
             cache_info = " (cached=true)" if plan.cache_info is not None else ""
-            result = f"{indent}{plan._repr()}{cache_info}\n"
+            result = f"{indent}{plan._repr_with_indent(level)}{cache_info}\n"
             for child in plan.children():
                 result += pretty_print(child, level + 1)
             return result

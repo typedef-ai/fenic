@@ -24,7 +24,12 @@ class InMemorySource(LogicalPlan):
         return convert_polars_schema_to_custom_schema(self._source.schema)
 
     def _repr(self) -> str:
-        return f"InMemorySource({self.schema()._inline_str()})"
+        return f"InMemorySource({self.schema()})"
+
+    def _repr_with_indent(self, level: int) -> str:
+        indent = '  ' * level
+        inner = self.schema()._str_with_indent(base_indent=level + 1)
+        return f"InMemorySource(\n{inner}\n{indent})"
 
     def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
         if len(children) != 0:

@@ -44,7 +44,7 @@ class ColumnField:
         Returns:
             A formatted string representation of the ColumnField.
         """
-        spaces = " " * indent
+        spaces = "  " * indent
         data_type_str = self._format_data_type(self.data_type, indent)
         return f"{spaces}ColumnField(name='{self.name}', data_type={data_type_str})"
 
@@ -59,17 +59,17 @@ class ColumnField:
             A formatted string representation of the data type.
         """
         if isinstance(data_type, ArrayType):
-            spaces = " " * indent
-            content_spaces = " " * (indent + 2)
-            element_type_str = self._format_data_type(data_type.element_type, indent + 2)
+            spaces = "  " * indent
+            content_spaces = "  " * (indent + 1)
+            element_type_str = self._format_data_type(data_type.element_type, indent + 1)
             return f"ArrayType(\n{content_spaces}element_type={element_type_str}\n{spaces})"
 
         elif isinstance(data_type, StructType):
-            spaces = " " * indent
-            content_spaces = " " * (indent + 2)
+            spaces = "  " * indent
+            content_spaces = "  " * (indent + 1)
             field_strs = []
             for field in data_type.struct_fields:
-                field_data_type_str = self._format_data_type(field.data_type, indent + 2)
+                field_data_type_str = self._format_data_type(field.data_type, indent + 1)
                 field_strs.append(f"{content_spaces}StructField(name='{field.name}', data_type={field_data_type_str})")
 
             fields_content = "\n".join(field_strs)
@@ -101,16 +101,24 @@ class Schema:
         Returns:
             A multi-line string with proper indentation showing the schema structure.
         """
+        return self._str_with_indent(base_indent=0)
+
+    def _str_with_indent(self, base_indent: int = 0) -> str:
+        """Return a pretty-printed string with custom base indentation.
+
+        Args:
+            base_indent: Number of spaces to use as base indentation.
+
+        Returns:
+            A multi-line string with proper indentation relative to base_indent.
+        """
+        base_spaces = "  " * base_indent
         field_strs = []
         for field in self.column_fields:
-            field_strs.append(field._pretty_str(indent=2))
+            field_strs.append(field._pretty_str(indent=base_indent + 1))
 
         fields_content = "\n".join(field_strs)
-        return f"Schema(\n{fields_content}\n)"
-
-    def _inline_str(self) -> str:
-        """Return a single line string representation of the Schema."""
-        return f"schema=[{', '.join([str(field) for field in self.column_fields])}]"
+        return f"{base_spaces}Schema(\n{fields_content}\n{base_spaces})"
 
     def column_names(self) -> List[str]:
         """Get a list of all column names in the schema.
