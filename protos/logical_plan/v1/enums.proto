@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+// Semantic similarity metrics for embedding comparisons
+enum SemanticSimilarityMetric {
+  COSINE = 0;
+  L2 = 1;
+  DOT = 2;
+}
+
+// Binary operators for expressions
+enum OperatorProto {
+  // Arithmetic operators
+  EQ = 0;
+  NOT_EQ = 1;
+  LT = 2;
+  LTEQ = 3;
+  GT = 4;
+  GTEQ = 5;
+  PLUS = 6;
+  MINUS = 7;
+  MULTIPLY = 8;
+  DIVIDE = 9;
+  AND = 10;
+  OR = 11;
+}
+
+// Text chunking function types
+enum ChunkLengthFunctionProto {
+  CHARACTER = 0;
+  WORD = 1;
+}
+
+// Text chunking character set types
+enum ChunkCharacterSetProto {
+  CUSTOM = 0;
+  ASCII = 1;
+  UNICODE = 2;
+}

@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+message DataTypeProto {
+  oneof data_type {
+    StringTypeProto string = 1;
+    IntegerTypeProto integer = 2;
+    FloatTypeProto float = 3;
+    DoubleTypeProto double = 4;
+    BooleanTypeProto boolean = 5;
+    ArrayTypeProto array = 6;
+    StructTypeProto struct = 7;
+    EmbeddingTypeProto embedding = 8;
+    TranscriptTypeProto transcript = 9;
+    DocumentBackedPathProto document_backed_path = 10;
+    MarkdownTypeProto markdown = 11;
+    HTMLTypeProto html = 12;
+    JSONTypeProto json = 13;
+  }
+}
+message StringTypeProto {}
+message IntegerTypeProto {}
+message FloatTypeProto {}
+message DoubleTypeProto {}
+message BooleanTypeProto {}
+
+message ArrayTypeProto {
+  DataTypeProto element_type = 1;
+}
+
+message StructTypeProto {
+  repeated StructFieldProto fields = 1;
+}
+
+message StructFieldProto {
+  string name = 1;
+  DataTypeProto data_type = 2;
+}
+
+message EmbeddingTypeProto {
+  int32 dimensions = 1;
+  string embedding_model = 2;
+}
+
+message TranscriptTypeProto {
+    string format = 1;
+}
+
+message DocumentBackedPathProto {
+    string format = 1;
+}
+message MarkdownTypeProto {}
+message HTMLTypeProto {}
+message JSONTypeProto {}
