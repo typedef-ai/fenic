@@ -15,7 +15,6 @@ from fenic.core.types import (
     EmbeddingType,
     FloatType,
     IntegerType,
-    StringType,
 )
 
 SUMMABLE_TYPES = (IntegerType, FloatType, DoubleType, BooleanType)
@@ -31,22 +30,6 @@ class AggregateExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
-
-
-class MdGroupSchemaExpr(AggregateExpr):
-    def __init__(self, expr: LogicalExpr):
-        super().__init__("md_group_schema", expr)
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"md_group_schema requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=StringType)
 
 
 class SumExpr(AggregateExpr):
