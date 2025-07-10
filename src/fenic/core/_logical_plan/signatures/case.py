@@ -9,8 +9,7 @@ from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 
 
 def register_case_signatures():
-    """Register signatures for case expressions (LogicalExpr subclasses with own validation)."""
-    # when and otherwise are LogicalExpr subclasses that handle their own type validation
-    # No signature needed since they're not migrated to ScalarFunction yet
+    """Register expressions for case expressions (LogicalExpr subclasses with own validation)."""
+    # these LogicalExpr subclasses handle their own type validation
     FunctionRegistry.register("when", WhenExpr)
     FunctionRegistry.register("otherwise", OtherwiseExpr)
