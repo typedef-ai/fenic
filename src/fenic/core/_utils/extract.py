@@ -13,13 +13,13 @@ def validate_extract_schema_structure(
 ) -> None:
     """Check a Pydantic model type   to ensure it is valid schema for a semantic extract."""
     # Check the field structure and the types for the pydantic model
-    if len(model.model_fields.items()) == 0:
+    if len(model.__pydantic_fields__.items()) == 0:
         raise ExtractSchemaValidationError(
             "Output schema cannot be empty. "
             "Please specify at least one output field."
         )
 
-    for field_name, field_info in model.model_fields.items():
+    for field_name, field_info in model.__pydantic_fields__.items():
         if field_info.description is None:
             raise ExtractSchemaValidationError(
                 f"Extract schema field {field_name} has no description. Please specify a description for each field."
