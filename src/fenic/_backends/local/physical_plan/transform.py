@@ -309,8 +309,8 @@ class SQLExec(PhysicalPlan):
         self.arrow_view_names = arrow_view_names
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
-            self.session_state.intermediate_df_client.db_conn.register(arrow_view_name, child_df)
+        for _child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
+            self.session_state.intermediate_df_client.db_conn.register(arrow_view_name, None)
         try:
             arrow_result = self.session_state.intermediate_df_client.db_conn.execute(self.query).arrow()
             return apply_ingestion_coercions(pl.from_arrow(arrow_result))
