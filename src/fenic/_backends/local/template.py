@@ -15,14 +15,19 @@ class TemplateFormatReader:
         self.input = input_data
         self.row_num = 0
         self.finished = False
+        self.current_field_index = 0  # Track which field we're currently reading
 
     def read_row(self) -> Optional[Dict[str, Any]]:
         if self.finished or self.input.closed:
             return None
 
         row = {}
+        self.current_field_index = 0  # Reset for each row
+
         try:
             for i, col_name in enumerate(self.format.columns):
+                self.current_field_index = i
+
                 # Match the delimiter before this column:
                 if not self._match_delimiter(self.format.delimiters[i]):
                     # If we fail to match, presumably we're out of data:
@@ -65,6 +70,7 @@ class TemplateFormatReader:
 
         pos = self.input.tell()
         chunk = self.input.read(len(delimiter))
+
         if chunk == delimiter:
             return True
         else:
@@ -89,7 +95,7 @@ class TemplateFormatReader:
 
     def _read_field(self, rule: EscapingRule) -> Any:
         if rule == EscapingRule.NONE:
-            return self._read_until_delimiters()
+            return self._read_until_next_delimiter()
         elif rule == EscapingRule.CSV:
             return self._read_csv_field()
         elif rule == EscapingRule.JSON:
@@ -99,37 +105,60 @@ class TemplateFormatReader:
         else:
             raise ValueError(f"Unsupported rule: {rule.name}")
 
-    def _read_until_delimiters(self) -> str:
-        """Read characters until we see any **non-empty** delimiter or newline.
-        Skips empty delimiters so we don't stop prematurely.
-        """
-        # Gather all non-empty delimiters *after* the first one
-        # (the first delimiter is the one we just matched).
-        non_empty = {d for d in self.format.delimiters[1:] if d}
-        # We'll also treat a newline as a stopping condition.
+    def _read_until_next_delimiter(self) -> str:
+        """Read characters until we see the NEXT expected delimiter or newline."""
+        # Get the next expected delimiter (after current field)
+        next_delimiter_index = self.current_field_index + 1
+
+        # If we're at the last field, read until end of line or EOF
+        if next_delimiter_index >= len(self.format.delimiters):
+            chunks = []
+            while True:
+                pos = self.input.tell()
+                c = self.input.read(1)
+                if not c:  # EOF
+                    break
+                if c in ('\n', '\r'):
+                    # Put back the newline for _skip_newline to handle
+                    self.input.seek(pos)
+                    break
+                chunks.append(c)
+            return "".join(chunks).strip()
+
+        next_delimiter = self.format.delimiters[next_delimiter_index]
+
+        # If next delimiter is empty, read until newline or EOF
+        if not next_delimiter:
+            chunks = []
+            while True:
+                pos = self.input.tell()
+                c = self.input.read(1)
+                if not c:  # EOF
+                    break
+                if c in ('\n', '\r'):
+                    # Put back the newline
+                    self.input.seek(pos)
+                    break
+                chunks.append(c)
+            return "".join(chunks).strip()
+
+        # Read until we find the specific next delimiter, newline, or EOF
         chunks = []
         while True:
             pos = self.input.tell()
             c = self.input.read(1)
-            if not c:
-                # EOF
+            if not c:  # EOF
                 break
 
-            # Put back the char so we can check if it matches any delimiter
+            # Put back the char so we can check if it matches the delimiter
             self.input.seek(pos)
 
-            # Check if it matches any known delimiter or newline
+            # Check if we hit a newline (end of line)
             if self._check_string("\n") or self._check_string("\r\n"):
-                # We see a newline => end the field
                 break
 
-            matched = False
-            for d in non_empty:
-                if self._check_string(d):
-                    matched = True
-                    break
-            if matched:
-                # We see a delimiter => end of field
+            # Check if we hit the next expected delimiter
+            if self._check_string(next_delimiter):
                 break
 
             # Otherwise consume the character
@@ -139,53 +168,73 @@ class TemplateFormatReader:
         return "".join(chunks).strip()
 
     def _read_csv_field(self) -> str:
-        text = self._read_until_delimiters()
-        text = text.strip()
-        # If it's quoted CSV, remove the outer quotes and unescape double quotes:
-        if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
-            inner = text[1:-1].replace('""', '"')
-            return inner
-        return text
+        # For CSV fields, we need to handle quoted content specially
+        # Check if the field starts with a quote
+        pos = self.input.tell()
+        first_char = self.input.read(1)
 
-    def _read_json_field(self) -> Any:
-        text = self._read_until_delimiters()
+        if first_char == '"':
+            # This is a quoted CSV field, read until closing quote
+            self.input.seek(pos)  # Reset to start of field
+            return self._read_quoted_field()
+        else:
+            # Not quoted, revert and read normally
+            self.input.seek(pos)
+            text = self._read_until_next_delimiter()
+            return text.strip()
+
+    def _read_json_field(self) -> str:
+        text = self._read_until_next_delimiter()
         text = text.strip()
         if not text:
             return None
         try:
-            return json.loads(text)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {text}") from e
+            # Validate that it's valid JSON by parsing it
+            json.loads(text)
+            # But return the original string, not the parsed object
+            return text
+        except json.JSONDecodeError:
+            return None
 
-    def _read_quoted_field(self) -> str:
-        """Expects an opening quote, read until closing quote.
-        No special backslash escapes except double quotes as repeated ""? Adjust as needed.
+    def _read_quoted_field(self) -> Optional[str]:
+        """Read a quoted field, return None if not properly quoted or malformed.
+        Expects an opening quote, reads until closing quote.
+        Double quotes ("") are escaped to single quotes (").
         """
         # Check we actually have a leading quote
         start = self.input.read(1)
         if start != '"':
             if start:  # revert that char
                 self.input.seek(self.input.tell() - 1)
-            raise ValueError("Quoted field must start with '\"'")
+            return None  # Not quoted - return None instead of error
+
         chunks = []
-        while True:
-            c = self.input.read(1)
-            if not c:
-                raise EOFError("EOF in quoted field")
-            if c == '"':
-                # Could be end of field or doubled quote
-                pos = self.input.tell()
-                nxt = self.input.read(1)
-                if nxt != '"':
-                    # Not a doubled quote => revert
-                    self.input.seek(pos)
-                    break
+        try:
+            while True:
+                c = self.input.read(1)
+                if not c:
+                    # EOF in quoted field - return None instead of error
+                    return None
+
+                if c == '"':
+                    # Could be end of field or doubled quote
+                    pos = self.input.tell()
+                    nxt = self.input.read(1)
+                    if nxt != '"':
+                        # Not a doubled quote => end of field, revert the extra char
+                        self.input.seek(pos)
+                        break
+                    else:
+                        # It's a double quote => literal " in the value
+                        chunks.append('"')
                 else:
-                    # It's a double quote => literal " in the value
-                    chunks.append('"')
-            else:
-                chunks.append(c)
-        return "".join(chunks)
+                    chunks.append(c)
+
+            return "".join(chunks)
+
+        except Exception:
+            # Any other parsing error - return None gracefully
+            return None
 
     def _check_string(self, s: str) -> bool:
         """Look ahead to see if the next bytes match `s`. If not, revert."""

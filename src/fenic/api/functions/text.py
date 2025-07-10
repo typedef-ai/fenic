@@ -65,7 +65,7 @@ def extract(column: ColumnOrName, template: str) -> Column:
         ```
     """
     return Column._from_logical_expr(
-        TextractExpr(Column._from_col_or_name(column)._logical_expr,template)
+        TextractExpr(Column._from_col_or_name(column)._logical_expr, template)
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
@@ -76,7 +76,7 @@ def recursive_character_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in characters) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -138,7 +138,7 @@ def recursive_word_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in words) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -200,7 +200,7 @@ def recursive_token_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in tokens) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -259,7 +259,7 @@ def character_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in characters) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 
@@ -294,7 +294,7 @@ def word_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in words) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 
@@ -329,7 +329,7 @@ def token_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in tokens) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 

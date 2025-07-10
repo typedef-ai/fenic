@@ -18,6 +18,7 @@ from fenic.core.types import (
     ColumnField,
     DoubleType,
     IntegerType,
+    JsonType,
     StringType,
     StructField,
     StructType,
@@ -93,6 +94,12 @@ class ParsedTemplateFormat:
             elif state == ParserState.COLUMN:
                 if char in ("}", ":"):
                     col_name = format_string[token_begin:pos].strip()
+
+                    # Validate that column name is not empty
+                    if not col_name:
+                        self._throw_invalid_format(
+                            "Column name cannot be empty", len(self.columns)
+    )
                     self.columns.append(col_name)
                     if col_name not in existing_columns:
                         self.new_columns.add(col_name)
@@ -136,6 +143,16 @@ class ParsedTemplateFormat:
                 lines.append(f"  Escaping: {self.escaping_rules[i].name}")
         return "\n".join(lines)
 
+    def to_struct_schema(self) -> StructType:
+        return StructType(
+            struct_fields=[
+                StructField(
+                    name=col,
+                    data_type=JsonType if self.escaping_rules[i] == EscapingRule.JSON else StringType
+                )
+                for i, col in enumerate(self.columns)
+            ]
+        )
 
 class TextractExpr(LogicalExpr):
     def __init__(self, input_expr: LogicalExpr, template: str):
@@ -157,11 +174,7 @@ class TextractExpr(LogicalExpr):
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         self._validate_types(plan)
-        struct_fields = [
-            StructField(name=col, data_type=StringType)
-            for col in self.parsed_template.columns
-        ]
-        result_field = ColumnField(str(self), StructType(struct_fields=struct_fields))
+        result_field = ColumnField(str(self), self.parsed_template.to_struct_schema())
         return result_field
 
     def children(self) -> List[LogicalExpr]:

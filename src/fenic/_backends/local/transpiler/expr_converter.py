@@ -394,12 +394,7 @@ class ExprConverter:
                 col: result_dict.get(col, None) for col in logical.parsed_template.columns
             }
 
-        return_struct_type = StructType(
-            struct_fields=[
-                StructField(name=col, data_type=StringType)
-                for col in logical.parsed_template.columns
-            ]
-        )
+        return_struct_type = logical.parsed_template.to_struct_schema()
 
         return struct_expr.map_elements(
             extract_fields,
