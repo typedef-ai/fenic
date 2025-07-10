@@ -494,7 +494,7 @@ def test_rlike(local_session):
     assert result["text_col"][1] == "world"
 
     # Test with invalid regex
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         bad_pattern = r"[.*"
         df.filter(col("text_col").rlike(bad_pattern))
 
@@ -507,7 +507,7 @@ def test_starts_with(local_session):
     assert result["text_col"][0] == "hello"
 
     # test that starts_with does not accept regex
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         df.filter(col("text_col").starts_with("^"))
 
 
@@ -532,7 +532,7 @@ def test_ends_with(local_session):
     assert result["text_col"][1] == "foo"
 
     # test that ends_with does not accept regex
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         df.filter(col("text_col").ends_with("o$"))
 
 

@@ -3,29 +3,6 @@
 This module registers function signatures for text processing functions,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.expressions.text import (
-    ArrayJoinExpr,
-    ByteLengthExpr,
-    ConcatExpr,
-    ContainsAnyExpr,
-    ContainsExpr,
-    CountTokensExpr,
-    EndsWithExpr,
-    ILikeExpr,
-    LikeExpr,
-    RecursiveTextChunkExpr,
-    RegexpSplitExpr,
-    ReplaceExpr,
-    RLikeExpr,
-    SplitPartExpr,
-    StartsWithExpr,
-    StringCasingExpr,
-    StripCharsExpr,
-    StrLengthExpr,
-    TextChunkExpr,
-    TextractExpr,
-    TsParseExpr,
-)
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.signature import (
     FunctionSignature,
@@ -284,3 +261,4 @@ def register_text_signatures():
     )
 
 
+register_text_signatures()
