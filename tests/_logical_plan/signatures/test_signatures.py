@@ -12,20 +12,17 @@ from fenic.core._logical_plan.signatures.types import (
     Exact,
     Numeric,
     OneOf,
-    StructWithStringKey,
     Uniform,
     VariadicAny,
     VariadicUniform,
 )
-from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     FloatType,
     IntegerType,
     StringType,
-    StructField,
-    StructType,
 )
 
 
@@ -39,10 +36,10 @@ class TestExact:
         sig.validate([StringType, IntegerType], "test_func")
         
         # Should reject wrong argument count
-        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 1"):
+        with pytest.raises(InternalError, match="test_func expects 2 arguments, got 1"):
             sig.validate([StringType], "test_func")
         
-        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 3"):
+        with pytest.raises(InternalError, match="test_func expects 2 arguments, got 3"):
             sig.validate([StringType, IntegerType, BooleanType], "test_func")
         
         # Should reject wrong types
@@ -189,7 +186,7 @@ class TestNumeric:
         # Should require exactly 2 arguments
         sig.validate([IntegerType, FloatType], "test_func")
         
-        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 1"):
+        with pytest.raises(InternalError, match="test_func expects 2 arguments, got 1"):
             sig.validate([IntegerType], "test_func")
 
 
@@ -205,7 +202,7 @@ class TestUniform:
         sig.validate([IntegerType, IntegerType, IntegerType], "test_func")
         
         # Should reject wrong count
-        with pytest.raises(ValidationError, match="test_func expects 3 arguments, got 2"):
+        with pytest.raises(InternalError, match="test_func expects 3 arguments, got 2"):
             sig.validate([StringType, StringType], "test_func")
         
         # Should reject mixed types
@@ -244,39 +241,3 @@ class TestOneOf:
         
         with pytest.raises(TypeMismatchError, match="test_func does not match any valid signature"):
             sig.validate([StringType, StringType], "test_func")
-
-
-class TestStructWithStringKey:
-    """Test StructWithStringKey signature type."""
-    
-    def test_validates_struct_and_string_key(self):
-        sig = StructWithStringKey()
-        struct_type = StructType([
-            StructField("field1", StringType), 
-            StructField("field2", IntegerType)
-        ])
-        
-        # Should accept struct + string
-        sig.validate([struct_type, StringType], "test_func")
-        
-        # Should reject non-struct first argument
-        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be a struct type"):
-            sig.validate([StringType, StringType], "test_func")
-        
-        # Should reject non-string second argument
-        with pytest.raises(TypeMismatchError, match="test_func Argument 1: expected StringType, got IntegerType"):
-            sig.validate([struct_type, IntegerType], "test_func")
-    
-    def test_requires_exactly_two_arguments(self):
-        sig = StructWithStringKey()
-        struct_type = StructType([StructField("field1", StringType)])
-        
-        with pytest.raises(ValidationError, match=r"test_func expects 2 arguments \(struct, field_name\), got 1"):
-            sig.validate([struct_type], "test_func")
-        
-        with pytest.raises(ValidationError, match=r"test_func expects 2 arguments \(struct, field_name\), got 3"):
-            sig.validate([struct_type, StringType, StringType], "test_func")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

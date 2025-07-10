@@ -167,7 +167,3 @@ class TestScalarFunctionIntegration:
 
         with pytest.raises(TypeMismatchError, match="array_size expects argument 0 to be an array type, got IntegerType"):
             array_length_expr_wrong.to_column_field(plan_wrong_type)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

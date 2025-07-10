@@ -92,10 +92,10 @@ class FunctionSignature:
                     f"with VariadicAny type signature (multiple different types)"
                 )
             elif isinstance(self.type_signature, Exact):
-                if len(self.type_signature.constraints) > 1:
+                if len(self.type_signature.expected_arg_types) > 1:
                     # Check if all types are the same
-                    first_type = self.type_signature.constraints[0]
-                    if not all(t == first_type for t in self.type_signature.constraints):
+                    first_type = self.type_signature.expected_arg_types[0]
+                    if not all(t == first_type for t in self.type_signature.expected_arg_types):
                         raise InternalError(
                             f"{self.function_name}: SAME_AS_INPUT not compatible with "
                             f"Exact signature having different types"
