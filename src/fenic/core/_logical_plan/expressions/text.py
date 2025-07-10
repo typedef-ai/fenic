@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Set, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -11,17 +11,23 @@ if TYPE_CHECKING:
 from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core.error import TypeMismatchError
+from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core.types import (
     ArrayType,
     BooleanType,
     ColumnField,
     DoubleType,
     IntegerType,
+    JsonType,
     StringType,
     StructField,
     StructType,
 )
+
+
+class TokenType(Enum):
+    DELIMITER = auto()    # Literal text content
+    COLUMN = auto()  # Column placeholder with optional format
 
 
 class EscapingRule(Enum):
@@ -33,101 +39,100 @@ class EscapingRule(Enum):
     QUALIFIED = auto()
 
     @classmethod
-    def from_string(cls, s: str) -> EscapingRule:
+    def from_string(cls, s: str) -> 'EscapingRule':
         s_upper = s.upper()
         if s_upper in cls.__members__:
             return cls[s_upper]
         valid = ", ".join(m.lower() for m in cls.__members__)
         raise ValueError(f"Invalid escaping rule '{s}'. Valid are {valid}")
 
-
 @dataclass
 class ParsedTemplateFormat:
     delimiters: List[str] = field(default_factory=list)
     escaping_rules: List[EscapingRule] = field(default_factory=list)
     columns: List[str] = field(default_factory=list)
-    new_columns: Set[str] = field(default_factory=set)
+    _original_format: str = field(default="", init=False)
 
-    def parse(self, format_string: str, existing_columns: Set[str]) -> None:
-        self.delimiters.clear()
-        self.escaping_rules.clear()
-        self.columns.clear()
-        self.new_columns.clear()
+    @classmethod
+    def parse(cls, format_string: str) -> 'ParsedTemplateFormat':
+        """Parse a template format string like 'prefix${col1}middle${col2:csv}suffix'."""
+        instance = cls()
+        instance._original_format = format_string
 
-        self.delimiters.append("")  # Start with empty delimiter
+        try:
+            tokens = instance._tokenize(format_string)
+            instance._process_tokens(tokens)
+            return instance
+        except ValueError as e:
+            # Enhance error with dump() context
+            raise ValidationError(f"{e}\n\nDebug:\n{instance.dump()}") from e
 
-        class ParserState(Enum):
-            DELIMITER = auto()
-            COLUMN = auto()
-            FORMAT = auto()
-
-        state = ParserState.DELIMITER
-        token_begin = 0
+    def _tokenize(self, format_string: str) -> List[Tuple[TokenType, str]]:
+        """Break format string into TEXT and COLUMN tokens."""
+        tokens = []
         pos = 0
 
         while pos < len(format_string):
-            char = format_string[pos]
-            if state == ParserState.DELIMITER:
-                if char == "$":
-                    # Add any pending text to the current delimiter
-                    self.delimiters[-1] += format_string[token_begin:pos]
-                    pos += 1
-                    if pos >= len(format_string):
-                        self._throw_invalid_format(
-                            "Unexpected end after $", len(self.columns)
-                        )
+            dollar_pos = format_string.find('$', pos)
 
-                    if format_string[pos] == "{":
-                        state = ParserState.COLUMN
-                        token_begin = pos + 1
-                    elif format_string[pos] == "$":
-                        # Escaped $$
-                        self.delimiters[-1] += "$"
-                        token_begin = pos + 1
-                    else:
-                        self._throw_invalid_format(
-                            f"Expected '{{' or '$' after '$', got '{format_string[pos:pos+16]}'",
-                            len(self.columns),
-                        )
-                # else keep scanning for next $
-            elif state == ParserState.COLUMN:
-                if char in ("}", ":"):
-                    col_name = format_string[token_begin:pos].strip()
-                    self.columns.append(col_name)
-                    if col_name not in existing_columns:
-                        self.new_columns.add(col_name)
+            if dollar_pos == -1:
+                if pos < len(format_string):
+                    tokens.append((TokenType.DELIMITER, format_string[pos:]))
+                break
 
-                    if char == ":":
-                        state = ParserState.FORMAT
-                        token_begin = pos + 1
-                    else:  # char == '}'
-                        self.escaping_rules.append(EscapingRule.NONE)
-                        self.delimiters.append("")
-                        state = ParserState.DELIMITER
-                        token_begin = pos + 1
-            elif state == ParserState.FORMAT:
-                if char == "}":
-                    fmt_str = format_string[token_begin:pos].strip()
-                    rule = EscapingRule.from_string(fmt_str)
-                    self.escaping_rules.append(rule)
-                    self.delimiters.append("")
-                    state = ParserState.DELIMITER
-                    token_begin = pos + 1
+            if dollar_pos > pos:
+                tokens.append((TokenType.DELIMITER, format_string[pos:dollar_pos]))
 
-            pos += 1
+            if dollar_pos + 1 >= len(format_string):
+                raise ValueError(f"Unexpected end after '$' at position {dollar_pos}")
 
-        if state == ParserState.DELIMITER:
-            self.delimiters[-1] += format_string[token_begin:pos]
+            next_char = format_string[dollar_pos + 1]
+            if next_char == '$':
+                tokens.append((TokenType.DELIMITER, '$'))
+                pos = dollar_pos + 2
+            elif next_char == '{':
+                brace_pos = format_string.find('}', dollar_pos + 2)
+                if brace_pos == -1:
+                    raise ValueError(f"Unmatched opening brace starting at position {dollar_pos + 1}")
+
+                column_content = format_string[dollar_pos + 2:brace_pos]
+                tokens.append((TokenType.COLUMN, column_content))
+                pos = brace_pos + 1
+            else:
+                raise ValueError(f"Expected '{{' or '$' after '$' at position {dollar_pos + 1}, got '{next_char}'")
+
+        return tokens
+
+    def _process_tokens(self, tokens: List[Tuple[TokenType, str]]) -> None:
+        """Process tokens into delimiters, columns, and escaping rules."""
+        self.delimiters.append("")  # Start with empty delimiter
+
+        for token_type, content in tokens:
+            if token_type == TokenType.DELIMITER:
+                self.delimiters[-1] += content
+            elif token_type == TokenType.COLUMN:
+                self._process_column_token(content)
+                self.delimiters.append("")  # Start new delimiter after column
+
+    def _process_column_token(self, content: str) -> None:
+        """Process a column token like 'col_name' or 'col_name:csv'."""
+        if ':' in content:
+            col_name, format_spec = content.split(':', 1)
+            col_name = col_name.strip()
+            format_spec = format_spec.strip()
+            escaping_rule = EscapingRule.from_string(format_spec)
         else:
-            self._throw_invalid_format("Unbalanced braces", len(self.columns))
+            col_name = content.strip()
+            escaping_rule = EscapingRule.NONE
 
-    def _throw_invalid_format(self, message: str, column_index: int):
-        raise ValueError(
-            f"Invalid format string: {message} (at or near column {column_index})\n"
-            f"Debug:\n{self.dump()}"
-        )
+        if not col_name:
+            raise ValueError("Column name cannot be empty")
+
+        self.columns.append(col_name)
+        self.escaping_rules.append(escaping_rule)
 
     def dump(self) -> str:
+        """Return a debug representation of the parsed format."""
         lines = []
         for i, delim in enumerate(self.delimiters):
             lines.append(f"Delimiter {i}: {repr(delim)}")
@@ -136,13 +141,22 @@ class ParsedTemplateFormat:
                 lines.append(f"  Escaping: {self.escaping_rules[i].name}")
         return "\n".join(lines)
 
+    def to_struct_schema(self) -> StructType:
+        return StructType(
+            struct_fields=[
+                StructField(
+                    name=col,
+                    data_type=JsonType if self.escaping_rules[i] == EscapingRule.JSON else StringType
+                )
+                for i, col in enumerate(self.columns)
+            ]
+        )
 
 class TextractExpr(LogicalExpr):
     def __init__(self, input_expr: LogicalExpr, template: str):
         self.input_expr = input_expr
         self.template = template
-        self.parsed_template = ParsedTemplateFormat()
-        self.parsed_template.parse(template, set())
+        self.parsed_template = ParsedTemplateFormat.parse(template)
 
     def __str__(self):
         return f"text.extract('{self.template}', {self.input_expr})"
@@ -157,11 +171,7 @@ class TextractExpr(LogicalExpr):
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         self._validate_types(plan)
-        struct_fields = [
-            StructField(name=col, data_type=StringType)
-            for col in self.parsed_template.columns
-        ]
-        result_field = ColumnField(str(self), StructType(struct_fields=struct_fields))
+        result_field = ColumnField(str(self), self.parsed_template.to_struct_schema())
         return result_field
 
     def children(self) -> List[LogicalExpr]:

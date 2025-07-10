@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 if TYPE_CHECKING:
@@ -386,20 +385,15 @@ class ExprConverter:
             text = str(row[str(logical.input_expr)])
             if not text:
                 return {col: None for col in logical.parsed_template.columns}
-            reader = TemplateFormatReader(logical.parsed_template, StringIO(text))
-            result_dict = reader.read_row() or {
+            reader = TemplateFormatReader(logical.parsed_template, text)
+            result_dict = reader.parse() or {
                 col: None for col in logical.parsed_template.columns
             }
             return {
                 col: result_dict.get(col, None) for col in logical.parsed_template.columns
             }
 
-        return_struct_type = StructType(
-            struct_fields=[
-                StructField(name=col, data_type=StringType)
-                for col in logical.parsed_template.columns
-            ]
-        )
+        return_struct_type = logical.parsed_template.to_struct_schema()
 
         return struct_expr.map_elements(
             extract_fields,
