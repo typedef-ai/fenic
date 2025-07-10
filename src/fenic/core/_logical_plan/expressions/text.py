@@ -11,10 +11,8 @@ if TYPE_CHECKING:
 from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core.error import ValidationError
 from fenic.core._logical_plan.signatures.function_base import ScalarFunction
 from fenic.core.error import ValidationError
-from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core.types import (
     DataType,
     JsonType,

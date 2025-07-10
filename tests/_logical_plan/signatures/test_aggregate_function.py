@@ -3,11 +3,7 @@
 import pytest
 
 from fenic.core._logical_plan.expressions.aggregate import AvgExpr, CountExpr, SumExpr
-from fenic.core._logical_plan.signatures import (
-    FunctionRegistry,
-    FunctionSignature,
-)
-from fenic.core.error import InternalError, TypeMismatchError
+from fenic.core.error import TypeMismatchError
 from fenic.core.types.datatypes import (
     DoubleType,
     EmbeddingType,

@@ -3,7 +3,15 @@
 This package provides a centralized system for validating function signatures
 and inferring return types.
 """
-from fenic.core._logical_plan.signatures import aggregate, basic, embedding, json, markdown, semantic, text  #noqa: F401
+from fenic.core._logical_plan.signatures import (  #noqa: F401
+    aggregate,
+    basic,
+    embedding,
+    json,
+    markdown,
+    semantic,
+    text,
+)
 from fenic.core._logical_plan.signatures.function_base import (
     AggregateFunction,
     ScalarFunction,

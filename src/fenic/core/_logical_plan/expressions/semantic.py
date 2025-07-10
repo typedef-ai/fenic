@@ -403,7 +403,7 @@ class EmbeddingsExpr(SemanticScalarFunction):
         pass
 
 
-class SemanticSummarizeExpr(SemanticFunction):
+class SemanticSummarizeExpr(SemanticScalarFunction):
     function_name = "semantic.summarize"
 
     def __init__(
