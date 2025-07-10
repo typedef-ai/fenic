@@ -77,6 +77,7 @@ def test_semantic_summarization_keypoints(local_session):
     )
     result = df.to_polars()
     assert result.schema["summarized_text"] == pl.String
+    result_lines: list[str] = result['summarized_text'][0].splitlines()
     # should not exceed 10 key points
-    assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ")) <= 10
-    assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ")) >=1
+    assert sum(1 for line in result_lines if line.strip().startswith("- ") or line.strip().startswith("* ")) <= 10
+    assert sum(1 for line in result['summarized_text'][0].splitlines() if line.strip().startswith("- ") or line.strip().startswith("* ")) >=1

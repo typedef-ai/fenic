@@ -19,8 +19,7 @@ from fenic.core.types.schema import ColumnField
 
 class ScalarFunction(LogicalExpr):
     """Base class for scalar functions with signatures.
-    
-    Automatically handles children() method based on LogicalExpr arguments passed to __init__.
+
     Concrete subclasses store their own parameters as attributes and only pass LogicalExpr
     arguments to super().__init__() for type validation.
     """

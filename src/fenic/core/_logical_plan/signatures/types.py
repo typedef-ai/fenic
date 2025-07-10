@@ -5,14 +5,12 @@ validating LogicalExpr arguments with standard DataTypes.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Optional, Union
+from typing import List, Optional
 
-from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     DataType,
-    StringType,
-    StructType,
     is_dtype_numeric,
 )
 
@@ -25,129 +23,27 @@ class TypeSignature(ABC):
         """Validate that argument types match this signature."""
         pass
 
-    def get_expected_types(self, arg_types: List[DataType]) -> List[DataType]:
-        """Get the expected types for implicit casting.
+class Exact(TypeSignature):
+    """Exact argument types for functions (e.g., length(str) -> int)."""
 
-        Default implementation returns arg_types (no specific expectation).
-        Override in subclasses that have specific type expectations.
-        """
-        return arg_types
-
-
-class PositionalSignature(TypeSignature):
-    """Position-based signature validation with flexible constraints.
-
-    Validates arguments by position using a list of constraints. Each position can specify
-    exact DataType matching, isinstance checking, or use exact_values for singleton types.
-    Supports custom validation logic for complex relationships between arguments.
-    """
-
-    def __init__(
-        self,
-        constraints: List[Union[DataType, type]],
-        exact_values: Optional[List[DataType]] = None,
-        custom_validator: Optional[Callable[[List[DataType], str], None]] = None,
-        arg_names: Optional[List[str]] = None
-    ):
-        """Initialize with position-based type constraints.
-
-        Args:
-            constraints: List of DataType instances (for exact matching) or type classes
-                        (for isinstance checking) that arguments must satisfy.
-            exact_values: Optional list of exact DataType instances to match. Use None
-                         for positions that should use isinstance() checking.
-            custom_validator: Optional function for additional validation logic.
-            arg_names: Optional list of argument names for error messages.
-        """
-        self.constraints = constraints
-        self.exact_values = exact_values or [None] * len(constraints)
-        self.custom_validator = custom_validator
-        self.arg_names = arg_names
+    def __init__(self, expected_arg_types: List[DataType]):
+        self.expected_arg_types = expected_arg_types
 
     def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
-        if len(actual_arg_types) != len(self.constraints):
-            if self.arg_names:
-                arg_names_str = f" ({', '.join(self.arg_names)})"
-            else:
-                arg_names_str = ""
-            raise ValidationError(
-                f"{func_name} expects {len(self.constraints)} arguments{arg_names_str}, "
+        if len(actual_arg_types) != len(self.expected_arg_types):
+            raise InternalError(
+                f"{func_name} expects {len(self.expected_arg_types)} arguments, "
                 f"got {len(actual_arg_types)}"
             )
 
-        # Validate each argument position
-        for i, (constraint, actual_arg_type) in enumerate(zip(self.constraints, actual_arg_types, strict=False)):
-            exact_value = self.exact_values[i]
+        for i, (expected, actual) in enumerate(zip(self.expected_arg_types, actual_arg_types, strict=False)):
+            if actual != expected:
+                raise TypeMismatchError(
+                    expected=expected,
+                    actual=actual,
+                    context=f"{func_name} Argument {i}",
+                )
 
-            if exact_value is not None:
-                # Check for exact equality (singleton types)
-                if actual_arg_type != exact_value:
-                    raise TypeMismatchError(
-                        expected=exact_value,
-                        actual=actual_arg_type,
-                        context=f"{func_name} Argument {i}",
-                    )
-            elif isinstance(constraint, type):
-                # Check isinstance (non-singleton types)
-                if not isinstance(actual_arg_type, constraint):
-                    if constraint == ArrayType:
-                        raise TypeMismatchError.from_message(
-                            f"{func_name} expects argument {i} to be an array type, "
-                            f"got {actual_arg_type}"
-                        )
-                    elif constraint == StructType:
-                        raise TypeMismatchError.from_message(
-                            f"{func_name} expects argument {i} to be a struct type, "
-                            f"got {actual_arg_type}"
-                        )
-                    else:
-                        raise TypeMismatchError.from_message(
-                            f"{func_name} expects argument {i} to be an instance of {constraint.__name__}, "
-                            f"got {actual_arg_type}"
-                        )
-            else:
-                # DataType instance - check for exact equality
-                if actual_arg_type != constraint:
-                    raise TypeMismatchError(
-                        expected=constraint,
-                        actual=actual_arg_type,
-                        context=f"{func_name} Argument {i}",
-                    )
-
-        # Apply custom validation if provided
-        if self.custom_validator:
-            self.custom_validator(actual_arg_types, func_name)
-
-    def get_expected_types(self, arg_types: List[DataType]) -> List[DataType]:
-        """Return expected types from constraints for implicit casting."""
-        expected_types = []
-        for i, constraint in enumerate(self.constraints):
-            if i < len(arg_types):
-                exact_value = self.exact_values[i] if i < len(self.exact_values) else None
-                if exact_value is not None:
-                    expected_types.append(exact_value)
-                elif isinstance(constraint, DataType):
-                    expected_types.append(constraint)
-                else:
-                    # For type classes, return the actual type (no expectation)
-                    expected_types.append(arg_types[i])
-            else:
-                # No argument provided for this constraint
-                if isinstance(constraint, DataType):
-                    expected_types.append(constraint)
-                else:
-                    break
-        return expected_types
-
-
-class Exact(PositionalSignature):
-    """Exact argument types for functions (e.g., length(str) -> int).
-
-    Syntactic sugar for PositionalSignature with DataType instances.
-    """
-
-    def __init__(self, expected_arg_types: List[DataType]):
-        super().__init__(expected_arg_types)
 
 class Uniform(TypeSignature):
     """All arguments must be the same type."""
@@ -158,7 +54,7 @@ class Uniform(TypeSignature):
 
     def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
         if len(actual_arg_types) != self.expected_num_args:
-            raise ValidationError(
+            raise InternalError(
                 f"{func_name} expects {self.expected_num_args} arguments, "
                 f"got {len(actual_arg_types)}"
             )
@@ -210,11 +106,6 @@ class VariadicUniform(TypeSignature):
                     f"Argument 0 has type {first_type}, but argument {i} has type {actual_arg_type}"
                 )
 
-    def get_expected_types(self, arg_types: List[DataType]) -> List[DataType]:
-        """Return expected uniform type if required_type is specified."""
-        if self.required_type and arg_types:
-            return [self.required_type] * len(arg_types)
-        return arg_types
 
 
 class VariadicAny(TypeSignature):
@@ -239,7 +130,7 @@ class Numeric(TypeSignature):
 
     def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
         if len(actual_arg_types) != self.expected_num_args:
-            raise ValidationError(
+            raise InternalError(
                 f"{func_name} expects {self.expected_num_args} arguments, "
                 f"got {len(actual_arg_types)}"
             )
@@ -277,32 +168,54 @@ class OneOf(TypeSignature):
 # === Specialized Type Signatures for Arrays and Structs ===
 
 
-class ArrayOfAny(PositionalSignature):
+class ArrayOfAny(TypeSignature):
     """Matches any ArrayType regardless of element type."""
 
     def __init__(self, expected_num_args: int = 1):
-        constraints = [ArrayType] * expected_num_args
-        super().__init__(constraints)
+        self.expected_num_args = expected_num_args
+
+    def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
+        if len(actual_arg_types) != self.expected_num_args:
+            raise ValidationError(
+                f"{func_name} expects {self.expected_num_args} arguments, "
+                f"got {len(actual_arg_types)}"
+            )
+
+        for i, actual_arg_type in enumerate(actual_arg_types):
+            if not isinstance(actual_arg_type, ArrayType):
+                raise TypeMismatchError.from_message(
+                    f"{func_name} expects argument {i} to be an array type, "
+                    f"got {actual_arg_type}"
+                )
 
 
-class ArrayWithMatchingElement(PositionalSignature):
+class ArrayWithMatchingElement(TypeSignature):
     """Validates array + element where element type must match array element type."""
 
     def __init__(self):
-        def custom_validator(actual_arg_types: List[DataType], func_name: str) -> None:
-            actual_array_type, actual_element_type = actual_arg_types
-            if actual_array_type.element_type != actual_element_type:
-                raise TypeMismatchError(
-                    expected=actual_array_type.element_type,
-                    actual=actual_element_type,
-                    context=f"{func_name} Argument 1",
-                )
-        
-        super().__init__([ArrayType, DataType], custom_validator=custom_validator, arg_names=["array", "element"])
+        self.arg_names = ["array", "element"]
 
+    def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
+        if len(actual_arg_types) != 2:
+            arg_names_str = f" ({', '.join(self.arg_names)})"
+            raise ValidationError(
+                f"{func_name} expects 2 arguments{arg_names_str}, "
+                f"got {len(actual_arg_types)}"
+            )
 
-class StructWithStringKey(PositionalSignature):
-    """Validates struct + string key for field access."""
+        actual_array_type, actual_element_type = actual_arg_types
 
-    def __init__(self):
-        super().__init__([StructType, StringType], arg_names=["struct", "field_name"])
+        # Validate first argument is ArrayType
+        if not isinstance(actual_array_type, ArrayType):
+            raise TypeMismatchError.from_message(
+                f"{func_name} expects argument 0 to be an array type, "
+                f"got {actual_array_type}"
+            )
+
+        # Validate element type matches array element type
+        if actual_array_type.element_type != actual_element_type:
+            raise TypeMismatchError(
+                expected=actual_array_type.element_type,
+                actual=actual_element_type,
+                context=f"{func_name} Argument 1",
+            )
