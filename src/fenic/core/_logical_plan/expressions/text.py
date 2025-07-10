@@ -26,7 +26,7 @@ from fenic.core.types import (
 
 
 class TokenType(Enum):
-    TEXT = auto()    # Literal text content
+    DELIMITER = auto()    # Literal text content
     COLUMN = auto()  # Column placeholder with optional format
 
 
@@ -77,18 +77,18 @@ class ParsedTemplateFormat:
 
             if dollar_pos == -1:
                 if pos < len(format_string):
-                    tokens.append((TokenType.TEXT, format_string[pos:]))
+                    tokens.append((TokenType.DELIMITER, format_string[pos:]))
                 break
 
             if dollar_pos > pos:
-                tokens.append((TokenType.TEXT, format_string[pos:dollar_pos]))
+                tokens.append((TokenType.DELIMITER, format_string[pos:dollar_pos]))
 
             if dollar_pos + 1 >= len(format_string):
                 raise ValueError(f"Unexpected end after '$' at position {dollar_pos}")
 
             next_char = format_string[dollar_pos + 1]
             if next_char == '$':
-                tokens.append((TokenType.TEXT, '$'))
+                tokens.append((TokenType.DELIMITER, '$'))
                 pos = dollar_pos + 2
             elif next_char == '{':
                 brace_pos = format_string.find('}', dollar_pos + 2)
@@ -108,7 +108,7 @@ class ParsedTemplateFormat:
         self.delimiters.append("")  # Start with empty delimiter
 
         for token_type, content in tokens:
-            if token_type == TokenType.TEXT:
+            if token_type == TokenType.DELIMITER:
                 self.delimiters[-1] += content
             elif token_type == TokenType.COLUMN:
                 self._process_column_token(content)
