@@ -4,6 +4,8 @@ import logging
 import sys
 from typing import Optional, TextIO
 
+NOISY_LOGGER_NAMES = ("openai", "httpx", "google_genai")
+
 
 def configure_logging(
     log_level: int = logging.INFO,
@@ -37,7 +39,7 @@ def configure_logging(
         root_logger.addHandler(handler)
 
         # Silence noisy dependencies
-        for noisy_logger_name in ("openai", "httpx"):
+        for noisy_logger_name in NOISY_LOGGER_NAMES:
             noisy_logger = logging.getLogger(noisy_logger_name)
             noisy_logger.setLevel(logging.ERROR)
 
