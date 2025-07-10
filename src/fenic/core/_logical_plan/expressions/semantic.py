@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -374,7 +374,6 @@ class EmbeddingsExpr(SemanticExpr):
 
 
 class SemanticSummarizeExpr(SemanticExpr):
-
     def __init__(self, expr: LogicalExpr, format: Union[KeyPoints, Paragraph], temperature: float, model_alias: Optional[str] = None):
         super().__init__()
         self.expr = expr
