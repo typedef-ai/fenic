@@ -42,7 +42,7 @@ def extract(column: ColumnOrName, template: str) -> Column:
     Args:
         column: Input text column to extract from
         template: Template string with placeholders as ``${field_name}`` or ``${field_name:format}``
-                 Available formats: none, csv, json, quoted, regex, qualified
+                 Available formats: none, csv, json, quoted
 
     Returns:
         Column: Struct column with fields corresponding to template placeholders.
