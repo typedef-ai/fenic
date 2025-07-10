@@ -23,14 +23,14 @@ from fenic.core.types.datatypes import EmbeddingType, FloatType
 def register_embedding_signatures():
     """Register all embedding function signatures for ScalarFunctions."""
     # Normalize embedding vectors to unit length
-    FunctionRegistry.register("embedding.normalize", EmbeddingNormalizeExpr, FunctionSignature(
+    FunctionRegistry.register("embedding.normalize", FunctionSignature(
         function_name="embedding.normalize",
         type_signature=InstanceOf([EmbeddingType]),  # Any EmbeddingType instance
         return_type=ReturnTypeStrategy.SAME_AS_INPUT  # Returns same EmbeddingType
     ))
     
     # Compute similarity between embedding vectors
-    FunctionRegistry.register("embedding.compute_similarity", EmbeddingSimilarityExpr, FunctionSignature(
+    FunctionRegistry.register("embedding.compute_similarity", FunctionSignature(
         function_name="embedding.compute_similarity",
         type_signature=OneOf([
             InstanceOf([EmbeddingType]),  # embedding input only (other is query vector parameter)
