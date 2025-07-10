@@ -138,4 +138,4 @@ To run demo notebooks:
 
 ---
 
-Have questions or want to contribute? Let us know in the [Discord](https://discord.gg/aAvsqRW3)!
+Have questions or want to contribute? Let us know in the [Discord](https://discord.gg/GdqF3J7huR)!
