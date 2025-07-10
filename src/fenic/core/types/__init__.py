@@ -33,6 +33,10 @@ from fenic.core.types.semantic_examples import (
     PredicateExample,
     PredicateExampleCollection,
 )
+from fenic.core.types.summarize import (
+    KeyPoints,
+    Paragraph,
+)
 
 __all__ = [
     "ArrayType",
@@ -65,5 +69,8 @@ __all__ = [
     "StringType",
     "StructField",
     "StructType",
+    "KeyPoints",
+    "Paragraph",
     "TranscriptType",
 ]
+

@@ -94,6 +94,9 @@ from fenic.core._logical_plan.expressions.semantic import (
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticReduceExpr as SemanticReduceExpr,
 )
+from fenic.core._logical_plan.expressions.semantic import (
+    SemanticSummarizeExpr as SemanticSummarizeExpr,
+)
 from fenic.core._logical_plan.expressions.text import ArrayJoinExpr as ArrayJoinExpr
 from fenic.core._logical_plan.expressions.text import (
     ByteLengthExpr as ByteLengthExpr,

@@ -1,200 +1,147 @@
 import json
-from io import StringIO
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Optional
 
 from fenic.core._logical_plan.expressions import EscapingRule, ParsedTemplateFormat
 
 
 class TemplateFormatReader:
-    """A simplified row-only parser. It does not handle a separate result-set prefix/suffix.
-    Reads lines from input, expects columns as defined in ParsedTemplateFormat.
-    """
+    """A parser for applying templates strings for structured extraction."""
 
-    def __init__(self, template_format: ParsedTemplateFormat, input_data: StringIO):
+    def __init__(self, template_format: ParsedTemplateFormat, input_string: str):
         self.format = template_format
-        self.input = input_data
-        self.row_num = 0
-        self.finished = False
+        self.input_string = input_string
+        self.position = 0
 
-    def read_row(self) -> Optional[Dict[str, Any]]:
-        if self.finished or self.input.closed:
-            return None
-
-        row = {}
+    def parse(self) -> Optional[Dict[str, Any]]:
+        """Parse the input string using the template format."""
         try:
-            for i, col_name in enumerate(self.format.columns):
-                # Match the delimiter before this column:
-                if not self._match_delimiter(self.format.delimiters[i]):
-                    # If we fail to match, presumably we're out of data:
-                    raise EOFError()
-
-                # Read the field
-                rule = self.format.escaping_rules[i]
-                value = self._read_field(rule)
-                if value is not None:
-                    row[col_name] = value
-
-            # Finally match trailing delimiter (after last column):
-            if len(self.format.delimiters) > len(self.format.columns):
-                tail_delim = self.format.delimiters[len(self.format.columns)]
-                if not self._match_delimiter(tail_delim):
-                    # If the last delimiter doesn't match, treat it as EOF / end of row
-                    pass
-
-            # Attempt to consume one newline so the next row can start fresh:
-            self._skip_newline()
-
-            self.row_num += 1
-            return row
-
+            return self._parse_row()
         except EOFError:
-            self.finished = True
-            return None
+            return None  # Template didn't match the input
 
-    def read_all(self) -> Iterator[Dict[str, Any]]:
-        while True:
-            row = self.read_row()
-            if row is None:
-                break
-            yield row
+    def _parse_row(self) -> Dict[str, Any]:
+        """Parse a single row according to the template format."""
+        row = {}
 
-    def _match_delimiter(self, delimiter: str) -> bool:
-        """If delimiter is empty, treat it as a no-op. Otherwise read from stream and compare."""
-        if delimiter == "":
-            return True
+        for i, col_name in enumerate(self.format.columns):
+            # Match delimiter before this column
+            if not self._consume_delimiter(self.format.delimiters[i]):
+                raise EOFError("Failed to match delimiter")
 
-        pos = self.input.tell()
-        chunk = self.input.read(len(delimiter))
-        if chunk == delimiter:
-            return True
-        else:
-            # revert
-            self.input.seek(pos)
-            return False
+            # Read the field value
+            rule = self.format.escaping_rules[i]
+            value = self._read_field(rule, i)
+            if value is not None:
+                row[col_name] = value
 
-    def _skip_newline(self) -> None:
-        r"""Consume one newline (\n or \r\n) if present."""
-        pos = self.input.tell()
-        c = self.input.read(1)
-        if not c:
-            return  # EOF
-        if c == "\r":
-            nxt = self.input.read(1)
-            if nxt != "\n":
-                # Revert the extra char
-                self.input.seek(self.input.tell() - 1)
-        elif c != "\n":
-            # Not a newline, revert
-            self.input.seek(pos)
+        # Match trailing delimiter (always exists)
+        if not self._consume_delimiter(self.format.delimiters[-1]):
+            raise EOFError("Failed to match final delimiter")
 
-    def _read_field(self, rule: EscapingRule) -> Any:
+        return row
+
+    def _read_field(self, rule: EscapingRule, field_index: int) -> Any:
+        """Read a field value according to the escaping rule."""
         if rule == EscapingRule.NONE:
-            return self._read_until_delimiters()
+            return self._read_until_next_delimiter(field_index)
         elif rule == EscapingRule.CSV:
-            return self._read_csv_field()
+            return self._read_csv_field(field_index)
         elif rule == EscapingRule.JSON:
-            return self._read_json_field()
+            return self._read_json_field(field_index)
         elif rule == EscapingRule.QUOTED:
             return self._read_quoted_field()
         else:
-            raise ValueError(f"Unsupported rule: {rule.name}")
+            raise ValueError(f"Unsupported escaping rule: {rule.name}")
 
-    def _read_until_delimiters(self) -> str:
-        """Read characters until we see any **non-empty** delimiter or newline.
-        Skips empty delimiters so we don't stop prematurely.
-        """
-        # Gather all non-empty delimiters *after* the first one
-        # (the first delimiter is the one we just matched).
-        non_empty = {d for d in self.format.delimiters[1:] if d}
-        # We'll also treat a newline as a stopping condition.
-        chunks = []
-        while True:
-            pos = self.input.tell()
-            c = self.input.read(1)
-            if not c:
-                # EOF
-                break
+    def _read_until_next_delimiter(self, field_index: int) -> str:
+        """Read characters until the next delimiter or end of input."""
+        next_delimiter = self._get_next_delimiter(field_index)
 
-            # Put back the char so we can check if it matches any delimiter
-            self.input.seek(pos)
+        if not next_delimiter:
+            # Read until end of string (no more delimiters)
+            result = self.input_string[self.position:]
+            self.position = len(self.input_string)
+            return result.strip()
 
-            # Check if it matches any known delimiter or newline
-            if self._check_string("\n") or self._check_string("\r\n"):
-                # We see a newline => end the field
-                break
+        # Find the next occurrence of the delimiter
+        delimiter_pos = self.input_string.find(next_delimiter, self.position)
+        if delimiter_pos == -1:
+            # Delimiter not found - read to end
+            result = self.input_string[self.position:]
+            self.position = len(self.input_string)
+            return result.strip()
 
-            matched = False
-            for d in non_empty:
-                if self._check_string(d):
-                    matched = True
-                    break
-            if matched:
-                # We see a delimiter => end of field
-                break
+        # Read up to the delimiter
+        result = self.input_string[self.position:delimiter_pos]
+        self.position = delimiter_pos
+        return result.strip()
 
-            # Otherwise consume the character
-            c = self.input.read(1)
-            chunks.append(c)
+    def _read_csv_field(self, field_index: int) -> str:
+        """Read a CSV field (may be quoted or unquoted)."""
+        if self._peek(1) == '"':
+            return self._read_quoted_field()
+        else:
+            return self._read_until_next_delimiter(field_index).strip()
 
-        return "".join(chunks).strip()
-
-    def _read_csv_field(self) -> str:
-        text = self._read_until_delimiters()
-        text = text.strip()
-        # If it's quoted CSV, remove the outer quotes and unescape double quotes:
-        if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
-            inner = text[1:-1].replace('""', '"')
-            return inner
-        return text
-
-    def _read_json_field(self) -> Any:
-        text = self._read_until_delimiters()
-        text = text.strip()
+    def _read_json_field(self, field_index: int) -> Optional[str]:
+        """Read and validate a JSON field."""
+        text = self._read_until_next_delimiter(field_index).strip()
         if not text:
             return None
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {text}") from e
 
-    def _read_quoted_field(self) -> str:
-        """Expects an opening quote, read until closing quote.
-        No special backslash escapes except double quotes as repeated ""? Adjust as needed.
-        """
-        # Check we actually have a leading quote
-        start = self.input.read(1)
-        if start != '"':
-            if start:  # revert that char
-                self.input.seek(self.input.tell() - 1)
-            raise ValueError("Quoted field must start with '\"'")
+        try:
+            json.loads(text)  # Validate JSON
+            return text
+        except json.JSONDecodeError:
+            return None
+
+    def _read_quoted_field(self) -> Optional[str]:
+        """Read a quoted field with proper escape handling."""
+        if self._peek(1) != '"':
+            return None
+
+        self.position += 1  # Skip opening quote
         chunks = []
-        while True:
-            c = self.input.read(1)
-            if not c:
-                raise EOFError("EOF in quoted field")
-            if c == '"':
-                # Could be end of field or doubled quote
-                pos = self.input.tell()
-                nxt = self.input.read(1)
-                if nxt != '"':
-                    # Not a doubled quote => revert
-                    self.input.seek(pos)
-                    break
+
+        while self.position < len(self.input_string):
+            char = self.input_string[self.position]
+
+            if char == '"':
+                # Check for escaped quote
+                if self.position + 1 < len(self.input_string) and self.input_string[self.position + 1] == '"':
+                    chunks.append('"')  # Add literal quote
+                    self.position += 2  # Skip both quotes
                 else:
-                    # It's a double quote => literal " in the value
-                    chunks.append('"')
+                    # End of quoted field
+                    self.position += 1  # Skip closing quote
+                    break
             else:
-                chunks.append(c)
+                chunks.append(char)
+                self.position += 1
+
         return "".join(chunks)
 
-    def _check_string(self, s: str) -> bool:
-        """Look ahead to see if the next bytes match `s`. If not, revert."""
-        pos = self.input.tell()
-        chunk = self.input.read(len(s))
-        if chunk == s:
-            # revert pointer, only a peek
-            self.input.seek(pos)
+    def _get_next_delimiter(self, current_field_index: int) -> str:
+        """Get the delimiter that should appear after the current field."""
+        next_index = current_field_index + 1
+        if next_index < len(self.format.delimiters):
+            return self.format.delimiters[next_index]
+        return ""
+
+    def _consume_delimiter(self, delimiter: str) -> bool:
+        """Consume the expected delimiter from the string."""
+        if not delimiter:
             return True
-        else:
-            self.input.seek(pos)
-            return False
+
+        if self.input_string[self.position:].startswith(delimiter):
+            self.position += len(delimiter)
+            return True
+        return False
+
+    def _peek(self, length: int) -> str:
+        """Look ahead in the string without advancing position."""
+        return self.input_string[self.position:self.position + length]
+
+    def _at_eof(self) -> bool:
+        """Check if we're at end of string."""
+        return self.position >= len(self.input_string)

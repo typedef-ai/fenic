@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional
 
+from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core.error import PlanError, SessionError
 from fenic.core.types.schema import Schema
@@ -63,13 +64,17 @@ class LogicalPlan(ABC):
         """Return the string representation for this logical plan."""
         pass
 
+    def _repr_with_indent(self, _level: int) -> str:
+        """Default: just call __repr(). Override this method to build an indentation aware string plan representation."""
+        return self._repr()
+
     def __str__(self) -> str:
         """Recursively pretty-print with indentation."""
 
         def pretty_print(plan: LogicalPlan, level: int) -> str:
-            indent = "  " * level
+            indent = PRETTY_PRINT_INDENT * level
             cache_info = " (cached=true)" if plan.cache_info is not None else ""
-            result = f"{indent}{plan._repr()}{cache_info}\n"
+            result = f"{indent}{plan._repr_with_indent(level)}{cache_info}\n"
             for child in plan.children():
                 result += pretty_print(child, level + 1)
             return result

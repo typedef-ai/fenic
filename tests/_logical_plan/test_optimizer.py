@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 from pydantic import BaseModel, Field
 
 from fenic.api.functions import col, lit, semantic, text
@@ -22,8 +24,17 @@ def test_merge_filters_basic(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=((id = lit(2)) AND ((value = lit(b)) AND ((id < lit(3)) AND (id > lit(1))))))
-  InMemorySource(schema=[ColumnField(name='id', data_type=IntegerType), ColumnField(name='value', data_type=StringType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=((id = lit(2)) AND ((value = lit(b)) AND ((id < lit(3)) AND (id > lit(1))))))
+          InMemorySource(
+            Schema(
+              ColumnField(name='id', data_type=IntegerType)
+              ColumnField(name='value', data_type=StringType)
+            )
+          )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -38,10 +49,19 @@ def test_merge_filters_with_cache(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=(id > lit(1)))
-  Filter(predicate=((id = lit(2)) AND ((value = lit(b)) AND (id < lit(3))))) (cached=true)
-    Filter(predicate=(id > lit(1))) (cached=true)
-      InMemorySource(schema=[ColumnField(name='id', data_type=IntegerType), ColumnField(name='value', data_type=StringType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=(id > lit(1)))
+          Filter(predicate=((id = lit(2)) AND ((value = lit(b)) AND (id < lit(3))))) (cached=true)
+            Filter(predicate=(id > lit(1))) (cached=true)
+              InMemorySource(
+                Schema(
+                  ColumnField(name='id', data_type=IntegerType)
+                  ColumnField(name='value', data_type=StringType)
+                )
+              )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -77,10 +97,21 @@ def test_semantic_predicate_rewrite_basic(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=semantic.predicate_b5897940(blurb2))
-  Filter(predicate=semantic.predicate_9cfbfb96(blurb1, blurb2))
-    Filter(predicate=(a_boolean_column AND (a_numeric_column > lit(0))))
-      InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='blurb2', data_type=StringType), ColumnField(name='a_boolean_column', data_type=BooleanType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=semantic.predicate_b5897940(blurb2))
+          Filter(predicate=semantic.predicate_9cfbfb96(blurb1, blurb2))
+            Filter(predicate=(a_boolean_column AND (a_numeric_column > lit(0))))
+              InMemorySource(
+                Schema(
+                  ColumnField(name='blurb1', data_type=StringType)
+                  ColumnField(name='blurb2', data_type=StringType)
+                  ColumnField(name='a_boolean_column', data_type=BooleanType)
+                  ColumnField(name='a_numeric_column', data_type=IntegerType)
+                )
+              )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -123,10 +154,21 @@ def test_semantic_predicate_rewrite_complex(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=(semantic.predicate_9cfbfb96(blurb1, blurb2) OR semantic.predicate_c26d7053(blurb2, blurb1)))
-  Filter(predicate=semantic.predicate_b5897940(blurb2))
-    Filter(predicate=semantic.predicate_bbe57368(blurb1))
-      InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='blurb2', data_type=StringType), ColumnField(name='a_boolean_column', data_type=BooleanType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=(semantic.predicate_9cfbfb96(blurb1, blurb2) OR semantic.predicate_c26d7053(blurb2, blurb1)))
+          Filter(predicate=semantic.predicate_b5897940(blurb2))
+            Filter(predicate=semantic.predicate_bbe57368(blurb1))
+              InMemorySource(
+                Schema(
+                  ColumnField(name='blurb1', data_type=StringType)
+                  ColumnField(name='blurb2', data_type=StringType)
+                  ColumnField(name='a_boolean_column', data_type=BooleanType)
+                  ColumnField(name='a_numeric_column', data_type=IntegerType)
+                )
+              )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -198,10 +240,19 @@ def test_semantic_predicate_preserves_cache(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Projection(exprs=[blurb1])
-  Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
-    Filter(predicate=(a_numeric_column > lit(0)))
-      InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Projection(exprs=[blurb1])
+          Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
+            Filter(predicate=(a_numeric_column > lit(0)))
+              InMemorySource(
+                Schema(
+                  ColumnField(name='blurb1', data_type=StringType)
+                  ColumnField(name='a_numeric_column', data_type=IntegerType)
+                )
+              )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -225,9 +276,18 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
-  Filter(predicate=(a_numeric_column > lit(0)))
-    InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
+          Filter(predicate=(a_numeric_column > lit(0)))
+            InMemorySource(
+              Schema(
+                ColumnField(name='blurb1', data_type=StringType)
+                ColumnField(name='a_numeric_column', data_type=IntegerType)
+              )
+            )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
     # Ensure that rewrites cannot eliminate cached dataframes
@@ -271,13 +331,23 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=(semantic.extract_cc39f7ea(blurb1)[blurb] = lit(blurb)))
-  Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
-    Filter(predicate=(semantic.analyze_sentiment(blurb1) = lit(positive)))
-      Filter(predicate=semantic.predicate_c22500eb(blurb1))
-        Filter(predicate=(concat(lit(banana), semantic.map_bbe57368(blurb1)) = lit(banana)))
-          Filter(predicate=((id > lit(100)) AND (status = lit(active))))
-            InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='id', data_type=IntegerType), ColumnField(name='status', data_type=StringType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=(semantic.extract_cc39f7ea(blurb1)[blurb] = lit(blurb)))
+          Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
+            Filter(predicate=(semantic.analyze_sentiment(blurb1) = lit(positive)))
+              Filter(predicate=semantic.predicate_c22500eb(blurb1))
+                Filter(predicate=(concat(lit(banana), semantic.map_bbe57368(blurb1)) = lit(banana)))
+                  Filter(predicate=((id > lit(100)) AND (status = lit(active))))
+                    InMemorySource(
+                      Schema(
+                        ColumnField(name='blurb1', data_type=StringType)
+                        ColumnField(name='id', data_type=IntegerType)
+                        ColumnField(name='status', data_type=StringType)
+                      )
+                    )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -322,11 +392,22 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[blurb] = semantic.extract_efa5a1cb(blurb2)[blurb]) OR semantic.predicate_b5897940(blurb2)))
-  Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = semantic.classify(blurb2, ['a', 'b', 'c'])))
-    Filter(predicate=(semantic.predicate_bbe57368(blurb1) OR a_boolean_column))
-      Filter(predicate=(a_numeric_column > lit(0)))
-        InMemorySource(schema=[ColumnField(name='blurb1', data_type=StringType), ColumnField(name='blurb2', data_type=StringType), ColumnField(name='a_numeric_column', data_type=IntegerType), ColumnField(name='a_boolean_column', data_type=BooleanType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[blurb] = semantic.extract_efa5a1cb(blurb2)[blurb]) OR semantic.predicate_b5897940(blurb2)))
+          Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = semantic.classify(blurb2, ['a', 'b', 'c'])))
+            Filter(predicate=(semantic.predicate_bbe57368(blurb1) OR a_boolean_column))
+              Filter(predicate=(a_numeric_column > lit(0)))
+                InMemorySource(
+                  Schema(
+                    ColumnField(name='blurb1', data_type=StringType)
+                    ColumnField(name='blurb2', data_type=StringType)
+                    ColumnField(name='a_numeric_column', data_type=IntegerType)
+                    ColumnField(name='a_boolean_column', data_type=BooleanType)
+                  )
+                )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -340,8 +421,16 @@ def test_not_filter_pushdown_simple(local_session):
     plan = (
         LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
     )
-    golden_repr = """Filter(predicate=NOT a_boolean_column)
-  InMemorySource(schema=[ColumnField(name='a_boolean_column', data_type=BooleanType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=NOT a_boolean_column)
+          InMemorySource(
+            Schema(
+              ColumnField(name='a_boolean_column', data_type=BooleanType)
+            )
+          )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -356,8 +445,17 @@ def test_not_filter_pushdown_or(local_session):
     plan = (
         LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
     )
-    golden_repr = """Filter(predicate=(NOT a_boolean_column AND NOT (a_numeric_column > lit(0))))
-  InMemorySource(schema=[ColumnField(name='a_boolean_column', data_type=BooleanType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=(NOT a_boolean_column AND NOT (a_numeric_column > lit(0))))
+          InMemorySource(
+            Schema(
+              ColumnField(name='a_boolean_column', data_type=BooleanType)
+              ColumnField(name='a_numeric_column', data_type=IntegerType)
+            )
+          )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -379,9 +477,18 @@ def test_not_filter_pushdown_with_other_semantic_exprs(local_session):
         .optimize(df._logical_plan)
         .plan
     )
-    golden_repr = """Filter(predicate=NOT (semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
-  Filter(predicate=NOT a_boolean_column)
-    InMemorySource(schema=[ColumnField(name='a_boolean_column', data_type=BooleanType), ColumnField(name='blurb1', data_type=StringType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=NOT (semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
+          Filter(predicate=NOT a_boolean_column)
+            InMemorySource(
+              Schema(
+                ColumnField(name='a_boolean_column', data_type=BooleanType)
+                ColumnField(name='blurb1', data_type=StringType)
+              )
+            )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -397,8 +504,17 @@ def test_not_filter_pushdown_and(local_session):
     plan = (
         LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
     )
-    golden_repr = """Filter(predicate=NOT (a_boolean_column AND (a_numeric_column > lit(0))))
-  InMemorySource(schema=[ColumnField(name='a_boolean_column', data_type=BooleanType), ColumnField(name='a_numeric_column', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=NOT (a_boolean_column AND (a_numeric_column > lit(0))))
+          InMemorySource(
+            Schema(
+              ColumnField(name='a_boolean_column', data_type=BooleanType)
+              ColumnField(name='a_numeric_column', data_type=IntegerType)
+            )
+          )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()
 
 
@@ -424,6 +540,17 @@ def test_not_filter_pushdown_nested_ors(local_session):
     # Optimize the plan
     optimizer = LogicalPlanOptimizer([NotFilterPushdownRule()])
     plan = optimizer.optimize(filtered_df._logical_plan).plan
-    golden_repr = """Filter(predicate=(NOT bool_a AND (NOT bool_b AND (bool_c AND (num_x > lit(15))))))
-  InMemorySource(schema=[ColumnField(name='bool_a', data_type=BooleanType), ColumnField(name='bool_b', data_type=BooleanType), ColumnField(name='bool_c', data_type=BooleanType), ColumnField(name='num_x', data_type=IntegerType)])"""
+    golden_repr = dedent(
+        """
+        Filter(predicate=(NOT bool_a AND (NOT bool_b AND (bool_c AND (num_x > lit(15))))))
+          InMemorySource(
+            Schema(
+              ColumnField(name='bool_a', data_type=BooleanType)
+              ColumnField(name='bool_b', data_type=BooleanType)
+              ColumnField(name='bool_c', data_type=BooleanType)
+              ColumnField(name='num_x', data_type=IntegerType)
+            )
+          )
+        """
+    )
     assert str(plan).strip() == golden_repr.strip()

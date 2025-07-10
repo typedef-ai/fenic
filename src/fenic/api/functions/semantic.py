@@ -1,7 +1,7 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
@@ -14,6 +14,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
+    SemanticSummarizeExpr,
 )
 from fenic.core._utils.extract import (
     ExtractSchemaValidationError,
@@ -22,7 +23,9 @@ from fenic.core._utils.extract import (
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     ClassifyExampleCollection,
+    KeyPoints,
     MapExampleCollection,
+    Paragraph,
     PredicateExampleCollection,
 )
 
@@ -366,4 +369,33 @@ def embed(
     """
     return Column._from_logical_expr(
         EmbeddingsExpr(Column._from_col_or_name(column)._logical_expr, model_alias=model_alias)
+    )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def summarize(
+    column: ColumnOrName,
+    format: Union[KeyPoints, Paragraph, None] = None,
+    temperature: float = 0,
+    model_alias: Optional[str] = None
+) -> Column:
+    """Summarizes strings from a column.
+
+    Args:
+        column: Column or column name containing text for summarization
+        format: Format of the summary to generate. Can be either KeyPoints or Paragraph. If None, will default to Paragraph with a maximum of 120 words.
+        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
+        model_alias: Optional alias for the language model to use for the summarization. If None, will use the language model configured as the default.
+
+    Returns:
+        Column: Expression containing the summarized string
+    Raises:
+        ValueError: If column is invalid or cannot be resolved.
+
+    Example:
+        >>> semantic.summarize(col('user_comment')).
+    """
+    if format is None:
+        format = Paragraph()
+    return Column._from_logical_expr(
+        SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, model_alias=model_alias)
     )
