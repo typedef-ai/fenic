@@ -1,31 +1,23 @@
 import json
-from io import StringIO
 from typing import Any, Dict, Optional
 
 from fenic.core._logical_plan.expressions import EscapingRule, ParsedTemplateFormat
 
 
 class TemplateFormatReader:
-    """A simplified row-only parser for template formats."""
+    """A parser for applying templates strings for structured extraction."""
 
-    def __init__(self, template_format: ParsedTemplateFormat, input_data: StringIO):
+    def __init__(self, template_format: ParsedTemplateFormat, input_string: str):
         self.format = template_format
-        self.input = input_data
-        self.finished = False
+        self.input_string = input_string
+        self.position = 0
 
-    def read_row(self) -> Optional[Dict[str, Any]]:
-        """Read one row and apply the template format to it."""
-        if self.finished or self.input.closed:
-            return None
-
+    def parse(self) -> Optional[Dict[str, Any]]:
+        """Parse the input string using the template format."""
         try:
-            row = self._parse_row()
-            self._consume_newline()
-
-            return row
+            return self._parse_row()
         except EOFError:
-            self.finished = True
-            return None
+            return None  # Template didn't match the input
 
     def _parse_row(self) -> Dict[str, Any]:
         """Parse a single row according to the template format."""
@@ -43,20 +35,10 @@ class TemplateFormatReader:
                 row[col_name] = value
 
         # Match trailing delimiter (always exists)
-        self._consume_delimiter(self.format.delimiters[-1])
+        if not self._consume_delimiter(self.format.delimiters[-1]):
+            raise EOFError("Failed to match final delimiter")
 
         return row
-
-    def _consume_delimiter(self, delimiter: str) -> bool:
-        """Consume the expected delimiter from the stream."""
-        if not delimiter:
-            return True
-
-        chunk = self._peek(len(delimiter))
-        if chunk == delimiter:
-            self.input.read(len(delimiter))  # Actually consume it
-            return True
-        return False
 
     def _read_field(self, rule: EscapingRule, field_index: int) -> Any:
         """Read a field value according to the escaping rule."""
@@ -72,23 +54,27 @@ class TemplateFormatReader:
             raise ValueError(f"Unsupported escaping rule: {rule.name}")
 
     def _read_until_next_delimiter(self, field_index: int) -> str:
-        """Read characters until the next delimiter or end of line."""
+        """Read characters until the next delimiter or end of input."""
         next_delimiter = self._get_next_delimiter(field_index)
 
         if not next_delimiter:
-            # Read until end of line
-            return self._read_until_eol().strip()
+            # Read until end of string (no more delimiters)
+            result = self.input_string[self.position:]
+            self.position = len(self.input_string)
+            return result.strip()
 
-        # Read until we find the specific delimiter
-        chunks = []
-        while True:
-            if self._at_eol() or self._at_eof():
-                break
-            if self._peek(len(next_delimiter)) == next_delimiter:
-                break
-            chunks.append(self.input.read(1))
+        # Find the next occurrence of the delimiter
+        delimiter_pos = self.input_string.find(next_delimiter, self.position)
+        if delimiter_pos == -1:
+            # Delimiter not found - read to end
+            result = self.input_string[self.position:]
+            self.position = len(self.input_string)
+            return result.strip()
 
-        return "".join(chunks).strip()
+        # Read up to the delimiter
+        result = self.input_string[self.position:delimiter_pos]
+        self.position = delimiter_pos
+        return result.strip()
 
     def _read_csv_field(self, field_index: int) -> str:
         """Read a CSV field (may be quoted or unquoted)."""
@@ -111,27 +97,27 @@ class TemplateFormatReader:
 
     def _read_quoted_field(self) -> Optional[str]:
         """Read a quoted field with proper escape handling."""
-        if self.input.read(1) != '"':
-            # Not properly quoted
-            self.input.seek(self.input.tell() - 1)  # Put back the character
+        if self._peek(1) != '"':
             return None
 
+        self.position += 1  # Skip opening quote
         chunks = []
-        while True:
-            char = self.input.read(1)
-            if not char:  # EOF
-                return None
+
+        while self.position < len(self.input_string):
+            char = self.input_string[self.position]
 
             if char == '"':
                 # Check for escaped quote
-                if self._peek(1) == '"':
-                    self.input.read(1)  # Consume the second quote
-                    chunks.append('"')  # Add literal quote to result
+                if self.position + 1 < len(self.input_string) and self.input_string[self.position + 1] == '"':
+                    chunks.append('"')  # Add literal quote
+                    self.position += 2  # Skip both quotes
                 else:
                     # End of quoted field
+                    self.position += 1  # Skip closing quote
                     break
             else:
                 chunks.append(char)
+                self.position += 1
 
         return "".join(chunks)
 
@@ -142,35 +128,20 @@ class TemplateFormatReader:
             return self.format.delimiters[next_index]
         return ""
 
-    def _read_until_eol(self) -> str:
-        """Read characters until end of line or EOF."""
-        chunks = []
-        while True:
-            if self._at_eol() or self._at_eof():
-                break
-            chunks.append(self.input.read(1))
-        return "".join(chunks)
+    def _consume_delimiter(self, delimiter: str) -> bool:
+        """Consume the expected delimiter from the string."""
+        if not delimiter:
+            return True
 
-    def _consume_newline(self) -> None:
-        """Consume a newline sequence (\\n or \\r\\n) if present."""
-        if self._peek(1) == '\r':
-            self.input.read(1)
-            if self._peek(1) == '\n':
-                self.input.read(1)
-        elif self._peek(1) == '\n':
-            self.input.read(1)
+        if self.input_string[self.position:].startswith(delimiter):
+            self.position += len(delimiter)
+            return True
+        return False
 
     def _peek(self, length: int) -> str:
-        """Look ahead in the stream without consuming characters."""
-        pos = self.input.tell()
-        chunk = self.input.read(length)
-        self.input.seek(pos)
-        return chunk
-
-    def _at_eol(self) -> bool:
-        """Check if we're at end of line."""
-        return self._peek(1) in ('\n', '\r')
+        """Look ahead in the string without advancing position."""
+        return self.input_string[self.position:self.position + length]
 
     def _at_eof(self) -> bool:
-        """Check if we're at end of file."""
-        return self._peek(1) == ''
+        """Check if we're at end of string."""
+        return self.position >= len(self.input_string)

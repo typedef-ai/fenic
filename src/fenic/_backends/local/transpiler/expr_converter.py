@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 if TYPE_CHECKING:
@@ -386,8 +385,8 @@ class ExprConverter:
             text = str(row[str(logical.input_expr)])
             if not text:
                 return {col: None for col in logical.parsed_template.columns}
-            reader = TemplateFormatReader(logical.parsed_template, StringIO(text))
-            result_dict = reader.read_row() or {
+            reader = TemplateFormatReader(logical.parsed_template, text)
+            result_dict = reader.parse() or {
                 col: None for col in logical.parsed_template.columns
             }
             return {

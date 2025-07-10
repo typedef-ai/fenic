@@ -249,6 +249,27 @@ def test_textract_complex_delimiters(local_session):
     assert result["user"].to_list() == ["user:john_doe", "user:jane_smith", "user:bob_wilson"]
     assert result["email"].to_list() == ["email:john@example.com", "email:jane@company.org", "email:bob@domain.net"]
 
+def test_textract_newline_handling(local_session):
+    """Newlines in both template and data are handled as regular content."""
+    data = {
+        "multiline_text": [
+            "Name: John Doe\nAge: 30\nCity: Boston",
+            "Name: Jane Smith\nAge: 25\nCity: New York",
+            "Name: Bob Wilson\nAge: 45\nCity: Chicago",
+        ]
+    }
+    df = local_session.create_dataframe(data)
+
+    # Template with newline delimiters
+    template = "Name: ${name}\nAge: ${age}\nCity: ${city}"
+    result = df.select(
+        text.extract(col("multiline_text"), template).alias("parsed")
+    ).unnest("parsed").to_polars()
+
+    assert len(result) == 3
+    assert result["name"].to_list() == ["John Doe", "Jane Smith", "Bob Wilson"]
+    assert result["age"].to_list() == ["30", "25", "45"]
+    assert result["city"].to_list() == ["Boston", "New York", "Chicago"]
 
 def test_textract_malformed_input_cases(local_session):
     """Various malformed and edge case inputs."""
