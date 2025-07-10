@@ -33,36 +33,54 @@ from fenic.core.types.enums import TranscriptFormatType
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def extract(column: ColumnOrName, template: str) -> Column:
-    """Extracts fields from text using a template pattern.
+    """Extracts structured data from text using template-based pattern matching.
+
+    Matches each string in the input column against a template pattern with named
+    placeholders. Each placeholder can specify a format rule to handle different
+    data types within the text.
 
     Args:
-        template: Template string with fields marked as ``${field_name:format}``
         column: Input text column to extract from
+        template: Template string with placeholders as ``${field_name}`` or ``${field_name:format}``
+                 Available formats: none, csv, json, quoted, regex, qualified
 
     Returns:
-        Column: A struct column containing the extracted fields
+        Column: Struct column with fields corresponding to template placeholders.
+                All fields are strings except JSON fields which preserve their parsed type.
 
-    Example: Basic field extraction
+    Template Syntax:
+        - ``${field_name}`` - Extract field as plain text
+        - ``${field_name:csv}`` - Parse as CSV field (handles quoted values)
+        - ``${field_name:json}`` - Parse as JSON and preserve type
+        - ``${field_name:quoted}`` - Extract quoted string (removes outer quotes)
+        - ``$`` - Literal dollar sign
+
+    Raises:
+        ValidationError: If template syntax is invalid
+
+    Example: Basic extraction
         ```python
-        # Extract name and age from a text column
-        df.select(text.extract(col("text"), "Name: ${name:csv}, Age: ${age:none}"))
+        text.extract(col("log"), "${date} ${level} ${message}")
+        # Input: "2024-01-15 ERROR Connection failed"
+        # Output: {date: "2024-01-15", level: "ERROR", message: "Connection failed"}
         ```
 
-    Example: Multiple field extraction with different formats
+    Example: Mixed format extraction
         ```python
-        # Extract multiple fields with different formats
-        df.select(text.extract(col("text"), "Product: ${product:csv}, Price: ${price:none}, Tags: ${tags:json}"))
+        text.extract(col("data"), 'Name: ${name:csv}, Price: ${price}, Tags: ${tags:json}')
+        # Input: 'Name: "Smith, John", Price: 99.99, Tags: ["a", "b"]'
+        # Output: {name: "Smith, John", price: "99.99", tags: ["a", "b"]}
         ```
 
-    Example: Extract and filter based on extracted fields
+    Example: Quoted field handling
         ```python
-        # Extract and filter based on extracted fields
-        df = df.select(
-            col("text"),
-            text.extract(col("text"), "Name: ${name:csv}, Age: ${age:none}").alias("extracted")
-        )
-        df = df.filter(col("extracted")["age"] == "30")
+        text.extract(col("record"), 'Title: ${title:quoted}, Author: ${author}')
+        # Input: 'Title: "To Kill a Mockingbird", Author: Harper Lee'
+        # Output: {title: "To Kill a Mockingbird", author: "Harper Lee"}
         ```
+
+    Note:
+        If a string doesn't match the template pattern, all extracted fields will be null.
     """
     return Column._from_logical_expr(
         TextractExpr(Column._from_col_or_name(column)._logical_expr, template)

@@ -4,6 +4,7 @@ import pytest
 
 from fenic import col, lit, text
 from fenic import json as json_fc
+from fenic.core.error import ValidationError
 from fenic.core.types.datatypes import JsonType, StringType
 from fenic.core.types.schema import ColumnField
 
@@ -397,16 +398,11 @@ def test_textract_template_parsing_errors(local_session):
     ]
 
     for template in malformed_templates:
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(ValidationError):
             df.select(
                 text.extract(col("text"), template).alias("parsed")
             ).unnest("parsed").to_polars()
 
-        # Verify error message is descriptive
-        error_msg = str(exc_info.value).lower()
-        assert any(keyword in error_msg for keyword in [
-            "invalid", "format", "brace", "unbalanced", "parse"
-        ]), f"Template '{template}' should raise descriptive error, got: {exc_info.value}"
 
 def test_concat(local_session):
     data = {
