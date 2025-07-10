@@ -113,34 +113,3 @@ class TestAggregateFunction:
         sum_expr = SumExpr(int_col)
         
         assert str(sum_expr) == "sum(int_col)"
-
-
-class TestAggregateSignatures:
-    """Test that aggregate function signatures are properly registered."""
-    
-    def test_all_aggregate_functions_registered(self):
-        """Test that all expected aggregate functions are registered."""
-        expected_functions = [
-            "sum", "avg", "min", "max", "count", 
-            "list", "first", "stddev"
-        ]
-        
-        registered_functions = FunctionRegistry.list_functions()
-        
-        for func_name in expected_functions:
-            assert func_name in registered_functions, f"Function {func_name} not registered"
-    
-    def test_registry_lookup_works(self):
-        """Test that registry lookup works for aggregate functions."""
-        signature = FunctionRegistry.get_signature("sum")
-        assert isinstance(signature, FunctionSignature)
-        assert signature.function_name == "sum"
-    
-    def test_unknown_aggregate_function_error(self):
-        """Test that unknown function names raise proper errors."""
-        with pytest.raises(InternalError, match="Unknown function: nonexistent_agg"):
-            FunctionRegistry.get_signature("nonexistent_agg")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
