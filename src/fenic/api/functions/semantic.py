@@ -1,13 +1,16 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
 from enum import Enum
-from typing import List, Optional, Union
+from typing import List, Mapping, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
 from fenic.api.column import Column, ColumnOrName
+from fenic.core._logical_plan import LogicalExpr
 from fenic.core._logical_plan.expressions import (
+    AliasExpr,
     AnalyzeSentimentExpr,
+    ColumnExpr,
     EmbeddingsExpr,
     SemanticClassifyExpr,
     SemanticExtractExpr,
@@ -16,6 +19,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
+from fenic.core._utils import misc as misc_utils
 from fenic.core._utils.extract import (
     ExtractSchemaValidationError,
     validate_extract_schema_structure,
@@ -33,6 +37,7 @@ from fenic.core.types import (
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
         instruction: str,
+        bindings: Optional[Mapping[str, Column]] = None,
         examples: Optional[MapExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
@@ -45,6 +50,9 @@ def map(
             The instruction must include placeholders in curly braces that reference one or more column names.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
+        bindings: Optional mapping of placeholder names to column expressions.
+            Only required when placeholder names don't match existing column names.
+            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         examples: Optional collection of examples to guide the semantic mapping operation.
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
@@ -78,10 +86,24 @@ def map(
         ))
         semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
         ```
+
+    Example: Using bindings for support ticket analysis
+        ```python
+        from fenic.api.functions.text import concat
+        # Enrich support tickets with customer context for better analysis
+        bindings = {
+            "customer_context": concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit(")")),
+            "ticket_summary": concat(col("subject"), lit(": "), col("description"))
+        }
+        semantic.map("Generate a response for {customer_context} regarding {ticket_summary}", bindings=bindings)
+        ```
     """
+    # validation pulled up here because expr cannot import Column from api
+    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
+            instruction_exprs=instruction_template_exprs,
             examples=examples,
             max_tokens=max_output_tokens,
             model_alias=model_alias,
@@ -158,6 +180,7 @@ def extract(
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
         instruction: str,
+        bindings: Optional[Mapping[str, Column]] = None,
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
@@ -171,6 +194,9 @@ def predicate(
             The instruction must include placeholders in curly braces that reference one or more column names.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
+        bindings: Optional mapping of placeholder names to column expressions.
+            Only required when placeholder names don't match existing column names.
+            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         examples: Optional collection of examples to guide the semantic predicate operation.
             Each example should demonstrate the expected boolean output for different inputs.
             The examples should be created using PredicateExampleCollection.create_example(),
@@ -205,10 +231,23 @@ def predicate(
             output=False))
         semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
         ```
+
+    Example: Using bindings for content moderation
+        ```python
+        from fenic.api.functions.text import concat
+        # Filter content with user context for better moderation decisions
+        bindings = {
+            "user_post": concat(col("username"), lit(": "), col("post_content"))
+        }
+        semantic.predicate("Does this {user_post} contain inappropriate content or spam?", bindings=bindings)
+        ```
     """
+    # validation pulled up here because expr cannot import Column from api
+    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
     return Column._from_logical_expr(
         SemanticPredExpr(
             instruction,
+            instruction_exprs=instruction_template_exprs,
             examples=examples,
             model_alias=model_alias,
             temperature=temperature,
@@ -216,9 +255,10 @@ def predicate(
     )
 
 
-@validate_call(config=ConfigDict(strict=True))
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def reduce(
         instruction: str,
+        bindings: Optional[Mapping[str, Column]] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
@@ -227,9 +267,12 @@ def reduce(
 
     Args:
         instruction: A string containing the semantic.reduce prompt.
-            The instruction can include placeholders in curly braces that reference column names.
+            The instruction must include placeholders in curly braces that reference one or more column names.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
+        bindings: Optional mapping of placeholder names to column expressions.
+            Only required when placeholder names don't match existing column names.
+            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -245,10 +288,23 @@ def reduce(
         ```python
         semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
         ```
+
+    Example: Using bindings for customer feedback analysis
+        ```python
+        from fenic.api.functions.text import concat
+        # Aggregate customer feedback with enriched context
+        bindings = {
+            "customer_info": concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit(")"))
+        }
+        semantic.reduce("Analyze this cluster of feedback and identify the main theme: {customer_info}: {feedback_text}", bindings=bindings)
+        ```
     """
+    # validation pulled up here because expr cannot import Column from api
+    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
     return Column._from_logical_expr(
         SemanticReduceExpr(
             instruction,
+            instruction_exprs=instruction_template_exprs,
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
@@ -318,7 +374,6 @@ def classify(
             temperature=temperature,
         )
     )
-
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def analyze_sentiment(
@@ -409,3 +464,48 @@ def summarize(
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, model_alias=model_alias)
     )
+
+
+def _build_instruction_exprs(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[LogicalExpr]:
+    """Build instruction expressions with proper aliasing and validation.
+
+    Args:
+        instruction: The instruction string with placeholders
+        bindings: Mapping of placeholder names to column expressions (can be None)
+
+    Returns:
+        List of logical expressions for each unique placeholder in the instruction
+
+    Raises:
+        ValidationError: If alias names don't match keys or expression names don't match keys
+    """
+    if bindings is None:
+        bindings = {}
+    placeholder_keys = misc_utils.parse_instruction(instruction)
+    # Deduplicate placeholder keys to avoid creating multiple expressions for the same placeholder
+    unique_placeholder_keys = list(dict.fromkeys(placeholder_keys))  # Preserves order
+    exprs = []
+
+    for placeholder_key in unique_placeholder_keys:
+        if placeholder_key in bindings:
+            column = bindings[placeholder_key]
+            logical_expr = column._logical_expr
+
+            # Check if the expression is already aliased
+            if isinstance(logical_expr, AliasExpr):
+                # Validate that the alias matches the key
+                if logical_expr.name != placeholder_key:
+                    raise ValidationError(f"Alias name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
+                exprs.append(logical_expr)
+            else:
+                # Check if the expression has a name attribute that doesn't match
+                if hasattr(logical_expr, 'name') and logical_expr.name != placeholder_key:
+                    raise ValidationError(f"Expression name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
+                # Auto-alias the expression
+                aliased_expr = AliasExpr(logical_expr, placeholder_key)
+                exprs.append(aliased_expr)
+        else:
+            # Use column reference for missing keys
+            exprs.append(ColumnExpr(placeholder_key))
+
+    return exprs

@@ -24,7 +24,6 @@ from fenic._inference.model_catalog import (
 )
 from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.expressions.basic import ColumnExpr
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import ValidationError
@@ -65,6 +64,7 @@ class SemanticMapExpr(SemanticFunction):
     def __init__(
         self,
         instruction: str,
+        instruction_exprs: list[LogicalExpr],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
@@ -72,10 +72,7 @@ class SemanticMapExpr(SemanticFunction):
         examples: Optional[MapExampleCollection] = None,
     ):
         self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
+        self.exprs = instruction_exprs
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
@@ -152,15 +149,13 @@ class SemanticPredExpr(SemanticFunction):
     def __init__(
         self,
         instruction: str,
+        instruction_exprs: list[LogicalExpr],
         temperature: float,
         model_alias: Optional[str] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
         self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
+        self.exprs = instruction_exprs
         if not self.exprs:
             raise ValueError(
                 "semantic.predicate instruction requires at least one templated column."
@@ -191,15 +186,13 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
     def __init__(
         self,
         instruction: str,
+        instruction_exprs: list[LogicalExpr],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
-    ):
+     ):
         self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
+        self.exprs = instruction_exprs
         if not self.exprs:
             raise ValueError(
                 "semantic.reduce instruction requires at least one templated column."

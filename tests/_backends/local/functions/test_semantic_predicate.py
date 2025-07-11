@@ -1,6 +1,8 @@
 import polars as pl
 
-from fenic import PredicateExample, PredicateExampleCollection, col, semantic
+from fenic import PredicateExample, PredicateExampleCollection, col, lit, semantic
+from fenic.api.functions.text import concat as concat
+from fenic.core._logical_plan.expressions import AliasExpr, SemanticPredExpr
 
 
 def test_single_semantic_filter(local_session):
@@ -120,3 +122,89 @@ def test_single_semantic_filter_with_none(local_session):
     df = source.select(semantic.predicate(instruction).alias("sentiment"))
     result = df.to_polars()
     assert result["sentiment"].to_list()[2] is None
+
+
+def test_semantic_predicate_with_bindings(local_session):
+    source = local_session.create_dataframe({
+        "first_name": ["Alice", "Bob"],
+        "last_name": ["Smith", "Jones"],
+        "feedback": ["Great service", "Good experience"]
+    })
+    bindings = {
+        "full_name": concat(col("first_name"), lit(" "), col("last_name"))
+    }
+    df = source.select(
+        semantic.predicate(
+            instruction="Is the feedback from {full_name} positive?",
+            bindings=bindings
+        ).alias("is_positive")
+    )
+    result = df.to_polars()
+    assert result.schema == {"is_positive": pl.Boolean}
+    assert len(result) == 2
+
+
+def test_semantic_predicate_with_pre_aliased_expression(local_session):
+    source = local_session.create_dataframe({
+        "first_name": ["Alice", "Bob"],
+        "last_name": ["Smith", "Jones"],
+        "feedback": ["Great service", "Good experience"]
+    })
+    bindings = {
+        "full_name": concat(col("first_name"), lit(" "), col("last_name")).alias("full_name")
+    }
+    df = source.select(
+        semantic.predicate(
+            instruction="Is the feedback from {full_name} positive?",
+            bindings=bindings
+        ).alias("is_positive")
+    )
+    result = df.to_polars()
+    assert result.schema == {"is_positive": pl.Boolean}
+    assert len(result) == 2
+
+
+def test_semantic_predicate_with_mixed_simple_and_complex(local_session):
+    source = local_session.create_dataframe({
+        "first_name": ["Alice", "Bob"],
+        "last_name": ["Smith", "Jones"],
+        "city": ["New York", "Los Angeles"],
+        "feedback": ["Great service", "Good experience"]
+    })
+    bindings = {
+        "full_name": concat(col("first_name"), lit(" "), col("last_name"))
+    }
+    df = source.select(
+        semantic.predicate(
+            instruction="Is the feedback from {full_name} in {city} positive?",
+            bindings=bindings
+        ).alias("is_positive")
+    )
+    result = df.to_polars()
+    assert result.schema == {"is_positive": pl.Boolean}
+    assert len(result) == 2
+
+
+def test_semantic_predicate_placeholder_deduplication(local_session):
+    source = local_session.create_dataframe({
+        "name": ["Alice", "Bob"],
+        "feedback": ["Great service", "Good experience"]
+    })
+    bindings = {"name": col("name")}
+    df = source.select(
+        semantic.predicate(
+            instruction="Is {name} happy? Is {name} satisfied?",
+            bindings=bindings
+        ).alias("is_happy")
+    )
+    plan = df._logical_plan
+    assert hasattr(plan, 'exprs')
+    exprs = plan.exprs()
+    assert len(exprs) == 1
+    pred_expr = exprs[0]
+    if isinstance(pred_expr, AliasExpr):
+        pred_expr = pred_expr.expr
+    assert isinstance(pred_expr, SemanticPredExpr)
+    instruction_exprs = pred_expr.exprs
+    assert len(instruction_exprs) == 1
+    assert getattr(instruction_exprs[0], 'name', None) == "name"
