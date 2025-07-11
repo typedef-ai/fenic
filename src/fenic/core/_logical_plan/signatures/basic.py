@@ -43,3 +43,5 @@ def register_basic_signatures():
     FunctionRegistry.register("array_contains", FunctionSignature(function_name="array_contains",
                                                                   type_signature=ArrayWithMatchingElement(),
                                                                   return_type=BooleanType))
+
+register_basic_signatures()

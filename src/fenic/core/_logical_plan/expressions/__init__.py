@@ -144,6 +144,3 @@ from fenic.core._logical_plan.expressions.text import StrLengthExpr as StrLength
 from fenic.core._logical_plan.expressions.text import TextChunkExpr as TextChunkExpr
 from fenic.core._logical_plan.expressions.text import TextractExpr as TextractExpr
 from fenic.core._logical_plan.expressions.text import TsParseExpr as TsParseExpr
-
-# Register function signatures after all expressions are loaded
-from fenic.core._logical_plan.signatures import registration  # noqa: F401

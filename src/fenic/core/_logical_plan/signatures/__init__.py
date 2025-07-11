@@ -4,7 +4,7 @@ This package provides a centralized system for validating function signatures
 and inferring return types.
 """
 
-# Note: signature modules are imported at the bottom to avoid circular imports
+from fenic.core._logical_plan.signatures import basic  #noqa: F401
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
 from fenic.core._logical_plan.signatures.signature import (
@@ -25,8 +25,6 @@ from fenic.core._logical_plan.signatures.types import (
     VariadicUniform,
 )
 
-# Note: signature modules are registered via registration import in expressions/__init__.py
-
 __all__ = [
     "TypeSignature",
     "Exact",
@@ -43,5 +41,3 @@ __all__ = [
     "FunctionRegistry",
     "ScalarFunction",
 ]
-
-# Note: builtin and core modules are registered via registration import in expressions/__init__.py
