@@ -68,5 +68,6 @@ def _validate_pydantic_field_type(annotation, field_name: str) -> None:
 
     # If we get here, it's an unsupported type
     raise ExtractSchemaValidationError(
-        f"Unsupported data type in extract schema field {field_name}: {annotation}"
+        f"Unsupported data type in extract schema field '{field_name}': {annotation}. "
+        "Supported types are: str, int, float, bool, List[T], Optional[T], Literal, and nested Pydantic models."
     )

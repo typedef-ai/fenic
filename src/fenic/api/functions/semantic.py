@@ -104,6 +104,16 @@ def extract(
     structured data based on the fields and descriptions provided. Useful for pulling out key entities,
     facts, or labels from documents.
 
+    The schema must be a valid Pydantic model type with supported field types. These include:
+
+    - Primitive types: `str`, `int`, `float`, `bool`
+    - Optional fields: `Optional[T]` where `T` is a supported type
+    - Lists: `List[T]` where `T` is a supported type
+    - Literals: `Literal[...`] (for enum-like constraints)
+    - Nested Pydantic models (recursive schemas are supported, but must be JSON-serializable and acyclic)
+
+    Unsupported types (e.g., unions, custom classes, runtime circular references, or complex generics) will raise errors at runtime.
+
     Args:
         column: Column containing text to extract from.
         schema: A Pydantic model type that defines the output structure with descriptions for each field.
