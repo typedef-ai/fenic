@@ -26,7 +26,6 @@ from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
-from fenic.core._utils.extract import convert_extract_schema_to_pydantic_type
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -107,9 +106,6 @@ class SemanticMapExpr(SemanticFunction):
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
-    def children(self) -> List[LogicalExpr]:
-        return self.exprs
-
 
 class SemanticExtractExpr(SemanticFunction):
     function_name = "semantic.extract"
@@ -148,9 +144,6 @@ class SemanticExtractExpr(SemanticFunction):
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType based on the schema."""
         return convert_pydantic_type_to_custom_struct_type(self.schema)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class SemanticPredExpr(SemanticFunction):
@@ -191,9 +184,6 @@ class SemanticPredExpr(SemanticFunction):
         """Validate completion parameters (no max_tokens for predicate)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
-    def children(self) -> List[LogicalExpr]:
-        return self.exprs
-
 
 class SemanticReduceExpr(SemanticFunction, AggregateExpr):
     function_name = "semantic.reduce"
@@ -233,9 +223,6 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.reduce_{instruction_hash}({exprs_str})"
-
-    def children(self) -> List[LogicalExpr]:
-        return self.exprs
 
 
 class SemanticClassifyExpr(SemanticFunction):
@@ -291,9 +278,6 @@ class SemanticClassifyExpr(SemanticFunction):
         result = super().to_column_field(plan)
         return result
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
     @staticmethod
     def transform_labels_list_into_enum(labels: list[str]) -> type[Enum]:
         """Transforms a list of labels into an Enum."""
@@ -340,9 +324,6 @@ class AnalyzeSentimentExpr(SemanticFunction):
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters (no max_tokens for analyze_sentiment)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class EmbeddingsExpr(SemanticFunction):
@@ -396,9 +377,6 @@ class EmbeddingsExpr(SemanticFunction):
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Embeddings don't use completion parameters."""
         pass
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class SemanticSummarizeExpr(SemanticFunction):

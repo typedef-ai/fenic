@@ -3,10 +3,6 @@
 This module registers function signatures for embedding operations,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.expressions import (
-    EmbeddingNormalizeExpr,
-    EmbeddingSimilarityExpr,
-)
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.signature import (
     FunctionSignature,
