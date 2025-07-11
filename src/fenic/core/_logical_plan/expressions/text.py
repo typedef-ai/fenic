@@ -8,15 +8,10 @@ from typing import List, Literal, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core.error import ValidationError
 from fenic.core.types import (
-    ArrayType,
-DataType,
-    BooleanType,
-    ColumnField,
-    DoubleType,
-    IntegerType,
+    DataType,
     JsonType,
     StringType,
     StructField,
@@ -166,11 +161,7 @@ class TextractExpr(ScalarFunction):
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
         """Return StructType with fields based on parsed template."""
-
         return self.parsed_template.to_struct_schema()
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.input_expr]
 
 
 class ChunkLengthFunction(Enum):
@@ -215,10 +206,6 @@ class TextChunkExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"text_chunk({self.input_expr}, {self.chunk_configuration})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.input_expr]
-
-
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
     chunking_character_set_custom_characters: Optional[list[str]] = None
@@ -251,9 +238,6 @@ class RecursiveTextChunkExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"text_chunk({self.input_expr}, {self.chunking_configuration})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.input_expr]
-
 
 class CountTokensExpr(ScalarFunction):
     function_name = "text.count_tokens"
@@ -283,9 +267,6 @@ class ArrayJoinExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"array_join({self.expr}, {self.delimiter})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class ContainsExpr(ScalarFunction):
     """Expression for checking if a string column contains a substring.
@@ -312,12 +293,6 @@ class ContainsExpr(ScalarFunction):
             super().__init__(expr, substr)  # Both string inputs
         else:
             super().__init__(expr)  # Only main string input
-
-    def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
 
 
 class ContainsAnyExpr(ScalarFunction):
@@ -349,9 +324,6 @@ class ContainsAnyExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"contains_any({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class RLikeExpr(ScalarFunction):
@@ -386,9 +358,6 @@ class RLikeExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"rlike({self.expr}, {self.pattern})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class LikeExpr(ScalarFunction):
@@ -433,9 +402,6 @@ class LikeExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"like({self.expr}, {self.raw_pattern}, {self.pattern})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class ILikeExpr(ScalarFunction):
@@ -482,9 +448,6 @@ class ILikeExpr(ScalarFunction):
         pattern = pattern.replace("%", ".*").replace("_", ".")
         return f"(?i){pattern}"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class TsParseExpr(ScalarFunction):
     function_name = "text.parse_transcript"
@@ -498,9 +461,6 @@ class TsParseExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"parse_transcript({self.expr}, {self.format})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class StartsWithExpr(ScalarFunction):
@@ -537,12 +497,6 @@ class StartsWithExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"starts_with({self.expr}, {self.substr})"
 
-    def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
-
 
 class EndsWithExpr(ScalarFunction):
     """Expression for checking if a string column ends with a substring.
@@ -577,12 +531,6 @@ class EndsWithExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"ends_with({self.expr}, {self.substr})"
 
-    def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
-
 
 class RegexpSplitExpr(ScalarFunction):
     """Expression for splitting a string column using a regular expression pattern.
@@ -614,8 +562,6 @@ class RegexpSplitExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"regexp_split({self.expr}, {self.pattern}, limit={self.limit})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class SplitPartExpr(ScalarFunction):
@@ -665,12 +611,6 @@ class SplitPartExpr(ScalarFunction):
             f"text_split({self.expr}, {self.delimiter}, part_number={self.part_number})"
         )
 
-    def children(self) -> List[LogicalExpr]:
-        if isinstance(self.delimiter, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.delimiter]
-
 
 class StringCasingExpr(ScalarFunction):
     """Expression for converting the case of a string column.
@@ -696,9 +636,6 @@ class StringCasingExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"string_casing({self.expr}, {self.case})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class StripCharsExpr(ScalarFunction):
@@ -737,13 +674,6 @@ class StripCharsExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"strip_chars({self.expr}, {self.chars}, side={self.side})"
-
-    def children(self) -> List[LogicalExpr]:
-        if isinstance(self.chars, LogicalExpr):
-            return [self.expr, self.chars]
-        else:
-            return [self.expr]
-
 
 class ReplaceExpr(ScalarFunction):
     """Expression for replacing substrings in a string column.
@@ -796,14 +726,6 @@ class ReplaceExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"replace({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
-
-    def children(self) -> List[LogicalExpr]:
-        logical_children = [self.expr]
-        if isinstance(self.search, LogicalExpr):
-            logical_children.append(self.search)
-        if isinstance(self.replacement, LogicalExpr):
-            logical_children.append(self.replacement)
-        return logical_children
 
 
 class StrLengthExpr(ScalarFunction):
