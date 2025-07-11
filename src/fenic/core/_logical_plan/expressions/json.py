@@ -1,10 +1,6 @@
 from __future__ import annotations
 
 import json as json_lib
-from typing import TYPE_CHECKING, List
-
-if TYPE_CHECKING:
-    pass
 
 from fenic._polars_plugins import py_validate_jq_query  # noqa: F401
 from fenic.core._logical_plan.expressions.base import LogicalExpr
@@ -25,14 +21,11 @@ class JqExpr(ScalarFunction):
         except ValueError as e:
             raise ValidationError(str(e)) from None
 
-        # Only validate the JSON expression (query is literal)
+        # Only validate the JSON expression (query is not LogicalExpr)
         super().__init__(expr)
 
     def __str__(self) -> str:
         return f"jq({self.expr}, {self.query})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
 
 
 class JsonTypeExpr(ScalarFunction):
@@ -46,10 +39,6 @@ class JsonTypeExpr(ScalarFunction):
 
     def __str__(self) -> str:
         return f"json.type({self.expr})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class JsonContainsExpr(ScalarFunction):
     function_name = "json.contains"
@@ -71,11 +60,8 @@ class JsonContainsExpr(ScalarFunction):
         # Use recursive descent with type-aware matching
         self.jq_query = f'{{result: any(..; (type == "object" and contains({json_str})) or (type != "object" and . == {json_str}))}}'
 
-        # Only validate the JSON expression (value is literal)
+        # Only validate the JSON expression (value is not LogicalExpr)
         super().__init__(expr)
 
     def __str__(self) -> str:
         return f"json.contains({self.expr}, {self.value})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]

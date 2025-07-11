@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
-
-if TYPE_CHECKING:
-    pass
+from typing import Optional
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
@@ -19,9 +16,6 @@ class MdToJsonExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"md_to_json({self.expr})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class MdGetCodeBlocksExpr(ScalarFunction):
     function_name = "markdown.get_code_blocks"
@@ -31,7 +25,7 @@ class MdGetCodeBlocksExpr(ScalarFunction):
         self.language_filter = language_filter
         self.jq_query = self._build_jq_query(language_filter)
 
-        # Only validate the markdown expression (language_filter is literal)
+        # Only validate the markdown expression (language_filter is not LogicalExpr)
         super().__init__(expr)
 
     def _build_jq_query(self, language_filter: Optional[str] = None) -> str:
@@ -54,9 +48,6 @@ class MdGetCodeBlocksExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"markdown.get_code_blocks({self.expr})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class MdGenerateTocExpr(ScalarFunction):
     function_name = "markdown.generate_toc"
@@ -66,7 +57,7 @@ class MdGenerateTocExpr(ScalarFunction):
         self.max_level = max_level or 6
         self.jq_query = self._build_jq_query(self.max_level)
 
-        # Only validate the markdown expression (max_level is literal)
+        # Only validate the markdown expression (max_level is not LogicalExpr)
         super().__init__(expr)
 
     def _build_jq_query(self, max_level: int) -> str:
@@ -80,9 +71,6 @@ class MdGenerateTocExpr(ScalarFunction):
     def __str__(self) -> str:
         return f"markdown.generate_toc({self.expr})"
 
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
 
 class MdExtractHeaderChunks(ScalarFunction):
     function_name = "markdown.extract_header_chunks"
@@ -92,7 +80,7 @@ class MdExtractHeaderChunks(ScalarFunction):
         self.header_level = header_level
         self.jq_query = self._build_jq_query(header_level)
 
-        # Only validate the markdown expression (header_level is literal)
+        # Only validate the markdown expression (header_level is not LogicalExpr)
         super().__init__(expr)
 
     def _build_jq_query(self, header_level: int) -> str:
@@ -124,6 +112,3 @@ walk_headings(.; [])'''
 
     def __str__(self) -> str:
         return f"markdown.extract_header_chunks({self.expr}, header_level={self.header_level})"
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
