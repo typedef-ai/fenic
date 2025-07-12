@@ -35,6 +35,7 @@ from fenic.core.types import (
 def map(
         instruction: str,
         examples: Optional[MapExampleCollection] = None,
+        schema: Optional[type[BaseModel]] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
@@ -50,6 +51,7 @@ def map(
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
             providing instruction variables and their expected answers.
+        schema: Optional Pydantic model that defines the output structure with descriptions for each field.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -87,6 +89,7 @@ def map(
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
+            response_format=schema,
         )
     )
 

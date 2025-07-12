@@ -18,7 +18,7 @@ def register_semantic_signatures():
     FunctionRegistry.register("semantic.map", FunctionSignature(
         function_name="semantic.map",
         type_signature=VariadicUniform(expected_min_args=1, required_type=StringType),  # Variable string inputs based on instruction
-        return_type=StringType
+        return_type=ReturnTypeStrategy.DYNAMIC
     ))
 
     # Semantic extract - schema-based information extraction

@@ -13,6 +13,7 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
+from fenic.core.types.datatypes import StringType
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -87,6 +88,12 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self._validate_completion_parameters(plan)
         # Use mixin's implementation with dynamic return type
         return super().to_column_field(plan)
+
+    def _infer_dynamic_return_type(self, _arg_types: List[DataType], _plan: LogicalPlan) -> DataType:
+        """Infer the return type of the semantic.map expression."""
+        if self.response_format:
+            return convert_pydantic_type_to_custom_struct_type(self.response_format)
+        return StringType
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
