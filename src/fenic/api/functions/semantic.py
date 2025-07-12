@@ -52,7 +52,6 @@ def map(
             query execution.
         bindings: Optional mapping of placeholder names to column expressions.
             Only required when placeholder names don't match existing column names.
-            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         examples: Optional collection of examples to guide the semantic mapping operation.
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
@@ -99,7 +98,7 @@ def map(
         ```
     """
     # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
+    instruction_template_exprs = _resolve_bindings(instruction, bindings)
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
@@ -196,7 +195,6 @@ def predicate(
             query execution.
         bindings: Optional mapping of placeholder names to column expressions.
             Only required when placeholder names don't match existing column names.
-            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         examples: Optional collection of examples to guide the semantic predicate operation.
             Each example should demonstrate the expected boolean output for different inputs.
             The examples should be created using PredicateExampleCollection.create_example(),
@@ -243,7 +241,7 @@ def predicate(
         ```
     """
     # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
+    instruction_template_exprs = _resolve_bindings(instruction, bindings)
     return Column._from_logical_expr(
         SemanticPredExpr(
             instruction,
@@ -272,7 +270,6 @@ def reduce(
             query execution.
         bindings: Optional mapping of placeholder names to column expressions.
             Only required when placeholder names don't match existing column names.
-            Enables just-in-time transformations like concatenations, computations, or nested semantic operations.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -300,7 +297,7 @@ def reduce(
         ```
     """
     # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _build_instruction_exprs(instruction, bindings)
+    instruction_template_exprs = _resolve_bindings(instruction, bindings)
     return Column._from_logical_expr(
         SemanticReduceExpr(
             instruction,
@@ -466,8 +463,8 @@ def summarize(
     )
 
 
-def _build_instruction_exprs(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[LogicalExpr]:
-    """Build instruction expressions with proper aliasing and validation.
+def _resolve_bindings(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[LogicalExpr]:
+    """Resolve placeholder bindings to logical expressions with proper aliasing and validation.
 
     Args:
         instruction: The instruction string with placeholders
@@ -498,10 +495,6 @@ def _build_instruction_exprs(instruction: str, bindings: Optional[Mapping[str, C
                     raise ValidationError(f"Alias name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
                 exprs.append(logical_expr)
             else:
-                # Check if the expression has a name attribute that doesn't match
-                if hasattr(logical_expr, 'name') and logical_expr.name != placeholder_key:
-                    raise ValidationError(f"Expression name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
-                # Auto-alias the expression
                 aliased_expr = AliasExpr(logical_expr, placeholder_key)
                 exprs.append(aliased_expr)
         else:

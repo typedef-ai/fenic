@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
 
+from fenic.core._logical_plan.expressions import AliasExpr, ColumnExpr
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.types import (
     ClassifyExampleCollection,
@@ -64,7 +65,7 @@ class SemanticMapExpr(SemanticFunction):
     def __init__(
         self,
         instruction: str,
-        instruction_exprs: list[LogicalExpr],
+        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
@@ -149,7 +150,7 @@ class SemanticPredExpr(SemanticFunction):
     def __init__(
         self,
         instruction: str,
-        instruction_exprs: list[LogicalExpr],
+        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
         temperature: float,
         model_alias: Optional[str] = None,
         examples: Optional[PredicateExampleCollection] = None,
@@ -186,7 +187,7 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
     def __init__(
         self,
         instruction: str,
-        instruction_exprs: list[LogicalExpr],
+        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,

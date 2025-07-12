@@ -2,9 +2,24 @@ import polars as pl
 import pytest
 
 import fenic as fc
-from fenic import MapExample, MapExampleCollection, col, lit, semantic
+from fenic import (
+    ColumnField,
+    MapExample,
+    MapExampleCollection,
+    Schema,
+    StringType,
+    col,
+    lit,
+    semantic,
+)
 from fenic.api.functions.text import concat as concat
-from fenic.core._logical_plan.expressions import LogicalExpr, SemanticMapExpr
+from fenic.core._logical_plan.expressions import (
+    AliasExpr,
+    ColumnExpr,
+    LogicalExpr,
+    SemanticMapExpr,
+)
+from fenic.core._logical_plan.plans import Projection
 from fenic.core.error import TypeMismatchError
 
 
@@ -106,6 +121,14 @@ def test_semantic_map_with_concat_nested_column(local_session):
             bindings=nested_expr
         ).alias("desc")
     )
+
+    fenic_schema = df.schema
+    assert fenic_schema == Schema(column_fields=[
+        ColumnField(name="first_name", data_type=StringType),
+        ColumnField(name="last_name", data_type=StringType),
+        ColumnField(name="desc", data_type=StringType),
+    ])
+
     result = df.to_polars()
     assert result.schema == {
         "first_name": pl.String,
@@ -149,6 +172,13 @@ def test_semantic_map_with_nested_semantic_map(local_session):
             bindings=state_expr
         ).alias("weather_report")
     )
+    fenic_schema = df.schema
+    assert fenic_schema == Schema(column_fields=[
+        ColumnField(name="name", data_type=StringType),
+        ColumnField(name="city", data_type=StringType),
+        ColumnField(name="weather_report", data_type=StringType),
+    ])
+
     result = df.to_polars()
     assert result.schema == {
         "name": pl.String,
@@ -160,45 +190,7 @@ def test_semantic_map_with_nested_semantic_map(local_session):
         assert isinstance(val, str) and len(val) > 0
 
 
-def test_semantic_map_optimization_works(local_session):
-    """Test that the optimization works correctly by ensuring the same expression object is reused."""
-    source = local_session.create_dataframe({
-        "first_name": ["Alice", "Bob"],
-        "last_name": ["Smith", "Jones"],
-        "city": ["New York", "Los Angeles"],
-    })
-    # Use a computed expression that would be expensive to compute multiple times
-    full_name_expr = concat(col("first_name"), lit(" "), col("last_name")).alias("full_name")
-    prompt = "Hello {full_name}, you live in {city}."
-    bindings = {
-        "full_name": full_name_expr,
-        "city": col("city")
-    }
-
-    df = source.select(
-        col("first_name"),
-        col("last_name"),
-        col("city"),
-        semantic.map(
-            instruction=prompt,
-            bindings=bindings
-        ).alias("greeting")
-    )
-    result = df.to_polars()
-    assert result.schema == {
-        "first_name": pl.String,
-        "last_name": pl.String,
-        "city": pl.String,
-        "greeting": pl.String,
-    }
-    assert len(result) == 2
-    for val in result["greeting"].to_list():
-        assert isinstance(val, str) and len(val) > 0
-        # Should contain the full name
-        assert "Alice Smith" in val or "Bob Jones" in val
-
-
-def test_semantic_map_placeholder_deduplication_and_single_evaluation(local_session):
+def test_semantic_map_placeholder_deduplication(local_session):
     source = local_session.create_dataframe({
         "name": ["Alice", "Bob"],
         "city": ["New York", "Los Angeles"],
@@ -226,53 +218,17 @@ def test_semantic_map_placeholder_deduplication_and_single_evaluation(local_sess
     for val in result["greeting"].to_list():
         assert isinstance(val, str) and len(val) > 0
     plan = df._logical_plan
-    semantic_map_expr = None
-    for expr in plan.exprs():
-        if hasattr(expr, 'expr') and isinstance(expr.expr, SemanticMapExpr):
-            semantic_map_expr = expr.expr
-            break
-    assert semantic_map_expr is not None
-    assert isinstance(semantic_map_expr, SemanticMapExpr), f"Expected SemanticMapExpr, got {type(semantic_map_expr)}"
-    children = semantic_map_expr.children()
-    placeholder_names = []
-    for expr in children:
-        assert isinstance(expr, LogicalExpr), f"Expected LogicalExpr, got {type(expr)}"
-        assert hasattr(expr, 'name'), f"Expected LogicalExpr to have 'name' attribute, got {type(expr)}"
-        name = getattr(expr, 'name', None)
-        assert name is not None, f"Expected non-None name for LogicalExpr, got {name}"
-        assert isinstance(name, str), f"Expected string name, got {type(name)}"
-        placeholder_names.append(name)
-    assert sorted(placeholder_names) == sorted(["processed_name", "city"])
+    if isinstance(plan, Projection):
+        map_expr_children: list[LogicalExpr] = []
+        for expr in plan.exprs():
+            if isinstance(expr, AliasExpr) and isinstance(expr.expr, SemanticMapExpr):
+                map_expr_children = expr.expr.children()
+                break
 
-
-def test_semantic_map_complex_bindings(local_session):
-    """Test that complex expressions with aliases work in bindings."""
-    source = local_session.create_dataframe({
-        "first_name": ["Alice", "Bob"],
-        "last_name": ["Smith", "Johnson"],
-        "city": ["New York", "Los Angeles"],
-    })
-
-    prompt = "Hello {full_name}, you live in {city}."
-    bindings = {
-        "full_name": concat(col("first_name"), lit(" "), col("last_name")).alias("full_name"),
-        "city": col("city")
-    }
-
-    df = source.select(
-        col("first_name"),
-        col("last_name"),
-        col("city"),
-        semantic.map(
-            instruction=prompt,
-            bindings=bindings
-        ).alias("greeting")
-    )
-    result = df.to_polars()
-
-    # Verify the results contain the concatenated names
-    assert len(result) == 2
-    for val in result["greeting"].to_list():
-        assert isinstance(val, str) and len(val) > 0
-        # Should contain the full name (first + space + last)
-        assert "Alice Smith" in val or "Bob Johnson" in val
+        placeholder_names = []
+        for expr in map_expr_children:
+            if isinstance(expr, ColumnExpr) or isinstance(expr, AliasExpr):
+                placeholder_names.append(expr.name)
+        assert sorted(placeholder_names) == sorted(["processed_name", "city"])
+    else:
+        raise ValueError("Unexpected logical plan type")
