@@ -39,6 +39,8 @@ class LogicalPlanSerde2():
             root=RelRoot(
                 input=Rel(
                     read=ReadRel(
+                        virtual_table=ReadRel.VirtualTable(
+                        )
                         base_schema=NamedStruct(
                             names=["a", "b"],
                             struct=Type.Struct(types=[Type(i32=Type.I32()), Type(string=Type.String())])
