@@ -16,7 +16,7 @@ from fenic import (
 )
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
-from fenic.core._logical_plan.serde import LogicalPlanSerde
+from fenic.core._logical_plan.serde import LogicalPlanSerde, LogicalPlanSerde2
 
 
 def _test_df_serialization(df: DataFrame, session: BaseSessionState) -> DataFrame:
@@ -386,3 +386,10 @@ def test_semantic_plans(local_session, extract_data_df):
         semantic.predicate(instruction))
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
+
+
+def test_substrait_serialization(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    plan = df._logical_plan
+    serialized = LogicalPlanSerde2.tst_serialize_plan(plan)
+    print(f"Serialized plan: {serialized}")
