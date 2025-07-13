@@ -16,9 +16,9 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
-from fenic.core._utils.extract import (
-    ExtractSchemaValidationError,
-    validate_extract_schema_structure,
+from fenic.core._utils.schema import (
+    SemanticSchemaValidationError,
+    validate_semantic_schema_structure,
 )
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -144,8 +144,8 @@ def extract(
         ```
     """
     try:
-        validate_extract_schema_structure(schema)
-    except ExtractSchemaValidationError as e:
+        validate_semantic_schema_structure(schema)
+    except SemanticSchemaValidationError as e:
         raise ValidationError(f"Invalid extraction schema: {str(e)}") from None
 
     return Column._from_logical_expr(

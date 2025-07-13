@@ -45,7 +45,7 @@ class TestMap:
         expected = [
             [
                 {
-                    "content": sem_map.SYSTEM_PROMPT,
+                    "content": sem_map.build_system_message(),
                     "role": "system",
                 },
                 {
@@ -122,7 +122,7 @@ class TestMap:
         expected = [
             [
                 {
-                    "content": sem_map.SYSTEM_PROMPT,
+                    "content": sem_map.build_system_message(),
                     "role": "system",
                 },
                 {

@@ -61,6 +61,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
+        self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
         if not self.exprs:
             raise ValidationError(
                 "semantic.map instruction requires at least one templated column."
@@ -91,8 +92,8 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def _infer_dynamic_return_type(self, _arg_types: List[DataType], _plan: LogicalPlan) -> DataType:
         """Infer the return type of the semantic.map expression."""
-        if self.response_format:
-            return convert_pydantic_type_to_custom_struct_type(self.response_format)
+        if self.struct_type is not None:
+            return self.struct_type
         return StringType
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
