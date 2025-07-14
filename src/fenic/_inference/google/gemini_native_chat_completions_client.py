@@ -24,10 +24,15 @@ from fenic._inference.preset_config_manager import (
     BasePresetConfiguration,
     PresetConfigurationManager,
 )
-from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy
+from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy, TokenEstimate
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages, FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    LMRequestMessages,
+    ResponseUsage,
+)
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
@@ -50,7 +55,7 @@ class GooglePresetConfiguration(BasePresetConfiguration):
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
-    additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
+    additional_generation_config: GenerateContentConfigDict = field(default_factory=lambda: GenerateContentConfigDict(thinking_config={"thinking_budget": 0, "include_thoughts": False}))
 
 
 class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogleModelPreset, GooglePresetConfiguration]):
@@ -310,8 +315,7 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             TokenEstimate: The estimated token usage
         """
-        from fenic._inference.rate_limit_strategy import TokenEstimate
-        
+
         # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)

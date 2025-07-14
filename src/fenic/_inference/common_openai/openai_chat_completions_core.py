@@ -17,7 +17,6 @@ from fenic._inference.model_client import (
     FatalException,
     TransientException,
 )
-from fenic._inference.types import FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
 from fenic._inference.preset_config_manager import (
     BasePresetConfiguration,
     PresetConfigurationManager,
@@ -25,6 +24,11 @@ from fenic._inference.preset_config_manager import (
 from fenic._inference.rate_limit_strategy import TokenEstimate
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TokenCounter
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    ResponseUsage,
+)
 from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,

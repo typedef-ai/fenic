@@ -318,7 +318,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             List[ResponseT]: List of responses in the same order as the input requests
         """
         # Check if we should use sampling-based processing
-        valid_requests = [req for req in requests if req is not None]
+        [req for req in requests if req is not None]
         batch_id = str(uuid.uuid4())
         logger.info(
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"

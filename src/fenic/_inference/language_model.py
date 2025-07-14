@@ -7,7 +7,11 @@ from fenic._inference.model_client import (
     ModelClient,
 )
 from fenic._inference.token_counter import Tokenizable
-from fenic._inference.types import LMRequestMessages, FenicCompletionsResponse, FenicCompletionsRequest
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    LMRequestMessages,
+)
 from fenic.core._inference.model_catalog import (
     model_catalog,
 )
