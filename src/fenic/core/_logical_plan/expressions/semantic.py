@@ -63,13 +63,13 @@ class SemanticMapExpr(SemanticFunction):
     function_name = "semantic.map"
 
     def __init__(
-            self,
-            instruction: str,
-            max_tokens: int,
-            temperature: float,
-            model_alias: Optional[str] = None,
-            response_format: Optional[type[BaseModel]] = None,
-            examples: Optional[MapExampleCollection] = None,
+        self,
+        instruction: str,
+        max_tokens: int,
+        temperature: float,
+        model_alias: Optional[str] = None,
+        response_format: Optional[type[BaseModel]] = None,
+        examples: Optional[MapExampleCollection] = None,
     ):
         self.instruction = instruction
         self.exprs = [
@@ -150,11 +150,11 @@ class SemanticPredExpr(SemanticFunction):
     function_name = "semantic.predicate"
 
     def __init__(
-            self,
-            instruction: str,
-            temperature: float,
-            model_alias: Optional[str] = None,
-            examples: Optional[PredicateExampleCollection] = None,
+        self,
+        instruction: str,
+        temperature: float,
+        model_alias: Optional[str] = None,
+        examples: Optional[PredicateExampleCollection] = None,
     ):
         self.instruction = instruction
         self.exprs = [
@@ -188,12 +188,13 @@ class SemanticPredExpr(SemanticFunction):
 class SemanticReduceExpr(SemanticFunction, AggregateExpr):
     function_name = "semantic.reduce"
 
-    def __init__(self,
-                 instruction: str,
-                 max_tokens: int,
-                 temperature: float,
-                 model_alias: Optional[str] = None,
-                 ):
+    def __init__(
+        self,
+        instruction: str,
+        max_tokens: int,
+        temperature: float,
+        model_alias: Optional[str] = None,
+    ):
         self.instruction = instruction
         self.exprs = [
             ColumnExpr(parsed_col)
@@ -229,12 +230,12 @@ class SemanticClassifyExpr(SemanticFunction):
     function_name = "semantic.classify"
 
     def __init__(
-            self,
-            expr: LogicalExpr,
-            labels: List[str] | type[Enum],
-            temperature: float,
-            examples: Optional[ClassifyExampleCollection] = None,
-            model_alias: Optional[str] = None,
+        self,
+        expr: LogicalExpr,
+        labels: List[str] | type[Enum],
+        temperature: float,
+        examples: Optional[ClassifyExampleCollection] = None,
+        model_alias: Optional[str] = None,
     ):
         self.expr = expr
         self.labels = labels
@@ -306,10 +307,10 @@ class AnalyzeSentimentExpr(SemanticFunction):
     function_name = "semantic.analyze_sentiment"
 
     def __init__(
-            self,
-            expr: LogicalExpr,
-            temperature: float,
-            model_alias: Optional[str] = None,
+        self,
+        expr: LogicalExpr,
+        temperature: float,
+        model_alias: Optional[str] = None,
     ):
         self.expr = expr
         self.temperature = temperature
@@ -383,11 +384,11 @@ class SemanticSummarizeExpr(SemanticFunction):
     function_name = "semantic.summarize"
 
     def __init__(
-            self,
-            expr: LogicalExpr,
-            format: Union[KeyPoints, Paragraph],
-            temperature: float,
-            model_alias: Optional[str] = None
+        self,
+        expr: LogicalExpr,
+        format: Union[KeyPoints, Paragraph],
+        temperature: float,
+        model_alias: Optional[str] = None
     ):
         self.expr = expr
         self.format = format
