@@ -29,7 +29,6 @@ def main(config: Optional[fc.SessionConfig] = None):
     # Alternatively, you can run the example with an Gemini (`GOOGLE_API_KEY`) model by uncommenting the provided additional model configurations.
     # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
     print("🔧 Configuring fenic session...")
-    fc.configure_logging()
     config = config or fc.SessionConfig(
         app_name="news_analysis",
         semantic=fc.SemanticConfig(

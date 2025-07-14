@@ -32,7 +32,12 @@ from fenic._inference.preset_config_manager import (
 from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages, FenicCompletionsResponse, FenicCompletionsRequest, ResponseUsage
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    LMRequestMessages,
+    ResponseUsage,
+)
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
