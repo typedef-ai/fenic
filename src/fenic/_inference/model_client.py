@@ -317,16 +317,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             List[ResponseT]: List of responses in the same order as the input requests
         """
-        # Check if we should use sampling-based processing
-        valid_requests = [req for req in requests if req is not None]
         batch_id = str(uuid.uuid4())
         logger.info(
-            f"Creating batch {batch_id} with {len(valid_requests)} requests for {operation_name} using (model: {self.model})"
+            f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
-
-
-        # Continue with standard processing
-        return self._make_batch_requests(valid_requests, operation_name, batch_id)
+        return self._make_batch_requests(requests, operation_name, batch_id)
 
     #
     # Producer methods (run on the user thread)
