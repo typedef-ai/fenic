@@ -70,17 +70,26 @@ uv sync
 
 #### Rust Code (PyO3 Plugin)
 
+To compile and install the Rust crate with Python bindings into your virtual environment:
+
 ```bash
 just sync-rust
 # or
 uv run maturin develop --uv
 ```
 
+This builds the Rust crate with Python bindings and makes it available inside the `.venv`.
+
+To **only compile** the Rust crate _without_ Python bindings (e.g., for Rust unit tests), run this **from the `rust/` directory**:
+
+````bash
+cargo build --no-default-features
+
 Add `--release` for optimized builds:
 
 ```bash
 uv run maturin develop --uv --release
-```
+````
 
 ---
 
