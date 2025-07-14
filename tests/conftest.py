@@ -22,7 +22,7 @@ from fenic.api.session.config import (
     OpenAIModelConfig,
     OpenAIModelPreset,
 )
-from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
 MODEL_NAME_ARG = "--model-name"
 
@@ -232,57 +232,120 @@ def multi_model_local_session(multi_model_local_session_config, request):
 def local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
+    model_name = request.config.getoption(MODEL_NAME_ARG)
+    model_parameters = model_catalog.get_completion_model_parameters(model_provider, model_name)
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
-        language_model = OpenAIModelConfig(
-            model_name=request.config.getoption(MODEL_NAME_ARG),
-            rpm=500,
-            tpm=100_000,
-            presets = {
-                "medium" : OpenAIModelPreset(
-                    reasoning_effort="medium"
-                )
-            },
-            default_preset="medium"
-        )
+        if model_parameters.supports_reasoning:
+            language_model = OpenAIModelConfig(
+                model_name=model_name,
+                rpm=500,
+                tpm=100_000,
+                presets = {
+                    "low": OpenAIModelPreset(
+                        reasoning_effort="low"
+                    ),
+                    "medium" : OpenAIModelPreset(
+                        reasoning_effort="medium"
+                    ),
+                    "high" : OpenAIModelPreset(
+                        reasoning_effort="high"
+                    )
+                },
+                default_preset="medium"
+            )
+        else:
+            language_model = OpenAIModelConfig(
+                model_name=model_name,
+                rpm=500,
+                tpm=100_000,
+            )
     elif model_provider == ModelProvider.ANTHROPIC:
-        language_model = AnthropicModelConfig(
-            model_name=request.config.getoption(MODEL_NAME_ARG),
-            rpm=500,
-            input_tpm=100_000,
-            output_tpm=75_000,
-            presets = {
-                "deep" : AnthropicModelPreset(
-                    thinking_token_budget=4096
-                )
-            },
-            default_preset="deep"
-        )
+        if model_parameters.supports_reasoning:
+            language_model = AnthropicModelConfig(
+                model_name=model_name,
+                rpm=500,
+                input_tpm=100_000,
+                output_tpm=75_000,
+                presets = {
+                    "thinking_disabled": AnthropicModelPreset(),
+                    "low": AnthropicModelPreset(
+                        thinking_token_budget=1024
+                    ),
+                    "medium" : AnthropicModelPreset(
+                        thinking_token_budget=4096
+                    ),
+                    "high": AnthropicModelPreset(
+                        thinking_token_budget=8192
+                    )
+                },
+                default_preset="low"
+            )
+        else:
+            language_model = AnthropicModelConfig(
+                model_name=model_name,
+                rpm=500,
+                input_tpm=100_000,
+                output_tpm=75_000,
+            )
     elif model_provider == ModelProvider.GOOGLE_GLA:
-        language_model = GoogleGLAModelConfig(
-            model_name=request.config.getoption(MODEL_NAME_ARG),
-            rpm=1000,
-            tpm=500_000,
-            presets = {
-                "thinking_disabled": GoogleModelPreset(),
-                "auto": GoogleModelPreset(
-                    thinking_token_budget=-1
-                )
-            },
-            default_preset="auto"
-        )
+        if model_parameters.supports_reasoning:
+            language_model = GoogleGLAModelConfig(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+                presets = {
+                    "thinking_disabled": GoogleModelPreset(),
+                    "auto": GoogleModelPreset(
+                        thinking_token_budget=-1
+                    ),
+                    "low": GoogleModelPreset(
+                        thinking_token_budget=1024
+                    ),
+                    "medium" : GoogleModelPreset(
+                        thinking_token_budget=4096
+                    ),
+                    "high": GoogleModelPreset(
+                        thinking_token_budget=8192
+                    )
+                },
+                default_preset="auto"
+            )
+        else:
+            language_model = GoogleGLAModelConfig(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+            )
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
-        language_model = GoogleVertexModelConfig(
-            model_name=request.config.getoption(MODEL_NAME_ARG),
-            rpm=1000,
-            tpm=500_000,
-            presets = {
-                "auto": GoogleModelPreset(
-                    thinking_token_budget=-1
-                )
-            },
-            default_preset="auto"
-        )
+        if model_parameters.supports_reasoning:
+            language_model = GoogleVertexModelConfig(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+                presets={
+                    "thinking_disabled": GoogleModelPreset(),
+                    "auto": GoogleModelPreset(
+                        thinking_token_budget=-1
+                    ),
+                    "low": GoogleModelPreset(
+                        thinking_token_budget=1024
+                    ),
+                    "medium": GoogleModelPreset(
+                        thinking_token_budget=4096
+                    ),
+                    "high": GoogleModelPreset(
+                        thinking_token_budget=8192
+                    )
+                },
+                default_preset="auto"
+            )
+        else:
+            language_model = GoogleVertexModelConfig(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+            )
     else:
         raise ValueError(f"Unsupported model provider: {model_provider}")
     embedding_model = OpenAIModelConfig(
