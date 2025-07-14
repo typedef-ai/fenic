@@ -79,7 +79,7 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: str, batch_id: str) -> TokenEstimate:
+    def estimate_tokens_for_request(self, request: str) -> TokenEstimate:
         """Estimate the number of tokens for a request. Overriding the behavior in the base class
            as Embedding models do not generate any output tokens.
 
