@@ -17,7 +17,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
-    SemanticSummarizeExpr,
+    SemanticSummarizeExpr, LiteralExpr,
 )
 from fenic.core._utils import misc as misc_utils
 from fenic.core._utils.extract import (
@@ -463,7 +463,7 @@ def summarize(
     )
 
 
-def _resolve_bindings(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[LogicalExpr]:
+def _resolve_bindings(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[Union[AliasExpr, ColumnExpr]]:
     """Resolve placeholder bindings to logical expressions with proper aliasing and validation.
 
     Args:
@@ -481,7 +481,7 @@ def _resolve_bindings(instruction: str, bindings: Optional[Mapping[str, Column]]
     placeholder_keys = misc_utils.parse_instruction(instruction)
     # Deduplicate placeholder keys to avoid creating multiple expressions for the same placeholder
     unique_placeholder_keys = list(dict.fromkeys(placeholder_keys))  # Preserves order
-    exprs = []
+    exprs: list[Union[AliasExpr, ColumnExpr]] = []
 
     for placeholder_key in unique_placeholder_keys:
         if placeholder_key in bindings:

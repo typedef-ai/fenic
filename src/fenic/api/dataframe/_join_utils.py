@@ -1,14 +1,16 @@
 """Utility functions for DataFrame join operations."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Mapping
 
 from fenic.api.column import Column, ColumnOrName
+from fenic.core._logical_plan import LogicalExpr
+from fenic.core._logical_plan.expressions import ColumnExpr, AliasExpr
 from fenic.core.error import ValidationError
 from fenic.core.types.enums import JoinType
+from fenic.core._utils import misc as misc_utils
 
 
 def validate_join_parameters(
-    self,
     on: Optional[Union[str, List[str]]],
     left_on: Optional[Union[ColumnOrName, List[ColumnOrName]]],
     right_on: Optional[Union[ColumnOrName, List[ColumnOrName]]],
@@ -106,3 +108,69 @@ def _validate_join_condition_lengths(
             f"Length mismatch: 'left_on' has {len(left_cols)} columns, "
             f"'right_on' has {len(right_cols)} columns. Both must have the same length."
         )
+
+
+def _resolve_join_binding(
+    placeholder_key: str,
+    bindings: Optional[Mapping[str, Column]] = None
+) -> Union[AliasExpr, ColumnExpr]:
+    if placeholder_key in bindings:
+        column = bindings[placeholder_key]
+        logical_expr = column._logical_expr
+
+        # Check if the expression is already aliased
+        if isinstance(logical_expr, AliasExpr):
+            # Validate that the alias matches the key
+            if logical_expr.name != placeholder_key:
+                raise ValidationError(
+                    f"Alias name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
+            return logical_expr
+        else:
+            aliased_expr = AliasExpr(logical_expr, placeholder_key)
+            return aliased_expr
+    else:
+        # Use column reference for missing keys
+        return ColumnExpr(placeholder_key)
+
+
+def resolve_join_bindings(
+    instruction: str,
+    bindings: Optional[Mapping[str, Column]]
+) -> tuple[Union[AliasExpr, ColumnExpr], Union[AliasExpr, ColumnExpr]]:
+    """Resolve placeholder bindings to logical expressions with proper aliasing and validation.
+
+    Args:
+        instruction: The instruction string with placeholders
+        bindings: Mapping of placeholder names to column expressions (can be None)
+
+    Returns:
+        List of logical expressions for each unique placeholder in the instruction
+
+    Raises:
+        ValidationError: If alias names don't match keys or expression names don't match keys
+    """
+    if bindings is None:
+        bindings = {}
+    placeholder_keys = misc_utils.parse_instruction(instruction)
+    if len(placeholder_keys) != 2:
+        raise ValidationError(
+            f"Join instructions must have exactly two placeholders, 'placeholder:left' and 'placeholder:right'."
+            f" Got {len(placeholder_keys)} placeholders: {placeholder_keys}"
+        )
+    left_on: Optional[str] = None
+    right_on: Optional[str] = None
+
+    for placeholder_key in placeholder_keys:
+        if placeholder_key.endswith(":left"):
+            left_on = placeholder_key.split(":")[0]
+        elif placeholder_key.endswith(":right"):
+            right_on = placeholder_key.split(":")[0]
+    if left_on is None or right_on is None:
+        raise ValidationError(
+            f"Join instructions must have 2 placeholders named 'placeholder:left' and 'placeholder:right'. "
+            f"Got placeholders: {placeholder_keys}"
+        )
+
+    left_expr = _resolve_join_binding(left_on, bindings)
+    right_expr = _resolve_join_binding(right_on, bindings)
+    return left_expr, right_expr

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, get_args
+from typing import TYPE_CHECKING, Optional, get_args, Mapping
 
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
 
 import fenic.core._utils.misc as utils
+import fenic.api.dataframe._join_utils as join_utils
 from fenic.api.column import Column, ColumnOrName
 from fenic.api.functions import col
 from fenic.core._logical_plan.expressions import LiteralExpr
@@ -114,6 +115,7 @@ class SemanticExtensions:
         self,
         other: DataFrame,
         join_instruction: str,
+        bindings: Optional[Mapping[str, Column]] = None,
         examples: Optional[JoinExampleCollection] = None,
         model_alias: Optional[str] = None,
     ) -> DataFrame:
@@ -139,6 +141,8 @@ class SemanticExtensions:
                 and one from the right (e.g. `{job_description:right}`).
                 - This instruction is evaluated as a boolean predicate - pairs where it's `True` are included,
                 pairs where it's `False` are excluded.
+            bindings: Optional mapping of placeholder names to column expressions.
+                Only required when placeholder names don't match existing column names.
             examples: Optional JoinExampleCollection containing labeled pairs (`left`, `right`, `output`)
                 to guide the semantic join behavior.
             model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
@@ -186,42 +190,14 @@ class SemanticExtensions:
             raise TypeError(
                 f"join_instruction argument must be a string, got {type(join_instruction)}"
             )
-        join_columns = utils.parse_instruction(join_instruction)
-        if len(join_columns) != 2:
-            raise ValueError(
-                f"join_instruction must contain exactly two columns, got {len(join_columns)}"
-            )
-        left_on = None
-        right_on = None
-        for join_col in join_columns:
-            if join_col.endswith(":left"):
-                if left_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :left columns"
-                    )
-                left_on = col(join_col.split(":")[0])
-            elif join_col.endswith(":right"):
-                if right_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :right columns"
-                    )
-                right_on = col(join_col.split(":")[0])
-            else:
-                raise ValueError(
-                    f"Column '{join_col}' must end with either :left or :right"
-                )
-
-        if left_on is None or right_on is None:
-            raise ValueError(
-                "join_instruction must contain exactly one :left and one :right column"
-            )
+        left_on, right_on = join_utils.resolve_join_bindings(join_instruction, bindings)
 
         return self._df._from_logical_plan(
             SemanticJoin(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
-                left_on=left_on._logical_expr,
-                right_on=right_on._logical_expr,
+                left_on=left_on,
+                right_on=right_on,
                 join_instruction=join_instruction,
                 examples=examples,
                 model_alias=model_alias,

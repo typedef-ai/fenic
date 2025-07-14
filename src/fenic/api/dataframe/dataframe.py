@@ -1031,7 +1031,7 @@ class DataFrame:
             # +---+-----+---+---+
             ```
         """
-        validate_join_parameters(self, on, left_on, right_on, how)
+        validate_join_parameters(on, left_on, right_on, how)
 
         # Build join conditions
         left_conditions, right_conditions = build_join_conditions(on, left_on, right_on)
