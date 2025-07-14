@@ -126,6 +126,8 @@ uv sync --extra=cloud
 uv run pytest -m cloud tests
 ```
 
+> ⚠️ Note: All tests require a valid OpenAI/Anthropic API key set in the environment variables.
+
 ---
 
 ### Rust Tests
