@@ -13,9 +13,12 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
-from fenic._inference.types import FenicCompletionsResponse, FenicCompletionsRequest
-from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy, TokenEstimate
+from fenic._inference.rate_limit_strategy import (
+    TokenEstimate,
+    UnifiedTokenRateLimitStrategy,
+)
 from fenic._inference.token_counter import TiktokenTokenCounter
+from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedOpenAIModelPreset
 from fenic.core.metrics import LMMetrics
