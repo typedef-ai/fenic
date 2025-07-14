@@ -1,8 +1,10 @@
-# Contributing
+# Contributing to Fenic
 
-## 📁 Directory Structure
+Welcome! This guide will help you get set up for local development and testing.
 
-The repository is organized as follows:
+---
+
+## 📁 Directory Overview
 
 ```bash
 fenic/
@@ -28,14 +30,18 @@ fenic/
 
 ## 🛠️ Development Setup
 
-Local development requires uv and a Rust toolchain.
+### Requirements
 
-> [!OPTIONAL]
-> Not required, but recommended: [just](https://just.systems/)
+- [`uv`](https://github.com/astral-sh/uv) — manages Python dependencies and environments
+- A working **Rust toolchain**
 
-### First-Time Setup
+> **Optional but recommended:** [`just`](https://just.systems/) for simpler task running
 
-From the root of the repo:
+---
+
+### One-Time Setup
+
+From the project root:
 
 ```bash
 just setup
@@ -47,45 +53,42 @@ uv run maturin develop --uv
 This will:
 
 - Create a virtual environment
-- Build the Rust crate
-- Install Python dependencies
-- Set up the package in editable mode
+- Install all Python dev dependencies (including `maturin`)
+- Build and install the Rust plugin as an editable Python package
 
-> This command also places the built dynamic Rust library inside `src/fenic`.
+---
 
 ### Making Changes
 
-- To apply changes made to Python code:
+#### Python Code
 
-  ```bash
-  just sync
-  # without just
-  uv sync
-  ```
+```bash
+just sync
+# or
+uv sync
+```
 
-- To apply changes made to Rust code:
+#### Rust Code (PyO3 Plugin)
 
-  ```bash
-  just sync-rust
-  # without just
-  uv run maturin develop --uv
-  ```
+```bash
+just sync-rust
+# or
+uv run maturin develop --uv
+```
 
-  Add `--release` or `-r` to build the Rust crate in release mode (better performance).
+Add `--release` for optimized builds:
 
-- To preview changes to the documentation from docstring or other changes:
-
-  ```bash
-  just preview-docs
-  # without just
-  uv run --group docs mkdocs serve
-  ```
+```bash
+uv run maturin develop --uv --release
+```
 
 ---
 
 ## ✅ Running Tests
 
-Run an individual test file:
+### Python Tests
+
+Run a specific test file:
 
 ```bash
 uv run pytest tests/path/to/test_foo.py
@@ -118,24 +121,38 @@ Run all tests for the **cloud backend**:
 
 ```bash
 just test-cloud
+# or
+uv sync --extra=cloud
+uv run pytest -m cloud tests
 ```
 
-> ⚠️ Note: All tests require a valid OpenAI/Anthropic API key set in the environment variables.
+---
+
+### Rust Tests
+
+From the `rust/` directory:
+
+```bash
+cargo test --no-default-features
+```
+
+> Skipping default features avoids Python-specific linking, making it easier to test the Rust library independently of the Python bindings.
 
 ---
 
 ## 📓 Running Notebooks (VSCode / Cursor)
 
-To run demo notebooks:
+To run the demo notebooks:
 
-1. Install the **Jupyter** extension.
-2. Add the `.venv` path to **Python: Venv Folders** in VSCode settings:
-   - Open settings: `Preferences: Open User Settings`
+1. Install the **Jupyter** extension in your editor.
+2. Add `.venv` to the **Python: Venv Folders** setting in VSCode:
+   - Open `Preferences: Open User Settings`
    - Go to Extensions → Python → **Python: Venv Folders**
-3. Open a notebook, select the correct kernel from your virtual environment, and run cells.
-
-> Restart the kernel to reflect any code changes made to the `fenic` source.
+3. Open a notebook and select the correct Python kernel from the virtual environment.
+4. Restart the kernel if you make changes to the `fenic` source code.
 
 ---
 
-Have questions or want to contribute? Let us know in the [Discord](https://discord.gg/GdqF3J7huR)!
+## 🙋 Need Help?
+
+Have questions or want to contribute? Join us on [Discord](https://discord.gg/GdqF3J7huR)!

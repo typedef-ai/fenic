@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 anyhow = "1.0.98"
 memchr = "2.7.4"
 polars-arrow = "0.48.1"
-pyo3 = { version = "0.24.2", features = ["extension-module", "abi3-py39"] }
+pyo3 = { version = "0.24.2", features = ["abi3-py39"] }
 pyo3-polars = { version = "0.21.0", features = ["derive", "dtype-struct"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -27,6 +27,10 @@ criterion = "0.5.1"
 indoc = "2.0"
 rstest = "0.25.0"
 reqwest = { version = "0.12.15", features = ["json", "blocking"] }
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
 
 [[bench]]
 name = "transcript_parsing"
