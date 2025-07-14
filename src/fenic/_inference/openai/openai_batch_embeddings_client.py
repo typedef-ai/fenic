@@ -1,6 +1,6 @@
 """Client for making batch requests to OpenAI's embeddings API."""
 
-from typing import Union
+from typing import Optional, Union
 
 from openai import AsyncOpenAI
 
@@ -79,12 +79,13 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: str) -> TokenEstimate:
+    def estimate_tokens_for_request(self, request: str, batch_id: Optional[str] = None) -> TokenEstimate:
         """Estimate the number of tokens for a request. Overriding the behavior in the base class
            as Embedding models do not generate any output tokens.
 
         Args:
             request: The request to estimate tokens for
+            batch_id: Optional batch ID (unused for embeddings)
 
         Returns:
             TokenEstimate with input token count

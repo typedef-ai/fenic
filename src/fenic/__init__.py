@@ -1,5 +1,11 @@
 """Fenic is an opinionated, PySpark-inspired DataFrame framework for building production AI and agentic applications."""
 
+from fenic._inference import (
+    BatchTokenPredictions,
+    BatchTokenPredictor,
+    CompletionsBatchTokenPredictor,
+    DistributionShape,
+)
 from fenic.api import (
     AnthropicModelConfig,
     AnthropicModelPreset,
@@ -196,4 +202,9 @@ __all__ = [
     "DataLike",
     "DataLikeType",
     "QueryResult",
+    # Batch Token Prediction
+    "CompletionsBatchTokenPredictor",
+    "BatchTokenPredictions",
+    "BatchTokenPredictor",
+    "DistributionShape",
 ]

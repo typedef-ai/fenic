@@ -1,109 +1,77 @@
 year,region,theme,description
-1776,Philadelphia,Revolutionary War,The signing of the Declaration of Independence and the birth of American independence
-1789,Paris,French Revolution,The storming of the Bastille and the beginning of the French Revolution
-1804,Europe,Napoleonic Era,Napoleon's coronation as Emperor and the expansion of the French Empire
-1815,Waterloo,Military History,The Battle of Waterloo and Napoleon's final defeat
-1825,Russia,Decembrist Revolt,The failed military uprising against Tsar Nicholas I
-1837,London,Victorian Era,Queen Victoria's coronation and the beginning of the Victorian era
-1848,Europe,Revolutions of 1848,The Spring of Nations and democratic revolutions across Europe
-1861,United States,Civil War,The beginning of the American Civil War and the attack on Fort Sumter
-1863,Gettysburg,Civil War,The Battle of Gettysburg and Lincoln's famous address
-1865,Washington DC,Reconstruction,The assassination of President Lincoln and the end of the Civil War
-1871,Paris,Franco-Prussian War,The Paris Commune and the end of the Franco-Prussian War
-1876,Little Bighorn,Native American Wars,The Battle of Little Bighorn and Custer's Last Stand
-1886,Chicago,Labor Movement,The Haymarket Affair and the fight for workers' rights
-1889,Paris,Belle Époque,The opening of the Eiffel Tower and the Paris World's Fair
-1894,France,Dreyfus Affair,The beginning of the Dreyfus Affair and anti-Semitism in France
-1898,Cuba,Spanish-American War,The explosion of the USS Maine and the Spanish-American War
-1901,Buffalo,Presidential History,The assassination of President McKinley and Theodore Roosevelt's rise
-1906,San Francisco,Natural Disasters,The Great San Francisco Earthquake and Fire
-1912,Atlantic Ocean,Maritime Disasters,The sinking of the RMS Titanic
-1914,Sarajevo,World War I,The assassination of Archduke Franz Ferdinand and the start of WWI
-1917,Russia,Russian Revolution,The October Revolution and the Bolshevik rise to power
-1918,Western Front,World War I,The end of World War I and the Armistice
-1919,Versailles,Post-War Treaties,The Treaty of Versailles and the reshaping of Europe
-1920,United States,Prohibition,The beginning of Prohibition and the rise of organized crime
-1922,Italy,Rise of Fascism,Mussolini's March on Rome and the rise of fascism
-1924,Soviet Union,Lenin's Death,The death of Lenin and Stalin's rise to power
-1929,New York,Great Depression,The Wall Street Crash and the beginning of the Great Depression
-1933,Germany,Rise of Nazism,Hitler's rise to power and the end of the Weimar Republic
-1936,Spain,Spanish Civil War,The beginning of the Spanish Civil War
-1939,Poland,World War II,The invasion of Poland and the beginning of World War II
-1941,Pearl Harbor,World War II,The attack on Pearl Harbor and America's entry into WWII
-1942,Pacific,World War II,The Battle of Midway and the turning point in the Pacific
-1943,Stalingrad,World War II,The Battle of Stalingrad and the turning point on the Eastern Front
-1944,Normandy,World War II,D-Day and the liberation of Western Europe
-1945,Berlin,World War II,The fall of Berlin and the end of World War II in Europe
-1945,Hiroshima,Atomic Age,The bombing of Hiroshima and the dawn of the atomic age
-1947,India,Decolonization,The partition of India and the end of British colonial rule
-1948,Israel,Middle East,The establishment of Israel and the Arab-Israeli conflict
-1949,China,Communist Revolution,The Chinese Communist victory and the founding of the PRC
-1950,Korea,Korean War,The beginning of the Korean War and the Cold War in Asia
-1953,Soviet Union,Post-Stalin Era,The death of Stalin and the beginning of de-Stalinization
-1954,Vietnam,Vietnam War,The Battle of Dien Bien Phu and the end of French rule in Indochina
-1955,Montgomery,Civil Rights,The Montgomery Bus Boycott and the civil rights movement
-1957,Arkansas,Civil Rights,The Little Rock Nine and school desegregation
-1960,Africa,Decolonization,The Year of Africa and the wave of African independence
-1961,Berlin,Cold War,The construction of the Berlin Wall and the division of Germany
-1962,Cuba,Cold War,The Cuban Missile Crisis and the brink of nuclear war
-1963,Washington DC,Civil Rights,The March on Washington and Martin Luther King Jr.'s dream
-1963,Dallas,Presidential History,The assassination of President John F. Kennedy
-1964,Vietnam,Vietnam War,The Gulf of Tonkin incident and escalation of the Vietnam War
-1965,Selma,Civil Rights,The Selma to Montgomery marches and voting rights
-1966,China,Cultural Revolution,The beginning of Mao's Cultural Revolution
-1967,Middle East,Six-Day War,The Six-Day War and the reshaping of the Middle East
-1968,United States,Social Upheaval,The assassinations of MLK and RFK and social unrest
-1969,Moon,Space Race,The Apollo 11 moon landing and the triumph of the space race
-1970,Kent State,Anti-War Movement,The Kent State shootings and anti-war protests
-1971,Bangladesh,Independence War,The Bangladesh Liberation War and the birth of Bangladesh
-1972,Munich,Olympic Games,The Munich Olympics massacre and international terrorism
-1973,Chile,Cold War,The Chilean coup and the fall of Salvador Allende
-1974,Washington DC,Watergate,The Watergate scandal and Nixon's resignation
-1975,Saigon,Vietnam War,The fall of Saigon and the end of the Vietnam War
-1976,Argentina,Dirty War,The beginning of Argentina's Dirty War and state terrorism
-1977,New York,Urban Crisis,The New York City blackout and urban decay
-1978,Iran,Islamic Revolution,The beginning of the Iranian Revolution
-1979,Afghanistan,Soviet Invasion,The Soviet invasion of Afghanistan and the Cold War proxy
-1980,Poland,Solidarity Movement,The rise of Solidarity and the challenge to communist rule
-1981,United States,Reagan Era,The assassination attempt on President Reagan
-1982,Falklands,Military Conflict,The Falklands War between Britain and Argentina
-1983,Grenada,Cold War,The US invasion of Grenada and Caribbean geopolitics
-1984,India,Sikh Insurgency,The assassination of Indira Gandhi and communal violence
-1985,Soviet Union,Perestroika,Gorbachev's rise to power and the beginning of reform
-1986,Chernobyl,Nuclear Disaster,The Chernobyl nuclear disaster and its global impact
-1987,Berlin,Cold War,Reagan's "Tear down this wall" speech and détente
-1988,Pan Am 103,Terrorism,The Lockerbie bombing and international terrorism
-1989,Berlin,End of Cold War,The fall of the Berlin Wall and the end of the Cold War
-1990,Germany,Reunification,German reunification and the end of the divided Germany
-1991,Gulf War,Persian Gulf War,The Gulf War and the new world order
-1991,Soviet Union,Collapse of USSR,The dissolution of the Soviet Union and end of the Cold War
-1992,Los Angeles,Race Relations,The LA riots and racial tensions in America
-1993,World Trade Center,Terrorism,The first World Trade Center bombing and domestic terrorism
-1994,Rwanda,Genocide,The Rwandan genocide and humanitarian intervention
-1995,Oklahoma City,Domestic Terrorism,The Oklahoma City bombing and right-wing extremism
-1996,Atlanta,Olympic Games,The Atlanta Olympics bombing and security concerns
-1997,Hong Kong,Transfer of Sovereignty,The handover of Hong Kong to China
-1998,White House,Presidential Scandal,The Clinton impeachment and political polarization
-1999,Kosovo,Humanitarian Intervention,The Kosovo War and NATO intervention
-2000,United States,Electoral Crisis,The Bush v. Gore election and constitutional crisis
-2001,New York,September 11,The September 11 attacks and the War on Terror
-2002,Afghanistan,War on Terror,The invasion of Afghanistan and the hunt for bin Laden
-2003,Iraq,Iraq War,The invasion of Iraq and the search for WMDs
-2004,Madrid,Terrorism,The Madrid train bombings and European terrorism
-2005,New Orleans,Hurricane Katrina,Hurricane Katrina and government response failures
-2006,Lebanon,Middle East Conflict,The Israel-Lebanon War and regional instability
-2007,Virginia Tech,Mass Shooting,The Virginia Tech massacre and gun violence
-2008,Wall Street,Financial Crisis,The 2008 financial crisis and the Great Recession
-2009,Iran,Green Movement,The Iranian Green Movement and democratic protests
-2010,Haiti,Natural Disaster,The Haiti earthquake and humanitarian crisis
-2011,Egypt,Arab Spring,The Egyptian revolution and the Arab Spring
-2012,Libya,Arab Spring,The death of Gaddafi and the Libyan civil war
-2013,Boston,Terrorism,The Boston Marathon bombing and domestic terrorism
-2014,Ukraine,Russian Invasion,The annexation of Crimea and the Ukrainian crisis
-2015,Paris,Terrorism,The Charlie Hebdo attacks and freedom of expression
-2016,United States,Electoral Upheaval,The Trump election and political polarization
-2017,Charlottesville,White Supremacy,The Unite the Right rally and racial violence
-2018,Parkland,Mass Shooting,The Parkland school shooting and gun control debate
-2019,Hong Kong,Democracy Movement,The Hong Kong protests and Chinese authoritarianism
-2020,Global,COVID-19 Pandemic,The COVID-19 pandemic and global health crisis
-2021,Washington DC,January 6th,The Capitol insurrection and democratic crisis
+1776,Northeast,Revolution,"The signing of the Declaration of Independence in Philadelphia"
+1783,Northeast,Peace,"The Treaty of Paris officially ending the Revolutionary War"
+1787,Northeast,Constitution,"The Constitutional Convention creating a new government"
+1791,National,Rights,"The Bill of Rights protecting individual freedoms"
+1803,Louisiana,Expansion,"The Louisiana Purchase doubling the size of the nation"
+1812,Great Lakes,War,"The War of 1812 and the burning of Washington D.C."
+1820,National,Compromise,"The Missouri Compromise addressing slavery's expansion"
+1825,Northeast,Transportation,"The opening of the Erie Canal connecting East and West"
+1830,Southeast,Removal,"The Indian Removal Act and the Trail of Tears"
+1836,Texas,Independence,"The Battle of the Alamo and Texas independence"
+1845,Texas,Annexation,"Texas joining the United States as the 28th state"
+1849,California,Gold Rush,"The California Gold Rush bringing fortune seekers west"
+1850,National,Compromise,"The Compromise of 1850 attempting to preserve the Union"
+1854,Kansas,Conflict,"Bleeding Kansas and the fight over slavery"
+1858,Illinois,Debate,"The Lincoln-Douglas debates defining American democracy"
+1860,National,Election,"Abraham Lincoln's election dividing the nation"
+1861,South,Civil War,"The start of the Civil War at Fort Sumter"
+1863,Pennsylvania,Battle,"The Battle of Gettysburg turning the tide of war"
+1865,National,Assassination,"President Lincoln's assassination and the end of slavery"
+1869,West,Transportation,"The completion of the Transcontinental Railroad"
+1871,Chicago,Disaster,"The Great Chicago Fire rebuilding a city"
+1876,Great Plains,Conflict,"The Battle of Little Bighorn and Native American resistance"
+1881,New York,Immigration,"The first wave of immigrants arriving at Ellis Island"
+1886,New York,Labor,"The Haymarket Affair and the fight for workers' rights"
+1889,Oklahoma,Settlement,"The Oklahoma Land Rush opening new territories"
+1893,Chicago,Innovation,"The World's Columbian Exposition showcasing American progress"
+1898,Caribbean,War,"The Spanish-American War and America's global expansion"
+1901,New York,Tragedy,"President McKinley's assassination bringing Roosevelt to power"
+1903,North Carolina,Flight,"The Wright Brothers' first flight at Kitty Hawk"
+1906,California,Disaster,"The great San Francisco earthquake and rebuilding"
+1912,Atlantic,Tragedy,"The sinking of the Titanic shocking the world"
+1914,Industrial,Innovation,"Henry Ford's assembly line revolutionizing manufacturing"
+1917,National,War,"America entering World War I to make the world safe for democracy"
+1918,National,Pandemic,"The Spanish flu pandemic devastating communities"
+1920,National,Rights,"Women gaining the right to vote with the 19th Amendment"
+1925,Tennessee,Science,"The Scopes Trial debating evolution vs. religion"
+1927,Atlantic,Aviation,"Charles Lindbergh's solo flight across the Atlantic"
+1929,Wall Street,Economy,"The stock market crash beginning the Great Depression"
+1932,National,Leadership,"FDR's election promising a New Deal for Americans"
+1935,Midwest,Environment,"The Dust Bowl forcing families to migrate west"
+1941,Pacific,War,"The attack on Pearl Harbor entering World War II"
+1944,Europe,Liberation,"D-Day and the liberation of Nazi-occupied Europe"
+1945,Pacific,Victory,"The atomic bomb ending World War II"
+1947,Brooklyn,Sports,"Jackie Robinson breaking baseball's color barrier"
+1950,Korea,Conflict,"The Korean War and America's Cold War commitment"
+1954,South,Education,"Brown v. Board ending school segregation"
+1957,Arkansas,Integration,"The Little Rock Nine integrating Central High School"
+1960,National,Innovation,"The presidential debates changing political campaigns"
+1961,Bay of Pigs,Invasion,"The failed Bay of Pigs invasion in Cuba"
+1962,Cuba,Crisis,"The Cuban Missile Crisis bringing the world to the brink"
+1963,Washington,Rights,"Martin Luther King Jr.'s 'I Have a Dream' speech"
+1963,Dallas,Tragedy,"President Kennedy's assassination shocking the nation"
+1965,Alabama,March,"The Selma to Montgomery march for voting rights"
+1969,Space,Achievement,"Neil Armstrong walking on the moon"
+1970,Ohio,Protest,"The Kent State shootings during Vietnam War protests"
+1972,Washington,Scandal,"The Watergate break-in beginning a constitutional crisis"
+1974,Washington,Politics,"President Nixon's resignation over Watergate"
+1975,Vietnam,Withdrawal,"The fall of Saigon ending the Vietnam War"
+1979,Pennsylvania,Nuclear,"The Three Mile Island nuclear accident"
+1980,Lake Placid,Sports,"The Miracle on Ice at the Winter Olympics"
+1981,Washington,Assassination,"The attempted assassination of President Reagan"
+1986,Space,Tragedy,"The Challenger shuttle disaster"
+1989,Berlin,Diplomacy,"The fall of the Berlin Wall ending the Cold War"
+1991,Middle East,Technology,"The first Gulf War showcasing precision warfare"
+1992,Los Angeles,Unrest,"The Los Angeles riots following the Rodney King verdict"
+1995,Oklahoma,Terrorism,"The Oklahoma City bombing shocking domestic terrorism"
+1998,Washington,Impeachment,"President Clinton's impeachment and Senate trial"
+2001,New York,Security,"The September 11th attacks changing America forever"
+2003,Iraq,Invasion,"The invasion of Iraq beginning a new conflict"
+2005,New Orleans,Disaster,"Hurricane Katrina devastating the Gulf Coast"
+2008,National,Technology,"Barack Obama's historic election using social media"
+2009,National,Economy,"The Great Recession and government bailouts"
+2012,Connecticut,Tragedy,"The Sandy Hook shooting spurring gun control debates"
+2016,National,Division,"The divisive presidential election and Russian interference"
+2020,National,Health,"The COVID-19 pandemic transforming daily life"
+2021,Washington,Insurrection,"The January 6th attack on the U.S. Capitol"

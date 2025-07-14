@@ -97,15 +97,35 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
+    def estimate_tokens_for_request(
+        self,
+        request: FenicCompletionsRequest,
+        batch_id: Optional[str] = None
+    ) -> TokenEstimate:
         """Estimate the number of tokens for a request.
 
         Args:
             request: The request to estimate tokens for
+            batch_id: Optional batch ID for context-aware prediction
 
         Returns:
             TokenEstimate: The estimated token usage
         """
+        if batch_id:
+            # Use batch prediction for output tokens
+            input_tokens = self.count_tokens(request.messages)
+            # OpenAI does not charge for the number of tokens in the
+            # Response Format JSON Schema.
+            # input_tokens += self._count_auxiliary_input_tokens(request)
+
+            # Use batch predictor for output tokens
+            output_tokens = self._predict_output_tokens(request, batch_id)
+            
+            return TokenEstimate(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
+            )
+        
         return self._core.estimate_tokens_for_request(request)
 
     def reset_metrics(self):

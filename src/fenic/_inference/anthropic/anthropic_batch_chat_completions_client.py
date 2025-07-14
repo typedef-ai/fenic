@@ -313,11 +313,12 @@ class AnthropicBatchCompletionsClient(
         """
         return generate_completion_request_key(request)
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
+    def estimate_tokens_for_request(self, request: FenicCompletionsRequest, batch_id: Optional[str] = None):
         """Estimate the number of tokens for a request.
 
         Args:
             request: The request to estimate tokens for
+            batch_id: Optional batch ID for context-aware prediction
 
         Returns:
             TokenEstimate: The estimated token usage
@@ -329,7 +330,10 @@ class AnthropicBatchCompletionsClient(
         input_tokens += self._count_auxiliary_input_tokens(request)
         
         # Estimate output tokens
-        output_tokens = self._get_max_output_tokens(request)
+        if batch_id:
+            output_tokens = self._predict_output_tokens(request, batch_id)
+        else:
+            output_tokens = self._get_max_output_tokens(request)
         
         return TokenEstimate(
             input_tokens=input_tokens,
