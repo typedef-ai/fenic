@@ -3,12 +3,12 @@
 This module registers function signatures for aggregate functions,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import (
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.type_signature import (
     Any,
     Exact,
     InstanceOf,
@@ -28,7 +28,7 @@ SUMMABLE_TYPES = (IntegerType, FloatType, DoubleType, BooleanType)
 
 
 def register_aggregate_signatures():
-    """Register all aggregate function signatures for AggregateFunctions."""
+    """Register all aggregate function signatures."""
     # Sum - numeric types only, returns same type as input
     FunctionRegistry.register("sum", FunctionSignature(
         function_name="sum",

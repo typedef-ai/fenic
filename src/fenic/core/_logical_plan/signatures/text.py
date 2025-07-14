@@ -35,7 +35,7 @@ TRANSCRIPT_OUTPUT_TYPE = ArrayType(
 )
 
 def register_text_signatures():
-    """Register all text function signatures for ScalarFunctions."""
+    """Register all text function signatures."""
     # Text extraction - string input with template
     FunctionRegistry.register(
         "text.extract",

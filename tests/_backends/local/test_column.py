@@ -17,6 +17,7 @@ from fenic import (
     when,
 )
 from fenic.core._logical_plan.expressions import (
+    AggregateExpr,
     AliasExpr,
     ArithmeticExpr,
     BooleanExpr,
@@ -27,7 +28,6 @@ from fenic.core._logical_plan.expressions import (
     NumericComparisonExpr,
     Operator,
 )
-from fenic.core._logical_plan.signatures import AggregateFunction
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
@@ -221,34 +221,34 @@ def test_nested_expression():
 
 def test_sum_aggregation():
     column = sum(col("age"))
-    assert isinstance(column._logical_expr, AggregateFunction)
+    assert isinstance(column._logical_expr, AggregateExpr)
     assert column._logical_expr.function_name == "sum"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_avg_aggregation():
     column = avg(col("age"))
-    assert isinstance(column._logical_expr, AggregateFunction)
+    assert isinstance(column._logical_expr, AggregateExpr)
     assert column._logical_expr.function_name == "avg"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_min_aggregation():
     column = min(col("age"))
-    assert isinstance(column._logical_expr, AggregateFunction)
+    assert isinstance(column._logical_expr, AggregateExpr)
     assert column._logical_expr.function_name == "min"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_max_aggregation():
     column = max(col("age"))
-    assert isinstance(column._logical_expr, AggregateFunction)
+    assert isinstance(column._logical_expr, AggregateExpr)
     assert column._logical_expr.function_name == "max"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_column_comparisons(local_session):

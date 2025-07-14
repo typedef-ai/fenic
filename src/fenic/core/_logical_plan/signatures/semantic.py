@@ -13,7 +13,7 @@ from fenic.core.types.datatypes import BooleanType, StringType
 
 
 def register_semantic_signatures():
-    """Register all semantic function signatures for ScalarFunctions."""
+    """Register all semantic function signatures."""
     # Semantic map - instruction-based text transformation
     FunctionRegistry.register("semantic.map", FunctionSignature(
         function_name="semantic.map",

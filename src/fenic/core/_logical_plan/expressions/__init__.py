@@ -11,9 +11,14 @@ from fenic.core._logical_plan.expressions.aggregate import SumExpr as SumExpr
 from fenic.core._logical_plan.expressions.arithmetic import (
     ArithmeticExpr as ArithmeticExpr,
 )
+from fenic.core._logical_plan.expressions.base import AggregateExpr as AggregateExpr
 from fenic.core._logical_plan.expressions.base import BinaryExpr as BinaryExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr as LogicalExpr
 from fenic.core._logical_plan.expressions.base import Operator as Operator
+from fenic.core._logical_plan.expressions.base import (
+    SemanticAggregateExpr as SemanticAggregateExpr,
+)
+from fenic.core._logical_plan.expressions.base import SemanticExpr as SemanticExpr
 from fenic.core._logical_plan.expressions.basic import AliasExpr as AliasExpr
 from fenic.core._logical_plan.expressions.basic import (
     ArrayContainsExpr as ArrayContainsExpr,

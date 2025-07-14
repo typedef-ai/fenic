@@ -5,8 +5,12 @@ from typing import TYPE_CHECKING, Any, Callable, List
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.signatures.function_base import ScalarFunction
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    ValidatedDynamicSignature,
+    ValidatedSignature,
+)
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import PlanError, TypeMismatchError
 from fenic.core.types import (
     ArrayType,
@@ -157,12 +161,24 @@ class IndexExpr(LogicalExpr):
         return [self.expr]
 
 
-class ArrayExpr(ScalarFunction):
+class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
+    """Expression representing array creation from multiple columns."""
+    
     function_name = "array"
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        super().__init__(*exprs)
+        self._children = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self._children
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return ArrayType with element type matching the first argument."""
@@ -170,12 +186,24 @@ class ArrayExpr(ScalarFunction):
         return ArrayType(arg_types[0])
 
 
-class StructExpr(ScalarFunction):
+class StructExpr(ValidatedDynamicSignature, LogicalExpr):
+    """Expression representing struct creation from multiple columns."""
+    
     function_name = "struct"
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        super().__init__(*exprs)
+        self._children = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self._children
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on argument names and types."""
@@ -226,20 +254,44 @@ class IsNullExpr(LogicalExpr):
         return [self.expr]
 
 
-class ArrayLengthExpr(ScalarFunction):
+class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
+    """Expression representing array length calculation."""
+    
     function_name = "array_size"
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        super().__init__(expr)
+        self._children = [expr]
+        self._validator = SignatureValidator(self.function_name)
 
-class ArrayContainsExpr(ScalarFunction):
+
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self._children
+
+class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
+    """Expression representing array contains check."""
+    
     function_name = "array_contains"
 
     def __init__(self, expr: LogicalExpr, other: LogicalExpr):
         self.expr = expr
         self.other = other
-        super().__init__(expr, other)
+        self._children = [expr, other]
+        self._validator = SignatureValidator(self.function_name)
+
+
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self._children
 
 class CastExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, dest_type: DataType):
@@ -282,12 +334,24 @@ class NotExpr(LogicalExpr):
         return [self.expr]
 
 
-class CoalesceExpr(ScalarFunction):
+class CoalesceExpr(ValidatedSignature, LogicalExpr):
+    """Expression representing coalesce operation (first non-null value)."""
+    
     function_name = "coalesce"
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        super().__init__(*exprs)
+        self._children = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self._children
 
 
 class InExpr(LogicalExpr):

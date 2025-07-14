@@ -17,7 +17,7 @@ from fenic.core.types.datatypes import EmbeddingType, FloatType
 
 
 def register_embedding_signatures():
-    """Register all embedding function signatures for ScalarFunctions."""
+    """Register all embedding function signatures."""
     # Normalize embedding vectors to unit length
     FunctionRegistry.register("embedding.normalize", FunctionSignature(
         function_name="embedding.normalize",

@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Union
 from fenic.api.column import Column
 from fenic.api.functions import avg, col, count, max, min, sum
 from fenic.core._logical_plan.expressions import AliasExpr
-from fenic.core._logical_plan.signatures import AggregateFunction
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 
 
 class BaseGroupedData:
@@ -43,11 +43,11 @@ class BaseGroupedData:
         """Process Column-style aggregation expressions."""
         agg_exprs = []
         for column in cols:
-            if isinstance(column._logical_expr, AggregateFunction):
+            if isinstance(column._logical_expr, AggregateExpr):
                 column = column.alias(str(column._logical_expr))
                 agg_exprs.append(column._logical_expr)
             elif isinstance(column._logical_expr, AliasExpr) and isinstance(
-                column._logical_expr.expr, AggregateFunction
+                column._logical_expr.expr, AggregateExpr
             ):
                 agg_exprs.append(column._logical_expr)
             else:

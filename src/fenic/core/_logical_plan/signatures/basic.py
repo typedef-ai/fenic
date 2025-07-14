@@ -18,7 +18,7 @@ from fenic.core.types.datatypes import BooleanType, IntegerType
 
 
 def register_basic_signatures():
-    """Register all basic expression signatures for ScalarFunctions."""
+    """Register all basic expression signatures."""
     # Array functions
     FunctionRegistry.register(
         "array_size", FunctionSignature(function_name="array_size", type_signature=ArrayOfAny(),

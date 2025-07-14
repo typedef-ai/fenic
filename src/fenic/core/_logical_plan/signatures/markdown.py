@@ -18,7 +18,7 @@ from fenic.core.types.datatypes import (
 
 
 def register_markdown_signatures():
-    """Register all markdown function signatures for ScalarFunctions."""
+    """Register all markdown function signatures."""
     # Markdown to JSON conversion
     FunctionRegistry.register(
         "markdown.to_json",

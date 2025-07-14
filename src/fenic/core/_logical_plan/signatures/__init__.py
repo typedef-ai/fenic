@@ -12,16 +12,12 @@ from fenic.core._logical_plan.signatures import (  #noqa: F401
     semantic,
     text,
 )
-from fenic.core._logical_plan.signatures.function_base import (
-    AggregateFunction,
-    ScalarFunction,
-)
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._logical_plan.signatures.type_signature import (
     # Specialized type signatures
     ArrayOfAny,
@@ -54,6 +50,5 @@ __all__ = [
     "FunctionSignature",
     "ReturnTypeStrategy",
     "FunctionRegistry",
-    "ScalarFunction",
-    "AggregateFunction",
+    "SignatureValidator",
 ]

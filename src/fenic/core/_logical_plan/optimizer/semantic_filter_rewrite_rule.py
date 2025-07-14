@@ -1,19 +1,19 @@
 from typing import List, Tuple
 
 from fenic.core._logical_plan.expressions import (
+    AggregateExpr,
     BooleanExpr,
     LogicalExpr,
     Operator,
+    SemanticExpr,
     SortExpr,
 )
-from fenic.core._logical_plan.expressions.semantic import SemanticScalarFunction
 from fenic.core._logical_plan.optimizer.base import (
     LogicalPlanOptimizerRule,
     OptimizationResult,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.plans.transform import Filter
-from fenic.core._logical_plan.signatures import AggregateFunction
 
 
 class SemanticFilterRewriteRule(LogicalPlanOptimizerRule):
@@ -134,11 +134,11 @@ class SemanticFilterRewriteRule(LogicalPlanOptimizerRule):
     @staticmethod
     def count_semantic_predicate_expressions(expr: LogicalExpr) -> int:
         """Count the number of semantic predicate expressions in the expression tree."""
-        if isinstance(expr, AggregateFunction):
-            raise ValueError("AggregateFunction cannot be used in filter predicates.")
+        if isinstance(expr, AggregateExpr):
+            raise ValueError("AggregateExpr cannot be used in filter predicates.")
         if isinstance(expr, SortExpr):
             raise ValueError("SortExpr cannot be used in filter predicates.")
-        return int(isinstance(expr, SemanticScalarFunction)) + sum(
+        return int(isinstance(expr, SemanticExpr)) + sum(
             SemanticFilterRewriteRule.count_semantic_predicate_expressions(child)
             for child in expr.children()
         )
