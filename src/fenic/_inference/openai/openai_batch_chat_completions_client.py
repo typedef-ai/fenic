@@ -14,7 +14,7 @@ from fenic._inference.model_client import (
     TransientException,
 )
 from fenic._inference.types import FenicCompletionsResponse, FenicCompletionsRequest
-from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy
+from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy, TokenEstimate
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedOpenAIModelPreset
@@ -93,6 +93,17 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             A unique key for the request
         """
         return self._core.get_request_key(request)
+
+    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
+        """Estimate the number of tokens for a request.
+
+        Args:
+            request: The request to estimate tokens for
+
+        Returns:
+            TokenEstimate: The estimated token usage
+        """
+        return self._core.estimate_tokens_for_request(request)
 
     def reset_metrics(self):
         """Reset all metrics to their initial values."""

@@ -301,6 +301,29 @@ class GeminiNativeChatCompletionsClient(
         """
         return generate_completion_request_key(request)
 
+    def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
+        """Estimate the number of tokens for a request.
+
+        Args:
+            request: The request to estimate tokens for
+
+        Returns:
+            TokenEstimate: The estimated token usage
+        """
+        from fenic._inference.rate_limit_strategy import TokenEstimate
+        
+        # Count input tokens
+        input_tokens = self.count_tokens(request.messages)
+        input_tokens += self._count_auxiliary_input_tokens(request)
+        
+        # Estimate output tokens
+        output_tokens = self._get_max_output_tokens(request)
+        
+        return TokenEstimate(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
     async def make_single_request(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
