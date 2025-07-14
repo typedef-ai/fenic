@@ -91,6 +91,16 @@ Add `--release` for optimized builds:
 uv run maturin develop --uv --release
 ````
 
+#### Documentation
+
+To preview changes to the documentation from docstring or other changes:
+
+```bash
+just preview-docs
+# without just
+uv run --group docs mkdocs serve
+```
+
 ---
 
 ## ✅ Running Tests
