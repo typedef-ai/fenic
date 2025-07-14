@@ -58,7 +58,7 @@ class GooglePresetConfiguration(BasePresetConfiguration):
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
-    additional_generation_config: GenerateContentConfigDict = field(default_factory=lambda: GenerateContentConfigDict(thinking_config={"thinking_budget": 0, "include_thoughts": False}))
+    additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
 
 
 class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogleModelPreset, GooglePresetConfiguration]):
@@ -134,7 +134,19 @@ class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogle
         Returns:
             Default configuration with thinking disabled
         """
+        if self.model_parameters.supports_reasoning:
+            return GooglePresetConfiguration(
+                thinking_enabled=False,
+                thinking_token_budget=0,
+                additional_generation_config=GenerateContentConfigDict(
+                    thinking_config=ThinkingConfigDict(
+                        include_thoughts=False,
+                        thinking_budget=0
+                    )
+                )
+            )
         return GooglePresetConfiguration()
+
 
 
 class GeminiNativeChatCompletionsClient(
