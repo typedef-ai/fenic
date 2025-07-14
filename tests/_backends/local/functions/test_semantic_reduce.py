@@ -2,6 +2,7 @@ import polars as pl
 
 from fenic import ColumnField, Schema, StringType, col, lit, semantic
 from fenic.api.functions.text import concat as concat
+from fenic.api.types import InstructionTemplate
 from fenic.core._logical_plan.expressions import AliasExpr, SemanticReduceExpr
 from fenic.core._logical_plan.plans import Aggregate
 
@@ -26,13 +27,13 @@ def test_semantic_reduce_with_nested_semantic_operations(local_session):
         "content": ["Introduction to AI", "Machine Learning Basics", "Data Analysis"]
     })
     
-    classify_expr = {"category": semantic.classify("content", ["AI", "ML", "Data Science"]).alias("category")}
+    template = InstructionTemplate(
+        "Summarize {category} content: {title} - {content}",
+        category=semantic.classify("content", ["AI", "ML", "Data Science"])
+    )
     
     df = source.agg(
-        semantic.reduce(
-            instruction="Summarize {category} content: {title} - {content}",
-            bindings=classify_expr
-        ).alias("summary")
+        semantic.reduce(template).alias("summary")
     )
 
     fenic_schema = df.schema
@@ -53,15 +54,13 @@ def test_semantic_reduce_with_concat_expression(local_session):
         "content": ["Introduction to AI", "Machine Learning Basics"]
     })
     
-    bindings = {
-        "full_title": concat(col("title"), lit(" by "), col("author"))
-    }
+    template = InstructionTemplate(
+        "Summarize: {full_title} - {content}",
+        full_title=concat(col("title"), lit(" by "), col("author"))
+    )
     
     df = source.agg(
-        semantic.reduce(
-            instruction="Summarize: {full_title} - {content}",
-            bindings=bindings
-        ).alias("summary")
+        semantic.reduce(template).alias("summary")
     )
 
     fenic_schema = df.schema

@@ -12,6 +12,7 @@ from fenic import (
     semantic,
 )
 from fenic.api.functions.text import concat as concat
+from fenic.api.types import InstructionTemplate
 from fenic.core._logical_plan.expressions import SemanticPredExpr
 from fenic.core._logical_plan.plans import Projection
 
@@ -142,14 +143,12 @@ def test_semantic_predicate_with_bindings(local_session):
         "city": ["New York", "Los Angeles"],
         "feedback": ["Great service", "Good experience"]
     })
-    bindings = {
-        "full_name": concat(col("first_name"), lit(" "), col("last_name"))
-    }
+    template = InstructionTemplate(
+        "Is the feedback from {full_name} in {city} positive?",
+        full_name=concat(col("first_name"), lit(" "), col("last_name"))
+    )
     df = source.select(
-        semantic.predicate(
-            instruction="Is the feedback from {full_name} in {city} positive?",
-            bindings=bindings
-        ).alias("is_positive")
+        semantic.predicate(template).alias("is_positive")
     )
     fenic_schema = df.schema
     assert fenic_schema == Schema(column_fields=[
@@ -166,12 +165,12 @@ def test_semantic_predicate_placeholder_deduplication(local_session):
         "name": ["Alice", "Bob"],
         "feedback": ["Great service", "Good experience"]
     })
-    bindings = {"name": col("name")}
+    template = InstructionTemplate(
+        "Is {name} happy? Is {name} satisfied?",
+        name=col("name")
+    )
     df = source.select(
-        semantic.predicate(
-            instruction="Is {name} happy? Is {name} satisfied?",
-            bindings=bindings
-        )
+        semantic.predicate(template)
     )
     plan = df._logical_plan
     if isinstance(plan, Projection):

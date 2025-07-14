@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
 
-from fenic.core._logical_plan.expressions import AliasExpr, ColumnExpr
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.types import (
     ClassifyExampleCollection,
@@ -15,6 +14,7 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
+from fenic.core.types.instruction import ResolvedInstructionTemplate
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -64,16 +64,15 @@ class SemanticMapExpr(SemanticFunction):
 
     def __init__(
         self,
-        instruction: str,
-        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
+        instruction_template: ResolvedInstructionTemplate,
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = instruction_exprs
+        self.instruction = instruction_template.instruction
+        self.exprs = instruction_template.exprs
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
@@ -84,7 +83,7 @@ class SemanticMapExpr(SemanticFunction):
             )
         self.examples = None
         if examples:
-            examples._validate_with_instruction(instruction)
+            examples._validate_with_instruction(self.instruction)
             self.examples = examples
 
         # Pass all parsed column expressions to signature validation
@@ -149,21 +148,20 @@ class SemanticPredExpr(SemanticFunction):
 
     def __init__(
         self,
-        instruction: str,
-        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
+        instruction_template: ResolvedInstructionTemplate,
         temperature: float,
         model_alias: Optional[str] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = instruction_exprs
+        self.instruction = instruction_template.instruction
+        self.exprs = instruction_template.exprs
         if not self.exprs:
             raise ValueError(
                 "semantic.predicate instruction requires at least one templated column."
             )
         self.examples = None
         if examples:
-            examples._validate_with_instruction(instruction)
+            examples._validate_with_instruction(self.instruction)
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
@@ -186,14 +184,13 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
 
     def __init__(
         self,
-        instruction: str,
-        instruction_exprs: list[Union[AliasExpr, ColumnExpr]],
+        instruction_template: ResolvedInstructionTemplate,
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
      ):
-        self.instruction = instruction
-        self.exprs = instruction_exprs
+        self.instruction = instruction_template.instruction
+        self.exprs = instruction_template.exprs
         if not self.exprs:
             raise ValueError(
                 "semantic.reduce instruction requires at least one templated column."

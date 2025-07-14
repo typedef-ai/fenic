@@ -1,25 +1,22 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
-
 from enum import Enum
-from typing import List, Mapping, Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
 from fenic.api.column import Column, ColumnOrName
-from fenic.core._logical_plan import LogicalExpr
+from fenic.api.types import InstructionTemplate
 from fenic.core._logical_plan.expressions import (
-    AliasExpr,
     AnalyzeSentimentExpr,
-    ColumnExpr,
     EmbeddingsExpr,
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
-    SemanticSummarizeExpr, LiteralExpr,
+    SemanticSummarizeExpr,
 )
-from fenic.core._utils import misc as misc_utils
+from fenic.core._logical_plan.expressions.semantic import ResolvedInstructionTemplate
 from fenic.core._utils.extract import (
     ExtractSchemaValidationError,
     validate_extract_schema_structure,
@@ -36,8 +33,7 @@ from fenic.core.types import (
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
-        instruction: str,
-        bindings: Optional[Mapping[str, Column]] = None,
+        instruction: Union[str, InstructionTemplate],
         examples: Optional[MapExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
@@ -46,12 +42,24 @@ def map(
     """Applies a natural language instruction to one or more text columns, enabling rich summarization and generation tasks.
 
     Args:
-        instruction: A string containing the semantic.map prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
+        instruction: A string or InstructionTemplate containing the semantic.map prompt.
+            The instruction must include placeholders in curly braces that reference column names or expressions.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
-        bindings: Optional mapping of placeholder names to column expressions.
-            Only required when placeholder names don't match existing column names.
+
+            For simple cases with existing column names, use a string:
+            ```python
+            semantic.map("Summarize this: {content}")
+            ```
+
+            For complex expressions, create an InstructionTemplate:
+            ```python
+            semantic.map(InstructionTemplate(
+                "Analyze {customer_info}",
+                customer_info=concat(col("name"), lit(" ("), col("tier"), lit(")"))
+            ))
+            ```
+
         examples: Optional collection of examples to guide the semantic mapping operation.
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
@@ -65,11 +73,11 @@ def map(
         Column: A column expression representing the semantic mapping operation.
 
     Raises:
-        ValueError: If the instruction is not a string.
+        TypeMismatchError: If any of the referenced columns or column expressions are not of String type.
 
-    Example: Mapping without examples
+    Example: Simple mapping with column names
         ```python
-        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
+        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.")
         ```
 
     Example: Mapping with few-shot examples
@@ -86,23 +94,36 @@ def map(
         semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
         ```
 
-    Example: Using bindings for support ticket analysis
+    Example: Using complex expressions with InstructionTemplate
         ```python
         from fenic.api.functions.text import concat
+        from fenic.api.functions import lit, col
+
         # Enrich support tickets with customer context for better analysis
-        bindings = {
-            "customer_context": concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit(")")),
-            "ticket_summary": concat(col("subject"), lit(": "), col("description"))
-        }
-        semantic.map("Generate a response for {customer_context} regarding {ticket_summary}", bindings=bindings)
+        semantic.map(InstructionTemplate(
+            "Generate a response for {customer_context} regarding {ticket_summary}",
+            customer_context=concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit(")")),
+            ticket_summary=concat(col("subject"), lit(": "), col("description"))
+        ))
+        ```
+
+    Example: Using explicit InstructionTemplate construction
+        ```python
+        template = InstructionTemplate(
+            "Analyze {enriched_data}",
+            enriched_data=when(col("priority") == "high", concat(lit("URGENT: "), col("message"))).otherwise(col("message"))
+        )
+        semantic.map(template)
         ```
     """
-    # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _resolve_bindings(instruction, bindings)
+    if isinstance(instruction, str):
+        resolved_template = ResolvedInstructionTemplate(instruction, [])
+    else:
+        resolved_template = instruction.to_resolved_template()
+
     return Column._from_logical_expr(
         SemanticMapExpr(
-            instruction,
-            instruction_exprs=instruction_template_exprs,
+            instruction_template=resolved_template,
             examples=examples,
             max_tokens=max_output_tokens,
             model_alias=model_alias,
@@ -178,8 +199,7 @@ def extract(
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
-        instruction: str,
-        bindings: Optional[Mapping[str, Column]] = None,
+        instruction: Union[str, InstructionTemplate],
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
@@ -189,12 +209,24 @@ def predicate(
     This is useful for filtering rows based on user-defined criteria expressed in natural language.
 
     Args:
-        instruction: A string containing the semantic.predicate prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
+        instruction: A string or InstructionTemplate containing the semantic.predicate prompt.
+            The instruction must include placeholders in curly braces that reference column names or expressions.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
-        bindings: Optional mapping of placeholder names to column expressions.
-            Only required when placeholder names don't match existing column names.
+
+            For simple cases with existing column names, use a string:
+            ```python
+            semantic.predicate("Is {content} positive?")
+            ```
+
+            For complex expressions, create an InstructionTemplate:
+            ```python
+            semantic.predicate(InstructionTemplate(
+                "Is {user_post} inappropriate?",
+                user_post=concat(col("username"), lit(": "), col("content"))
+            ))
+            ```
+
         examples: Optional collection of examples to guide the semantic predicate operation.
             Each example should demonstrate the expected boolean output for different inputs.
             The examples should be created using PredicateExampleCollection.create_example(),
@@ -206,9 +238,9 @@ def predicate(
         Column: A column expression that returns a boolean value after applying the natural language predicate.
 
     Raises:
-        ValueError: If the instruction is not a string.
+        TypeMismatchError: If any of the referenced columns or column expressions are not of String type.
 
-    Example: Identifying product descriptions that mention wireless capability
+    Example: Simple predicate with column names
         ```python
         semantic.predicate("Does the product description: {product_description} mention that the item is wireless?")
         ```
@@ -218,7 +250,7 @@ def predicate(
         semantic.predicate("Does this support message: {ticket_text} describe a billing issue?")
         ```
 
-    Example: Filtering support tickets that describe a billing issue with examples
+    Example: Filtering support tickets with examples
         ```python
         examples = PredicateExampleCollection()
         examples.create_example(PredicateExample(
@@ -230,22 +262,34 @@ def predicate(
         semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
         ```
 
-    Example: Using bindings for content moderation
+    Example: Using complex expressions with InstructionTemplate
         ```python
         from fenic.api.functions.text import concat
+        from fenic.api.functions import lit, col
+
         # Filter content with user context for better moderation decisions
-        bindings = {
-            "user_post": concat(col("username"), lit(": "), col("post_content"))
-        }
-        semantic.predicate("Does this {user_post} contain inappropriate content or spam?", bindings=bindings)
+        semantic.predicate(InstructionTemplate(
+            "Does this {user_post} contain inappropriate content or spam?",
+            user_post=concat(col("username"), lit(": "), col("post_content"))
+        ))
+        ```
+
+    Example: Using conditional expressions
+        ```python
+        semantic.predicate(InstructionTemplate(
+            "Is this {customer_issue} urgent?",
+            customer_issue=when(col("tier") == "premium", concat(lit("VIP CUSTOMER: "), col("message"))).otherwise(col("message"))
+        ))
         ```
     """
-    # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _resolve_bindings(instruction, bindings)
+    if isinstance(instruction, str):
+        resolved_template = ResolvedInstructionTemplate(instruction, [])
+    else:
+        resolved_template = instruction.to_resolved_template()
+
     return Column._from_logical_expr(
         SemanticPredExpr(
-            instruction,
-            instruction_exprs=instruction_template_exprs,
+            instruction_template=resolved_template,
             examples=examples,
             model_alias=model_alias,
             temperature=temperature,
@@ -255,8 +299,7 @@ def predicate(
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def reduce(
-        instruction: str,
-        bindings: Optional[Mapping[str, Column]] = None,
+        instruction: Union[str, InstructionTemplate],
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
@@ -264,12 +307,24 @@ def reduce(
     """Aggregate function: reduces a set of strings across columns into a single string using a natural language instruction.
 
     Args:
-        instruction: A string containing the semantic.reduce prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
+        instruction: A string or InstructionTemplate containing the semantic.reduce prompt.
+            The instruction must include placeholders in curly braces that reference column names or expressions.
             These placeholders will be replaced with actual column values during prompt construction during
             query execution.
-        bindings: Optional mapping of placeholder names to column expressions.
-            Only required when placeholder names don't match existing column names.
+
+            For simple cases with existing column names, use a string:
+            ```python
+            semantic.reduce("Summarize these: {content}")
+            ```
+
+            For complex expressions, create an InstructionTemplate:
+            ```python
+            semantic.reduce(InstructionTemplate(
+                "Analyze {customer_feedback}",
+                customer_feedback=concat(col("name"), lit(": "), col("feedback"))
+            ))
+            ```
+
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -279,29 +334,44 @@ def reduce(
         Column: A column expression representing the semantic reduction operation.
 
     Raises:
-        ValueError: If the instruction is not a string.
+        TypeMismatchError: If any of the referenced columns or column expressions are not of String type.
 
-    Example: Summarizing documents using their titles and bodies
+    Example: Simple reduction with column names
         ```python
         semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
         ```
 
-    Example: Using bindings for customer feedback analysis
+    Example: Using complex expressions with InstructionTemplate
         ```python
         from fenic.api.functions.text import concat
+        from fenic.api.functions import lit, col
+
         # Aggregate customer feedback with enriched context
-        bindings = {
-            "customer_info": concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit(")"))
-        }
-        semantic.reduce("Analyze this cluster of feedback and identify the main theme: {customer_info}: {feedback_text}", bindings=bindings)
+        semantic.reduce(InstructionTemplate(
+            "Analyze this cluster of feedback and identify the main theme: {customer_feedback}",
+            customer_feedback=concat(col("customer_name"), lit(" ("), col("subscription_tier"), lit("): "), col("feedback_text"))
+        ))
+        ```
+
+    Example: Using conditional expressions for analysis
+        ```python
+        semantic.reduce(InstructionTemplate(
+            "Summarize these {priority_issues}",
+            priority_issues=when(col("severity") >= 8, concat(lit("CRITICAL: "), col("issue"))).otherwise(col("issue"))
+        ))
         ```
     """
-    # validation pulled up here because expr cannot import Column from api
-    instruction_template_exprs = _resolve_bindings(instruction, bindings)
+    if isinstance(instruction, str):
+        instruction = InstructionTemplate(instruction)
+
+    resolved_template = ResolvedInstructionTemplate(
+        instruction=instruction.instruction,
+        exprs=instruction._resolve_children()
+    )
+
     return Column._from_logical_expr(
         SemanticReduceExpr(
-            instruction,
-            instruction_exprs=instruction_template_exprs,
+            instruction_template=resolved_template,
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
@@ -461,44 +531,3 @@ def summarize(
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature, model_alias=model_alias)
     )
-
-
-def _resolve_bindings(instruction: str, bindings: Optional[Mapping[str, Column]]) -> list[Union[AliasExpr, ColumnExpr]]:
-    """Resolve placeholder bindings to logical expressions with proper aliasing and validation.
-
-    Args:
-        instruction: The instruction string with placeholders
-        bindings: Mapping of placeholder names to column expressions (can be None)
-
-    Returns:
-        List of logical expressions for each unique placeholder in the instruction
-
-    Raises:
-        ValidationError: If alias names don't match keys or expression names don't match keys
-    """
-    if bindings is None:
-        bindings = {}
-    placeholder_keys = misc_utils.parse_instruction(instruction)
-    # Deduplicate placeholder keys to avoid creating multiple expressions for the same placeholder
-    unique_placeholder_keys = list(dict.fromkeys(placeholder_keys))  # Preserves order
-    exprs: list[Union[AliasExpr, ColumnExpr]] = []
-
-    for placeholder_key in unique_placeholder_keys:
-        if placeholder_key in bindings:
-            column = bindings[placeholder_key]
-            logical_expr = column._logical_expr
-
-            # Check if the expression is already aliased
-            if isinstance(logical_expr, AliasExpr):
-                # Validate that the alias matches the key
-                if logical_expr.name != placeholder_key:
-                    raise ValidationError(f"Alias name must match the key. Expected '{placeholder_key}', got '{logical_expr.name}'")
-                exprs.append(logical_expr)
-            else:
-                aliased_expr = AliasExpr(logical_expr, placeholder_key)
-                exprs.append(aliased_expr)
-        else:
-            # Use column reference for missing keys
-            exprs.append(ColumnExpr(placeholder_key))
-
-    return exprs

@@ -13,6 +13,7 @@ from fenic import (
     semantic,
 )
 from fenic.api.functions.text import concat as concat
+from fenic.api.types import InstructionTemplate
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     ColumnExpr,
@@ -111,15 +112,14 @@ def test_semantic_map_with_concat_nested_column(local_session):
         "job": ["Engineer", "Doctor"],
     })
     # Concatenate first_name and last_name as a template value
-    nested_expr = {"full_name": (concat(col("first_name"), lit(" "), col("last_name"))).alias("full_name")}
-    prompt = "The person's full name is {full_name} and they live in {city},{state} and work as a {job}. Write a short description of the person."
+    template = InstructionTemplate(
+        "The person's full name is {full_name} and they live in {city},{state} and work as a {job}. Write a short description of the person.",
+        full_name=concat(col("first_name"), lit(" "), col("last_name"))
+    )
     df = source.select(
         col("first_name"),
         col("last_name"),
-        semantic.map(
-            instruction=prompt,
-            bindings=nested_expr
-        ).alias("desc")
+        semantic.map(template).alias("desc")
     )
 
     fenic_schema = df.schema
@@ -161,16 +161,15 @@ def test_semantic_map_with_nested_semantic_map(local_session):
     })
     # First semantic.map: get state from city
     state_prompt = "What state is {city} in?"
-    state_expr = {"state": semantic.map(state_prompt).alias("state")}
     # Second semantic.map: use state in the prompt
-    weather_prompt = "What is the weather like in {city}, {state}?"
+    template = InstructionTemplate(
+        "What is the weather like in {city}, {state}?",
+        state=semantic.map(state_prompt)
+    )
     df = source.select(
         col("name"),
         col("city"),
-        semantic.map(
-            instruction=weather_prompt,
-            bindings=state_expr
-        ).alias("weather_report")
+        semantic.map(template).alias("weather_report")
     )
     fenic_schema = df.schema
     assert fenic_schema == Schema(column_fields=[
@@ -200,18 +199,15 @@ def test_semantic_map_placeholder_deduplication(local_session):
         lit(" (processed)"),
         fc.text.upper(col("name"))
     ).alias("processed_name")
-    prompt = "Hello {processed_name}, how are you {processed_name}? You live in {city}."
-    bindings = {
-        "processed_name": expensive_expr,
-        "city": col("city")
-    }
+    template = InstructionTemplate(
+        "Hello {processed_name}, how are you {processed_name}? You live in {city}.",
+        processed_name=expensive_expr,
+        city=col("city")
+    )
     df = source.select(
         col("name"),
         col("city"),
-        semantic.map(
-            instruction=prompt,
-            bindings=bindings
-        ).alias("greeting")
+        semantic.map(template).alias("greeting")
     )
     result = df.to_polars()
     assert len(result) == 2

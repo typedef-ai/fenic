@@ -47,6 +47,7 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
+from fenic.api.types import InstructionTemplate
 
 __all__ = [
     # Session
@@ -101,6 +102,8 @@ __all__ = [
     "when",
     "col",
     "lit",
+    # Types
+    "InstructionTemplate",
     # Lineage
     "Lineage",
 ]

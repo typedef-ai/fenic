@@ -12,6 +12,7 @@ from fenic.api import (
     GoogleGLAModelConfig,
     GoogleVertexModelConfig,
     GroupedData,
+    InstructionTemplate,
     Lineage,
     OpenAIModelConfig,
     SemanticConfig,
@@ -171,6 +172,8 @@ __all__ = [
     "when",
     "col",
     "lit",
+    # Instruction
+    "InstructionTemplate",
     # Lineage
     "Lineage",
     # Metrics
