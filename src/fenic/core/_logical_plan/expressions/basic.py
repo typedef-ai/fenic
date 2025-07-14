@@ -180,7 +180,7 @@ class StructExpr(ScalarFunction):
     def _infer_dynamic_return_type(self, arg_types: List[DataType]) -> DataType:
         """Return StructType with fields based on argument names and types."""
         struct_fields = []
-        for _i, (arg, arg_type) in enumerate(zip(self._children, arg_types, strict=False)):
+        for (arg, arg_type) in zip(self._children, arg_types, strict=True):
             # Use alias name if available, otherwise use string representation
             field_name = str(arg) if not isinstance(arg, AliasExpr) else arg.name
             struct_fields.append(StructField(field_name, arg_type))
