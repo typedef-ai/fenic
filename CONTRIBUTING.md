@@ -133,7 +133,7 @@ uv run pytest -m cloud tests
 From the `rust/` directory:
 
 ```bash
-cargo test --no-default-features
+cargo test --lib --no-default-features
 ```
 
 > Skipping default features avoids Python-specific linking, making it easier to test the Rust library independently of the Python bindings.

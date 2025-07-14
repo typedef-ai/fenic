@@ -86,7 +86,7 @@ jobs:
       - name: Run Rust unit tests
         if: steps.rust_changed.outputs.changed == 'true'
         working-directory: rust
-        run: cargo test --no-default-features --locked
+        run: cargo test --lib --no-default-features --locked
       # yamllint disable-line rule:line-length
       - name: run ${{ matrix.test }} tests with ${{ matrix.dependency == 'true' && 'synced' || matrix.dependency }} dependencies
         shell: bash
