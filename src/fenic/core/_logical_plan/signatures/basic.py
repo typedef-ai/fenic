@@ -3,12 +3,12 @@
 This module registers function signatures for basic expressions, providing
 centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import (
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.type_signature import (
     ArrayOfAny,
     ArrayWithMatchingElement,
     VariadicAny,

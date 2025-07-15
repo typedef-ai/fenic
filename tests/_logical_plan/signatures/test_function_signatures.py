@@ -8,11 +8,15 @@ import pytest
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ArrayLengthExpr, ColumnExpr
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import Exact, Numeric, VariadicUniform
+from fenic.core._logical_plan.signatures.type_signature import (
+    Exact,
+    Numeric,
+    VariadicUniform,
+)
 from fenic.core.error import InternalError, TypeMismatchError
 from fenic.core.types.datatypes import ArrayType, FloatType, IntegerType, StringType
 from fenic.core.types.schema import ColumnField, Schema

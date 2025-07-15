@@ -3,12 +3,12 @@
 This module registers function signatures for text processing functions,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import Exact, OneOf, VariadicAny
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.type_signature import Exact, OneOf, VariadicAny
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
@@ -45,17 +45,17 @@ def register_text_signatures():
             return_type=ReturnTypeStrategy.DYNAMIC  # Returns StructType with extracted fields
         )
     )
-    
+
     # Text chunking - string input returns array of strings
     FunctionRegistry.register(
         "text.chunk",
         FunctionSignature(
-            function_name="text.chunk", 
+            function_name="text.chunk",
             type_signature=Exact([StringType]),  # Takes string input
             return_type=ArrayType(StringType)
         )
     )
-    
+
     # Recursive text chunking - same as text_chunk
     FunctionRegistry.register(
         "text.recursive_chunk",
@@ -65,7 +65,7 @@ def register_text_signatures():
             return_type=ArrayType(StringType)
         )
     )
-    
+
     # Count tokens - string input returns integer
     FunctionRegistry.register(
         "text.count_tokens",
@@ -75,7 +75,7 @@ def register_text_signatures():
             return_type=IntegerType
         )
     )
-    
+
     # Concat - variable number of arguments, all must be castable to string
     FunctionRegistry.register(
         "text.concat",
@@ -85,7 +85,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # Array join - array of strings (delimiter is literal)
     FunctionRegistry.register(
         "text.array_join",
@@ -95,7 +95,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # Contains - string + substring (string literal or LogicalExpr)
     FunctionRegistry.register(
         "text.contains",
@@ -108,7 +108,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     # Contains any - string input (substring list and case_insensitive handled as literals)
     FunctionRegistry.register(
         "text.contains_any",
@@ -118,7 +118,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     # String matching functions - string input (patterns handled as literals)
     FunctionRegistry.register(
         "text.rlike",
@@ -128,7 +128,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     FunctionRegistry.register(
         "text.like",
         FunctionSignature(
@@ -137,7 +137,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     FunctionRegistry.register(
         "text.ilike",
         FunctionSignature(
@@ -146,7 +146,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     # Transcript parsing - string input (format is literal)
     FunctionRegistry.register(
         "text.parse_transcript",
@@ -156,7 +156,7 @@ def register_text_signatures():
             return_type=TRANSCRIPT_OUTPUT_TYPE  # Returns specific transcript schema
         )
     )
-    
+
     # String prefix/suffix checking - string + prefix/suffix (string literal or LogicalExpr)
     FunctionRegistry.register(
         "text.starts_with",
@@ -169,7 +169,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     FunctionRegistry.register(
         "text.ends_with",
         FunctionSignature(
@@ -181,7 +181,7 @@ def register_text_signatures():
             return_type=BooleanType
         )
     )
-    
+
     # String splitting - string input (patterns/delimiters handled as literals)
     FunctionRegistry.register(
         "text.regexp_split",
@@ -191,7 +191,7 @@ def register_text_signatures():
             return_type=ArrayType(StringType)
         )
     )
-    
+
     FunctionRegistry.register(
         "text.split_part",
         FunctionSignature(
@@ -203,7 +203,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # String casing - string input (case type handled as literal)
     FunctionRegistry.register(
         "text.string_casing",
@@ -213,7 +213,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # String trimming
     FunctionRegistry.register(
         "text.strip_chars",
@@ -226,7 +226,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # String replacement - string input + optional search/replacement expressions
     FunctionRegistry.register(
         "text.replace",
@@ -240,7 +240,7 @@ def register_text_signatures():
             return_type=StringType
         )
     )
-    
+
     # String length functions
     FunctionRegistry.register(
         "text.str_length",
@@ -250,11 +250,11 @@ def register_text_signatures():
             return_type=IntegerType
         )
     )
-    
+
     FunctionRegistry.register(
         "text.byte_length",
         FunctionSignature(
-            function_name="text.byte_length", 
+            function_name="text.byte_length",
             type_signature=Exact([StringType]),  # string
             return_type=IntegerType
         )

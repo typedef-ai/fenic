@@ -3,9 +3,9 @@
 This module registers function signatures for markdown processing functions,
 providing centralized type validation and return type inference.
 """
+from fenic.core._logical_plan.signatures.function_signature import FunctionSignature
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import FunctionSignature
-from fenic.core._logical_plan.signatures.types import Exact
+from fenic.core._logical_plan.signatures.type_signature import Exact
 from fenic.core.types.datatypes import (
     ArrayType,
     IntegerType,
@@ -28,7 +28,7 @@ def register_markdown_signatures():
             return_type=JsonType
         )
     )
-    
+
     # Get code blocks from markdown
     FunctionRegistry.register(
         "markdown.get_code_blocks",
@@ -41,17 +41,17 @@ def register_markdown_signatures():
             ]))
         )
     )
-    
+
     # Generate table of contents from markdown
     FunctionRegistry.register(
         "markdown.generate_toc",
         FunctionSignature(
-            function_name="markdown.generate_toc", 
+            function_name="markdown.generate_toc",
             type_signature=Exact([MarkdownType]),  # markdown input (max_level is literal)
             return_type=MarkdownType
         )
     )
-    
+
     # Extract header chunks from markdown
     FunctionRegistry.register(
         "markdown.extract_header_chunks",

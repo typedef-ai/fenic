@@ -12,13 +12,13 @@ from fenic.core._logical_plan.signatures import (  #noqa: F401
     semantic,
     text,
 )
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import (
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core._logical_plan.signatures.type_signature import (
     # Specialized type signatures
     ArrayOfAny,
     ArrayWithMatchingElement,
@@ -45,7 +45,7 @@ __all__ = [
     "OneOf",
     # Specialized type signatures
     "ArrayOfAny",
-    "ArrayWithMatchingElement", 
+    "ArrayWithMatchingElement",
     "EqualTypes",
     "FunctionSignature",
     "ReturnTypeStrategy",

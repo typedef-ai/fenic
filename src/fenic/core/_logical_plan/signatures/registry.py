@@ -5,13 +5,13 @@ and retrieved by function name.
 """
 from typing import Dict
 
-from fenic.core._logical_plan.signatures.signature import FunctionSignature
+from fenic.core._logical_plan.signatures.function_signature import FunctionSignature
 from fenic.core.error import InternalError
 
 
 class FunctionRegistry:
     """Central registry for function signatures and expression classes."""
-    
+
     _signatures: Dict[str, FunctionSignature] = {}
 
     @classmethod

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.signatures.types import (
+from fenic.core._logical_plan.signatures.type_signature import (
     Exact,
     Numeric,
     TypeSignature,
@@ -26,13 +26,13 @@ from fenic.core.types.datatypes import DataType, DoubleType, FloatType, IntegerT
 class ReturnTypeStrategy(Enum):
     """Enum for special return type inference strategies."""
     SAME_AS_INPUT = auto()   # Return the same type as the first input
-    PROMOTED = auto()        # Return promoted numeric type  
+    PROMOTED = auto()        # Return promoted numeric type
     DYNAMIC = auto()         # Return type determined by function implementation
 
 
 class FunctionSignature:
     """Complete signature for a function."""
-    
+
     def __init__(
         self,
         function_name: str,
@@ -47,9 +47,9 @@ class FunctionSignature:
         self._validate_return_type_compatibility()
 
     def validate_and_infer_type(
-        self, 
-        args: List[LogicalExpr], 
-        plan: LogicalPlan, 
+        self,
+        args: List[LogicalExpr],
+        plan: LogicalPlan,
         dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlan], DataType]] = None
     ) -> DataType:
         """Validate arguments and infer return type using the plan's schema."""
@@ -100,7 +100,7 @@ class FunctionSignature:
                             f"{self.function_name}: SAME_AS_INPUT not compatible with "
                             f"Exact signature having different types"
                         )
-                        
+
         if self.return_type == ReturnTypeStrategy.PROMOTED:
             if not isinstance(self.type_signature, Numeric):
                 raise InternalError(
@@ -112,11 +112,11 @@ class FunctionSignature:
         """Promote numeric types to the most general type."""
         if not arg_types:
             raise InternalError("Cannot promote empty type list")
-        
+
         # Simple promotion rules: Integer -> Float -> Double
         has_double = any(t == DoubleType for t in arg_types)
         has_float = any(t == FloatType for t in arg_types)
-        
+
         if has_double:
             return DoubleType
         elif has_float:

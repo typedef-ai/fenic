@@ -3,12 +3,12 @@
 This module registers function signatures for embedding operations,
 providing centralized type validation and return type inference.
 """
-from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import (
+from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
 )
-from fenic.core._logical_plan.signatures.types import (
+from fenic.core._logical_plan.signatures.registry import FunctionRegistry
+from fenic.core._logical_plan.signatures.type_signature import (
     EqualTypes,
     InstanceOf,
     OneOf,
@@ -24,7 +24,7 @@ def register_embedding_signatures():
         type_signature=InstanceOf([EmbeddingType]),  # Any EmbeddingType instance
         return_type=ReturnTypeStrategy.SAME_AS_INPUT  # Returns same EmbeddingType
     ))
-    
+
     # Compute similarity between embedding vectors
     FunctionRegistry.register("embedding.compute_similarity", FunctionSignature(
         function_name="embedding.compute_similarity",

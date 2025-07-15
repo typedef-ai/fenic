@@ -3,9 +3,9 @@
 This module registers function signatures for JSON processing functions,
 providing centralized type validation and return type inference.
 """
+from fenic.core._logical_plan.signatures.function_signature import FunctionSignature
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.signature import FunctionSignature
-from fenic.core._logical_plan.signatures.types import Exact
+from fenic.core._logical_plan.signatures.type_signature import Exact
 from fenic.core.types.datatypes import ArrayType, BooleanType, JsonType, StringType
 
 
@@ -20,7 +20,7 @@ def register_json_signatures():
             return_type=ArrayType(JsonType)
         )
     )
-    
+
     # Get JSON type as string
     FunctionRegistry.register(
         "json.type",
@@ -30,7 +30,7 @@ def register_json_signatures():
             return_type=StringType
         )
     )
-    
+
     # Check if JSON contains a value
     FunctionRegistry.register(
         "json.contains",
