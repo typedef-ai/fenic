@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Union
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
@@ -36,6 +36,7 @@ class DataFrameWriter:
         self,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
+        location: Optional[str] = None,
     ) -> QueryMetrics:
         """Saves the content of the DataFrame as the specified table.
 
@@ -46,6 +47,7 @@ class DataFrameWriter:
                  - append: Appends data to table if it exists
                  - overwrite: Overwrites existing table
                  - ignore: Silently ignores operation if table exists
+            location: Location of the table to save to, to be used when using a cloud session.
 
         Returns:
             QueryMetrics: The query metrics
@@ -70,7 +72,7 @@ class DataFrameWriter:
         )
 
         metrics = self._dataframe._logical_plan.session_state.execution.save_as_table(
-            sink_plan, table_name=table_name, mode=mode
+            sink_plan, table_name=table_name, mode=mode, location=location
         )
         logger.info(metrics.get_summary())
         return metrics

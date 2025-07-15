@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.error import InternalError
@@ -80,6 +80,7 @@ class TableSink(LogicalPlan):
         child: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
+        location: Optional[str] = None,
     ):
         """Initialize a table sink node.
 
@@ -91,10 +92,12 @@ class TableSink(LogicalPlan):
                  - append: Appends data to table if it exists
                  - overwrite: Overwrites existing table
                  - ignore: Silently ignores operation if table exists
+            location: Location of the table to save to, to be used when using a cloud session.
         """
         self.child = child
         self.table_name = table_name
         self.mode = mode
+        self.location = location
         super().__init__(self.child.session_state)
 
     def children(self) -> List[LogicalPlan]:
@@ -129,4 +132,5 @@ class TableSink(LogicalPlan):
             child=children[0],
             table_name=self.table_name,
             mode=self.mode,
+            location=self.location,
         )

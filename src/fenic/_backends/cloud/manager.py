@@ -22,6 +22,7 @@ from fenic._backends.cloud.settings import CloudSettings
 from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -95,7 +96,11 @@ class CloudSessionManager:
         logger.debug(f"Cloud settings: {settings}")
 
         # Create the event loop and background thread
-        asyncio_loop = asyncio.new_event_loop()
+        if asyncio.get_event_loop():
+            logger.debug("Using the existing event loop.")
+        
+        asyncio_loop = asyncio.new_event_loop() if asyncio.get_event_loop() is None else asyncio.get_event_loop()
+        logger.debug(f"Using event loop: {asyncio_loop} {asyncio.get_event_loop() == asyncio_loop}")
         background_thread = threading.Thread(
             target=asyncio_loop.run_forever, daemon=True
         )

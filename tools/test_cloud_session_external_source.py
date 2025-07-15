@@ -13,6 +13,7 @@ from fenic.api.session import (
     SessionConfig,
 )
 from fenic.api.session.config import OpenAIModelConfig
+import polars as pl
 
 # Configure logging
 logging.basicConfig(
@@ -78,120 +79,140 @@ def main(): # noqa: D103
     )
     logger.info("Session created successfully")
 
-    data = {
-        "name": ["Alice", "Bob", "Charlie", "David", None, "Alice"],
-        "age": [None, 30, 30, 95, 25, 20],
-        "group": [100, 300, 300, 100, 200, 300],
-        "city": [
-            "Product with Null",
-            "San Francisco",
-            "Seattle",
-            "Largest Product",
-            "San Francisco",
-            "Denver",
-        ],
-    }
+    # CLEAN_DATA_PATH_PARQUET = "s3://td-usw2-nonprod-custmock-data1/integration_test_data/test_cloud_session/medium_data.parquet"
+    # df = session.read.parquet(CLEAN_DATA_PATH_PARQUET)
+    # #df.limit(10).show()
+    # row_count =df.count()
 
-    df = session.create_dataframe(data)
-    try:
-        df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
-    except Exception as e:
-        logger.error(f"Error writing parquet file: {e}")
+    # print(f"Done: {row_count}")
 
-    logger.info("Testing simple write to csv file")
-    df = session.create_dataframe(data)
-    original_schema = df.schema
-    try:
-        df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
-    except Exception as e:
-        logger.error(f"Error writing csv file: {e}")
+    # # Let's debug the table creation
+    # df.write.save_as_table("cleaned", mode="overwrite")
 
-    logger.info("Testing simple infer schema from csv file")
-    df = session.read.csv(f"{s3_path}/test_file.csv")
-    assert df.schema == original_schema  # nosec: B101
-    df.show()
+    # data = {
+    #     "name": ["Alice", "Bob", "Charlie", "David", None, "Alice"],
+    #     "age": [None, 30, 30, 95, 25, 20],
+    #     "group": [100, 300, 300, 100, 200, 300],
+    #     "city": [
+    #         "Product with Null",
+    #         "San Francisco",
+    #         "Seattle",
+    #         "Largest Product",
+    #         "San Francisco",
+    #         "Denver",
+    #     ],
+    # }
 
-    logger.info("Testing simple write to parquet file")
-    df = session.create_dataframe(data)
-    original_schema = df.schema
-    df.write.parquet(f"{s3_path}/test_file.parquet")
+    # csv_file = "./examples/medium/medium_data.csv"
+    # pl_df = pl.read_csv(csv_file)
 
-    logger.info("Testing simple infer schema from parquet file")
-    df = session.read.parquet(f"{s3_path}/test_file.parquet")
-    assert df.schema == original_schema  # nosec: B101
-    df.show()
+    # df = session.create_dataframe(pl_df)
+    # try:
+    #     df.write.csv(f"{s3_path}/medium_data.csv", mode="overwrite")
+    # except Exception as e:
+    #     logger.error(f"Error writing csv file: {e}")
+    
 
-    logger.info("Testing simple show")
-    df = session.create_dataframe(data)
-    df.select("*").show()
+    # df = session.create_dataframe(data)
+    # try:
+    #     df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
+    # except Exception as e:
+    #     logger.error(f"Error writing parquet file: {e}")
 
-    logger.info("Testing complex show")
-    df = session.create_dataframe(data)
-    df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
-    df.show()
+    # logger.info("Testing simple write to csv file")
+    # df = session.create_dataframe(data)
+    # original_schema = df.schema
+    # try:
+    #     df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
+    # except Exception as e:
+    #     logger.error(f"Error writing csv file: {e}")
 
-    logger.info("Testing collect")
-    df = session.create_dataframe(data)
-    df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
-    result = df.collect()
-    logger.info("Collect result: %s", result)
+    # logger.info("Testing simple infer schema from csv file")
+    # df = session.read.csv(f"{s3_path}/test_file.csv")
+    # assert df.schema == original_schema  # nosec: B101
+    # df.show()
 
-    logger.info("Testing simple to_polars")
-    df = session.create_dataframe(data)
-    result = df.to_polars()
-    logger.info("Collect result: %s", result)
+    # logger.info("Testing simple write to parquet file")
+    # df = session.create_dataframe(data)
+    # original_schema = df.schema
+    # df.write.parquet(f"{s3_path}/test_file.parquet")
 
-    logger.info("Testing complex count")
-    df = session.create_dataframe(data)
-    df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
-    result = df.count()
-    logger.info("Count result: %s", result)
+    # logger.info("Testing simple infer schema from parquet file")
+    # df = session.read.parquet(f"{s3_path}/test_file.parquet")
+    # assert df.schema == original_schema  # nosec: B101
+    # df.show()
 
-    def test_write_and_infer(csv=True):
-        orig_df = session.create_dataframe(data)
-        if csv:
-            orig_df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
-            df = session.read.csv(f"{s3_path}/test_file.csv")
+    # logger.info("Testing simple show")
+    # df = session.create_dataframe(data)
+    # df.select("*").show()
 
-            try:
-                df.write.csv(f"{s3_path}/test_file.csv", mode="error")
-            except Exception as e:
-                logger.error(f"Error writing csv file: {e}")
-        else:
-            orig_df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
-            df = session.read.parquet(f"{s3_path}/test_file.parquet")
+    # logger.info("Testing complex show")
+    # df = session.create_dataframe(data)
+    # df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
+    # df.show()
 
-            try:
-                df.write.parquet(f"{s3_path}/test_file.parquet", mode="error")
-            except Exception as e:
-                logger.error(f"Error writing parquet file: {e}")
-        assert df.schema == orig_df.schema  # nosec: B101
-        logger.info("Schema: %s", df.schema)
-        df.show()
+    # logger.info("Testing collect")
+    # df = session.create_dataframe(data)
+    # df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
+    # result = df.collect()
+    # logger.info("Collect result: %s", result)
 
-    logger.info("Starting batch of 100 operations")
-    for i in range(100):
-        df = _randomized_df(session)
+    # logger.info("Testing simple to_polars")
+    # df = session.create_dataframe(data)
+    # result = df.to_polars()
+    # logger.info("Collect result: %s", result)
 
-        logger.info("--------------------------------")
-        if i % 5 == 0:
-            logger.info("Operation %d: Showing dataframe", i)
-            df.select("*").show()
-        elif i % 5 == 1:
-            logger.info("Operation %d: Collecting dataframe", i)
-            result = df.to_polars()
-            logger.info("Collect result: %s", result)
-        elif i % 5 == 2:
-            logger.info("Operation %d: Counting dataframe", i)
-            result = df.count()
-            logger.info("Count result: %s", result)
-        elif i % 5 == 3:
-            logger.info("Operation %d: Writing and inferring csv", i)
-            test_write_and_infer(csv=True)
-        else:
-            logger.info("Operation %d: Writing and inferring parquet", i)
-            test_write_and_infer(csv=False)
-        logger.info("--------------------------------")
+    # logger.info("Testing complex count")
+    # df = session.create_dataframe(data)
+    # df = df.select("*", text.concat(col("group") + col("age")).alias("group_age"))
+    # result = df.count()
+    # logger.info("Count result: %s", result)
+
+    # def test_write_and_infer(csv=True):
+    #     orig_df = session.create_dataframe(data)
+    #     if csv:
+    #         orig_df.write.csv(f"{s3_path}/test_file.csv", mode="overwrite")
+    #         df = session.read.csv(f"{s3_path}/test_file.csv")
+
+    #         try:
+    #             df.write.csv(f"{s3_path}/test_file.csv", mode="error")
+    #         except Exception as e:
+    #             logger.error(f"Error writing csv file: {e}")
+    #     else:
+    #         orig_df.write.parquet(f"{s3_path}/test_file.parquet", mode="overwrite")
+    #         df = session.read.parquet(f"{s3_path}/test_file.parquet")
+
+    #         try:
+    #             df.write.parquet(f"{s3_path}/test_file.parquet", mode="error")
+    #         except Exception as e:
+    #             logger.error(f"Error writing parquet file: {e}")
+    #     assert df.schema == orig_df.schema  # nosec: B101
+    #     logger.info("Schema: %s", df.schema)
+    #     df.show()
+
+    # logger.info("Starting batch of 100 operations")
+    # for i in range(100):
+    #     df = _randomized_df(session)
+
+    #     logger.info("--------------------------------")
+    #     if i % 5 == 0:
+    #         logger.info("Operation %d: Showing dataframe", i)
+    #         df.select("*").show()
+    #     elif i % 5 == 1:
+    #         logger.info("Operation %d: Collecting dataframe", i)
+    #         result = df.to_polars()
+    #         logger.info("Collect result: %s", result)
+    #     elif i % 5 == 2:
+    #         logger.info("Operation %d: Counting dataframe", i)
+    #         result = df.count()
+    #         logger.info("Count result: %s", result)
+    #     elif i % 5 == 3:
+    #         logger.info("Operation %d: Writing and inferring csv", i)
+    #         test_write_and_infer(csv=True)
+    #     else:
+    #         logger.info("Operation %d: Writing and inferring parquet", i)
+    #         test_write_and_infer(csv=False)
+    #     logger.info("--------------------------------")
     logger.info("Stopping session")
     # session.stop()
     logger.info("Test completed successfully")

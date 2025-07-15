@@ -29,8 +29,6 @@ from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
 )
 
-from fenic._backends.cloud.manager import CloudSessionManager
-from fenic._backends.cloud.session_state import CloudSessionState
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
@@ -56,6 +54,8 @@ from fenic.core.error import (
 )
 from fenic.core.types import Schema
 
+from fenic._backends.cloud.manager import CloudSessionManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,16 +70,21 @@ class CloudCatalog(BaseCatalog):
     all table reads and writes should go through this class for unified table name canonicalization.
     """
 
-    def __init__(self, session_state: CloudSessionState, cloud_session_manager: CloudSessionManager):
+    def __init__(self,
+        ephemeral_catalog_id: str,
+        asyncio_loop: asyncio.AbstractEventLoop,
+        cloud_session_manager: CloudSessionManager):
         """Initialize the remote catalog."""
-        self.session_state = session_state
+        self.cloud_session_manager = cloud_session_manager
         self.lock = threading.Lock()
-        self.current_catalog_id: UUID = UUID(session_state.ephemeral_catalog_id)
+        self.asyncio_loop = asyncio_loop
+        self.ephemeral_catalog_id: UUID = UUID(ephemeral_catalog_id)
+        self.current_catalog_id: UUID = self.ephemeral_catalog_id
         self.current_catalog_name: str = DEFAULT_CATALOG_NAME
         self.current_database_name: str = DEFAULT_DATABASE_NAME
-        self.user_id = cloud_session_manager.user_id
-        self.organization_id = cloud_session_manager.organization_id
-        self.user_client = cloud_session_manager.hasura_user_client
+        self.user_id = self.cloud_session_manager._client_id
+        self.organization_id = self.cloud_session_manager._organization_id
+        self.user_client = self.cloud_session_manager.hasura_user_client
 
     def does_catalog_exist(self, catalog_name: str) -> bool:
         """Checks if a catalog with the specified name exists."""
@@ -365,8 +370,8 @@ class CloudCatalog(BaseCatalog):
         if not self._does_database_exist(catalog_name, db_name):
             return False
 
-        tables = self._get_tables_for_database(catalog_name, db_name)
-        return any(compare_object_names(table, table_name) for table in tables)
+        table = self._get_table(catalog_name, db_name, table_name)
+        return table is not None
 
     def _set_current_catalog(self, catalog_name: str) -> None:
         if not catalog_name:
@@ -376,7 +381,7 @@ class CloudCatalog(BaseCatalog):
             return
 
         if compare_object_names(catalog_name, DEFAULT_CATALOG_NAME):
-            self.current_catalog_id = UUID(self.session_state.ephemeral_catalog_id)
+            self.current_catalog_id = self.ephemeral_catalog_id
             self.current_catalog_name = DEFAULT_CATALOG_NAME
             return
 
@@ -421,7 +426,7 @@ class CloudCatalog(BaseCatalog):
 
     def _execute_catalog_command(self, command: Coroutine[Any, Any, Any]) -> Any:
         return asyncio.run_coroutine_threadsafe(
-            command, self.session_state.asyncio_loop
+            command, self.asyncio_loop
         ).result()
 
     def _get_catalog_by_name(self, catalog_name: str) -> Optional[CatalogKey]:
@@ -481,18 +486,35 @@ class CloudCatalog(BaseCatalog):
         )
         return [dataset.name for dataset in result.catalog_dataset]
 
+    def _get_table(
+            self, 
+            catalog_name: str, 
+            db_name: str, 
+            table_name: str,
+            ignore_if_not_exists: bool = True,
+    ) -> LoadTableSimpleCatalogLoadTable:
+        catalog_id = self._get_catalog_id(catalog_name)
+        try:
+            result = self._execute_catalog_command(
+                self.user_client.load_table(
+                    dispatch=self._get_catalog_dispatch_input(catalog_id),
+                    namespace=db_name,
+                    name=table_name,
+                )
+            )
+            return result.simple_catalog.load_table
+        except Exception as e:
+            if ignore_if_not_exists:
+                return None
+            logger.debug(f"Error getting table {table_name} from catalog {catalog_name} and database {db_name}: {e}")
+            raise e
+
+
     def _get_table_details(
         self, catalog_name: str, db_name: str, table_name: str
     ) -> Schema:
-        catalog_id = self._get_catalog_id(catalog_name)
-        result = self._execute_catalog_command(
-            self.user_client.load_table(
-                dispatch=self._get_catalog_dispatch_input(catalog_id),
-                namespace=db_name,
-                name=table_name,
-            )
-        )
-        return self._get_table_schema(result.simple_catalog.load_table)
+        load_table = self._get_table(catalog_name, db_name, table_name, ignore_if_not_exists=False)
+        return self._get_table_schema(load_table)
 
     def _get_catalog_dispatch_input(
         self,

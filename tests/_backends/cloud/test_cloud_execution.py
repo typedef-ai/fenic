@@ -148,7 +148,7 @@ class MockEntrypointService(EntrypointServiceServicer):
                 remote_results_uri_prefix="http://test-cloud-results-uri-prefix/",
             ),
             existing=False,
-            ephemeral_catalog_id="test-ephemeral-catalog-id",
+            ephemeral_catalog_id="123e4567-e89b-12d3-a456-426614174000",
         )
 
     async def TerminateSession(self, request, metadata):

@@ -98,8 +98,14 @@ class LocalExecution(BaseExecution):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        location: Optional[str] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
+        if location:
+            raise ValidationError(
+                f"Cannot save to table '{table_name}' - location is not supported in local execution. "
+            )
+        
         self.session_state._check_active()
         table_exists = self.session_state.catalog.does_table_exist(table_name)
 

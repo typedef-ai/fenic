@@ -57,8 +57,7 @@ from fenic_cloud.hasura_client.generated_graphql_client.sc_drop_namespace import
 
 from fenic import ColumnField, IntegerType, Schema, StringType
 from fenic._backends.cloud.catalog import CloudCatalog
-from fenic._backends.cloud.manager import CloudSessionManager
-from fenic._backends.cloud.session_state import CloudSessionState
+from fenic._backends.cloud.manager import CloudSessionManager, CloudSessionState
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
@@ -592,7 +591,11 @@ def _init_cloud_catalog(
     os.environ["TYPEDEF_USER_SECRET"] = "mock_user_secret"  # nosec B105
     os.environ["HASURA_GRAPHQL_ADMIN_SECRET"] = "mock_admin_secret"  # nosec B105
     os.environ["REMOTE_SESSION_AUTH_PROVIDER_URI"] = "mock_auth_provider_uri"
-    cloud_catalog = CloudCatalog(session_state, cloud_session_manager)
+    cloud_catalog = CloudCatalog(
+        session_state.ephemeral_catalog_id,
+        session_state.asyncio_loop,
+        cloud_session_manager,
+    )
     cloud_catalog.user_client = client
     cloud_catalog.user_id = TEST_DEFAULT_USER_ID
     cloud_catalog.organization_id = TEST_DEFAULT_ORGANIZATION_ID

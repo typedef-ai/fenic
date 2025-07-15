@@ -9,13 +9,26 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 import fenic as fc
+from fenic.api.session import CloudConfig, CloudExecutorSize
 
+# Define Pydantic model for document metadata
+class DocumentMetadata(BaseModel):
+    """Pydantic model for document metadata extraction."""
+    title: str = Field(description="The main title or subject of the document")
+    document_type: Literal["research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(description="Type of document")
+    date: str = Field(description="Any date mentioned in the document (publication date, meeting date, etc.)")
+    keywords: List[str] = Field(description="List of key topics, technologies, or important terms mentioned in the document")
+    summary: str = Field(description="Brief one-sentence summary of the document's main purpose or content")
 
 def main(config: Optional[fc.SessionConfig] = None):
     """Extract metadata from document excerpts using semantic operations."""
     # Configure session with semantic capabilities
     config = config or fc.SessionConfig(
         app_name="document_extraction",
+        db_path="test_db",
+            cloud=CloudConfig(
+                size=CloudExecutorSize.SMALL,
+            ),
         semantic=fc.SemanticConfig(
             language_models={
                 "mini": fc.OpenAIModelConfig(
@@ -59,43 +72,34 @@ def main(config: Optional[fc.SessionConfig] = None):
     ]
 
     # Create DataFrame
-    docs_df = session.create_dataframe(documents_data)
+    # docs_df = session.create_dataframe(documents_data)
 
-    print(f"Loaded {docs_df.count()} sample documents:")
-    docs_df.select("id", fc.text.length("text").alias("text_length")).show()
-    print()
+    # print(f"Loaded {docs_df.count()} sample documents:")
+    # docs_df.select("id", fc.text.length("text").alias("text_length")).show()
+    # print()
 
-    # Define Pydantic model for document metadata
-    class DocumentMetadata(BaseModel):
-        """Pydantic model for document metadata extraction."""
-        title: str = Field(description="The main title or subject of the document")
-        document_type: Literal["research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(description="Type of document")
-        date: str = Field(description="Any date mentioned in the document (publication date, meeting date, etc.)")
-        keywords: List[str] = Field(description="List of key topics, technologies, or important terms mentioned in the document")
-        summary: str = Field(description="Brief one-sentence summary of the document's main purpose or content")
+    # # Apply extraction using Pydantic model
+    # pydantic_extracted_df = docs_df.select(
+    #     "id",
+    #     fc.semantic.extract("text", DocumentMetadata).alias("metadata")
+    # )
 
-    # Apply extraction using Pydantic model
-    pydantic_extracted_df = docs_df.select(
-        "id",
-        fc.semantic.extract("text", DocumentMetadata).alias("metadata")
-    )
+    # # Flatten the extracted metadata into separate columns
+    # pydantic_results = pydantic_extracted_df.select(
+    #     "id",
+    #     pydantic_extracted_df.metadata.title.alias("title"),
+    #     pydantic_extracted_df.metadata.document_type.alias("document_type"),
+    #     pydantic_extracted_df.metadata.date.alias("date"),
+    #     pydantic_extracted_df.metadata.keywords.alias("keywords"),
+    #     pydantic_extracted_df.metadata.summary.alias("summary")
+    # )
 
-    # Flatten the extracted metadata into separate columns
-    pydantic_results = pydantic_extracted_df.select(
-        "id",
-        pydantic_extracted_df.metadata.title.alias("title"),
-        pydantic_extracted_df.metadata.document_type.alias("document_type"),
-        pydantic_extracted_df.metadata.date.alias("date"),
-        pydantic_extracted_df.metadata.keywords.alias("keywords"),
-        pydantic_extracted_df.metadata.summary.alias("summary")
-    )
-
-    print("Extraction Results:")
-    pydantic_results.show()
-    print()
+    # print("Extraction Results:")
+    # pydantic_results.show()
+    # print()
 
     # Clean up
-    session.stop()
+    # session.stop()
     print("Session complete!")
 
 

@@ -103,6 +103,8 @@ class TableIdentifier(BaseIdentifier):
             table=self.table,
         )
 
+    def __str__(self) -> str:
+        return f"{self.catalog}.{self.db}.{self.table}"
 
 @dataclass(frozen=True)
 class DBIdentifier(BaseIdentifier):
@@ -131,6 +133,9 @@ class DBIdentifier(BaseIdentifier):
         if self.catalog:
             return self
         return DBIdentifier(catalog=catalog_name, db=self.db)
+    
+    def __str__(self) -> str:
+        return f"{self.catalog}.{self.db}"
 
 
 def compare_object_names(object_name_1: str, object_name_2: str) -> bool:

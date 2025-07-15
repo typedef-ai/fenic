@@ -15,6 +15,10 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ConfigurationError, InternalError
 
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class CloudSessionConfig:
     """Configuration required for cloud session.
@@ -40,6 +44,8 @@ class CloudSessionConfig:
             for key, value in os.environ.items()
             if key.endswith(API_KEY_SUFFIX)
         }
+
+        logger.debug(f"env_keys: {env_keys}")
         language_model_providers: set[ModelProvider] = set([
             get_model_provider_for_config(model_config) for model_config in semantic_config.language_models.values()
         ])

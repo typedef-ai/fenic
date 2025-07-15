@@ -28,7 +28,7 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
     SaveToFileExecutionRequest,
     ShowExecutionRequest,
     StartExecutionRequest,
-    TableIdentifier,
+    TableIdentifier as TableIdentifierProto,
 )
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
@@ -36,15 +36,18 @@ from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic.core._interfaces import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlanSerde
+from fenic.core._logical_plan.plans.sink import FileSink,TableSink
 from fenic.core.error import (
     CloudExecutionError,
     CloudSessionError,
     ExecutionError,
     InternalError,
     ValidationError,
+    PlanError,
 )
 from fenic.core.metrics import LMMetrics, PhysicalPlanRepr, QueryMetrics, RMMetrics
 from fenic.core.types import Schema
+from fenic._backends.utils.catalog_utils import TableIdentifier
 
 if TYPE_CHECKING:
     from fenic._backends.cloud.session_state import CloudSessionState
@@ -161,30 +164,91 @@ class CloudExecution(BaseExecution):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        location: Optional[str] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table."""
         logger.debug(f"Saving plan {logical_plan} as table: {table_name}")
-        # TODO (DY): check that current catalog and schema (if specified in table_name) match session state
-        table_identifier = TableIdentifier(
-            catalog=self.session_state.catalog,
-            schema=self.session_state.schema,
-            table=table_name,
-        )
-        request = StartExecutionRequest(
-            save_as_table=SaveAsTableExecutionRequest(
-                serialized_plan=LogicalPlanSerde.serialize(logical_plan),
-                table_identifier=table_identifier,
-                mode=mode,
+
+        if not location:
+            raise ValidationError(
+                "Location is required when saving to a cloud table. "
+                "Please provide a location in the format s3://<bucket>/<path>."
             )
+        
+        # TODO (DY): check that current catalog and schema (if specified in table_name) match session state
+        catalog = self.session_state.catalog
+
+        if not isinstance(logical_plan, TableSink):
+            raise InternalError(f"Logical plan {logical_plan} is not a table sink")
+
+        parsed_table_identifier = TableIdentifier.from_string(table_name).enrich(
+            catalog.get_current_catalog(), 
+            catalog.get_current_database())
+        
+
+        table_exists = catalog.does_table_exist(table_name)
+        logger.debug(f"Table exists: {table_exists}")
+        # Create the table in the cloud catalog.
+        table_created =catalog.create_table(
+            table_name = str(parsed_table_identifier), 
+            schema = logical_plan.schema(),
+            location = location,
+            mode = mode,
+            ignore_if_exists = mode == "ignore",
+            file_format = "PARQUET"
         )
-        # Engine can skip READY for save operations, as a future optimization
-        future = asyncio.run_coroutine_threadsafe(
-            self._send_execution_request_and_wait_for_execution_state(
-                request, [QUERY_STATE.READY, QUERY_STATE.COMPLETED]
-            ),
-            self.session_state.asyncio_loop,
-        )
-        _ = future.result()
+        logger.debug(f"Table created: {table_created}")
+
+        # if table_exists:
+        #     if mode == "error":
+        #         raise PlanError(
+        #             f"Cannot save to table '{table_name}' - it already exists and mode is 'error'. "
+        #             f"Choose a different approach: "
+        #             f"1) Use mode='overwrite' to replace the existing table, "
+        #             f"2) Use mode='append' to add data to the existing table, "
+        #             f"3) Use mode='ignore' to skip saving if table exists, "
+        #             f"4) Use a different table name."
+        #         )
+            # TODO: handle the rest of the modes.
+        
+        # Save the data into a parquet file
+        # TODO: check if this is needed.
+        # table_identifier = TableIdentifierProto(
+        #     catalog=parsed_table_identifier.catalog,
+        #     schema=parsed_table_identifier.schema,
+        #     table=parsed_table_identifier.table,
+        # )
+
+        # How do we do this?
+        # Saving a table is a two step process:
+        # 1. write the data to a parquet file
+        # 2. save the table definition in the cloud catalog
+
+        # re-write the plan, this has to be a file sink node.
+        # file_sink = FileSink(
+        #     child=logical_plan.children()[0],
+        #     sink_type="parquet",
+        #     path=location,
+        #     mode=mode,
+        # )
+
+        # request = StartExecutionRequest(
+        #     save_to_file=SaveToFileExecutionRequest(
+        #         serialized_plan=LogicalPlanSerde.serialize(file_sink),
+        #         file_path=location,
+        #         mode=mode,
+        #     )
+        # )
+        # # Engine can skip READY for save operations, as a future optimization
+        # future = asyncio.run_coroutine_threadsafe(
+        #     self._send_execution_request_and_wait_for_execution_state(
+        #         request, [QUERY_STATE.READY, QUERY_STATE.COMPLETED]
+        #     ),
+        #     self.session_state.asyncio_loop,
+        # )
+        # _ = future.result()
+
+       
         return QueryMetrics(
             execution_time_ms=0.0,
             num_output_rows=0,

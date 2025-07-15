@@ -119,7 +119,14 @@ class CloudSessionState(BaseSessionState):
 
     @property
     def catalog(self):
-        pass
+        from fenic._backends.cloud.catalog import CloudCatalog
+        from fenic._backends.cloud.manager import CloudSessionManager
+
+        return CloudCatalog(
+            ephemeral_catalog_id=self.ephemeral_catalog_id,
+            asyncio_loop=self.asyncio_loop,
+            cloud_session_manager=CloudSessionManager(),
+        )
 
     # properties and methods referencing dynamic state managed by the CloudSessionManager
     @property
@@ -231,6 +238,7 @@ class CloudSessionState(BaseSessionState):
         self.session_canonical_name = response.canonical_name
         self.engine_uri = response.uris.remote_actions_uri
         self.arrow_ipc_uri = response.uris.remote_results_uri_prefix
+        self.ephemeral_catalog_id = response.ephemeral_catalog_id
         logger.info(
             f"{'Found' if existing else 'Created'} Executor with session_id: {self.session_uuid}"
         )
