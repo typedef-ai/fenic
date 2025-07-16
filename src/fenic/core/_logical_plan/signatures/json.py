@@ -10,7 +10,7 @@ from fenic.core.types.datatypes import ArrayType, BooleanType, JsonType, StringT
 
 
 def register_json_signatures():
-    """Register all JSON function signatures for ScalarFunctions."""
+    """Register all JSON function signatures."""
     # JQ query on JSON data
     FunctionRegistry.register(
         "json.jq",

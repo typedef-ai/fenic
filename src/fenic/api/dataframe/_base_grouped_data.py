@@ -7,7 +7,8 @@ from typing import Dict, List, Tuple, Union
 
 from fenic.api.column import Column
 from fenic.api.functions import avg, col, count, max, min, sum
-from fenic.core._logical_plan.expressions import AggregateExpr, AliasExpr
+from fenic.core._logical_plan.expressions import AliasExpr
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 
 
 class BaseGroupedData:

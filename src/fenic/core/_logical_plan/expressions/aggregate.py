@@ -5,167 +5,164 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr
+from fenic.core._logical_plan.expressions.base import (
+    AggregateExpr,
+    LogicalExpr,
+    ValidatedDynamicSignature,
+    ValidatedSignature,
+)
 from fenic.core._logical_plan.expressions.basic import LiteralExpr
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.types import (
     ArrayType,
-    BooleanType,
     ColumnField,
+    DataType,
     DoubleType,
     EmbeddingType,
-    FloatType,
-    IntegerType,
 )
 
-SUMMABLE_TYPES = (IntegerType, FloatType, DoubleType, BooleanType)
 
+class SumExpr(ValidatedSignature, AggregateExpr):
+    function_name = "sum"
 
-class AggregateExpr(LogicalExpr):
-    def __init__(self, agg_name: str, expr: LogicalExpr):
-        self.agg_name = agg_name
+    def __init__(self, expr: LogicalExpr):
         self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self):
-        return f"{self.agg_name}({str(self.expr)})"
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class SumExpr(AggregateExpr):
+class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
+    function_name = "avg"
+
     def __init__(self, expr: LogicalExpr):
-        super().__init__("sum", expr)
-
-    def _validate_types(self, plan: LogicalPlan):
-        expr_type = self.expr.to_column_field(plan).data_type
-        if expr_type not in SUMMABLE_TYPES:
-            raise TypeError(
-                f"Type mismatch: Cannot apply sum function to non-numeric types. "
-                f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
-            )
-
-        return
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
-
-
-class AvgExpr(AggregateExpr):
-    def __init__(self, expr: LogicalExpr):
-        super().__init__("avg", expr)
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
         self.input_type = None  # Will be set during validation
 
-    def _validate_types(self, plan: LogicalPlan):
-        expr_type = self.expr.to_column_field(plan).data_type
-        self.input_type = expr_type
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
-        if expr_type not in SUMMABLE_TYPES and not isinstance(expr_type, EmbeddingType):
-            raise TypeError(
-                f"Type mismatch: Cannot apply avg function to non-numeric types. "
-                f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(str(t) for t in SUMMABLE_TYPES)}) and EmbeddingType are supported."
-            )
-        return
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
+        """Use signature to validate and get return type, storing input type for transpiler."""
+        # Get the input type first
+        self.input_type = self.expr.to_column_field(plan).data_type
 
-        # If averaging embeddings, return the same embedding type
-        if isinstance(self.input_type, EmbeddingType):
-            return ColumnField(str(self), self.input_type)
+        # Now use the mixin implementation to validate and get return type
+        return super().to_column_field(plan)
+
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        """Return EmbeddingType for embeddings, DoubleType for numeric types."""
+        input_type = arg_types[0]
+        if isinstance(input_type, EmbeddingType):
+            return input_type
         else:
-            return ColumnField(str(self), DoubleType)
+            return DoubleType
 
 
-class MinExpr(AggregateExpr):
+
+class MinExpr(ValidatedSignature, AggregateExpr):
+    function_name = "min"
+
     def __init__(self, expr: LogicalExpr):
-        super().__init__("min", expr)
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def _validate_types(self, plan: LogicalPlan):
-        expr_type = self.expr.to_column_field(plan).data_type
-
-        if expr_type not in SUMMABLE_TYPES:
-            raise TypeError(
-                f"Type mismatch: Cannot apply min function to non-numeric types. "
-                f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
-            )
-        return
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
-
-
-class MaxExpr(AggregateExpr):
-    def __init__(self, expr: LogicalExpr):
-        super().__init__("max", expr)
-
-    def _validate_types(self, plan: LogicalPlan):
-        expr_type = self.expr.to_column_field(plan).data_type
-
-        if expr_type not in SUMMABLE_TYPES:
-            raise TypeError(
-                f"Type mismatch: Cannot apply max function to non-numeric types. "
-                f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(t for t in SUMMABLE_TYPES)}) are supported."
-            )
-        return
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
-
-
-class CountExpr(AggregateExpr):
-    def __init__(self, expr: LogicalExpr):
-        super().__init__("count", expr)
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self.expr.to_column_field(plan)
-        return ColumnField(str(self), IntegerType)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class ListExpr(AggregateExpr):
-    def __init__(self, expr: LogicalExpr):
-        super().__init__("collect_list", expr)
+class MaxExpr(ValidatedSignature, AggregateExpr):
+    function_name = "max"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if isinstance(self.expr, LiteralExpr):
+    def __init__(self, expr: LogicalExpr):
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class CountExpr(ValidatedSignature, AggregateExpr):
+    function_name = "count"
+
+    def __init__(self, expr: LogicalExpr):
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class ListExpr(ValidatedDynamicSignature, AggregateExpr):
+    function_name = "collect_list"
+
+    def __init__(self, expr: LogicalExpr):
+        # Check for literal expressions upfront
+        if isinstance(expr, LiteralExpr):
             raise TypeError(
-                f"Type mismatch: Cannot apply collect_list function to literal value."
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only non-literal values are supported."
+                "Type mismatch: Cannot apply collect_list function to literal value. "
+                "Only non-literal values are supported."
             )
-        else:
-            return ColumnField(
-                str(self), ArrayType(self.expr.to_column_field(plan).data_type)
-            )
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-class FirstExpr(AggregateExpr):
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        """Return ArrayType with element type matching the input type."""
+        return ArrayType(arg_types[0])
+
+class FirstExpr(ValidatedSignature, AggregateExpr):
+    function_name = "first"
+
     def __init__(self, expr: LogicalExpr):
-        super().__init__("first", expr)
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
-class StdDevExpr(AggregateExpr):
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+class StdDevExpr(ValidatedSignature, AggregateExpr):
+    function_name = "stddev"
+
     def __init__(self, expr: LogicalExpr):
-        super().__init__("stddev", expr)
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return ColumnField(str(self), DoubleType)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
-    def _validate_types(self, plan: LogicalPlan):
-        expr_type = self.expr.to_column_field(plan).data_type
-        if expr_type not in SUMMABLE_TYPES:
-            raise TypeError(
-                f"Type mismatch: Cannot apply stddev function to non-numeric types. "
-                f"Type: {expr_type}. "
-                f"Only numeric types ({', '.join(str(t) for t in SUMMABLE_TYPES)}) are supported."
-            )
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]

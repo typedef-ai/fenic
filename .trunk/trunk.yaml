@@ -63,6 +63,7 @@ lint:
       paths:
         - CHANGELOG.md # let release-please be release-please
         - examples/markdown_processing/attention_is_all_you_need.md
+        - .kiro/**
 actions:
   disabled:
     - trunk-upgrade-available

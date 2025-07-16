@@ -25,7 +25,6 @@ from fenic._backends.local.semantic_operators import Summarize as SemanticSummar
 from fenic._backends.local.template import TemplateFormatReader
 from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     AliasExpr,
     AnalyzeSentimentExpr,
     ArithmeticExpr,
@@ -97,6 +96,7 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
     convert_pydantic_type_to_custom_struct_type,

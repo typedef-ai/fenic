@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
@@ -22,10 +21,15 @@ from fenic._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
-from fenic.core._logical_plan.expressions.aggregate import AggregateExpr
-from fenic.core._logical_plan.expressions.base import LogicalExpr
+from fenic.core._logical_plan.expressions.base import (
+    AggregateExpr,
+    LogicalExpr,
+    SemanticExpr,
+    ValidatedDynamicSignature,
+    ValidatedSignature,
+)
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
-from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -35,31 +39,7 @@ from fenic.core.types import (
 from fenic.core.types.schema import ColumnField
 
 
-class SemanticFunction(ScalarFunction):
-    """Base class for semantic functions that use LLM models.
-
-    Provides common functionality for completion parameter validation
-    and model configuration handling.
-    """
-
-    def __init__(self, *args: LogicalExpr):
-        """Initialize semantic function."""
-        super().__init__(*args)
-
-    @abstractmethod
-    def _validate_completion_parameters(self, plan: LogicalPlan):
-        pass
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        """Handle signature validation and completion parameter validation."""
-        # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
-        # Call parent to handle signature validation
-        result = super().to_column_field(plan)
-        return result
-
-
-class SemanticMapExpr(SemanticFunction):
+class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
     function_name = "semantic.map"
 
     def __init__(
@@ -89,8 +69,24 @@ class SemanticMapExpr(SemanticFunction):
             examples._validate_with_instruction(instruction)
             self.examples = examples
 
-        # Pass all parsed column expressions to signature validation
-        super().__init__(*self.exprs)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation with dynamic return type
+        return super().to_column_field(plan)
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
@@ -107,7 +103,7 @@ class SemanticMapExpr(SemanticFunction):
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
 
-class SemanticExtractExpr(SemanticFunction):
+class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
     function_name = "semantic.extract"
 
     def __init__(
@@ -124,8 +120,24 @@ class SemanticExtractExpr(SemanticFunction):
         self.model_alias = model_alias
         self.schema = schema
 
-        # Only validate the string expression (schema is parameter)
-        super().__init__(expr)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation with dynamic return type
+        return super().to_column_field(plan)
 
     def __str__(self):
         schema_hash = utils.get_content_hash(str(self.schema))
@@ -146,7 +158,7 @@ class SemanticExtractExpr(SemanticFunction):
         return convert_pydantic_type_to_custom_struct_type(self.schema)
 
 
-class SemanticPredExpr(SemanticFunction):
+class SemanticPredExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.predicate"
 
     def __init__(
@@ -172,8 +184,24 @@ class SemanticPredExpr(SemanticFunction):
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Pass all parsed column expressions to signature validation
-        super().__init__(*self.exprs)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation
+        return super().to_column_field(plan)
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
@@ -185,7 +213,7 @@ class SemanticPredExpr(SemanticFunction):
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
 
-class SemanticReduceExpr(SemanticFunction, AggregateExpr):
+class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
     function_name = "semantic.reduce"
 
     def __init__(
@@ -208,8 +236,24 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Pass all parsed column expressions to signature validation
-        super().__init__(*self.exprs)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation
+        return super().to_column_field(plan)
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
@@ -226,7 +270,7 @@ class SemanticReduceExpr(SemanticFunction, AggregateExpr):
         return f"semantic.reduce_{instruction_hash}({exprs_str})"
 
 
-class SemanticClassifyExpr(SemanticFunction):
+class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.classify"
 
     def __init__(
@@ -251,8 +295,17 @@ class SemanticClassifyExpr(SemanticFunction):
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Only validate the string expression (labels are parameters)
-        super().__init__(expr)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
 
     def __str__(self):
         formatted_labels = "[" + ", ".join(f"'{label}'" for label in self.labels) + "]"
@@ -274,10 +327,12 @@ class SemanticClassifyExpr(SemanticFunction):
             )
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
         self._validate_labels(plan)
-        # Call parent to handle signature validation
-        result = super().to_column_field(plan)
-        return result
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation
+        return super().to_column_field(plan)
 
     @staticmethod
     def transform_labels_list_into_enum(labels: list[str]) -> type[Enum]:
@@ -303,7 +358,7 @@ class SemanticClassifyExpr(SemanticFunction):
         return label_value.upper().replace(" ", "_")
 
 
-class AnalyzeSentimentExpr(SemanticFunction):
+class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.analyze_sentiment"
 
     def __init__(
@@ -316,8 +371,24 @@ class AnalyzeSentimentExpr(SemanticFunction):
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Only validate the string expression
-        super().__init__(expr)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation
+        return super().to_column_field(plan)
 
     def __str__(self):
         return f"semantic.analyze_sentiment({self.expr})"
@@ -327,7 +398,7 @@ class AnalyzeSentimentExpr(SemanticFunction):
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
 
-class EmbeddingsExpr(SemanticFunction):
+class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
     """Expression for generating embeddings for a string column.
 
     This expression creates a new column of embeddings for each value in the input string column.
@@ -341,8 +412,24 @@ class EmbeddingsExpr(SemanticFunction):
         self.model_alias = model_alias
         self.dimensions = None
 
-        # Only validate the string expression (model_alias is parameter)
-        super().__init__(expr)
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation with dynamic return type
+        return super().to_column_field(plan)
 
     def __str__(self) -> str:
         return f"semantic.embed({self.expr}, {self.model_alias})"
@@ -380,7 +467,7 @@ class EmbeddingsExpr(SemanticFunction):
         pass
 
 
-class SemanticSummarizeExpr(SemanticFunction):
+class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.summarize"
 
     def __init__(
@@ -394,7 +481,25 @@ class SemanticSummarizeExpr(SemanticFunction):
         self.format = format
         self.temperature = temperature
         self.model_alias = model_alias
-        super().__init__(expr)
+
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        # Common validation for all semantic functions
+        self._validate_completion_parameters(plan)
+        # Use mixin's implementation
+        return super().to_column_field(plan)
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""

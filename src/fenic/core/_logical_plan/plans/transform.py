@@ -53,6 +53,7 @@ class Projection(LogicalPlan):
                     "Aggregate expressions are not allowed in projections. "
                     "Please use the agg() method instead."
                 )
+
             fields.append(expr.to_column_field(self._input))
         return Schema(fields)
 

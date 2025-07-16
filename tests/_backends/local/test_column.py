@@ -222,33 +222,33 @@ def test_nested_expression():
 def test_sum_aggregation():
     column = sum(col("age"))
     assert isinstance(column._logical_expr, AggregateExpr)
-    assert column._logical_expr.agg_name == "sum"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert column._logical_expr.function_name == "sum"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_avg_aggregation():
     column = avg(col("age"))
     assert isinstance(column._logical_expr, AggregateExpr)
-    assert column._logical_expr.agg_name == "avg"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert column._logical_expr.function_name == "avg"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_min_aggregation():
     column = min(col("age"))
     assert isinstance(column._logical_expr, AggregateExpr)
-    assert column._logical_expr.agg_name == "min"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert column._logical_expr.function_name == "min"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_max_aggregation():
     column = max(col("age"))
     assert isinstance(column._logical_expr, AggregateExpr)
-    assert column._logical_expr.agg_name == "max"
-    assert isinstance(column._logical_expr.expr, ColumnExpr)
-    assert column._logical_expr.expr.name == "age"
+    assert column._logical_expr.function_name == "max"
+    assert isinstance(column._logical_expr.children()[0], ColumnExpr)
+    assert column._logical_expr.children()[0].name == "age"
 
 
 def test_column_comparisons(local_session):

@@ -44,6 +44,18 @@ class Exact(TypeSignature):
                     context=f"{func_name} Argument {i}",
                 )
 
+class Any(TypeSignature):
+    """All arguments can be of any type, but an exact number of arguments is required."""
+
+    def __init__(self, expected_num_args: int):
+        self.expected_num_args = expected_num_args
+
+    def validate(self, arg_types: List[DataType], func_name: str) -> None:
+        if len(arg_types) != self.expected_num_args:
+            raise ValidationError(
+                f"{func_name} expects {self.expected_num_args} arguments, "
+                f"got {len(arg_types)}"
+            )
 
 class Uniform(TypeSignature):
     """All arguments must be the same type."""

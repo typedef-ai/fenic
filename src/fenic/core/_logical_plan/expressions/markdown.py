@@ -1,32 +1,41 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 
 
-class MdToJsonExpr(ScalarFunction):
+class MdToJsonExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.to_json"
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"md_to_json({self.expr})"
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
 
-class MdGetCodeBlocksExpr(ScalarFunction):
+class MdGetCodeBlocksExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.get_code_blocks"
 
     def __init__(self, expr: LogicalExpr, language_filter: Optional[str] = None):
         self.expr = expr
         self.language_filter = language_filter
         self.jq_query = self._build_jq_query(language_filter)
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the markdown expression (language_filter is not LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, language_filter: Optional[str] = None) -> str:
         if language_filter:
@@ -45,20 +54,22 @@ class MdGetCodeBlocksExpr(ScalarFunction):
     }}]'''
         return query
 
-    def __str__(self) -> str:
-        return f"markdown.get_code_blocks({self.expr})"
 
-
-class MdGenerateTocExpr(ScalarFunction):
+class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.generate_toc"
 
     def __init__(self, expr: LogicalExpr, max_level: Optional[int] = None):
         self.expr = expr
         self.max_level = max_level or 6
         self.jq_query = self._build_jq_query(self.max_level)
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the markdown expression (max_level is not LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, max_level: int) -> str:
         # Wrap in a simple object to avoid JSON string encoding issues
@@ -68,20 +79,22 @@ class MdGenerateTocExpr(ScalarFunction):
     ] | join("\\n"))}}'''
         return query
 
-    def __str__(self) -> str:
-        return f"markdown.generate_toc({self.expr})"
 
-
-class MdExtractHeaderChunks(ScalarFunction):
+class MdExtractHeaderChunks(ValidatedSignature, LogicalExpr):
     function_name = "markdown.extract_header_chunks"
 
     def __init__(self, expr: LogicalExpr, header_level: int):
         self.expr = expr
         self.header_level = header_level
         self.jq_query = self._build_jq_query(header_level)
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the markdown expression (header_level is not LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, header_level: int) -> str:
         query = f'''

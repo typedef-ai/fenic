@@ -10,8 +10,12 @@ if TYPE_CHECKING:
 
 from pydantic import BaseModel, Field
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    ValidatedDynamicSignature,
+    ValidatedSignature,
+)
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     DataType,
@@ -149,18 +153,24 @@ class ParsedTemplateFormat:
             ]
         )
 
-class TextractExpr(ScalarFunction):
+class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
     function_name = "text.extract"
 
     def __init__(self, input_expr: LogicalExpr, template: str):
         self.input_expr = input_expr
         self.template = template
         self.parsed_template = ParsedTemplateFormat.parse(template)
+        self._validator = SignatureValidator(self.function_name)
 
-        super().__init__(input_expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.input_expr]
 
     def __str__(self):
-        return f"text.extract('{self.template}', {self.input_expr})"
+        return f"{self.function_name}('{self.template}', {self.input_expr})"
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on parsed template."""
@@ -186,7 +196,7 @@ class TextChunkExprConfiguration(BaseModel):
     chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
 
 
-class TextChunkExpr(ScalarFunction):
+class TextChunkExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.chunk"
 
     def __init__(
@@ -202,19 +212,24 @@ class TextChunkExpr(ScalarFunction):
             chunk_overlap_percentage=chunk_overlap_percentage,
             chunk_length_function_name=chunk_length_function_name,
         )
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the string expression (chunk_configuration is not LogicalExpr)
-        super().__init__(input_expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.input_expr]
 
     def __str__(self) -> str:
-        return f"text_chunk({self.input_expr}, {self.chunk_configuration})"
+        return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
 
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
     chunking_character_set_custom_characters: Optional[list[str]] = None
 
 
-class RecursiveTextChunkExpr(ScalarFunction):
+class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.recursive_chunk"
 
     def __init__(
@@ -234,44 +249,68 @@ class RecursiveTextChunkExpr(ScalarFunction):
             chunking_character_set_name=chunking_character_set_name,
             chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the string expression (chunking_configuration is not LogicalExpr)
-        super().__init__(input_expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.input_expr]
 
     def __str__(self) -> str:
-        return f"text_chunk({self.input_expr}, {self.chunking_configuration})"
+        return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
 
-class CountTokensExpr(ScalarFunction):
+class CountTokensExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.count_tokens"
 
     def __init__(self, input_expr: LogicalExpr):
         self.input_expr = input_expr
-        super().__init__(input_expr)
+        self._validator = SignatureValidator(self.function_name)
 
-class ConcatExpr(ScalarFunction):
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.input_expr]
+
+class ConcatExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.concat"
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        super().__init__(*exprs)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
 
 
-class ArrayJoinExpr(ScalarFunction):
+class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.array_join"
 
     def __init__(self, expr: LogicalExpr, delimiter: str):
         self.expr = expr
         self.delimiter = delimiter
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the array expression (delimiter is not LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"array_join({self.expr}, {self.delimiter})"
+        return f"{self.function_name}({self.expr}, {self.delimiter})"
 
 
-class ContainsExpr(ScalarFunction):
+class ContainsExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column contains a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -290,15 +329,23 @@ class ContainsExpr(ScalarFunction):
     def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
         self.expr = expr
         self.substr = substr
+        self._validator = SignatureValidator(self.function_name)
 
-        # Pass appropriate arguments to signature validation
-        if isinstance(substr, LogicalExpr):
-            super().__init__(expr, substr)  # Both string inputs
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        if isinstance(self.substr, LogicalExpr):
+            return [self.expr, self.substr]
         else:
-            super().__init__(expr)  # Only main string input
+            return [self.expr]
+
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.substr})"
 
 
-class ContainsAnyExpr(ScalarFunction):
+class ContainsAnyExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column contains any of multiple substrings.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -321,15 +368,20 @@ class ContainsAnyExpr(ScalarFunction):
         self.expr = expr
         self.substrs = substrs
         self.case_insensitive = case_insensitive
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the main string expression (substrs and case_insensitive are not LogicalExprs)
-        super().__init__(expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"contains_any({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
+        return f"{self.function_name}({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
 
 
-class RLikeExpr(ScalarFunction):
+class RLikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for matching a string column against a regular expression pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -356,14 +408,20 @@ class RLikeExpr(ScalarFunction):
         except Exception as e:
             raise ValidationError(f"Invalid regex pattern: {pattern}") from e
 
-        # Only validate the string expression
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"rlike({self.expr}, {self.pattern})"
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
 
-class LikeExpr(ScalarFunction):
+class LikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for matching a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -391,8 +449,14 @@ class LikeExpr(ScalarFunction):
         except Exception as e:
             raise ValidationError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
 
-        # Only validate the string expression
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _convert_to_regex(self, pattern: str) -> str:
         # Convert SQL LIKE pattern to regex pattern
@@ -404,10 +468,10 @@ class LikeExpr(ScalarFunction):
         return pattern
 
     def __str__(self) -> str:
-        return f"like({self.expr}, {self.raw_pattern}, {self.pattern})"
+        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
 
 
-class ILikeExpr(ScalarFunction):
+class ILikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for case-insensitive matching of a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -436,11 +500,17 @@ class ILikeExpr(ScalarFunction):
         except Exception as e:
             raise ValidationError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
 
-        # Only validate the string expression
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"ilike({self.expr}, {self.raw_pattern}, {self.pattern})"
+        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
 
     def _convert_to_regex(self, pattern: str) -> str:
         # Convert SQL LIKE pattern to regex pattern with case insensitivity
@@ -452,21 +522,26 @@ class ILikeExpr(ScalarFunction):
         return f"(?i){pattern}"
 
 
-class TsParseExpr(ScalarFunction):
+class TsParseExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.parse_transcript"
 
     def __init__(self, expr: LogicalExpr, format: str):
         self.expr = expr
         self.format = format
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the string expression (format is not a LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"parse_transcript({self.expr}, {self.format})"
+        return f"{self.function_name}({self.expr}, {self.format})"
 
 
-class StartsWithExpr(ScalarFunction):
+class StartsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column starts with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -491,17 +566,23 @@ class StartsWithExpr(ScalarFunction):
         if isinstance(substr, str) and substr.startswith("^"):
             raise ValidationError("substr should not start with a regular expression anchor")
 
-        # Pass appropriate arguments to signature validation
-        if isinstance(substr, LogicalExpr):
-            super().__init__(expr, substr)  # Both string inputs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        if isinstance(self.substr, LogicalExpr):
+            return [self.expr, self.substr]
         else:
-            super().__init__(expr)  # Only main string input
+            return [self.expr]
 
     def __str__(self) -> str:
-        return f"starts_with({self.expr}, {self.substr})"
+        return f"{self.function_name}({self.expr}, {self.substr})"
 
 
-class EndsWithExpr(ScalarFunction):
+class EndsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column ends with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -525,17 +606,23 @@ class EndsWithExpr(ScalarFunction):
         if isinstance(substr, str) and substr.endswith("$"):
             raise ValidationError("substr should not end with a regular expression anchor")
 
-        # Pass appropriate arguments to signature validation
-        if isinstance(substr, LogicalExpr):
-            super().__init__(expr, substr)  # Both string inputs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        if isinstance(self.substr, LogicalExpr):
+            return [self.expr, self.substr]
         else:
-            super().__init__(expr)  # Only main string input
+            return [self.expr]
 
     def __str__(self) -> str:
-        return f"ends_with({self.expr}, {self.substr})"
+        return f"{self.function_name}({self.expr}, {self.substr})"
 
 
-class RegexpSplitExpr(ScalarFunction):
+class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
     """Expression for splitting a string column using a regular expression pattern.
 
     This expression creates an array of substrings by splitting the input string column
@@ -558,16 +645,21 @@ class RegexpSplitExpr(ScalarFunction):
         self.expr = expr
         self.pattern = pattern
         self.limit = limit
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the string expression (pattern and limit are not LogicalExprs)
-        super().__init__(expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"regexp_split({self.expr}, {self.pattern}, limit={self.limit})"
+        return f"{self.function_name}({self.expr}, {self.pattern}, limit={self.limit})"
 
 
 
-class SplitPartExpr(ScalarFunction):
+class SplitPartExpr(ValidatedSignature, LogicalExpr):
     """Expression for splitting a string column and returning a specific part.
 
     This expression splits each string by a delimiter and returns the specified part (1-based indexing).
@@ -603,19 +695,25 @@ class SplitPartExpr(ScalarFunction):
         if part_number == 0:
             raise ValidationError("part_number cannot be 0")
 
-        # Only validate LogicalExpr arguments
-        if isinstance(delimiter, LogicalExpr):
-            super().__init__(expr, delimiter)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        if isinstance(self.delimiter, LogicalExpr):
+            return [self.expr, self.delimiter]
         else:
-            super().__init__(expr)
+            return [self.expr]
 
     def __str__(self) -> str:
         return (
-            f"text_split({self.expr}, {self.delimiter}, part_number={self.part_number})"
+            f"{self.function_name}({self.expr}, {self.delimiter}, part_number={self.part_number})"
         )
 
 
-class StringCasingExpr(ScalarFunction):
+class StringCasingExpr(ValidatedSignature, LogicalExpr):
     """Expression for converting the case of a string column.
 
     This expression creates a new string column with all values converted to the specified case.
@@ -633,15 +731,20 @@ class StringCasingExpr(ScalarFunction):
     def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
         self.expr = expr
         self.case = case
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate the string expression (case is not LogicalExpr)
-        super().__init__(expr)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def __str__(self) -> str:
-        return f"string_casing({self.expr}, {self.case})"
+        return f"{self.function_name}({self.expr}, {self.case})"
 
 
-class StripCharsExpr(ScalarFunction):
+class StripCharsExpr(ValidatedSignature, LogicalExpr):
     """Expression for removing specified characters from string ends.
 
     This expression creates a new string column with specified characters removed from
@@ -668,17 +771,22 @@ class StripCharsExpr(ScalarFunction):
         self.expr = expr
         self.chars = chars
         self.side = side
+        self._validator = SignatureValidator(self.function_name)
 
-        # Only validate LogicalExpr arguments (chars might be string literal or None)
-        if isinstance(chars, LogicalExpr):
-            super().__init__(expr, chars)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        if isinstance(self.chars, LogicalExpr):
+            return [self.expr, self.chars]
         else:
-            super().__init__(expr)
+            return [self.expr]
 
     def __str__(self) -> str:
-        return f"strip_chars({self.expr}, {self.chars}, side={self.side})"
+        return f"{self.function_name}({self.expr}, {self.chars}, side={self.side})"
 
-class ReplaceExpr(ScalarFunction):
+class ReplaceExpr(ValidatedSignature, LogicalExpr):
     """Expression for replacing substrings in a string column.
 
     This expression creates a new string column with occurrences of a search pattern
@@ -718,20 +826,25 @@ class ReplaceExpr(ScalarFunction):
         if replacement_count != -1 and replacement_count < 1:
             raise ValidationError("replacement_count must be >= 1 or -1 for all")
 
-        # Only validate LogicalExpr arguments
-        logical_args = [expr]
-        if isinstance(search, LogicalExpr):
-            logical_args.append(search)
-        if isinstance(replacement, LogicalExpr):
-            logical_args.append(replacement)
+        self._validator = SignatureValidator(self.function_name)
 
-        super().__init__(*logical_args)
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        logical_args = [self.expr]
+        if isinstance(self.search, LogicalExpr):
+            logical_args.append(self.search)
+        if isinstance(self.replacement, LogicalExpr):
+            logical_args.append(self.replacement)
+        return logical_args
 
     def __str__(self) -> str:
-        return f"replace({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
+        return f"{self.function_name}({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
 
 
-class StrLengthExpr(ScalarFunction):
+class StrLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column.
 
     This expression creates a new integer column with the number of characters in each value
@@ -748,10 +861,17 @@ class StrLengthExpr(ScalarFunction):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
 
-class ByteLengthExpr(ScalarFunction):
+class ByteLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column in bytes.
 
     This expression creates a new integer column with the number of bytes in each value
@@ -768,4 +888,11 @@ class ByteLengthExpr(ScalarFunction):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]

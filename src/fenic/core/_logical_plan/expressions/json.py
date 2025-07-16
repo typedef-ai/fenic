@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json as json_lib
+from typing import List
 
 from fenic._polars_plugins import py_validate_jq_query  # noqa: F401
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.signatures.scalar_function import ScalarFunction
+from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 
 
-class JqExpr(ScalarFunction):
+class JqExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.jq"
 
     def __init__(self, expr: LogicalExpr, query: str):
@@ -21,26 +22,31 @@ class JqExpr(ScalarFunction):
         except ValueError as e:
             raise ValidationError(str(e)) from None
 
-        # Only validate the JSON expression (query is not LogicalExpr)
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"jq({self.expr}, {self.query})"
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
-class JsonTypeExpr(ScalarFunction):
+class JsonTypeExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.type"
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
         self.jq_query = "{result: type}"
+        self._validator = SignatureValidator(self.function_name)
 
-        super().__init__(expr)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
-    def __str__(self) -> str:
-        return f"json.type({self.expr})"
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
-class JsonContainsExpr(ScalarFunction):
+class JsonContainsExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.contains"
 
     def __init__(self, expr: LogicalExpr, value: str):
@@ -60,8 +66,11 @@ class JsonContainsExpr(ScalarFunction):
         # Use recursive descent with type-aware matching
         self.jq_query = f'{{result: any(..; (type == "object" and contains({json_str})) or (type != "object" and . == {json_str}))}}'
 
-        # Only validate the JSON expression (value is not LogicalExpr)
-        super().__init__(expr)
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"json.contains({self.expr}, {self.value})"
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]

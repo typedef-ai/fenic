@@ -150,10 +150,10 @@ class TestReturnTypeCompatibility:
 
 
 class TestScalarFunctionIntegration:
-    """Test that ScalarFunction expressions work with MockPlan."""
+    """Test that ValidatedSignature expressions work with MockPlan."""
 
-    def test_scalar_function_with_mock_plan(self):
-        """Test that ScalarFunction expressions work correctly with MockPlan."""
+    def test_validated_signatures_with_mock_plan(self):
+        """Test that ValidatedSignature expressions work correctly with MockPlan."""
         # Create a plan with a string column
         plan = MockPlan([ColumnField("text_col", ArrayType(StringType))])
 

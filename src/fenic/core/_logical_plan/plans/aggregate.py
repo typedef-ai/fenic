@@ -1,11 +1,11 @@
 from typing import List
 
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     AliasExpr,
     LogicalExpr,
     SortExpr,
 )
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.types import Schema
 
