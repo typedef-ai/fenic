@@ -17,6 +17,7 @@ from fenic._backends.local.semantic_operators.utils import (
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core._utils.misc import parse_instruction
 from fenic.core.types import (
+    MapExample,
     MapExampleCollection,
 )
 
@@ -102,3 +103,13 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
             validate_structured_response(json_resp, self.response_format, "semantic.map")
             for json_resp in responses
         ]
+
+    def convert_example_to_assistant_message(self, example: MapExample) -> str:
+        """Convert a MapExample to an assistant message string.
+
+        If the example output is a BaseModel instance, serialize it to JSON.
+        Otherwise, return the string output directly.
+        """
+        if isinstance(example.output, BaseModel):
+            return example.output.model_dump_json()
+        return example.output

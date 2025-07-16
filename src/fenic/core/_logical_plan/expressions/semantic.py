@@ -68,6 +68,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
             )
         self.examples = None
         if examples:
+            self._validate_example_response_format(examples)
             examples._validate_with_instruction(instruction)
             self.examples = examples
 
@@ -89,6 +90,16 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self._validate_completion_parameters(plan)
         # Use mixin's implementation with dynamic return type
         return super().to_column_field(plan)
+
+    def _validate_example_response_format(self, example_collection: MapExampleCollection):
+        for example in example_collection.examples:
+            if self.response_format is None and not isinstance(example.output, str):
+                raise ValidationError("If a `schema` is not provided to `semantic.map`, "
+                                      "all examples are required to have outputs of type `str`.")
+            if self.response_format is not None and not isinstance(example.output, self.response_format):
+                raise ValidationError("If a `schema` BaseModel is provided to `semantic.map`, "
+                                      "all examples are required to have outputs of the same BaseModel type.")
+
 
     def _infer_dynamic_return_type(self, _arg_types: List[DataType], _plan: LogicalPlan) -> DataType:
         """Infer the return type of the semantic.map expression."""
