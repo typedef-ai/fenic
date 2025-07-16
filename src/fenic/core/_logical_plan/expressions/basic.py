@@ -168,17 +168,14 @@ class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        self._children = exprs
         self._validator = SignatureValidator(self.function_name)
-
-
 
     @property
     def validator(self) -> SignatureValidator:
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return self.exprs
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return ArrayType with element type matching the first argument."""
@@ -193,22 +190,19 @@ class StructExpr(ValidatedDynamicSignature, LogicalExpr):
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        self._children = exprs
         self._validator = SignatureValidator(self.function_name)
-
-
 
     @property
     def validator(self) -> SignatureValidator:
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return self.exprs
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on argument names and types."""
         struct_fields = []
-        for (arg, arg_type) in zip(self._children, arg_types, strict=True):
+        for (arg, arg_type) in zip(self.children(), arg_types, strict=True):
             # Use alias name if available, otherwise use string representation
             field_name = str(arg) if not isinstance(arg, AliasExpr) else arg.name
             struct_fields.append(StructField(field_name, arg_type))
@@ -261,17 +255,14 @@ class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
-
-
 
     @property
     def validator(self) -> SignatureValidator:
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return [self.expr]
 
 class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
     """Expression representing array contains check."""
@@ -283,8 +274,6 @@ class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
         self.other = other
         self._children = [expr, other]
         self._validator = SignatureValidator(self.function_name)
-
-
 
     @property
     def validator(self) -> SignatureValidator:
@@ -341,17 +330,14 @@ class CoalesceExpr(ValidatedSignature, LogicalExpr):
 
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
-        self._children = exprs
         self._validator = SignatureValidator(self.function_name)
-
-
 
     @property
     def validator(self) -> SignatureValidator:
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return self.exprs
 
 
 class InExpr(LogicalExpr):

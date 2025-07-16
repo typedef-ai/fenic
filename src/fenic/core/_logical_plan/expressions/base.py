@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
+    from fenic.core._logical_plan.signatures import SignatureValidator
     from fenic.core.types.datatypes import DataType
 
 from fenic.core.types import ColumnField
@@ -63,11 +64,6 @@ class SemanticExpr(LogicalExpr):
         pass
 
 
-class SemanticAggregateExpr(AggregateExpr, SemanticExpr):
-    """Marker class for semantic aggregate expressions combining both markers."""
-    pass
-
-
 class ValidatedSignature:
     """Mixin for expressions with simple signature validation.
     
@@ -82,7 +78,7 @@ class ValidatedSignature:
     
     @property
     @abstractmethod
-    def validator(self):
+    def validator(self) -> SignatureValidator:
         """Must be implemented by subclass to provide validator instance.
         
         Returns:
@@ -119,7 +115,7 @@ class ValidatedDynamicSignature:
     
     @property
     @abstractmethod
-    def validator(self):
+    def validator(self) -> SignatureValidator:
         """Must be implemented by subclass to provide validator instance.
         
         Returns:

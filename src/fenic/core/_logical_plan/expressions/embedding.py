@@ -55,6 +55,10 @@ class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
         self.other = other
         self.metric = metric
         self._validator = SignatureValidator(self.function_name)
+        if isinstance(self.other, LogicalExpr):
+            self._children =  [self.expr, self.other]
+        else:
+            self._children = [self.expr]
 
     @property
     def validator(self) -> SignatureValidator:
@@ -83,6 +87,4 @@ class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
         return super().to_column_field(plan)
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.other, LogicalExpr):
-            return [self.expr, self.other]
-        return [self.expr]
+        return self._children

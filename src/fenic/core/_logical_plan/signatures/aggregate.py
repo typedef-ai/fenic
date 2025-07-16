@@ -77,8 +77,8 @@ def register_aggregate_signatures():
     ))
     
     # List aggregation - accepts any type except literals, returns ArrayType of input element type
-    FunctionRegistry.register("list", FunctionSignature(
-        function_name="list",
+    FunctionRegistry.register("collect_list", FunctionSignature(
+        function_name="collect_list",
         type_signature=Any(1),  # Accepts any DataType (literal check done separately)
         return_type=ReturnTypeStrategy.DYNAMIC  # Returns ArrayType(input_type)
     ))

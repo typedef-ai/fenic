@@ -27,7 +27,6 @@ class SumExpr(ValidatedSignature, AggregateExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -35,11 +34,7 @@ class SumExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]
 
 
 class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
@@ -47,7 +42,6 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
         self.input_type = None  # Will be set during validation
 
@@ -56,7 +50,7 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return [self.expr]
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         """Use signature to validate and get return type, storing input type for transpiler."""
@@ -74,9 +68,6 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
         else:
             return DoubleType
 
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
 
 
 class MinExpr(ValidatedSignature, AggregateExpr):
@@ -84,7 +75,6 @@ class MinExpr(ValidatedSignature, AggregateExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -92,11 +82,7 @@ class MinExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]
 
 
 class MaxExpr(ValidatedSignature, AggregateExpr):
@@ -104,7 +90,6 @@ class MaxExpr(ValidatedSignature, AggregateExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -112,11 +97,7 @@ class MaxExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]
 
 
 class CountExpr(ValidatedSignature, AggregateExpr):
@@ -124,7 +105,6 @@ class CountExpr(ValidatedSignature, AggregateExpr):
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -132,15 +112,11 @@ class CountExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]
 
 
 class ListExpr(ValidatedDynamicSignature, AggregateExpr):
-    function_name = "list"
+    function_name = "collect_list"
 
     def __init__(self, expr: LogicalExpr):
         # Check for literal expressions upfront
@@ -150,7 +126,6 @@ class ListExpr(ValidatedDynamicSignature, AggregateExpr):
                 "Only non-literal values are supported."
             )
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -158,21 +133,17 @@ class ListExpr(ValidatedDynamicSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
+        return [self.expr]
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return ArrayType with element type matching the input type."""
         return ArrayType(arg_types[0])
-
-    def __str__(self) -> str:
-        return f"collect_list({self.expr})"
 
 class FirstExpr(ValidatedSignature, AggregateExpr):
     function_name = "first"
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -180,18 +151,13 @@ class FirstExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]
 
 class StdDevExpr(ValidatedSignature, AggregateExpr):
     function_name = "stddev"
 
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
-        self._children = [expr]
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -199,8 +165,4 @@ class StdDevExpr(ValidatedSignature, AggregateExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return self._children
-
-    def __str__(self) -> str:
-        args_str = ", ".join(str(arg) for arg in self._children)
-        return f"{self.function_name}({args_str})"
+        return [self.expr]

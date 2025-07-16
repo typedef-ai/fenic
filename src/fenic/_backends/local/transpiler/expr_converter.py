@@ -270,7 +270,7 @@ class ExprConverter:
             return converted_expr.mean()
 
     @_convert_expr.register(AggregateExpr)
-    def _convert_aggregate_expr(self, logical) -> pl.Expr:
+    def _convert_aggregate_expr(self, logical: AggregateExpr) -> pl.Expr:
         # Special handling for AvgExpr
         if isinstance(logical, AvgExpr):
             return self._convert_avg_expr(logical)
