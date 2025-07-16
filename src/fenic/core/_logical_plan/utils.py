@@ -111,14 +111,14 @@ def validate_and_parse_jinja_template(template: str) -> List[str]:
 
 
 def _annotate_parents(node: nodes.Node, parent: Optional[nodes.Node] = None) -> None:
-    """Recursively add `parent` references to each AST node since Jinja doesn't have them"""
+    """Recursively add `parent` references to each AST node since Jinja doesn't have them."""
     node.parent = parent # type: ignore[attr-defined]
     for child in node.iter_child_nodes():
         _annotate_parents(child, parent=node)
 
 
 def _validate_node(node: nodes.Node, loop_variables: Set[str]) -> None:
-    """Validate a single AST node against allowed syntax rules"""
+    """Validate a single AST node against allowed syntax rules."""
     line_no = getattr(node, 'lineno', '?')
 
     if not isinstance(node, ALLOWED_JINJA_NODES):
@@ -137,7 +137,7 @@ def _validate_node(node: nodes.Node, loop_variables: Set[str]) -> None:
             )
 
 def _validate_name_node(node: nodes.Name, loop_variables: Set[str], line_no: Union[int, str]) -> None:
-    """Validate variable names to reject loop vars or special names"""
+    """Validate variable names to reject loop vars or special names."""
     if hasattr(node, 'ctx') and node.ctx == 'load':
         if node.name in loop_variables:
             # Check if we're inside the corresponding For node
@@ -157,7 +157,7 @@ def _validate_name_node(node: nodes.Name, loop_variables: Set[str], line_no: Uni
             )
 
 def _validate_getitem_node(node: nodes.Getitem, line_no: Union[int, str]) -> None:
-    """Validate that index access is static and type-safe"""
+    """Validate that index access is static and type-safe."""
     if not isinstance(node.arg, nodes.Const):
         raise ValidationError(
             f"Jinja template error: Array/object access must use fixed indices like [0] or ['key'] (line {line_no}). Dynamic indices using variables are not allowed."
