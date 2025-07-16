@@ -665,9 +665,8 @@ class ExprConverter:
     @_convert_expr.register(SplitPartExpr)
     def _convert_split_part_expr(self, logical: SplitPartExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        part_number_expr = self._convert_expr(logical.part_number) if isinstance(logical.part_number, LogicalExpr) else pl.lit(logical.part_number)
-        delimiter_expr = self._convert_expr(logical.delimiter) if isinstance(logical.delimiter, LogicalExpr) else pl.lit(logical.delimiter)
-
+        part_number_expr = self._convert_expr(logical.part_number)
+        delimiter_expr = self._convert_expr(logical.delimiter)
         split_expr = physical_expr.str.split(delimiter_expr)
 
         # Convert from 1-based to 0-based indexing for positive numbers
@@ -751,24 +750,24 @@ class ExprConverter:
     @_convert_expr.register(ReplaceExpr)
     def _convert_replace_expr(self, logical: ReplaceExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        is_search_column = isinstance(logical.search, LogicalExpr)
-        replace_expr = self._convert_expr(logical.replacement) if isinstance(logical.replacement, LogicalExpr) else pl.lit(logical.replacement)
+        is_search_column = isinstance(logical.search, ColumnExpr)
+        physical_search_expr = self._convert_expr(logical.search)
+        physical_replacement_expr = self._convert_expr(logical.replacement)
 
         if not is_search_column:
             return physical_expr.str.replace_all(
-                pattern=logical.search,
-                value=replace_expr,
+                pattern=physical_search_expr,
+                value=physical_replacement_expr,
                 literal=logical.literal,
             )
         else:
             # https://github.com/pola-rs/polars/issues/14367
             # Polars doesn't currently support replace with a expression, so we need to use replace_all and over as a workaround
-            search_expr = self._convert_expr(logical.search)
             return physical_expr.str.replace_all(
-                pattern=search_expr.first(),
-                value=replace_expr,
+                pattern=physical_search_expr.first(),
+                value=physical_replacement_expr,
                 literal=logical.literal,
-            ).over(search_expr)
+            ).over(physical_search_expr)
 
     @_convert_expr.register(StrLengthExpr)
     def _convert_str_length_expr(self, logical: StrLengthExpr) -> pl.Expr:

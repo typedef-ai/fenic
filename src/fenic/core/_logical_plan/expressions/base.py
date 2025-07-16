@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Union
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from fenic.core.types.datatypes import DataType
 
 from fenic.core.types import ColumnField
-
 
 class Operator(Enum):
     """Enumeration of supported operators for expressions."""

@@ -541,12 +541,16 @@ def replace(
         ```
     """
     if isinstance(search, Column):
-        search = search._logical_expr
+        search_expr = search._logical_expr
+    else:
+        search_expr = lit(search)._logical_expr
     if isinstance(replace, Column):
-        replace = replace._logical_expr
+        replace_expr = replace._logical_expr
+    else:
+        replace_expr = lit(replace)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
-            Column._from_col_or_name(src)._logical_expr, search, replace, True
+            Column._from_col_or_name(src)._logical_expr, search_expr, replace_expr, True
         )
     )
 
@@ -591,14 +595,18 @@ def regexp_replace(
         ```
     """
     if isinstance(pattern, Column):
-        pattern = pattern._logical_expr
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
     if isinstance(replacement, Column):
-        replacement = replacement._logical_expr
+        replacement_expr = replacement._logical_expr
+    else:
+        replacement_expr = lit(replacement)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
             Column._from_col_or_name(src)._logical_expr,
-            pattern,
-            replacement,
+            pattern_expr,
+            replacement_expr,
             False,
         )
     )
@@ -657,7 +665,7 @@ def split_part(
     Args:
         src: The input string column or column name to split
         delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        part_number: Which part to return (1-based integer)
 
     Returns:
         Column: A column containing the specified part from each split string
@@ -684,13 +692,19 @@ def split_part(
         raise ValueError(
             f"`split_part` expects a non-zero integer for the part_number, but got {part_number}."
         )
-    if isinstance(delimiter, Column):
-        delimiter = delimiter._logical_expr
     if isinstance(part_number, Column):
-        part_number = part_number._logical_expr
+        part_number_expr = part_number._logical_expr
+    else:
+        part_number_expr = lit(part_number)._logical_expr
+
+    if isinstance(delimiter, Column):
+        delimiter_expr = delimiter._logical_expr
+    else:
+        delimiter_expr = lit(delimiter)._logical_expr
+
     return Column._from_logical_expr(
         SplitPartExpr(
-            Column._from_col_or_name(src)._logical_expr, delimiter, part_number
+            Column._from_col_or_name(src)._logical_expr, delimiter_expr, part_number_expr
         )
     )
 
@@ -811,10 +825,14 @@ def btrim(col: ColumnOrName, trim: Optional[Union[Column, str]]) -> Column:
         df.select(text.btrim(col("text"), col("chars")))
         ```
     """
-    if isinstance(trim, Column):
-        trim = trim._logical_expr
+    if trim is None:
+        trim_expr = None
+    elif isinstance(trim, Column):
+        trim_expr = trim._logical_expr
+    else:
+        trim_expr = lit(trim)._logical_expr
     return Column._from_logical_expr(
-        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim, "both")
+        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim_expr, "both")
     )
 
 

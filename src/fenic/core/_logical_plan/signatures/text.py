@@ -197,8 +197,7 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.split_part",
             type_signature=OneOf([
-                Exact([StringType]),  # string input only (delimiter is literal)
-                Exact([StringType, StringType])  # string input + delimiter expr
+                Exact([StringType, StringType, IntegerType])
             ]),
             return_type=StringType
         )
