@@ -22,7 +22,7 @@ from fenic._backends.cloud.settings import CloudSettings
 from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 @dataclass
 class CloudSessionManagerConfigDependencies:
@@ -33,6 +33,24 @@ class CloudSessionManagerConfigDependencies:
     entrypoint_stub: EntrypointServiceStub
     hasura_client: HasuraClient
 
+class ChannelHolder:
+    """Holder for an object and an event to signal when the object is ready.
+    This is used to avoid race conditions when creating objects in a background thread.
+    """
+    event: threading.Event
+    future: asyncio.Future[grpc.aio.Channel]
+
+    def __init__(self):
+        self.event = threading.Event()
+        self.future = None
+
+    def set_channel_future(self, future: asyncio.Future[grpc.aio.Channel]):
+        self.future = future
+        self.event.set()
+
+    def get_channel(self) -> grpc.aio.Channel:
+        self.event.wait()
+        return self.future.result()
 
 class CloudSessionManager:
     """Cloud session manager for managing cloud sessions.
@@ -81,6 +99,27 @@ class CloudSessionManager:
         self.initialized = True
 
     @staticmethod
+    async def _create_secure_channel(
+        entrypoint_uri: str,
+        credentials: grpc.ChannelCredentials) -> grpc.aio.Channel:
+        return grpc.aio.secure_channel(entrypoint_uri, credentials)
+
+    @staticmethod
+    def _start_loop(
+        asyncio_loop: asyncio.AbstractEventLoop,
+        entrypoint_uri: str,
+        credentials: grpc.ChannelCredentials,
+        channel_holder: ChannelHolder) -> None:
+        asyncio.set_event_loop(asyncio_loop)
+        result = asyncio.run_coroutine_threadsafe(
+            CloudSessionManager._create_secure_channel(entrypoint_uri, credentials),
+            asyncio_loop
+        )
+        channel_holder.set_channel_future(result)
+        asyncio_loop.run_forever()
+
+
+    @staticmethod
     def create_global_session_dependencies() -> (
         Optional[CloudSessionManagerConfigDependencies]
     ):
@@ -96,18 +135,20 @@ class CloudSessionManager:
 
         # Create the event loop and background thread
         asyncio_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(asyncio_loop)
+        credentials = grpc.ssl_channel_credentials()
+        channel_holder = ChannelHolder()
+
+        # The secure channel will use the current event loop, if there is
+        # already an event loop running, then the channel will use that event loop.
+        # This will cause the calls to be scheduled on the wrong thread.
         background_thread = threading.Thread(
-            target=asyncio_loop.run_forever, daemon=True
+            target=CloudSessionManager._start_loop,
+            args=(asyncio_loop, settings.entrypoint_uri, credentials, channel_holder),
+            daemon=True
         )
         background_thread.start()
-
-        # Create the entrypoint channel and stub
-        asyncio.set_event_loop(asyncio_loop)
-        # Create secure channel with TLS credentials
-        credentials = grpc.ssl_channel_credentials()
-        entrypoint_channel = grpc.aio.secure_channel(
-            settings.entrypoint_uri, credentials
-        )
+        entrypoint_channel = channel_holder.get_channel()
         logger.debug(f"Created secure gRPC channel to {settings.entrypoint_uri}")
 
         entrypoint_stub = EntrypointServiceStub(entrypoint_channel)
