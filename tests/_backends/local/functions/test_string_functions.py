@@ -651,7 +651,7 @@ def test_split_part_no_matches(split_test_df):
 
 
 def test_split_part_zero_index_error(split_test_df):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         split_test_df.with_column(
             "split_text_col", text.split_part(col("text_col"), ", ", 0)
         ).to_polars()

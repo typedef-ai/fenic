@@ -40,6 +40,7 @@ from fenic.core._utils.type_inference import (
 from fenic.core.error import ValidationError
 from fenic.core.types.datatypes import (
     DataType,
+    StringType,
 )
 
 
@@ -463,7 +464,7 @@ class Column:
         if isinstance(other, str):
             if other.startswith("^"):
                 raise ValidationError("substr should not start with a regular expression anchor")
-            other_expr = LiteralExpr(other, infer_dtype_from_pyobj(other))
+            other_expr = LiteralExpr(other, StringType)
         else:
             other_expr = other._logical_expr
         return Column._from_logical_expr(StartsWithExpr(self._logical_expr, other_expr))
@@ -497,7 +498,7 @@ class Column:
         if isinstance(other, str):
             if other.endswith("$"):
                 raise ValidationError("substr should not end with a regular expression anchor")
-            other_expr = LiteralExpr(other, infer_dtype_from_pyobj(other))
+            other_expr = LiteralExpr(other, StringType)
         else:
             other_expr = other._logical_expr
         return Column._from_logical_expr(EndsWithExpr(self._logical_expr, other_expr))

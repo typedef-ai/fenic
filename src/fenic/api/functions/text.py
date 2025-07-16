@@ -26,6 +26,7 @@ from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
 )
+from fenic.core.error import ValidationError
 from fenic.core.types.enums import TranscriptFormatType
 
 
@@ -403,7 +404,7 @@ def concat(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat method")
+        raise ValidationError("At least one column must be provided to concat method")
 
     flattened_args = []
     for arg in cols:
@@ -471,7 +472,7 @@ def concat_ws(separator: str, *cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat_ws method")
+        raise ValidationError("At least one column must be provided to concat_ws method")
 
     flattened_args = []
     for arg in cols:
@@ -647,7 +648,7 @@ def split(src: ColumnOrName, pattern: str, limit: int = -1) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def split_part(
-    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[int, Column]
+    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[Column, int]
 ) -> Column:
     """Split a string and return a specific part using 1-based indexing.
 
@@ -665,7 +666,7 @@ def split_part(
     Args:
         src: The input string column or column name to split
         delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based integer)
+        part_number: Which part to return (1-based integer index or column expression)
 
     Returns:
         Column: A column containing the specified part from each split string
@@ -689,7 +690,7 @@ def split_part(
         ```
     """
     if isinstance(part_number, int) and part_number == 0:
-        raise ValueError(
+        raise ValidationError(
             f"`split_part` expects a non-zero integer for the part_number, but got {part_number}."
         )
     if isinstance(part_number, Column):

@@ -667,6 +667,7 @@ class ExprConverter:
         physical_expr = self._convert_expr(logical.expr)
         part_number_expr = self._convert_expr(logical.part_number)
         delimiter_expr = self._convert_expr(logical.delimiter)
+
         split_expr = physical_expr.str.split(delimiter_expr)
 
         # Convert from 1-based to 0-based indexing for positive numbers

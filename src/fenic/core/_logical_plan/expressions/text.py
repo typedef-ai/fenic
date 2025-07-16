@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
@@ -318,7 +318,7 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to search for within each value (must be LogicalExpr)
+        substr: The substring to search for within each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -546,7 +546,7 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the start of each value
+        substr: The substring to check for at the start of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -567,9 +567,6 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
 
-    def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.substr})"
-
 
 class EndsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column ends with a substring.
@@ -579,7 +576,7 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the end of each value
+        substr: The substring to check for at the end of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -599,9 +596,6 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
-
-    def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.substr})"
 
 
 class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
@@ -657,8 +651,8 @@ class SplitPartExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        delimiter: The delimiter to split on (column expression or LiteralExpr string)
+        part_number: Which part to return (1-based, column expression or LiteralExpr integer)
 
     Raises:
         TypeMismatchError: If the input expression is not a string column
@@ -763,8 +757,8 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        search: The pattern to search for (can be a string or column expression)
-        replacement: The string to replace with (can be a string or column expression)
+        search: The pattern to search for (column expression or LiteralExpr string)
+        replacement: The string to replace with (column expression or LiteralExpr string)
         literal: Whether to treat the pattern as a literal string (True) or regex (False)
 
     Raises:
