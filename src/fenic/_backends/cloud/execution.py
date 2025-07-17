@@ -28,13 +28,16 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
     SaveToFileExecutionRequest,
     ShowExecutionRequest,
     StartExecutionRequest,
-    TableIdentifier,
+)
+from fenic_cloud.protos.engine.v1.engine_pb2 import (
+    TableIdentifier as TableIdentifierProto,
 )
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
 from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
-from fenic.core._interfaces import BaseExecution
+from fenic._backends.utils.catalog_utils import TableIdentifier
+from fenic.api.execution import CommonExecution
 from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
     CloudExecutionError,
@@ -58,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 CLOUD_SUPPORTED_SCHEMES = ["s3"]
 
-class CloudExecution(BaseExecution):
+class CloudExecution(CommonExecution):
     def __init__(
         self, session_state: CloudSessionState, engine_stub: EngineServiceStub
     ):
@@ -165,15 +168,33 @@ class CloudExecution(BaseExecution):
         """Execute the logical plan and save the result as a table."""
         logger.debug(f"Saving plan {logical_plan} as table: {table_name}")
         # TODO (DY): check that current catalog and schema (if specified in table_name) match session state
-        table_identifier = TableIdentifier(
-            catalog=self.session_state.catalog,
-            schema=self.session_state.schema,
+        table_exists, query_metrics = self._validate_table_existance(logical_plan, table_name, mode)
+        if not table_exists:
+            raise CloudExecutionError(
+                f"Cannot save to table '{table_name}' - it does not exist. "
+                f"Choose a different approach: "
+                f"1) Create the table in question "
+                f"2) Use a different table name.")
+        elif table_exists and query_metrics:
+            # trunk-ignore-begin(bandit/B101)
+            assert mode == "ignore", "only mode to fulfill this invariant is ignore."
+            # trunk-ignore-end(bandit/B101)
+            return query_metrics
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.session_state.catalog.get_current_catalog(),
+            self.session_state.catalog.get_current_database(),
+        )
+
+        # TODO (DY): check that current catalog and schema (if specified in table_name) match session state
+        table_identifier_proto = TableIdentifierProto(
+            catalog=table_identifier.catalog,
+            schema=table_identifier.db,
             table=table_name,
         )
         request = StartExecutionRequest(
             save_as_table=SaveAsTableExecutionRequest(
                 serialized_plan=LogicalPlanSerde.serialize(logical_plan),
-                table_identifier=table_identifier,
+                table_identifier=table_identifier_proto,
                 mode=mode,
             )
         )
