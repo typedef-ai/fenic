@@ -1,13 +1,14 @@
 from typing import Optional
-
+import re
 import pytest
 
 from fenic.core._logical_plan.jinja import (
     TypeRequirement,
     VariableNode,
-    validate_and_parse_jinja_template,
+    VariableTree,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import ValidationError, TypeMismatchError
+from fenic.core.types import ArrayType, BooleanType, StringType, StructField, StructType, IntegerType
 
 
 def assert_variable_node(
@@ -23,7 +24,7 @@ def assert_variable_node(
 
 def test_variable_access():
     template = "{{ user }}"
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
     assert "user" in tree.variables
     assert_variable_node(tree.variables["user"], expected_req=None, expected_children={})
@@ -31,7 +32,7 @@ def test_variable_access():
 
 def test_struct_access():
     template = "{{ user.name }} {{ user['name'] }}"
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
     assert "user" in tree.variables
     assert_variable_node(
@@ -42,14 +43,14 @@ def test_struct_access():
 
 def test_array_access():
     template = "{{ items[0] }} {{ items[1] }}"
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
     assert "items" in tree.variables
     assert_variable_node(tree.variables["items"], expected_req=TypeRequirement.ARRAY, expected_children={"*": {"expected_req": None, "expected_children": {}}})
 
 def test_for_loop():
     template = "{% for item in items %}{{ item }} {% else %} {{ fallback }} {% endfor %}"
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 2
     assert "items" in tree.variables
     assert_variable_node(
@@ -67,7 +68,7 @@ def test_for_loop():
       {% endfor %}
     {% endfor %}
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
     assert "users" in tree.variables
     assert_variable_node(
@@ -107,7 +108,7 @@ def test_conditional():
         {{ z }}
     {% endif %}
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 3
     assert "x" in tree.variables
     assert_variable_node(tree.variables["x"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
@@ -127,7 +128,7 @@ def test_conditional():
         {% endif %}
     {% endif %}
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 3
     assert "x" in tree.variables
     assert_variable_node(tree.variables["x"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
@@ -151,7 +152,7 @@ def test_complex():
 
     You have {{ notifications[0] }} unread messages.
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 3
     # user should be STRUCT with children
     assert "user" in tree.variables
@@ -196,7 +197,7 @@ def test_complex():
 def test_mixed_nesting_object_access():
     """Mix of array access and struct access should work"""
     template = "{{ data[0].users[1].profile.name }}"
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
 
     assert "data" in tree.variables
@@ -254,16 +255,16 @@ def test_jinja_template_with_no_output():
     {% endif %}
     """
 
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
 
     # Should be completely empty because there is no output
     assert tree.variables == {}
 
     # Also test simpler cases
-    assert validate_and_parse_jinja_template("").variables == {}
-    assert validate_and_parse_jinja_template("<!-- just comments -->").variables == {}
-    assert validate_and_parse_jinja_template("{% for x in y %}{% endfor %}").variables == {}
-    assert validate_and_parse_jinja_template("{% if x %}{% endif %}").variables == {}
+    assert VariableTree.from_jinja_template("").variables == {}
+    assert VariableTree.from_jinja_template("<!-- just comments -->").variables == {}
+    assert VariableTree.from_jinja_template("{% for x in y %}{% endfor %}").variables == {}
+    assert VariableTree.from_jinja_template("{% if x %}{% endif %}").variables == {}
 
 def test_loop_variable_shadowing():
     """Nested loops can use same variable name (inner shadows outer)"""
@@ -278,7 +279,7 @@ def test_loop_variable_shadowing():
       {{ item.inner_field_2 }}
     {% endfor %}
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 2
 
     # Should have both outer_items and inner_items in schema
@@ -333,7 +334,7 @@ def test_loop_variable_shadowing():
     {{ item.date }}
     {{ manager.last_name }}
     """
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 2
     assert_variable_node(
         tree.variables["stores"],
@@ -416,7 +417,7 @@ def test_array_with_both_loop_variable_and_index_access():
     {{ item.name.first }}
     """
 
-    tree = validate_and_parse_jinja_template(template)
+    tree = VariableTree.from_jinja_template(template)
     assert len(tree.variables) == 1
     assert_variable_node(
         tree.variables["products"],
@@ -452,7 +453,7 @@ def test_array_with_both_loop_variable_and_index_access():
 
 def test_unsupported_syntax(template, expected_error):
     with pytest.raises(ValidationError, match=expected_error):
-        validate_and_parse_jinja_template(template)
+        VariableTree.from_jinja_template(template)
 
 def test_conflicting_type_requirements():
     template = """
@@ -461,7 +462,7 @@ def test_conflicting_type_requirements():
     {% endfor %}
     """
     with pytest.raises(ValidationError, match="Variable used inconsistently across the jinja template"):
-        validate_and_parse_jinja_template(template)
+        VariableTree.from_jinja_template(template)
 
     # Conflict between ARRAY (index 0) and STRUCT (string key)
     template2 = """
@@ -469,9 +470,69 @@ def test_conflicting_type_requirements():
     {{ data["foo"] }}
     """
     with pytest.raises(ValidationError, match="Variable used inconsistently across the jinja template"):
-        validate_and_parse_jinja_template(template2)
+        VariableTree.from_jinja_template(template2)
 
 def test_jinja_syntax_error():
     template = "{{ data[0] }"
     with pytest.raises(ValidationError, match="Jinja template syntax error on line 1"):
-        validate_and_parse_jinja_template(template)
+        VariableTree.from_jinja_template(template)
+
+
+def test_array_indexing_requires_array_type():
+    template = "{{ data[0] }}"
+    tree = VariableTree.from_jinja_template(template)
+    tree.validate_jinja_variable("data", ArrayType(element_type=StringType))
+
+    with pytest.raises(TypeMismatchError, match="Column 'data' used in Jinja template must be an ArrayType, but found StringType. This variable is used in a for-loop and must be an array column."):
+        tree.validate_jinja_variable("data", StringType)
+
+def test_for_loop_iteration_requires_array_type():
+    template = "{% for item in items %}{{ item }}{% endfor %}"
+    tree = VariableTree.from_jinja_template(template)
+    tree.validate_jinja_variable("items", ArrayType(element_type=StringType))
+
+    with pytest.raises(TypeMismatchError, match="Column 'items' used in Jinja template must be an ArrayType, but found StringType. This variable is used in a for-loop and must be an array column."):
+        tree.validate_jinja_variable("items", StringType)
+
+def test_field_access_requires_struct_type_and_valid_field():
+    template = "{{ data.name }}"
+    tree = VariableTree.from_jinja_template(template)
+    tree.validate_jinja_variable("data", StructType(struct_fields=[StructField(name="name", data_type=StringType)]))
+
+    with pytest.raises(TypeMismatchError, match=re.escape("Column 'data' used in Jinja template must be a StructType, but found StringType. This variable is accessed using field notation (e.g., data.fieldname) and must be a struct column.")):
+        tree.validate_jinja_variable("data", StringType)
+
+    template = "{{ data.invalid_field }}"
+    tree = VariableTree.from_jinja_template(template)
+    with pytest.raises(ValidationError, match=re.escape("Field 'invalid_field' in Jinja template does not exist in StructType at 'data'. Available StructFields: name.")):
+        tree.validate_jinja_variable("data", StructType(struct_fields=[StructField(name="name", data_type=StringType)]))
+
+
+def test_conditional_expression_requires_boolean_type():
+    template = "{%if x %}{{ x }}{% endif %}"
+    tree = VariableTree.from_jinja_template(template)
+    tree.validate_jinja_variable("x", BooleanType)
+
+    with pytest.raises(TypeMismatchError, match="Column 'x' used in Jinja template must be a BooleanType, but found StringType. This variable is used in a conditional expression and must evaluate to a boolean."):
+        tree.validate_jinja_variable("x", StringType)
+
+def test_complex_expression_against_datatypes():
+    template = """
+    {% for item in items %}
+        {% if item.has_name %}
+            {{ foo.bar }}
+            {{ bar.baz }}
+        {% endif %}
+    {% endfor %}
+    """
+    tree = VariableTree.from_jinja_template(template)
+    print(tree.variables)
+
+    # Valid type assertions (should not raise)
+    tree.validate_jinja_variable(
+        "items", ArrayType(element_type=StructType(struct_fields=[StructField(name="has_name", data_type=BooleanType)]))
+    )
+    tree.validate_jinja_variable("foo", StructType(struct_fields=[StructField(name="bar", data_type=StringType)]))
+    tree.validate_jinja_variable(
+        "bar", StructType(struct_fields=[StructField(name="baz", data_type=IntegerType)])
+    )
