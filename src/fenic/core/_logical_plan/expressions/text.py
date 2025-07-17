@@ -799,7 +799,6 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
         search: The pattern to search for (can be a string or column expression)
         replacement: The string to replace with (can be a string or column expression)
         literal: Whether to treat the pattern as a literal string (True) or regex (False)
-        replacement_count: Max number of replacements to make. -1 for all occurrences.
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -814,17 +813,11 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
         search: Union[LogicalExpr, str],
         replacement: Union[LogicalExpr, str],
         literal: bool,
-        replacement_count: int,
     ):
         self.expr = expr
         self.search = search
         self.literal = literal
         self.replacement = replacement
-        self.replacement_count = replacement_count
-
-        # Validate replacement_count at construction time
-        if replacement_count != -1 and replacement_count < 1:
-            raise ValidationError("replacement_count must be >= 1 or -1 for all")
 
         self._validator = SignatureValidator(self.function_name)
 
@@ -841,7 +834,7 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
         return logical_args
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
+        return f"{self.function_name}({self.expr}, {self.search}, {self.replacement})"
 
 
 class StrLengthExpr(ValidatedSignature, LogicalExpr):
