@@ -714,16 +714,15 @@ class ExprConverter:
 
         # Convert from 1-based to 0-based indexing for positive numbers
         part_expr = (
-            pl.when(part_number_expr.first() > 0)
-            .then(part_number_expr.first() - 1)
-            .otherwise(part_number_expr.first())
+            pl.when(part_number_expr > 0)
+            .then(part_number_expr - 1)
+            .otherwise(part_number_expr)
         )
 
         # Get the part and handle out of range with empty string
         return (
             split_expr.list.get(part_expr, null_on_oob=True)
             .fill_null("")
-            .over(part_number_expr)
         )
 
 
