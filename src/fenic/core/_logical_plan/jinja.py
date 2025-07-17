@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from jinja2 import Environment, nodes
 from jinja2.exceptions import TemplateSyntaxError
@@ -82,6 +82,12 @@ class VariableAccess:
     context: VariableAccessContext
     line_no: str = '?'
 
+@dataclass
+class AccessWithDeps:
+    """A variable access with its control flow dependencies."""
+    access: VariableAccess
+    control_dependencies: List[VariableAccess]
+
 class LoopStack:
     """Manages loop variable scoping during template traversal."""
 
@@ -137,10 +143,9 @@ class VariableTree:
 
         # Collect all variable accesses with proper scoping
         all_accesses = cls._collect_variable_accesses(ast)
-        print(all_accesses)
 
         # Filter to only variables used in output (plus their dependencies)
-        relevant_accesses = cls._filter_to_output_variables(all_accesses)
+        relevant_accesses = cls._extract_output_dependencies(all_accesses)
 
         # Build the final schema tree
         return cls._build_schema_tree(relevant_accesses)
@@ -150,9 +155,7 @@ class VariableTree:
         variable_name: str,
         data_type: DataType
     ) -> None:
-        """
-        Recursively validates that the structure and type requirements of a Jinja
-        template variable match the actual column schema.
+        """Recursively validates that the structure and type requirements of a Jinja template variable match the actual column schema.
 
         This ensures that:
           - Boolean requirements are matched by BooleanType columns.
@@ -299,32 +302,32 @@ class VariableTree:
     # VARIABLE ACCESS COLLECTION
     # =============================================================================
     @staticmethod
-    def _collect_variable_accesses(ast: nodes.Node) -> List[VariableAccess]:
+    def _collect_variable_accesses(ast: nodes.Node) -> List[AccessWithDeps]:
         """Collect all variable accesses with proper scoping resolution."""
         scope = LoopStack()
-        return VariableTree._traverse_and_collect(ast, scope)
+        return VariableTree._traverse_and_collect(ast, scope, [])
 
     @staticmethod
-    def _traverse_and_collect(node: nodes.Node, scope: LoopStack) -> List[VariableAccess]:
+    def _traverse_and_collect(node: nodes.Node, scope: LoopStack, control_context: List[VariableAccess]) -> List[AccessWithDeps]:
         """Traverse AST and collect variable accesses with resolved paths."""
         accesses = []
         line_no = getattr(node, "lineno", "?")
 
         if isinstance(node, nodes.For):
-            accesses.extend(VariableTree._handle_for_loop(node, scope, line_no))
+            accesses.extend(VariableTree._handle_for_loop(node, scope, control_context, line_no))
         elif isinstance(node, nodes.If):
-            accesses.extend(VariableTree._handle_conditional(node, scope, line_no))
+            accesses.extend(VariableTree._handle_conditional(node, scope, control_context, line_no))
         elif isinstance(node, nodes.Output):
-            accesses.extend(VariableTree._handle_output(node, scope, line_no))
+            accesses.extend(VariableTree._handle_output(node, scope, control_context, line_no))
         else:
             # Continue traversal for other node types
             for child in node.iter_child_nodes():
-                accesses.extend(VariableTree._traverse_and_collect(child, scope))
+                accesses.extend(VariableTree._traverse_and_collect(child, scope, control_context))
 
         return accesses
 
     @staticmethod
-    def _handle_for_loop(node: nodes.For, scope: LoopStack, line_no: str) -> List[VariableAccess]:
+    def _handle_for_loop(node: nodes.For, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
         """Handle for loop: record iteration and update scope."""
         accesses = []
 
@@ -332,7 +335,7 @@ class VariableTree:
         array_path = VariableTree._extract_variable_path(node.iter)
         if array_path:
             resolved_array_path = VariableTree._resolve_variable_path(array_path, scope)
-            accesses.append(VariableAccess(resolved_array_path, VariableAccessContext.ITERATION, line_no))
+            iter_access = VariableAccess(resolved_array_path, VariableAccessContext.ITERATION, line_no)
 
             # Push loop variable into scope for the loop body
             if isinstance(node.target, nodes.Name):
@@ -344,14 +347,15 @@ class VariableTree:
                     "Example of valid syntax: {% for item in products %}"
                 )
 
+        new_control_context = control_context + [iter_access]
         # Process loop body with updated scope
         for child in node.iter_child_nodes():
-            accesses.extend(VariableTree._traverse_and_collect(child, scope))
+            accesses.extend(VariableTree._traverse_and_collect(child, scope, new_control_context))
 
         return accesses
 
     @staticmethod
-    def _handle_conditional(node: nodes.If, scope: LoopStack, line_no: str) -> List[VariableAccess]:
+    def _handle_conditional(node: nodes.If, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
         """Handle if statement: record condition variable."""
         accesses = []
 
@@ -359,16 +363,17 @@ class VariableTree:
         condition_path = VariableTree._extract_variable_path(node.test)
         if condition_path:
             resolved_condition = VariableTree._resolve_variable_path(condition_path, scope)
-            accesses.append(VariableAccess(resolved_condition, VariableAccessContext.CONDITION, line_no))
+            cond_access = VariableAccess(resolved_condition, VariableAccessContext.CONDITION, line_no)
+            new_control_context = control_context + [cond_access]
 
         # Process if body and else body
         for child in node.iter_child_nodes():
-            accesses.extend(VariableTree._traverse_and_collect(child, scope))
+            accesses.extend(VariableTree._traverse_and_collect(child, scope, new_control_context))
 
         return accesses
 
     @staticmethod
-    def _handle_output(node: nodes.Output, scope: LoopStack, line_no: str) -> List[VariableAccess]:
+    def _handle_output(node: nodes.Output, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
         """Handle output expressions: record variables being displayed."""
         accesses = []
 
@@ -377,7 +382,8 @@ class VariableTree:
                 output_path = VariableTree._extract_variable_path(output_node)
                 if output_path:
                     resolved_output = VariableTree._resolve_variable_path(output_path, scope)
-                    accesses.append(VariableAccess(resolved_output, VariableAccessContext.OUTPUT, line_no))
+                    output_access = VariableAccess(resolved_output, VariableAccessContext.OUTPUT, line_no)
+                    accesses.append(AccessWithDeps(output_access, control_context))
 
         return accesses
 
@@ -423,18 +429,20 @@ class VariableTree:
     # =============================================================================
 
     @staticmethod
-    def _filter_to_output_variables(all_accesses: List[VariableAccess]) -> List[VariableAccess]:
-        """Filter to only variables used in output (plus their control flow dependencies)."""
-        output_accesses = [a for a in all_accesses if a.context == VariableAccessContext.OUTPUT]
-        control_accesses = [a for a in all_accesses if a.context != VariableAccessContext.OUTPUT]
+    def _extract_output_dependencies(all_accesses: List[AccessWithDeps]) -> List[VariableAccess]:
+        """Remove all variables that are not required to evaluate the output."""
+        outputs = [a.access for a in all_accesses if a.access.context == VariableAccessContext.OUTPUT]
 
-        # Get root variables that have actual output usage
-        output_roots = {access.path[0] for access in output_accesses}
+        # Flatten all dependencies from outputs
+        control_deps: List[VariableAccess] = []
+        for a in all_accesses:
+            if a.access.context == VariableAccessContext.OUTPUT:
+                control_deps.extend(a.control_dependencies)
 
-        # Only include control flow accesses for variables that are also used in output
-        filtered_control = [a for a in control_accesses if a.path[0] in output_roots]
+        # Deduplicate
+        unique_control_deps = {tuple(dep.path): dep for dep in control_deps}.values()
 
-        return output_accesses + filtered_control
+        return outputs + list(unique_control_deps)
 
     @classmethod
     def _build_schema_tree(cls, accesses: List[VariableAccess]) -> VariableTree:

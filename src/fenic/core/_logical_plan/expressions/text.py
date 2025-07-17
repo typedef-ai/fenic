@@ -917,15 +917,14 @@ class JinjaExpr(LogicalExpr):
     """
 
     def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
-        self.variable_tree: VariableTree = validate_and_parse_jinja_template(template)
+        self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
         expr_names = {expr.name: expr for expr in exprs}
         available_columns = sorted(expr_names.keys())
 
         self.template: str = template
         self.exprs: List[Union[ColumnExpr, AliasExpr]] = []
 
-        # Validate template variables and build resolved_variables
-        for variable_name, variable_node in self.variable_tree.variables.items():
+        for variable_name in self.variable_tree.variables.keys():
             if variable_name not in expr_names:
                 raise ValidationError(
                     f"Template variable '{variable_name}' is not defined. "

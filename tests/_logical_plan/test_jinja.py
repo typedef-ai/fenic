@@ -1,5 +1,6 @@
-from typing import Optional
 import re
+from typing import Optional
+
 import pytest
 
 from fenic.core._logical_plan.jinja import (
@@ -7,8 +8,15 @@ from fenic.core._logical_plan.jinja import (
     VariableNode,
     VariableTree,
 )
-from fenic.core.error import ValidationError, TypeMismatchError
-from fenic.core.types import ArrayType, BooleanType, StringType, StructField, StructType, IntegerType
+from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.types import (
+    ArrayType,
+    BooleanType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 
 def assert_variable_node(
@@ -229,7 +237,7 @@ def test_mixed_nesting_object_access():
         },
     )
 
-def test_jinja_template_with_no_output():
+def test_jinja_template_with_dead_code():
     """Templates with no output should return empty schema"""
 
     # Complex template with loops, conditions, but no actual output
@@ -253,18 +261,36 @@ def test_jinja_template_with_no_output():
             <!-- Nested loop, still no output -->
         {% endfor %}
     {% endif %}
+    {% if should_greet %}
+        {{ hello }}
+    {% endif %}
     """
 
     tree = VariableTree.from_jinja_template(template)
 
-    # Should be completely empty because there is no output
-    assert tree.variables == {}
+    # Should only have hello and should_greet in the schema
+    assert len(tree.variables) == 2
+    assert "hello" in tree.variables
+    assert_variable_node(tree.variables["hello"], expected_req=None, expected_children={})
+    assert "should_greet" in tree.variables
+    assert_variable_node(tree.variables["should_greet"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
 
     # Also test simpler cases
     assert VariableTree.from_jinja_template("").variables == {}
     assert VariableTree.from_jinja_template("<!-- just comments -->").variables == {}
     assert VariableTree.from_jinja_template("{% for x in y %}{% endfor %}").variables == {}
     assert VariableTree.from_jinja_template("{% if x %}{% endif %}").variables == {}
+
+    # Make sure that scoped leaked variables are not treated as dead code even if they are not used in loop body
+    template = """
+    {% for item in items %}
+    {% endfor %}
+    {{ item }}
+    """
+    tree = VariableTree.from_jinja_template(template)
+    assert len(tree.variables) == 1
+    assert "items" in tree.variables
+    assert_variable_node(tree.variables["items"], expected_req=TypeRequirement.ARRAY, expected_children={"*": {"expected_req": None, "expected_children": {}}})
 
 def test_loop_variable_shadowing():
     """Nested loops can use same variable name (inner shadows outer)"""
@@ -526,7 +552,6 @@ def test_complex_expression_against_datatypes():
     {% endfor %}
     """
     tree = VariableTree.from_jinja_template(template)
-    print(tree.variables)
 
     # Valid type assertions (should not raise)
     tree.validate_jinja_variable(
@@ -536,3 +561,7 @@ def test_complex_expression_against_datatypes():
     tree.validate_jinja_variable(
         "bar", StructType(struct_fields=[StructField(name="baz", data_type=IntegerType)])
     )
+
+    # Validate that the error message for nested array access is correct
+    with pytest.raises(TypeMismatchError, match=re.escape("Column 'items[*].has_name' used in Jinja template must be a BooleanType, but found StringType. This variable is used in a conditional expression and must evaluate to a boolean.")):
+        tree.validate_jinja_variable("items", ArrayType(element_type=StructType(struct_fields=[StructField(name="has_name", data_type=StringType)])))
