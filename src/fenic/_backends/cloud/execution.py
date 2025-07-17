@@ -28,19 +28,24 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
     SaveToFileExecutionRequest,
     ShowExecutionRequest,
     StartExecutionRequest,
-    TableIdentifier,
+)
+from fenic_cloud.protos.engine.v1.engine_pb2 import (
+    TableIdentifier as TableIdentifierProto,
 )
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
 from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
+from fenic._backends.utils.catalog_utils import TableIdentifier
 from fenic.core._interfaces import BaseExecution
+from fenic.core._logical_plan.plans.sink import TableSink
 from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
     CloudExecutionError,
     CloudSessionError,
     ExecutionError,
     InternalError,
+    PlanError,
     ValidationError,
 )
 from fenic.core.metrics import LMMetrics, PhysicalPlanRepr, QueryMetrics, RMMetrics
@@ -164,16 +169,67 @@ class CloudExecution(BaseExecution):
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table."""
         logger.debug(f"Saving plan {logical_plan} as table: {table_name}")
+
+        if isinstance(logical_plan, TableSink):
+            if not logical_plan.location:
+                raise ValidationError(
+                    f"Cannot save to table '{table_name}' - location is required. "
+                    f"Provide a location.")
+
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.session_state.catalog.get_current_catalog(),
+            self.session_state.catalog.get_current_database(),
+        )
+
+        # If the table doesn't exist, create it, this has to be done in the user's context.
+        table_identifier_str = str(table_identifier)
+        table_exists = self.session_state.catalog.does_table_exist(table_identifier_str)
+        if table_exists:
+            if mode == "error":
+                raise PlanError(
+                    f"Cannot save to table '{table_name}' - it already exists and mode is 'error'. "
+                    f"Choose a different approach: "
+                    f"1) Use mode='overwrite' to replace the existing table, "
+                    f"2) Use mode='append' to add data to the existing table, "
+                    f"3) Use mode='ignore' to skip saving if table exists, "
+                    f"4) Use a different table name.")
+            if mode == "ignore":
+                logger.warning(f"Table {table_name} already exists, ignoring write.")
+                return QueryMetrics()
+            if mode == "append":
+                saved_schema = self.session_state.catalog.describe_table(table_identifier_str)
+                plan_schema = logical_plan.schema()
+                if saved_schema != plan_schema:
+                    raise PlanError(
+                        f"Cannot append to table '{table_name}' - schema mismatch detected. "
+                        f"The existing table has a different schema than your DataFrame. "
+                        f"Existing schema: {saved_schema} "
+                        f"Your DataFrame schema: {plan_schema} "
+                        f"To fix this: "
+                        f"1) Use mode='overwrite' to replace the table with your DataFrame's schema, "
+                        f"2) Modify your DataFrame to match the existing table's schema, "
+                        f"3) Use a different table name.")
+        else:
+            logger.debug(f"Creating table {table_identifier_str} with location: {logical_plan.location}")
+            # Create the table in the catalog.
+            result =self.session_state.catalog.create_table(
+                table_identifier_str,
+                logical_plan.schema(),
+                location=logical_plan.location,
+                ignore_if_exists=mode == "ignore",
+                file_format="PARQUET")
+            logger.debug(f"Table {table_identifier_str} created with result: {result}")
+
         # TODO (DY): check that current catalog and schema (if specified in table_name) match session state
-        table_identifier = TableIdentifier(
-            catalog=self.session_state.catalog,
-            schema=self.session_state.schema,
+        table_identifier_proto = TableIdentifierProto(
+            catalog=table_identifier.catalog,
+            schema=table_identifier.db,
             table=table_name,
         )
         request = StartExecutionRequest(
             save_as_table=SaveAsTableExecutionRequest(
                 serialized_plan=LogicalPlanSerde.serialize(logical_plan),
-                table_identifier=table_identifier,
+                table_identifier=table_identifier_proto,
                 mode=mode,
             )
         )

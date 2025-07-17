@@ -368,6 +368,7 @@ class PlanConverter:
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
                 schema=logical.schema(),
+                location=logical.location,
             )
 
         elif isinstance(logical, SQL):

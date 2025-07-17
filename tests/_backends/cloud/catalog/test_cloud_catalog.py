@@ -10,6 +10,9 @@ import pytest
 
 pytest.importorskip("fenic_cloud")
 from fenic_cloud.hasura_client.generated_graphql_client import Client
+from fenic_cloud.hasura_client.generated_graphql_client.client import (
+    CatalogDispatchInput,
+)
 from fenic_cloud.hasura_client.generated_graphql_client.create_namespace import (
     CreateNamespace,
     CreateNamespaceInsertCatalogNamespaceOne,
@@ -103,6 +106,7 @@ TEST_EPHMERAL_CATALOG_ID = "123e4567-e89b-12d3-a456-426614174010"
 TEST_NEW_TABLE_NAME = "new_table"
 TEST_SAMPLE_LOCATION = "s3://test-bucket/test-path"
 TEST_NEW_CATALOG_NAME = "new_catalog"
+TEST_NONEXISTENT_IDENTIFIER = "nonexistent"
 
 
 @pytest.fixture(scope="function")
@@ -121,6 +125,55 @@ def schema(): # noqa: D103
         ]
     )
 
+def _load_table_side_effect(
+            dispatch: CatalogDispatchInput,
+            namespace: str,
+            name: str) -> LoadTable:
+    if TEST_NONEXISTENT_IDENTIFIER in name or name in [TEST_NEW_TABLE_NAME]:
+        raise Exception("Table not found")
+    return LoadTable(
+        simple_catalog=LoadTableSimpleCatalog(
+            load_table=LoadTableSimpleCatalogLoadTable(
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                schema_=SimpleCatalogTableDetailsSchema(
+                    schema_id=1,
+                    identifier_field_ids=[1, 2, 3],
+                    fields=[
+                        SimpleCatalogSchemaDetailsFields(
+                            id=1,
+                            name="id",
+                            data_type="int64",
+                            arrow_data_type="int64",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                        SimpleCatalogSchemaDetailsFields(
+                            id=2,
+                            name="name",
+                            data_type="string",
+                            arrow_data_type="string",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                        SimpleCatalogSchemaDetailsFields(
+                            id=3,
+                            name="account_balance",
+                            data_type="Decimal128",
+                            arrow_data_type="Decimal128",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                    ],
+                ),
+                name=TEST_TABLE_NAME_1,
+                location=None,
+                external=True,
+                file_format=None,
+                partition_field_names=None,
+            ),
+        ),
+    )
 
 @pytest.fixture
 def mock_user_client(schema):
@@ -181,49 +234,7 @@ def mock_user_client(schema):
         )
     )
 
-    user_client.load_table.return_value = LoadTable(
-        simple_catalog=LoadTableSimpleCatalog(
-            load_table=LoadTableSimpleCatalogLoadTable(
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-                schema_=SimpleCatalogTableDetailsSchema(
-                    schema_id=1,
-                    identifier_field_ids=[1, 2, 3],
-                    fields=[
-                        SimpleCatalogSchemaDetailsFields(
-                            id=1,
-                            name="id",
-                            data_type="int64",
-                            arrow_data_type="int64",
-                            nullable=False,
-                            metadata=None,
-                        ),
-                        SimpleCatalogSchemaDetailsFields(
-                            id=2,
-                            name="name",
-                            data_type="string",
-                            arrow_data_type="string",
-                            nullable=False,
-                            metadata=None,
-                        ),
-                        SimpleCatalogSchemaDetailsFields(
-                            id=3,
-                            name="account_balance",
-                            data_type="Decimal128",
-                            arrow_data_type="Decimal128",
-                            nullable=False,
-                            metadata=None,
-                        ),
-                    ],
-                ),
-                name=TEST_TABLE_NAME_1,
-                location=None,
-                external=True,
-                file_format=None,
-                partition_field_names=None,
-            ),
-        ),
-    )
+    user_client.load_table.side_effect = _load_table_side_effect
 
     user_client.create_namespace.return_value = CreateNamespace(
         insert_catalog_namespace_one=CreateNamespaceInsertCatalogNamespaceOne(
@@ -590,9 +601,12 @@ def _init_cloud_catalog(
 ) -> Any:
     os.environ["TYPEDEF_USER_ID"] = "mock_user_id"
     os.environ["TYPEDEF_USER_SECRET"] = "mock_user_secret"  # nosec B105
-    os.environ["HASURA_GRAPHQL_ADMIN_SECRET"] = "mock_admin_secret"  # nosec B105
     os.environ["REMOTE_SESSION_AUTH_PROVIDER_URI"] = "mock_auth_provider_uri"
-    cloud_catalog = CloudCatalog(session_state, cloud_session_manager)
+    cloud_catalog = CloudCatalog(
+        ephemeral_catalog_id=session_state.ephemeral_catalog_id,
+        asyncio_loop=session_state.asyncio_loop,
+        cloud_session_manager=cloud_session_manager,
+    )
     cloud_catalog.user_client = client
     cloud_catalog.user_id = TEST_DEFAULT_USER_ID
     cloud_catalog.organization_id = TEST_DEFAULT_ORGANIZATION_ID
