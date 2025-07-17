@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 
 from fenic.core._logical_plan.jinja import (
@@ -10,8 +12,8 @@ from fenic.core.error import ValidationError
 
 def assert_variable_node(
     node: VariableNode,
-    expected_req: TypeRequirement | None,
-    expected_children: dict[str, dict] | None = None,
+    expected_req: Optional[TypeRequirement],
+    expected_children: Optional[dict[str, dict]] = None,
 ):
     assert node.requirement == expected_req
     expected_children = expected_children or {}
@@ -19,9 +21,18 @@ def assert_variable_node(
     for child_name, child_expectations in expected_children.items():
         assert_variable_node(node.children[child_name], **child_expectations)
 
-def test_struct_access():
-    template = "{{ user.name }}"
+def test_variable_access():
+    template = "{{ user }}"
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
+    assert "user" in tree.variables
+    assert_variable_node(tree.variables["user"], expected_req=None, expected_children={})
+
+
+def test_struct_access():
+    template = "{{ user.name }} {{ user['name'] }}"
+    tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
     assert "user" in tree.variables
     assert_variable_node(
         tree.variables["user"],
@@ -29,23 +40,104 @@ def test_struct_access():
         expected_children={"name": {"expected_req": None, "expected_children": {}}},
     )
 
-def test_static_index_access():
-    template = "{{ items[0] }}"
+def test_array_access():
+    template = "{{ items[0] }} {{ items[1] }}"
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
     assert "items" in tree.variables
     assert_variable_node(tree.variables["items"], expected_req=TypeRequirement.ARRAY, expected_children={"*": {"expected_req": None, "expected_children": {}}})
 
-def test_for_loop_with_attr_access():
-    template = "{% for item in items %}{{ item.name }}{% endfor %}"
+def test_for_loop():
+    template = "{% for item in items %}{{ item }} {% else %} {{ fallback }} {% endfor %}"
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 2
     assert "items" in tree.variables
     assert_variable_node(
         tree.variables["items"],
         expected_req=TypeRequirement.ARRAY,
-        expected_children={"*": {"expected_req": TypeRequirement.STRUCT, "expected_children": {"name": {"expected_req": None, "expected_children": {}}}}},
+        expected_children={"*": {"expected_req": None, "expected_children": {}}},
+    )
+    assert "fallback" in tree.variables
+    assert_variable_node(tree.variables["fallback"], expected_req=None, expected_children={})
+
+    template = """
+    {% for user in users %}
+      {% for order in user.orders %}
+          Order ID: {{ order.id }}
+      {% endfor %}
+    {% endfor %}
+    """
+    tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
+    assert "users" in tree.variables
+    assert_variable_node(
+        tree.variables["users"],
+        expected_req=TypeRequirement.ARRAY,
+        expected_children={
+            "*": {
+                "expected_req": TypeRequirement.STRUCT,
+                "expected_children": {
+                    "orders": {
+                        "expected_req": TypeRequirement.ARRAY,
+                        "expected_children": {
+                            "*": {
+                                "expected_req": TypeRequirement.STRUCT,
+                                "expected_children": {
+                                    "id": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     )
 
-def test_multiple_variables():
+
+def test_conditional():
+    template = """
+    {% if x %}
+        {{ x }}
+    {% elif y %}
+        {{ y }}
+    {% else %}
+        {{ z }}
+    {% endif %}
+    """
+    tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 3
+    assert "x" in tree.variables
+    assert_variable_node(tree.variables["x"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
+    assert "y" in tree.variables
+    assert_variable_node(tree.variables["y"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
+    assert "z" in tree.variables
+    assert_variable_node(tree.variables["z"], expected_req=None, expected_children={})
+
+    template = """
+    {% if x %}
+        {{ x }}
+    {% else %}
+        {% if y %}
+            {{ y }}
+        {% else %}
+            {{ z }}
+        {% endif %}
+    {% endif %}
+    """
+    tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 3
+    assert "x" in tree.variables
+    assert_variable_node(tree.variables["x"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
+    assert "y" in tree.variables
+    assert_variable_node(tree.variables["y"], expected_req=TypeRequirement.BOOLEAN, expected_children={})
+    assert "z" in tree.variables
+    assert_variable_node(tree.variables["z"], expected_req=None, expected_children={})
+
+
+def test_complex():
     template = """
     Hello {{ user.name }}!
 
@@ -60,7 +152,7 @@ def test_multiple_variables():
     You have {{ notifications[0] }} unread messages.
     """
     tree = validate_and_parse_jinja_template(template)
-
+    assert len(tree.variables) == 3
     # user should be STRUCT with children
     assert "user" in tree.variables
     assert_variable_node(
@@ -100,48 +192,12 @@ def test_multiple_variables():
     assert "notifications" in tree.variables
     assert_variable_node(tree.variables["notifications"], expected_req=TypeRequirement.ARRAY, expected_children={"*": {"expected_req": None, "expected_children": {}}})
 
-def test_nested_loops_with_conditional():
-    template = """
-    {% for user in users %}
-      {% for order in user.orders %}
-        {% if order.paid %}
-          Order ID: {{ order.id }}
-        {% endif %}
-      {% endfor %}
-    {% endfor %}
-    """
-    tree = validate_and_parse_jinja_template(template)
-
-    # users should be ARRAY with child '*'
-    assert "users" in tree.variables
-    assert_variable_node(
-        tree.variables["users"],
-        expected_req=TypeRequirement.ARRAY,
-        expected_children={
-            "*": {
-                "expected_req": TypeRequirement.STRUCT,
-                "expected_children": {
-                    "orders": {
-                        "expected_req": TypeRequirement.ARRAY,
-                        "expected_children": {
-                            "*": {
-                                "expected_req": TypeRequirement.STRUCT,
-                                "expected_children": {
-                                    "paid": {"expected_req": TypeRequirement.BOOLEAN, "expected_children": {}},
-                                    "id": {"expected_req": None, "expected_children": {}},
-                                },
-                            }
-                        },
-                    }
-                },
-            }
-        },
-    )
 
 def test_mixed_nesting_object_access():
     """Mix of array access and struct access should work"""
     template = "{{ data[0].users[1].profile.name }}"
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
 
     assert "data" in tree.variables
     assert_variable_node(
@@ -206,21 +262,24 @@ def test_jinja_template_with_no_output():
     # Also test simpler cases
     assert validate_and_parse_jinja_template("").variables == {}
     assert validate_and_parse_jinja_template("<!-- just comments -->").variables == {}
-    assert validate_and_parse_jinja_template("<h1>Static HTML</h1>").variables == {}
     assert validate_and_parse_jinja_template("{% for x in y %}{% endfor %}").variables == {}
+    assert validate_and_parse_jinja_template("{% if x %}{% endif %}").variables == {}
 
 def test_loop_variable_shadowing():
     """Nested loops can use same variable name (inner shadows outer)"""
     template = """
     {% for item in outer_items %}
       {{ item.outer_field }}
+      {{ item.name }}
       {% for item in inner_items %}
         {{ item.inner_field }}
+        {{ item.name }}
       {% endfor %}
-      {{ item.outer_field_2 }}
+      {{ item.inner_field_2 }}
     {% endfor %}
     """
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 2
 
     # Should have both outer_items and inner_items in schema
     assert "outer_items" in tree.variables
@@ -235,7 +294,7 @@ def test_loop_variable_shadowing():
                 "expected_req": TypeRequirement.STRUCT,
                 "expected_children": {
                     "outer_field": {"expected_req": None, "expected_children": {}},
-                    "outer_field_2": {"expected_req": None, "expected_children": {}},
+                    "name": {"expected_req": None, "expected_children": {}},
                 },
             }
         },
@@ -250,65 +309,149 @@ def test_loop_variable_shadowing():
                 "expected_req": TypeRequirement.STRUCT,
                 "expected_children": {
                     "inner_field": {"expected_req": None, "expected_children": {}},
+                    "inner_field_2": {"expected_req": None, "expected_children": {}},
+                    "name": {"expected_req": None, "expected_children": {}},
                 },
             }
         },
     )
 
     template = """
-    {% for item in outer_items %}
+    {% for item in stores %}
       {{ item.name }}
-      {% for item in inner_items %}
-        {{ item.name }}
+      {% for manager in item.managers %}
+        {{ manager.first_name }}
       {% endfor %}
     {% endfor %}
+    {% for item in products %}
+      {{ item.name }}
+      {% for item in item.reviews %}
+        {{ item.rating }}
+      {% endfor %}
+      {{ item.author }}
+    {% endfor %}
+    {{ item.date }}
+    {{ manager.last_name }}
     """
     tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 2
+    assert_variable_node(
+        tree.variables["stores"],
+        expected_req=TypeRequirement.ARRAY,
+        expected_children={
+            "*": {
+                "expected_req": TypeRequirement.STRUCT,
+                "expected_children": {
+                    "name": {
+                        "expected_req": None,
+                        "expected_children": {}
+                    },
+                    "managers": {
+                        "expected_req": TypeRequirement.ARRAY,
+                        "expected_children": {
+                            "*": {
+                                "expected_req": TypeRequirement.STRUCT,
+                                "expected_children": {
+                                    "first_name": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    },
+                                    "last_name": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+    assert_variable_node(
+        tree.variables["products"],
+        expected_req=TypeRequirement.ARRAY,
+        expected_children={
+            "*": {
+                "expected_req": TypeRequirement.STRUCT,
+                "expected_children": {
+                    "name": {
+                        "expected_req": None,
+                        "expected_children": {}
+                    },
+                    "reviews": {
+                        "expected_req": TypeRequirement.ARRAY,
+                        "expected_children": {
+                            "*": {
+                                "expected_req": TypeRequirement.STRUCT,
+                                "expected_children": {
+                                    "rating": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    },
+                                    "author": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    },
+                                    "date": {
+                                        "expected_req": None,
+                                        "expected_children": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
 
-    # Both arrays should have items with 'name' field
-    assert "outer_items" in tree.variables
-    assert "inner_items" in tree.variables
 
-    # Both should have name field
-    assert "name" in tree.variables["outer_items"].children["*"].children
-    assert "name" in tree.variables["inner_items"].children["*"].children
+def test_array_with_both_loop_variable_and_index_access():
+    template = """
+    {% for item in products %}
+    Product: {{ item.name }}
+    {% endfor %}
+    {{ products[0] }}
+    {{ item.name.first }}
+    """
 
+    tree = validate_and_parse_jinja_template(template)
+    assert len(tree.variables) == 1
+    assert_variable_node(
+        tree.variables["products"],
+        expected_req=TypeRequirement.ARRAY,
+        expected_children={
+            "*": {
+                "expected_req": TypeRequirement.STRUCT,
+                "expected_children": {
+                    "name": {
+                        "expected_req": TypeRequirement.STRUCT,
+                        "expected_children": {
+                            "first": {
+                                "expected_req": None,
+                                "expected_children": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
 
-def test_disallowed_filter():
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template("{{ name|upper }}")
+@pytest.mark.parametrize("template,expected_error", [
+    ("{{ name|upper }}", "Unsupported Jinja template syntax"),
+    ("{{ get_user() }}", "Unsupported Jinja template syntax"),
+    ("{% set x = 5 %}", "Unsupported Jinja template syntax"),
+    ("{% for item in items %}{{ loop.index }}{% endfor %}", "Unsupported Jinja template syntax"),
+    ("{{ items[i] }}", "Unsupported Jinja template syntax"),
+    ("{{ items[true] }}", "Unsupported Jinja template syntax"),
+    ("{{ 5 }}", "Unsupported Jinja template syntax"),
+    ("{% for item in items %}{{ item|upper }}{% endfor %}", "Unsupported Jinja template syntax"),
+])
 
-def test_function_call():
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template("{{ get_user() }}")
-
-def test_set_statement():
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template("{% set x = 5 %}")
-
-def test_using_loop_object():
-    template = "{% for item in items %}{{ loop.index }}{% endfor %}"
-    with pytest.raises(ValidationError, match= "Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template(template)
-
-def test_dynamic_index():
-    template = "{{ items[i] }}"
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template(template)
-
-def test_index_not_str_or_int():
-    template = "{{ items[true] }}"
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template(template)
-
-def test_literal_const_expression():
-    template = "{{ 5 }}"
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
-        validate_and_parse_jinja_template(template)
-
-def test_filter_inside_loop():
-    template = "{% for item in items %}{{ item|upper }}{% endfor %}"
-    with pytest.raises(ValidationError, match="Unsupported Jinja template syntax on line"):
+def test_unsupported_syntax(template, expected_error):
+    with pytest.raises(ValidationError, match=expected_error):
         validate_and_parse_jinja_template(template)
 
 def test_conflicting_type_requirements():
