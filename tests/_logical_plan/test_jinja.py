@@ -542,26 +542,76 @@ def test_conditional_expression_requires_boolean_type():
     with pytest.raises(TypeMismatchError, match="Column 'x' used in Jinja template must be a BooleanType, but found StringType. This variable is used in a conditional expression and must evaluate to a boolean."):
         tree.validate_jinja_variable("x", StringType)
 
-def test_complex_expression_against_datatypes():
+def test_complex_expression_validation():
     template = """
-    {% for item in items %}
-        {% if item.has_name %}
-            {{ foo.bar }}
-            {{ bar.baz }}
-        {% endif %}
+    {% for product in products %}
+        {% for review in product.reviews %}
+            {% if review.has_name %}
+                {{ foo.bar }}
+                {{ bar.baz }}
+            {% endif %}
+        {% endfor %}
     {% endfor %}
     """
     tree = VariableTree.from_jinja_template(template)
 
     # Valid type assertions (should not raise)
     tree.validate_jinja_variable(
-        "items", ArrayType(element_type=StructType(struct_fields=[StructField(name="has_name", data_type=BooleanType)]))
+        "products",
+        ArrayType(
+            element_type=StructType(
+                struct_fields=[
+                    StructField(
+                        name="reviews",
+                        data_type=ArrayType(
+                            element_type=StructType(
+                                struct_fields=[
+                                    StructField(name="has_name", data_type=BooleanType)
+                                ]
+                            )
+                        )
+                    )
+                ]
+            )
+        )
     )
-    tree.validate_jinja_variable("foo", StructType(struct_fields=[StructField(name="bar", data_type=StringType)]))
     tree.validate_jinja_variable(
-        "bar", StructType(struct_fields=[StructField(name="baz", data_type=IntegerType)])
+        "foo",
+        StructType(
+            struct_fields=[StructField(name="bar", data_type=StringType)]
+        )
+    )
+    tree.validate_jinja_variable(
+        "bar",
+        StructType(
+            struct_fields=[StructField(name="baz", data_type=IntegerType)]
+        )
     )
 
     # Validate that the error message for nested array access is correct
-    with pytest.raises(TypeMismatchError, match=re.escape("Column 'items[*].has_name' used in Jinja template must be a BooleanType, but found StringType. This variable is used in a conditional expression and must evaluate to a boolean.")):
-        tree.validate_jinja_variable("items", ArrayType(element_type=StructType(struct_fields=[StructField(name="has_name", data_type=StringType)])))
+    with pytest.raises(
+        TypeMismatchError,
+        match=re.escape(
+            "Column 'products[*].reviews[*].has_name' used in Jinja template must be a BooleanType, but found StringType. "
+            "This variable is used in a conditional expression and must evaluate to a boolean."
+        )
+    ):
+        tree.validate_jinja_variable(
+            "products",
+            ArrayType(
+                element_type=StructType(
+                    struct_fields=[
+                        StructField(
+                            name="reviews",
+                            data_type=ArrayType(
+                                element_type=StructType(
+                                    struct_fields=[
+                                        StructField(name="has_name", data_type=StringType)
+                                    ]
+                                )
+                            )
+                        )
+                    ]
+                )
+            )
+        )
