@@ -12,8 +12,8 @@ from fenic._backends.local.utils.io_utils import (
     does_path_exist,
     query_files,
 )
-from fenic.core._interfaces.execution import BaseExecution
-from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.api.execution import CommonExecution
+from fenic.core._logical_plan import LogicalPlan
 from fenic.core._utils.schema import (
     convert_polars_schema_to_custom_schema,
 )
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
 
-class LocalExecution(BaseExecution):
+class LocalExecution(CommonExecution):
     session_state: LocalSessionState
     transpiler: LocalTranspiler
 
@@ -101,35 +101,12 @@ class LocalExecution(BaseExecution):
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
         self.session_state._check_active()
-        table_exists = self.session_state.catalog.does_table_exist(table_name)
-
-        if table_exists:
-            if mode == "error":
-                raise PlanError(
-                    f"Cannot save to table '{table_name}' - it already exists and mode is 'error'. "
-                    f"Choose a different approach: "
-                    f"1) Use mode='overwrite' to replace the existing table, "
-                    f"2) Use mode='append' to add data to the existing table, "
-                    f"3) Use mode='ignore' to skip saving if table exists, "
-                    f"4) Use a different table name."
-                )
-            if mode == "ignore":
-                logger.warning(f"Table {table_name} already exists, ignoring write.")
-                return QueryMetrics()
-            if mode == "append":
-                saved_schema = self.session_state.catalog.describe_table(table_name)
-                plan_schema = logical_plan.schema()
-                if saved_schema != plan_schema:
-                    raise PlanError(
-                        f"Cannot append to table '{table_name}' - schema mismatch detected. "
-                        f"The existing table has a different schema than your DataFrame. "
-                        f"Existing schema: {saved_schema} "
-                        f"Your DataFrame schema: {plan_schema} "
-                        f"To fix this: "
-                        f"1) Use mode='overwrite' to replace the table with your DataFrame's schema, "
-                        f"2) Modify your DataFrame to match the existing table's schema, "
-                        f"3) Use a different table name."
-                    )
+        table_exists, query_metrics = self._validate_table_existance(logical_plan, table_name, mode)
+        if table_exists and query_metrics:
+            # trunk-ignore-begin(bandit/B101)
+            assert mode == "ignore", "only mode to fulfill this invariant is ignore."
+            # trunk-ignore-end(bandit/B101)
+            return query_metrics
         physical_plan = self.transpiler.transpile(logical_plan)
         try:
             _, metrics = physical_plan.execute()

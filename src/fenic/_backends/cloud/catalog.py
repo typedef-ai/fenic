@@ -4,6 +4,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Coroutine, Dict, List, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 import polars as pl
@@ -57,12 +58,12 @@ from fenic.core.types import Schema
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass(frozen=True)
 class CatalogKey:
     catalog_name: str
     catalog_id: UUID
 
+CLOUD_SUPPORTED_SCHEMES = ["s3"]
 
 class CloudCatalog(BaseCatalog):
     """A catalog for cloud execution mode. Implements the BaseCatalog -
@@ -113,10 +114,18 @@ class CloudCatalog(BaseCatalog):
             remote_catalogs.append(DEFAULT_CATALOG_NAME)
             return remote_catalogs
 
-    def create_catalog(self, catalog_name: str, ignore_if_exists: bool = True) -> bool:
+    def create_catalog(
+            self,
+            catalog_name: str,
+            location: str,
+            ignore_if_exists: bool = True) -> bool:
         """Create a new catalog."""
         if compare_object_names(catalog_name, DEFAULT_CATALOG_NAME):
             raise CatalogError("Cannot create a catalog with the default name")
+
+        catalog_location = urlparse(location)
+        if catalog_location.scheme not in CLOUD_SUPPORTED_SCHEMES:
+            raise CatalogError(f"Unsupported scheme: {catalog_location.scheme}")
 
         with self.lock:
             if self._does_catalog_exist(catalog_name):
@@ -132,7 +141,7 @@ class CloudCatalog(BaseCatalog):
                     created_by_user_id=UUID(self.user_id),
                     parent_organization_id=UUID(self.organization_id),
                     catalog_type=TypedefCatalogTypeReferenceEnum.INTERNAL_TYPEDEF,
-                    catalog_warehouse="",
+                    catalog_warehouse=location,
                 )
             )
             return True
@@ -268,14 +277,12 @@ class CloudCatalog(BaseCatalog):
         self,
         table_name: str,
         schema: Schema,
-        location: str,
         ignore_if_exists: bool = True,
-        file_format: Optional[str] = None,
     ) -> bool:
         """Create a new table in the current database."""
         with self.lock:
             return self._create_table(
-                table_name, schema, location, ignore_if_exists, file_format
+                table_name, schema, ignore_if_exists
             )
 
     def create_view(
@@ -565,9 +572,7 @@ class CloudCatalog(BaseCatalog):
         self,
         table_name: str,
         schema: Schema,
-        location: str,
         ignore_if_exists: bool = True,
-        file_format: Optional[str] = None,
     ) -> bool:
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.current_catalog_name, self.current_database_name
@@ -596,11 +601,6 @@ class CloudCatalog(BaseCatalog):
                 raise TableAlreadyExistsError(table_identifier.table, table_identifier.db)
 
         catalog_id = self._get_catalog_id(table_identifier.catalog)
-        fixed_file_format = (
-            FileFormat.PARQUET
-            if file_format is None
-            else FileFormat(file_format.upper())
-        )
         self._execute_catalog_command(
             self.user_client.sc_create_table(
                 dispatch=self._get_catalog_dispatch_input(catalog_id),
@@ -610,8 +610,8 @@ class CloudCatalog(BaseCatalog):
                     canonical_name=table_identifier.table.casefold(),
                     description=None,
                     external=False,
-                    location=location,
-                    file_format=fixed_file_format,
+                    location=self._get_table_location_from_table_identifier(table_identifier),
+                    file_format=FileFormat.PARQUET,
                     partition_field_names=[],
                     schema_=self._get_schema_input_from_schema(schema),
                 ),
@@ -700,3 +700,8 @@ class CloudCatalog(BaseCatalog):
             return pa.float64()
         else:
             return schema_type
+
+    @staticmethod
+    def _get_table_location_from_table_identifier(table_identifier: TableIdentifier) -> str:
+        """Gets the key in the s3 bucket for the table based on its database and name."""
+        return f"{table_identifier.db}/{table_identifier.table}"

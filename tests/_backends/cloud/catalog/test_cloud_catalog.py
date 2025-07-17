@@ -531,14 +531,12 @@ def test_create_table(cloud_catalog, schema): # noqa: D103
         cloud_catalog.create_table(
             TEST_TABLE_NAME_1,
             schema=schema,
-            location=TEST_SAMPLE_LOCATION,
             ignore_if_exists=False,
         )
     with pytest.raises(CatalogError):
         cloud_catalog.create_table(
             "some_catalog.some_database.some_table",
             schema=schema,
-            location=TEST_SAMPLE_LOCATION,
         )
 
 
@@ -566,16 +564,16 @@ def test_drop_table(cloud_catalog): # noqa: D103
 
 def test_create_catalog(cloud_catalog): # noqa: D103
     with pytest.raises(CatalogError):
-        cloud_catalog.create_catalog(DEFAULT_CATALOG_NAME)
+        cloud_catalog.create_catalog(DEFAULT_CATALOG_NAME, TEST_SAMPLE_LOCATION)
 
-    assert cloud_catalog.create_catalog(TEST_NEW_CATALOG_NAME)
+    assert cloud_catalog.create_catalog(TEST_NEW_CATALOG_NAME, TEST_SAMPLE_LOCATION)
 
     # The catalog already exists, so we should return False (default for ignore_if_exists is True)
-    assert not cloud_catalog.create_catalog(TEST_CATALOG_NAME)
+    assert not cloud_catalog.create_catalog(TEST_CATALOG_NAME, TEST_SAMPLE_LOCATION)
 
     # The catalog already exists, so we should raise an error if ignore_if_exists is False
     with pytest.raises(CatalogAlreadyExistsError):
-        cloud_catalog.create_catalog(TEST_CATALOG_NAME, ignore_if_exists=False)
+        cloud_catalog.create_catalog(TEST_CATALOG_NAME, TEST_SAMPLE_LOCATION, ignore_if_exists=False)
 
 
 def test_drop_catalog(cloud_catalog): # noqa: D103
