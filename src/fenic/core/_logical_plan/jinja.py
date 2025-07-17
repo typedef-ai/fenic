@@ -9,6 +9,7 @@ from jinja2.exceptions import TemplateSyntaxError
 
 from fenic.core.error import ValidationError
 
+# Define which Jinja AST node types we allow in templates
 ALLOWED_JINJA_NODES = (
     nodes.Template,
     nodes.Output,
@@ -23,17 +24,20 @@ ALLOWED_JINJA_NODES = (
 )
 
 class TypeRequirement(Enum):
+    """Represents the expected data type for a variable based on how it's used in the template."""
     BOOLEAN = "boolean"
     ARRAY = "array"
     STRUCT = "struct"
 
 @dataclass
 class VariableNode:
+    """Represents a variable in the Jinja template and its expected data type."""
     requirement: Optional[TypeRequirement] = None
     children: dict[str, VariableNode] = field(default_factory=dict)
     line_no: str = '?'
 
     def set_requirement(self, req: TypeRequirement, line_no: str = '?') -> None:
+        """Sets the requirement for the variable and validates that it's consistent with previous uses. Errors if inconsistent."""
         if self.requirement is not None and self.requirement != req:
             raise ValidationError(
                 f"Variable used inconsistently across the jinja template:\n"
@@ -45,38 +49,44 @@ class VariableNode:
         self.line_no = line_no
 
     def get_or_create_child(self, name: str) -> VariableNode:
+        """Get or create a child node (for nested fields like user.name or items[*])."""
         if name not in self.children:
             self.children[name] = VariableNode()
         return self.children[name]
 
 @dataclass
 class VariableTree:
+    """The root of our schema tree. Contains all top-level variables."""
     variables: dict[str, VariableNode] = field(default_factory=dict)
 
     def get_or_create_variable(self, name: str) -> VariableNode:
+        """Get or create a top-level variable node."""
         if name not in self.variables:
             self.variables[name] = VariableNode()
         return self.variables[name]
 
 class VariableAccessContext(Enum):
+    """Represents how a variable is used in the template."""
     OUTPUT = "output"
     CONDITION = "condition"
     ITERATION = "iteration"
 
 @dataclass
 class VariableAccess:
+    """Represents one instance of a variable access in the template."""
     path: List[str]
     context: VariableAccessContext
     node: nodes.Node
 
 @dataclass
 class LoopDefinition:
+    """Represents a for loop definition in the template."""
     var_name: str
     array_path: List[str]
     loop_node: nodes.For
 
 def _annotate_parents(node: nodes.Node, parent: Optional[nodes.Node] = None) -> None:
-    """Recursively add `parent` references to each AST node since Jinja doesn't have them."""
+    """Recursively add `parent` references to each AST node since Jinja includes them in the AST. This is used for loop resolution."""
     node.parent = parent  # type: ignore[attr-defined]
     for child in node.iter_child_nodes():
         _annotate_parents(child, parent=node)
@@ -109,7 +119,7 @@ def _validate_ast(ast: nodes.Node) -> None:
 
         if isinstance(node, nodes.Name) and node.name == "loop":
             raise ValidationError(
-                f"Unsupported Jinja template syntax on line {line_no}: Use of 'loop' variable (e.g. loop.index) is not supported."
+                f"Unsupported Jinja template syntax on line {line_no}: The special 'loop' variable (e.g., 'loop.index') is not supported. Please avoid using 'loop' inside your template expressions."
             )
 
         if isinstance(node, nodes.Getitem):
@@ -202,7 +212,7 @@ def _resolve_loop_variables(accesses: List[VariableAccess], loops: List[LoopDefi
     return resolved
 
 def _find_defining_loop(node: nodes.Node, var_name: str, loops: List[LoopDefinition]) -> Optional[LoopDefinition]:
-    """Find the innermost loop that defines the given variable name."""
+    """Find the innermost loop that defines the given variable name by walking up the AST until we find the loop that defines it."""
     current = getattr(node, 'parent', None)
     while current:
         for loop in loops:
@@ -214,7 +224,7 @@ def _find_defining_loop(node: nodes.Node, var_name: str, loops: List[LoopDefinit
 
 # Phase 4: Build the schema tree
 def _build_schema_tree(resolved_accesses: List[VariableAccess]) -> VariableTree:
-    """Build the final schema tree from resolved accesses."""
+    """Build the final schema tree from resolved accesses. Filters out variables that are not used in output."""
     tree = VariableTree()
 
     # Filter: only include variables that are actually used in output
@@ -261,7 +271,6 @@ def _build_schema_tree(resolved_accesses: List[VariableAccess]) -> VariableTree:
     # Process all relevant accesses
     for access in all_relevant_accesses:
         line_no = getattr(access.node, 'lineno', '?')
-        print("access", access, "line_no", line_no)
         if access.context == VariableAccessContext.ITERATION:
             add_path_to_tree(access.path, TypeRequirement.ARRAY, line_no)
         elif access.context == VariableAccessContext.CONDITION:
@@ -271,8 +280,30 @@ def _build_schema_tree(resolved_accesses: List[VariableAccess]) -> VariableTree:
 
     return tree
 
+
 def validate_and_parse_jinja_template(template: str) -> VariableTree:
-    """Validates that the provided template is a valid Jinja template and extracts the variable requirements used in the template as a VariableTree."""
+    """Validates a Jinja template and extracts the variable schema it requires.
+
+    This function analyzes a Jinja template to determine what data structure it expects,
+    including variable types (arrays, objects, booleans) and nested field requirements.
+    It also enforces security restrictions by only allowing safe template constructs.
+
+    Args:
+        template: A Jinja template string to validate and analyze.
+                 Example: "Hello {{ user.name }}! {% for item in products %}{{ item.price }}{% endfor %}"
+
+    Returns:
+        VariableTree: A tree structure describing the required variables and their types.
+                     For the example above, this would indicate:
+                     - user: object with 'name' field
+                     - products: array of objects with 'price' field
+
+    Raises:
+        ValidationError: If the template contains:
+                        - Invalid Jinja syntax
+                        - Unsupported constructs (complex expressions, dynamic indexing, etc.)
+                        - Inconsistent variable usage (e.g., using same variable as both array and object)
+    """
     # trunk-ignore(bandit/B701): Templates generate plain text, not HTML, so no risk of XSS. In fact, we may want to allow HTML in the template.
     env = Environment(autoescape=False)
     try:
@@ -288,13 +319,10 @@ def validate_and_parse_jinja_template(template: str) -> VariableTree:
 
     # Phase 2: Collect raw data
     accesses, loops = _collect_raw_data(ast)
-    print("accesses", accesses)
-    print("loops", loops)
 
     # Phase 3: Resolve loop variables
     resolved_accesses = _resolve_loop_variables(accesses, loops)
-    print("resolved_accesses", resolved_accesses)
+
     # Phase 4: Build schema tree
     tree = _build_schema_tree(resolved_accesses)
-    print("tree", tree)
     return tree
