@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
 
 from fenic.core._logical_plan.jinja import (
     VariableTree,
@@ -327,7 +327,7 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to search for within each value
+        substr: The substring to search for within each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -335,7 +335,7 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.contains"
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
         self._validator = SignatureValidator(self.function_name)
@@ -345,10 +345,7 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, LogicalExpr):
-            return [self.expr, self.substr]
-        else:
-            return [self.expr]
+        return [self.expr, self.substr]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.substr})"
@@ -558,7 +555,7 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the start of each value
+        substr: The substring to check for at the start of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -567,14 +564,9 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.starts_with"
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
-
-        # Validate substring if it is `str`
-        if isinstance(substr, str) and substr.startswith("^"):
-            raise ValidationError("substr should not start with a regular expression anchor")
-
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -582,13 +574,7 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, LogicalExpr):
-            return [self.expr, self.substr]
-        else:
-            return [self.expr]
-
-    def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.substr})"
+        return [self.expr, self.substr]
 
 
 class EndsWithExpr(ValidatedSignature, LogicalExpr):
@@ -599,7 +585,7 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the end of each value
+        substr: The substring to check for at the end of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
@@ -608,13 +594,9 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.ends_with"
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
-
-        if isinstance(substr, str) and substr.endswith("$"):
-            raise ValidationError("substr should not end with a regular expression anchor")
-
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -622,13 +604,7 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, LogicalExpr):
-            return [self.expr, self.substr]
-        else:
-            return [self.expr]
-
-    def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.substr})"
+        return [self.expr, self.substr]
 
 
 class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
@@ -684,26 +660,22 @@ class SplitPartExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        delimiter: The delimiter to split on (column expression or LiteralExpr string)
+        part_number: Which part to return (1-based, column expression or LiteralExpr integer)
 
     Raises:
-        TypeError: If the input expression is not a string column
+        TypeMismatchError: If the input expression is not a string column
         ValidationError: If part_number is 0
     """
 
     function_name = "text.split_part"
 
     def __init__(
-        self, expr: LogicalExpr, delimiter: Union[LogicalExpr, str], part_number: int
+        self, expr: LogicalExpr, delimiter: LogicalExpr, part_number: LogicalExpr
     ):
         self.expr = expr
         self.delimiter = delimiter
         self.part_number = part_number
-
-        if part_number == 0:
-            raise ValidationError("part_number cannot be 0")
-
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -711,15 +683,7 @@ class SplitPartExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.delimiter, LogicalExpr):
-            return [self.expr, self.delimiter]
-        else:
-            return [self.expr]
-
-    def __str__(self) -> str:
-        return (
-            f"{self.function_name}({self.expr}, {self.delimiter}, part_number={self.part_number})"
-        )
+        return [self.expr, self.delimiter, self.part_number]
 
 
 class StringCasingExpr(ValidatedSignature, LogicalExpr):
@@ -749,9 +713,6 @@ class StringCasingExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.case})"
-
 
 class StripCharsExpr(ValidatedSignature, LogicalExpr):
     """Expression for removing specified characters from string ends.
@@ -774,7 +735,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         expr: LogicalExpr,
-        chars: Union[LogicalExpr, str, None],
+        chars: Optional[LogicalExpr],
         side: Literal["left", "right", "both"] = "both",
     ):
         self.expr = expr
@@ -787,7 +748,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.chars, LogicalExpr):
+        if self.chars is not None:
             return [self.expr, self.chars]
         else:
             return [self.expr]
@@ -805,8 +766,8 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
 
     Args:
         expr: The input string column expression
-        search: The pattern to search for (can be a string or column expression)
-        replacement: The string to replace with (can be a string or column expression)
+        search: The pattern to search for (column expression or LiteralExpr string)
+        replacement: The string to replace with (column expression or LiteralExpr string)
         literal: Whether to treat the pattern as a literal string (True) or regex (False)
 
     Raises:
@@ -819,8 +780,8 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         expr: LogicalExpr,
-        search: Union[LogicalExpr, str],
-        replacement: Union[LogicalExpr, str],
+        search: LogicalExpr,
+        replacement: LogicalExpr,
         literal: bool,
     ):
         self.expr = expr
@@ -835,12 +796,7 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        logical_args = [self.expr]
-        if isinstance(self.search, LogicalExpr):
-            logical_args.append(self.search)
-        if isinstance(self.replacement, LogicalExpr):
-            logical_args.append(self.replacement)
-        return logical_args
+        return [self.expr, self.search, self.replacement]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.search}, {self.replacement})"

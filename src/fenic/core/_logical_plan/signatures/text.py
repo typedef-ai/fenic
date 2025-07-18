@@ -101,10 +101,7 @@ def register_text_signatures():
         "text.contains",
         FunctionSignature(
             function_name="text.contains",
-            type_signature=OneOf([
-                Exact([StringType]),  # string input only (substr is literal)
-                Exact([StringType, StringType])  # string input + string expr
-            ]),
+            type_signature=Exact([StringType, StringType]),
             return_type=BooleanType
         )
     )
@@ -162,10 +159,7 @@ def register_text_signatures():
         "text.starts_with",
         FunctionSignature(
             function_name="text.starts_with",
-            type_signature=OneOf([
-                Exact([StringType]),  # string input only (prefix is literal)
-                Exact([StringType, StringType])  # string input + prefix expr
-            ]),
+            type_signature=Exact([StringType, StringType]),
             return_type=BooleanType
         )
     )
@@ -175,7 +169,6 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.ends_with",
             type_signature=OneOf([
-                Exact([StringType]),  # string input only (suffix is literal)
                 Exact([StringType, StringType])  # string input + suffix expr
             ]),
             return_type=BooleanType
@@ -196,10 +189,7 @@ def register_text_signatures():
         "text.split_part",
         FunctionSignature(
             function_name="text.split_part",
-            type_signature=OneOf([
-                Exact([StringType]),  # string input only (delimiter is literal)
-                Exact([StringType, StringType])  # string input + delimiter expr
-            ]),
+            type_signature=Exact([StringType, StringType, IntegerType]),
             return_type=StringType
         )
     )
@@ -220,7 +210,7 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.strip_chars",
             type_signature=OneOf([
-                Exact([StringType]),  # string input only (chars is literal or None)
+                Exact([StringType]),  # string input only (chars is None)
                 Exact([StringType, StringType])  # string input + chars expr
             ]),
             return_type=StringType
@@ -232,11 +222,7 @@ def register_text_signatures():
         "text.replace",
         FunctionSignature(
             function_name="text.replace",
-            type_signature=OneOf([
-                Exact([StringType]),  # string input only (search and replacement are literals)
-                Exact([StringType, StringType]),  # string input + search expr (replacement is literal)
-                Exact([StringType, StringType, StringType])  # string input + search expr + replacement expr
-            ]),
+            type_signature= Exact([StringType, StringType, StringType]),  # string input + search expr + replacement expr
             return_type=StringType
         )
     )

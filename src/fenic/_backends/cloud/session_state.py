@@ -25,6 +25,7 @@ from fenic._backends.cloud.engine_config import CloudSessionConfig
 from fenic._backends.cloud.execution import CloudExecution
 from fenic._backends.cloud.settings import CloudSettings
 from fenic.core._interfaces import BaseSessionState
+from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._resolved_session_config import (
     CloudExecutorSize,
     ResolvedSessionConfig,
@@ -61,6 +62,7 @@ class CloudSessionState(BaseSessionState):
     session_id: Optional[str] = None
     session_name: Optional[str] = None
     session_canonical_name: Optional[str] = None
+    cloud_catalog: BaseCatalog = None
 
     def __init__(
         self,
@@ -119,7 +121,16 @@ class CloudSessionState(BaseSessionState):
 
     @property
     def catalog(self):
-        pass
+        from fenic._backends.cloud.catalog import CloudCatalog
+        from fenic._backends.cloud.manager import CloudSessionManager
+
+        if self.cloud_catalog is None:
+            self.cloud_catalog = CloudCatalog(
+                ephemeral_catalog_id=self.ephemeral_catalog_id,
+                asyncio_loop=self.asyncio_loop,
+                cloud_session_manager=CloudSessionManager(),
+            )
+        return self.cloud_catalog
 
     # properties and methods referencing dynamic state managed by the CloudSessionManager
     @property
@@ -231,6 +242,7 @@ class CloudSessionState(BaseSessionState):
         self.session_canonical_name = response.canonical_name
         self.engine_uri = response.uris.remote_actions_uri
         self.arrow_ipc_uri = response.uris.remote_results_uri_prefix
+        self.ephemeral_catalog_id = response.ephemeral_catalog_id
         logger.info(
             f"{'Found' if existing else 'Created'} Executor with session_id: {self.session_uuid}"
         )

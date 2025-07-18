@@ -66,7 +66,7 @@ class CloudSessionManager:
     _entrypoint_stub: Optional[EntrypointServiceStub] = None
     _entrypoint_channel: Optional[grpc.aio.Channel] = None
     _hasura_client: Optional[HasuraClient] = None
-    _client_id: Optional[str] = None
+    _user_id: Optional[str] = None
     _organization_id: Optional[str] = None
     initialized: bool = False
     hasura_user_client: Optional[HasuraUserClient] = None
@@ -221,7 +221,7 @@ class CloudSessionManager:
                 self._settings.client_secret,
             )
             self.client_token = client_token
-            self._client_id, self._organization_id, _ = authenticate_user(
+            self._user_id, self._organization_id, _ = authenticate_user(
                 typedef_instance=self._settings.typedef_instance,
                 token=self.client_token,
             )

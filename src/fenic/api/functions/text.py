@@ -26,6 +26,7 @@ from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
 )
+from fenic.core.error import ValidationError
 from fenic.core.types.enums import TranscriptFormatType
 
 
@@ -403,7 +404,7 @@ def concat(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat method")
+        raise ValidationError("At least one column must be provided to concat method")
 
     flattened_args = []
     for arg in cols:
@@ -471,7 +472,7 @@ def concat_ws(separator: str, *cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat_ws method")
+        raise ValidationError("At least one column must be provided to concat_ws method")
 
     flattened_args = []
     for arg in cols:
@@ -541,12 +542,16 @@ def replace(
         ```
     """
     if isinstance(search, Column):
-        search = search._logical_expr
+        search_expr = search._logical_expr
+    else:
+        search_expr = lit(search)._logical_expr
     if isinstance(replace, Column):
-        replace = replace._logical_expr
+        replace_expr = replace._logical_expr
+    else:
+        replace_expr = lit(replace)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
-            Column._from_col_or_name(src)._logical_expr, search, replace, True
+            Column._from_col_or_name(src)._logical_expr, search_expr, replace_expr, True
         )
     )
 
@@ -591,14 +596,18 @@ def regexp_replace(
         ```
     """
     if isinstance(pattern, Column):
-        pattern = pattern._logical_expr
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
     if isinstance(replacement, Column):
-        replacement = replacement._logical_expr
+        replacement_expr = replacement._logical_expr
+    else:
+        replacement_expr = lit(replacement)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
             Column._from_col_or_name(src)._logical_expr,
-            pattern,
-            replacement,
+            pattern_expr,
+            replacement_expr,
             False,
         )
     )
@@ -639,7 +648,7 @@ def split(src: ColumnOrName, pattern: str, limit: int = -1) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def split_part(
-    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[int, Column]
+    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[Column, int]
 ) -> Column:
     """Split a string and return a specific part using 1-based indexing.
 
@@ -657,7 +666,7 @@ def split_part(
     Args:
         src: The input string column or column name to split
         delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        part_number: Which part to return (1-based integer index or column expression)
 
     Returns:
         Column: A column containing the specified part from each split string
@@ -681,16 +690,22 @@ def split_part(
         ```
     """
     if isinstance(part_number, int) and part_number == 0:
-        raise ValueError(
+        raise ValidationError(
             f"`split_part` expects a non-zero integer for the part_number, but got {part_number}."
         )
-    if isinstance(delimiter, Column):
-        delimiter = delimiter._logical_expr
     if isinstance(part_number, Column):
-        part_number = part_number._logical_expr
+        part_number_expr = part_number._logical_expr
+    else:
+        part_number_expr = lit(part_number)._logical_expr
+
+    if isinstance(delimiter, Column):
+        delimiter_expr = delimiter._logical_expr
+    else:
+        delimiter_expr = lit(delimiter)._logical_expr
+
     return Column._from_logical_expr(
         SplitPartExpr(
-            Column._from_col_or_name(src)._logical_expr, delimiter, part_number
+            Column._from_col_or_name(src)._logical_expr, delimiter_expr, part_number_expr
         )
     )
 
@@ -811,10 +826,14 @@ def btrim(col: ColumnOrName, trim: Optional[Union[Column, str]]) -> Column:
         df.select(text.btrim(col("text"), col("chars")))
         ```
     """
-    if isinstance(trim, Column):
-        trim = trim._logical_expr
+    if trim is None:
+        trim_expr = None
+    elif isinstance(trim, Column):
+        trim_expr = trim._logical_expr
+    else:
+        trim_expr = lit(trim)._logical_expr
     return Column._from_logical_expr(
-        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim, "both")
+        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim_expr, "both")
     )
 
 

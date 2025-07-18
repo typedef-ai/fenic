@@ -597,11 +597,7 @@ class ExprConverter:
     @_convert_expr.register(ContainsExpr)
     def _convert_contains_expr(self, logical: ContainsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.contains(pattern=substr_expr, literal=True)
 
 
@@ -630,22 +626,14 @@ class ExprConverter:
     @_convert_expr.register(StartsWithExpr)
     def _convert_starts_with_expr(self, logical: StartsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.starts_with(prefix=substr_expr)
 
 
     @_convert_expr.register(EndsWithExpr)
     def _convert_ends_with_expr(self, logical: EndsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.ends_with(suffix=substr_expr)
 
 
@@ -665,8 +653,8 @@ class ExprConverter:
     @_convert_expr.register(SplitPartExpr)
     def _convert_split_part_expr(self, logical: SplitPartExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        part_number_expr = self._convert_expr(logical.part_number) if isinstance(logical.part_number, LogicalExpr) else pl.lit(logical.part_number)
-        delimiter_expr = self._convert_expr(logical.delimiter) if isinstance(logical.delimiter, LogicalExpr) else pl.lit(logical.delimiter)
+        part_number_expr = self._convert_expr(logical.part_number)
+        delimiter_expr = self._convert_expr(logical.delimiter)
 
         split_expr = physical_expr.str.split(delimiter_expr)
 
@@ -714,11 +702,7 @@ class ExprConverter:
     @_convert_expr.register(StripCharsExpr)
     def _convert_strip_chars_expr(self, logical: StripCharsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        chars_expr = (
-            self._convert_expr(logical.chars)
-            if isinstance(logical.chars, LogicalExpr)
-            else pl.lit(logical.chars)
-        )
+        chars_expr = self._convert_expr(logical.chars) if logical.chars else None
 
         strip_methods = {
             "both": physical_expr.str.strip_chars,
@@ -751,24 +735,24 @@ class ExprConverter:
     @_convert_expr.register(ReplaceExpr)
     def _convert_replace_expr(self, logical: ReplaceExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        is_search_column = isinstance(logical.search, LogicalExpr)
-        replace_expr = self._convert_expr(logical.replacement) if isinstance(logical.replacement, LogicalExpr) else pl.lit(logical.replacement)
+        is_search_column = isinstance(logical.search, ColumnExpr)
+        physical_search_expr = self._convert_expr(logical.search)
+        physical_replacement_expr = self._convert_expr(logical.replacement)
 
         if not is_search_column:
             return physical_expr.str.replace_all(
-                pattern=logical.search,
-                value=replace_expr,
+                pattern=physical_search_expr,
+                value=physical_replacement_expr,
                 literal=logical.literal,
             )
         else:
             # https://github.com/pola-rs/polars/issues/14367
             # Polars doesn't currently support replace with a expression, so we need to use replace_all and over as a workaround
-            search_expr = self._convert_expr(logical.search)
             return physical_expr.str.replace_all(
-                pattern=search_expr.first(),
-                value=replace_expr,
+                pattern=physical_search_expr.first(),
+                value=physical_replacement_expr,
                 literal=logical.literal,
-            ).over(search_expr)
+            ).over(physical_search_expr)
 
     @_convert_expr.register(StrLengthExpr)
     def _convert_str_length_expr(self, logical: StrLengthExpr) -> pl.Expr:
