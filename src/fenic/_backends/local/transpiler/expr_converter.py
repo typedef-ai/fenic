@@ -597,11 +597,7 @@ class ExprConverter:
     @_convert_expr.register(ContainsExpr)
     def _convert_contains_expr(self, logical: ContainsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.contains(pattern=substr_expr, literal=True)
 
 
@@ -630,22 +626,14 @@ class ExprConverter:
     @_convert_expr.register(StartsWithExpr)
     def _convert_starts_with_expr(self, logical: StartsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.starts_with(prefix=substr_expr)
 
 
     @_convert_expr.register(EndsWithExpr)
     def _convert_ends_with_expr(self, logical: EndsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.ends_with(suffix=substr_expr)
 
 
@@ -714,11 +702,7 @@ class ExprConverter:
     @_convert_expr.register(StripCharsExpr)
     def _convert_strip_chars_expr(self, logical: StripCharsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        chars_expr = (
-            self._convert_expr(logical.chars)
-            if isinstance(logical.chars, LogicalExpr)
-            else pl.lit(logical.chars)
-        )
+        chars_expr = self._convert_expr(logical.chars) if logical.chars else None
 
         strip_methods = {
             "both": physical_expr.str.strip_chars,

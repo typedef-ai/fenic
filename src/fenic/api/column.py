@@ -398,7 +398,7 @@ class Column:
             ```
         """
         if isinstance(other, str):
-            other_expr = LiteralExpr(other, infer_dtype_from_pyobj(other))
+            other_expr = LiteralExpr(other, StringType)
         else:
             other_expr = other._logical_expr
         return Column._from_logical_expr(ContainsExpr(self._logical_expr, other_expr))
