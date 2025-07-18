@@ -603,11 +603,10 @@ def _init_cloud_catalog(
     cloud_catalog = CloudCatalog(
         ephemeral_catalog_id=session_state.ephemeral_catalog_id,
         asyncio_loop=session_state.asyncio_loop,
-        cloud_session_manager=cloud_session_manager,
+        user_id=cloud_session_manager.user_id,
+        organization_id=cloud_session_manager.organization_id,
+        user_client=client,
     )
-    cloud_catalog.user_client = client
-    cloud_catalog.user_id = TEST_DEFAULT_USER_ID
-    cloud_catalog.organization_id = TEST_DEFAULT_ORGANIZATION_ID
     return cloud_catalog
 
 

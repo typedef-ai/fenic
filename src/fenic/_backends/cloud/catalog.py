@@ -11,6 +11,7 @@ import polars as pl
 import pyarrow as pa
 from fenic_cloud.hasura_client.generated_graphql_client.client import (
     CatalogDispatchInput,
+    Client,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.enums import (
     CatalogDatasetTypeReferenceEnum,
@@ -29,7 +30,6 @@ from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
 )
 
-from fenic._backends.cloud.manager import CloudSessionManager
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
@@ -73,18 +73,19 @@ class CloudCatalog(BaseCatalog):
     def __init__(self,
         ephemeral_catalog_id: str,
         asyncio_loop: asyncio.AbstractEventLoop,
-        cloud_session_manager: CloudSessionManager):
+        user_id: str,
+        organization_id: str,
+        user_client: Client):
         """Initialize the remote catalog."""
-        self.cloud_session_manager = cloud_session_manager
         self.lock = threading.Lock()
         self.asyncio_loop = asyncio_loop
         self.ephemeral_catalog_id: UUID = UUID(ephemeral_catalog_id)
         self.current_catalog_id: UUID = self.ephemeral_catalog_id
         self.current_catalog_name: str = DEFAULT_CATALOG_NAME
         self.current_database_name: str = DEFAULT_DATABASE_NAME
-        self.user_id = self.cloud_session_manager._user_id
-        self.organization_id = self.cloud_session_manager._organization_id
-        self.user_client = self.cloud_session_manager.hasura_user_client
+        self.user_id = user_id
+        self.organization_id = organization_id
+        self.user_client = user_client
 
     def does_catalog_exist(self, catalog_name: str) -> bool:
         """Checks if a catalog with the specified name exists."""
@@ -323,6 +324,24 @@ class CloudCatalog(BaseCatalog):
         raise NotImplementedError(
             "Method to check if view exists not implemented for cloud catalog"
         )
+
+    def get_table_location(self, table_name: str) -> List[str]:
+        """Get the location for the table files."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.current_catalog_name,
+                self.current_database_name,
+            )
+
+            if not self._does_table_exist(
+                table_identifier.catalog, table_identifier.db, table_identifier.table
+            ):
+                raise TableNotFoundError(table_identifier.table, table_identifier.db)
+
+            table = self._get_table(
+                table_identifier.catalog, table_identifier.db, table_identifier.table
+            )
+            return [table.location]
 
     def _drop_database(
         self,

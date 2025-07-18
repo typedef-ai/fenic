@@ -124,11 +124,14 @@ class CloudSessionState(BaseSessionState):
         from fenic._backends.cloud.catalog import CloudCatalog
         from fenic._backends.cloud.manager import CloudSessionManager
 
+        cloud_session_manager = CloudSessionManager()
         if self.cloud_catalog is None:
             self.cloud_catalog = CloudCatalog(
                 ephemeral_catalog_id=self.ephemeral_catalog_id,
                 asyncio_loop=self.asyncio_loop,
-                cloud_session_manager=CloudSessionManager(),
+                user_id=cloud_session_manager._client_id,
+                organization_id=cloud_session_manager._organization_id,
+                user_client=cloud_session_manager.hasura_user_client,
             )
         return self.cloud_catalog
 
