@@ -665,65 +665,22 @@ class ExprConverter:
     @_convert_expr.register(SplitPartExpr)
     def _convert_split_part_expr(self, logical: SplitPartExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        is_delimiter_column = isinstance(logical.delimiter, LogicalExpr)
-        is_part_number_column = isinstance(logical.part_number, LogicalExpr)
+        part_number_expr = self._convert_expr(logical.part_number) if isinstance(logical.part_number, LogicalExpr) else pl.lit(logical.part_number)
+        delimiter_expr = self._convert_expr(logical.delimiter) if isinstance(logical.delimiter, LogicalExpr) else pl.lit(logical.delimiter)
 
-        # If neither delimiter nor part_number is a column, use the standard split_part
-        if not is_delimiter_column and not is_part_number_column:
-            # arr.get is zero indexed, split_part is 1-based per the Spark spec
-            if logical.part_number > 0:
-                pl_index = logical.part_number - 1
-            else:
-                pl_index = logical.part_number
-
-            return (
-                physical_expr.str.split(logical.delimiter)
-                .list.get(index=pl_index, null_on_oob=True)
-                .fill_null(
-                    ""
-                )  # spark semantics expect an empty string if part number is out of range
-            )
-
-        # Convert expressions for delimiter and part number
-        delimiter_expr = (
-            self._convert_expr(logical.delimiter)
-            if is_delimiter_column
-            else pl.lit(logical.delimiter)
-        )
-        part_number_expr = (
-            self._convert_expr(logical.part_number)
-            if is_part_number_column
-            else pl.lit(logical.part_number)
-        )
-
-        # If only delimiter is a column, we can pass it directly to split
-        if is_delimiter_column and not is_part_number_column:
-            # Convert part number from 1-based to 0-based for positive numbers
-            pl_index = (
-                logical.part_number - 1 if logical.part_number > 0 else logical.part_number
-            )
-            return (
-                physical_expr.str.split(delimiter_expr)
-                .list.get(index=pl_index, null_on_oob=True)
-                .fill_null("")
-            )
-
-        # If part_number is a column, use over expressions
-        # First split using the delimiter (either column or literal)
         split_expr = physical_expr.str.split(delimiter_expr)
 
         # Convert from 1-based to 0-based indexing for positive numbers
         part_expr = (
-            pl.when(part_number_expr.first() > 0)
-            .then(part_number_expr.first() - 1)
-            .otherwise(part_number_expr.first())
+            pl.when(part_number_expr > 0)
+            .then(part_number_expr - 1)
+            .otherwise(part_number_expr)
         )
 
         # Get the part and handle out of range with empty string
         return (
             split_expr.list.get(part_expr, null_on_oob=True)
             .fill_null("")
-            .over(part_number_expr)
         )
 
 
@@ -795,56 +752,23 @@ class ExprConverter:
     def _convert_replace_expr(self, logical: ReplaceExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
         is_search_column = isinstance(logical.search, LogicalExpr)
-        is_replace_column = isinstance(logical.replacement, LogicalExpr)
+        replace_expr = self._convert_expr(logical.replacement) if isinstance(logical.replacement, LogicalExpr) else pl.lit(logical.replacement)
 
-        # If neither search nor replacement is a column, use the standard string replace
-        if not is_search_column and not is_replace_column:
-            if logical.replacement_count == -1:
-                return physical_expr.str.replace_all(
-                    pattern=logical.search,
-                    value=logical.replacement,
-                    literal=logical.literal,
-                )
-            else:
-                return physical_expr.str.replace(
-                    pattern=logical.search,
-                    value=logical.replacement,
-                    literal=logical.literal,
-                    n=logical.replacement_count,
-                )
-
-        # Handle column-based replacement
-        if is_search_column:
+        if not is_search_column:
+            return physical_expr.str.replace_all(
+                pattern=logical.search,
+                value=replace_expr,
+                literal=logical.literal,
+            )
+        else:
+            # https://github.com/pola-rs/polars/issues/14367
+            # Polars doesn't currently support replace with a expression, so we need to use replace_all and over as a workaround
             search_expr = self._convert_expr(logical.search)
-            pattern_expr = search_expr.first()
-        else:
-            search_expr = pl.lit(logical.search)
-            pattern_expr = search_expr
-
-        if is_replace_column:
-            replacement_expr = self._convert_expr(logical.replacement)
-        else:
-            replacement_expr = pl.lit(logical.replacement)
-
-        if logical.replacement_count == -1:
-            result = physical_expr.str.replace_all(
-                pattern=pattern_expr,
-                value=replacement_expr,
+            return physical_expr.str.replace_all(
+                pattern=search_expr.first(),
+                value=replace_expr,
                 literal=logical.literal,
-            )
-        else:
-            result = physical_expr.str.replace(
-                pattern=pattern_expr,
-                value=replacement_expr,
-                literal=logical.literal,
-                n=logical.replacement_count,
-            )
-
-        if is_search_column:
-            return result.over(search_expr)
-        else:
-            return result
-
+            ).over(search_expr)
 
     @_convert_expr.register(StrLengthExpr)
     def _convert_str_length_expr(self, logical: StrLengthExpr) -> pl.Expr:

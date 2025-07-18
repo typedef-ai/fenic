@@ -546,7 +546,7 @@ def replace(
         replace = replace._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
-            Column._from_col_or_name(src)._logical_expr, search, replace, True, -1
+            Column._from_col_or_name(src)._logical_expr, search, replace, True
         )
     )
 
@@ -600,7 +600,6 @@ def regexp_replace(
             pattern,
             replacement,
             False,
-            -1,
         )
     )
 
