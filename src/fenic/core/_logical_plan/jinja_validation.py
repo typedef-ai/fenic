@@ -8,7 +8,7 @@ from jinja2 import Environment, nodes
 from jinja2.exceptions import TemplateSyntaxError
 
 from fenic.core.error import InternalError, TypeMismatchError, ValidationError
-from fenic.core.types import ArrayType, BooleanType, DataType, StructType
+from fenic.core.types import ArrayType, DataType, StructType
 
 # =============================================================================
 # CONSTANTS & CONFIGURATION
@@ -28,13 +28,18 @@ ALLOWED_JINJA_NODES = (
     nodes.Const,
 )
 
+VALID_LOOP_ATTRIBUTES = {
+    'index', 'index0', 'revindex', 'revindex0',
+    'first', 'last', 'length', 'depth', 'depth0',
+    'previtem', 'nextitem'
+}
+
 # =============================================================================
 # DATA MODELS
 # =============================================================================
 
 class TypeRequirement(Enum):
     """Expected data type for a variable based on how it's used in the template."""
-    BOOLEAN = "boolean"
     ARRAY = "array"
     STRUCT = "struct"
 
@@ -65,28 +70,36 @@ class VariableNode:
 
 @dataclass
 class LoopDefinition:
-    """A loop variable definition with its array source."""
+    """A loop variable definition mapping the variable name to the array being iterated."""
     var_name: str
     array_path: List[str]
 
-class VariableAccessContext(Enum):
+class ReferenceAccessContext(Enum):
     """How a variable is used in the template."""
     OUTPUT = "output"
     CONDITION = "condition"
     ITERATION = "iteration"
 
 @dataclass
-class VariableAccess:
-    """A resolved variable access with context about how it's used."""
-    path: List[str]
-    context: VariableAccessContext
+class TemplateReference:
+    """A resolved variable access or output marker in the template.
+
+    Attributes:
+        var_path: Variable path as a list (e.g., ["user", "name"] for user.name).
+              Empty list [] indicates output without schema variable access (constants, loop.index).
+        context: How this is used - OUTPUT (displayed), CONDITION (if statement),
+                 or ITERATION (for loop).
+        line_no: Line number in template for error reporting.
+    """
+    var_path: List[str]
+    context: ReferenceAccessContext
     line_no: str = '?'
 
 @dataclass
-class AccessWithDeps:
+class ReferenceWithDeps:
     """A variable access with its control flow dependencies."""
-    access: VariableAccess
-    control_dependencies: List[VariableAccess]
+    access: TemplateReference
+    control_dependencies: List[TemplateReference]
 
 class LoopStack:
     """Manages loop variable scoping during template traversal."""
@@ -98,13 +111,24 @@ class LoopStack:
         """Push a new loop variable (may shadow existing ones with the same name)."""
         self._frames.append(LoopDefinition(var_name, array_path))
 
+    def pop_loop_var(self) -> None:
+        """Pop the most recent loop variable."""
+        self._frames.pop()
+
     def resolve_variable(self, var_name: str) -> Optional[List[str]]:
         """Resolve a variable name to its array path, or None if not a loop variable."""
-        # Search backwards for most recent definition (handles shadowing)
+        # Search backwards over the loop stack
         for frame in reversed(self._frames):
             if frame.var_name == var_name:
+                # Append "*" to indicate we're accessing an element of the array
+                # For example: if "item" refers to "products", this returns ["products", "*"]
+                # meaning we're accessing products[*] (an element of the products array)
                 return frame.array_path + ["*"]
         return None  # Not a loop variable
+
+    def is_in_loop(self) -> bool:
+        """Check if a variable is defined in any loop."""
+        return len(self._frames) > 0
 
 @dataclass
 class VariableTree:
@@ -144,7 +168,10 @@ class VariableTree:
         # Collect all variable accesses with proper scoping
         all_accesses = cls._collect_variable_accesses(ast)
 
-        # Filter to only variables used in output (plus their dependencies)
+        # We only include variables in the schema if they are *rendered* in the output
+        # or are required to evaluate control structures (like loops/if) that *lead* to output.
+        # Variables used in conditions or loops that produce no output are discarded.
+        # This ensures the inferred schema reflects only what affects the rendered result.
         relevant_accesses = cls._extract_output_dependencies(all_accesses)
 
         # Build the final schema tree
@@ -158,7 +185,6 @@ class VariableTree:
         """Recursively validates that the structure and type requirements of a Jinja template variable match the actual column schema.
 
         This ensures that:
-          - Boolean requirements are matched by BooleanType columns.
           - For-loop variables are backed by ArrayType columns.
           - Struct field access is valid and only used on StructType columns.
 
@@ -177,14 +203,7 @@ class VariableTree:
             if not variable_node.requirement:
                 return
 
-            if variable_node.requirement == TypeRequirement.BOOLEAN:
-                if not data_type == BooleanType:
-                    raise TypeMismatchError.from_message(
-                        f"Column '{formatted_path}' used in Jinja template must be a BooleanType, but found {data_type}. "
-                        f"This variable is used in a conditional expression and must evaluate to a boolean."
-                    )
-
-            elif variable_node.requirement == TypeRequirement.ARRAY:
+            if variable_node.requirement == TypeRequirement.ARRAY:
                 if not isinstance(data_type, ArrayType):
                     raise TypeMismatchError.from_message(
                         f"Column '{formatted_path}' used in Jinja template must be an ArrayType, but found {data_type}. "
@@ -240,16 +259,7 @@ class VariableTree:
         except TemplateSyntaxError as e:
             raise ValidationError(f"Jinja template syntax error on line {e.lineno}: {e.message}") from e
 
-        # Add parent references needed for validation
-        VariableTree._annotate_parents(ast)
         return ast
-
-    @staticmethod
-    def _annotate_parents(node: nodes.Node, parent: Optional[nodes.Node] = None) -> None:
-        """Recursively add parent references to AST nodes for validation."""
-        node.parent = parent  # type: ignore[attr-defined]
-        for child in node.iter_child_nodes():
-            VariableTree._annotate_parents(child, parent=node)
 
     @staticmethod
     def _validate_template(ast: nodes.Node) -> None:
@@ -259,17 +269,11 @@ class VariableTree:
 
             # Check node type is allowed
             if not isinstance(node, ALLOWED_JINJA_NODES):
+                node_type = type(node).__name__
                 raise ValidationError(
                     f"Unsupported Jinja template syntax on line {line_no}: "
+                    f"'{node_type}' is not allowed. "
                     f"Only basic variables, if statements, and for loops are allowed."
-                )
-
-            # Specific validation rules
-            if isinstance(node, nodes.Name) and node.name == "loop":
-                raise ValidationError(
-                    f"Unsupported Jinja template syntax on line {line_no}: "
-                    f"The special 'loop' variable (e.g., 'loop.index') is not supported. "
-                    f"Please avoid using 'loop' inside your template expressions."
                 )
 
             if isinstance(node, nodes.Getitem):
@@ -285,13 +289,6 @@ class VariableTree:
                         f"Index must be a number or text string. Example: myarray[0] or myobject['key']"
                     )
 
-            if isinstance(node, nodes.Const):
-                if not isinstance(getattr(node, 'parent', None), nodes.Getitem):
-                    raise ValidationError(
-                        f"Unsupported Jinja template syntax on line {line_no}: "
-                        f"Literal values are not allowed directly in expressions. Use variables instead."
-                    )
-
             # Recursively validate children
             for child in node.iter_child_nodes():
                 validate_node(child)
@@ -302,13 +299,13 @@ class VariableTree:
     # VARIABLE ACCESS COLLECTION
     # =============================================================================
     @staticmethod
-    def _collect_variable_accesses(ast: nodes.Node) -> List[AccessWithDeps]:
+    def _collect_variable_accesses(ast: nodes.Node) -> List[ReferenceWithDeps]:
         """Collect all variable accesses with proper scoping resolution."""
         scope = LoopStack()
         return VariableTree._traverse_and_collect(ast, scope, [])
 
     @staticmethod
-    def _traverse_and_collect(node: nodes.Node, scope: LoopStack, control_context: List[VariableAccess]) -> List[AccessWithDeps]:
+    def _traverse_and_collect(node: nodes.Node, scope: LoopStack, control_context: List[TemplateReference]) -> List[ReferenceWithDeps]:
         """Traverse AST and collect variable accesses with resolved paths."""
         accesses = []
         line_no = getattr(node, "lineno", "?")
@@ -327,15 +324,17 @@ class VariableTree:
         return accesses
 
     @staticmethod
-    def _handle_for_loop(node: nodes.For, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
+    def _handle_for_loop(node: nodes.For, scope: LoopStack, control_context: List[TemplateReference], line_no: str) -> List[ReferenceWithDeps]:
         """Handle for loop: record iteration and update scope."""
         accesses = []
 
         # Record the array being iterated over
-        array_path = VariableTree._extract_variable_path(node.iter)
+        array_path = VariableTree._extract_variable_path(node.iter, scope)
         if array_path:
             resolved_array_path = VariableTree._resolve_variable_path(array_path, scope)
-            iter_access = VariableAccess(resolved_array_path, VariableAccessContext.ITERATION, line_no)
+            iter_access = TemplateReference(resolved_array_path, ReferenceAccessContext.ITERATION, line_no)
+
+            accesses.append(ReferenceWithDeps(iter_access, control_context))
 
             # Push loop variable into scope for the loop body
             if isinstance(node.target, nodes.Name):
@@ -352,19 +351,20 @@ class VariableTree:
         for child in node.iter_child_nodes():
             accesses.extend(VariableTree._traverse_and_collect(child, scope, new_control_context))
 
+        scope.pop_loop_var()
         return accesses
 
     @staticmethod
-    def _handle_conditional(node: nodes.If, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
+    def _handle_conditional(node: nodes.If, scope: LoopStack, control_context: List[TemplateReference], line_no: str) -> List[ReferenceWithDeps]:
         """Handle if statement: record condition variable."""
         accesses = []
-
-        # Record the condition variable (should be boolean)
-        condition_path = VariableTree._extract_variable_path(node.test)
+        new_control_context = control_context
+        # Record the condition variable
+        condition_path = VariableTree._extract_variable_path(node.test, scope)
         if condition_path:
             resolved_condition = VariableTree._resolve_variable_path(condition_path, scope)
-            cond_access = VariableAccess(resolved_condition, VariableAccessContext.CONDITION, line_no)
-            new_control_context = control_context + [cond_access]
+            cond_access = TemplateReference(resolved_condition, ReferenceAccessContext.CONDITION, line_no)
+            new_control_context = new_control_context + [cond_access]
 
         # Process if body and else body
         for child in node.iter_child_nodes():
@@ -373,17 +373,38 @@ class VariableTree:
         return accesses
 
     @staticmethod
-    def _handle_output(node: nodes.Output, scope: LoopStack, control_context: List[VariableAccess], line_no: str) -> List[AccessWithDeps]:
+    def _handle_output(node: nodes.Output, scope: LoopStack, control_context: List[TemplateReference], line_no: str) -> List[ReferenceWithDeps]:
         """Handle output expressions: record variables being displayed."""
         accesses = []
 
         for output_node in node.nodes:
-            if isinstance(output_node, (nodes.Name, nodes.Getattr, nodes.Getitem)):
-                output_path = VariableTree._extract_variable_path(output_node)
-                if output_path:
-                    resolved_output = VariableTree._resolve_variable_path(output_path, scope)
-                    output_access = VariableAccess(resolved_output, VariableAccessContext.OUTPUT, line_no)
-                    accesses.append(AccessWithDeps(output_access, control_context))
+            # Check if this is actual output (not just an empty template data)
+            if isinstance(output_node, nodes.TemplateData) and output_node.data == "":
+                continue
+
+            # For any other node type (Name, Getattr, Getitem, Const, etc.)
+            # try to extract a variable path
+            output_path = VariableTree._extract_variable_path(output_node, scope)
+            if output_path:
+                resolved_output = VariableTree._resolve_variable_path(output_path, scope)
+                output_access = TemplateReference(resolved_output, ReferenceAccessContext.OUTPUT, line_no)
+                accesses.append(ReferenceWithDeps(output_access, control_context))
+            elif control_context:
+                # Special handling for output that doesn't access schema variables
+                # Examples: {{ loop.index }}, {{ 42 }}, {{ "constant" }}
+                #
+                # We create a TemplateReference with empty path as a marker to indicate
+                # "output happened here". This ensures control dependencies (the loops/conditions
+                # that govern this output) are preserved in the final schema.
+                #
+                # The empty path [] is filtered out in _build_schema_tree but its control
+                # dependencies are kept via _extract_output_dependencies.
+                output_marker = TemplateReference(
+                    var_path=[],  # Empty path = no schema variable accessed
+                    context=ReferenceAccessContext.OUTPUT,
+                    line_no=line_no
+                )
+                accesses.append(ReferenceWithDeps(output_marker, control_context))
 
         return accesses
 
@@ -392,16 +413,33 @@ class VariableTree:
     # =============================================================================
 
     @staticmethod
-    def _extract_variable_path(node: nodes.Node) -> Optional[List[str]]:
+    def _extract_variable_path(node: nodes.Node, scope: LoopStack) -> Optional[List[str]]:
         """Extract variable path as list of keys/fields from AST node."""
         if isinstance(node, nodes.Name):
-            return [node.name]
+            if node.name == "loop" and scope.is_in_loop():
+                return None
+            else:
+                return [node.name]
         elif isinstance(node, nodes.Getattr):
-            base_path = VariableTree._extract_variable_path(node.node)
+            # Special handling for loop.attribute
+            if isinstance(node.node, nodes.Name) and node.node.name == "loop":
+                # Are we in a loop context?
+                if scope.is_in_loop():
+                    # Yes - validate the attribute
+                    if node.attr not in VALID_LOOP_ATTRIBUTES:
+                        line_no = getattr(node, "lineno", "?")
+                        raise ValidationError(
+                            f"Invalid loop attribute '{node.attr}' on line {line_no}. "
+                            f"Valid attributes are: {', '.join(sorted(VALID_LOOP_ATTRIBUTES))}"
+                        )
+                    return None  # Valid loop attribute in loop context, ignore
+                # else: Not in a loop, treat 'loop' as a regular variable
+
+            base_path = VariableTree._extract_variable_path(node.node, scope)
             if base_path:
                 return base_path + [node.attr]
         elif isinstance(node, nodes.Getitem):
-            base_path = VariableTree._extract_variable_path(node.node)
+            base_path = VariableTree._extract_variable_path(node.node, scope)
             if base_path and isinstance(node.arg, nodes.Const):
                 if isinstance(node.arg.value, int):
                     return base_path + ["*"]  # Integer index becomes wildcard
@@ -429,35 +467,39 @@ class VariableTree:
     # =============================================================================
 
     @staticmethod
-    def _extract_output_dependencies(all_accesses: List[AccessWithDeps]) -> List[VariableAccess]:
+    def _extract_output_dependencies(all_accesses: List[ReferenceWithDeps]) -> List[TemplateReference]:
         """Remove all variables that are not required to evaluate the output."""
-        outputs = [a.access for a in all_accesses if a.access.context == VariableAccessContext.OUTPUT]
+        outputs = [a.access for a in all_accesses if a.access.context == ReferenceAccessContext.OUTPUT]
 
         # Flatten all dependencies from outputs
-        control_deps: List[VariableAccess] = []
+        control_deps: List[TemplateReference] = []
         for a in all_accesses:
-            if a.access.context == VariableAccessContext.OUTPUT:
+            if a.access.context == ReferenceAccessContext.OUTPUT:
                 control_deps.extend(a.control_dependencies)
 
         # Deduplicate
-        unique_control_deps = {tuple(dep.path): dep for dep in control_deps}.values()
+        unique_control_deps = {tuple(dep.var_path): dep for dep in control_deps}.values()
 
         return outputs + list(unique_control_deps)
 
     @classmethod
-    def _build_schema_tree(cls, accesses: List[VariableAccess]) -> VariableTree:
+    def _build_schema_tree(cls, accesses: List[TemplateReference]) -> VariableTree:
         """Build the final schema tree from filtered variable accesses."""
         tree = cls()
 
         for access in accesses:
+            # Skip placeholder accesses that were created to preserve control dependencies
+            # These have empty paths and represent outputs like {{ loop.index }} or {{ "constant" }}
+            # Their purpose was to ensure their control dependencies (loops/conditions) were included
+            # in the filtered accesses, but they don't represent actual schema requirements
+            if not access.var_path:
+                continue
             # Determine type requirement based on context
             leaf_requirement = None
-            if access.context == VariableAccessContext.ITERATION:
+            if access.context == ReferenceAccessContext.ITERATION:
                 leaf_requirement = TypeRequirement.ARRAY
-            elif access.context == VariableAccessContext.CONDITION:
-                leaf_requirement = TypeRequirement.BOOLEAN
 
-            cls._add_path_to_tree(tree, access.path, leaf_requirement, access.line_no)
+            cls._add_path_to_tree(tree, access.var_path, leaf_requirement, access.line_no)
 
         return tree
 
@@ -474,14 +516,8 @@ class VariableTree:
 
         current = tree._get_or_create_variable(path[0])
 
-        # Handle single-element path
-        if len(path) == 1:
-            if leaf_requirement:
-                current.set_requirement(leaf_requirement, line_no)
-            return
-
         # Walk the path and set parent requirements
-        for i, part in enumerate(path[1:], 1):
+        for _i, part in enumerate(path[1:], 1):
             if part == "*":
                 current.set_requirement(TypeRequirement.ARRAY, line_no)
                 key = "*"
@@ -490,12 +526,13 @@ class VariableTree:
                 key = part
 
             child = current.get_or_create_child(key)
-
-            # Set leaf requirement if this is the last part
-            if i == len(path) - 1 and leaf_requirement:
-                child.set_requirement(leaf_requirement, line_no)
-
             current = child
+
+        # Set leaf requirement if provided
+        if leaf_requirement:
+            current.set_requirement(leaf_requirement, line_no)
+            if leaf_requirement == TypeRequirement.ARRAY:
+                current.get_or_create_child("*")
 
 def _format_path(path: List[str]) -> str:
     result = []

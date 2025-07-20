@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
 
-from fenic.core._logical_plan.jinja import (
+from fenic.core._logical_plan.jinja_validation import (
     VariableTree,
 )
 
@@ -960,4 +960,4 @@ class JinjaExpr(LogicalExpr):
         )
 
     def __str__(self) -> str:
-        return f"jinja({self.template}, {', '.join(self.exprs)})"
+        return f"jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
