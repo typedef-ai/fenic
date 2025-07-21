@@ -517,7 +517,7 @@ class VariableTree:
         current = tree._get_or_create_variable(path[0])
 
         # Walk the path and set parent requirements
-        for _i, part in enumerate(path[1:], 1):
+        for part in path[1:]:
             if part == "*":
                 current.set_requirement(TypeRequirement.ARRAY, line_no)
                 key = "*"
