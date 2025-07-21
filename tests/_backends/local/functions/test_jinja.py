@@ -1,22 +1,28 @@
+import pytest
 
-from fenic import col, text
+from fenic import ColumnField, col, text
+from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.types.datatypes import StringType
 
 
 def test_jinja_simple_variable(local_session):
     """Test simple variable substitution."""
     data = {
-        "name": ["Alice", "Bob", "Charlie"],
+        "first_name": ["Alice", "Bob", "Charlie"],
         "age": [25, 30, 35]
     }
     df = local_session.create_dataframe(data)
 
     # Test simple variable substitution
     result = df.select(
-        text.jinja("Hello {{ name }}!", name=col("name")).alias("greeting")
-    ).to_polars()
+        text.jinja("Hello {{ 'there' }} {{ name }}!", name=text.upper(col("first_name"))).alias("greeting")
+    )
+    assert result.schema.column_fields == [
+        ColumnField(name="greeting", data_type=StringType)
+    ]
 
-    expected = ["Hello Alice!", "Hello Bob!", "Hello Charlie!"]
-    assert result["greeting"].to_list() == expected
+    expected = ["Hello there ALICE!", "Hello there BOB!", "Hello there CHARLIE!"]
+    assert result.to_polars()["greeting"].to_list() == expected
 
 
 def test_jinja_multiple_variables(local_session):
@@ -46,45 +52,85 @@ def test_jinja_multiple_variables(local_session):
 
 def test_jinja_struct_access(local_session):
     """Test accessing struct fields in templates."""
-    # This would require creating a struct column first
-    # For now, let's test the basic functionality
     data = {
-        "user": [{"name": "Alice", "age": 25}, {"name": "Bob", "age": 30}]
+        "user": [{"name": "Alice", "age": 25, "address": {"city": "New York"}}, {"name": "Bob", "age": 30, "address": {"city": None}},  {}]
     }
     df = local_session.create_dataframe(data)
 
     result = df.select(
-        text.jinja("Hello {{ user.name }}, you are {{ user.age }}!", user=col("user")).alias("greeting")
+        text.jinja("Hello {{ user.name }}, you are {{ user['age'] }} and live in {{ user.address.city }}!", user=col("user")).alias("greeting")
     ).to_polars()
 
-    expected = ["Hello Alice, you are 25!", "Hello Bob, you are 30!"]
+    expected = ["Hello Alice, you are 25 and live in New York!", "Hello Bob, you are 30 and live in !", "Hello , you are  and live in !"]
     assert result["greeting"].to_list() == expected
 
 
-def test_jinja_conditional(local_session):
+def test_array_access(local_session):
+    """Test array access in templates."""
+    data = {
+        "items": [[], ["hello"], ["hi", "hello"], None]
+    }
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.jinja("{{ items[0] }} {{items[10] }}", items=col("items")).alias("result")
+    ).to_polars()
+
+    expected = [" ", "hello ", "hi ", " "]
+    assert result["result"].to_list() == expected
+
+def test_jinja_bool_conditional(local_session):
     """Test conditional rendering in templates."""
     data = {
-        "name": ["Alice", "Bob", "Charlie"],
-        "premium": [True, False, True]
+        "name": ["Alice", "Bob", "Charlie", "David"],
+        "premium": [False, True, False, None]
     }
     df = local_session.create_dataframe(data)
 
     template = "Hello {{ name }}{% if premium %} (Premium Member){% endif %}!"
 
     result = df.select(
-        text.jinja(template, name=col("name"), premium=col("premium")).alias("greeting")
+        text.jinja(template, name=col("name"), premium=~col("premium")).alias("greeting")
     ).to_polars()
-    print(result)
 
     expected = [
         "Hello Alice (Premium Member)!",
         "Hello Bob!",
-        "Hello Charlie (Premium Member)!"
+        "Hello Charlie (Premium Member)!",
+        "Hello David!"
     ]
     assert result["greeting"].to_list() == expected
 
+def test_jinja_for_loop(local_session):
+    """Test for loop in templates."""
+    data = {
+        "items": [["hello"], ["hi", "hello"], [], None]
+    }
+    df = local_session.create_dataframe(data)
 
-def test_jinja_null_handling(local_session):
+    result = df.select(
+        text.jinja("{% for item in items %}{{loop.index}} {{ item }} {% endfor %}", items=col("items")).alias("result")
+    ).to_polars()
+
+    expected = ["1 hello ", "1 hi 2 hello ", "", ""]
+    assert result["result"].to_list() == expected
+
+def test_jinja_nested_loop(local_session):
+    """Test nested loop in templates."""
+    data = {
+        "items": [[["a", "b"], ["c", "d"]], [[]], None]
+    }
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.jinja("{% for item in items %}{% for inner_item in item %}outer: {{item[0]}} inner:{{inner_item}} {% endfor %}{% endfor %}", items=col("items")).alias("result")
+    ).to_polars()
+
+    expected = ['outer: a inner:a outer: a inner:b outer: c inner:c outer: c inner:d ', '', '']
+    assert result["result"].to_list() == expected
+
+
+def test_jinja_else_null_handling(local_session):
     """Test how nulls are handled in templates."""
     data = {
         "name": ["Alice", None, "Charlie"],
@@ -106,3 +152,27 @@ def test_jinja_null_handling(local_session):
         "Charlie is N/A years old"
     ]
     assert result["description"].to_list() == expected
+
+def test_invalid_jinja_template(local_session):
+    """Test invalid Jinja template."""
+    data = {
+        "names": [["Alice"], ["Bob"], ["Charlie"]]
+    }
+    df = local_session.create_dataframe(data)
+
+    with pytest.raises(ValidationError):
+        df.select(
+            text.jinja("{{ names[0] }} {{ names['foo']}}", names=col("names")).alias("result")
+        ).to_polars()
+
+def test_invalid_jinja_type_checking(local_session):
+    """Test invalid Jinja template."""
+    data = {
+        "names": ["Alice", "Bob", "Charlie"]
+    }
+    df = local_session.create_dataframe(data)
+
+    with pytest.raises(TypeMismatchError):
+        df.select(
+            text.jinja("{{ names[0] }}", names=col("names")).alias("result")
+        ).to_polars()
