@@ -370,7 +370,7 @@ def test_jinja_template_with_dead_code():
 
     # Control structures WITH whitespace inside produce output!
     # The newline between {% for %} and {% endfor %} is output for each iteration
-    # The newline between {% if %} and {% endif %} is output when condition is true
+    # The newlines and {{ 'bar' }} between {% if %} and {% endif %} is output when condition is true
     # Therefore both 'items' and 'foo' must be in the schema
     template = """
     {% for item in items %}

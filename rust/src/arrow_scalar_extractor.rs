@@ -24,6 +24,9 @@ trait ArrowToValue: Sized {
     // Container conversions
     fn from_struct(fields: Vec<(String, Self)>) -> Self;
     fn from_list(values: Vec<Self>) -> Self;
+
+    // Special handling for null structs
+    fn from_null_struct(field_names: Vec<String>) -> Self;
 }
 
 impl ArrowToValue for JinjaValue {
@@ -90,6 +93,15 @@ impl ArrowToValue for JinjaValue {
     fn from_list(values: Vec<Self>) -> Self {
         JinjaValue::from(values)
     }
+
+    fn from_null_struct(field_names: Vec<String>) -> Self {
+        // For Jinja, create a struct with all fields set to empty string
+        let mut map = BTreeMap::new();
+        for field_name in field_names {
+            map.insert(field_name, JinjaValue::from(""));
+        }
+        JinjaValue::from(map)
+    }
 }
 
 impl ArrowToValue for JsonValue {
@@ -153,6 +165,20 @@ impl ArrowToValue for JsonValue {
     fn from_list(values: Vec<Self>) -> Self {
         JsonValue::Array(values)
     }
+
+    fn from_null_struct(_field_names: Vec<String>) -> Self {
+        // For JSON, just return null for a null struct
+        JsonValue::Null
+    }
+}
+
+// Macro for downcasting arrays
+macro_rules! downcast_array {
+    ($array:expr, $type:ty) => {
+        $array.as_any().downcast_ref::<$type>().ok_or_else(|| {
+            PolarsError::ComputeError(format!("Failed to downcast to {}", stringify!($type)).into())
+        })?
+    };
 }
 
 pub struct ArrowScalarConverter;
@@ -199,194 +225,87 @@ impl ArrowScalarConverter {
 
         match array.dtype() {
             ArrowDataType::Utf8 => {
-                let str_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<Utf8Array<i32>>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to Utf8Array".into())
-                        })?;
+                let str_array = downcast_array!(array, Utf8Array<i32>);
                 Ok(V::from_str(str_array.value(row_idx)))
             }
             ArrowDataType::LargeUtf8 => {
-                let str_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<Utf8Array<i64>>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to LargeUtf8Array".into())
-                        })?;
+                let str_array = downcast_array!(array, Utf8Array<i64>);
                 Ok(V::from_str(str_array.value(row_idx)))
             }
             ArrowDataType::Utf8View => {
-                let str_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<Utf8ViewArray>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to Utf8Array".into())
-                        })?;
+                let str_array = downcast_array!(array, Utf8ViewArray);
                 Ok(V::from_str(str_array.value(row_idx)))
             }
             ArrowDataType::Binary => {
-                let binary_array = array
-                    .as_any()
-                    .downcast_ref::<BinaryArray<i32>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to BinaryArray".into())
-                    })?;
+                let binary_array = downcast_array!(array, BinaryArray<i32>);
                 Ok(V::from_str(
                     String::from_utf8_lossy(binary_array.value(row_idx)).as_ref(),
                 ))
             }
             ArrowDataType::BinaryView => {
-                let binary_array = array
-                    .as_any()
-                    .downcast_ref::<BinaryViewArray>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to BinaryArray".into())
-                    })?;
+                let binary_array = downcast_array!(array, BinaryViewArray);
                 Ok(V::from_str(
                     String::from_utf8_lossy(binary_array.value(row_idx)).as_ref(),
                 ))
             }
             ArrowDataType::Boolean => {
-                let bool_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<BooleanArray>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to BooleanArray".into())
-                        })?;
+                let bool_array = downcast_array!(array, BooleanArray);
                 Ok(V::from_bool(bool_array.value(row_idx)))
             }
             ArrowDataType::Int8 => {
-                let int_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<i8>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Int8Array".into())
-                    })?;
+                let int_array = downcast_array!(array, PrimitiveArray<i8>);
                 Ok(V::from_i8(int_array.value(row_idx)))
             }
             ArrowDataType::Int16 => {
-                let int_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<i16>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Int16Array".into())
-                    })?;
+                let int_array = downcast_array!(array, PrimitiveArray<i16>);
                 Ok(V::from_i16(int_array.value(row_idx)))
             }
             ArrowDataType::Int32 => {
-                let int_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<i32>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Int32Array".into())
-                    })?;
+                let int_array = downcast_array!(array, PrimitiveArray<i32>);
                 Ok(V::from_i32(int_array.value(row_idx)))
             }
             ArrowDataType::Int64 => {
-                let int_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<i64>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Int64Array".into())
-                    })?;
+                let int_array = downcast_array!(array, PrimitiveArray<i64>);
                 Ok(V::from_i64(int_array.value(row_idx)))
             }
             ArrowDataType::UInt8 => {
-                let uint_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<u8>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to UInt8Array".into())
-                    })?;
+                let uint_array = downcast_array!(array, PrimitiveArray<u8>);
                 Ok(V::from_u8(uint_array.value(row_idx)))
             }
             ArrowDataType::UInt16 => {
-                let uint_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<u16>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to UInt16Array".into())
-                    })?;
+                let uint_array = downcast_array!(array, PrimitiveArray<u16>);
                 Ok(V::from_u16(uint_array.value(row_idx)))
             }
             ArrowDataType::UInt32 => {
-                let uint_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<u32>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to UInt32Array".into())
-                    })?;
+                let uint_array = downcast_array!(array, PrimitiveArray<u32>);
                 Ok(V::from_u32(uint_array.value(row_idx)))
             }
             ArrowDataType::UInt64 => {
-                let uint_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<u64>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to UInt64Array".into())
-                    })?;
+                let uint_array = downcast_array!(array, PrimitiveArray<u64>);
                 Ok(V::from_u64(uint_array.value(row_idx)))
             }
             ArrowDataType::Float32 => {
-                let float_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<f32>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Float32Array".into())
-                    })?;
+                let float_array = downcast_array!(array, PrimitiveArray<f32>);
                 Ok(V::from_f32(float_array.value(row_idx)))
             }
             ArrowDataType::Float64 => {
-                let float_array = array
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<f64>>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to Float64Array".into())
-                    })?;
+                let float_array = downcast_array!(array, PrimitiveArray<f64>);
                 Ok(V::from_f64(float_array.value(row_idx)))
             }
             ArrowDataType::Struct(_) => {
-                let struct_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<StructArray>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to StructArray".into())
-                        })?;
+                let struct_array = downcast_array!(array, StructArray);
                 self.convert_struct(struct_array, row_idx)
             }
             ArrowDataType::List(_) => {
-                let list_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<ListArray<i32>>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to ListArray".into())
-                        })?;
+                let list_array = downcast_array!(array, ListArray<i32>);
                 self.convert_list(list_array, row_idx)
             }
             ArrowDataType::LargeList(_) => {
-                let list_array =
-                    array
-                        .as_any()
-                        .downcast_ref::<ListArray<i64>>()
-                        .ok_or_else(|| {
-                            PolarsError::ComputeError("Failed to downcast to LargeListArray".into())
-                        })?;
+                let list_array = downcast_array!(array, ListArray<i64>);
                 self.convert_large_list(list_array, row_idx)
             }
             ArrowDataType::FixedSizeList(_, _) => {
-                let list_array = array
-                    .as_any()
-                    .downcast_ref::<FixedSizeListArray>()
-                    .ok_or_else(|| {
-                        PolarsError::ComputeError("Failed to downcast to FixedSizeListArray".into())
-                    })?;
+                let list_array = downcast_array!(array, FixedSizeListArray);
                 self.convert_fixed_size_list(list_array, row_idx)
             }
             _ => Err(PolarsError::ComputeError(
@@ -404,22 +323,23 @@ impl ArrowScalarConverter {
         struct_array: &StructArray,
         row_idx: usize,
     ) -> PolarsResult<V> {
-        let mut fields = Vec::new();
-
         if struct_array.is_null(row_idx) {
-            // Struct is null, so all fields should be null
-            for field in struct_array.fields().iter() {
-                fields.push((field.name.clone().to_string(), V::from_null()));
-            }
+            // Struct is null, use the trait method to handle it appropriately
+            let field_names: Vec<String> = struct_array
+                .fields()
+                .iter()
+                .map(|field| field.name.clone().to_string())
+                .collect();
+            Ok(V::from_null_struct(field_names))
         } else {
             // Struct is not null, convert each field normally
+            let mut fields = Vec::new();
             for (field, array) in struct_array.fields().iter().zip(struct_array.values()) {
                 let value: V = self.convert(array.as_ref(), row_idx)?;
                 fields.push((field.name.clone().to_string(), value));
             }
+            Ok(V::from_struct(fields))
         }
-
-        Ok(V::from_struct(fields))
     }
 
     fn convert_list<V: ArrowToValue>(
@@ -685,7 +605,7 @@ mod tests {
             map.insert("b".to_string(), JinjaValue::from("")); // null -> empty string for Jinja
             JinjaValue::from(map)
         };
-        let expected_json_1 = json!({"a": null, "b": null});
+        let expected_json_1 = json!(null);
 
         assert_eq!(
             converter.to_jinja(&struct_array, 1).unwrap(),
