@@ -361,10 +361,11 @@ class ExprConverter:
     @_convert_expr.register(IndexExpr)
     def _convert_index_expr(self, logical: IndexExpr) -> pl.Expr:
         base_expr = self._convert_expr(logical.expr)
-        if isinstance(logical.index, int):
-            return base_expr.list.get(logical.index, null_on_oob=True)
-        elif isinstance(logical.index, str):
-            return base_expr.struct.field(str(logical.index))
+        index_expr = self._convert_expr(logical.index)
+        if logical.input_type == "array":
+            return base_expr.list.get(index_expr, null_on_oob=True)
+        elif logical.input_type == "struct":
+            return base_expr.struct.field(logical.index.literal)
         else:
             raise NotImplementedError(f"Unsupported index key type: {type(logical.index)}")
 
