@@ -1,4 +1,4 @@
-use crate::dtypes::types::FenicDType;
+use crate::{arrow_scalar_extractor::ArrowScalarConverter, dtypes::FenicDType};
 use polars::chunked_array::builder::get_list_builder;
 use polars::prelude::*;
 use polars_arrow::{
@@ -22,22 +22,25 @@ pub fn cast_string_to_json(s: &Series) -> PolarsResult<Series> {
 }
 
 /// Cast any logical type series to JSON strings.
-/// This is a unified function that handles all types by using anyvalue_to_json_value.
 pub fn cast_fenic_dtype_to_json(s: &Series) -> PolarsResult<Series> {
-    let mut json_strings = Vec::with_capacity(s.len());
+    let mut builder = StringChunkedBuilder::new(s.name().clone(), s.len());
 
-    for i in 0..s.len() {
-        let json_opt = match s.get(i)? {
-            AnyValue::Null => None,
-            value => {
-                let json_value = anyvalue_to_json_value(value);
-                serde_json::to_string(&json_value).ok()
+    for array in s.chunks() {
+        let array = &**array;
+        let array_len = array.len();
+        for row_idx in 0..array_len {
+            let json_value = ArrowScalarConverter.to_json(array, row_idx)?;
+            match json_value {
+                serde_json::Value::Null => builder.append_null(),
+                _ => match serde_json::to_string(&json_value) {
+                    Ok(json_str) => builder.append_value(&json_str),
+                    Err(_) => builder.append_null(),
+                },
             }
-        };
-        json_strings.push(json_opt);
+        }
     }
 
-    Ok(Series::new(s.name().clone(), json_strings))
+    Ok(builder.finish().into_series())
 }
 
 // Convert a JSON string series to any Fenic type
@@ -235,74 +238,7 @@ fn cast_json_to_logical_type_helper(
     }
 }
 
-/// Convert a Polars AnyValue to a serde_json Value.
-pub fn anyvalue_to_json_value(val: AnyValue) -> Value {
-    match val {
-        AnyValue::Null => Value::Null,
-        AnyValue::Boolean(b) => Value::Bool(b),
-        AnyValue::UInt8(u) => Value::from(u),
-        AnyValue::UInt16(u) => Value::from(u),
-        AnyValue::UInt32(u) => Value::from(u),
-        AnyValue::UInt64(u) => Value::from(u),
-        AnyValue::Int8(i) => Value::from(i),
-        AnyValue::Int16(i) => Value::from(i),
-        AnyValue::Int32(i) => Value::from(i),
-        AnyValue::Int64(i) => Value::from(i),
-        AnyValue::Float32(f) => serde_json::Number::from_f64(f as f64)
-            .map(Value::Number)
-            .unwrap_or(Value::Null),
-        AnyValue::Float64(f) => serde_json::Number::from_f64(f)
-            .map(Value::Number)
-            .unwrap_or(Value::Null),
-        AnyValue::String(s) => Value::String(s.into()),
-        AnyValue::StringOwned(s) => Value::String(s.as_str().into()),
-        AnyValue::Binary(b) => Value::String(String::from_utf8_lossy(b).into()),
-        AnyValue::BinaryOwned(b) => Value::String(String::from_utf8_lossy(&b).to_string()),
-        AnyValue::List(s) => {
-            let mut arr = Vec::with_capacity(s.len());
-            for val in s.iter() {
-                arr.push(anyvalue_to_json_value(val));
-            }
-            Value::Array(arr)
-        }
-        AnyValue::Array(slice, _) => {
-            let mut arr = Vec::with_capacity(slice.len());
-            for val in slice.iter() {
-                arr.push(anyvalue_to_json_value(val));
-            }
-            Value::Array(arr)
-        }
-        // For now, we clone struct field values using `.into_static()` to get owned `AnyValue<'static>` instances.
-        // This approach is simple and safe, allowing us to walk each row without worrying about lifetimes tied to Arrow arrays.
-        // Although cloning incurs some allocation overhead (especially for strings, binaries, and nested types), it provides correctness and ease of use.
-        // The ideal method to extract `AnyValue` from an Arrow array at a given index is `arr_to_any_value`, but this function is currently `pub(crate)`
-        // and not accessible outside the Polars crate. Similarly, the iterator `_iter_struct_av` on `AnyValue::Struct` is private (marked with an underscore).
-        // To achieve zero-copy, lifetime-safe access without cloning, we would need to either copy and maintain this private logic ourselves,
-        // or maintain a local patched fork of Polars where these methods are made public.
-        // For now, cloning with `.into_static()` is a practical tradeoff for prototyping or simpler usage, with the option to optimize later.
-        AnyValue::Struct(_, _, _) | AnyValue::StructOwned(_) => {
-            let static_val = val.into_static();
-            if let AnyValue::StructOwned(payload) = static_val {
-                let mut map = serde_json::Map::new();
-                let (values, fields) = payload.as_ref();
-
-                for (field, value) in fields.iter().zip(values.iter()) {
-                    map.insert(
-                        field.name().to_string(),
-                        anyvalue_to_json_value(value.clone()),
-                    );
-                }
-                Value::Object(map)
-            } else {
-                Value::Null
-            }
-        }
-        _ => Value::Null,
-    }
-}
-
 // Helper functions for appending specific value types
-
 fn append_string_value(builder: &mut StringChunkedBuilder, json_val: &Value) -> PolarsResult<()> {
     match json_val {
         Value::String(s) => builder.append_value(s),
@@ -436,49 +372,6 @@ mod tests {
         assert_eq!(result.str().unwrap().get(0), Some(r#"{"key": "value"}"#));
         assert_eq!(result.str().unwrap().get(1), None); // invalid becomes null
         assert_eq!(result.str().unwrap().get(2), None); // invalid becomes null
-    }
-
-    #[test]
-    fn test_anyvalue_to_json_value_primitives() {
-        // Test primitive types
-        assert_eq!(anyvalue_to_json_value(AnyValue::Null), json!(null));
-        assert_eq!(anyvalue_to_json_value(AnyValue::Boolean(true)), json!(true));
-        assert_eq!(anyvalue_to_json_value(AnyValue::Int64(42)), json!(42));
-        assert_eq!(anyvalue_to_json_value(AnyValue::Float64(3.14)), json!(3.14));
-        assert_eq!(
-            anyvalue_to_json_value(AnyValue::String("test")),
-            json!("test")
-        );
-
-        // Test integer types
-        assert_eq!(anyvalue_to_json_value(AnyValue::UInt8(255)), json!(255));
-        assert_eq!(anyvalue_to_json_value(AnyValue::Int32(-42)), json!(-42));
-
-        // Test float edge cases
-        assert_eq!(
-            anyvalue_to_json_value(AnyValue::Float32(f32::NAN)),
-            json!(null)
-        );
-        assert_eq!(
-            anyvalue_to_json_value(AnyValue::Float64(f64::INFINITY)),
-            json!(null)
-        );
-    }
-
-    #[test]
-    fn test_anyvalue_to_json_value_binary() {
-        // Test binary data
-        let binary_data = b"hello";
-        assert_eq!(
-            anyvalue_to_json_value(AnyValue::Binary(binary_data)),
-            json!("hello")
-        );
-
-        // Test invalid UTF-8 binary
-        let invalid_utf8 = &[0xFF, 0xFE, 0xFD];
-        let result = anyvalue_to_json_value(AnyValue::Binary(invalid_utf8));
-        // Should handle lossy conversion
-        assert!(result.is_string());
     }
 
     #[test]

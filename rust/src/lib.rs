@@ -1,3 +1,4 @@
+pub mod arrow_scalar_extractor;
 pub mod chunking;
 pub mod dtypes;
 pub mod json;
