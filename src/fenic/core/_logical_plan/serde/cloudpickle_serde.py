@@ -1,13 +1,16 @@
 """CloudPickle-based implementation of LogicalPlan serialization."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import cloudpickle  # nosec: B403
-from typing import Optional, TYPE_CHECKING
 
 from fenic.core._interfaces.session_state import BaseSessionState
+
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.serde.serde_protocol import SupportsLogicalPlanSerde
+
 
 class CloudPickleSerde(SupportsLogicalPlanSerde):
     """CloudPickle-based LogicalPlan serialization implementation."""

@@ -1,7 +1,7 @@
 """Protocol for serialization/deserialization of LogicalPlan objects."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from fenic.core._interfaces.session_state import BaseSessionState
 

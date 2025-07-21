@@ -8,7 +8,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class LogicalPlanProto(_message.Message):
+class LogicalPlan(_message.Message):
     __slots__ = ("in_memory_source", "file_source", "table_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "file_sink", "table_sink")
     IN_MEMORY_SOURCE_FIELD_NUMBER: _ClassVar[int]
     FILE_SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -27,48 +27,48 @@ class LogicalPlanProto(_message.Message):
     SEMANTIC_CLUSTER_FIELD_NUMBER: _ClassVar[int]
     FILE_SINK_FIELD_NUMBER: _ClassVar[int]
     TABLE_SINK_FIELD_NUMBER: _ClassVar[int]
-    in_memory_source: InMemorySourceProto
-    file_source: FileSourceProto
-    table_source: TableSourceProto
-    projection: ProjectionProto
-    filter: FilterProto
-    join: JoinProto
-    aggregate: AggregateProto
-    union: UnionProto
-    limit: LimitProto
-    explode: ExplodeProto
-    drop_duplicates: DropDuplicatesProto
-    sort: SortProto
-    unnest: UnnestProto
-    sql: SQLProto
-    semantic_cluster: SemanticClusterProto
-    file_sink: FileSinkProto
-    table_sink: TableSinkProto
-    def __init__(self, in_memory_source: _Optional[_Union[InMemorySourceProto, _Mapping]] = ..., file_source: _Optional[_Union[FileSourceProto, _Mapping]] = ..., table_source: _Optional[_Union[TableSourceProto, _Mapping]] = ..., projection: _Optional[_Union[ProjectionProto, _Mapping]] = ..., filter: _Optional[_Union[FilterProto, _Mapping]] = ..., join: _Optional[_Union[JoinProto, _Mapping]] = ..., aggregate: _Optional[_Union[AggregateProto, _Mapping]] = ..., union: _Optional[_Union[UnionProto, _Mapping]] = ..., limit: _Optional[_Union[LimitProto, _Mapping]] = ..., explode: _Optional[_Union[ExplodeProto, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicatesProto, _Mapping]] = ..., sort: _Optional[_Union[SortProto, _Mapping]] = ..., unnest: _Optional[_Union[UnnestProto, _Mapping]] = ..., sql: _Optional[_Union[SQLProto, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticClusterProto, _Mapping]] = ..., file_sink: _Optional[_Union[FileSinkProto, _Mapping]] = ..., table_sink: _Optional[_Union[TableSinkProto, _Mapping]] = ...) -> None: ...
+    in_memory_source: InMemorySource
+    file_source: FileSource
+    table_source: TableSource
+    projection: Projection
+    filter: Filter
+    join: Join
+    aggregate: Aggregate
+    union: Union
+    limit: Limit
+    explode: Explode
+    drop_duplicates: DropDuplicates
+    sort: Sort
+    unnest: Unnest
+    sql: SQL
+    semantic_cluster: SemanticCluster
+    file_sink: FileSink
+    table_sink: TableSink
+    def __init__(self, in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
 
-class SchemaProto(_message.Message):
+class Schema(_message.Message):
     __slots__ = ("fields",)
     FIELDS_FIELD_NUMBER: _ClassVar[int]
-    fields: _containers.RepeatedCompositeFieldContainer[ColumnFieldProto]
-    def __init__(self, fields: _Optional[_Iterable[_Union[ColumnFieldProto, _Mapping]]] = ...) -> None: ...
+    fields: _containers.RepeatedCompositeFieldContainer[ColumnField]
+    def __init__(self, fields: _Optional[_Iterable[_Union[ColumnField, _Mapping]]] = ...) -> None: ...
 
-class ColumnFieldProto(_message.Message):
+class ColumnField(_message.Message):
     __slots__ = ("name", "data_type")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
     name: str
-    data_type: _datatypes_pb2.DataTypeProto
-    def __init__(self, name: _Optional[str] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataTypeProto, _Mapping]] = ...) -> None: ...
+    data_type: _datatypes_pb2.DataType
+    def __init__(self, name: _Optional[str] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
 
-class InMemorySourceProto(_message.Message):
+class InMemorySource(_message.Message):
     __slots__ = ("dataframe_data", "schema")
     DATAFRAME_DATA_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     dataframe_data: bytes
-    schema: SchemaProto
-    def __init__(self, dataframe_data: _Optional[bytes] = ..., schema: _Optional[_Union[SchemaProto, _Mapping]] = ...) -> None: ...
+    schema: Schema
+    def __init__(self, dataframe_data: _Optional[bytes] = ..., schema: _Optional[_Union[Schema, _Mapping]] = ...) -> None: ...
 
-class FileSourceProto(_message.Message):
+class FileSource(_message.Message):
     __slots__ = ("paths", "format", "schema", "columns")
     PATHS_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
@@ -76,33 +76,33 @@ class FileSourceProto(_message.Message):
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     paths: _containers.RepeatedScalarFieldContainer[str]
     format: str
-    schema: SchemaProto
+    schema: Schema
     columns: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, paths: _Optional[_Iterable[str]] = ..., format: _Optional[str] = ..., schema: _Optional[_Union[SchemaProto, _Mapping]] = ..., columns: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, paths: _Optional[_Iterable[str]] = ..., format: _Optional[str] = ..., schema: _Optional[_Union[Schema, _Mapping]] = ..., columns: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class TableSourceProto(_message.Message):
+class TableSource(_message.Message):
     __slots__ = ("table_name",)
     TABLE_NAME_FIELD_NUMBER: _ClassVar[int]
     table_name: str
     def __init__(self, table_name: _Optional[str] = ...) -> None: ...
 
-class ProjectionProto(_message.Message):
+class Projection(_message.Message):
     __slots__ = ("input", "expressions")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPRESSIONS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    expressions: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., expressions: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ...) -> None: ...
+    input: LogicalPlan
+    expressions: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expressions: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
-class FilterProto(_message.Message):
+class Filter(_message.Message):
     __slots__ = ("input", "predicate")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PREDICATE_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    predicate: _expressions_pb2.LogicalExprProto
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., predicate: _Optional[_Union[_expressions_pb2.LogicalExprProto, _Mapping]] = ...) -> None: ...
+    input: LogicalPlan
+    predicate: _expressions_pb2.LogicalExpr
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., predicate: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
 
-class JoinProto(_message.Message):
+class Join(_message.Message):
     __slots__ = ("left", "right", "join_type", "left_keys", "right_keys", "filter")
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -110,110 +110,110 @@ class JoinProto(_message.Message):
     LEFT_KEYS_FIELD_NUMBER: _ClassVar[int]
     RIGHT_KEYS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    left: LogicalPlanProto
-    right: LogicalPlanProto
+    left: LogicalPlan
+    right: LogicalPlan
     join_type: str
-    left_keys: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    right_keys: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    filter: _expressions_pb2.LogicalExprProto
-    def __init__(self, left: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., right: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., join_type: _Optional[str] = ..., left_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ..., right_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ..., filter: _Optional[_Union[_expressions_pb2.LogicalExprProto, _Mapping]] = ...) -> None: ...
+    left_keys: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    right_keys: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    filter: _expressions_pb2.LogicalExpr
+    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., join_type: _Optional[str] = ..., left_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., right_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., filter: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
 
-class AggregateProto(_message.Message):
+class Aggregate(_message.Message):
     __slots__ = ("input", "group_exprs", "agg_exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     GROUP_EXPRS_FIELD_NUMBER: _ClassVar[int]
     AGG_EXPRS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    group_exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    agg_exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., group_exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ..., agg_exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ...) -> None: ...
+    input: LogicalPlan
+    group_exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    agg_exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., group_exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., agg_exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
-class UnionProto(_message.Message):
+class Union(_message.Message):
     __slots__ = ("inputs",)
     INPUTS_FIELD_NUMBER: _ClassVar[int]
-    inputs: _containers.RepeatedCompositeFieldContainer[LogicalPlanProto]
-    def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlanProto, _Mapping]]] = ...) -> None: ...
+    inputs: _containers.RepeatedCompositeFieldContainer[LogicalPlan]
+    def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlan, _Mapping]]] = ...) -> None: ...
 
-class LimitProto(_message.Message):
+class Limit(_message.Message):
     __slots__ = ("input", "n")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     N_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
+    input: LogicalPlan
     n: int
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., n: _Optional[int] = ...) -> None: ...
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., n: _Optional[int] = ...) -> None: ...
 
-class ExplodeProto(_message.Message):
+class Explode(_message.Message):
     __slots__ = ("input", "expr")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    expr: _expressions_pb2.LogicalExprProto
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExprProto, _Mapping]] = ...) -> None: ...
+    input: LogicalPlan
+    expr: _expressions_pb2.LogicalExpr
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
 
-class DropDuplicatesProto(_message.Message):
+class DropDuplicates(_message.Message):
     __slots__ = ("input", "exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPRS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ...) -> None: ...
+    input: LogicalPlan
+    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
-class SortProto(_message.Message):
+class Sort(_message.Message):
     __slots__ = ("input", "exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPRS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ...) -> None: ...
+    input: LogicalPlan
+    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
-class UnnestProto(_message.Message):
+class Unnest(_message.Message):
     __slots__ = ("input", "exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPRS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExprProto]
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExprProto, _Mapping]]] = ...) -> None: ...
+    input: LogicalPlan
+    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
-class SQLProto(_message.Message):
+class SQL(_message.Message):
     __slots__ = ("inputs", "template_names", "templated_query")
     INPUTS_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_NAMES_FIELD_NUMBER: _ClassVar[int]
     TEMPLATED_QUERY_FIELD_NUMBER: _ClassVar[int]
-    inputs: _containers.RepeatedCompositeFieldContainer[LogicalPlanProto]
+    inputs: _containers.RepeatedCompositeFieldContainer[LogicalPlan]
     template_names: _containers.RepeatedScalarFieldContainer[str]
     templated_query: str
-    def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlanProto, _Mapping]]] = ..., template_names: _Optional[_Iterable[str]] = ..., templated_query: _Optional[str] = ...) -> None: ...
+    def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlan, _Mapping]]] = ..., template_names: _Optional[_Iterable[str]] = ..., templated_query: _Optional[str] = ...) -> None: ...
 
-class SemanticClusterProto(_message.Message):
+class SemanticCluster(_message.Message):
     __slots__ = ("input", "expr", "n_clusters", "model_alias")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPR_FIELD_NUMBER: _ClassVar[int]
     N_CLUSTERS_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
-    expr: _expressions_pb2.LogicalExprProto
+    input: LogicalPlan
+    expr: _expressions_pb2.LogicalExpr
     n_clusters: int
     model_alias: str
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExprProto, _Mapping]] = ..., n_clusters: _Optional[int] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., n_clusters: _Optional[int] = ..., model_alias: _Optional[str] = ...) -> None: ...
 
-class FileSinkProto(_message.Message):
+class FileSink(_message.Message):
     __slots__ = ("input", "path", "format", "mode")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
+    input: LogicalPlan
     path: str
     format: str
     mode: str
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., path: _Optional[str] = ..., format: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., path: _Optional[str] = ..., format: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...
 
-class TableSinkProto(_message.Message):
+class TableSink(_message.Message):
     __slots__ = ("input", "table_name", "mode")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     TABLE_NAME_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
-    input: LogicalPlanProto
+    input: LogicalPlan
     table_name: str
     mode: str
-    def __init__(self, input: _Optional[_Union[LogicalPlanProto, _Mapping]] = ..., table_name: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., table_name: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...

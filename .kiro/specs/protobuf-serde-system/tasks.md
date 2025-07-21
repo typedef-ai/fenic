@@ -10,40 +10,45 @@
 
 - [ ] 2. Implement core registration system with build-time validation
 
-  - Create `SerdeRegistry` class in `src/fenic/core/_logical_plan/serde/registry.py` with type-safe registration API
-  - Implement `@register_serde` decorator with automatic field mapping inference
-  - Build `BuildTimeValidator` for registration completeness checking at import time
+  - Create `SerdeRegistry` class in `src/fenic/core/_logical_plan/serde/registry.py` with type-safe registration API (`register_type`  `register_enum`, etc.)
+  - Implement `@register_serde`/`@register_serde_enum` decorator with automatic field mapping inference
+  - Ensure all registration/validation occurs at build time so we do not fail at runtime.
+  - Set up registration for enums, pydantic models, and numpy arrays
   - Create comprehensive error handling with detailed diagnostics (`SerdeError`, `RegistrationError`, etc.)
   - Write unit tests for registration system and validation logic
   - _Requirements: 2.1, 2.2, 2.3, 6.1, 6.2_
 
-- [ ] 3. Create LogicalExpr protobuf schema and basic serialization
+- [ ] 3. LogicalExpr Basic Serde
 
-  - Define protobuf messages for all LogicalExpr types (basic, arithmetic, comparison, aggregate, semantic) in `protos/logical_plan/v1/expressions.proto`
+  - Register non-semantic LogicalExpr types in `SerdeRegistry` -- ensuring that base types are registered before any type that depends on them.
   - Implement basic `ProtoSerde` class in `src/fenic/core/_logical_plan/serde/proto_serde.py` with `serialize_logical_expr` and `deserialize_logical_expr` methods
-  - Handle complex expression serialization (Pydantic models, enums, numpy arrays) using registration system
   - Handle UDFExpr non-serializable case with clear error messages
   - Add comprehensive test coverage for all expression types, fixing existing test imports
   - _Requirements: 1.1, 1.2, 4.1, 4.2, 6.1_
 
-- [ ] 4. Create LogicalPlan protobuf schema and plan serialization
+- [ ] 4. Semantic LogicalExpr Serde
 
-  - Define protobuf messages for core LogicalPlan types (Projection, Filter, Join, Aggregate, Source, Sink) in `protos/logical_plan/v1/plans.proto`
+  - Register semantic LogicalExpr types in `SerdeRegistry`. Some loose ends will need to be tied up first (SummarizationFormat, etc), but we should be able to get this working for most semantic exprs.
+  - Add comprehensive test coverage for semantic expression types.
+  - _Requirements: 1.1, 1.2, 4.1, 4.2, 6.1_
+
+- [ ] 5. Create LogicalPlan protobuf schema and plan serialization
+
   - Extend `ProtoSerde` class with `serialize` and `deserialize` methods for full LogicalPlan trees
+  - Implement LogicalPlan serialization validation -- ensuring that logical plans with exprs like UDFExpr cannot be serialized
   - Handle session state exclusion during serialization and restoration during deserialization
   - Create round-trip tests for basic LogicalPlan serialization, updating existing test patterns
   - _Requirements: 1.1, 1.3, 1.4, 7.1_
 
-- [ ] 5. Integrate ProtoSerde with existing serde facade
+- [ ] 6. Integrate ProtoSerde with existing serde facade
 
-  - Update `LogicalPlanSerde` in `src/fenic/core/_logical_plan/serde/serde.py` to support `SerdeType.PROTOBUF`
-  - Remove `NotImplementedError` and instantiate `ProtoSerde` class
+  - Update `LogicalPlanSerde` in `src/fenic/core/_logical_plan/serde/serde.py` to support ProtoSerde
   - Ensure seamless switching between CloudPickle and ProtoSerde
   - Update cloud execution code to work with new serde interface
   - Create integration tests comparing CloudPickle and ProtoSerde functional equivalence
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 6. Add advanced features and performance optimization
+- [ ] 7. Add advanced features and performance optimization
 
   - Implement compression support with configurable algorithms (gzip, lz4, zstd)
   - Add serialization performance metrics and profiling hooks
@@ -51,7 +56,7 @@
   - Create performance benchmarks comparing to CloudPickle
   - _Requirements: 3.1, 3.2, 3.3, 5.1, 5.2, 5.3_
 
-- [ ] 7. Complete build-time validation and error handling
+- [ ] 8. Complete build-time validation and error handling
 
   - Implement comprehensive build-time validation for all registered types
   - Add field mapping validation with strict type checking
@@ -59,7 +64,7 @@
   - Build validation tests that run during CI to catch registration issues
   - _Requirements: 2.4, 2.5, 6.3, 6.4, 6.5_
 
-- [ ] 8. Add comprehensive test coverage and documentation
+- [ ] 9. Add comprehensive test coverage and documentation
   - Create end-to-end integration tests with complex nested LogicalPlan structures
   - Add compatibility tests for version migration scenarios
   - Write performance tests with memory usage profiling

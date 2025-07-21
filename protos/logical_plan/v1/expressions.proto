@@ -7,90 +7,90 @@ import "logical_plan/v1/enums.proto";
 import "logical_plan/v1/complex_types.proto";
 
 // Base message for all logical expressions
-message LogicalExprProto {
+message LogicalExpr {
   oneof expr_type {
     // Basic expressions
-    ColumnExprProto column = 1;
-    LiteralExprProto literal = 2;
-    AliasExprProto alias = 3;
-    SortExprProto sort = 4;
-    IndexExprProto index = 5;
-    ArrayExprProto array = 6;
-    StructExprProto struct = 7;
-    CastExprProto cast = 8;
-    NotExprProto not = 9;
-    CoalesceExprProto coalesce = 10;
-    InExprProto in = 11;
-    IsNullExprProto is_null = 12;
-    ArrayLengthExprProto array_length = 13;
-    ArrayContainsExprProto array_contains = 14;
+    ColumnExpr column = 1;
+    LiteralExpr literal = 2;
+    AliasExpr alias = 3;
+    SortExpr sort = 4;
+    IndexExpr index = 5;
+    ArrayExpr array = 6;
+    StructExpr struct = 7;
+    CastExpr cast = 8;
+    NotExpr not = 9;
+    CoalesceExpr coalesce = 10;
+    InExpr in = 11;
+    IsNullExpr is_null = 12;
+    ArrayLengthExpr array_length = 13;
+    ArrayContainsExpr array_contains = 14;
 
     // Binary expressions - using same proto for different operator types
-    BinaryExprProto arithmetic = 20;
-    BinaryExprProto boolan = 21;
-    BinaryExprProto equality_comparison = 22;
-    BinaryExprProto numeric_comparison = 23;
+    BinaryExpr arithmetic = 20;
+    BinaryExpr boolan = 21;
+    BinaryExpr equality_comparison = 22;
+    BinaryExpr numeric_comparison = 23;
     
     // Semantic expressions
-    SemanticMapExprProto semantic_map = 30;
-    SemanticExtractExprProto semantic_extract = 31;
-    SemanticPredExprProto semantic_pred = 32;
-    SemanticReduceExprProto semantic_reduce = 33;
-    SemanticClassifyExprProto semantic_classify = 34;
-    AnalyzeSentimentExprProto analyze_sentiment = 35;
-    EmbeddingsExprProto embeddings = 36;
-    SemanticSummarizeExprProto semantic_summarize = 37;
+    SemanticMapExpr semantic_map = 30;
+    SemanticExtractExpr semantic_extract = 31;
+    SemanticPredExpr semantic_pred = 32;
+    SemanticReduceExpr semantic_reduce = 33;
+    SemanticClassifyExpr semantic_classify = 34;
+    AnalyzeSentimentExpr analyze_sentiment = 35;
+    EmbeddingsExpr embeddings = 36;
+    SemanticSummarizeExpr semantic_summarize = 37;
 
     // Embedding expressions
-    EmbeddingNormalizeExprProto embedding_normalize = 40;
-    EmbeddingSimilarityExprProto embedding_similarity = 41;
+    EmbeddingNormalizeExpr embedding_normalize = 40;
+    EmbeddingSimilarityExpr embedding_similarity = 41;
     
     // Text expressions
-    TextractExprProto textract = 50;
-    TextChunkExprProto text_chunk = 51;
-    RecursiveTextChunkExprProto recursive_text_chunk = 52;
-    CountTokensExprProto count_tokens = 53;
-    ConcatExprProto concat = 54;
-    ArrayJoinExprProto array_join = 55;
-    ContainsExprProto contains = 56;
-    ContainsAnyExprProto contains_any = 57;
-    RLikeExprProto rlike = 58;
-    LikeExprProto like = 59;
-    ILikeExprProto ilike = 60;
-    TsParseExprProto ts_parse = 61;
-    StartsWithExprProto starts_with = 62;
-    EndsWithExprProto ends_with = 63;
-    RegexpSplitExprProto regexp_split = 64;
-    SplitPartExprProto split_part = 65;
-    StringCasingExprProto string_casing = 66;
-    StripCharsExprProto strip_chars = 67;
-    ReplaceExprProto replace = 68;
-    StrLengthExprProto str_length = 69;
+    TextractExpr textract = 50;
+    TextChunkExpr text_chunk = 51;
+    RecursiveTextChunkExpr recursive_text_chunk = 52;
+    CountTokensExpr count_tokens = 53;
+    ConcatExpr concat = 54;
+    ArrayJoinExpr array_join = 55;
+    ContainsExpr contains = 56;
+    ContainsAnyExpr contains_any = 57;
+    RLikeExpr rlike = 58;
+    LikeExpr like = 59;
+    ILikeExpr ilike = 60;
+    TsParseExpr ts_parse = 61;
+    StartsWithExpr starts_with = 62;
+    EndsWithExpr ends_with = 63;
+    RegexpSplitExpr regexp_split = 64;
+    SplitPartExpr split_part = 65;
+    StringCasingExpr string_casing = 66;
+    StripCharsExpr strip_chars = 67;
+    ReplaceExpr replace = 68;
+    StrLengthExpr str_length = 69;
     
     // JSON expressions
-    JqExprProto jq = 70;
-    JsonTypeExprProto json_type = 71;
-    JsonContainsExprProto json_contains = 72;
+    JqExpr jq = 70;
+    JsonTypeExpr json_type = 71;
+    JsonContainsExpr json_contains = 72;
     
     // Markdown expressions
-    MdToJsonExprProto md_to_json = 80;
-    MdGetCodeBlocksExprProto md_get_code_blocks = 81;
-    MdGenerateTocExprProto md_generate_toc = 82;
-    MdExtractHeaderChunksProto md_extract_header_chunks = 83;
+    MdToJsonExpr md_to_json = 80;
+    MdGetCodeBlocksExpr md_get_code_blocks = 81;
+    MdGenerateTocExpr md_generate_toc = 82;
+    MdExtractHeaderChunks md_extract_header_chunks = 83;
     
     // Case expressions
-    WhenExprProto when = 90;
-    OtherwiseExprProto otherwise = 91;
+    WhenExpr when = 90;
+    OtherwiseExpr otherwise = 91;
 
   }
 }
 
-// Basic expressions - using descriptive Proto suffix naming
-message ColumnExprProto {
+// Basic expressions - using descriptive  suffix naming
+message ColumnExpr {
   string name = 1;
 }
 
-message LiteralExprProto {
+message LiteralExpr {
   oneof value_type {
     string string_value = 1;
     int64 int_value = 2;
@@ -99,312 +99,312 @@ message LiteralExprProto {
     bytes bytes_value = 5;
     //all types we support for LiteralExpr
   }
-  DataTypeProto data_type = 20;
+  DataType data_type = 20;
 }
 
-message AliasExprProto {
-  LogicalExprProto expr = 1;
+message AliasExpr {
+  LogicalExpr expr = 1;
   string name = 2;
 }
 
-message SortExprProto {
-  LogicalExprProto expr = 1;
+message SortExpr {
+  LogicalExpr expr = 1;
   string order = 2;  // "asc" or "desc"
 }
 
-message IndexExprProto {
-  LogicalExprProto expr = 1;
+message IndexExpr {
+  LogicalExpr expr = 1;
   oneof index_type {
     int32 int_index = 2;
     string string_index = 3;
-    LogicalExprProto expr_index = 4;
+    LogicalExpr expr_index = 4;
   }
 }
 
-message ArrayExprProto {
-  repeated LogicalExprProto exprs = 1;
+message ArrayExpr {
+  repeated LogicalExpr exprs = 1;
 }
 
-message StructExprProto {
-  repeated LogicalExprProto exprs = 1;
+message StructExpr {
+  repeated LogicalExpr exprs = 1;
   repeated string field_names = 2;
 }
 
-message CastExprProto {
-  LogicalExprProto expr = 1;
-  DataTypeProto dest_type = 2;
+message CastExpr {
+  LogicalExpr expr = 1;
+  DataType dest_type = 2;
 }
 
-message NotExprProto {
-  LogicalExprProto expr = 1;
+message NotExpr {
+  LogicalExpr expr = 1;
 }
 
-message CoalesceExprProto {
-  repeated LogicalExprProto exprs = 1;
+message CoalesceExpr {
+  repeated LogicalExpr exprs = 1;
 }
 
-message InExprProto {
-  LogicalExprProto expr = 1;
-  LogicalExprProto other = 2;
+message InExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
 }
 
-message IsNullExprProto {
-  LogicalExprProto expr = 1;
+message IsNullExpr {
+  LogicalExpr expr = 1;
 }
 
-message ArrayLengthExprProto {
-  LogicalExprProto expr = 1;
+message ArrayLengthExpr {
+  LogicalExpr expr = 1;
 }
 
-message ArrayContainsExprProto {
-  LogicalExprProto expr = 1;
-  LogicalExprProto value = 2;
+message ArrayContainsExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr value = 2;
 }
 
 // Binary expressions - single proto for all binary operators
-message BinaryExprProto {
-  LogicalExprProto left = 1;
-  LogicalExprProto right = 2;
-  OperatorProto operator = 3;
+message BinaryExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
 }
 
-// Semantic expressions - using descriptive Proto suffix naming
-message SemanticMapExprProto {
+// Semantic expressions - using descriptive  suffix naming
+message SemanticMapExpr {
   string instruction = 1;
-  repeated LogicalExprProto exprs = 2;  // Parsed from instruction
+  repeated LogicalExpr exprs = 2;  // Parsed from instruction
   int32 max_tokens = 3;
   float temperature = 4;
   optional string model_alias = 5;
   optional PydanticModelType response_format = 6;
-  optional MapExampleCollectionProto examples = 7;
+  optional MapExampleCollection examples = 7;
 }
 
-message SemanticExtractExprProto {
-  LogicalExprProto expr = 1;
+message SemanticExtractExpr {
+  LogicalExpr expr = 1;
   PydanticModelType schema = 2;  // Required schema for extraction
   float temperature = 3;
   optional string model_alias = 4;
 }
 
-message SemanticPredExprProto {
-  LogicalExprProto expr = 1;
+message SemanticPredExpr {
+  LogicalExpr expr = 1;
   string predicate = 2;
   float temperature = 3;
   optional string model_alias = 4;
-  optional PredicateExampleCollectionProto examples = 5;
+  optional PredicateExampleCollection examples = 5;
 }
 
-message SemanticReduceExprProto {
-  LogicalExprProto expr = 1;
+message SemanticReduceExpr {
+  LogicalExpr expr = 1;
   string instruction = 2;
   int32 max_tokens = 3;
   float temperature = 4;
   optional string model_alias = 5;
 }
 
-message SemanticClassifyExprProto {
-  LogicalExprProto expr = 1;
+message SemanticClassifyExpr {
+  LogicalExpr expr = 1;
   repeated string labels = 2;  // Simple string list for classification labels
   float temperature = 3;
   optional string model_alias = 4;
-  optional ClassifyExampleCollectionProto examples = 5;
+  optional ClassifyExampleCollection examples = 5;
 }
 
-message AnalyzeSentimentExprProto {
-  LogicalExprProto expr = 1;
+message AnalyzeSentimentExpr {
+  LogicalExpr expr = 1;
   float temperature = 2;
   optional string model_alias = 3;
 }
 
-message EmbeddingsExprProto {
-  repeated LogicalExprProto exprs = 1;
+message EmbeddingsExpr {
+  repeated LogicalExpr exprs = 1;
   optional string model_alias = 2;
 }
 
-message SemanticSummarizeExprProto {
-  LogicalExprProto expr = 1;
-  SummarizationFormatProto format = 2;
+message SemanticSummarizeExpr {
+  LogicalExpr expr = 1;
+  SummarizationFormat format = 2;
   float temperature = 3;
   optional string model_alias = 4;
 }
 
 // Embedding expressions
-message EmbeddingNormalizeExprProto {
-  LogicalExprProto expr = 1;
+message EmbeddingNormalizeExpr {
+  LogicalExpr expr = 1;
 }
 
-message EmbeddingSimilarityExprProto {
-  LogicalExprProto expr = 1;
+message EmbeddingSimilarityExpr {
+  LogicalExpr expr = 1;
   oneof other_type {
-    LogicalExprProto other_expr = 2;
+    LogicalExpr other_expr = 2;
     NumpyArray query_vector = 3;
   }
   SemanticSimilarityMetric metric = 4;
 }
 
 // Text expressions
-message TextractExprProto {
-  repeated LogicalExprProto exprs = 1;
+message TextractExpr {
+  repeated LogicalExpr exprs = 1;
   repeated string patterns = 2;
 }
 
-message TextChunkExprProto {
-  LogicalExprProto expr = 1;
+message TextChunkExpr {
+  LogicalExpr expr = 1;
   int32 chunk_size = 2;
   int32 overlap = 3;
-  ChunkLengthFunctionProto length_function = 4;
-  ChunkCharacterSetProto character_set = 5;
+  ChunkLengthFunction length_function = 4;
+  ChunkCharacterSet character_set = 5;
 }
 
-message RecursiveTextChunkExprProto {
-  LogicalExprProto expr = 1;
+message RecursiveTextChunkExpr {
+  LogicalExpr expr = 1;
   int32 chunk_size = 2;
   int32 overlap = 3;
-  ChunkLengthFunctionProto length_function = 4;
-  ChunkCharacterSetProto character_set = 5;
+  ChunkLengthFunction length_function = 4;
+  ChunkCharacterSet character_set = 5;
 }
 
-message CountTokensExprProto {
-  LogicalExprProto input_expr = 1;
+message CountTokensExpr {
+  LogicalExpr input_expr = 1;
   optional string model_alias = 2;
 }
 
-message ConcatExprProto {
-  repeated LogicalExprProto exprs = 1;
+message ConcatExpr {
+  repeated LogicalExpr exprs = 1;
   string separator = 2;
 }
 
-message ArrayJoinExprProto {
-  LogicalExprProto expr = 1;
+message ArrayJoinExpr {
+  LogicalExpr expr = 1;
   string separator = 2;
 }
 
-message ContainsExprProto {
-  LogicalExprProto expr = 1;
+message ContainsExpr {
+  LogicalExpr expr = 1;
   string substring = 2;
   bool case_sensitive = 3;
 }
 
-message ContainsAnyExprProto {
-  LogicalExprProto expr = 1;
+message ContainsAnyExpr {
+  LogicalExpr expr = 1;
   repeated string substrings = 2;
   bool case_sensitive = 3;
 }
 
-message RLikeExprProto {
-  LogicalExprProto expr = 1;
+message RLikeExpr {
+  LogicalExpr expr = 1;
   string pattern = 2;
   bool case_sensitive = 3;
 }
 
-message LikeExprProto {
-  LogicalExprProto expr = 1;
+message LikeExpr {
+  LogicalExpr expr = 1;
   string pattern = 2;
   bool case_sensitive = 3;
 }
 
-message ILikeExprProto {
-  LogicalExprProto expr = 1;
+message ILikeExpr {
+  LogicalExpr expr = 1;
   string pattern = 2;
 }
 
-message TsParseExprProto {
-  LogicalExprProto expr = 1;
+message TsParseExpr {
+  LogicalExpr expr = 1;
   string format = 2;
 }
 
-message StartsWithExprProto {
-  LogicalExprProto expr = 1;
+message StartsWithExpr {
+  LogicalExpr expr = 1;
   string prefix = 2;
   bool case_sensitive = 3;
 }
 
-message EndsWithExprProto {
-  LogicalExprProto expr = 1;
+message EndsWithExpr {
+  LogicalExpr expr = 1;
   string suffix = 2;
   bool case_sensitive = 3;
 }
 
-message RegexpSplitExprProto {
-  LogicalExprProto expr = 1;
+message RegexpSplitExpr {
+  LogicalExpr expr = 1;
   string pattern = 2;
   int32 limit = 3;
 }
 
-message SplitPartExprProto {
-  LogicalExprProto expr = 1;
+message SplitPartExpr {
+  LogicalExpr expr = 1;
   string delimiter = 2;
   int32 index = 3;
 }
 
-message StringCasingExprProto {
-  LogicalExprProto expr = 1;
+message StringCasingExpr {
+  LogicalExpr expr = 1;
   string case_type = 2;  // "upper", "lower", "title", etc.
 }
 
-message StripCharsExprProto {
-  LogicalExprProto expr = 1;
+message StripCharsExpr {
+  LogicalExpr expr = 1;
   string chars = 2;
   string side = 3;  // "left", "right", "both"
 }
 
-message ReplaceExprProto {
-  LogicalExprProto expr = 1;
+message ReplaceExpr {
+  LogicalExpr expr = 1;
   string old_value = 2;
   string new_value = 3;
   bool global = 4;
 }
 
-message StrLengthExprProto {
-  LogicalExprProto expr = 1;
+message StrLengthExpr {
+  LogicalExpr expr = 1;
 }
 
 // JSON expressions
-message JqExprProto {
-  LogicalExprProto expr = 1;
+message JqExpr {
+  LogicalExpr expr = 1;
   string query = 2;
 }
 
-message JsonTypeExprProto {
-  LogicalExprProto expr = 1;
+message JsonTypeExpr {
+  LogicalExpr expr = 1;
 }
 
-message JsonContainsExprProto {
-  LogicalExprProto expr = 1;
+message JsonContainsExpr {
+  LogicalExpr expr = 1;
   string key = 2;
 }
 
 // Markdown expressions
-message MdToJsonExprProto {
-  LogicalExprProto expr = 1;
+message MdToJsonExpr {
+  LogicalExpr expr = 1;
 }
 
-message MdGetCodeBlocksExprProto {
-  LogicalExprProto expr = 1;
+message MdGetCodeBlocksExpr {
+  LogicalExpr expr = 1;
   optional string language = 2;
   bool include_text = 3;
 }
 
-message MdGenerateTocExprProto {
-  LogicalExprProto expr = 1;
+message MdGenerateTocExpr {
+  LogicalExpr expr = 1;
   int32 max_depth = 2;
   bool include_links = 3;
 }
 
-message MdExtractHeaderChunksProto {
-  LogicalExprProto expr = 1;
+message MdExtractHeaderChunks {
+  LogicalExpr expr = 1;
   int32 max_chunk_size = 2;
   int32 overlap = 3;
 }
 
 // Case expressions
-message WhenExprProto {
-  optional LogicalExprProto expr = 1;  // Optional for simple CASE
-  LogicalExprProto condition = 2;
-  LogicalExprProto value = 3;
+message WhenExpr {
+  optional LogicalExpr expr = 1;  // Optional for simple CASE
+  LogicalExpr condition = 2;
+  LogicalExpr value = 3;
 }
 
-message OtherwiseExprProto {
-  LogicalExprProto expr = 1;
-  LogicalExprProto value = 2;
+message OtherwiseExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr value = 2;
 }

@@ -66,41 +66,38 @@ graph TB
 The protobuf schema defines messages for all LogicalPlan and LogicalExpr types, following a hierarchical structure similar to DataFusion's approach but tailored for Fenic's specific needs.
 
 **Naming Convention:**
-All protobuf messages use the `{PythonClassName}Proto` naming convention to eliminate import renaming:
-
-- Python class `Projection` → Proto message `ProjectionProto`
-- Python class `SemanticMapExpr` → Proto message `SemanticMapExpProto`
+All protobuf messages should have the same name as the type they are representing. We will create a `proto_types.py` in the `serde` package where we will import them all and rename them to include a `Proto` suffix, so we can use them in the code alongside their canonical python representations without naming conflicts.
 
 **Core Message Structure:**
 
 ```protobuf
 // Base message for all logical plans
-message LogicalPlanProto {
+message LogicalPlan {
   oneof plan_type {
     // Source operations
-    InMemorySourceProto in_memory_source = 1;
-    FileSourceProto file_source = 2;
-    TableSourceProto table_source = 3;
+    InMemorySource in_memory_source = 1;
+    FileSource file_source = 2;
+    TableSource table_source = 3;
     
     // Transform operations
-    ProjectionProto projection = 10;
+    Projection projection = 10;
     ...
   }
 }
 
 // Base message for all logical expressions
-message LogicalExprProto {
+message LogicalExpr {
   oneof expr_type {
-    ColumnExprProto column = 1;
-    LiteralExprProto literal = 2;
-    AliasExprProto alias = 3;
+    ColumnExpr column = 1;
+    LiteralExpr literal = 2;
+    AliasExpr alias = 3;
     ...
     // Binary Exprs (groups can be separated to allow us to add new exprs to groups without disrupting compatibility)
     // We can also use the same proto message for cases like subclasses of BinaryExpr
-    BinaryExprProto arithmetic = 20;
-    BinaryExprProto equality_comparison = 21;
-    BinaryExprProto numeric_comparison = 22;
-    BinaryExprProto boolean_expr = 23;
+    BinaryExpr arithmetic = 20;
+    BinaryExpr equality_comparison = 21;
+    BinaryExpr numeric_comparison = 22;
+    BinaryExpr boolean_expr = 23;
     ...
   }
 }
@@ -274,12 +271,13 @@ The serialization engine handles the core conversion logic with recursive traver
 
 #### 4. Validation Engine
 
-The validation engine ensures type safety and data integrity throughout the serialization process.
+The validation engine ensures type safety and data integrity throughout the serialization process. We'll want to allow the serde
+classes to expose a `validate_plan` function that validates that the plan can be safely serialized (all types are registered and are serializble), that walks the plan to ensure that each field is serializable.
 
 **Validation Layers:**
 
 - Build-time: Field mapping, type compatibility, registration completeness
-- Serialize-time: Object structure, required fields, type constraints
+- Serialize-time: Object structure, required fields, type constraints, unserializable expressions
 - Deserialize-time: Proto message validation, version compatibility
 
 ## Serialization Challenges Analysis
@@ -429,27 +427,27 @@ class ProtoSerde(LogicalPlanSerializer, LogicalPlanDeserializer):
 #### LogicalPlan Messages
 
 ```protobuf
-message ProjectionProto {
-  LogicalPlanNode input = 1;
-  repeated LogicalExprNode expressions = 2;
+message Projection {
+  LogicalPlan input = 1;
+  repeated LogicalExpr expressions = 2;
 }
 
-message JoinProto {
-  LogicalPlanNode left = 1;
-  LogicalPlanNode right = 2;
+message Join {
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
   string join_type = 3; // in this initial impl, Literals will be str
-  repeated LogicalExprNode left_keys = 4;
-  repeated LogicalExprNode right_keys = 5;
-  optional LogicalExprNode filter = 6;
+  repeated LogicalExpr left_keys = 4;
+  repeated LogicalExpr right_keys = 5;
+  optional LogicalExpr filter = 6;
 }
 
-message AggregateProto {
-  LogicalPlanNode input = 1;
-  repeated LogicalExprNode group_exprs = 2;
-  repeated LogicalExprNode agg_exprs = 3;
+message Aggregate {
+  LogicalPlan input = 1;
+  repeated LogicalExpr group_exprs = 2;
+  repeated LogicalExpr agg_exprs = 3;
 }
 
-message InMemorySourceProto {
+message InMemorySource {
   bytes dataframe_data = 1;  // Serialized polars DataFrame
   Schema schema = 2;
 }
@@ -459,11 +457,11 @@ message InMemorySourceProto {
 #### LogicalExpr Messages
 
 ```protobuf
-message ColumnExprProto {
+message ColumnExpr {
   string name = 1;
 }
 
-message LiteralExprProto {
+message LiteralExpr {
   oneof value_type {
     string string_value = 1;
     int64 int_value = 2;
@@ -475,20 +473,20 @@ message LiteralExprProto {
   DataType data_type = 6;
 }
 
-message BinaryExprProto {
-  LogicalExprNode left = 1;
-  LogicalExprNode right = 2;
-  OperatorProto operator = 3;
+message BinaryExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
 }
 
-message AliasExprProto {
-  LogicalExprNode expr = 1;
+message AliasExpr {
+  LogicalExpr expr = 1;
   string name = 2;
 }
 
-message SemanticMapExprProto {
+message SemanticMapExpr {
   string instruction = 1;
-  repeated LogicalExprNode exprs = 2;  // Parsed from instruction
+  repeated LogicalExpr exprs = 2;  // Parsed from instruction
   int32 max_tokens = 3;
   float temperature = 4;
   optional string model_alias = 5;
@@ -496,10 +494,10 @@ message SemanticMapExprProto {
   optional MapExampleCollection examples = 7;
 }
 
-message EmbeddingSimilarityExprProto {
-  LogicalExprProto expr = 1;
+message EmbeddingSimilarityExpr {
+  LogicalExpr expr = 1;
   oneof other_type { // requires custom serde
-    LogicalExprNode other_expr = 2;
+    LogicalExpr other_expr = 2;
     NumpyArray query_vector = 3;
   }
   string metric = 4;
@@ -510,21 +508,21 @@ message EmbeddingSimilarityExprProto {
 #### DataType Messages
 
 ```protobuf
-message DataTypeProto {
+message DataType {
   oneof data_type {
-    StringTypeProto string = 1;
-    IntegerTypeProto integer = 2;
-    FloatTypeProto float = 3;
-    DoubleTypeProto double = 4;
-    BooleanTypeProto boolean = 5;
-    ArrayTypeProto array = 6;
-    StructTypeProto struct = 7;
-    EmbeddingTypeProto embedding = 8;
-    TranscriptTypeProto transcript = 9;
-    DocumentBackedPathProto document_backed_path = 10;
-    MarkdownTypeProto markdown = 11;
-    HTMLTypeProto html = 12;
-    JSONTypeProto json = 13;
+    StringType string = 1;
+    IntegerType integer = 2;
+    FloatType float = 3;
+    DoubleType double = 4;
+    BooleanType boolean = 5;
+    ArrayType array = 6;
+    StructType struct = 7;
+    EmbeddingType embedding = 8;
+    TranscriptType transcript = 9;
+    DocumentBackedPath document_backed_path = 10;
+    MarkdownType markdown = 11;
+    HTMLType html = 12;
+    JSONType json = 13;
   }
 }
 
@@ -534,7 +532,7 @@ message DataTypeProto {
 
 ```protobuf
 // Binary operators for expressions
-enum OperatorProto {
+enum Operator {
   EQ = 1;
   NOT_EQ = 2;
   LT = 3;

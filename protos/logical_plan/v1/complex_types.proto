@@ -17,59 +17,59 @@ message PydanticModelType {
 // Pydantic model instances - direct protobuf messages for each type
 
 // KeyPoints format for summarization
-message KeyPointsProto {
+message KeyPoints {
   int32 max_points = 1;
 }
 
 // Paragraph format for summarization
-message ParagraphProto {
+message Paragraph {
   int32 max_words = 1;
 }
 
 // Union type for summarization formats
 // TODO(brandon): figure out how to handle this.
-message SummarizationFormatProto {
+message SummarizationFormat {
   oneof format_type {
-    KeyPointsProto key_points = 1;
-    ParagraphProto paragraph = 2;
+    KeyPoints key_points = 1;
+    Paragraph paragraph = 2;
   }
 }
 
 // Semantic example types
 // TODO(brandon): figure out how this is going to work with structured format map examples
-message MapExampleProto {
+message MapExample {
   map<string, string> input = 1;
   string output = 2;
 }
 
-message MapExampleCollectionProto {
-  repeated MapExampleProto examples = 1;
+message MapExampleCollection {
+  repeated MapExample examples = 1;
 }
 
-message ClassifyExampleProto {
+message ClassifyExample {
   string input = 1;
   string output = 2;
 }
 
-message ClassifyExampleCollectionProto {
-  repeated ClassifyExampleProto examples = 1;
+message ClassifyExampleCollection {
+  repeated ClassifyExample examples = 1;
 }
 
-message PredicateExampleProto {
+message PredicateExample {
   map<string, string> input = 1;
   bool output = 2;
 }
 
-message PredicateExampleCollectionProto {
-  repeated PredicateExampleProto examples = 1;
+message PredicateExampleCollection {
+  repeated PredicateExample examples = 1;
 }
 
-message JoinExampleProto {
+message JoinExample {
   string left = 1;
   string right = 2;
   bool output = 3;
 }
 
-message JoinExampleCollectionProto {
-  repeated JoinExampleProto examples = 1;
+message JoinExampleCollection {
+  repeated JoinExample examples = 1;
 }

@@ -10,7 +10,7 @@ enum SemanticSimilarityMetric {
 }
 
 // Binary operators for expressions
-enum OperatorProto {
+enum Operator {
   // Arithmetic operators
   EQ = 0;
   NOT_EQ = 1;
@@ -27,13 +27,13 @@ enum OperatorProto {
 }
 
 // Text chunking function types
-enum ChunkLengthFunctionProto {
+enum ChunkLengthFunction {
   CHARACTER = 0;
   WORD = 1;
 }
 
 // Text chunking character set types
-enum ChunkCharacterSetProto {
+enum ChunkCharacterSet {
   CUSTOM = 0;
   ASCII = 1;
   UNICODE = 2;

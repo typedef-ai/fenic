@@ -1,8 +1,7 @@
 """LogicalPlan serialization with pluggable backends."""
 from __future__ import annotations
 
-from enum import Enum, auto
-from typing import TYPE_CHECKING, Optional, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.serde import CloudPickleSerde

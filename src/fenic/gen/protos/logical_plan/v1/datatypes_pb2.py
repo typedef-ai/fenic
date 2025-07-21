@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1flogical_plan/v1/datatypes.proto\x12\x0flogical_plan.v1\"\xd9\x06\n\rDataTypeProto\x12:\n\x06string\x18\x01 \x01(\x0b\x32 .logical_plan.v1.StringTypeProtoH\x00R\x06string\x12=\n\x07integer\x18\x02 \x01(\x0b\x32!.logical_plan.v1.IntegerTypeProtoH\x00R\x07integer\x12\x37\n\x05\x66loat\x18\x03 \x01(\x0b\x32\x1f.logical_plan.v1.FloatTypeProtoH\x00R\x05\x66loat\x12:\n\x06\x64ouble\x18\x04 \x01(\x0b\x32 .logical_plan.v1.DoubleTypeProtoH\x00R\x06\x64ouble\x12=\n\x07\x62oolean\x18\x05 \x01(\x0b\x32!.logical_plan.v1.BooleanTypeProtoH\x00R\x07\x62oolean\x12\x37\n\x05\x61rray\x18\x06 \x01(\x0b\x32\x1f.logical_plan.v1.ArrayTypeProtoH\x00R\x05\x61rray\x12:\n\x06struct\x18\x07 \x01(\x0b\x32 .logical_plan.v1.StructTypeProtoH\x00R\x06struct\x12\x43\n\tembedding\x18\x08 \x01(\x0b\x32#.logical_plan.v1.EmbeddingTypeProtoH\x00R\tembedding\x12\x46\n\ntranscript\x18\t \x01(\x0b\x32$.logical_plan.v1.TranscriptTypeProtoH\x00R\ntranscript\x12\\\n\x14\x64ocument_backed_path\x18\n \x01(\x0b\x32(.logical_plan.v1.DocumentBackedPathProtoH\x00R\x12\x64ocumentBackedPath\x12@\n\x08markdown\x18\x0b \x01(\x0b\x32\".logical_plan.v1.MarkdownTypeProtoH\x00R\x08markdown\x12\x34\n\x04html\x18\x0c \x01(\x0b\x32\x1e.logical_plan.v1.HTMLTypeProtoH\x00R\x04html\x12\x34\n\x04json\x18\r \x01(\x0b\x32\x1e.logical_plan.v1.JSONTypeProtoH\x00R\x04jsonB\x0b\n\tdata_type\"\x11\n\x0fStringTypeProto\"\x12\n\x10IntegerTypeProto\"\x10\n\x0e\x46loatTypeProto\"\x11\n\x0f\x44oubleTypeProto\"\x12\n\x10\x42ooleanTypeProto\"S\n\x0e\x41rrayTypeProto\x12\x41\n\x0c\x65lement_type\x18\x01 \x01(\x0b\x32\x1e.logical_plan.v1.DataTypeProtoR\x0b\x65lementType\"L\n\x0fStructTypeProto\x12\x39\n\x06\x66ields\x18\x01 \x03(\x0b\x32!.logical_plan.v1.StructFieldProtoR\x06\x66ields\"c\n\x10StructFieldProto\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12;\n\tdata_type\x18\x02 \x01(\x0b\x32\x1e.logical_plan.v1.DataTypeProtoR\x08\x64\x61taType\"]\n\x12\x45mbeddingTypeProto\x12\x1e\n\ndimensions\x18\x01 \x01(\x05R\ndimensions\x12\'\n\x0f\x65mbedding_model\x18\x02 \x01(\tR\x0e\x65mbeddingModel\"-\n\x13TranscriptTypeProto\x12\x16\n\x06\x66ormat\x18\x01 \x01(\tR\x06\x66ormat\"1\n\x17\x44ocumentBackedPathProto\x12\x16\n\x06\x66ormat\x18\x01 \x01(\tR\x06\x66ormat\"\x13\n\x11MarkdownTypeProto\"\x0f\n\rHTMLTypeProto\"\x0f\n\rJSONTypeProtoB~\n\x13\x63om.logical_plan.v1B\x0e\x44\x61tatypesProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1flogical_plan/v1/datatypes.proto\x12\x0flogical_plan.v1\"\x93\x06\n\x08\x44\x61taType\x12\x35\n\x06string\x18\x01 \x01(\x0b\x32\x1b.logical_plan.v1.StringTypeH\x00R\x06string\x12\x38\n\x07integer\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.IntegerTypeH\x00R\x07integer\x12\x32\n\x05\x66loat\x18\x03 \x01(\x0b\x32\x1a.logical_plan.v1.FloatTypeH\x00R\x05\x66loat\x12\x35\n\x06\x64ouble\x18\x04 \x01(\x0b\x32\x1b.logical_plan.v1.DoubleTypeH\x00R\x06\x64ouble\x12\x38\n\x07\x62oolean\x18\x05 \x01(\x0b\x32\x1c.logical_plan.v1.BooleanTypeH\x00R\x07\x62oolean\x12\x32\n\x05\x61rray\x18\x06 \x01(\x0b\x32\x1a.logical_plan.v1.ArrayTypeH\x00R\x05\x61rray\x12\x35\n\x06struct\x18\x07 \x01(\x0b\x32\x1b.logical_plan.v1.StructTypeH\x00R\x06struct\x12>\n\tembedding\x18\x08 \x01(\x0b\x32\x1e.logical_plan.v1.EmbeddingTypeH\x00R\tembedding\x12\x41\n\ntranscript\x18\t \x01(\x0b\x32\x1f.logical_plan.v1.TranscriptTypeH\x00R\ntranscript\x12W\n\x14\x64ocument_backed_path\x18\n \x01(\x0b\x32#.logical_plan.v1.DocumentBackedPathH\x00R\x12\x64ocumentBackedPath\x12;\n\x08markdown\x18\x0b \x01(\x0b\x32\x1d.logical_plan.v1.MarkdownTypeH\x00R\x08markdown\x12/\n\x04html\x18\x0c \x01(\x0b\x32\x19.logical_plan.v1.HTMLTypeH\x00R\x04html\x12/\n\x04json\x18\r \x01(\x0b\x32\x19.logical_plan.v1.JSONTypeH\x00R\x04jsonB\x0b\n\tdata_type\"\x0c\n\nStringType\"\r\n\x0bIntegerType\"\x0b\n\tFloatType\"\x0c\n\nDoubleType\"\r\n\x0b\x42ooleanType\"I\n\tArrayType\x12<\n\x0c\x65lement_type\x18\x01 \x01(\x0b\x32\x19.logical_plan.v1.DataTypeR\x0b\x65lementType\"B\n\nStructType\x12\x34\n\x06\x66ields\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.StructFieldR\x06\x66ields\"Y\n\x0bStructField\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x36\n\tdata_type\x18\x02 \x01(\x0b\x32\x19.logical_plan.v1.DataTypeR\x08\x64\x61taType\"X\n\rEmbeddingType\x12\x1e\n\ndimensions\x18\x01 \x01(\x05R\ndimensions\x12\'\n\x0f\x65mbedding_model\x18\x02 \x01(\tR\x0e\x65mbeddingModel\"(\n\x0eTranscriptType\x12\x16\n\x06\x66ormat\x18\x01 \x01(\tR\x06\x66ormat\",\n\x12\x44ocumentBackedPath\x12\x16\n\x06\x66ormat\x18\x01 \x01(\tR\x06\x66ormat\"\x0e\n\x0cMarkdownType\"\n\n\x08HTMLType\"\n\n\x08JSONTypeB~\n\x13\x63om.logical_plan.v1B\x0e\x44\x61tatypesProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,34 +32,34 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'logical_plan.v1.datatypes_p
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\023com.logical_plan.v1B\016DatatypesProtoP\001\242\002\003LXX\252\002\016LogicalPlan.V1\312\002\016LogicalPlan\\V1\342\002\032LogicalPlan\\V1\\GPBMetadata\352\002\017LogicalPlan::V1'
-  _globals['_DATATYPEPROTO']._serialized_start=53
-  _globals['_DATATYPEPROTO']._serialized_end=910
-  _globals['_STRINGTYPEPROTO']._serialized_start=912
-  _globals['_STRINGTYPEPROTO']._serialized_end=929
-  _globals['_INTEGERTYPEPROTO']._serialized_start=931
-  _globals['_INTEGERTYPEPROTO']._serialized_end=949
-  _globals['_FLOATTYPEPROTO']._serialized_start=951
-  _globals['_FLOATTYPEPROTO']._serialized_end=967
-  _globals['_DOUBLETYPEPROTO']._serialized_start=969
-  _globals['_DOUBLETYPEPROTO']._serialized_end=986
-  _globals['_BOOLEANTYPEPROTO']._serialized_start=988
-  _globals['_BOOLEANTYPEPROTO']._serialized_end=1006
-  _globals['_ARRAYTYPEPROTO']._serialized_start=1008
-  _globals['_ARRAYTYPEPROTO']._serialized_end=1091
-  _globals['_STRUCTTYPEPROTO']._serialized_start=1093
-  _globals['_STRUCTTYPEPROTO']._serialized_end=1169
-  _globals['_STRUCTFIELDPROTO']._serialized_start=1171
-  _globals['_STRUCTFIELDPROTO']._serialized_end=1270
-  _globals['_EMBEDDINGTYPEPROTO']._serialized_start=1272
-  _globals['_EMBEDDINGTYPEPROTO']._serialized_end=1365
-  _globals['_TRANSCRIPTTYPEPROTO']._serialized_start=1367
-  _globals['_TRANSCRIPTTYPEPROTO']._serialized_end=1412
-  _globals['_DOCUMENTBACKEDPATHPROTO']._serialized_start=1414
-  _globals['_DOCUMENTBACKEDPATHPROTO']._serialized_end=1463
-  _globals['_MARKDOWNTYPEPROTO']._serialized_start=1465
-  _globals['_MARKDOWNTYPEPROTO']._serialized_end=1484
-  _globals['_HTMLTYPEPROTO']._serialized_start=1486
-  _globals['_HTMLTYPEPROTO']._serialized_end=1501
-  _globals['_JSONTYPEPROTO']._serialized_start=1503
-  _globals['_JSONTYPEPROTO']._serialized_end=1518
+  _globals['_DATATYPE']._serialized_start=53
+  _globals['_DATATYPE']._serialized_end=840
+  _globals['_STRINGTYPE']._serialized_start=842
+  _globals['_STRINGTYPE']._serialized_end=854
+  _globals['_INTEGERTYPE']._serialized_start=856
+  _globals['_INTEGERTYPE']._serialized_end=869
+  _globals['_FLOATTYPE']._serialized_start=871
+  _globals['_FLOATTYPE']._serialized_end=882
+  _globals['_DOUBLETYPE']._serialized_start=884
+  _globals['_DOUBLETYPE']._serialized_end=896
+  _globals['_BOOLEANTYPE']._serialized_start=898
+  _globals['_BOOLEANTYPE']._serialized_end=911
+  _globals['_ARRAYTYPE']._serialized_start=913
+  _globals['_ARRAYTYPE']._serialized_end=986
+  _globals['_STRUCTTYPE']._serialized_start=988
+  _globals['_STRUCTTYPE']._serialized_end=1054
+  _globals['_STRUCTFIELD']._serialized_start=1056
+  _globals['_STRUCTFIELD']._serialized_end=1145
+  _globals['_EMBEDDINGTYPE']._serialized_start=1147
+  _globals['_EMBEDDINGTYPE']._serialized_end=1235
+  _globals['_TRANSCRIPTTYPE']._serialized_start=1237
+  _globals['_TRANSCRIPTTYPE']._serialized_end=1277
+  _globals['_DOCUMENTBACKEDPATH']._serialized_start=1279
+  _globals['_DOCUMENTBACKEDPATH']._serialized_end=1323
+  _globals['_MARKDOWNTYPE']._serialized_start=1325
+  _globals['_MARKDOWNTYPE']._serialized_end=1339
+  _globals['_HTMLTYPE']._serialized_start=1341
+  _globals['_HTMLTYPE']._serialized_end=1351
+  _globals['_JSONTYPE']._serialized_start=1353
+  _globals['_JSONTYPE']._serialized_end=1363
 # @@protoc_insertion_point(module_scope)

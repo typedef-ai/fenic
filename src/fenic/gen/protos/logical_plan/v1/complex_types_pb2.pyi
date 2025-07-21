@@ -21,27 +21,27 @@ class PydanticModelType(_message.Message):
     json_schema: str
     def __init__(self, json_schema: _Optional[str] = ...) -> None: ...
 
-class KeyPointsProto(_message.Message):
+class KeyPoints(_message.Message):
     __slots__ = ("max_points",)
     MAX_POINTS_FIELD_NUMBER: _ClassVar[int]
     max_points: int
     def __init__(self, max_points: _Optional[int] = ...) -> None: ...
 
-class ParagraphProto(_message.Message):
+class Paragraph(_message.Message):
     __slots__ = ("max_words",)
     MAX_WORDS_FIELD_NUMBER: _ClassVar[int]
     max_words: int
     def __init__(self, max_words: _Optional[int] = ...) -> None: ...
 
-class SummarizationFormatProto(_message.Message):
+class SummarizationFormat(_message.Message):
     __slots__ = ("key_points", "paragraph")
     KEY_POINTS_FIELD_NUMBER: _ClassVar[int]
     PARAGRAPH_FIELD_NUMBER: _ClassVar[int]
-    key_points: KeyPointsProto
-    paragraph: ParagraphProto
-    def __init__(self, key_points: _Optional[_Union[KeyPointsProto, _Mapping]] = ..., paragraph: _Optional[_Union[ParagraphProto, _Mapping]] = ...) -> None: ...
+    key_points: KeyPoints
+    paragraph: Paragraph
+    def __init__(self, key_points: _Optional[_Union[KeyPoints, _Mapping]] = ..., paragraph: _Optional[_Union[Paragraph, _Mapping]] = ...) -> None: ...
 
-class MapExampleProto(_message.Message):
+class MapExample(_message.Message):
     __slots__ = ("input", "output")
     class InputEntry(_message.Message):
         __slots__ = ("key", "value")
@@ -56,13 +56,13 @@ class MapExampleProto(_message.Message):
     output: str
     def __init__(self, input: _Optional[_Mapping[str, str]] = ..., output: _Optional[str] = ...) -> None: ...
 
-class MapExampleCollectionProto(_message.Message):
+class MapExampleCollection(_message.Message):
     __slots__ = ("examples",)
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    examples: _containers.RepeatedCompositeFieldContainer[MapExampleProto]
-    def __init__(self, examples: _Optional[_Iterable[_Union[MapExampleProto, _Mapping]]] = ...) -> None: ...
+    examples: _containers.RepeatedCompositeFieldContainer[MapExample]
+    def __init__(self, examples: _Optional[_Iterable[_Union[MapExample, _Mapping]]] = ...) -> None: ...
 
-class ClassifyExampleProto(_message.Message):
+class ClassifyExample(_message.Message):
     __slots__ = ("input", "output")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
@@ -70,13 +70,13 @@ class ClassifyExampleProto(_message.Message):
     output: str
     def __init__(self, input: _Optional[str] = ..., output: _Optional[str] = ...) -> None: ...
 
-class ClassifyExampleCollectionProto(_message.Message):
+class ClassifyExampleCollection(_message.Message):
     __slots__ = ("examples",)
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    examples: _containers.RepeatedCompositeFieldContainer[ClassifyExampleProto]
-    def __init__(self, examples: _Optional[_Iterable[_Union[ClassifyExampleProto, _Mapping]]] = ...) -> None: ...
+    examples: _containers.RepeatedCompositeFieldContainer[ClassifyExample]
+    def __init__(self, examples: _Optional[_Iterable[_Union[ClassifyExample, _Mapping]]] = ...) -> None: ...
 
-class PredicateExampleProto(_message.Message):
+class PredicateExample(_message.Message):
     __slots__ = ("input", "output")
     class InputEntry(_message.Message):
         __slots__ = ("key", "value")
@@ -91,13 +91,13 @@ class PredicateExampleProto(_message.Message):
     output: bool
     def __init__(self, input: _Optional[_Mapping[str, str]] = ..., output: bool = ...) -> None: ...
 
-class PredicateExampleCollectionProto(_message.Message):
+class PredicateExampleCollection(_message.Message):
     __slots__ = ("examples",)
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    examples: _containers.RepeatedCompositeFieldContainer[PredicateExampleProto]
-    def __init__(self, examples: _Optional[_Iterable[_Union[PredicateExampleProto, _Mapping]]] = ...) -> None: ...
+    examples: _containers.RepeatedCompositeFieldContainer[PredicateExample]
+    def __init__(self, examples: _Optional[_Iterable[_Union[PredicateExample, _Mapping]]] = ...) -> None: ...
 
-class JoinExampleProto(_message.Message):
+class JoinExample(_message.Message):
     __slots__ = ("left", "right", "output")
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -107,8 +107,8 @@ class JoinExampleProto(_message.Message):
     output: bool
     def __init__(self, left: _Optional[str] = ..., right: _Optional[str] = ..., output: bool = ...) -> None: ...
 
-class JoinExampleCollectionProto(_message.Message):
+class JoinExampleCollection(_message.Message):
     __slots__ = ("examples",)
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    examples: _containers.RepeatedCompositeFieldContainer[JoinExampleProto]
-    def __init__(self, examples: _Optional[_Iterable[_Union[JoinExampleProto, _Mapping]]] = ...) -> None: ...
+    examples: _containers.RepeatedCompositeFieldContainer[JoinExample]
+    def __init__(self, examples: _Optional[_Iterable[_Union[JoinExample, _Mapping]]] = ...) -> None: ...

@@ -10,48 +10,48 @@ class SemanticSimilarityMetric(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     L2: _ClassVar[SemanticSimilarityMetric]
     DOT: _ClassVar[SemanticSimilarityMetric]
 
-class OperatorProto(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class Operator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    EQ: _ClassVar[OperatorProto]
-    NOT_EQ: _ClassVar[OperatorProto]
-    LT: _ClassVar[OperatorProto]
-    LTEQ: _ClassVar[OperatorProto]
-    GT: _ClassVar[OperatorProto]
-    GTEQ: _ClassVar[OperatorProto]
-    PLUS: _ClassVar[OperatorProto]
-    MINUS: _ClassVar[OperatorProto]
-    MULTIPLY: _ClassVar[OperatorProto]
-    DIVIDE: _ClassVar[OperatorProto]
-    AND: _ClassVar[OperatorProto]
-    OR: _ClassVar[OperatorProto]
+    EQ: _ClassVar[Operator]
+    NOT_EQ: _ClassVar[Operator]
+    LT: _ClassVar[Operator]
+    LTEQ: _ClassVar[Operator]
+    GT: _ClassVar[Operator]
+    GTEQ: _ClassVar[Operator]
+    PLUS: _ClassVar[Operator]
+    MINUS: _ClassVar[Operator]
+    MULTIPLY: _ClassVar[Operator]
+    DIVIDE: _ClassVar[Operator]
+    AND: _ClassVar[Operator]
+    OR: _ClassVar[Operator]
 
-class ChunkLengthFunctionProto(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class ChunkLengthFunction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    CHARACTER: _ClassVar[ChunkLengthFunctionProto]
-    WORD: _ClassVar[ChunkLengthFunctionProto]
+    CHARACTER: _ClassVar[ChunkLengthFunction]
+    WORD: _ClassVar[ChunkLengthFunction]
 
-class ChunkCharacterSetProto(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class ChunkCharacterSet(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    CUSTOM: _ClassVar[ChunkCharacterSetProto]
-    ASCII: _ClassVar[ChunkCharacterSetProto]
-    UNICODE: _ClassVar[ChunkCharacterSetProto]
+    CUSTOM: _ClassVar[ChunkCharacterSet]
+    ASCII: _ClassVar[ChunkCharacterSet]
+    UNICODE: _ClassVar[ChunkCharacterSet]
 COSINE: SemanticSimilarityMetric
 L2: SemanticSimilarityMetric
 DOT: SemanticSimilarityMetric
-EQ: OperatorProto
-NOT_EQ: OperatorProto
-LT: OperatorProto
-LTEQ: OperatorProto
-GT: OperatorProto
-GTEQ: OperatorProto
-PLUS: OperatorProto
-MINUS: OperatorProto
-MULTIPLY: OperatorProto
-DIVIDE: OperatorProto
-AND: OperatorProto
-OR: OperatorProto
-CHARACTER: ChunkLengthFunctionProto
-WORD: ChunkLengthFunctionProto
-CUSTOM: ChunkCharacterSetProto
-ASCII: ChunkCharacterSetProto
-UNICODE: ChunkCharacterSetProto
+EQ: Operator
+NOT_EQ: Operator
+LT: Operator
+LTEQ: Operator
+GT: Operator
+GTEQ: Operator
+PLUS: Operator
+MINUS: Operator
+MULTIPLY: Operator
+DIVIDE: Operator
+AND: Operator
+OR: Operator
+CHARACTER: ChunkLengthFunction
+WORD: ChunkLengthFunction
+CUSTOM: ChunkCharacterSet
+ASCII: ChunkCharacterSet
+UNICODE: ChunkCharacterSet

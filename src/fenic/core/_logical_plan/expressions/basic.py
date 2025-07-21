@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, List, Literal
 
-
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
