@@ -376,6 +376,7 @@ def test_jinja_template_with_dead_code():
     {% for item in items %}
     {% endfor %}
     {% if foo %}
+    {{ 'bar' }}
     {% endif %}
     """
     tree = VariableTree.from_jinja_template(template)
