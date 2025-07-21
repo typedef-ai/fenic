@@ -53,7 +53,10 @@ def test_jinja_multiple_variables(local_session):
 def test_jinja_struct_access(local_session):
     """Test accessing struct fields in templates."""
     data = {
-        "user": [{"name": "Alice", "age": 25, "address": {"city": "New York"}}, {"name": "Bob", "age": 30, "address": {"city": None}},  {}]
+        "user": [{"name": "Alice", "age": 25, "address": {"city": "New York"}},
+                 {"name": "Bob", "age": 30, "address": {"city": None}},
+                 {"name": "Charlie", "age": 35, "address": None},
+                 None]
     }
     df = local_session.create_dataframe(data)
 
@@ -61,14 +64,15 @@ def test_jinja_struct_access(local_session):
         text.jinja("Hello {{ user.name }}, you are {{ user['age'] }} and live in {{ user.address.city }}!", user=col("user")).alias("greeting")
     ).to_polars()
 
-    expected = ["Hello Alice, you are 25 and live in New York!", "Hello Bob, you are 30 and live in !", "Hello , you are  and live in !"]
+    expected = ["Hello Alice, you are 25 and live in New York!", "Hello Bob, you are 30 and live in !",
+                "Hello Charlie, you are 35 and live in !", "Hello , you are  and live in !"]
     assert result["greeting"].to_list() == expected
 
 
 def test_array_access(local_session):
     """Test array access in templates."""
     data = {
-        "items": [[], ["hello"], ["hi", "hello"], None]
+        "items": [["hello"], ["hi", "hello"], [], None]
     }
     df = local_session.create_dataframe(data)
 
@@ -76,7 +80,7 @@ def test_array_access(local_session):
         text.jinja("{{ items[0] }} {{items[10] }}", items=col("items")).alias("result")
     ).to_polars()
 
-    expected = [" ", "hello ", "hi ", " "]
+    expected = ["hello ", "hi ", " ", " "]
     assert result["result"].to_list() == expected
 
 def test_jinja_bool_conditional(local_session):
@@ -110,6 +114,18 @@ def test_jinja_for_loop(local_session):
 
     result = df.select(
         text.jinja("{% for item in items %}{{loop.index}} {{ item }} {% endfor %}", items=col("items")).alias("result")
+    ).to_polars()
+
+    expected = ["1 hello ", "1 hi 2 hello ", "", ""]
+    assert result["result"].to_list() == expected
+
+    data = {
+        "item": [{"items":["hello"]}, {"items":["hi", "hello"]}, {"items":[]}, None]
+    }
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.jinja("{% for item in item.items %}{{loop.index}} {{ item }} {% endfor %}", item=col("item")).alias("result")
     ).to_polars()
 
     expected = ["1 hello ", "1 hi 2 hello ", "", ""]

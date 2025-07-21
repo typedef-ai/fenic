@@ -154,6 +154,7 @@ impl ArrowToValue for JsonValue {
         JsonValue::Array(values)
     }
 }
+
 pub struct ArrowScalarConverter;
 
 impl ArrowScalarConverter {
@@ -166,9 +167,33 @@ impl ArrowScalarConverter {
         self.convert(array, row_idx)
     }
 
+    // Helper function to check if a data type is primitive
+    fn is_primitive_type(dtype: &ArrowDataType) -> bool {
+        matches!(
+            dtype,
+            ArrowDataType::Utf8
+                | ArrowDataType::LargeUtf8
+                | ArrowDataType::Utf8View
+                | ArrowDataType::Binary
+                | ArrowDataType::BinaryView
+                | ArrowDataType::Boolean
+                | ArrowDataType::Int8
+                | ArrowDataType::Int16
+                | ArrowDataType::Int32
+                | ArrowDataType::Int64
+                | ArrowDataType::UInt8
+                | ArrowDataType::UInt16
+                | ArrowDataType::UInt32
+                | ArrowDataType::UInt64
+                | ArrowDataType::Float32
+                | ArrowDataType::Float64
+        )
+    }
+
     // Single generic implementation that works for both JinjaValue and JsonValue
     fn convert<V: ArrowToValue>(&self, array: &dyn Array, row_idx: usize) -> PolarsResult<V> {
-        if array.is_null(row_idx) {
+        // Check for null only for primitive types
+        if Self::is_primitive_type(array.dtype()) && array.is_null(row_idx) {
             return Ok(V::from_null());
         }
 
@@ -381,10 +406,14 @@ impl ArrowScalarConverter {
     ) -> PolarsResult<V> {
         let mut fields = Vec::new();
 
-        for (field, array) in struct_array.fields().iter().zip(struct_array.values()) {
-            if array.is_null(row_idx) {
+        if struct_array.is_null(row_idx) {
+            // Struct is null, so all fields should be null
+            for field in struct_array.fields().iter() {
                 fields.push((field.name.clone().to_string(), V::from_null()));
-            } else {
+            }
+        } else {
+            // Struct is not null, convert each field normally
+            for (field, array) in struct_array.fields().iter().zip(struct_array.values()) {
                 let value: V = self.convert(array.as_ref(), row_idx)?;
                 fields.push((field.name.clone().to_string(), value));
             }
@@ -399,7 +428,7 @@ impl ArrowScalarConverter {
         row_idx: usize,
     ) -> PolarsResult<V> {
         if list_array.is_null(row_idx) {
-            return Ok(V::from_list(Vec::new()));
+            return Ok(V::from_null());
         }
 
         let list_slice = list_array.value(row_idx);
@@ -419,7 +448,7 @@ impl ArrowScalarConverter {
         row_idx: usize,
     ) -> PolarsResult<V> {
         if list_array.is_null(row_idx) {
-            return Ok(V::from_list(Vec::new()));
+            return Ok(V::from_null());
         }
 
         let list_slice = list_array.value(row_idx);
@@ -438,12 +467,18 @@ impl ArrowScalarConverter {
         list_array: &FixedSizeListArray,
         row_idx: usize,
     ) -> PolarsResult<V> {
+        let list_size = list_array.size();
+
         if list_array.is_null(row_idx) {
-            return Ok(V::from_list(Vec::new()));
+            // Create a list of nulls with the fixed size
+            let mut values = Vec::with_capacity(list_size);
+            for _ in 0..list_size {
+                values.push(V::from_null());
+            }
+            return Ok(V::from_list(values));
         }
 
         let values_array = list_array.values();
-        let list_size = list_array.size();
         let start_idx = row_idx * list_size;
 
         let mut values = Vec::new();
@@ -607,39 +642,25 @@ mod tests {
     }
 
     #[test]
-    fn test_nulls_to_jinja_and_json() {
-        let converter = ArrowScalarConverter;
-
-        // Null array of length 1
-        let values: Vec<Option<&str>> = vec![None];
-        let null_array = Utf8Array::<i32>::from_iter(values);
-        assert_eq!(
-            converter.to_jinja(&null_array, 0).unwrap(),
-            JinjaValue::from("")
-        );
-        assert_eq!(converter.to_json(&null_array, 0).unwrap(), json!(null));
-    }
-
-    #[test]
     fn test_struct_to_jinja_and_json() {
         let converter = ArrowScalarConverter;
 
         // Create the field arrays
-        let field1 = PrimitiveArray::<i32>::from_slice([123]);
-        let field2 = BooleanArray::from_slice([true]);
+        let field1 = PrimitiveArray::<i32>::from_slice([123, 456]);
+        let field2 = BooleanArray::from_slice([true, false]);
 
         // Create the fields metadata
         let fields = vec![
-            polars_arrow::datatypes::Field::new("a".into(), ArrowDataType::Int32, false),
-            polars_arrow::datatypes::Field::new("b".into(), ArrowDataType::Boolean, false),
+            polars_arrow::datatypes::Field::new("a".into(), ArrowDataType::Int32, true),
+            polars_arrow::datatypes::Field::new("b".into(), ArrowDataType::Boolean, true),
         ];
 
         // Create the struct array
         let struct_array = StructArray::new(
             ArrowDataType::Struct(fields.clone()),
-            1,
+            2,
             vec![Box::new(field1), Box::new(field2)],
-            Some([true].into()),
+            Some([true, false].into()),
         );
 
         let expected_jinja = {
@@ -656,17 +677,35 @@ mod tests {
             expected_jinja
         );
         assert_eq!(converter.to_json(&struct_array, 0).unwrap(), expected_json);
+
+        // Second struct should have null fields
+        let expected_jinja_1 = {
+            let mut map = std::collections::BTreeMap::new();
+            map.insert("a".to_string(), JinjaValue::from("")); // null -> empty string for Jinja
+            map.insert("b".to_string(), JinjaValue::from("")); // null -> empty string for Jinja
+            JinjaValue::from(map)
+        };
+        let expected_json_1 = json!({"a": null, "b": null});
+
+        assert_eq!(
+            converter.to_jinja(&struct_array, 1).unwrap(),
+            expected_jinja_1
+        );
+        assert_eq!(
+            converter.to_json(&struct_array, 1).unwrap(),
+            expected_json_1
+        );
     }
 
     #[test]
     fn test_list_to_jinja_and_json() {
         let converter = ArrowScalarConverter;
 
-        // Create values array
+        // Create values array with 6 elements (for 2 lists of 3 elements each)
         let values = PrimitiveArray::<i32>::from_slice([1, 2, 3]);
 
-        // Offsets: [0, 3] means one list with 3 elements
-        let offsets = vec![0i32, 3];
+        // Offsets: [0, 3, 3] means one list with 3 elements, and one list with 0 elements
+        let offsets = vec![0i32, 3, 3];
 
         let data_type = ArrowDataType::List(Box::new(polars_arrow::datatypes::Field::new(
             "item".into(),
@@ -678,9 +717,10 @@ mod tests {
             data_type,
             OffsetsBuffer::try_from(offsets).unwrap(),
             Box::new(values),
-            None,
+            Some([true, false].into()), // Second list is null
         );
 
+        // First list should have values
         let expected_jinja = JinjaValue::from(vec![
             JinjaValue::from(1),
             JinjaValue::from(2),
@@ -690,6 +730,16 @@ mod tests {
 
         assert_eq!(converter.to_jinja(&list_array, 0).unwrap(), expected_jinja);
         assert_eq!(converter.to_json(&list_array, 0).unwrap(), expected_json);
+
+        // Second list should have null values
+        let expected_jinja_2 = JinjaValue::from_null();
+        let expected_json_2 = json!(null);
+
+        assert_eq!(
+            converter.to_jinja(&list_array, 1).unwrap(),
+            expected_jinja_2
+        );
+        assert_eq!(converter.to_json(&list_array, 1).unwrap(), expected_json_2);
     }
 
     #[test]
@@ -699,8 +749,8 @@ mod tests {
         // Create values array
         let values = PrimitiveArray::<i32>::from_slice([4, 5, 6]);
 
-        // Offsets: [0, 3] means one list with 3 elements
-        let offsets = vec![0i64, 3];
+        // Offsets: [0, 3, 3] means one list with 3 elements, and one list with 0 elements
+        let offsets = vec![0i64, 3, 3];
 
         let data_type = ArrowDataType::LargeList(Box::new(polars_arrow::datatypes::Field::new(
             "item".into(),
@@ -712,9 +762,10 @@ mod tests {
             data_type,
             polars_arrow::offset::OffsetsBuffer::try_from(offsets).unwrap(),
             Box::new(values),
-            None,
+            Some([true, false].into()), // Second list is null
         );
 
+        // First list should have values
         let expected_jinja = JinjaValue::from(vec![
             JinjaValue::from(4),
             JinjaValue::from(5),
@@ -724,14 +775,24 @@ mod tests {
 
         assert_eq!(converter.to_jinja(&list_array, 0).unwrap(), expected_jinja);
         assert_eq!(converter.to_json(&list_array, 0).unwrap(), expected_json);
+
+        // Second list should have null values
+        let expected_jinja_2 = JinjaValue::from_null();
+        let expected_json_2 = json!(null);
+
+        assert_eq!(
+            converter.to_jinja(&list_array, 1).unwrap(),
+            expected_jinja_2
+        );
+        assert_eq!(converter.to_json(&list_array, 1).unwrap(), expected_json_2);
     }
 
     #[test]
     fn test_fixed_size_list_to_jinja_and_json() {
         let converter = ArrowScalarConverter;
 
-        // For fixed size list of size 2, with 1 list
-        let values = PrimitiveArray::<i32>::from_slice([7, 8]);
+        // For fixed size list of size 2, with 2 lists
+        let values = PrimitiveArray::<i32>::from_slice([7, 8, 0, 0]);
 
         let data_type = ArrowDataType::FixedSizeList(
             Box::new(polars_arrow::datatypes::Field::new(
@@ -744,11 +805,12 @@ mod tests {
 
         let fixed_list_array = FixedSizeListArray::new(
             data_type,
-            1, // length (number of lists)
+            2, // length (number of lists)
             Box::new(values),
-            None,
+            Some([true, false].into()), // Second list is null
         );
 
+        // First list should have values
         let expected_jinja = JinjaValue::from(vec![JinjaValue::from(7), JinjaValue::from(8)]);
         let expected_json = json!([7, 8]);
 
@@ -759,6 +821,19 @@ mod tests {
         assert_eq!(
             converter.to_json(&fixed_list_array, 0).unwrap(),
             expected_json
+        );
+
+        // Second list should have null values
+        let expected_jinja_2 = JinjaValue::from(vec![JinjaValue::from(""), JinjaValue::from("")]);
+        let expected_json_2 = json!([null, null]);
+
+        assert_eq!(
+            converter.to_jinja(&fixed_list_array, 1).unwrap(),
+            expected_jinja_2
+        );
+        assert_eq!(
+            converter.to_json(&fixed_list_array, 1).unwrap(),
+            expected_json_2
         );
     }
 
@@ -894,5 +969,36 @@ mod tests {
             expected_jinja
         );
         assert_eq!(converter.to_json(&struct_array, 0).unwrap(), expected_json);
+    }
+
+    #[test]
+    fn test_null_primitive_values() {
+        let converter = ArrowScalarConverter;
+
+        // Test null handling for primitive types
+        // Create an array with null values
+        let values: Vec<Option<i32>> = vec![Some(42), None, Some(7)];
+        let int_array = PrimitiveArray::<i32>::from_iter(values);
+
+        // First element should be 42
+        assert_eq!(
+            converter.to_jinja(&int_array, 0).unwrap(),
+            JinjaValue::from(42)
+        );
+        assert_eq!(converter.to_json(&int_array, 0).unwrap(), json!(42));
+
+        // Second element should be null
+        assert_eq!(
+            converter.to_jinja(&int_array, 1).unwrap(),
+            JinjaValue::from("")
+        );
+        assert_eq!(converter.to_json(&int_array, 1).unwrap(), json!(null));
+
+        // Third element should be 7
+        assert_eq!(
+            converter.to_jinja(&int_array, 2).unwrap(),
+            JinjaValue::from(7)
+        );
+        assert_eq!(converter.to_json(&int_array, 2).unwrap(), json!(7));
     }
 }
