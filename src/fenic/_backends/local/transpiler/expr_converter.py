@@ -403,7 +403,6 @@ class ExprConverter:
     def _convert_jinja_expr(self, logical: JinjaExpr) -> pl.Expr:
         # Convert all input expressions
         column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
-        variable_names = [expr.name for expr in logical.exprs]
 
         # Create struct of all inputs
         struct_expr = pl.struct(column_exprs)
@@ -411,7 +410,6 @@ class ExprConverter:
         # Call the Jinja plugin
         return struct_expr.jinja.render(
             template=logical.template,
-            variable_names=variable_names
         )
 
     @_convert_expr.register(SemanticMapExpr)

@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 import polars as pl
 from polars.plugins import register_plugin_function
@@ -23,7 +22,6 @@ class Jinja:
     def render(
         self,
         template: str,
-        variable_names: List[str],
     ) -> pl.Expr:
         """Render a Jinja template using values from the struct expression.
 
@@ -32,9 +30,7 @@ class Jinja:
 
         Args:
             template: A Jinja2 template string to render for each row.
-                     Example: "Hello {{ user.name }}! You have {{ items|length }} items."
-            variable_names: List of variable names that correspond to struct field names.
-                          These variables will be available in the template context.
+                     Example: "Hello {{ user.name }}! You have {{ item_length }} items."
 
         Returns:
             A Polars expression returning a `String` column with the rendered templates.
@@ -43,10 +39,9 @@ class Jinja:
             ```python
             # Given a struct column with fields "user" and "items"
             result = (
-                pl.struct([pl.col("user"), pl.col("items")])
+                pl.struct([pl.col("user"), pl.col("item_length")])
                 .jinja.render(
-                    template="Hello {{ user.name }}! You have {{ items|length }} items.",
-                    variable_names=["user", "items"]
+                    template="Hello {{ user.name }}! You have {{ item_length }} items.",
                 )
             )
             ```
@@ -59,7 +54,6 @@ class Jinja:
         """
         kwargs = {
             "template": template,
-            "variable_names": variable_names,
         }
         return register_plugin_function(
             plugin_path=PLUGIN_PATH,
