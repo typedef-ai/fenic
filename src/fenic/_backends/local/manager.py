@@ -54,7 +54,7 @@ class LocalSessionManager:
             session_state.intermediate_df_client.cleanup()
             session_state.duckdb_conn.close()
 
-            session_state.model_registry.shutdown_models()
+            session_state.shutdown_models()
 
             # Remove LanceDB index directory
             if os.path.exists(VECTOR_INDEX_DIR):

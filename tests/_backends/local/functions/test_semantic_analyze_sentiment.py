@@ -1,6 +1,9 @@
 import polars as pl
+import pytest
 
 from fenic import col, lit, semantic, text
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.core.error import ValidationError
 
 
 def test_semantic_analyze_sentiment(local_session):
@@ -74,3 +77,24 @@ def _check_results_in_enum(
             raise ValueError("Result is None, but allow_none is False")
 
         assert result in possible_results
+
+def test_semantic_analyze_sentiment_without_models():
+    """Test that an error is raised if no language models are configured."""
+    session_config = SessionConfig(
+        app_name="semantic_analyze_sentiment_without_models",
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.analyze_sentiment(col("text")).alias("sentiment"))
+    session.stop()
+
+    session_config = SessionConfig(
+        app_name="semantic_analyze_sentiment_with_models",
+        semantic=SemanticConfig(
+            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+        ),
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.analyze_sentiment(col("text")).alias("sentiment"))
+    session.stop()

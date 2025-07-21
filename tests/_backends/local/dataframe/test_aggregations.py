@@ -22,6 +22,8 @@ from fenic import (
     stddev,
     sum,
 )
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.core.error import ValidationError
 
 
 def test_sum_aggregation(sample_df):
@@ -286,6 +288,26 @@ def test_semantic_reduce_with_groupby(local_session):
         "num_attendees": pl.Int64,
     }
 
+def test_semantic_reduce_without_models():
+    """Test semantic.reduce() method without models."""
+    session_config = SessionConfig(
+        app_name="semantic_reduce_without_models",
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from these {notes}").alias("summary"))
+    session.stop()
+
+    session_config = SessionConfig(
+        app_name="semantic_reduce_with_models",
+        semantic=SemanticConfig(
+            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+        ),
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from these {notes}").alias("summary"))
+    session.stop()
 
 def test_groupby_derived_columns(local_session):
     """Test groupBy() with a derived column."""
