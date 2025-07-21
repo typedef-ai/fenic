@@ -382,7 +382,7 @@ class VariableTree:
             if isinstance(output_node, nodes.TemplateData) and output_node.data == "":
                 continue
 
-            # For any other node type (Name, Getattr, Getitem, Const, etc.)
+            # For any other node type (Name, Getattr, Getitem, etc.)
             # try to extract a variable path
             output_path = VariableTree._extract_variable_path(output_node, scope)
             if output_path:
@@ -517,7 +517,7 @@ class VariableTree:
         current = tree._get_or_create_variable(path[0])
 
         # Walk the path and set parent requirements
-        for _i, part in enumerate(path[1:], 1):
+        for part in path[1:]:
             if part == "*":
                 current.set_requirement(TypeRequirement.ARRAY, line_no)
                 key = "*"
