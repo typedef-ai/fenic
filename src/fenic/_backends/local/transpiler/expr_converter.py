@@ -54,6 +54,7 @@ from fenic.core._logical_plan.expressions import (
     IndexExpr,
     InExpr,
     IsNullExpr,
+    JinjaExpr,
     JqExpr,
     JsonContainsExpr,
     JsonTypeExpr,
@@ -398,6 +399,20 @@ class ExprConverter:
             return_dtype=convert_custom_dtype_to_polars(return_struct_type),
         )
 
+    @_convert_expr.register(JinjaExpr)
+    def _convert_jinja_expr(self, logical: JinjaExpr) -> pl.Expr:
+        # Convert all input expressions
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        variable_names = [expr.name for expr in logical.exprs]
+
+        # Create struct of all inputs
+        struct_expr = pl.struct(column_exprs)
+
+        # Call the Jinja plugin
+        return struct_expr.jinja.render(
+            template=logical.template,
+            variable_names=variable_names
+        )
 
     @_convert_expr.register(SemanticMapExpr)
     def _convert_semantic_map_expr(self, logical: SemanticMapExpr) -> pl.Expr:

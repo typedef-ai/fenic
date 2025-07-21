@@ -6,6 +6,9 @@ from fenic._backends.local.polars_plugins.chunking import (
 from fenic._backends.local.polars_plugins.dtypes import (
     Dtypes,
 )
+from fenic._backends.local.polars_plugins.jinja import (
+    Jinja,
+)
 from fenic._backends.local.polars_plugins.json import (
     Json,
 )
@@ -32,5 +35,6 @@ __all__ = [
     "Tokenization",
     "count_tokens",
     "Json",
+    "Jinja",
     "Dtypes",
 ]
