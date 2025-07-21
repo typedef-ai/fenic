@@ -153,6 +153,27 @@ def test_jinja_else_null_handling(local_session):
     ]
     assert result["description"].to_list() == expected
 
+def test_jinja_shadowing_and_scoping(local_session):
+    """Test how shadowing and scoping works in templates."""
+    data = {
+        "names": [["Alice", "Bob", "Charlie"]],
+        "name": ["David"]
+    }
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.jinja(
+            "{% for name in names %}{{ name }}{% endfor %}{{ name }}",
+            names=col("names"),
+            name=col("name")
+        ).alias("description")
+    ).to_polars()
+
+    expected = [
+        "AliceBobCharlieDavid"
+    ]
+    assert result["description"].to_list() == expected
+
 def test_invalid_jinja_template(local_session):
     """Test invalid Jinja template."""
     data = {
