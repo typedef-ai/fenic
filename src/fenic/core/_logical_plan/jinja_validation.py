@@ -382,7 +382,7 @@ class VariableTree:
             if isinstance(output_node, nodes.TemplateData) and output_node.data == "":
                 continue
 
-            # For any other node type (Name, Getattr, Getitem, Const, etc.)
+            # For any other node type (Name, Getattr, Getitem, etc.)
             # try to extract a variable path
             output_path = VariableTree._extract_variable_path(output_node, scope)
             if output_path:
