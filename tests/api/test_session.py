@@ -12,6 +12,7 @@ from fenic import (
     Session,
     SessionConfig,
     StringType,
+    col,
 )
 from fenic.api.session.config import OpenAIModelConfig
 from fenic.core._logical_plan.plans import InMemorySource
@@ -151,6 +152,7 @@ def test_local_session_with_no_semantic_config():
         app_name="test_app",
     )
     session = Session.get_or_create(session_config)
+    session.create_dataframe({"text": ["hello"]}).select((col("text")).alias("text"))
     session.stop()
 
 def test_local_session_with_embedding_models_only():
