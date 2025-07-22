@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, List
+from typing import TYPE_CHECKING, Any, Callable, List, Literal
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -11,7 +11,7 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedSignature,
 )
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
-from fenic.core.error import PlanError, TypeMismatchError
+from fenic.core.error import PlanError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ArrayType,
     BooleanType,
@@ -21,6 +21,7 @@ from fenic.core.types import (
     DoubleType,
     EmbeddingType,
     FloatType,
+    IntegerType,
     JsonType,
     MarkdownType,
     StringType,
@@ -117,45 +118,51 @@ class SortExpr(LogicalExpr):
 class IndexExpr(LogicalExpr):
     """Expression representing an index or field access operation."""
 
-    def __init__(self, expr: LogicalExpr, index: Any):
+    def __init__(self, expr: LogicalExpr, index: LogicalExpr):
         self.expr = expr
         self.index = index
+        self.input_type: Literal["array", "struct"] = None
 
     def __str__(self) -> str:
         return f"{self.expr}[{self.index}]"
 
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if not isinstance(
-            self.expr.to_column_field(plan).data_type, (ArrayType, StructType)
-        ):
-            raise TypeError(
-                f"Type mismatch: Cannot apply get_item to non-array, non-struct types. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only array and struct types are supported."
-            )
+        expr_field = self.expr.to_column_field(plan)
+        index_field = self.index.to_column_field(plan)
+        expr_type = expr_field.data_type
+        index_type = index_field.data_type
 
-        if isinstance(
-            self.expr.to_column_field(plan).data_type, ArrayType
-        ) and isinstance(self.index, int):
-            return ColumnField(
-                str(self), self.expr.to_column_field(plan).data_type.element_type
-            )
+        if isinstance(expr_type, ArrayType):
+            self.input_type = "array"
+            if index_type != IntegerType:
+                raise TypeMismatchError.from_message(
+                    f"Expected IntegerType index for array access, but got {index_type}."
+                )
+            return ColumnField(str(self), expr_type.element_type)
 
-        elif isinstance(
-            self.expr.to_column_field(plan).data_type, StructType
-        ) and isinstance(self.index, str):
-            for field in self.expr.to_column_field(plan).data_type.struct_fields:
-                if field.name == self.index:
+        elif isinstance(expr_type, StructType):
+            self.input_type = "struct"
+            if not isinstance(self.index, LiteralExpr):
+                raise TypeMismatchError.from_message(
+                    "Struct field access requires a literal string index (e.g. 'field' or fc.lit('field'))."
+                )
+            if self.index.data_type != StringType:
+                raise TypeMismatchError.from_message(
+                    f"Expected StringType index for struct access, but got {self.index.data_type}."
+                )
+            for field in expr_type.struct_fields:
+                if field.name == self.index.literal:
                     return ColumnField(str(self), field.data_type)
-            raise ValueError(
-                f"Field '{self.index}' not found in struct. Available fields: {', '.join(sorted(f.name for f in self.expr.to_column_field(plan).data_type.struct_fields))}"
+            available = ', '.join(sorted(f.name for f in expr_type.struct_fields))
+            raise ValidationError(
+                f"Field '{self.index.literal}' not found in struct. Available fields: {available}."
             )
 
         else:
-            raise TypeError(
-                f"Type mismatch: Cannot apply get_item with {type(self.index).__name__} index to {type(self.expr.to_column_field(plan).data_type).__name__}. "
-                f"Array types require integer indices, struct types require string field names."
+            raise TypeMismatchError.from_message(
+                f"get_item cannot be applied to type {expr_type}. Supported types: ArrayType, StructType."
             )
+
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
@@ -163,7 +170,7 @@ class IndexExpr(LogicalExpr):
 
 class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
     """Expression representing array creation from multiple columns."""
-    
+
     function_name = "array"
 
     def __init__(self, exprs: List[LogicalExpr]):
@@ -185,7 +192,7 @@ class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
 
 class StructExpr(ValidatedDynamicSignature, LogicalExpr):
     """Expression representing struct creation from multiple columns."""
-    
+
     function_name = "struct"
 
     def __init__(self, exprs: List[LogicalExpr]):
@@ -250,7 +257,7 @@ class IsNullExpr(LogicalExpr):
 
 class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression representing array length calculation."""
-    
+
     function_name = "array_size"
 
     def __init__(self, expr: LogicalExpr):
@@ -266,7 +273,7 @@ class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
 
 class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
     """Expression representing array contains check."""
-    
+
     function_name = "array_contains"
 
     def __init__(self, expr: LogicalExpr, other: LogicalExpr):
@@ -325,7 +332,7 @@ class NotExpr(LogicalExpr):
 
 class CoalesceExpr(ValidatedSignature, LogicalExpr):
     """Expression representing coalesce operation (first non-null value)."""
-    
+
     function_name = "coalesce"
 
     def __init__(self, exprs: List[LogicalExpr]):
