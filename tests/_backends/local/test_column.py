@@ -354,7 +354,7 @@ def test_getitem_edgecases(local_session):
         as_series=False
     ) == {"list_col[lit(2)]": [3, None]}
 
-    with pytest.raises(TypeMismatchError):
+    with pytest.raises(ValidationError):
         df.select(col("dict_col").get_item("b"))
 
 

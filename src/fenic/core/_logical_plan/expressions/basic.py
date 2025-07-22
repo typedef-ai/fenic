@@ -11,7 +11,7 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedSignature,
 )
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
-from fenic.core.error import PlanError, TypeMismatchError
+from fenic.core.error import PlanError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ArrayType,
     BooleanType,
@@ -154,7 +154,7 @@ class IndexExpr(LogicalExpr):
                 if field.name == self.index.literal:
                     return ColumnField(str(self), field.data_type)
             available = ', '.join(sorted(f.name for f in expr_type.struct_fields))
-            raise TypeMismatchError.from_message(
+            raise ValidationError(
                 f"Field '{self.index.literal}' not found in struct. Available fields: {available}."
             )
 
