@@ -284,13 +284,13 @@ def classify(
     Raises:
         ValueError: If column is invalid or classes is empty or has duplicate labels.
 
-    Example: Basic classification
+    Example: Categorizing incoming support requests
         ```python
         # Categorize incoming support requests
         semantic.classify("message", ["Account Access", "Billing Issue", "Technical Problem"])
         ```
 
-    Example: Classification with descriptions
+    Example: Categorizing incoming support requests using ClassDefinition objects
         ```python
         # Categorize incoming support requests
         semantic.classify("message", [
@@ -300,7 +300,7 @@ def classify(
         ])
         ```
 
-    Example: Classification with examples
+    Example: Categorizing incoming support requests with ClassDefinition objects and examples
         ```python
         examples = ClassifyExampleCollection()
         class_definitions = [

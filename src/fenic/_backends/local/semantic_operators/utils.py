@@ -37,7 +37,7 @@ def stringify_enum_type(enum_type: Type[Enum]) -> str:
     return ", ".join(f"{label.value}" for label in enum_type)
 
 
-def create_classification_pydantic_model(allowed_values: List[str]) -> Type[BaseModel]:
+def create_classification_pydantic_model(allowed_values: List[str]) -> type[BaseModel]:
     """Creates a Pydantic model from a list of allowed string values using a dynamic Enum.
 
     Args:

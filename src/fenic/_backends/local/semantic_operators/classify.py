@@ -18,7 +18,8 @@ from fenic._constants import (
     TOKEN_OVERHEAD_MISC,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core.types import ClassDefinition, ClassifyExample, ClassifyExampleCollection
+from fenic.core._logical_plan.expressions import ResolvedClassDefinition
+from fenic.core.types import ClassifyExample, ClassifyExampleCollection
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
     def __init__(
         self,
         input: pl.Series,
-        classes: List[ClassDefinition],
+        classes: List[ResolvedClassDefinition],
         model: LanguageModel,
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,

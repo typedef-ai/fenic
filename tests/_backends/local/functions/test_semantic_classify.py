@@ -158,7 +158,7 @@ def test_semantic_classification_with_examples(local_session):
         assert value in ["Health", "Finance", "Other"]
 
 
-def test_semantic_classification_enum_with_bad_examples(local_session):
+def test_semantic_classification_with_bad_examples(local_session):
     categories = [
         ClassDefinition(label="Health", description="Health related inquiries"),
         ClassDefinition(label="Other", description="Not health related inquiries"),
