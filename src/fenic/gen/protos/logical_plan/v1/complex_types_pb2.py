@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#logical_plan/v1/complex_types.proto\x12\x0flogical_plan.v1\"L\n\nNumpyArray\x12\x12\n\x04\x64\x61ta\x18\x01 \x01(\x0cR\x04\x64\x61ta\x12\x14\n\x05shape\x18\x02 \x03(\x05R\x05shape\x12\x14\n\x05\x64type\x18\x03 \x01(\tR\x05\x64type\"4\n\x11PydanticModelType\x12\x1f\n\x0bjson_schema\x18\x01 \x01(\tR\njsonSchema\"*\n\tKeyPoints\x12\x1d\n\nmax_points\x18\x01 \x01(\x05R\tmaxPoints\"(\n\tParagraph\x12\x1b\n\tmax_words\x18\x01 \x01(\x05R\x08maxWords\"\x9d\x01\n\x13SummarizationFormat\x12;\n\nkey_points\x18\x01 \x01(\x0b\x32\x1a.logical_plan.v1.KeyPointsH\x00R\tkeyPoints\x12:\n\tparagraph\x18\x02 \x01(\x0b\x32\x1a.logical_plan.v1.ParagraphH\x00R\tparagraphB\r\n\x0b\x66ormat_type\"\x9c\x01\n\nMapExample\x12<\n\x05input\x18\x01 \x03(\x0b\x32&.logical_plan.v1.MapExample.InputEntryR\x05input\x12\x16\n\x06output\x18\x02 \x01(\tR\x06output\x1a\x38\n\nInputEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"O\n\x14MapExampleCollection\x12\x37\n\x08\x65xamples\x18\x01 \x03(\x0b\x32\x1b.logical_plan.v1.MapExampleR\x08\x65xamples\"?\n\x0f\x43lassifyExample\x12\x14\n\x05input\x18\x01 \x01(\tR\x05input\x12\x16\n\x06output\x18\x02 \x01(\tR\x06output\"Y\n\x19\x43lassifyExampleCollection\x12<\n\x08\x65xamples\x18\x01 \x03(\x0b\x32 .logical_plan.v1.ClassifyExampleR\x08\x65xamples\"\xa8\x01\n\x10PredicateExample\x12\x42\n\x05input\x18\x01 \x03(\x0b\x32,.logical_plan.v1.PredicateExample.InputEntryR\x05input\x12\x16\n\x06output\x18\x02 \x01(\x08R\x06output\x1a\x38\n\nInputEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"[\n\x1aPredicateExampleCollection\x12=\n\x08\x65xamples\x18\x01 \x03(\x0b\x32!.logical_plan.v1.PredicateExampleR\x08\x65xamples\"O\n\x0bJoinExample\x12\x12\n\x04left\x18\x01 \x01(\tR\x04left\x12\x14\n\x05right\x18\x02 \x01(\tR\x05right\x12\x16\n\x06output\x18\x03 \x01(\x08R\x06output\"Q\n\x15JoinExampleCollection\x12\x38\n\x08\x65xamples\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.JoinExampleR\x08\x65xamplesB\x81\x01\n\x13\x63om.logical_plan.v1B\x11\x43omplexTypesProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#logical_plan/v1/complex_types.proto\x12\x0flogical_plan.v1\"Q\n\x17ResolvedClassDefinition\x12\x14\n\x05label\x18\x01 \x01(\tR\x05label\x12 \n\x0b\x64\x65scription\x18\x02 \x01(\tR\x0b\x64\x65scription\"L\n\nNumpyArray\x12\x12\n\x04\x64\x61ta\x18\x01 \x01(\x0cR\x04\x64\x61ta\x12\x14\n\x05shape\x18\x02 \x03(\x05R\x05shape\x12\x14\n\x05\x64type\x18\x03 \x01(\tR\x05\x64type\"4\n\x11PydanticModelType\x12\x1f\n\x0bjson_schema\x18\x01 \x01(\tR\njsonSchema\"*\n\tKeyPoints\x12\x1d\n\nmax_points\x18\x01 \x01(\x05R\tmaxPoints\"(\n\tParagraph\x12\x1b\n\tmax_words\x18\x01 \x01(\x05R\x08maxWords\"\x9d\x01\n\x13SummarizationFormat\x12;\n\nkey_points\x18\x01 \x01(\x0b\x32\x1a.logical_plan.v1.KeyPointsH\x00R\tkeyPoints\x12:\n\tparagraph\x18\x02 \x01(\x0b\x32\x1a.logical_plan.v1.ParagraphH\x00R\tparagraphB\r\n\x0b\x66ormat_type\"\x9c\x01\n\nMapExample\x12<\n\x05input\x18\x01 \x03(\x0b\x32&.logical_plan.v1.MapExample.InputEntryR\x05input\x12\x16\n\x06output\x18\x02 \x01(\tR\x06output\x1a\x38\n\nInputEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"O\n\x14MapExampleCollection\x12\x37\n\x08\x65xamples\x18\x01 \x03(\x0b\x32\x1b.logical_plan.v1.MapExampleR\x08\x65xamples\"?\n\x0f\x43lassifyExample\x12\x14\n\x05input\x18\x01 \x01(\tR\x05input\x12\x16\n\x06output\x18\x02 \x01(\tR\x06output\"Y\n\x19\x43lassifyExampleCollection\x12<\n\x08\x65xamples\x18\x01 \x03(\x0b\x32 .logical_plan.v1.ClassifyExampleR\x08\x65xamples\"\xa8\x01\n\x10PredicateExample\x12\x42\n\x05input\x18\x01 \x03(\x0b\x32,.logical_plan.v1.PredicateExample.InputEntryR\x05input\x12\x16\n\x06output\x18\x02 \x01(\x08R\x06output\x1a\x38\n\nInputEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05value:\x02\x38\x01\"[\n\x1aPredicateExampleCollection\x12=\n\x08\x65xamples\x18\x01 \x03(\x0b\x32!.logical_plan.v1.PredicateExampleR\x08\x65xamples\"O\n\x0bJoinExample\x12\x12\n\x04left\x18\x01 \x01(\tR\x04left\x12\x14\n\x05right\x18\x02 \x01(\tR\x05right\x12\x16\n\x06output\x18\x03 \x01(\x08R\x06output\"Q\n\x15JoinExampleCollection\x12\x38\n\x08\x65xamples\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.JoinExampleR\x08\x65xamplesB\x81\x01\n\x13\x63om.logical_plan.v1B\x11\x43omplexTypesProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,34 +36,36 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MAPEXAMPLE_INPUTENTRY']._serialized_options = b'8\001'
   _globals['_PREDICATEEXAMPLE_INPUTENTRY']._loaded_options = None
   _globals['_PREDICATEEXAMPLE_INPUTENTRY']._serialized_options = b'8\001'
-  _globals['_NUMPYARRAY']._serialized_start=56
-  _globals['_NUMPYARRAY']._serialized_end=132
-  _globals['_PYDANTICMODELTYPE']._serialized_start=134
-  _globals['_PYDANTICMODELTYPE']._serialized_end=186
-  _globals['_KEYPOINTS']._serialized_start=188
-  _globals['_KEYPOINTS']._serialized_end=230
-  _globals['_PARAGRAPH']._serialized_start=232
-  _globals['_PARAGRAPH']._serialized_end=272
-  _globals['_SUMMARIZATIONFORMAT']._serialized_start=275
-  _globals['_SUMMARIZATIONFORMAT']._serialized_end=432
-  _globals['_MAPEXAMPLE']._serialized_start=435
-  _globals['_MAPEXAMPLE']._serialized_end=591
-  _globals['_MAPEXAMPLE_INPUTENTRY']._serialized_start=535
-  _globals['_MAPEXAMPLE_INPUTENTRY']._serialized_end=591
-  _globals['_MAPEXAMPLECOLLECTION']._serialized_start=593
-  _globals['_MAPEXAMPLECOLLECTION']._serialized_end=672
-  _globals['_CLASSIFYEXAMPLE']._serialized_start=674
-  _globals['_CLASSIFYEXAMPLE']._serialized_end=737
-  _globals['_CLASSIFYEXAMPLECOLLECTION']._serialized_start=739
-  _globals['_CLASSIFYEXAMPLECOLLECTION']._serialized_end=828
-  _globals['_PREDICATEEXAMPLE']._serialized_start=831
-  _globals['_PREDICATEEXAMPLE']._serialized_end=999
-  _globals['_PREDICATEEXAMPLE_INPUTENTRY']._serialized_start=535
-  _globals['_PREDICATEEXAMPLE_INPUTENTRY']._serialized_end=591
-  _globals['_PREDICATEEXAMPLECOLLECTION']._serialized_start=1001
-  _globals['_PREDICATEEXAMPLECOLLECTION']._serialized_end=1092
-  _globals['_JOINEXAMPLE']._serialized_start=1094
-  _globals['_JOINEXAMPLE']._serialized_end=1173
-  _globals['_JOINEXAMPLECOLLECTION']._serialized_start=1175
-  _globals['_JOINEXAMPLECOLLECTION']._serialized_end=1256
+  _globals['_RESOLVEDCLASSDEFINITION']._serialized_start=56
+  _globals['_RESOLVEDCLASSDEFINITION']._serialized_end=137
+  _globals['_NUMPYARRAY']._serialized_start=139
+  _globals['_NUMPYARRAY']._serialized_end=215
+  _globals['_PYDANTICMODELTYPE']._serialized_start=217
+  _globals['_PYDANTICMODELTYPE']._serialized_end=269
+  _globals['_KEYPOINTS']._serialized_start=271
+  _globals['_KEYPOINTS']._serialized_end=313
+  _globals['_PARAGRAPH']._serialized_start=315
+  _globals['_PARAGRAPH']._serialized_end=355
+  _globals['_SUMMARIZATIONFORMAT']._serialized_start=358
+  _globals['_SUMMARIZATIONFORMAT']._serialized_end=515
+  _globals['_MAPEXAMPLE']._serialized_start=518
+  _globals['_MAPEXAMPLE']._serialized_end=674
+  _globals['_MAPEXAMPLE_INPUTENTRY']._serialized_start=618
+  _globals['_MAPEXAMPLE_INPUTENTRY']._serialized_end=674
+  _globals['_MAPEXAMPLECOLLECTION']._serialized_start=676
+  _globals['_MAPEXAMPLECOLLECTION']._serialized_end=755
+  _globals['_CLASSIFYEXAMPLE']._serialized_start=757
+  _globals['_CLASSIFYEXAMPLE']._serialized_end=820
+  _globals['_CLASSIFYEXAMPLECOLLECTION']._serialized_start=822
+  _globals['_CLASSIFYEXAMPLECOLLECTION']._serialized_end=911
+  _globals['_PREDICATEEXAMPLE']._serialized_start=914
+  _globals['_PREDICATEEXAMPLE']._serialized_end=1082
+  _globals['_PREDICATEEXAMPLE_INPUTENTRY']._serialized_start=618
+  _globals['_PREDICATEEXAMPLE_INPUTENTRY']._serialized_end=674
+  _globals['_PREDICATEEXAMPLECOLLECTION']._serialized_start=1084
+  _globals['_PREDICATEEXAMPLECOLLECTION']._serialized_end=1175
+  _globals['_JOINEXAMPLE']._serialized_start=1177
+  _globals['_JOINEXAMPLE']._serialized_end=1256
+  _globals['_JOINEXAMPLECOLLECTION']._serialized_start=1258
+  _globals['_JOINEXAMPLECOLLECTION']._serialized_end=1339
 # @@protoc_insertion_point(module_scope)

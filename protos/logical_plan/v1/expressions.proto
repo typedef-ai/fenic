@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package logical_plan.v1;
 
+import "logical_plan/v1/complex_types.proto";
 import "logical_plan/v1/datatypes.proto";
 import "logical_plan/v1/enums.proto";
-import "logical_plan/v1/complex_types.proto";
 
 // Base message for all logical expressions
 message LogicalExpr {
@@ -18,19 +18,19 @@ message LogicalExpr {
     ArrayExpr array = 6;
     StructExpr struct = 7;
     CastExpr cast = 8;
-    NotExpr not = 9;
+    NotExpr not_expr = 9; //keyword
     CoalesceExpr coalesce = 10;
-    InExpr in = 11;
+    InExpr in_expr = 11; //keyword
     IsNullExpr is_null = 12;
     ArrayLengthExpr array_length = 13;
     ArrayContainsExpr array_contains = 14;
 
-    // Binary expressions - using same proto for different operator types
-    BinaryExpr arithmetic = 20;
-    BinaryExpr boolan = 21;
-    BinaryExpr equality_comparison = 22;
-    BinaryExpr numeric_comparison = 23;
-    
+    // Binary expressions
+    ArithmeticExpr arithmetic = 20;
+    BooleanExpr boolean = 21;
+    EqualityComparisonExpr equality_comparison = 22;
+    NumericComparisonExpr numeric_comparison = 23;
+
     // Semantic expressions
     SemanticMapExpr semantic_map = 30;
     SemanticExtractExpr semantic_extract = 31;
@@ -44,7 +44,7 @@ message LogicalExpr {
     // Embedding expressions
     EmbeddingNormalizeExpr embedding_normalize = 40;
     EmbeddingSimilarityExpr embedding_similarity = 41;
-    
+
     // Text expressions
     TextractExpr textract = 50;
     TextChunkExpr text_chunk = 51;
@@ -66,40 +66,70 @@ message LogicalExpr {
     StripCharsExpr strip_chars = 67;
     ReplaceExpr replace = 68;
     StrLengthExpr str_length = 69;
-    
+    ByteLengthExpr byte_length = 70;
+
     // JSON expressions
-    JqExpr jq = 70;
-    JsonTypeExpr json_type = 71;
-    JsonContainsExpr json_contains = 72;
-    
+    JqExpr jq = 80;
+    JsonTypeExpr json_type = 81;
+    JsonContainsExpr json_contains = 82;
+
     // Markdown expressions
-    MdToJsonExpr md_to_json = 80;
-    MdGetCodeBlocksExpr md_get_code_blocks = 81;
-    MdGenerateTocExpr md_generate_toc = 82;
-    MdExtractHeaderChunks md_extract_header_chunks = 83;
-    
+    MdToJsonExpr md_to_json = 90;
+    MdGetCodeBlocksExpr md_get_code_blocks = 91;
+    MdGenerateTocExpr md_generate_toc = 92;
+    MdExtractHeaderChunks md_extract_header_chunks = 93;
+
     // Case expressions
-    WhenExpr when = 90;
-    OtherwiseExpr otherwise = 91;
+    WhenExpr when = 100;
+    OtherwiseExpr otherwise = 101;
+
+    // Aggregate expressions
+    SumExpr sum = 110;
+    AvgExpr avg = 111;
+    CountExpr count = 112;
+    MaxExpr max = 113;
+    MinExpr min = 114;
+    FirstExpr first = 115;
+    ListExpr list = 116;
+    StdDevExpr std_dev = 117;
 
   }
 }
 
-// Basic expressions - using descriptive  suffix naming
+// Basic expressions
 message ColumnExpr {
   string name = 1;
 }
 
-message LiteralExpr {
+message ScalarValue {
   oneof value_type {
     string string_value = 1;
-    int64 int_value = 2;
+    int32 int_value = 2;
     double double_value = 3;
     bool bool_value = 4;
     bytes bytes_value = 5;
+    ScalarArray array_value = 6;
+    ScalarStruct struct_value = 7;
     //all types we support for LiteralExpr
   }
-  DataType data_type = 20;
+}
+
+message ScalarArray {
+  repeated ScalarValue elements = 1;
+}
+
+message ScalarStruct {
+  repeated ScalarStructField fields = 1;
+}
+
+message ScalarStructField {
+  string name = 1;
+  ScalarValue value = 2;
+}
+
+message LiteralExpr {
+  ScalarValue value = 1;
+  DataType data_type = 2;
 }
 
 message AliasExpr {
@@ -109,7 +139,7 @@ message AliasExpr {
 
 message SortExpr {
   LogicalExpr expr = 1;
-  string order = 2;  // "asc" or "desc"
+  bool ascending = 2;
 }
 
 message IndexExpr {
@@ -127,7 +157,6 @@ message ArrayExpr {
 
 message StructExpr {
   repeated LogicalExpr exprs = 1;
-  repeated string field_names = 2;
 }
 
 message CastExpr {
@@ -150,6 +179,7 @@ message InExpr {
 
 message IsNullExpr {
   LogicalExpr expr = 1;
+  bool is_null = 2;
 }
 
 message ArrayLengthExpr {
@@ -158,11 +188,29 @@ message ArrayLengthExpr {
 
 message ArrayContainsExpr {
   LogicalExpr expr = 1;
-  LogicalExpr value = 2;
+  LogicalExpr other = 2;
 }
 
-// Binary expressions - single proto for all binary operators
-message BinaryExpr {
+// Binary expressions
+message ArithmeticExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message BooleanExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message NumericComparisonExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message EqualityComparisonExpr {
   LogicalExpr left = 1;
   LogicalExpr right = 2;
   Operator operator = 3;
@@ -181,14 +229,14 @@ message SemanticMapExpr {
 
 message SemanticExtractExpr {
   LogicalExpr expr = 1;
-  PydanticModelType schema = 2;  // Required schema for extraction
-  float temperature = 3;
-  optional string model_alias = 4;
+  PydanticModelType schema = 2;
+  int32 max_tokens = 3;
+  float temperature = 4;
+  optional string model_alias = 5;
 }
 
 message SemanticPredExpr {
-  LogicalExpr expr = 1;
-  string predicate = 2;
+  string instruction = 2;
   float temperature = 3;
   optional string model_alias = 4;
   optional PredicateExampleCollection examples = 5;
@@ -204,7 +252,7 @@ message SemanticReduceExpr {
 
 message SemanticClassifyExpr {
   LogicalExpr expr = 1;
-  repeated string labels = 2;  // Simple string list for classification labels
+  repeated ResolvedClassDefinition classes = 2;
   float temperature = 3;
   optional string model_alias = 4;
   optional ClassifyExampleCollection examples = 5;
@@ -217,7 +265,7 @@ message AnalyzeSentimentExpr {
 }
 
 message EmbeddingsExpr {
-  repeated LogicalExpr exprs = 1;
+  LogicalExpr expr = 1;
   optional string model_alias = 2;
 }
 
@@ -239,68 +287,71 @@ message EmbeddingSimilarityExpr {
     LogicalExpr other_expr = 2;
     NumpyArray query_vector = 3;
   }
-  SemanticSimilarityMetric metric = 4;
+  string metric = 4;
+}
+
+message TextChunkExprConfiguration {
+  int32 desired_chunk_size = 2;
+  int32 chunk_overlap_percentage = 3;
+  ChunkLengthFunction chunk_length_function_name = 4;
 }
 
 // Text expressions
 message TextractExpr {
-  repeated LogicalExpr exprs = 1;
-  repeated string patterns = 2;
+  LogicalExpr input_expr = 1;
+  string template = 2;
 }
 
 message TextChunkExpr {
   LogicalExpr expr = 1;
-  int32 chunk_size = 2;
-  int32 overlap = 3;
-  ChunkLengthFunction length_function = 4;
-  ChunkCharacterSet character_set = 5;
+  TextChunkExprConfiguration configuration = 2;
+}
+
+message RecursiveTextChunkExprConfiguration {
+  int32 desired_chunk_size = 2;
+  int32 chunk_overlap_percentage = 3;
+  ChunkLengthFunction chunk_length_function_name = 4;
+  ChunkCharacterSet chunking_character_set_name = 5;
+  repeated string chunking_character_set_custom_characters = 6;
 }
 
 message RecursiveTextChunkExpr {
-  LogicalExpr expr = 1;
-  int32 chunk_size = 2;
-  int32 overlap = 3;
-  ChunkLengthFunction length_function = 4;
-  ChunkCharacterSet character_set = 5;
+  LogicalExpr input_expr = 1;
+  RecursiveTextChunkExprConfiguration configuration = 2;
 }
 
 message CountTokensExpr {
   LogicalExpr input_expr = 1;
-  optional string model_alias = 2;
 }
 
 message ConcatExpr {
   repeated LogicalExpr exprs = 1;
-  string separator = 2;
 }
 
 message ArrayJoinExpr {
   LogicalExpr expr = 1;
-  string separator = 2;
+  string delimiter = 2;
 }
 
 message ContainsExpr {
   LogicalExpr expr = 1;
-  string substring = 2;
-  bool case_sensitive = 3;
+  LogicalExpr substr = 2;
 }
 
 message ContainsAnyExpr {
   LogicalExpr expr = 1;
-  repeated string substrings = 2;
-  bool case_sensitive = 3;
+  repeated string substrs = 2;
+  bool case_insensitive = 3;
 }
 
 message RLikeExpr {
   LogicalExpr expr = 1;
   string pattern = 2;
-  bool case_sensitive = 3;
 }
 
 message LikeExpr {
   LogicalExpr expr = 1;
   string pattern = 2;
-  bool case_sensitive = 3;
 }
 
 message ILikeExpr {
@@ -315,14 +366,12 @@ message TsParseExpr {
 
 message StartsWithExpr {
   LogicalExpr expr = 1;
-  string prefix = 2;
-  bool case_sensitive = 3;
+  LogicalExpr substr = 2;
 }
 
 message EndsWithExpr {
   LogicalExpr expr = 1;
-  string suffix = 2;
-  bool case_sensitive = 3;
+  LogicalExpr substr = 2;
 }
 
 message RegexpSplitExpr {
@@ -333,29 +382,33 @@ message RegexpSplitExpr {
 
 message SplitPartExpr {
   LogicalExpr expr = 1;
-  string delimiter = 2;
-  int32 index = 3;
+  LogicalExpr delimiter = 2;
+  LogicalExpr part_number = 3;
 }
 
 message StringCasingExpr {
   LogicalExpr expr = 1;
-  string case_type = 2;  // "upper", "lower", "title", etc.
+  string case = 2;  // "upper", "lower", "title", etc.
 }
 
 message StripCharsExpr {
   LogicalExpr expr = 1;
-  string chars = 2;
+  optional LogicalExpr chars = 2;
   string side = 3;  // "left", "right", "both"
 }
 
 message ReplaceExpr {
   LogicalExpr expr = 1;
-  string old_value = 2;
-  string new_value = 3;
-  bool global = 4;
+  LogicalExpr search = 2;
+  LogicalExpr replacement = 3;
+  bool literal = 4;
 }
 
 message StrLengthExpr {
+  LogicalExpr expr = 1;
+}
+
+message ByteLengthExpr {
   LogicalExpr expr = 1;
 }
 
@@ -371,7 +424,7 @@ message JsonTypeExpr {
 
 message JsonContainsExpr {
   LogicalExpr expr = 1;
-  string key = 2;
+  string value = 2;
 }
 
 // Markdown expressions
@@ -381,20 +434,17 @@ message MdToJsonExpr {
 
 message MdGetCodeBlocksExpr {
   LogicalExpr expr = 1;
-  optional string language = 2;
-  bool include_text = 3;
+  optional string language_filter = 2;
 }
 
 message MdGenerateTocExpr {
   LogicalExpr expr = 1;
-  int32 max_depth = 2;
-  bool include_links = 3;
+  optional int32 max_level = 2;
 }
 
 message MdExtractHeaderChunks {
   LogicalExpr expr = 1;
-  int32 max_chunk_size = 2;
-  int32 overlap = 3;
+  int32 header_level = 2;
 }
 
 // Case expressions
@@ -407,4 +457,37 @@ message WhenExpr {
 message OtherwiseExpr {
   LogicalExpr expr = 1;
   LogicalExpr value = 2;
+}
+
+// Aggregate expressions
+message SumExpr {
+  LogicalExpr expr = 1;
+}
+
+message AvgExpr {
+  LogicalExpr expr = 1;
+}
+
+message CountExpr {
+  LogicalExpr expr = 1;
+}
+
+message MaxExpr {
+  LogicalExpr expr = 1;
+}
+
+message MinExpr {
+  LogicalExpr expr = 1;
+}
+
+message FirstExpr {
+  LogicalExpr expr = 1;
+}
+
+message ListExpr {
+  LogicalExpr expr = 1;
+}
+
+message StdDevExpr {
+  LogicalExpr expr = 1;
 }

@@ -2,6 +2,11 @@ syntax = "proto3";
 
 package logical_plan.v1;
 
+message ResolvedClassDefinition {
+  string label = 1;
+  string description = 2;
+}
+
 // NumPy array serialization
 message NumpyArray {
   bytes data = 1;

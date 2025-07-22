@@ -1,7 +1,7 @@
 """CloudPickle-based implementation of LogicalPlan serialization."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import cloudpickle  # nosec: B403
 
@@ -9,7 +9,7 @@ from fenic.core._interfaces.session_state import BaseSessionState
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._logical_plan.serde.serde_protocol import SupportsLogicalPlanSerde
+from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 
 
 class CloudPickleSerde(SupportsLogicalPlanSerde):
@@ -48,7 +48,7 @@ class CloudPickleSerde(SupportsLogicalPlanSerde):
         return cloudpickle.dumps(copied_plan)
 
     @staticmethod
-    def deserialize(data: bytes) -> LogicalPlan:
+    def deserialize(data: bytes, _: Optional[BaseSessionState] = None) -> LogicalPlan:
         """Deserialize bytes back into a LogicalPlan using cloudpickle.
 
         Args:

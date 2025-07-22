@@ -25,9 +25,10 @@ _sym_db = _symbol_database.Default()
 from fenic.gen.protos.logical_plan.v1 import datatypes_pb2 as logical__plan_dot_v1_dot_datatypes__pb2
 from fenic.gen.protos.logical_plan.v1 import enums_pb2 as logical__plan_dot_v1_dot_enums__pb2
 from fenic.gen.protos.logical_plan.v1 import expressions_pb2 as logical__plan_dot_v1_dot_expressions__pb2
+from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as logical__plan_dot_v1_dot_complex__types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1blogical_plan/v1/plans.proto\x12\x0flogical_plan.v1\x1a\x1flogical_plan/v1/datatypes.proto\x1a\x1blogical_plan/v1/enums.proto\x1a!logical_plan/v1/expressions.proto\"\xf7\x07\n\x0bLogicalPlan\x12K\n\x10in_memory_source\x18\x01 \x01(\x0b\x32\x1f.logical_plan.v1.InMemorySourceH\x00R\x0einMemorySource\x12>\n\x0b\x66ile_source\x18\x02 \x01(\x0b\x32\x1b.logical_plan.v1.FileSourceH\x00R\nfileSource\x12\x41\n\x0ctable_source\x18\x03 \x01(\x0b\x32\x1c.logical_plan.v1.TableSourceH\x00R\x0btableSource\x12=\n\nprojection\x18\n \x01(\x0b\x32\x1b.logical_plan.v1.ProjectionH\x00R\nprojection\x12\x31\n\x06\x66ilter\x18\x0b \x01(\x0b\x32\x17.logical_plan.v1.FilterH\x00R\x06\x66ilter\x12+\n\x04join\x18\x0c \x01(\x0b\x32\x15.logical_plan.v1.JoinH\x00R\x04join\x12:\n\taggregate\x18\r \x01(\x0b\x32\x1a.logical_plan.v1.AggregateH\x00R\taggregate\x12.\n\x05union\x18\x0e \x01(\x0b\x32\x16.logical_plan.v1.UnionH\x00R\x05union\x12.\n\x05limit\x18\x0f \x01(\x0b\x32\x16.logical_plan.v1.LimitH\x00R\x05limit\x12\x34\n\x07\x65xplode\x18\x10 \x01(\x0b\x32\x18.logical_plan.v1.ExplodeH\x00R\x07\x65xplode\x12J\n\x0f\x64rop_duplicates\x18\x11 \x01(\x0b\x32\x1f.logical_plan.v1.DropDuplicatesH\x00R\x0e\x64ropDuplicates\x12+\n\x04sort\x18\x12 \x01(\x0b\x32\x15.logical_plan.v1.SortH\x00R\x04sort\x12\x31\n\x06unnest\x18\x13 \x01(\x0b\x32\x17.logical_plan.v1.UnnestH\x00R\x06unnest\x12(\n\x03sql\x18\x14 \x01(\x0b\x32\x14.logical_plan.v1.SQLH\x00R\x03sql\x12M\n\x10semantic_cluster\x18\x15 \x01(\x0b\x32 .logical_plan.v1.SemanticClusterH\x00R\x0fsemanticCluster\x12\x38\n\tfile_sink\x18\x1e \x01(\x0b\x32\x19.logical_plan.v1.FileSinkH\x00R\x08\x66ileSink\x12;\n\ntable_sink\x18\x1f \x01(\x0b\x32\x1a.logical_plan.v1.TableSinkH\x00R\ttableSinkB\x0b\n\tplan_type\">\n\x06Schema\x12\x34\n\x06\x66ields\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.ColumnFieldR\x06\x66ields\"Y\n\x0b\x43olumnField\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x36\n\tdata_type\x18\x02 \x01(\x0b\x32\x19.logical_plan.v1.DataTypeR\x08\x64\x61taType\"h\n\x0eInMemorySource\x12%\n\x0e\x64\x61taframe_data\x18\x01 \x01(\x0cR\rdataframeData\x12/\n\x06schema\x18\x02 \x01(\x0b\x32\x17.logical_plan.v1.SchemaR\x06schema\"\x85\x01\n\nFileSource\x12\x14\n\x05paths\x18\x01 \x03(\tR\x05paths\x12\x16\n\x06\x66ormat\x18\x02 \x01(\tR\x06\x66ormat\x12/\n\x06schema\x18\x03 \x01(\x0b\x32\x17.logical_plan.v1.SchemaR\x06schema\x12\x18\n\x07\x63olumns\x18\x04 \x03(\tR\x07\x63olumns\",\n\x0bTableSource\x12\x1d\n\ntable_name\x18\x01 \x01(\tR\ttableName\"\x80\x01\n\nProjection\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12>\n\x0b\x65xpressions\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x0b\x65xpressions\"x\n\x06\x46ilter\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12:\n\tpredicate\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\tpredicate\"\xc7\x02\n\x04Join\x12\x30\n\x04left\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x04left\x12\x32\n\x05right\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05right\x12\x1b\n\tjoin_type\x18\x03 \x01(\tR\x08joinType\x12\x39\n\tleft_keys\x18\x04 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x08leftKeys\x12;\n\nright_keys\x18\x05 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\trightKeys\x12\x39\n\x06\x66ilter\x18\x06 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprH\x00R\x06\x66ilter\x88\x01\x01\x42\t\n\x07_filter\"\xb9\x01\n\tAggregate\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12=\n\x0bgroup_exprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\ngroupExprs\x12\x39\n\tagg_exprs\x18\x03 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x08\x61ggExprs\"=\n\x05Union\x12\x34\n\x06inputs\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x06inputs\"I\n\x05Limit\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x0c\n\x01n\x18\x02 \x01(\x05R\x01n\"o\n\x07\x45xplode\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x30\n\x04\x65xpr\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x04\x65xpr\"x\n\x0e\x44ropDuplicates\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x32\n\x05\x65xprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x05\x65xprs\"n\n\x04Sort\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x32\n\x05\x65xprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x05\x65xprs\"p\n\x06Unnest\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x32\n\x05\x65xprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x05\x65xprs\"\x8b\x01\n\x03SQL\x12\x34\n\x06inputs\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x06inputs\x12%\n\x0etemplate_names\x18\x02 \x03(\tR\rtemplateNames\x12\'\n\x0ftemplated_query\x18\x03 \x01(\tR\x0etemplatedQuery\"\xcc\x01\n\x0fSemanticCluster\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x30\n\x04\x65xpr\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x04\x65xpr\x12\x1d\n\nn_clusters\x18\x03 \x01(\x05R\tnClusters\x12$\n\x0bmodel_alias\x18\x04 \x01(\tH\x00R\nmodelAlias\x88\x01\x01\x42\x0e\n\x0c_model_alias\"~\n\x08\x46ileSink\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x12\n\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n\x06\x66ormat\x18\x03 \x01(\tR\x06\x66ormat\x12\x12\n\x04mode\x18\x04 \x01(\tR\x04mode\"r\n\tTableSink\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x1d\n\ntable_name\x18\x02 \x01(\tR\ttableName\x12\x12\n\x04mode\x18\x03 \x01(\tR\x04modeBz\n\x13\x63om.logical_plan.v1B\nPlansProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1blogical_plan/v1/plans.proto\x12\x0flogical_plan.v1\x1a\x1flogical_plan/v1/datatypes.proto\x1a\x1blogical_plan/v1/enums.proto\x1a!logical_plan/v1/expressions.proto\x1a#logical_plan/v1/complex_types.proto\"\xa2\t\n\x0bLogicalPlan\x12K\n\x10in_memory_source\x18\x01 \x01(\x0b\x32\x1f.logical_plan.v1.InMemorySourceH\x00R\x0einMemorySource\x12>\n\x0b\x66ile_source\x18\x02 \x01(\x0b\x32\x1b.logical_plan.v1.FileSourceH\x00R\nfileSource\x12\x41\n\x0ctable_source\x18\x03 \x01(\x0b\x32\x1c.logical_plan.v1.TableSourceH\x00R\x0btableSource\x12=\n\nprojection\x18\n \x01(\x0b\x32\x1b.logical_plan.v1.ProjectionH\x00R\nprojection\x12\x31\n\x06\x66ilter\x18\x0b \x01(\x0b\x32\x17.logical_plan.v1.FilterH\x00R\x06\x66ilter\x12+\n\x04join\x18\x0c \x01(\x0b\x32\x15.logical_plan.v1.JoinH\x00R\x04join\x12:\n\taggregate\x18\r \x01(\x0b\x32\x1a.logical_plan.v1.AggregateH\x00R\taggregate\x12.\n\x05union\x18\x0e \x01(\x0b\x32\x16.logical_plan.v1.UnionH\x00R\x05union\x12.\n\x05limit\x18\x0f \x01(\x0b\x32\x16.logical_plan.v1.LimitH\x00R\x05limit\x12\x34\n\x07\x65xplode\x18\x10 \x01(\x0b\x32\x18.logical_plan.v1.ExplodeH\x00R\x07\x65xplode\x12J\n\x0f\x64rop_duplicates\x18\x11 \x01(\x0b\x32\x1f.logical_plan.v1.DropDuplicatesH\x00R\x0e\x64ropDuplicates\x12+\n\x04sort\x18\x12 \x01(\x0b\x32\x15.logical_plan.v1.SortH\x00R\x04sort\x12\x31\n\x06unnest\x18\x13 \x01(\x0b\x32\x17.logical_plan.v1.UnnestH\x00R\x06unnest\x12(\n\x03sql\x18\x14 \x01(\x0b\x32\x14.logical_plan.v1.SQLH\x00R\x03sql\x12M\n\x10semantic_cluster\x18\x15 \x01(\x0b\x32 .logical_plan.v1.SemanticClusterH\x00R\x0fsemanticCluster\x12\x44\n\rsemantic_join\x18\x16 \x01(\x0b\x32\x1d.logical_plan.v1.SemanticJoinH\x00R\x0csemanticJoin\x12\x63\n\x18semantic_similarity_join\x18\x17 \x01(\x0b\x32\'.logical_plan.v1.SemanticSimilarityJoinH\x00R\x16semanticSimilarityJoin\x12\x38\n\tfile_sink\x18\x1e \x01(\x0b\x32\x19.logical_plan.v1.FileSinkH\x00R\x08\x66ileSink\x12;\n\ntable_sink\x18\x1f \x01(\x0b\x32\x1a.logical_plan.v1.TableSinkH\x00R\ttableSinkB\x0b\n\tplan_type\"P\n\x0b\x46\x65nicSchema\x12\x41\n\rcolumn_fields\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.ColumnFieldR\x0c\x63olumnFields\"Y\n\x0b\x43olumnField\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x36\n\tdata_type\x18\x02 \x01(\x0b\x32\x19.logical_plan.v1.DataTypeR\x08\x64\x61taType\"(\n\x0eInMemorySource\x12\x16\n\x06source\x18\x01 \x01(\x0cR\x06source\"\xc5\x01\n\nFileSource\x12\x14\n\x05paths\x18\x01 \x03(\tR\x05paths\x12\x1f\n\x0b\x66ile_format\x18\x02 \x01(\tR\nfileFormat\x12\x39\n\x06schema\x18\x03 \x01(\x0b\x32\x1c.logical_plan.v1.FenicSchemaH\x00R\x06schema\x88\x01\x01\x12(\n\rmerge_schemas\x18\x04 \x01(\x08H\x01R\x0cmergeSchemas\x88\x01\x01\x42\t\n\x07_schemaB\x10\n\x0e_merge_schemas\",\n\x0bTableSource\x12\x1d\n\ntable_name\x18\x01 \x01(\tR\ttableName\"t\n\nProjection\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x32\n\x05\x65xprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x05\x65xprs\"x\n\x06\x46ilter\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12:\n\tpredicate\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\tpredicate\"\xc7\x02\n\x04Join\x12\x30\n\x04left\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x04left\x12\x32\n\x05right\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05right\x12\x1b\n\tjoin_type\x18\x03 \x01(\tR\x08joinType\x12\x39\n\tleft_keys\x18\x04 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x08leftKeys\x12;\n\nright_keys\x18\x05 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\trightKeys\x12\x39\n\x06\x66ilter\x18\x06 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprH\x00R\x06\x66ilter\x88\x01\x01\x42\t\n\x07_filter\"\xa8\x03\n\x0cSemanticJoin\x12\x30\n\x04left\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x04left\x12\x32\n\x05right\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05right\x12\x35\n\x07left_on\x18\x03 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x06leftOn\x12\x37\n\x08right_on\x18\x04 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x07rightOn\x12)\n\x10join_instruction\x18\x06 \x01(\tR\x0fjoinInstruction\x12 \n\x0btemperature\x18\x07 \x01(\x02R\x0btemperature\x12\x1f\n\x0bmodel_alias\x18\x08 \x01(\tR\nmodelAlias\x12G\n\x08\x65xamples\x18\t \x01(\x0b\x32&.logical_plan.v1.JoinExampleCollectionH\x00R\x08\x65xamples\x88\x01\x01\x42\x0b\n\t_examples\"\x82\x03\n\x16SemanticSimilarityJoin\x12\x30\n\x04left\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x04left\x12\x32\n\x05right\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05right\x12\x35\n\x07left_on\x18\x03 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x06leftOn\x12\x37\n\x08right_on\x18\x04 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x07rightOn\x12\x0c\n\x01k\x18\x06 \x01(\x05R\x01k\x12+\n\x11similarity_metric\x18\x07 \x01(\tR\x10similarityMetric\x12;\n\x17similarity_score_column\x18\x08 \x01(\tH\x00R\x15similarityScoreColumn\x88\x01\x01\x42\x1a\n\x18_similarity_score_column\"\xb9\x01\n\tAggregate\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12=\n\x0bgroup_exprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\ngroupExprs\x12\x39\n\tagg_exprs\x18\x03 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x08\x61ggExprs\"=\n\x05Union\x12\x34\n\x06inputs\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x06inputs\"I\n\x05Limit\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x0c\n\x01n\x18\x02 \x01(\x05R\x01n\"o\n\x07\x45xplode\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x30\n\x04\x65xpr\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x04\x65xpr\"z\n\x0e\x44ropDuplicates\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x34\n\x06subset\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x06subset\"w\n\x04Sort\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12;\n\nsort_exprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\tsortExprs\"p\n\x06Unnest\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x32\n\x05\x65xprs\x18\x02 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x05\x65xprs\"\x8b\x01\n\x03SQL\x12\x34\n\x06inputs\x18\x01 \x03(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x06inputs\x12%\n\x0etemplate_names\x18\x02 \x03(\tR\rtemplateNames\x12\'\n\x0ftemplated_query\x18\x03 \x01(\tR\x0etemplatedQuery\"\x84\x02\n\x0fSemanticCluster\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x35\n\x07\x62y_expr\x18\x02 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalExprR\x06\x62yExpr\x12!\n\x0cnum_clusters\x18\x03 \x01(\x05R\x0bnumClusters\x12!\n\x0clabel_column\x18\x04 \x01(\tR\x0blabelColumn\x12,\n\x0f\x63\x65ntroid_column\x18\x05 \x01(\tH\x00R\x0e\x63\x65ntroidColumn\x88\x01\x01\x42\x12\n\x10_centroid_column\"~\n\x08\x46ileSink\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x12\n\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n\x06\x66ormat\x18\x03 \x01(\tR\x06\x66ormat\x12\x12\n\x04mode\x18\x04 \x01(\tR\x04mode\"r\n\tTableSink\x12\x32\n\x05input\x18\x01 \x01(\x0b\x32\x1c.logical_plan.v1.LogicalPlanR\x05input\x12\x1d\n\ntable_name\x18\x02 \x01(\tR\ttableName\x12\x12\n\x04mode\x18\x03 \x01(\tR\x04modeBz\n\x13\x63om.logical_plan.v1B\nPlansProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,44 +36,48 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'logical_plan.v1.plans_pb2',
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\023com.logical_plan.v1B\nPlansProtoP\001\242\002\003LXX\252\002\016LogicalPlan.V1\312\002\016LogicalPlan\\V1\342\002\032LogicalPlan\\V1\\GPBMetadata\352\002\017LogicalPlan::V1'
-  _globals['_LOGICALPLAN']._serialized_start=146
-  _globals['_LOGICALPLAN']._serialized_end=1161
-  _globals['_SCHEMA']._serialized_start=1163
-  _globals['_SCHEMA']._serialized_end=1225
-  _globals['_COLUMNFIELD']._serialized_start=1227
-  _globals['_COLUMNFIELD']._serialized_end=1316
-  _globals['_INMEMORYSOURCE']._serialized_start=1318
-  _globals['_INMEMORYSOURCE']._serialized_end=1422
-  _globals['_FILESOURCE']._serialized_start=1425
-  _globals['_FILESOURCE']._serialized_end=1558
-  _globals['_TABLESOURCE']._serialized_start=1560
-  _globals['_TABLESOURCE']._serialized_end=1604
-  _globals['_PROJECTION']._serialized_start=1607
-  _globals['_PROJECTION']._serialized_end=1735
-  _globals['_FILTER']._serialized_start=1737
-  _globals['_FILTER']._serialized_end=1857
-  _globals['_JOIN']._serialized_start=1860
-  _globals['_JOIN']._serialized_end=2187
-  _globals['_AGGREGATE']._serialized_start=2190
-  _globals['_AGGREGATE']._serialized_end=2375
-  _globals['_UNION']._serialized_start=2377
-  _globals['_UNION']._serialized_end=2438
-  _globals['_LIMIT']._serialized_start=2440
-  _globals['_LIMIT']._serialized_end=2513
-  _globals['_EXPLODE']._serialized_start=2515
-  _globals['_EXPLODE']._serialized_end=2626
-  _globals['_DROPDUPLICATES']._serialized_start=2628
-  _globals['_DROPDUPLICATES']._serialized_end=2748
-  _globals['_SORT']._serialized_start=2750
-  _globals['_SORT']._serialized_end=2860
-  _globals['_UNNEST']._serialized_start=2862
-  _globals['_UNNEST']._serialized_end=2974
-  _globals['_SQL']._serialized_start=2977
-  _globals['_SQL']._serialized_end=3116
-  _globals['_SEMANTICCLUSTER']._serialized_start=3119
-  _globals['_SEMANTICCLUSTER']._serialized_end=3323
-  _globals['_FILESINK']._serialized_start=3325
-  _globals['_FILESINK']._serialized_end=3451
-  _globals['_TABLESINK']._serialized_start=3453
-  _globals['_TABLESINK']._serialized_end=3567
+  _globals['_LOGICALPLAN']._serialized_start=183
+  _globals['_LOGICALPLAN']._serialized_end=1369
+  _globals['_FENICSCHEMA']._serialized_start=1371
+  _globals['_FENICSCHEMA']._serialized_end=1451
+  _globals['_COLUMNFIELD']._serialized_start=1453
+  _globals['_COLUMNFIELD']._serialized_end=1542
+  _globals['_INMEMORYSOURCE']._serialized_start=1544
+  _globals['_INMEMORYSOURCE']._serialized_end=1584
+  _globals['_FILESOURCE']._serialized_start=1587
+  _globals['_FILESOURCE']._serialized_end=1784
+  _globals['_TABLESOURCE']._serialized_start=1786
+  _globals['_TABLESOURCE']._serialized_end=1830
+  _globals['_PROJECTION']._serialized_start=1832
+  _globals['_PROJECTION']._serialized_end=1948
+  _globals['_FILTER']._serialized_start=1950
+  _globals['_FILTER']._serialized_end=2070
+  _globals['_JOIN']._serialized_start=2073
+  _globals['_JOIN']._serialized_end=2400
+  _globals['_SEMANTICJOIN']._serialized_start=2403
+  _globals['_SEMANTICJOIN']._serialized_end=2827
+  _globals['_SEMANTICSIMILARITYJOIN']._serialized_start=2830
+  _globals['_SEMANTICSIMILARITYJOIN']._serialized_end=3216
+  _globals['_AGGREGATE']._serialized_start=3219
+  _globals['_AGGREGATE']._serialized_end=3404
+  _globals['_UNION']._serialized_start=3406
+  _globals['_UNION']._serialized_end=3467
+  _globals['_LIMIT']._serialized_start=3469
+  _globals['_LIMIT']._serialized_end=3542
+  _globals['_EXPLODE']._serialized_start=3544
+  _globals['_EXPLODE']._serialized_end=3655
+  _globals['_DROPDUPLICATES']._serialized_start=3657
+  _globals['_DROPDUPLICATES']._serialized_end=3779
+  _globals['_SORT']._serialized_start=3781
+  _globals['_SORT']._serialized_end=3900
+  _globals['_UNNEST']._serialized_start=3902
+  _globals['_UNNEST']._serialized_end=4014
+  _globals['_SQL']._serialized_start=4017
+  _globals['_SQL']._serialized_end=4156
+  _globals['_SEMANTICCLUSTER']._serialized_start=4159
+  _globals['_SEMANTICCLUSTER']._serialized_end=4419
+  _globals['_FILESINK']._serialized_start=4421
+  _globals['_FILESINK']._serialized_end=4547
+  _globals['_TABLESINK']._serialized_start=4549
+  _globals['_TABLESINK']._serialized_end=4663
 # @@protoc_insertion_point(module_scope)

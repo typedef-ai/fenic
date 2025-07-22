@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class DataType(_message.Message):
-    __slots__ = ("string", "integer", "float", "double", "boolean", "array", "struct", "embedding", "transcript", "document_backed_path", "markdown", "html", "json")
+    __slots__ = ("string", "integer", "float", "double", "boolean", "array", "struct", "embedding", "transcript", "document_path", "markdown", "html", "json")
     STRING_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
     FLOAT_FIELD_NUMBER: _ClassVar[int]
@@ -16,7 +16,7 @@ class DataType(_message.Message):
     STRUCT_FIELD_NUMBER: _ClassVar[int]
     EMBEDDING_FIELD_NUMBER: _ClassVar[int]
     TRANSCRIPT_FIELD_NUMBER: _ClassVar[int]
-    DOCUMENT_BACKED_PATH_FIELD_NUMBER: _ClassVar[int]
+    DOCUMENT_PATH_FIELD_NUMBER: _ClassVar[int]
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     HTML_FIELD_NUMBER: _ClassVar[int]
     JSON_FIELD_NUMBER: _ClassVar[int]
@@ -29,11 +29,11 @@ class DataType(_message.Message):
     struct: StructType
     embedding: EmbeddingType
     transcript: TranscriptType
-    document_backed_path: DocumentBackedPath
+    document_path: DocumentPathType
     markdown: MarkdownType
     html: HTMLType
     json: JSONType
-    def __init__(self, string: _Optional[_Union[StringType, _Mapping]] = ..., integer: _Optional[_Union[IntegerType, _Mapping]] = ..., float: _Optional[_Union[FloatType, _Mapping]] = ..., double: _Optional[_Union[DoubleType, _Mapping]] = ..., boolean: _Optional[_Union[BooleanType, _Mapping]] = ..., array: _Optional[_Union[ArrayType, _Mapping]] = ..., struct: _Optional[_Union[StructType, _Mapping]] = ..., embedding: _Optional[_Union[EmbeddingType, _Mapping]] = ..., transcript: _Optional[_Union[TranscriptType, _Mapping]] = ..., document_backed_path: _Optional[_Union[DocumentBackedPath, _Mapping]] = ..., markdown: _Optional[_Union[MarkdownType, _Mapping]] = ..., html: _Optional[_Union[HTMLType, _Mapping]] = ..., json: _Optional[_Union[JSONType, _Mapping]] = ...) -> None: ...
+    def __init__(self, string: _Optional[_Union[StringType, _Mapping]] = ..., integer: _Optional[_Union[IntegerType, _Mapping]] = ..., float: _Optional[_Union[FloatType, _Mapping]] = ..., double: _Optional[_Union[DoubleType, _Mapping]] = ..., boolean: _Optional[_Union[BooleanType, _Mapping]] = ..., array: _Optional[_Union[ArrayType, _Mapping]] = ..., struct: _Optional[_Union[StructType, _Mapping]] = ..., embedding: _Optional[_Union[EmbeddingType, _Mapping]] = ..., transcript: _Optional[_Union[TranscriptType, _Mapping]] = ..., document_path: _Optional[_Union[DocumentPathType, _Mapping]] = ..., markdown: _Optional[_Union[MarkdownType, _Mapping]] = ..., html: _Optional[_Union[HTMLType, _Mapping]] = ..., json: _Optional[_Union[JSONType, _Mapping]] = ...) -> None: ...
 
 class StringType(_message.Message):
     __slots__ = ()
@@ -89,7 +89,7 @@ class TranscriptType(_message.Message):
     format: str
     def __init__(self, format: _Optional[str] = ...) -> None: ...
 
-class DocumentBackedPath(_message.Message):
+class DocumentPathType(_message.Message):
     __slots__ = ("format",)
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     format: str

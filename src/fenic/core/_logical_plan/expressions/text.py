@@ -36,6 +36,19 @@ from fenic.core.types import (
 
 logger = logging.getLogger(__name__)
 
+class ChunkLengthFunction(Enum):
+    CHARACTER = "CHARACTER"
+    WORD = "WORD"
+    # trunk-ignore(bandit/B105): not a token
+    TOKEN = "TOKEN"
+
+
+class ChunkCharacterSet(Enum):
+    CUSTOM = "CUSTOM"
+    ASCII = "ASCII"
+    UNICODE = "UNICODE"
+
+
 class TokenType(Enum):
     DELIMITER = auto()    # Literal text content
     COLUMN = auto()  # Column placeholder with optional format
@@ -185,19 +198,6 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return StructType with fields based on parsed template."""
         return self.parsed_template.to_struct_schema()
-
-
-class ChunkLengthFunction(Enum):
-    CHARACTER = "CHARACTER"
-    WORD = "WORD"
-    # trunk-ignore(bandit/B105): not a token
-    TOKEN = "TOKEN"
-
-
-class ChunkCharacterSet(Enum):
-    CUSTOM = "CUSTOM"
-    ASCII = "ASCII"
-    UNICODE = "UNICODE"
 
 
 class TextChunkExprConfiguration(BaseModel):

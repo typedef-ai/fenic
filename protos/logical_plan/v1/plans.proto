@@ -5,6 +5,7 @@ package logical_plan.v1;
 import "logical_plan/v1/datatypes.proto";
 import "logical_plan/v1/enums.proto";
 import "logical_plan/v1/expressions.proto";
+import "logical_plan/v1/complex_types.proto";
 
 // Base message for all logical plans
 message LogicalPlan {
@@ -27,6 +28,8 @@ message LogicalPlan {
     Unnest unnest = 19;
     SQL sql = 20;
     SemanticCluster semantic_cluster = 21;
+    SemanticJoin semantic_join = 22;
+    SemanticSimilarityJoin semantic_similarity_join = 23;
     
     // Sink operations
     FileSink file_sink = 30;
@@ -35,8 +38,8 @@ message LogicalPlan {
 }
 
 // Supporting types
-message Schema {
-  repeated ColumnField fields = 1;
+message FenicSchema {
+  repeated ColumnField column_fields = 1;
 }
 
 message ColumnField {
@@ -45,15 +48,14 @@ message ColumnField {
 }
 
 message InMemorySource {
-  bytes dataframe_data = 1;  // Serialized polars DataFrame (will require custom serde)
-  Schema schema = 2;
+  bytes source = 1;
 }
 
 message FileSource {
   repeated string paths = 1;
-  string format = 2;
-  Schema schema = 3;
-  repeated string columns = 4;
+  string file_format = 2;
+  optional FenicSchema schema = 3;
+  optional bool merge_schemas = 4;
 }
 
 message TableSource {
@@ -63,7 +65,7 @@ message TableSource {
 // Transform operations
 message Projection {
   LogicalPlan input = 1;
-  repeated LogicalExpr expressions = 2;
+  repeated LogicalExpr exprs = 2;
 }
 
 message Filter {
@@ -78,6 +80,27 @@ message Join {
   repeated LogicalExpr left_keys = 4;
   repeated LogicalExpr right_keys = 5;
   optional LogicalExpr filter = 6;
+}
+
+message SemanticJoin {
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
+  LogicalExpr left_on = 3;
+  LogicalExpr right_on = 4;
+  string join_instruction = 6;
+  float temperature = 7;
+  string model_alias = 8;
+  optional JoinExampleCollection examples = 9;
+}
+
+message SemanticSimilarityJoin {
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
+  LogicalExpr left_on = 3;
+  LogicalExpr right_on = 4;
+  int32 k = 6;
+  string similarity_metric = 7;
+  optional string similarity_score_column = 8;
 }
 
 message Aggregate {
@@ -102,12 +125,12 @@ message Explode {
 
 message DropDuplicates {
   LogicalPlan input = 1;
-  repeated LogicalExpr exprs = 2;
+  repeated LogicalExpr subset = 2;
 }
 
 message Sort {
   LogicalPlan input = 1;
-  repeated LogicalExpr exprs = 2;
+  repeated LogicalExpr sort_exprs = 2;
 }
 
 message Unnest {
@@ -123,9 +146,10 @@ message SQL {
 
 message SemanticCluster {
   LogicalPlan input = 1;
-  LogicalExpr expr = 2;
-  int32 n_clusters = 3;
-  optional string model_alias = 4;
+  LogicalExpr by_expr = 2;
+  int32 num_clusters = 3;
+  string label_column = 4;
+  optional string centroid_column = 5;
 }
 
 message FileSink {

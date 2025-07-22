@@ -7,7 +7,7 @@ used in query processing.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar
+from typing import Any, ClassVar, Dict, Generic, List, Mapping, Type, TypeVar
 
 import pandas as pd
 import polars as pl
@@ -32,7 +32,7 @@ class MapExample(BaseModel):
     string used in a semantic.map operation.
     """
 
-    input: Dict[str, str]
+    input: Mapping[str, str]
     output: str
 
 
@@ -54,7 +54,7 @@ class PredicateExample(BaseModel):
     used in a semantic.predicate operation.
     """
 
-    input: Dict[str, str]
+    input: Mapping[str, str]
     output: bool
 
 
@@ -69,7 +69,7 @@ class JoinExample(BaseModel):
     right: str
     output: bool
 
-class BaseExampleCollection(BaseModel, ABC, Generic[ExampleType]):
+class BaseExampleCollection(ABC, Generic[ExampleType]):
     """Abstract base class for all semantic example collections.
 
     Semantic examples demonstrate the expected input-output relationship for a given task,
@@ -84,39 +84,25 @@ class BaseExampleCollection(BaseModel, ABC, Generic[ExampleType]):
     - Improving model performance without changing the underlying model
     """
 
-    example_class: ClassVar[Type] = None
-    examples: List[ExampleType] = []
+    example_class: ClassVar[Type[ExampleType]]
 
-    def __init__(self, examples: List[ExampleType] = None, **data):
+    def __init__(self, examples: List[ExampleType] = None):
         """Initialize a collection of semantic examples.
 
         Args:
             examples: Optional list of examples to add to the collection. Each example
                 will be processed through create_example() to ensure proper formatting
                 and validation.
-            **data: Additional keyword arguments passed to the BaseModel constructor.
 
         Note:
             The examples list is initialized as empty if no examples are provided.
             Each example in the provided list will be processed through create_example()
             to ensure proper formatting and validation.
         """
-        # Initialize BaseModel first with no examples
-        super().__init__(examples=[], **data)
-        
-        # Then validate and process examples if provided
+        self.examples: List[ExampleType] = []
         if examples:
             for example in examples:
-                # Handle both dict and object forms (for Pydantic deserialization)
-                if isinstance(example, dict):
-                    example = self.example_class(**example)
                 self.create_example(example)
-
-    @classmethod
-    def from_data(cls, examples_data: List[Dict[str, Any]]) -> "BaseExampleCollection":
-        """Create collection from list of example dictionaries."""
-        examples = [cls.example_class(**ex) for ex in examples_data]
-        return cls(examples=examples)
 
     @classmethod
     @abstractmethod

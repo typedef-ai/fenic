@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Union
 
@@ -15,7 +16,9 @@ from fenic.core.types import (
 )
 
 if TYPE_CHECKING:
+    from fenic import StringType
     from fenic.core._logical_plan import LogicalPlan
+
 import fenic.core._utils.misc as utils
 from fenic._inference.model_catalog import (
     ModelProvider,
@@ -97,6 +100,12 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
             self.max_tokens
         )
 
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        if self.response_format:
+            return convert_pydantic_type_to_custom_struct_type(self.response_format)
+        else:
+            return StringType
+
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
@@ -140,7 +149,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         return super().to_column_field(plan)
 
     def __str__(self):
-        schema_hash = utils.get_content_hash(str(self.schema))
+        schema_hash = utils.get_content_hash(json.dumps(self.schema.model_json_schema()))
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 

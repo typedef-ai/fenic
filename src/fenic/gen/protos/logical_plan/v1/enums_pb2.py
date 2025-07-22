@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1blogical_plan/v1/enums.proto\x12\x0flogical_plan.v1*7\n\x18SemanticSimilarityMetric\x12\n\n\x06\x43OSINE\x10\x00\x12\x06\n\x02L2\x10\x01\x12\x07\n\x03\x44OT\x10\x02*\x82\x01\n\x08Operator\x12\x06\n\x02\x45Q\x10\x00\x12\n\n\x06NOT_EQ\x10\x01\x12\x06\n\x02LT\x10\x02\x12\x08\n\x04LTEQ\x10\x03\x12\x06\n\x02GT\x10\x04\x12\x08\n\x04GTEQ\x10\x05\x12\x08\n\x04PLUS\x10\x06\x12\t\n\x05MINUS\x10\x07\x12\x0c\n\x08MULTIPLY\x10\x08\x12\n\n\x06\x44IVIDE\x10\t\x12\x07\n\x03\x41ND\x10\n\x12\x06\n\x02OR\x10\x0b*.\n\x13\x43hunkLengthFunction\x12\r\n\tCHARACTER\x10\x00\x12\x08\n\x04WORD\x10\x01*7\n\x11\x43hunkCharacterSet\x12\n\n\x06\x43USTOM\x10\x00\x12\t\n\x05\x41SCII\x10\x01\x12\x0b\n\x07UNICODE\x10\x02\x42z\n\x13\x63om.logical_plan.v1B\nEnumsProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1blogical_plan/v1/enums.proto\x12\x0flogical_plan.v1*\x82\x01\n\x08Operator\x12\x06\n\x02\x45Q\x10\x00\x12\n\n\x06NOT_EQ\x10\x01\x12\x06\n\x02LT\x10\x02\x12\x08\n\x04LTEQ\x10\x03\x12\x06\n\x02GT\x10\x04\x12\x08\n\x04GTEQ\x10\x05\x12\x08\n\x04PLUS\x10\x06\x12\t\n\x05MINUS\x10\x07\x12\x0c\n\x08MULTIPLY\x10\x08\x12\n\n\x06\x44IVIDE\x10\t\x12\x07\n\x03\x41ND\x10\n\x12\x06\n\x02OR\x10\x0b*9\n\x13\x43hunkLengthFunction\x12\r\n\tCHARACTER\x10\x00\x12\x08\n\x04WORD\x10\x01\x12\t\n\x05TOKEN\x10\x02*7\n\x11\x43hunkCharacterSet\x12\n\n\x06\x43USTOM\x10\x00\x12\t\n\x05\x41SCII\x10\x01\x12\x0b\n\x07UNICODE\x10\x02\x42z\n\x13\x63om.logical_plan.v1B\nEnumsProtoP\x01\xa2\x02\x03LXX\xaa\x02\x0eLogicalPlan.V1\xca\x02\x0eLogicalPlan\\V1\xe2\x02\x1aLogicalPlan\\V1\\GPBMetadata\xea\x02\x0fLogicalPlan::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,12 +32,10 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'logical_plan.v1.enums_pb2',
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\023com.logical_plan.v1B\nEnumsProtoP\001\242\002\003LXX\252\002\016LogicalPlan.V1\312\002\016LogicalPlan\\V1\342\002\032LogicalPlan\\V1\\GPBMetadata\352\002\017LogicalPlan::V1'
-  _globals['_SEMANTICSIMILARITYMETRIC']._serialized_start=48
-  _globals['_SEMANTICSIMILARITYMETRIC']._serialized_end=103
-  _globals['_OPERATOR']._serialized_start=106
-  _globals['_OPERATOR']._serialized_end=236
-  _globals['_CHUNKLENGTHFUNCTION']._serialized_start=238
-  _globals['_CHUNKLENGTHFUNCTION']._serialized_end=284
-  _globals['_CHUNKCHARACTERSET']._serialized_start=286
-  _globals['_CHUNKCHARACTERSET']._serialized_end=341
+  _globals['_OPERATOR']._serialized_start=49
+  _globals['_OPERATOR']._serialized_end=179
+  _globals['_CHUNKLENGTHFUNCTION']._serialized_start=181
+  _globals['_CHUNKLENGTHFUNCTION']._serialized_end=238
+  _globals['_CHUNKCHARACTERSET']._serialized_start=240
+  _globals['_CHUNKCHARACTERSET']._serialized_end=295
 # @@protoc_insertion_point(module_scope)

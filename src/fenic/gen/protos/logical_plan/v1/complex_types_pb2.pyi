@@ -5,6 +5,14 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class ResolvedClassDefinition(_message.Message):
+    __slots__ = ("label", "description")
+    LABEL_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    label: str
+    description: str
+    def __init__(self, label: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
+
 class NumpyArray(_message.Message):
     __slots__ = ("data", "shape", "dtype")
     DATA_FIELD_NUMBER: _ClassVar[int]

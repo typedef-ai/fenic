@@ -13,7 +13,7 @@ message DataType {
     StructType struct = 7;
     EmbeddingType embedding = 8;
     TranscriptType transcript = 9;
-    DocumentBackedPath document_backed_path = 10;
+    DocumentPathType document_path = 10;
     MarkdownType markdown = 11;
     HTMLType html = 12;
     JSONType json = 13;
@@ -47,7 +47,7 @@ message TranscriptType {
     string format = 1;
 }
 
-message DocumentBackedPath {
+message DocumentPathType {
     string format = 1;
 }
 message MarkdownType {}

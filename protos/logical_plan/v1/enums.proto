@@ -2,13 +2,6 @@ syntax = "proto3";
 
 package logical_plan.v1;
 
-// Semantic similarity metrics for embedding comparisons
-enum SemanticSimilarityMetric {
-  COSINE = 0;
-  L2 = 1;
-  DOT = 2;
-}
-
 // Binary operators for expressions
 enum Operator {
   // Arithmetic operators
@@ -30,6 +23,7 @@ enum Operator {
 enum ChunkLengthFunction {
   CHARACTER = 0;
   WORD = 1;
+  TOKEN = 2;
 }
 
 // Text chunking character set types

@@ -1,6 +1,6 @@
+from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
 from fenic.gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
 from fenic.gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
-from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -9,7 +9,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class LogicalExpr(_message.Message):
-    __slots__ = ("column", "literal", "alias", "sort", "index", "array", "struct", "cast", "coalesce", "is_null", "array_length", "array_contains", "arithmetic", "boolan", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise")
+    __slots__ = ("column", "literal", "alias", "sort", "index", "array", "struct", "cast", "not_expr", "coalesce", "in_expr", "is_null", "array_length", "array_contains", "arithmetic", "boolean", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "byte_length", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise", "sum", "avg", "count", "max", "min", "first", "list", "std_dev")
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     ALIAS_FIELD_NUMBER: _ClassVar[int]
@@ -18,14 +18,14 @@ class LogicalExpr(_message.Message):
     ARRAY_FIELD_NUMBER: _ClassVar[int]
     STRUCT_FIELD_NUMBER: _ClassVar[int]
     CAST_FIELD_NUMBER: _ClassVar[int]
-    NOT_FIELD_NUMBER: _ClassVar[int]
+    NOT_EXPR_FIELD_NUMBER: _ClassVar[int]
     COALESCE_FIELD_NUMBER: _ClassVar[int]
-    IN_FIELD_NUMBER: _ClassVar[int]
+    IN_EXPR_FIELD_NUMBER: _ClassVar[int]
     IS_NULL_FIELD_NUMBER: _ClassVar[int]
     ARRAY_LENGTH_FIELD_NUMBER: _ClassVar[int]
     ARRAY_CONTAINS_FIELD_NUMBER: _ClassVar[int]
     ARITHMETIC_FIELD_NUMBER: _ClassVar[int]
-    BOOLAN_FIELD_NUMBER: _ClassVar[int]
+    BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     EQUALITY_COMPARISON_FIELD_NUMBER: _ClassVar[int]
     NUMERIC_COMPARISON_FIELD_NUMBER: _ClassVar[int]
     SEMANTIC_MAP_FIELD_NUMBER: _ClassVar[int]
@@ -58,6 +58,7 @@ class LogicalExpr(_message.Message):
     STRIP_CHARS_FIELD_NUMBER: _ClassVar[int]
     REPLACE_FIELD_NUMBER: _ClassVar[int]
     STR_LENGTH_FIELD_NUMBER: _ClassVar[int]
+    BYTE_LENGTH_FIELD_NUMBER: _ClassVar[int]
     JQ_FIELD_NUMBER: _ClassVar[int]
     JSON_TYPE_FIELD_NUMBER: _ClassVar[int]
     JSON_CONTAINS_FIELD_NUMBER: _ClassVar[int]
@@ -67,6 +68,14 @@ class LogicalExpr(_message.Message):
     MD_EXTRACT_HEADER_CHUNKS_FIELD_NUMBER: _ClassVar[int]
     WHEN_FIELD_NUMBER: _ClassVar[int]
     OTHERWISE_FIELD_NUMBER: _ClassVar[int]
+    SUM_FIELD_NUMBER: _ClassVar[int]
+    AVG_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    MAX_FIELD_NUMBER: _ClassVar[int]
+    MIN_FIELD_NUMBER: _ClassVar[int]
+    FIRST_FIELD_NUMBER: _ClassVar[int]
+    LIST_FIELD_NUMBER: _ClassVar[int]
+    STD_DEV_FIELD_NUMBER: _ClassVar[int]
     column: ColumnExpr
     literal: LiteralExpr
     alias: AliasExpr
@@ -75,14 +84,16 @@ class LogicalExpr(_message.Message):
     array: ArrayExpr
     struct: StructExpr
     cast: CastExpr
+    not_expr: NotExpr
     coalesce: CoalesceExpr
+    in_expr: InExpr
     is_null: IsNullExpr
     array_length: ArrayLengthExpr
     array_contains: ArrayContainsExpr
-    arithmetic: BinaryExpr
-    boolan: BinaryExpr
-    equality_comparison: BinaryExpr
-    numeric_comparison: BinaryExpr
+    arithmetic: ArithmeticExpr
+    boolean: BooleanExpr
+    equality_comparison: EqualityComparisonExpr
+    numeric_comparison: NumericComparisonExpr
     semantic_map: SemanticMapExpr
     semantic_extract: SemanticExtractExpr
     semantic_pred: SemanticPredExpr
@@ -113,6 +124,7 @@ class LogicalExpr(_message.Message):
     strip_chars: StripCharsExpr
     replace: ReplaceExpr
     str_length: StrLengthExpr
+    byte_length: ByteLengthExpr
     jq: JqExpr
     json_type: JsonTypeExpr
     json_contains: JsonContainsExpr
@@ -122,7 +134,15 @@ class LogicalExpr(_message.Message):
     md_extract_header_chunks: MdExtractHeaderChunks
     when: WhenExpr
     otherwise: OtherwiseExpr
-    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[BinaryExpr, _Mapping]] = ..., boolan: _Optional[_Union[BinaryExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[BinaryExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[BinaryExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., **kwargs) -> None: ...
+    sum: SumExpr
+    avg: AvgExpr
+    count: CountExpr
+    max: MaxExpr
+    min: MinExpr
+    first: FirstExpr
+    list: ListExpr
+    std_dev: StdDevExpr
+    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., not_expr: _Optional[_Union[NotExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., in_expr: _Optional[_Union[InExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[ArithmeticExpr, _Mapping]] = ..., boolean: _Optional[_Union[BooleanExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[EqualityComparisonExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[NumericComparisonExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., byte_length: _Optional[_Union[ByteLengthExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., sum: _Optional[_Union[SumExpr, _Mapping]] = ..., avg: _Optional[_Union[AvgExpr, _Mapping]] = ..., count: _Optional[_Union[CountExpr, _Mapping]] = ..., max: _Optional[_Union[MaxExpr, _Mapping]] = ..., min: _Optional[_Union[MinExpr, _Mapping]] = ..., first: _Optional[_Union[FirstExpr, _Mapping]] = ..., list: _Optional[_Union[ListExpr, _Mapping]] = ..., std_dev: _Optional[_Union[StdDevExpr, _Mapping]] = ...) -> None: ...
 
 class ColumnExpr(_message.Message):
     __slots__ = ("name",)
@@ -130,21 +150,51 @@ class ColumnExpr(_message.Message):
     name: str
     def __init__(self, name: _Optional[str] = ...) -> None: ...
 
-class LiteralExpr(_message.Message):
-    __slots__ = ("string_value", "int_value", "double_value", "bool_value", "bytes_value", "data_type")
+class ScalarValue(_message.Message):
+    __slots__ = ("string_value", "int_value", "double_value", "bool_value", "bytes_value", "array_value", "struct_value")
     STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
     INT_VALUE_FIELD_NUMBER: _ClassVar[int]
     DOUBLE_VALUE_FIELD_NUMBER: _ClassVar[int]
     BOOL_VALUE_FIELD_NUMBER: _ClassVar[int]
     BYTES_VALUE_FIELD_NUMBER: _ClassVar[int]
-    DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_VALUE_FIELD_NUMBER: _ClassVar[int]
+    STRUCT_VALUE_FIELD_NUMBER: _ClassVar[int]
     string_value: str
     int_value: int
     double_value: float
     bool_value: bool
     bytes_value: bytes
+    array_value: ScalarArray
+    struct_value: ScalarStruct
+    def __init__(self, string_value: _Optional[str] = ..., int_value: _Optional[int] = ..., double_value: _Optional[float] = ..., bool_value: bool = ..., bytes_value: _Optional[bytes] = ..., array_value: _Optional[_Union[ScalarArray, _Mapping]] = ..., struct_value: _Optional[_Union[ScalarStruct, _Mapping]] = ...) -> None: ...
+
+class ScalarArray(_message.Message):
+    __slots__ = ("elements",)
+    ELEMENTS_FIELD_NUMBER: _ClassVar[int]
+    elements: _containers.RepeatedCompositeFieldContainer[ScalarValue]
+    def __init__(self, elements: _Optional[_Iterable[_Union[ScalarValue, _Mapping]]] = ...) -> None: ...
+
+class ScalarStruct(_message.Message):
+    __slots__ = ("fields",)
+    FIELDS_FIELD_NUMBER: _ClassVar[int]
+    fields: _containers.RepeatedCompositeFieldContainer[ScalarStructField]
+    def __init__(self, fields: _Optional[_Iterable[_Union[ScalarStructField, _Mapping]]] = ...) -> None: ...
+
+class ScalarStructField(_message.Message):
+    __slots__ = ("name", "value")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    value: ScalarValue
+    def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[ScalarValue, _Mapping]] = ...) -> None: ...
+
+class LiteralExpr(_message.Message):
+    __slots__ = ("value", "data_type")
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    value: ScalarValue
     data_type: _datatypes_pb2.DataType
-    def __init__(self, string_value: _Optional[str] = ..., int_value: _Optional[int] = ..., double_value: _Optional[float] = ..., bool_value: bool = ..., bytes_value: _Optional[bytes] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
+    def __init__(self, value: _Optional[_Union[ScalarValue, _Mapping]] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
 
 class AliasExpr(_message.Message):
     __slots__ = ("expr", "name")
@@ -155,12 +205,12 @@ class AliasExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., name: _Optional[str] = ...) -> None: ...
 
 class SortExpr(_message.Message):
-    __slots__ = ("expr", "order")
+    __slots__ = ("expr", "ascending")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    ORDER_FIELD_NUMBER: _ClassVar[int]
+    ASCENDING_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    order: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., order: _Optional[str] = ...) -> None: ...
+    ascending: bool
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., ascending: bool = ...) -> None: ...
 
 class IndexExpr(_message.Message):
     __slots__ = ("expr", "int_index", "string_index", "expr_index")
@@ -181,12 +231,10 @@ class ArrayExpr(_message.Message):
     def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class StructExpr(_message.Message):
-    __slots__ = ("exprs", "field_names")
+    __slots__ = ("exprs",)
     EXPRS_FIELD_NUMBER: _ClassVar[int]
-    FIELD_NAMES_FIELD_NUMBER: _ClassVar[int]
     exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
-    field_names: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., field_names: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class CastExpr(_message.Message):
     __slots__ = ("expr", "dest_type")
@@ -217,10 +265,12 @@ class InExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class IsNullExpr(_message.Message):
-    __slots__ = ("expr",)
+    __slots__ = ("expr", "is_null")
     EXPR_FIELD_NUMBER: _ClassVar[int]
+    IS_NULL_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+    is_null: bool
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., is_null: bool = ...) -> None: ...
 
 class ArrayLengthExpr(_message.Message):
     __slots__ = ("expr",)
@@ -229,14 +279,44 @@ class ArrayLengthExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class ArrayContainsExpr(_message.Message):
-    __slots__ = ("expr", "value")
+    __slots__ = ("expr", "other")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    VALUE_FIELD_NUMBER: _ClassVar[int]
+    OTHER_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    value: LogicalExpr
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., value: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+    other: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
-class BinaryExpr(_message.Message):
+class ArithmeticExpr(_message.Message):
+    __slots__ = ("left", "right", "operator")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    operator: _enums_pb2.Operator
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ..., operator: _Optional[_Union[_enums_pb2.Operator, str]] = ...) -> None: ...
+
+class BooleanExpr(_message.Message):
+    __slots__ = ("left", "right", "operator")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    operator: _enums_pb2.Operator
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ..., operator: _Optional[_Union[_enums_pb2.Operator, str]] = ...) -> None: ...
+
+class NumericComparisonExpr(_message.Message):
+    __slots__ = ("left", "right", "operator")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    operator: _enums_pb2.Operator
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ..., operator: _Optional[_Union[_enums_pb2.Operator, str]] = ...) -> None: ...
+
+class EqualityComparisonExpr(_message.Message):
     __slots__ = ("left", "right", "operator")
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -265,30 +345,30 @@ class SemanticMapExpr(_message.Message):
     def __init__(self, instruction: _Optional[str] = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., response_format: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.MapExampleCollection, _Mapping]] = ...) -> None: ...
 
 class SemanticExtractExpr(_message.Message):
-    __slots__ = ("expr", "schema", "temperature", "model_alias")
+    __slots__ = ("expr", "schema", "max_tokens", "temperature", "model_alias")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    MAX_TOKENS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     schema: _complex_types_pb2.PydanticModelType
+    max_tokens: int
     temperature: float
     model_alias: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., schema: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., schema: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
 
 class SemanticPredExpr(_message.Message):
-    __slots__ = ("expr", "predicate", "temperature", "model_alias", "examples")
-    EXPR_FIELD_NUMBER: _ClassVar[int]
-    PREDICATE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("instruction", "temperature", "model_alias", "examples")
+    INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    expr: LogicalExpr
-    predicate: str
+    instruction: str
     temperature: float
     model_alias: str
     examples: _complex_types_pb2.PredicateExampleCollection
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., predicate: _Optional[str] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.PredicateExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, instruction: _Optional[str] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.PredicateExampleCollection, _Mapping]] = ...) -> None: ...
 
 class SemanticReduceExpr(_message.Message):
     __slots__ = ("expr", "instruction", "max_tokens", "temperature", "model_alias")
@@ -305,18 +385,18 @@ class SemanticReduceExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., instruction: _Optional[str] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
 
 class SemanticClassifyExpr(_message.Message):
-    __slots__ = ("expr", "labels", "temperature", "model_alias", "examples")
+    __slots__ = ("expr", "classes", "temperature", "model_alias", "examples")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    LABELS_FIELD_NUMBER: _ClassVar[int]
+    CLASSES_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    labels: _containers.RepeatedScalarFieldContainer[str]
+    classes: _containers.RepeatedCompositeFieldContainer[_complex_types_pb2.ResolvedClassDefinition]
     temperature: float
     model_alias: str
     examples: _complex_types_pb2.ClassifyExampleCollection
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., labels: _Optional[_Iterable[str]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.ClassifyExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., classes: _Optional[_Iterable[_Union[_complex_types_pb2.ResolvedClassDefinition, _Mapping]]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.ClassifyExampleCollection, _Mapping]] = ...) -> None: ...
 
 class AnalyzeSentimentExpr(_message.Message):
     __slots__ = ("expr", "temperature", "model_alias")
@@ -329,12 +409,12 @@ class AnalyzeSentimentExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
 
 class EmbeddingsExpr(_message.Message):
-    __slots__ = ("exprs", "model_alias")
-    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("expr", "model_alias")
+    EXPR_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
-    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    expr: LogicalExpr
     model_alias: str
-    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., model_alias: _Optional[str] = ...) -> None: ...
 
 class SemanticSummarizeExpr(_message.Message):
     __slots__ = ("expr", "format", "temperature", "model_alias")
@@ -363,108 +443,110 @@ class EmbeddingSimilarityExpr(_message.Message):
     expr: LogicalExpr
     other_expr: LogicalExpr
     query_vector: _complex_types_pb2.NumpyArray
-    metric: _enums_pb2.SemanticSimilarityMetric
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., query_vector: _Optional[_Union[_complex_types_pb2.NumpyArray, _Mapping]] = ..., metric: _Optional[_Union[_enums_pb2.SemanticSimilarityMetric, str]] = ...) -> None: ...
+    metric: str
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., query_vector: _Optional[_Union[_complex_types_pb2.NumpyArray, _Mapping]] = ..., metric: _Optional[str] = ...) -> None: ...
+
+class TextChunkExprConfiguration(_message.Message):
+    __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name")
+    DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
+    desired_chunk_size: int
+    chunk_overlap_percentage: int
+    chunk_length_function_name: _enums_pb2.ChunkLengthFunction
+    def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ...) -> None: ...
 
 class TextractExpr(_message.Message):
-    __slots__ = ("exprs", "patterns")
-    EXPRS_FIELD_NUMBER: _ClassVar[int]
-    PATTERNS_FIELD_NUMBER: _ClassVar[int]
-    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
-    patterns: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., patterns: _Optional[_Iterable[str]] = ...) -> None: ...
+    __slots__ = ("input_expr", "template")
+    INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
+    TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    input_expr: LogicalExpr
+    template: str
+    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., template: _Optional[str] = ...) -> None: ...
 
 class TextChunkExpr(_message.Message):
-    __slots__ = ("expr", "chunk_size", "overlap", "length_function", "character_set")
+    __slots__ = ("expr", "configuration")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
-    OVERLAP_FIELD_NUMBER: _ClassVar[int]
-    LENGTH_FUNCTION_FIELD_NUMBER: _ClassVar[int]
-    CHARACTER_SET_FIELD_NUMBER: _ClassVar[int]
+    CONFIGURATION_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    chunk_size: int
-    overlap: int
-    length_function: _enums_pb2.ChunkLengthFunction
-    character_set: _enums_pb2.ChunkCharacterSet
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chunk_size: _Optional[int] = ..., overlap: _Optional[int] = ..., length_function: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ..., character_set: _Optional[_Union[_enums_pb2.ChunkCharacterSet, str]] = ...) -> None: ...
+    configuration: TextChunkExprConfiguration
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[TextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
+
+class RecursiveTextChunkExprConfiguration(_message.Message):
+    __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name", "chunking_character_set_name", "chunking_character_set_custom_characters")
+    DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
+    CHUNKING_CHARACTER_SET_NAME_FIELD_NUMBER: _ClassVar[int]
+    CHUNKING_CHARACTER_SET_CUSTOM_CHARACTERS_FIELD_NUMBER: _ClassVar[int]
+    desired_chunk_size: int
+    chunk_overlap_percentage: int
+    chunk_length_function_name: _enums_pb2.ChunkLengthFunction
+    chunking_character_set_name: _enums_pb2.ChunkCharacterSet
+    chunking_character_set_custom_characters: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ..., chunking_character_set_name: _Optional[_Union[_enums_pb2.ChunkCharacterSet, str]] = ..., chunking_character_set_custom_characters: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class RecursiveTextChunkExpr(_message.Message):
-    __slots__ = ("expr", "chunk_size", "overlap", "length_function", "character_set")
-    EXPR_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
-    OVERLAP_FIELD_NUMBER: _ClassVar[int]
-    LENGTH_FUNCTION_FIELD_NUMBER: _ClassVar[int]
-    CHARACTER_SET_FIELD_NUMBER: _ClassVar[int]
-    expr: LogicalExpr
-    chunk_size: int
-    overlap: int
-    length_function: _enums_pb2.ChunkLengthFunction
-    character_set: _enums_pb2.ChunkCharacterSet
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chunk_size: _Optional[int] = ..., overlap: _Optional[int] = ..., length_function: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ..., character_set: _Optional[_Union[_enums_pb2.ChunkCharacterSet, str]] = ...) -> None: ...
+    __slots__ = ("input_expr", "configuration")
+    INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
+    CONFIGURATION_FIELD_NUMBER: _ClassVar[int]
+    input_expr: LogicalExpr
+    configuration: RecursiveTextChunkExprConfiguration
+    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[RecursiveTextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
 
 class CountTokensExpr(_message.Message):
-    __slots__ = ("input_expr", "model_alias")
+    __slots__ = ("input_expr",)
     INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
-    MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     input_expr: LogicalExpr
-    model_alias: str
-    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class ConcatExpr(_message.Message):
-    __slots__ = ("exprs", "separator")
+    __slots__ = ("exprs",)
     EXPRS_FIELD_NUMBER: _ClassVar[int]
-    SEPARATOR_FIELD_NUMBER: _ClassVar[int]
     exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
-    separator: str
-    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., separator: _Optional[str] = ...) -> None: ...
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class ArrayJoinExpr(_message.Message):
-    __slots__ = ("expr", "separator")
+    __slots__ = ("expr", "delimiter")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    SEPARATOR_FIELD_NUMBER: _ClassVar[int]
+    DELIMITER_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    separator: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., separator: _Optional[str] = ...) -> None: ...
+    delimiter: str
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., delimiter: _Optional[str] = ...) -> None: ...
 
 class ContainsExpr(_message.Message):
-    __slots__ = ("expr", "substring", "case_sensitive")
+    __slots__ = ("expr", "substr")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    SUBSTRING_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
+    SUBSTR_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    substring: str
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substring: _Optional[str] = ..., case_sensitive: bool = ...) -> None: ...
+    substr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class ContainsAnyExpr(_message.Message):
-    __slots__ = ("expr", "substrings", "case_sensitive")
+    __slots__ = ("expr", "substrs", "case_insensitive")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    SUBSTRINGS_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
+    SUBSTRS_FIELD_NUMBER: _ClassVar[int]
+    CASE_INSENSITIVE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    substrings: _containers.RepeatedScalarFieldContainer[str]
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substrings: _Optional[_Iterable[str]] = ..., case_sensitive: bool = ...) -> None: ...
+    substrs: _containers.RepeatedScalarFieldContainer[str]
+    case_insensitive: bool
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substrs: _Optional[_Iterable[str]] = ..., case_insensitive: bool = ...) -> None: ...
 
 class RLikeExpr(_message.Message):
-    __slots__ = ("expr", "pattern", "case_sensitive")
+    __slots__ = ("expr", "pattern")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     pattern: str
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ..., case_sensitive: bool = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
 
 class LikeExpr(_message.Message):
-    __slots__ = ("expr", "pattern", "case_sensitive")
+    __slots__ = ("expr", "pattern")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     pattern: str
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ..., case_sensitive: bool = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
 
 class ILikeExpr(_message.Message):
     __slots__ = ("expr", "pattern")
@@ -483,24 +565,20 @@ class TsParseExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., format: _Optional[str] = ...) -> None: ...
 
 class StartsWithExpr(_message.Message):
-    __slots__ = ("expr", "prefix", "case_sensitive")
+    __slots__ = ("expr", "substr")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    PREFIX_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
+    SUBSTR_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    prefix: str
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., prefix: _Optional[str] = ..., case_sensitive: bool = ...) -> None: ...
+    substr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class EndsWithExpr(_message.Message):
-    __slots__ = ("expr", "suffix", "case_sensitive")
+    __slots__ = ("expr", "substr")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    SUFFIX_FIELD_NUMBER: _ClassVar[int]
-    CASE_SENSITIVE_FIELD_NUMBER: _ClassVar[int]
+    SUBSTR_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    suffix: str
-    case_sensitive: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., suffix: _Optional[str] = ..., case_sensitive: bool = ...) -> None: ...
+    substr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., substr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class RegexpSplitExpr(_message.Message):
     __slots__ = ("expr", "pattern", "limit")
@@ -513,22 +591,22 @@ class RegexpSplitExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ..., limit: _Optional[int] = ...) -> None: ...
 
 class SplitPartExpr(_message.Message):
-    __slots__ = ("expr", "delimiter", "index")
+    __slots__ = ("expr", "delimiter", "part_number")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     DELIMITER_FIELD_NUMBER: _ClassVar[int]
-    INDEX_FIELD_NUMBER: _ClassVar[int]
+    PART_NUMBER_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    delimiter: str
-    index: int
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., delimiter: _Optional[str] = ..., index: _Optional[int] = ...) -> None: ...
+    delimiter: LogicalExpr
+    part_number: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., delimiter: _Optional[_Union[LogicalExpr, _Mapping]] = ..., part_number: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class StringCasingExpr(_message.Message):
-    __slots__ = ("expr", "case_type")
+    __slots__ = ("expr", "case")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    CASE_TYPE_FIELD_NUMBER: _ClassVar[int]
+    CASE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    case_type: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., case_type: _Optional[str] = ...) -> None: ...
+    case: str
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., case: _Optional[str] = ...) -> None: ...
 
 class StripCharsExpr(_message.Message):
     __slots__ = ("expr", "chars", "side")
@@ -536,22 +614,29 @@ class StripCharsExpr(_message.Message):
     CHARS_FIELD_NUMBER: _ClassVar[int]
     SIDE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    chars: str
+    chars: LogicalExpr
     side: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chars: _Optional[str] = ..., side: _Optional[str] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chars: _Optional[_Union[LogicalExpr, _Mapping]] = ..., side: _Optional[str] = ...) -> None: ...
 
 class ReplaceExpr(_message.Message):
-    __slots__ = ("expr", "old_value", "new_value")
+    __slots__ = ("expr", "search", "replacement", "literal")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    OLD_VALUE_FIELD_NUMBER: _ClassVar[int]
-    NEW_VALUE_FIELD_NUMBER: _ClassVar[int]
-    GLOBAL_FIELD_NUMBER: _ClassVar[int]
+    SEARCH_FIELD_NUMBER: _ClassVar[int]
+    REPLACEMENT_FIELD_NUMBER: _ClassVar[int]
+    LITERAL_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    old_value: str
-    new_value: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., old_value: _Optional[str] = ..., new_value: _Optional[str] = ..., **kwargs) -> None: ...
+    search: LogicalExpr
+    replacement: LogicalExpr
+    literal: bool
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., search: _Optional[_Union[LogicalExpr, _Mapping]] = ..., replacement: _Optional[_Union[LogicalExpr, _Mapping]] = ..., literal: bool = ...) -> None: ...
 
 class StrLengthExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ByteLengthExpr(_message.Message):
     __slots__ = ("expr",)
     EXPR_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
@@ -572,12 +657,12 @@ class JsonTypeExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class JsonContainsExpr(_message.Message):
-    __slots__ = ("expr", "key")
+    __slots__ = ("expr", "value")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    key: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., key: _Optional[str] = ...) -> None: ...
+    value: str
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., value: _Optional[str] = ...) -> None: ...
 
 class MdToJsonExpr(_message.Message):
     __slots__ = ("expr",)
@@ -586,34 +671,28 @@ class MdToJsonExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class MdGetCodeBlocksExpr(_message.Message):
-    __slots__ = ("expr", "language", "include_text")
+    __slots__ = ("expr", "language_filter")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
-    INCLUDE_TEXT_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FILTER_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    language: str
-    include_text: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., language: _Optional[str] = ..., include_text: bool = ...) -> None: ...
+    language_filter: str
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., language_filter: _Optional[str] = ...) -> None: ...
 
 class MdGenerateTocExpr(_message.Message):
-    __slots__ = ("expr", "max_depth", "include_links")
+    __slots__ = ("expr", "max_level")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    MAX_DEPTH_FIELD_NUMBER: _ClassVar[int]
-    INCLUDE_LINKS_FIELD_NUMBER: _ClassVar[int]
+    MAX_LEVEL_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    max_depth: int
-    include_links: bool
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., max_depth: _Optional[int] = ..., include_links: bool = ...) -> None: ...
+    max_level: int
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., max_level: _Optional[int] = ...) -> None: ...
 
 class MdExtractHeaderChunks(_message.Message):
-    __slots__ = ("expr", "max_chunk_size", "overlap")
+    __slots__ = ("expr", "header_level")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    MAX_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
-    OVERLAP_FIELD_NUMBER: _ClassVar[int]
+    HEADER_LEVEL_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    max_chunk_size: int
-    overlap: int
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., max_chunk_size: _Optional[int] = ..., overlap: _Optional[int] = ...) -> None: ...
+    header_level: int
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., header_level: _Optional[int] = ...) -> None: ...
 
 class WhenExpr(_message.Message):
     __slots__ = ("expr", "condition", "value")
@@ -632,3 +711,51 @@ class OtherwiseExpr(_message.Message):
     expr: LogicalExpr
     value: LogicalExpr
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., value: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class SumExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class AvgExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class CountExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class MaxExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class MinExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class FirstExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ListExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class StdDevExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...

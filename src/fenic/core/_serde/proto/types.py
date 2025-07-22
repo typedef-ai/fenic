@@ -4,7 +4,8 @@ This module imports all generated protobuf classes with a 'Proto' suffix
 to avoid naming conflicts with the Python classes they serialize.
 """
 
-# DataType protobuf classes
+from __future__ import annotations
+
 from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
     ClassifyExample as ClassifyExampleProto,
 )
@@ -44,6 +45,11 @@ from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
     PydanticModelType as PydanticModelTypeProto,
 )
 from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ResolvedClassDefinition as ResolvedClassDefinitionProto,
+)
+
+# DataType protobuf classes
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
     SummarizationFormat as SummarizationFormatProto,
 )
 from fenic.gen.protos.logical_plan.v1.datatypes_pb2 import (
@@ -56,7 +62,7 @@ from fenic.gen.protos.logical_plan.v1.datatypes_pb2 import (
     DataType as DataTypeProto,
 )
 from fenic.gen.protos.logical_plan.v1.datatypes_pb2 import (
-    DocumentBackedPath as DocumentBackedPathProto,
+    DocumentPathType as DocumentPathTypeProto,
 )
 from fenic.gen.protos.logical_plan.v1.datatypes_pb2 import (
     DoubleType as DoubleTypeProto,
@@ -100,16 +106,14 @@ from fenic.gen.protos.logical_plan.v1.enums_pb2 import (
 from fenic.gen.protos.logical_plan.v1.enums_pb2 import (
     Operator as OperatorProto,
 )
-
-# Enum protobuf classes
-from fenic.gen.protos.logical_plan.v1.enums_pb2 import (
-    SemanticSimilarityMetric as SemanticSimilarityMetricProto,
-)
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     AliasExpr as AliasExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     AnalyzeSentimentExpr as AnalyzeSentimentExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArithmeticExpr as ArithmeticExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayContainsExpr as ArrayContainsExprProto,
@@ -124,7 +128,13 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayLengthExpr as ArrayLengthExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    BinaryExpr as BinaryExprProto,
+    AvgExpr as AvgExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    BooleanExpr as BooleanExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ByteLengthExpr as ByteLengthExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     CastExpr as CastExprProto,
@@ -145,6 +155,9 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     ContainsExpr as ContainsExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    CountExpr as CountExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     CountTokensExpr as CountTokensExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -159,6 +172,12 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     EndsWithExpr as EndsWithExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    EqualityComparisonExpr as EqualityComparisonExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    FirstExpr as FirstExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     ILikeExpr as ILikeExprProto,
@@ -186,14 +205,21 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     LikeExpr as LikeExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ListExpr as ListExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     LiteralExpr as LiteralExprProto,
 )
 
-# Expression protobuf classes
+# Base/Basic Expressions
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     LogicalExpr as LogicalExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    MaxExpr as MaxExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    # Markdown Expressions
     MdExtractHeaderChunks as MdExtractHeaderChunksProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -203,17 +229,25 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     MdGetCodeBlocksExpr as MdGetCodeBlocksExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    # Markdown expressions
     MdToJsonExpr as MdToJsonExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    MinExpr as MinExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     NotExpr as NotExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    NumericComparisonExpr as NumericComparisonExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     OtherwiseExpr as OtherwiseExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     RecursiveTextChunkExpr as RecursiveTextChunkExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    RecursiveTextChunkExprConfiguration as RecursiveTextChunkExprConfigurationProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     RegexpSplitExpr as RegexpSplitExprProto,
@@ -223,6 +257,18 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     RLikeExpr as RLikeExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ScalarArray as ScalarArrayProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ScalarStruct as ScalarStructProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ScalarStructField as ScalarStructFieldProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    ScalarValue as ScalarValueProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticClassifyExpr as SemanticClassifyExprProto,
@@ -253,6 +299,9 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     StartsWithExpr as StartsWithExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    StdDevExpr as StdDevExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     StringCasingExpr as StringCasingExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -264,8 +313,16 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     StructExpr as StructExprProto,
 )
+
+# Aggregate expressions
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    SumExpr as SumExprProto,
+)
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     TextChunkExpr as TextChunkExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    TextChunkExprConfiguration as TextChunkExprConfigurationProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     # Text expressions
@@ -292,6 +349,9 @@ from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
 )
 from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
     Explode as ExplodeProto,
+)
+from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
+    FenicSchema as FenicSchemaProto,
 )
 from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
     # Sink plans
@@ -323,10 +383,11 @@ from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
     Projection as ProjectionProto,
 )
 from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
-    Schema as SchemaProto,
-)
-from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
     SemanticCluster as SemanticClusterProto,
+)
+from fenic.gen.protos.logical_plan.v1.plans_pb2 import SemanticJoin as SemanticJoinProto
+from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
+    SemanticSimilarityJoin as SemanticSimilarityJoinProto,
 )
 from fenic.gen.protos.logical_plan.v1.plans_pb2 import (
     Sort as SortProto,
@@ -358,12 +419,11 @@ __all__ = [
     "StructFieldProto",
     "EmbeddingTypeProto",
     "TranscriptTypeProto",
-    "DocumentBackedPathProto",
+    "DocumentPathTypeProto",
     "MarkdownTypeProto",
     "HTMLTypeProto",
     "JSONTypeProto",
     # Enum classes
-    "SemanticSimilarityMetricProto",
     "OperatorProto",
     "ChunkLengthFunctionProto",
     "ChunkCharacterSetProto",
@@ -381,10 +441,15 @@ __all__ = [
     "PredicateExampleCollectionProto",
     "JoinExampleProto",
     "JoinExampleCollectionProto",
+    "ResolvedClassDefinitionProto",
     # Expression classes
     "LogicalExprProto",
     "ColumnExprProto",
     "LiteralExprProto",
+    "ScalarValueProto",
+    "ScalarArrayProto",
+    "ScalarStructProto",
+    "ScalarStructFieldProto",
     "AliasExprProto",
     "SortExprProto",
     "IndexExprProto",
@@ -397,7 +462,11 @@ __all__ = [
     "IsNullExprProto",
     "ArrayLengthExprProto",
     "ArrayContainsExprProto",
-    "BinaryExprProto",
+    # Binary Exprs
+    "ArithmeticExprProto",
+    "BooleanExprProto",
+    "NumericComparisonExprProto",
+    "EqualityComparisonExprProto",
     # Semantic expression classes
     "SemanticMapExprProto",
     "SemanticExtractExprProto",
@@ -411,6 +480,8 @@ __all__ = [
     "EmbeddingNormalizeExprProto",
     "EmbeddingSimilarityExprProto",
     # Text expression classes
+    "RecursiveTextChunkExprConfigurationProto",
+    "TextChunkExprConfigurationProto",
     "TextractExprProto",
     "TextChunkExprProto",
     "RecursiveTextChunkExprProto",
@@ -431,6 +502,7 @@ __all__ = [
     "StripCharsExprProto",
     "ReplaceExprProto",
     "StrLengthExprProto",
+    "ByteLengthExprProto",
     # JSON expression classes
     "JqExprProto",
     "JsonTypeExprProto",
@@ -443,9 +515,18 @@ __all__ = [
     # Case expression classes
     "WhenExprProto",
     "OtherwiseExprProto",
+    # Aggregate expression classes
+    "SumExprProto",
+    "AvgExprProto",
+    "CountExprProto",
+    "MaxExprProto",
+    "MinExprProto",
+    "FirstExprProto",
+    "ListExprProto",
+    "StdDevExprProto",
     # Plan classes
     "LogicalPlanProto",
-    "SchemaProto",
+    "FenicSchemaProto",
     "ColumnFieldProto",
     # Source plan classes
     "InMemorySourceProto",
@@ -464,6 +545,8 @@ __all__ = [
     "UnnestProto",
     "SQLProto",
     "SemanticClusterProto",
+    "SemanticJoinProto",
+    "SemanticSimilarityJoinProto",
     # Sink plan classes
     "FileSinkProto",
     "TableSinkProto",

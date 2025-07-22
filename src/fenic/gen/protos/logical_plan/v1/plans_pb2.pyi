@@ -1,6 +1,7 @@
 from fenic.gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
 from fenic.gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
 from fenic.gen.protos.logical_plan.v1 import expressions_pb2 as _expressions_pb2
+from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -9,7 +10,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class LogicalPlan(_message.Message):
-    __slots__ = ("in_memory_source", "file_source", "table_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "file_sink", "table_sink")
+    __slots__ = ("in_memory_source", "file_source", "table_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")
     IN_MEMORY_SOURCE_FIELD_NUMBER: _ClassVar[int]
     FILE_SOURCE_FIELD_NUMBER: _ClassVar[int]
     TABLE_SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -25,6 +26,8 @@ class LogicalPlan(_message.Message):
     UNNEST_FIELD_NUMBER: _ClassVar[int]
     SQL_FIELD_NUMBER: _ClassVar[int]
     SEMANTIC_CLUSTER_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_JOIN_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_SIMILARITY_JOIN_FIELD_NUMBER: _ClassVar[int]
     FILE_SINK_FIELD_NUMBER: _ClassVar[int]
     TABLE_SINK_FIELD_NUMBER: _ClassVar[int]
     in_memory_source: InMemorySource
@@ -42,15 +45,17 @@ class LogicalPlan(_message.Message):
     unnest: Unnest
     sql: SQL
     semantic_cluster: SemanticCluster
+    semantic_join: SemanticJoin
+    semantic_similarity_join: SemanticSimilarityJoin
     file_sink: FileSink
     table_sink: TableSink
-    def __init__(self, in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
+    def __init__(self, in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., semantic_join: _Optional[_Union[SemanticJoin, _Mapping]] = ..., semantic_similarity_join: _Optional[_Union[SemanticSimilarityJoin, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
 
-class Schema(_message.Message):
-    __slots__ = ("fields",)
-    FIELDS_FIELD_NUMBER: _ClassVar[int]
-    fields: _containers.RepeatedCompositeFieldContainer[ColumnField]
-    def __init__(self, fields: _Optional[_Iterable[_Union[ColumnField, _Mapping]]] = ...) -> None: ...
+class FenicSchema(_message.Message):
+    __slots__ = ("column_fields",)
+    COLUMN_FIELDS_FIELD_NUMBER: _ClassVar[int]
+    column_fields: _containers.RepeatedCompositeFieldContainer[ColumnField]
+    def __init__(self, column_fields: _Optional[_Iterable[_Union[ColumnField, _Mapping]]] = ...) -> None: ...
 
 class ColumnField(_message.Message):
     __slots__ = ("name", "data_type")
@@ -61,24 +66,22 @@ class ColumnField(_message.Message):
     def __init__(self, name: _Optional[str] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
 
 class InMemorySource(_message.Message):
-    __slots__ = ("dataframe_data", "schema")
-    DATAFRAME_DATA_FIELD_NUMBER: _ClassVar[int]
-    SCHEMA_FIELD_NUMBER: _ClassVar[int]
-    dataframe_data: bytes
-    schema: Schema
-    def __init__(self, dataframe_data: _Optional[bytes] = ..., schema: _Optional[_Union[Schema, _Mapping]] = ...) -> None: ...
+    __slots__ = ("source",)
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    source: bytes
+    def __init__(self, source: _Optional[bytes] = ...) -> None: ...
 
 class FileSource(_message.Message):
-    __slots__ = ("paths", "format", "schema", "columns")
+    __slots__ = ("paths", "file_format", "schema", "merge_schemas")
     PATHS_FIELD_NUMBER: _ClassVar[int]
-    FORMAT_FIELD_NUMBER: _ClassVar[int]
+    FILE_FORMAT_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
-    COLUMNS_FIELD_NUMBER: _ClassVar[int]
+    MERGE_SCHEMAS_FIELD_NUMBER: _ClassVar[int]
     paths: _containers.RepeatedScalarFieldContainer[str]
-    format: str
-    schema: Schema
-    columns: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, paths: _Optional[_Iterable[str]] = ..., format: _Optional[str] = ..., schema: _Optional[_Union[Schema, _Mapping]] = ..., columns: _Optional[_Iterable[str]] = ...) -> None: ...
+    file_format: str
+    schema: FenicSchema
+    merge_schemas: bool
+    def __init__(self, paths: _Optional[_Iterable[str]] = ..., file_format: _Optional[str] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., merge_schemas: bool = ...) -> None: ...
 
 class TableSource(_message.Message):
     __slots__ = ("table_name",)
@@ -87,12 +90,12 @@ class TableSource(_message.Message):
     def __init__(self, table_name: _Optional[str] = ...) -> None: ...
 
 class Projection(_message.Message):
-    __slots__ = ("input", "expressions")
+    __slots__ = ("input", "exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    EXPRESSIONS_FIELD_NUMBER: _ClassVar[int]
+    EXPRS_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
-    expressions: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expressions: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
+    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class Filter(_message.Message):
     __slots__ = ("input", "predicate")
@@ -117,6 +120,44 @@ class Join(_message.Message):
     right_keys: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
     filter: _expressions_pb2.LogicalExpr
     def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., join_type: _Optional[str] = ..., left_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., right_keys: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., filter: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class SemanticJoin(_message.Message):
+    __slots__ = ("left", "right", "left_on", "right_on", "join_instruction", "temperature", "model_alias", "examples")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    LEFT_ON_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_ON_FIELD_NUMBER: _ClassVar[int]
+    JOIN_INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
+    TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
+    EXAMPLES_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalPlan
+    right: LogicalPlan
+    left_on: _expressions_pb2.LogicalExpr
+    right_on: _expressions_pb2.LogicalExpr
+    join_instruction: str
+    temperature: float
+    model_alias: str
+    examples: _complex_types_pb2.JoinExampleCollection
+    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., join_instruction: _Optional[str] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.JoinExampleCollection, _Mapping]] = ...) -> None: ...
+
+class SemanticSimilarityJoin(_message.Message):
+    __slots__ = ("left", "right", "left_on", "right_on", "k", "similarity_metric", "similarity_score_column")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    LEFT_ON_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_ON_FIELD_NUMBER: _ClassVar[int]
+    K_FIELD_NUMBER: _ClassVar[int]
+    SIMILARITY_METRIC_FIELD_NUMBER: _ClassVar[int]
+    SIMILARITY_SCORE_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalPlan
+    right: LogicalPlan
+    left_on: _expressions_pb2.LogicalExpr
+    right_on: _expressions_pb2.LogicalExpr
+    k: int
+    similarity_metric: str
+    similarity_score_column: str
+    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., k: _Optional[int] = ..., similarity_metric: _Optional[str] = ..., similarity_score_column: _Optional[str] = ...) -> None: ...
 
 class Aggregate(_message.Message):
     __slots__ = ("input", "group_exprs", "agg_exprs")
@@ -151,20 +192,20 @@ class Explode(_message.Message):
     def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class DropDuplicates(_message.Message):
-    __slots__ = ("input", "exprs")
+    __slots__ = ("input", "subset")
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    SUBSET_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
-    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
+    subset: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., subset: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class Sort(_message.Message):
-    __slots__ = ("input", "exprs")
+    __slots__ = ("input", "sort_exprs")
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    SORT_EXPRS_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
-    exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
+    sort_exprs: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.LogicalExpr]
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., sort_exprs: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class Unnest(_message.Message):
     __slots__ = ("input", "exprs")
@@ -185,16 +226,18 @@ class SQL(_message.Message):
     def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlan, _Mapping]]] = ..., template_names: _Optional[_Iterable[str]] = ..., templated_query: _Optional[str] = ...) -> None: ...
 
 class SemanticCluster(_message.Message):
-    __slots__ = ("input", "expr", "n_clusters", "model_alias")
+    __slots__ = ("input", "by_expr", "num_clusters", "label_column", "centroid_column")
     INPUT_FIELD_NUMBER: _ClassVar[int]
-    EXPR_FIELD_NUMBER: _ClassVar[int]
-    N_CLUSTERS_FIELD_NUMBER: _ClassVar[int]
-    MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
+    BY_EXPR_FIELD_NUMBER: _ClassVar[int]
+    NUM_CLUSTERS_FIELD_NUMBER: _ClassVar[int]
+    LABEL_COLUMN_FIELD_NUMBER: _ClassVar[int]
+    CENTROID_COLUMN_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
-    expr: _expressions_pb2.LogicalExpr
-    n_clusters: int
-    model_alias: str
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., n_clusters: _Optional[int] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    by_expr: _expressions_pb2.LogicalExpr
+    num_clusters: int
+    label_column: str
+    centroid_column: str
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., by_expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., num_clusters: _Optional[int] = ..., label_column: _Optional[str] = ..., centroid_column: _Optional[str] = ...) -> None: ...
 
 class FileSink(_message.Message):
     __slots__ = ("input", "path", "format", "mode")
