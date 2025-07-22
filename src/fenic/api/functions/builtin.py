@@ -24,6 +24,7 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
+from fenic.core.error import ValidationError
 from fenic.core.types import DataType
 
 """Built-in functions."""
@@ -546,7 +547,7 @@ def coalesce(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to coalesce method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the coalesce method.")
 
     flattened_args = []
     for arg in cols:

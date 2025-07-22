@@ -407,7 +407,7 @@ def concat(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValidationError("At least one column must be provided to concat method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat method.")
 
     flattened_args = []
     for arg in cols:
@@ -475,7 +475,7 @@ def concat_ws(separator: str, *cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValidationError("At least one column must be provided to concat_ws method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat_ws method.")
 
     flattened_args = []
     for arg in cols:
@@ -964,7 +964,7 @@ def jinja(
         - **Function calls**: {{ len(items) }} → Use item_count=fc.array_size(col("items"))
         - **Operators**: {% if price > 100 %} → Use is_expensive=(col("price") > 100)
         - **Arithmetic**: {{ price * quantity }} → Use total=col("price") * col("quantity")
-        - **Dynamic indexing**: {{ items[i] }} → Use item=(fc.col("items").get_item(col("index)))
+        - **Dynamic indexing**: {{ items[i] }} → Use item=(fc.col("items").get_item(col("index")))
         - **Variable assignment**: {% set x = 5 %} → Pre-compute as column expression
         - **Macros, includes, extends**: Not supported
 
@@ -979,8 +979,7 @@ def jinja(
         {% endif %}
 
         {% if examples %}
-
-    Examples:
+        Few-shot examples:
         {% for ex in examples %}
         Q: {{ ex.question }}
         A: {{ ex.answer }}
@@ -1000,7 +999,7 @@ def jinja(
                 context=col("retrieved_context"),  # Can be null for some rows
 
                 # Column expression for conditional logic
-                style=F.when(col("query_type") == "technical", "detailed and technical")
+                style=fc.when(col("query_type") == "technical", "detailed and technical")
                       .when(col("query_type") == "casual", "conversational")
                       .otherwise("clear and concise"),
 
