@@ -14,6 +14,7 @@ from fenic import (
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
 from fenic.core._logical_plan.serde import LogicalPlanSerde
+from fenic.core.types import ClassDefinition
 
 
 def _test_df_serialization(df: DataFrame, session: BaseSessionState) -> DataFrame:
@@ -283,9 +284,9 @@ def test_semantic_plans(local_session, extract_data_df):
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
 
-    # test with an enum as categories
+    # test with a list of class definitions as categories
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    df = df.select(semantic.classify(col("b"), CategoryEnum))
+    df = df.select(semantic.classify(col("b"), [ClassDefinition(label="a", description="a"), ClassDefinition(label="b", description="b"), ClassDefinition(label="c", description="c")]))
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df
 

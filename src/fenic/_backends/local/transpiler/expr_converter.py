@@ -553,16 +553,12 @@ class ExprConverter:
     @_convert_expr.register(SemanticClassifyExpr)
     def _convert_semantic_classify_expr(self, logical: SemanticClassifyExpr) -> pl.Expr:
         def sem_classify_fn(batch: pl.Series) -> pl.Series:
-            labels_enum = (
-                SemanticClassifyExpr.transform_labels_list_into_enum(logical.labels)
-                if isinstance(logical.labels, list)
-                else logical.labels
-            )
             return SemanticClassify(
                 input=batch,
-                labels=labels_enum,
+                classes=logical.classes,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                examples=logical.examples,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(

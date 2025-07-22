@@ -76,6 +76,9 @@ from fenic.core._logical_plan.expressions.semantic import (
     EmbeddingsExpr as EmbeddingsExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
+    ResolvedClassDefinition as ResolvedClassDefinition,
+)
+from fenic.core._logical_plan.expressions.semantic import (
     SemanticClassifyExpr as SemanticClassifyExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (

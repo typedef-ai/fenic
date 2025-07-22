@@ -1,5 +1,6 @@
 """Schema module for defining and manipulating DataFrame schemas."""
 
+from fenic.core.types.classify import ClassDefinition
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
@@ -42,6 +43,7 @@ __all__ = [
     "ArrayType",
     "BooleanType",
     "BranchSide",
+    "ClassDefinition",
     "ClassifyExample",
     "ClassifyExampleCollection",
     "ColumnField",
