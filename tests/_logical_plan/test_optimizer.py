@@ -333,7 +333,7 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
     )
     golden_repr = dedent(
         """
-        Filter(predicate=(semantic.extract_cc39f7ea(blurb1)[blurb] = lit(blurb)))
+        Filter(predicate=(semantic.extract_cc39f7ea(blurb1)[lit(blurb)] = lit(blurb)))
           Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
             Filter(predicate=(semantic.analyze_sentiment(blurb1) = lit(positive)))
               Filter(predicate=semantic.predicate_c22500eb(blurb1))
@@ -394,7 +394,7 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
     )
     golden_repr = dedent(
         """
-        Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[blurb] = semantic.extract_efa5a1cb(blurb2)[blurb]) OR semantic.predicate_b5897940(blurb2)))
+        Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[lit(blurb)] = semantic.extract_efa5a1cb(blurb2)[lit(blurb)]) OR semantic.predicate_b5897940(blurb2)))
           Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = semantic.classify(blurb2, ['a', 'b', 'c'])))
             Filter(predicate=(semantic.predicate_bbe57368(blurb1) OR a_boolean_column))
               Filter(predicate=(a_numeric_column > lit(0)))

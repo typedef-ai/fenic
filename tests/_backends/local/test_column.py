@@ -303,35 +303,46 @@ def test_column_arithmetic(local_session):
 
 def test_getitem_list(local_session):
     """Test getItem() and [] access for list columns."""
-    data = {"list_col": [[1, 2, 3], [4, 5, 6]]}
+    data = {"list_col": [[1, 2, 3], [4, 5, 6]], "value1": [0, 1]}
     df = local_session.create_dataframe(data)
     # Test getItem() access
     result = df.select(col("list_col").get_item(0)).to_polars()
     # Check column name follows PySpark convention
-    assert result.columns == ["list_col[0]"]
+    assert result.columns == ["list_col[lit(0)]"]
     # Convert to dictionary using correct Polars API
     result_dict = result.to_dict(as_series=False)
-    assert result_dict["list_col[0]"] == [1, 4]
+    assert result_dict["list_col[lit(0)]"] == [1, 4]
     # Test [] syntax
     result2 = df.select(col("list_col")[0]).to_polars()
-    assert result2.columns == ["list_col[0]"]
+    assert result2.columns == ["list_col[lit(0)]"]
     result2_dict = result2.to_dict(as_series=False)
-    assert result2_dict["list_col[0]"] == [1, 4]
+    assert result2_dict["list_col[lit(0)]"] == [1, 4]
+    # test that get_item can take a column expression
+    result3 = df.select(col("list_col").get_item(col("value1"))).to_polars()
+    assert result3.columns == ["list_col[value1]"]
+    assert result3.to_dict(as_series=False) == {"list_col[value1]": [1, 5]}
 
 
 def test_getitem_dict(local_session):
     """Test getItem with dictionary column."""
     # Create DataFrame with dict column
-    data = {"id": [1, 2], "dict_col": [{"a": 1, "b": 2}, {"a": 3, "b": 4}]}
+    data = {"field_name": ["a", "b"], "dict_col": [{"a": 1, "b": 2}, {"a": 3, "b": 4}]}
     df = local_session.create_dataframe(data)
     # Test accessing by key
     result = df.select(col("dict_col").get_item("a")).to_polars()
-    assert result.columns == ["dict_col[a]"]
-    assert result.to_dict(as_series=False) == {"dict_col[a]": [1, 3]}
+    assert result.columns == ["dict_col[lit(a)]"]
+    assert result.to_dict(as_series=False) == {"dict_col[lit(a)]": [1, 3]}
     # Test using [] syntax
     result = df.select(col("dict_col")["b"]).to_polars()
-    assert result.columns == ["dict_col[b]"]
-    assert result.to_dict(as_series=False) == {"dict_col[b]": [2, 4]}
+    assert result.columns == ["dict_col[lit(b)]"]
+    assert result.to_dict(as_series=False) == {"dict_col[lit(b)]": [2, 4]}
+    # test that get_item works with literal expression
+    result = df.select(col("dict_col").get_item(lit("a"))).to_polars()
+    assert result.columns == ["dict_col[lit(a)]"]
+    assert result.to_dict(as_series=False) == {"dict_col[lit(a)]": [1, 3]}
+    # test that get_item does not work with column expression
+    with pytest.raises(TypeMismatchError):
+        df.select(col("dict_col").get_item(col("field_name")))
 
 
 def test_getitem_edgecases(local_session):
@@ -341,9 +352,9 @@ def test_getitem_edgecases(local_session):
 
     assert df.select(col("list_col").get_item(2)).to_polars().to_dict(
         as_series=False
-    ) == {"list_col[2]": [3, None]}
+    ) == {"list_col[lit(2)]": [3, None]}
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         df.select(col("dict_col").get_item("b"))
 
 
@@ -354,15 +365,15 @@ def test_struct_dot_notation(local_session):
 
     # Test single level of nesting
     result = df.select(df.my_col.a).to_polars()
-    assert result.columns == ["my_col[a]"]
+    assert result.columns == ["my_col[lit(a)]"]
     assert result.to_dict(as_series=False) == {
-        "my_col[a]": [{"nested": 1}, {"nested": 3}]
+        "my_col[lit(a)]": [{"nested": 1}, {"nested": 3}]
     }
 
     # Test multiple levels of nesting
     result = df.select(df.my_col.a.nested).to_polars()
-    assert result.columns == ["my_col[a][nested]"]
-    assert result.to_dict(as_series=False) == {"my_col[a][nested]": [1, 3]}
+    assert result.columns == ["my_col[lit(a)][lit(nested)]"]
+    assert result.to_dict(as_series=False) == {"my_col[lit(a)][lit(nested)]": [1, 3]}
 
 
 def test_is_null(local_session):

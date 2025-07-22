@@ -21,6 +21,7 @@ jaq-core = "2.2.0"
 jaq-json = { version = "1.1.2", features = ["serde_json"] }
 jaq-std = "2.1.1"
 markdown = "1.0.0"
+minijinja = "2.11.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
