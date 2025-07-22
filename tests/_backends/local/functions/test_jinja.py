@@ -134,7 +134,7 @@ def test_jinja_for_loop(local_session):
 def test_jinja_nested_loop(local_session):
     """Test nested loop in templates."""
     data = {
-        "items": [[["a", "b"], ["c", "d"]], [[]], None]
+        "items": [[["a", "b"], ["c", "d"]], [[]], [None], None]
     }
     df = local_session.create_dataframe(data)
 
@@ -142,7 +142,7 @@ def test_jinja_nested_loop(local_session):
         text.jinja("{% for item in items %}{% for inner_item in item %}outer: {{item[0]}} inner:{{inner_item}} {% endfor %}{% endfor %}", items=col("items")).alias("result")
     ).to_polars()
 
-    expected = ['outer: a inner:a outer: a inner:b outer: c inner:c outer: c inner:d ', '', '']
+    expected = ['outer: a inner:a outer: a inner:b outer: c inner:c outer: c inner:d ', '', '', '']
     assert result["result"].to_list() == expected
 
 
