@@ -52,6 +52,7 @@ from fenic.api import (
 from fenic.core import (
     ArrayType,
     BooleanType,
+    ClassDefinition,
     ClassifyExample,
     ClassifyExampleCollection,
     ColumnField,
@@ -129,6 +130,7 @@ __all__ = [
     "PredicateExample",
     "PredicateExampleCollection",
     "Schema",
+    "ClassDefinition",
     "ClassifyExample",
     "ClassifyExampleCollection",
     "JoinExample",

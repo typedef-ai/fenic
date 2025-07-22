@@ -3,10 +3,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+
+from fenic.core._logical_plan.jinja_validation import (
+    VariableTree,
+)
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
+
+import logging
 
 from pydantic import BaseModel, Field
 
@@ -15,9 +21,11 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
+from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
+    ColumnField,
     DataType,
     JsonType,
     StringType,
@@ -25,6 +33,7 @@ from fenic.core.types import (
     StructType,
 )
 
+logger = logging.getLogger(__name__)
 
 class TokenType(Enum):
     DELIMITER = auto()    # Literal text content
@@ -845,3 +854,59 @@ class ByteLengthExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+class JinjaExpr(LogicalExpr):
+    """Expression for evaluating a Jinja template.
+
+    This expression creates a new string column with the result of evaluating the Jinja template.
+
+    Args:
+        exprs: The input string column expressions
+        template: The Jinja template to evaluate
+    """
+
+    def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
+        self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
+        expr_names = {expr.name: expr for expr in exprs}
+        available_columns = sorted(expr_names.keys())
+
+        self.template: str = template
+        self.exprs: List[Union[ColumnExpr, AliasExpr]] = []
+
+        for variable_name in self.variable_tree.variables.keys():
+            if variable_name not in expr_names:
+                raise ValidationError(
+                    f"Template variable '{variable_name}' is not defined. "
+                    f"Available columns: {', '.join(available_columns)}. "
+                    f"Either provide a column expression for '{variable_name}' or "
+                    f"modify the template to use an available column."
+                )
+
+            expr = expr_names[variable_name]
+            self.exprs.append(expr)
+
+        # Warn about unused columns
+        used_variables = set(self.variable_tree.variables.keys())
+        for column_name in expr_names.keys():
+            if column_name not in used_variables:
+                logger.warning(
+                    f"Column '{column_name}' is defined but not referenced in the template. "
+                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
+                    f"To remove this warning, exclude unused columns from the expression list."
+                )
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+
+        return ColumnField(
+            name=str(self),
+            data_type=StringType,
+        )
+
+    def __str__(self) -> str:
+        return f"jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"

@@ -7,7 +7,6 @@ used in query processing.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar
 
 import pandas as pd
@@ -341,12 +340,21 @@ class ClassifyExampleCollection(BaseExampleCollection[ClassifyExample]):
 
         return rows
 
-    def _validate_with_enum(self, category: type[Enum]) -> None:
-        for example in self.examples:
-            if example.output not in category._value2member_map_:
-                raise InvalidExampleCollectionError(
-                    f"Answer {example.output} not found in the categories required for classification {category}"
-                )
+    def _validate_with_labels(self, valid_labels: set[str]) -> None:
+        """Validate examples against a set of valid labels."""
+        invalid_examples = []
+        for i, example in enumerate(self.examples):
+            if example.output not in valid_labels:
+                invalid_examples.append((i, example.output))
+
+        if invalid_examples:
+            valid_labels_str = ", ".join(sorted(valid_labels))
+            invalid_str = ", ".join(f"#{i}: '{label}'" for i, label in invalid_examples)
+            raise InvalidExampleCollectionError(
+                f"Example outputs must match available class labels. "
+                f"Valid labels: {valid_labels_str}. "
+                f"Invalid examples: {invalid_str}"
+            )
 
 
 class PredicateExampleCollection(BaseExampleCollection[PredicateExample]):

@@ -54,6 +54,7 @@ from fenic.core._logical_plan.expressions import (
     IndexExpr,
     InExpr,
     IsNullExpr,
+    JinjaExpr,
     JqExpr,
     JsonContainsExpr,
     JsonTypeExpr,
@@ -360,10 +361,11 @@ class ExprConverter:
     @_convert_expr.register(IndexExpr)
     def _convert_index_expr(self, logical: IndexExpr) -> pl.Expr:
         base_expr = self._convert_expr(logical.expr)
-        if isinstance(logical.index, int):
-            return base_expr.list.get(logical.index, null_on_oob=True)
-        elif isinstance(logical.index, str):
-            return base_expr.struct.field(str(logical.index))
+        index_expr = self._convert_expr(logical.index)
+        if logical.input_type == "array":
+            return base_expr.list.get(index_expr, null_on_oob=True)
+        elif logical.input_type == "struct":
+            return base_expr.struct.field(logical.index.literal)
         else:
             raise NotImplementedError(f"Unsupported index key type: {type(logical.index)}")
 
@@ -398,6 +400,18 @@ class ExprConverter:
             return_dtype=convert_custom_dtype_to_polars(return_struct_type),
         )
 
+    @_convert_expr.register(JinjaExpr)
+    def _convert_jinja_expr(self, logical: JinjaExpr) -> pl.Expr:
+        # Convert all input expressions
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+
+        # Create struct of all inputs
+        struct_expr = pl.struct(column_exprs)
+
+        # Call the Jinja plugin
+        return struct_expr.jinja.render(
+            template=logical.template,
+        )
 
     @_convert_expr.register(SemanticMapExpr)
     def _convert_semantic_map_expr(self, logical: SemanticMapExpr) -> pl.Expr:
@@ -540,16 +554,12 @@ class ExprConverter:
     @_convert_expr.register(SemanticClassifyExpr)
     def _convert_semantic_classify_expr(self, logical: SemanticClassifyExpr) -> pl.Expr:
         def sem_classify_fn(batch: pl.Series) -> pl.Series:
-            labels_enum = (
-                SemanticClassifyExpr.transform_labels_list_into_enum(logical.labels)
-                if isinstance(logical.labels, list)
-                else logical.labels
-            )
             return SemanticClassify(
                 input=batch,
-                labels=labels_enum,
+                classes=logical.classes,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                examples=logical.examples,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(

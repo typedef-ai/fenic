@@ -1,6 +1,6 @@
 import re
 from enum import Enum
-from typing import Any, Dict, Type
+from typing import Any, Dict, List, Type
 
 import polars as pl
 from pydantic import BaseModel, create_model
@@ -37,15 +37,19 @@ def stringify_enum_type(enum_type: Type[Enum]) -> str:
     return ", ".join(f"{label.value}" for label in enum_type)
 
 
-def create_classification_pydantic_model(enum_cls: Type[Enum]) -> Type[BaseModel]:
-    """Creates a Pydantic model from an Enum class.
+def create_classification_pydantic_model(allowed_values: List[str]) -> type[BaseModel]:
+    """Creates a Pydantic model from a list of allowed string values using a dynamic Enum.
 
     Args:
-        enum_cls (Type[Enum]): The Enum class to convert.
+        allowed_values (List[str]): The list of allowed string values.
 
     Returns:
         Type[BaseModel]: A Pydantic model class with a field for the Enum values.
     """
+    enum_name = "LabelEnum"
+    enum_members = {value.upper(): value for value in allowed_values}
+    enum_cls = Enum(enum_name, enum_members)
+
     return create_model(
         "EnumModel",
         output=(enum_cls, ...),

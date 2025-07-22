@@ -1,6 +1,6 @@
 """Text manipulation functions for Fenic DataFrames."""
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import ConfigDict, validate_call
 
@@ -9,8 +9,11 @@ from fenic.api.functions.core import lit
 from fenic.core._logical_plan.expressions import (
     ArrayJoinExpr,
     ByteLengthExpr,
+    ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
+    JinjaExpr,
+    LogicalExpr,
     RecursiveTextChunkExpr,
     RegexpSplitExpr,
     ReplaceExpr,
@@ -404,7 +407,7 @@ def concat(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValidationError("At least one column must be provided to concat method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat method.")
 
     flattened_args = []
     for arg in cols:
@@ -472,7 +475,7 @@ def concat_ws(separator: str, *cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValidationError("At least one column must be provided to concat_ws method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat_ws method.")
 
     flattened_args = []
     for arg in cols:
@@ -924,4 +927,103 @@ def byte_length(column: ColumnOrName) -> Column:
     """
     return Column._from_logical_expr(
         ByteLengthExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def jinja(
+    jinja_template: str,
+    /,
+    **columns: ColumnOrName
+) -> Column:
+    """Render a Jinja template using values from the specified columns.
+
+    This function evaluates a Jinja2 template string for each row, using the provided
+    columns as template variables. Only a subset of Jinja2 features is supported.
+
+    Args:
+        jinja_template: A Jinja2 template string to render for each row.
+                       Variables are referenced using double braces: {{ variable_name }}
+        **columns: Keyword arguments mapping variable names to columns.
+                  Each keyword becomes a variable in the template context.
+
+    Returns:
+        Column: A string column containing the rendered template for each row
+
+    Supported Features:
+        - Variable substitution: {{ variable }}
+        - Struct/object field access: {{ user.name }}
+        - Array indexing with literals: {{ items[0] }}, {{ data["key"] }}
+        - For loops: {% for item in items %}...{% endfor %}
+        - If/elif/else conditionals: {% if condition %}...{% endif %}
+        - Loop variables: {{ loop.index }}, {{ loop.first }}, etc.
+        - Constants: {{ "literal string" }}, {{ 42 }}
+
+    Not Supported (use column expressions instead):
+        - **Filters**: {{ name|upper }} → Use upper_name=fc.upper(col("name"))
+        - **Function calls**: {{ len(items) }} → Use item_count=fc.array_size(col("items"))
+        - **Operators**: {% if price > 100 %} → Use is_expensive=(col("price") > 100)
+        - **Arithmetic**: {{ price * quantity }} → Use total=col("price") * col("quantity")
+        - **Dynamic indexing**: {{ items[i] }} → Use item=(fc.col("items").get_item(col("index")))
+        - **Variable assignment**: {% set x = 5 %} → Pre-compute as column expression
+        - **Macros, includes, extends**: Not supported
+
+    Example: LLM prompt formatting with conditional context and examples
+        ```python
+        # Format prompts with user query, conditional context, and examples
+        prompt_template = '''
+        Answer the user's question.
+
+        {% if context %}
+        Context: {{ context }}
+        {% endif %}
+
+        {% if examples %}
+        Few-shot examples:
+        {% for ex in examples %}
+        Q: {{ ex.question }}
+        A: {{ ex.answer }}
+        {% endfor %}
+        {% endif %}
+
+        Question: {{ query }}
+
+        Please provide a {{ style }} response.'''
+
+        # Generate prompts with varying context based on query type
+        result = df.select(
+            text.jinja(
+                prompt_template,
+                # Direct columns
+                query=col("user_question"),
+                context=col("retrieved_context"),  # Can be null for some rows
+
+                # Column expression for conditional logic
+                style=fc.when(col("query_type") == "technical", "detailed and technical")
+                      .when(col("query_type") == "casual", "conversational")
+                      .otherwise("clear and concise"),
+
+                # Array of examples (struct array)
+                examples=col("few_shot_examples")  # Array of {question, answer} structs
+            ).alias("llm_prompt")
+        )
+        ```
+
+    Notes:
+        - Template syntax is validated at query planning time
+        - Complex operations can use column expressions
+        - Arrays can only be iterated with {% for %} or accessed with literal indices
+        - Structs can only use literal field names
+        - Null values will be rendered as empty strings
+    """
+    # Convert keyword arguments to column expressions with proper names
+    column_exprs: List[LogicalExpr] = []
+    for var_name, column in columns.items():
+        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
+            column_exprs.append(column.expr)
+        else:
+            column_exprs.append(column.alias(var_name)._logical_expr)
+
+    return Column._from_logical_expr(
+        JinjaExpr(column_exprs, jinja_template)
     )

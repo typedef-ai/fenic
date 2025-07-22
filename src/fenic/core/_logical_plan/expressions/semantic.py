@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
@@ -270,28 +270,32 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         return f"semantic.reduce_{instruction_hash}({exprs_str})"
 
 
+@dataclass
+class ResolvedClassDefinition():
+    label: str
+    description: Optional[str] = None
+
 class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.classify"
 
     def __init__(
         self,
         expr: LogicalExpr,
-        labels: List[str] | type[Enum],
+        classes: List[ResolvedClassDefinition],
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
         model_alias: Optional[str] = None,
     ):
         self.expr = expr
-        self.labels = labels
+        self.classes = classes
         self.examples = None
+
         if examples:
-            labels_enum = (
-                SemanticClassifyExpr.transform_labels_list_into_enum(labels)
-                if isinstance(labels, list)
-                else labels
-            )
-            examples._validate_with_enum(labels_enum)
+            # Validate examples against class labels
+            valid_labels = {class_def.label for class_def in classes}
+            examples._validate_with_labels(valid_labels)
             self.examples = examples
+
         self.temperature = temperature
         self.model_alias = model_alias
 
@@ -308,55 +312,19 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         return [self.expr]
 
     def __str__(self):
-        formatted_labels = "[" + ", ".join(f"'{label}'" for label in self.labels) + "]"
-        return f"semantic.classify({self.expr}, {formatted_labels})"
+        labels_str = ", ".join(f"'{class_def.label}'" for class_def in self.classes)
+        return f"semantic.classify({self.expr}, [{labels_str}])"
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters (called after signature validation)."""
         validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
 
-    def _validate_labels(self, plan: LogicalPlan):
-        """Validate labels format."""
-        if not isinstance(self.labels, List) and not isinstance(
-                next(iter(self.labels)).value, str
-        ):
-            raise TypeError(
-                f"Type mismatch: Cannot apply semantic.classify to an enum that is not a string. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
-                f"Only string enums are supported."
-            )
-
     def to_column_field(self, plan: LogicalPlan) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        self._validate_labels(plan)
         # Common validation for all semantic functions
         self._validate_completion_parameters(plan)
         # Use mixin's implementation
         return super().to_column_field(plan)
-
-    @staticmethod
-    def transform_labels_list_into_enum(labels: list[str]) -> type[Enum]:
-        """Transforms a list of labels into an Enum."""
-        label_enum_values = []
-        for label_str in labels:
-            label_enum_values.append(
-                (
-                    SemanticClassifyExpr.transform_value_into_enum_name(label_str),
-                    label_str,
-                )
-            )
-
-        return Enum("Label", label_enum_values)
-
-    @staticmethod
-    def transform_value_into_enum_name(label_value: str) -> str:
-        """Transforms a label value into an enum name.
-
-        >>> SemClassifyDataFrame._trasnform_value_into_enum_name("General Inquiry")
-         ... "GENERAL_INQUIRY".
-        """
-        return label_value.upper().replace(" ", "_")
-
 
 class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.analyze_sentiment"
