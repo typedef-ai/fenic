@@ -910,9 +910,9 @@ class JinjaExpr(LogicalExpr):
         )
 
     def __str__(self) -> str:
-        return f"jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
+        return f"text.jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
 
-class FuzzySimilarityExpr(ValidatedSignature, LogicalExpr):
+class FuzzyRatioExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing the similarity between two strings using a fuzzy matching algorithm.
 
     This expression creates a new float column with the similarity score between the two input strings.
@@ -923,7 +923,7 @@ class FuzzySimilarityExpr(ValidatedSignature, LogicalExpr):
         other: The other string column expression
     """
 
-    function_name = "text.fuzzy_similarity"
+    function_name = "text.fuzzy_ratio"
 
     def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
         self.expr = expr
@@ -938,5 +938,24 @@ class FuzzySimilarityExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
 
-    def __str__(self) -> str:
-        return f"fuzzy_similarity({self.expr}, {self.other})"
+class FuzzyTokenSortRatioExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the fuzzy token sort ratio between two strings.
+
+    This expression creates a new float column with the fuzzy token sort ratio between the two input strings.
+    The fuzzy token sort ratio is computed using a fuzzy matching algorithm.
+    """
+
+    function_name = "text.fuzzy_token_sort_ratio"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]

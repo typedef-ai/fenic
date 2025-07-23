@@ -38,11 +38,11 @@ class Fuzz:
             is_elementwise=True,
         )
 
-    def normalized_jaro_winkler_similarity(self, other: IntoExpr) -> pl.Expr:
+    def normalized_jarowinkler_similarity(self, other: IntoExpr) -> pl.Expr:
         """Compute the Jaro-Winkler similarity between two strings."""
         return register_plugin_function(
             plugin_path=PLUGIN_PATH,
-            function_name="normalized_jaro_winkler_similarity",
+            function_name="normalized_jarowinkler_similarity",
             args=[self.expr, other],
             is_elementwise=True,
         )

@@ -247,11 +247,29 @@ def register_text_signatures():
     )
 
     FunctionRegistry.register(
-        "text.fuzzy_similarity",
+        "text.fuzzy_ratio",
         FunctionSignature(
-            function_name="text.fuzzy_similarity",
+            function_name="text.fuzzy_ratio",
             type_signature=Exact([StringType, StringType]),
-            return_type=DoubleType
+            return_type=IntegerType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.fuzzy_token_sort_ratio",
+        FunctionSignature(
+            function_name="text.fuzzy_token_sort_ratio",
+            type_signature=Exact([StringType, StringType]),
+            return_type=IntegerType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.fuzzy_token_set_ratio",
+        FunctionSignature(
+            function_name="text.fuzzy_token_set_ratio",
+            type_signature=Exact([StringType, StringType]),
+            return_type=IntegerType
         )
     )
 

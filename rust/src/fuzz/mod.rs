@@ -3,7 +3,7 @@ use polars::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use rapidfuzz::distance::{damerau_levenshtein, hamming, jaro, jaro_winkler, levenshtein};
 
-#[polars_expr(output_type=Float64)]
+#[polars_expr(output_type=Int32)]
 fn normalized_levenshtein_similarity(inputs: &[Series]) -> PolarsResult<Series> {
     let left = inputs[0].str()?;
     let right = inputs[1].str()?;
@@ -13,86 +13,89 @@ fn normalized_levenshtein_similarity(inputs: &[Series]) -> PolarsResult<Series> 
     // safe for string operations that expect valid UTF-8. We can benchmark this and decide whether
     // eliminating branching is worth it.
 
-    let similarity: Float64Chunked = arity::broadcast_binary_elementwise(
+    let similarity: Int32Chunked = arity::broadcast_binary_elementwise(
         left,
         right,
         |left: Option<&str>, right: Option<&str>| match (left, right) {
-            (Some(left), Some(right)) => Some(levenshtein::normalized_similarity(
-                left.chars(),
-                right.chars(),
-            )),
+            (Some(left), Some(right)) => Some(
+                (levenshtein::normalized_similarity(left.chars(), right.chars()) * 100.0).round()
+                    as i32,
+            ),
             _ => None,
         },
     );
     Ok(similarity.into_series())
 }
 
-#[polars_expr(output_type=Float64)]
+#[polars_expr(output_type=Int32)]
 fn normalized_damerau_levenshtein_similarity(inputs: &[Series]) -> PolarsResult<Series> {
     let left = inputs[0].str()?;
     let right = inputs[1].str()?;
-    let similarity: Float64Chunked = arity::broadcast_binary_elementwise(
+    let similarity: Int32Chunked = arity::broadcast_binary_elementwise(
         left,
         right,
         |left: Option<&str>, right: Option<&str>| match (left, right) {
-            (Some(left), Some(right)) => Some(damerau_levenshtein::normalized_similarity(
-                left.chars(),
-                right.chars(),
-            )),
+            (Some(left), Some(right)) => Some(
+                (damerau_levenshtein::normalized_similarity(left.chars(), right.chars()) * 100.0)
+                    .round() as i32,
+            ),
             _ => None,
         },
     );
     Ok(similarity.into_series())
 }
 
-#[polars_expr(output_type=Float64)]
+#[polars_expr(output_type=Int32)]
 fn normalized_jarowinkler_similarity(inputs: &[Series]) -> PolarsResult<Series> {
     let left = inputs[0].str()?;
     let right = inputs[1].str()?;
-    let similarity: Float64Chunked = arity::broadcast_binary_elementwise(
+    let similarity: Int32Chunked = arity::broadcast_binary_elementwise(
         left,
         right,
         |left: Option<&str>, right: Option<&str>| match (left, right) {
-            (Some(left), Some(right)) => Some(jaro_winkler::normalized_similarity(
-                left.chars(),
-                right.chars(),
-            )),
+            (Some(left), Some(right)) => Some(
+                (jaro_winkler::normalized_similarity(left.chars(), right.chars()) * 100.0).round()
+                    as i32,
+            ),
             _ => None,
         },
     );
     Ok(similarity.into_series())
 }
 
-#[polars_expr(output_type=Float64)]
+#[polars_expr(output_type=Int32)]
 fn normalized_jaro_similarity(inputs: &[Series]) -> PolarsResult<Series> {
     let left = inputs[0].str()?;
     let right = inputs[1].str()?;
-    let similarity: Float64Chunked = arity::broadcast_binary_elementwise(
+    let similarity: Int32Chunked = arity::broadcast_binary_elementwise(
         left,
         right,
         |left: Option<&str>, right: Option<&str>| match (left, right) {
-            (Some(left), Some(right)) => {
-                Some(jaro::normalized_similarity(left.chars(), right.chars()))
-            }
+            (Some(left), Some(right)) => Some(
+                (jaro::normalized_similarity(left.chars(), right.chars()) * 100.0).round() as i32,
+            ),
             _ => None,
         },
     );
     Ok(similarity.into_series())
 }
 
-#[polars_expr(output_type=Float64)]
+#[polars_expr(output_type=Int32)]
 fn normalized_hamming_similarity(inputs: &[Series]) -> PolarsResult<Series> {
     let left = inputs[0].str()?;
     let right = inputs[1].str()?;
-    let similarity: Float64Chunked = arity::broadcast_binary_elementwise(
+    let similarity: Int32Chunked = arity::broadcast_binary_elementwise(
         left,
         right,
         |left: Option<&str>, right: Option<&str>| match (left, right) {
-            (Some(left), Some(right)) => Some(hamming::normalized_similarity_with_args(
-                left.chars(),
-                right.chars(),
-                &hamming::Args::default().pad(true),
-            )),
+            (Some(left), Some(right)) => Some(
+                (hamming::normalized_similarity_with_args(
+                    left.chars(),
+                    right.chars(),
+                    &hamming::Args::default().pad(true),
+                ) * 100.0)
+                    .round() as i32,
+            ),
             _ => None,
         },
     );

@@ -12,7 +12,8 @@ from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
-    FuzzySimilarityExpr,
+    FuzzyRatioExpr,
+    FuzzyTokenSortRatioExpr,
     JinjaExpr,
     LiteralExpr,
     LogicalExpr,
@@ -1032,43 +1033,39 @@ def jinja(
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def fuzzy_similarity(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod) -> Column:
+def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "levenshtein") -> Column:
     """Compute the similarity between two strings using a fuzzy string matching algorithm.
 
     This function computes a fuzzy similarity score between two string columns (or a string column
     and a literal string) for each row. It supports multiple well-known string similarity metrics,
     including Levenshtein, Damerau-Levenshtein, Jaro, Jaro-Winkler, and Hamming.
 
-    The returned score is a **normalized similarity value** between 0.0 and 1.0, where:
-        - 1.0 indicates the strings are identical
-        - 0.0 indicates maximum dissimilarity (as defined by the method)
+    The returned score is a similarity percentage between 0 and 100, where:
+        - 100 indicates the strings are identical
+        - 0 indicates maximum dissimilarity (as defined by the method)
 
     Args:
         column: A string column or column name. This is the left-hand side of the comparison.
         other: A second string column, column name, or literal string. This is the right-hand side of the comparison.
         method: A string indicating which similarity method to use. Must be one of:
-            - `"levenshtein"`: Levenshtein distance (edit distance), normalized to [0.0, 1.0]
+            - `"levenshtein"`: Levenshtein distance (edit distance)
             - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
             - `"jaro"`: Jaro similarity, accounts for transpositions and proximity
             - `"jaro_winkler"`: Jaro-Winkler similarity, gives higher scores for common prefixes
-            - `"hamming"`: Hamming distance, normalized to [0.0, 1.0]. Counts the number of differing
-              positions between two strings of equal length. If strings are of unequal length, the shorter
-              string is right-padded with spaces before comparison.
+            - `"hamming"`: Hamming distance. Counts differing positions between two equal-length strings, padding shorter string if needed.
 
     Returns:
-        Column: A float column with similarity scores in the range [0.0, 1.0].
+        Column: A integer column with similarity scores in the range [0, 100].
 
-    Example: Compare two columns
+    Example:
         ```python
         result = df.select(
-            text.fuzzy_similarity(col("a"), col("b"), method="levenshtein").alias("sim")
+            compute_fuzzy_ratio(col("a"), col("b"), method="levenshtein").alias("sim")
         )
         ```
-    Example: Compare against a literal string
         ```python
-        # Compare against a literal string
         result = df.select(
-            text.fuzzy_similarity(col("a"), "world", method="jaro").alias("sim_to_world")
+            compute_fuzzy_ratio(col("a"), "world", method="jaro").alias("sim_to_world")
         )
         ```
     """
@@ -1077,4 +1074,35 @@ def fuzzy_similarity(column: ColumnOrName, other: Union[Column, str], method: Fu
     else:
         other_expr = other._logical_expr
 
-    return Column._from_logical_expr(FuzzySimilarityExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+    return Column._from_logical_expr(FuzzyRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "levenshtein") -> Column:
+    """Compute fuzzy similarity after sorting tokens in each string.
+
+    Tokenizes strings by whitespace, sorts tokens alphabetically, concatenates
+    them back into a string, then applies the specified similarity metric.
+    Useful for comparing strings where word order doesn't matter.
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use after token sorting
+
+    Returns:
+        Column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_sort_ratio("name", "Smith John", "levenshtein"))
+        # "new york city" → ["new", "york", "city"] → sorted → ["city", "new", "york"] → "city new york"
+        # "city new york" → ["city", "new", "york"] → sorted → ["city", "new", "york"] → "city new york"
+        # levenshtein similarity("city new york", "city new york") = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSortRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))

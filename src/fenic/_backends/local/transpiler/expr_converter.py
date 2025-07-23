@@ -50,7 +50,8 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
-    FuzzySimilarityExpr,
+    FuzzyRatioExpr,
+    FuzzyTokenSortRatioExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -116,6 +117,7 @@ from fenic.core.types.datatypes import (
     StructType,
     _PrimitiveType,
 )
+from fenic.core.types.enums import FuzzySimilarityMethod
 
 
 class ExprConverter:
@@ -1071,24 +1073,36 @@ class ExprConverter:
                 similarity_fn, return_dtype=pl.Float32
             )
 
-    @_convert_expr.register(FuzzySimilarityExpr)
-    def _convert_fuzzy_similarity_expr(self, logical: FuzzySimilarityExpr) -> pl.Expr:
+    @_convert_expr.register(FuzzyRatioExpr)
+    def _convert_fuzzy_similarity_expr(self, logical: FuzzyRatioExpr) -> pl.Expr:
         left_expr = self._convert_expr(logical.expr)
         right_expr = self._convert_expr(logical.other)
 
-        if logical.method == "levenshtein":
-            return left_expr.fuzz.normalized_levenshtein_similarity(right_expr)
-        elif logical.method == "damerau_levenshtein":
-            return left_expr.fuzz.normalized_damerau_levenshtein_similarity(right_expr)
-        elif logical.method == "jaro_winkler":
-            return left_expr.fuzz.normalized_jaro_winkler_similarity(right_expr)
-        elif logical.method == "jaro":
-            return left_expr.fuzz.normalized_jaro_similarity(right_expr)
-        elif logical.method == "hamming":
-            return left_expr.fuzz.normalized_hamming_similarity(right_expr)
-        else:
-            raise InternalError(f"Unknown fuzzy similarity method: {logical.method}. Invalid state.")
+        return _convert_fuzzy_similarity_method_to_expr(left_expr, right_expr, logical.method)
 
+    @_convert_expr.register(FuzzyTokenSortRatioExpr)
+    def _convert_fuzzy_token_sort_ratio_expr(self, logical: FuzzyTokenSortRatioExpr) -> pl.Expr:
+        left_tokens = self._convert_expr(logical.expr).str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
+        right_tokens = self._convert_expr(logical.other).str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
+
+        left_expr = left_tokens.list.sort().list.join(" ")
+        right_expr = right_tokens.list.sort().list.join(" ")
+
+        return _convert_fuzzy_similarity_method_to_expr(left_expr, right_expr, logical.method)
+
+def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
+    if method == "levenshtein":
+        return expr.fuzz.normalized_levenshtein_similarity(other)
+    elif method == "damerau_levenshtein":
+        return expr.fuzz.normalized_damerau_levenshtein_similarity(other)
+    elif method == "jaro_winkler":
+        return expr.fuzz.normalized_jarowinkler_similarity(other)
+    elif method == "jaro":
+        return expr.fuzz.normalized_jaro_similarity(other)
+    elif method == "hamming":
+        return expr.fuzz.normalized_hamming_similarity(other)
+    else:
+        raise InternalError(f"Unknown fuzzy similarity method: {method}. Invalid state.")
 
 def _calculate_similarity_numpy(
     embeddings: np.ndarray, query: np.ndarray, metric: str
