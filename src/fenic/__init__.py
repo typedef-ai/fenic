@@ -63,6 +63,7 @@ from fenic.core import (
     DoubleType,
     EmbeddingType,
     FloatType,
+    FuzzySimilarityMethod,
     HtmlType,
     IntegerType,
     JoinExample,
@@ -142,6 +143,7 @@ __all__ = [
     "StructField",
     "StructType",
     "TranscriptType",
+    "FuzzySimilarityMethod",
     # Functions
     "semantic",
     "text",

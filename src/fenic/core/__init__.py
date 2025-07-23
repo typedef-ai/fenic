@@ -21,6 +21,7 @@ from fenic.core.types import (
     DoubleType,
     EmbeddingType,
     FloatType,
+    FuzzySimilarityMethod,
     HtmlType,
     IntegerType,
     JoinExample,
@@ -74,6 +75,7 @@ __all__ = [
     "SemanticSimilarityMetric",
     "KeyPoints",
     "Paragraph",
+    "FuzzySimilarityMethod",
     # Metrics
     "QueryMetrics",
     "LMMetrics",

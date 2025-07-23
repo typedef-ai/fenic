@@ -27,6 +27,7 @@ from fenic.core.error import ValidationError
 from fenic.core.types import (
     ColumnField,
     DataType,
+    FuzzySimilarityMethod,
     JsonType,
     StringType,
     StructField,
@@ -910,3 +911,32 @@ class JinjaExpr(LogicalExpr):
 
     def __str__(self) -> str:
         return f"jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
+
+class FuzzySimilarityExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the similarity between two strings using a fuzzy matching algorithm.
+
+    This expression creates a new float column with the similarity score between the two input strings.
+    The similarity score is computed using a fuzzy matching algorithm.
+
+    Args:
+        expr: The input string column expression
+        other: The other string column expression
+    """
+
+    function_name = "text.fuzzy_similarity"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]
+
+    def __str__(self) -> str:
+        return f"fuzzy_similarity({self.expr}, {self.other})"

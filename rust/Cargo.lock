@@ -2373,6 +2373,7 @@ dependencies = [
  "polars-arrow",
  "pyo3",
  "pyo3-polars",
+ "rapidfuzz",
  "reqwest",
  "rstest",
  "serde",
@@ -2677,6 +2678,12 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
 ]
+
+[[package]]
+name = "rapidfuzz"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "270e04e5ea61d40841942bb15e451c29ee1618637bcf97fc7ede5dd4a9b1601b"
 
 [[package]]
 name = "raw-cpuid"

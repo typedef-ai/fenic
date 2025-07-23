@@ -116,6 +116,9 @@ from fenic.core._logical_plan.expressions.text import (
 )
 from fenic.core._logical_plan.expressions.text import EndsWithExpr as EndsWithExpr
 from fenic.core._logical_plan.expressions.text import EscapingRule as EscapingRule
+from fenic.core._logical_plan.expressions.text import (
+    FuzzySimilarityExpr as FuzzySimilarityExpr,
+)
 from fenic.core._logical_plan.expressions.text import ILikeExpr as ILikeExpr
 from fenic.core._logical_plan.expressions.text import JinjaExpr as JinjaExpr
 from fenic.core._logical_plan.expressions.text import LikeExpr as LikeExpr

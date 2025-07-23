@@ -18,7 +18,11 @@ from fenic.core.types.datatypes import (
     StructType,
     TranscriptType,
 )
-from fenic.core.types.enums import BranchSide, SemanticSimilarityMetric
+from fenic.core.types.enums import (
+    BranchSide,
+    FuzzySimilarityMethod,
+    SemanticSimilarityMetric,
+)
 from fenic.core.types.query_result import DataLike, DataLikeType, QueryResult
 from fenic.core.types.schema import (
     ColumnField,
@@ -74,5 +78,6 @@ __all__ = [
     "KeyPoints",
     "Paragraph",
     "TranscriptType",
+    "FuzzySimilarityMethod",
 ]
 

@@ -12,7 +12,9 @@ from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
+    FuzzySimilarityExpr,
     JinjaExpr,
+    LiteralExpr,
     LogicalExpr,
     RecursiveTextChunkExpr,
     RegexpSplitExpr,
@@ -30,7 +32,8 @@ from fenic.core._logical_plan.expressions.text import (
     ChunkLengthFunction,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.enums import TranscriptFormatType
+from fenic.core.types import StringType
+from fenic.core.types.enums import FuzzySimilarityMethod, TranscriptFormatType
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
@@ -1027,3 +1030,51 @@ def jinja(
     return Column._from_logical_expr(
         JinjaExpr(column_exprs, jinja_template)
     )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def fuzzy_similarity(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod) -> Column:
+    """Compute the similarity between two strings using a fuzzy string matching algorithm.
+
+    This function computes a fuzzy similarity score between two string columns (or a string column
+    and a literal string) for each row. It supports multiple well-known string similarity metrics,
+    including Levenshtein, Damerau-Levenshtein, Jaro, Jaro-Winkler, and Hamming.
+
+    The returned score is a **normalized similarity value** between 0.0 and 1.0, where:
+        - 1.0 indicates the strings are identical
+        - 0.0 indicates maximum dissimilarity (as defined by the method)
+
+    Args:
+        column: A string column or column name. This is the left-hand side of the comparison.
+        other: A second string column, column name, or literal string. This is the right-hand side of the comparison.
+        method: A string indicating which similarity method to use. Must be one of:
+            - `"levenshtein"`: Levenshtein distance (edit distance), normalized to [0.0, 1.0]
+            - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
+            - `"jaro"`: Jaro similarity, accounts for transpositions and proximity
+            - `"jaro_winkler"`: Jaro-Winkler similarity, gives higher scores for common prefixes
+            - `"hamming"`: Hamming distance, normalized to [0.0, 1.0]. Counts the number of differing
+              positions between two strings of equal length. If strings are of unequal length, the shorter
+              string is right-padded with spaces before comparison.
+
+    Returns:
+        Column: A float column with similarity scores in the range [0.0, 1.0].
+
+    Example: Compare two columns
+        ```python
+        result = df.select(
+            text.fuzzy_similarity(col("a"), col("b"), method="levenshtein").alias("sim")
+        )
+        ```
+    Example: Compare against a literal string
+        ```python
+        # Compare against a literal string
+        result = df.select(
+            text.fuzzy_similarity(col("a"), "world", method="jaro").alias("sim_to_world")
+        )
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzySimilarityExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))

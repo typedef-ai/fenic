@@ -50,6 +50,7 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FuzzySimilarityExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -1069,6 +1070,25 @@ class ExprConverter:
             return self._convert_expr(logical.expr).map_batches(
                 similarity_fn, return_dtype=pl.Float32
             )
+
+    @_convert_expr.register(FuzzySimilarityExpr)
+    def _convert_fuzzy_similarity_expr(self, logical: FuzzySimilarityExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.expr)
+        right_expr = self._convert_expr(logical.other)
+
+        if logical.method == "levenshtein":
+            return left_expr.fuzz.normalized_levenshtein_similarity(right_expr)
+        elif logical.method == "damerau_levenshtein":
+            return left_expr.fuzz.normalized_damerau_levenshtein_similarity(right_expr)
+        elif logical.method == "jaro_winkler":
+            return left_expr.fuzz.normalized_jaro_winkler_similarity(right_expr)
+        elif logical.method == "jaro":
+            return left_expr.fuzz.normalized_jaro_similarity(right_expr)
+        elif logical.method == "hamming":
+            return left_expr.fuzz.normalized_hamming_similarity(right_expr)
+        else:
+            raise InternalError(f"Unknown fuzzy similarity method: {logical.method}. Invalid state.")
+
 
 def _calculate_similarity_numpy(
     embeddings: np.ndarray, query: np.ndarray, metric: str

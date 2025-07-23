@@ -246,5 +246,14 @@ def register_text_signatures():
         )
     )
 
+    FunctionRegistry.register(
+        "text.fuzzy_similarity",
+        FunctionSignature(
+            function_name="text.fuzzy_similarity",
+            type_signature=Exact([StringType, StringType]),
+            return_type=DoubleType
+        )
+    )
+
 
 register_text_signatures()
