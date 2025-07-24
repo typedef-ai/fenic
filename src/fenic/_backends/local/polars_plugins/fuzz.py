@@ -20,6 +20,15 @@ class Fuzz:
         """
         self.expr = expr
 
+    def normalized_indel_similarity(self, other: IntoExpr) -> pl.Expr:
+        """Compute the Indel similarity between two strings."""
+        return register_plugin_function(
+            plugin_path=PLUGIN_PATH,
+            function_name="normalized_indel_similarity",
+            args=[self.expr, other],
+            is_elementwise=True,
+        )
+
     def normalized_levenshtein_similarity(self, other: IntoExpr) -> pl.Expr:
         """Compute the Levenshtein similarity between two strings."""
         return register_plugin_function(

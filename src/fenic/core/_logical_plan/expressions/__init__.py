@@ -120,6 +120,9 @@ from fenic.core._logical_plan.expressions.text import (
     FuzzyRatioExpr as FuzzyRatioExpr,
 )
 from fenic.core._logical_plan.expressions.text import (
+    FuzzyTokenSetRatioExpr as FuzzyTokenSetRatioExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
     FuzzyTokenSortRatioExpr as FuzzyTokenSortRatioExpr,
 )
 from fenic.core._logical_plan.expressions.text import ILikeExpr as ILikeExpr

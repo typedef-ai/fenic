@@ -54,12 +54,14 @@ Valid values:
 - "cross": Cross join, returns the Cartesian product of the two tables.
 """
 
-FuzzySimilarityMethod = Literal["levenshtein", "damerau_levenshtein", "jaro_winkler", "jaro", "hamming"]
+FuzzySimilarityMethod = Literal["indel", "levenshtein", "damerau_levenshtein", "jaro_winkler", "jaro", "hamming"]
 """
 Type alias representing the supported fuzzy string similarity algorithms.
 
 These algorithms quantify the similarity or difference between two strings using various distance or similarity metrics:
 
+- "indel":
+  Computes the Indel (Insertion-Deletion) distance, which counts only insertions and deletions needed to transform one string into another, excluding substitutions. This is equivalent to the Longest Common Subsequence (LCS) problem. Useful when character substitutions should not be considered as valid operations (e.g., DNA sequence alignment where only insertions/deletions occur).
 - "levenshtein":
   Computes the Levenshtein distance, which is the minimum number of single-character edits (insertions, deletions, or substitutions) required to transform one string into another. Suitable for general-purpose fuzzy matching where transpositions do not matter.
 - "damerau_levenshtein":

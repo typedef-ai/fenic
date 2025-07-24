@@ -251,7 +251,7 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.fuzzy_ratio",
             type_signature=Exact([StringType, StringType]),
-            return_type=IntegerType
+            return_type=DoubleType
         )
     )
 
@@ -260,7 +260,16 @@ def register_text_signatures():
         FunctionSignature(
             function_name="text.fuzzy_token_sort_ratio",
             type_signature=Exact([StringType, StringType]),
-            return_type=IntegerType
+            return_type=DoubleType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.fuzzy_token_set_ratio",
+        FunctionSignature(
+            function_name="text.fuzzy_token_set_ratio",
+            type_signature=Exact([StringType, StringType]),
+            return_type=DoubleType
         )
     )
 

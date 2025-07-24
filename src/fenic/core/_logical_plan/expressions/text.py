@@ -959,3 +959,25 @@ class FuzzyTokenSortRatioExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
+
+class FuzzyTokenSetRatioExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the fuzzy token set ratio between two strings.
+
+    This expression creates a new float column with the fuzzy token set ratio between the two input strings.
+    The fuzzy token set ratio is computed using a fuzzy matching algorithm.
+    """
+
+    function_name = "text.fuzzy_token_set_ratio"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]

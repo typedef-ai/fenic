@@ -51,6 +51,7 @@ from fenic.core._logical_plan.expressions import (
     EqualityComparisonExpr,
     FirstExpr,
     FuzzyRatioExpr,
+    FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
     ILikeExpr,
     IndexExpr,
@@ -1082,15 +1083,50 @@ class ExprConverter:
 
     @_convert_expr.register(FuzzyTokenSortRatioExpr)
     def _convert_fuzzy_token_sort_ratio_expr(self, logical: FuzzyTokenSortRatioExpr) -> pl.Expr:
-        left_tokens = self._convert_expr(logical.expr).str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
-        right_tokens = self._convert_expr(logical.other).str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
+        left_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.expr))
+        right_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.other))
 
         left_expr = left_tokens.list.sort().list.join(" ")
         right_expr = right_tokens.list.sort().list.join(" ")
 
         return _convert_fuzzy_similarity_method_to_expr(left_expr, right_expr, logical.method)
 
+    @_convert_expr.register(FuzzyTokenSetRatioExpr)
+    def _convert_fuzzy_token_set_ratio_expr(self, logical: FuzzyTokenSetRatioExpr) -> pl.Expr:
+        # Tokenize and normalize
+        left_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.expr))
+        right_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.other))
+
+        # Get unique tokens and sort
+        left_set = left_tokens.list.unique().list.sort()
+        right_set = right_tokens.list.unique().list.sort()
+
+        # Get intersection and differences
+        intersection = left_set.list.set_intersection(right_set)
+        diff_left = left_set.list.set_difference(right_set)
+        diff_right = right_set.list.set_difference(left_set)
+
+        # Create strings for comparison
+        intersection_str = intersection.list.sort().list.join(" ")
+        diff_left_str = diff_left.list.sort().list.join(" ")
+        diff_right_str = diff_right.list.sort().list.join(" ")
+        left_set_str = left_set.list.join(" ")  # Already sorted
+        right_set_str = right_set.list.join(" ")  # Already sorted
+
+        # Three comparisons matching canonical implementation:
+        # 1. diff_left vs diff_right
+        # 2. intersection vs left_set (intersection + diff_left)
+        # 3. intersection vs right_set (intersection + diff_right)
+        ratio1 = _convert_fuzzy_similarity_method_to_expr(diff_left_str, diff_right_str, logical.method)
+        ratio2 = _convert_fuzzy_similarity_method_to_expr(intersection_str, left_set_str, logical.method)
+        ratio3 = _convert_fuzzy_similarity_method_to_expr(intersection_str, right_set_str, logical.method)
+
+        # Return the maximum
+        return pl.max_horizontal([ratio1, ratio2, ratio3])
+
 def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
+    if method == "indel":
+        return expr.fuzz.normalized_indel_similarity(other)
     if method == "levenshtein":
         return expr.fuzz.normalized_levenshtein_similarity(other)
     elif method == "damerau_levenshtein":
@@ -1103,6 +1139,9 @@ def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, meth
         return expr.fuzz.normalized_hamming_similarity(other)
     else:
         raise InternalError(f"Unknown fuzzy similarity method: {method}. Invalid state.")
+
+def _tokenize_for_fuzzy_similarity(expr: pl.Expr) -> pl.Expr:
+    return expr.str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
 
 def _calculate_similarity_numpy(
     embeddings: np.ndarray, query: np.ndarray, metric: str

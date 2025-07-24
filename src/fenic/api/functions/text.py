@@ -13,6 +13,7 @@ from fenic.core._logical_plan.expressions import (
     ConcatExpr,
     CountTokensExpr,
     FuzzyRatioExpr,
+    FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
     JinjaExpr,
     LiteralExpr,
@@ -1033,7 +1034,7 @@ def jinja(
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "levenshtein") -> Column:
+def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
     """Compute the similarity between two strings using a fuzzy string matching algorithm.
 
     This function computes a fuzzy similarity score between two string columns (or a string column
@@ -1077,7 +1078,7 @@ def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method:
     return Column._from_logical_expr(FuzzyRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "levenshtein") -> Column:
+def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
     """Compute fuzzy similarity after sorting tokens in each string.
 
     Tokenizes strings by whitespace, sorts tokens alphabetically, concatenates
@@ -1106,3 +1107,40 @@ def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, st
         other_expr = other._logical_expr
 
     return Column._from_logical_expr(FuzzyTokenSortRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute fuzzy similarity using token set comparison.
+
+    Tokenizes strings by whitespace, creates sets of unique tokens, then
+    compares three combinations: diff1 vs diff2, intersection vs left set,
+    and intersection vs right set. Returns the maximum similarity score.
+    Useful for comparing strings where both word order and duplicates
+    don't matter.
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use for comparison
+
+    Returns:
+        Column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_set_ratio("description", "city of new york", "indel"))
+        # "new york city new" → unique tokens: {"city", "new", "york"}
+        # "city of new york" → unique tokens: {"city", "new", "of", "york"}
+        # intersection: {"city", "new", "york"}
+        # diff1: {} (empty)
+        # diff2: {"of"}
+        # Compares: diff1 vs diff2, intersection vs set1, intersection vs set2
+        # Returns max similarity score = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSetRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
