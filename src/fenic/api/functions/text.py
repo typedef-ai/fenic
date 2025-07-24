@@ -12,7 +12,11 @@ from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
+    FuzzyRatioExpr,
+    FuzzyTokenSetRatioExpr,
+    FuzzyTokenSortRatioExpr,
     JinjaExpr,
+    LiteralExpr,
     LogicalExpr,
     RecursiveTextChunkExpr,
     RegexpSplitExpr,
@@ -30,7 +34,8 @@ from fenic.core._logical_plan.expressions.text import (
     ChunkLengthFunction,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.enums import TranscriptFormatType
+from fenic.core.types import StringType
+from fenic.core.types.enums import FuzzySimilarityMethod, TranscriptFormatType
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
@@ -1027,3 +1032,124 @@ def jinja(
     return Column._from_logical_expr(
         JinjaExpr(column_exprs, jinja_template)
     )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute the similarity between two strings using a fuzzy string matching algorithm.
+
+    This function computes a fuzzy similarity score between two string columns (or a string column
+    and a literal string) for each row. It supports multiple well-known string similarity metrics,
+    including Levenshtein, Damerau-Levenshtein, Jaro, Jaro-Winkler, and Hamming.
+
+    The returned score is a similarity percentage between 0 and 100, where:
+        - 100 indicates the strings are identical
+        - 0 indicates maximum dissimilarity (as defined by the method)
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.ratio
+
+    Args:
+        column: A string column or column name. This is the left-hand side of the comparison.
+        other: A second string column or literal string. This is the right-hand side of the comparison.
+        method: A string indicating which similarity method to use. Must be one of:
+            - `"indel"`: Indel distance — counts only insertions and deletions (no substitutions); based on the Longest Common Subsequence.
+            - `"levenshtein"`: Levenshtein distance (edit distance)
+            - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
+            - `"jaro"`: Jaro similarity, accounts for transpositions and proximity
+            - `"jaro_winkler"`: Jaro-Winkler similarity, gives higher scores for common prefixes
+            - `"hamming"`: Hamming distance. Counts differing positions between two equal-length strings, padding shorter string if needed.
+
+    Returns:
+        Column: A double column with similarity scores in the range [0, 100].
+
+    Example: Compare two columns
+        ```python
+        result = df.select(
+            compute_fuzzy_ratio(col("a"), col("b"), method="levenshtein").alias("sim")
+        )
+        ```
+
+    Example: Compare a column to a literal string
+        ```python
+        result = df.select(
+            compute_fuzzy_ratio(col("a"), "world", method="jaro").alias("sim_to_world")
+        )
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute fuzzy similarity after sorting tokens in each string.
+
+    Tokenizes strings by whitespace, sorts tokens alphabetically, concatenates
+    them back into a string, then applies the specified similarity metric.
+    Useful for comparing strings where word order doesn't matter.
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_sort_ratio
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use after token sorting
+
+    Returns:
+        Double column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_sort_ratio(col("city"), "city  new  york", "levenshtein"))
+        # "new york city" → ["new", "york", "city"] → sorted → ["city", "new", "york"] → "city new york"
+        # "city new york" → ["city", "new", "york"] → sorted → ["city", "new", "york"] → "city new york"
+        # levenshtein similarity("city new york", "city new york") = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSortRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute fuzzy similarity using token set comparison.
+
+    Tokenizes strings by whitespace, creates sets of unique tokens, then
+    compares three combinations: diff1 vs diff2, intersection vs left set,
+    and intersection vs right set. Returns the maximum similarity score.
+    Useful for comparing strings where both word order and duplicates
+    don't matter.
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_set_ratio
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use for comparison
+
+    Returns:
+        Double column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_set_ratio(col("city"), "city of new york", "indel"))
+        # "new york city new" → unique tokens: {"city", "new", "york"}
+        # "city of new york" → unique tokens: {"city", "new", "of", "york"}
+        # intersection: {"city", "new", "york"}
+        # diff1: {} (empty)
+        # diff2: {"of"}
+        # Compares: diff1 vs diff2, intersection vs set1, intersection vs set2
+        # Returns max similarity score = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSetRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))

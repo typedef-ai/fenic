@@ -37,14 +37,24 @@ def validate_completion_parameters(
     Raises:
         ValidationError: If temperature or max_tokens are out of bounds for the model.
     """
+    # Check if any language models are configured
+    if not resolved_session_config.semantic.language_models:
+        raise ValidationError(
+            "No language models configured. This operation requires language models. "
+            "Please add language_models to your SemanticConfig."
+        )
+    language_model_config = resolved_session_config.semantic.language_models
     if model_alias is None:
-        model_alias = resolved_session_config.semantic.default_language_model
-    if model_alias not in resolved_session_config.semantic.language_models:
+        model_alias = language_model_config.default_model
+
+    if model_alias not in language_model_config.model_configs:
+        available_models = list(language_model_config.model_configs.keys())
         raise ValidationError(
             f"Language model alias '{model_alias}' not found in SessionConfig. "
-            f"Available models: {', '.join(resolved_session_config.semantic.language_models.keys()) or 'none'}"
+            f"Available models: {', '.join(available_models)}"
         )
-    model_config = resolved_session_config.semantic.language_models[model_alias]
+
+    model_config = language_model_config.model_configs[model_alias]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):

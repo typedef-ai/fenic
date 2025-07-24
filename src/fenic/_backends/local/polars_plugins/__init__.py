@@ -6,6 +6,9 @@ from fenic._backends.local.polars_plugins.chunking import (
 from fenic._backends.local.polars_plugins.dtypes import (
     Dtypes,
 )
+from fenic._backends.local.polars_plugins.fuzz import (
+    Fuzz,
+)
 from fenic._backends.local.polars_plugins.jinja import (
     Jinja,
 )
@@ -37,4 +40,5 @@ __all__ = [
     "Json",
     "Jinja",
     "Dtypes",
+    "Fuzz",
 ]

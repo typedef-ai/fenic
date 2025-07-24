@@ -52,6 +52,7 @@ from fenic.api import (
 from fenic.core import (
     ArrayType,
     BooleanType,
+    ClassDefinition,
     ClassifyExample,
     ClassifyExampleCollection,
     ColumnField,
@@ -62,6 +63,7 @@ from fenic.core import (
     DoubleType,
     EmbeddingType,
     FloatType,
+    FuzzySimilarityMethod,
     HtmlType,
     IntegerType,
     JoinExample,
@@ -129,6 +131,7 @@ __all__ = [
     "PredicateExample",
     "PredicateExampleCollection",
     "Schema",
+    "ClassDefinition",
     "ClassifyExample",
     "ClassifyExampleCollection",
     "JoinExample",
@@ -140,6 +143,7 @@ __all__ = [
     "StructField",
     "StructType",
     "TranscriptType",
+    "FuzzySimilarityMethod",
     # Functions
     "semantic",
     "text",

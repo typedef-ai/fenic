@@ -1,6 +1,5 @@
 import json
 import logging
-from enum import Enum
 from typing import List, Optional
 
 import polars as pl
@@ -110,17 +109,7 @@ EXAMPLES.create_example(
     )
 )
 
-SENTIMENT_ANALYSIS_MODEL = create_classification_pydantic_model(
-    Enum(
-        "Sentiment",
-        [
-            ("POSITIVE", "positive"),
-            ("NEGATIVE", "negative"),
-            ("NEUTRAL", "neutral"),
-        ],
-    )
-)
-
+SENTIMENT_ANALYSIS_MODEL = create_classification_pydantic_model(["positive", "negative", "neutral"])
 
 class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
     SYSTEM_PROMPT = """You are a sentiment analysis expert.
@@ -166,6 +155,11 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                 try:
                     data = json.loads(response)["output"]
                     predictions.append(data)
+                    if data not in ["positive", "negative", "neutral"]:
+                        logger.warning(
+                            f"Model returned invalid label '{data}'. Valid labels: positive, negative, neutral"
+                        )
+                        predictions.append(None)
                 except Exception as e:
                     logger.warning(
                         f"Invalid model output: {response} for semantic.analyze_sentiment: {e}"
