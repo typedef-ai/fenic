@@ -4,8 +4,11 @@ Test FunctionSignature class and return type inference.
 This tests the complete function signature validation and return type strategies.
 """
 
+from typing import Optional
+
 import pytest
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import ArrayLengthExpr, ColumnExpr
 from fenic.core._logical_plan.signatures.function_signature import (
@@ -23,7 +26,7 @@ from fenic.core.types.schema import ColumnField, Schema
 
 
 # Mock classes for testing
-class MockPlan:
+class MockPlanNode:
     def __init__(self, column_fields=None):
         if column_fields is None:
             column_fields = []
@@ -38,7 +41,7 @@ class MockColumn(LogicalExpr):
         self.name = name
         self.data_type = data_type
 
-    def to_column_field(self, plan):
+    def to_column_field(self, node, session_state: Optional[BaseSessionState] = None):
         return ColumnField(self.name, self.data_type)
 
     def children(self):
@@ -99,30 +102,30 @@ class TestFunctionSignature:
 
         # Create mock arguments
         string_col = MockColumn("text_col", StringType)
-        plan = MockPlan()
+        node = MockPlanNode()
 
         # Should validate and return correct type
-        return_type = sig.validate_and_infer_type([string_col], plan)
+        return_type = sig.validate_and_infer_type([string_col], node, None)
         assert return_type == StringType
 
         # Should fail validation with wrong type
         int_col = MockColumn("int_col", IntegerType)
         with pytest.raises(TypeMismatchError, match="upper Argument 0: expected StringType, got IntegerType"):
-            sig.validate_and_infer_type([int_col], plan)
+            sig.validate_and_infer_type([int_col], node, None)
 
     def test_dynamic_return_type_with_function(self):
         """Test DYNAMIC return type with custom function."""
         sig = FunctionSignature(function_name="array_constructor", type_signature=VariadicUniform(expected_min_args=1),
                                 return_type=ReturnTypeStrategy.DYNAMIC)
 
-        def dynamic_return_func(arg_types, logical_plan):
+        def dynamic_return_func(arg_types, logical_node, session_state):
             return ArrayType(arg_types[0])
 
         string_col = MockColumn("text_col", StringType)
-        plan = MockPlan()
+        node = MockPlanNode()
 
         # Should use dynamic function for return type
-        return_type = sig.validate_and_infer_type([string_col], plan, dynamic_return_func)
+        return_type = sig.validate_and_infer_type([string_col], node, None, dynamic_return_func)
         assert return_type == ArrayType(StringType)
 
 
@@ -155,19 +158,19 @@ class TestScalarFunctionIntegration:
     def test_validated_signatures_with_mock_plan(self):
         """Test that ValidatedSignature expressions work correctly with MockPlan."""
         # Create a plan with a string column
-        plan = MockPlan([ColumnField("text_col", ArrayType(StringType))])
+        node = MockPlanNode([ColumnField("text_col", ArrayType(StringType))])
 
         # Create a StrLengthExpr and test it
         col_expr = ColumnExpr("text_col")
         array_length_expr = ArrayLengthExpr(col_expr)
 
-        result = array_length_expr.to_column_field(plan)
+        result = array_length_expr.to_column_field(node)
         assert result.data_type == IntegerType
 
         # Test that type validation works (should fail for wrong type)
-        plan_wrong_type = MockPlan([ColumnField("int_col", IntegerType)])
+        node_wrong_type = MockPlanNode([ColumnField("int_col", IntegerType)])
         col_expr_wrong = ColumnExpr("int_col")
         array_length_expr_wrong = ArrayLengthExpr(col_expr_wrong)
 
         with pytest.raises(TypeMismatchError, match="array_size expects argument 0 to be an array type, got IntegerType"):
-            array_length_expr_wrong.to_column_field(plan_wrong_type)
+            array_length_expr_wrong.to_column_field(node_wrong_type)

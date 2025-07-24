@@ -1,39 +1,43 @@
 from typing import List
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     LogicalExpr,
     SortExpr,
 )
 from fenic.core._logical_plan.expressions.base import AggregateExpr
-from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core.types import Schema
 
 
-class Aggregate(LogicalPlan):
+class Aggregate(LogicalPlanNode):
     def __init__(
         self,
-        input: LogicalPlan,
         group_exprs: List[LogicalExpr],
         agg_exprs: List[AliasExpr],
     ):
-        self._input = input
+        super().__init__()
         self._group_exprs = group_exprs
         self._agg_exprs = agg_exprs
-        for expr in agg_exprs:
-            if not isinstance(expr.expr, AggregateExpr):
-                raise ValueError(f"Expression {expr} is not an aggregation")
-            _validate_agg_expr(expr.expr, group_exprs)
-        for expr in group_exprs:
-            _validate_groupby_expr(expr)
-        super().__init__(self._input.session_state)
 
-    def children(self) -> List[LogicalPlan]:
+    def children(self) -> List[LogicalPlanNode]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
-        group_fields = [expr.to_column_field(self._input) for expr in self._group_exprs]
-        agg_fields = [expr.to_column_field(self._input) for expr in self._agg_exprs]
+    def _validate_expressions(self):
+        for expr in self._agg_exprs:
+            if not isinstance(expr.expr, AggregateExpr):
+                raise ValueError(f"Expression {expr} is not an aggregation")
+            _validate_agg_expr(expr.expr, self._group_exprs)
+        for expr in self._group_exprs:
+            _validate_groupby_expr(expr)
+
+
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        self._validate_expressions()
+
+        group_fields = [expr.to_column_field(self._input, session_state) for expr in self._group_exprs]
+        agg_fields = [expr.to_column_field(self._input, session_state) for expr in self._agg_exprs]
         return Schema(column_fields=group_fields + agg_fields)
 
     def _repr(self) -> str:
@@ -45,12 +49,16 @@ class Aggregate(LogicalPlan):
     def agg_exprs(self) -> List[LogicalExpr]:
         return self._agg_exprs
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         if len(children) != 1:
             raise ValueError("Aggregate must have exactly one child")
-        result = Aggregate(children[0], self._group_exprs, self._agg_exprs)
-        result.set_cache_info(self.cache_info)
-        return result
+        return self.copy(self, children)
+
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
+        new_node = Aggregate(node._group_exprs, node._agg_exprs)
+        new_node.set_input(children[0])
+        return new_node
 
 def _validate_agg_expr(
     expr: LogicalExpr,

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
-
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -32,11 +31,11 @@ class EmbeddingNormalizeExpr(ValidatedSignature, LogicalExpr):
     def validator(self) -> SignatureValidator:
         return self._validator
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         # Use validator to handle signature validation (which ensures EmbeddingType)
-        super().to_column_field(plan)
+        super().to_column_field(node, session_state)
         # Get the actual input field to extract dimensions
-        input_field = self.expr.to_column_field(plan)
+        input_field = self.expr.to_column_field(node, session_state)
         self.dimensions = input_field.data_type.dimensions
         # Return same EmbeddingType - normalization preserves the model
         return ColumnField(name=str(self), data_type=input_field.data_type)
@@ -70,21 +69,21 @@ class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
         else:
             return f"embedding.compute_similarity({self.expr}, query_vector, metric={self.metric})"
 
-    def _validate_query_vector_dimensions(self, plan: LogicalPlan):
+    def _validate_query_vector_dimensions(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None):
         """Validate query vector dimensions match embedding dimensions."""
         if not isinstance(self.other, LogicalExpr):
             # Column vs query vector - check dimensions
-            input_field = self.expr.to_column_field(plan)
+            input_field = self.expr.to_column_field(node, session_state)
             if input_field.data_type.dimensions != len(self.other):
                 raise ValidationError(
                     f"Query vector dimensions ({len(self.other)}) must match embedding dimensions ({input_field.data_type.dimensions})"
                 )
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         # If comparison field is a query vector, validate its dimensions
-        self._validate_query_vector_dimensions(plan)
+        self._validate_query_vector_dimensions(node, session_state)
         # Use mixin's validation by calling super()
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
     def children(self) -> List[LogicalExpr]:
         return self._children

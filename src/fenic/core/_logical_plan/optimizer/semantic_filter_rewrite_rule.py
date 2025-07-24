@@ -11,8 +11,10 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.optimizer.base import (
     LogicalPlanOptimizerRule,
     OptimizationResult,
+    OptimizerNodeResult,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core._logical_plan.plans.transform import Filter
 
 
@@ -41,58 +43,75 @@ class SemanticFilterRewriteRule(LogicalPlanOptimizerRule):
     """
 
     def apply(self, logical_plan: LogicalPlan) -> OptimizationResult:
-        return self.optimize_node(logical_plan)
+        self.session_state = logical_plan.session_state
+        return self.optimize_plan(logical_plan)
 
-    def optimize_node(self, node: LogicalPlan) -> OptimizationResult:
+    def optimize_plan(self, plan: LogicalPlan) -> OptimizationResult:
+        optimizer_node_result = self.optimize_node(plan.logical_plan_node)
+        logical_plan = LogicalPlan(plan.session_state)
+        logical_plan.logical_plan_node = optimizer_node_result.node
+        return OptimizationResult(
+            logical_plan,
+            optimizer_node_result.was_modified
+        )
+
+    def optimize_node(self, node: LogicalPlanNode) -> OptimizerNodeResult:
         any_child_modified = False
-        optimized_children = []
+        optimized_children: list[LogicalPlanNode] = []
 
         for child in node.children():
             child_result = self.optimize_node(child)
-            optimized_children.append(child_result.plan)
+            optimized_children.append(child_result.node)
             any_child_modified = any_child_modified or child_result.was_modified
 
         new_node = node.with_children(optimized_children)
+        new_node._schema = node._schema
 
         if isinstance(new_node, Filter):
             filter_result = self.optimize_filter(new_node)
-            return OptimizationResult(
-                filter_result.plan, any_child_modified or filter_result.was_modified
+            return OptimizerNodeResult(
+                filter_result.node, any_child_modified or filter_result.was_modified
             )
 
-        return OptimizationResult(new_node, any_child_modified)
+        return OptimizerNodeResult(new_node, any_child_modified)
 
-    def optimize_filter(self, node: Filter) -> OptimizationResult:
+    def optimize_filter(self, node: Filter) -> OptimizerNodeResult:
         predicate = node.predicate()
 
         # Skip optimization if not an AND expression or doesn't contain semantic predicates
         if not self.is_and_expr(
             predicate
         ) or not self.count_semantic_predicate_expressions(predicate):
-            return OptimizationResult(node, False)
+            return OptimizerNodeResult(node, False)
 
         standard_predicates, semantic_predicates = self.partition_predicates(predicate)
 
         # Skip optimization if there's only one predicate total
         total_predicates = len(standard_predicates) + len(semantic_predicates)
         if total_predicates <= 1:
-            return OptimizationResult(node, False)
+            return OptimizerNodeResult(node, False)
 
         # Apply predicates in order of increasing cost
-        result = node._input
+        input = node._input
 
         # Apply standard predicates first (if any)
         if standard_predicates:
             standard_predicate_expr = self._make_and_expr(standard_predicates)
-            result = Filter(result, standard_predicate_expr)
+            result = Filter(standard_predicate_expr)
+            result.set_input(input)
+            result._build_schema_with_validation(self.session_state)
+        else:
+            result = input
 
         # Apply semantic predicates last
         for pred in semantic_predicates:
-            result = Filter(result, pred)
+            sem_predicate_result = Filter(pred)
+            sem_predicate_result.set_input(result)
+            sem_predicate_result._build_schema_with_validation(self.session_state)
+            result = sem_predicate_result
 
-        result.cache_info = node.cache_info
-
-        return OptimizationResult(result, True)
+        result.set_cache_info(node.cache_info)
+        return OptimizerNodeResult(result, True)
 
     # Returns a tuple of two lists:
     # - The first list contains all the standard predicates.

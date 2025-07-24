@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
+    from fenic.core._logical_plan.plans.node import LogicalPlanNode
     from fenic.core._logical_plan.signatures import SignatureValidator
     from fenic.core.types.datatypes import DataType
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core.types import ColumnField
 
 
@@ -40,8 +41,8 @@ class LogicalExpr(ABC):
         pass
 
     @abstractmethod
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        """Returns the schema field for the expression within the given plan."""
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
+        """Returns the schema field for the expression within the given plan node."""
         pass
 
     @abstractmethod
@@ -59,7 +60,7 @@ class SemanticExpr(LogicalExpr):
     """Marker class for semantic expressions that use LLM models."""
     
     @abstractmethod
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, plan: LogicalPlanNode):
         """Common validation for semantic functions."""
         pass
 
@@ -90,9 +91,9 @@ class ValidatedSignature:
     def children(self) -> List[LogicalExpr]:
         pass
     
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Default implementation using validator property."""
-        return_type = self.validator.validate_and_infer_type(self.children(), plan)
+        return_type = self.validator.validate_and_infer_type(self.children(), node, session_state)
         return ColumnField(name=str(self), data_type=return_type)
 
     def __str__(self) -> str:
@@ -128,22 +129,27 @@ class ValidatedDynamicSignature:
         pass
 
     @abstractmethod
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(
+        self,
+        arg_types: List[DataType],
+        node: LogicalPlanNode,
+        session_state: BaseSessionState) -> DataType:
         """Must be implemented by subclass for dynamic return type inference.
         
         Args:
             arg_types: List of argument data types after validation
-            plan: LogicalPlan for schema context
+            node: LogicalPlanNode for schema context
+            session_state: BaseSessionState for session state
             
         Returns:
             DataType: The dynamically inferred return type
         """
         pass
     
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Default implementation using validator property with dynamic return type."""
         return_type = self.validator.validate_and_infer_type(
-            self.children(), plan, self._infer_dynamic_return_type
+            self.children(), node, session_state, self._infer_dynamic_return_type
         )
         return ColumnField(name=str(self), data_type=return_type)
 

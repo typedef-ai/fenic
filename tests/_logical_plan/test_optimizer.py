@@ -92,6 +92,7 @@ def test_semantic_predicate_rewrite_basic(local_session):
         & (col("a_numeric_column") > 0)
         & semantic.predicate("something that references {blurb2}")
     )
+
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
         .optimize(df._logical_plan)

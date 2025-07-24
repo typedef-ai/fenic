@@ -25,6 +25,7 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.plans import (
     Filter,
     InMemorySource,
+    LogicalPlan,
     Projection,
     Union,
 )
@@ -82,7 +83,8 @@ def test_unsupported_expr(local_session):
 
 def test_convert_source_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    source = LogicalPlan(local_session._session_state)
+    source = source.add_node(InMemorySource(df))
     plan_converter = PlanConverter(local_session._session_state)
     physical = plan_converter.convert(
         source,
@@ -92,25 +94,29 @@ def test_convert_source_plan(local_session):
 
 def test_convert_projection_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    plan = LogicalPlan(local_session._session_state)
+    plan = plan.add_node(InMemorySource(df))
     plan_converter = PlanConverter(local_session._session_state)
-    proj = Projection(source, [ColumnExpr("a")])
+    proj = Projection([ColumnExpr("a")])
+    plan = plan.add_node(proj)
     physical = plan_converter.convert(
-        proj,
+        plan,
     )
     assert isinstance(physical, ProjectionExec)
 
 
 def test_convert_filter_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    plan = LogicalPlan(local_session._session_state)
+    plan = plan.add_node(InMemorySource(df))
     plan_converter = PlanConverter(local_session._session_state)
     filter_expr = NumericComparisonExpr(
         ColumnExpr("a"), LiteralExpr(2, IntegerType), Operator.GT
     )
-    filt = Filter(source, filter_expr)
+    filt = Filter(filter_expr)
+    plan = plan.add_node(filt)
     physical = plan_converter.convert(
-        filt,
+        plan,
     )
     assert isinstance(physical, FilterExec)
 
@@ -119,10 +125,18 @@ def test_convert_union_plan(local_session):
     plan_converter = PlanConverter(local_session._session_state)
     df1 = pl.DataFrame({"a": [1, 2]})
     df2 = pl.DataFrame({"a": [3, 4]})
-    source1 = InMemorySource(df1, local_session._session_state)
-    source2 = InMemorySource(df2, local_session._session_state)
+    plan = LogicalPlan(local_session._session_state)
+
+    source1 = InMemorySource(df1)
+    source1._build_schema_with_validation(local_session._session_state)
+    source2 = InMemorySource(df2)
+    source2._build_schema_with_validation(local_session._session_state)
+
+    # plan = plan.add_node(source1)
+    # plan = plan.add_node(source2)
     union = Union([source1, source2])
+    plan = plan.add_node(union)
     physical = plan_converter.convert(
-        union,
+        plan,
     )
     assert isinstance(physical, UnionExec)

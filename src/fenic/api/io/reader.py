@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
     from fenic.core._interfaces import BaseSessionState
 
-from fenic.core._logical_plan.plans import FileSource
+from fenic.core._logical_plan.plans import FileSource, LogicalPlan
 from fenic.core.error import ValidationError
 
 
@@ -217,12 +217,12 @@ class DataFrameReader:
         # Convert all paths to strings
         paths_str = [str(p) for p in paths_list]
 
-        logical_node = FileSource(
-            paths=paths_str,
-            file_format=file_format,
-            session_state=self._session_state,
-            options=options,
-        )
         from fenic.api.dataframe import DataFrame
 
-        return DataFrame._from_logical_plan(logical_node)
+        return DataFrame._from_logical_plan(
+            LogicalPlan(self._session_state),
+            FileSource(
+                paths=paths_str,
+                file_format=file_format,
+                options=options,
+            ))

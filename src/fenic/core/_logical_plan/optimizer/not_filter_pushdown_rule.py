@@ -7,8 +7,10 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.optimizer.base import (
     LogicalPlanOptimizerRule,
     OptimizationResult,
+    OptimizerNodeResult,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core._logical_plan.plans.transform import Filter
 
 
@@ -27,31 +29,42 @@ class NotFilterPushdownRule(LogicalPlanOptimizerRule):
     """
 
     def apply(self, logical_plan: LogicalPlan) -> OptimizationResult:
-        return self.optimize_node(logical_plan)
+        return self.optimize_plan(logical_plan)
 
-    def optimize_node(self, node: LogicalPlan) -> OptimizationResult:
+    def optimize_plan(self, plan: LogicalPlan) -> OptimizationResult:
+        # Optimizes the plan by traversing the logical plan node tree.
+        optimizer_node_result = self.optimize_node(plan.logical_plan_node)
+        logical_plan = LogicalPlan(plan.session_state)
+        logical_plan.logical_plan_node = optimizer_node_result.node
+        return OptimizationResult(
+            logical_plan,
+            optimizer_node_result.was_modified,
+        )
+
+
+    def optimize_node(self, node: LogicalPlanNode) -> OptimizerNodeResult:
         any_child_modified = False
-        optimized_children = []
-
-        # First, recursively optimize all children
+        optimized_children: list[LogicalPlanNode] = []
+                # First, recursively optimize all children
         for child in node.children():
             child_result = self.optimize_node(child)
-            optimized_children.append(child_result.plan)
+            optimized_children.append(child_result.node)
             any_child_modified = any_child_modified or child_result.was_modified
 
         # Update node with optimized children
         new_node = node.with_children(optimized_children)
+        new_node._schema = node._schema
 
         # If this is a filter node, apply NOT pushdown to its predicate
         if isinstance(new_node, Filter):
             filter_result = self.optimize_filter(new_node)
-            return OptimizationResult(
-                filter_result.plan, any_child_modified or filter_result.was_modified
+            return OptimizerNodeResult(
+                filter_result.node, any_child_modified or filter_result.was_modified
             )
 
-        return OptimizationResult(new_node, any_child_modified)
+        return OptimizerNodeResult(new_node, any_child_modified)
 
-    def optimize_filter(self, node: Filter) -> OptimizationResult:
+    def optimize_filter(self, node: Filter) -> OptimizerNodeResult:
         predicate = node.predicate()
 
         # Apply selective NOT pushdown transformation to the predicate
@@ -59,12 +72,14 @@ class NotFilterPushdownRule(LogicalPlanOptimizerRule):
 
         # If the predicate was changed, create a new filter with the transformed predicate
         if transformed_predicate != predicate:
-            new_filter = Filter(node._input, transformed_predicate)
+            new_filter = Filter(transformed_predicate)
+            new_filter.set_input(node._input)
+            new_filter._schema = node._schema
             new_filter.cache_info = node.cache_info
-            return OptimizationResult(new_filter, True)
+            return OptimizerNodeResult(new_filter, True)
 
         # No change needed
-        return OptimizationResult(node, False)
+        return OptimizerNodeResult(node, False)
 
     def push_not_inward(self, expr: LogicalExpr) -> LogicalExpr:
         """Recursively push NOT operators inward but only in ways that increase AND expressions.

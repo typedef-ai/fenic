@@ -1,16 +1,17 @@
 from typing import List, Literal
 
-from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core.error import InternalError
 from fenic.core.types import Schema
 
 
-class FileSink(LogicalPlan):
+class FileSink(LogicalPlanNode):
     """Logical plan node that represents a file writing operation."""
 
     def __init__(
         self,
-        child: LogicalPlan,
+        child: LogicalPlanNode,
         sink_type: Literal["csv", "parquet"],
         path: str,
         mode: Literal["error", "overwrite", "ignore"] = "error",
@@ -26,17 +27,17 @@ class FileSink(LogicalPlan):
                  - overwrite: Overwrites the file if it exists
                  - ignore: Silently ignores operation if file exists
         """
+        super().__init__()
         self.child = child
         self.sink_type = sink_type
         self.path = path
         self.mode = mode
-        super().__init__(self.child.session_state)
 
-    def children(self) -> List[LogicalPlan]:
+    def children(self) -> List[LogicalPlanNode]:
         """Returns the child node of this sink operator."""
         return [self.child]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""
         return self.child.schema()
 
@@ -48,7 +49,7 @@ class FileSink(LogicalPlan):
             f"mode='{self.mode}')"
         )
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         """Create a new file sink with the same properties but different children.
 
         Args:
@@ -64,27 +65,24 @@ class FileSink(LogicalPlan):
             raise InternalError(
                 f"FileSink expects exactly one child but got {len(children)}"
             )
-        return FileSink(
-            child=children[0],
-            sink_type=self.sink_type,
-            path=self.path,
-            mode=self.mode,
-        )
+        return self.copy(self, children)
 
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
+        return FileSink(children[0], node.sink_type, node.path, node.mode)
 
-class TableSink(LogicalPlan):
+class TableSink(LogicalPlanNode):
     """Logical plan node that represents a table writing operation."""
-
     def __init__(
         self,
-        child: LogicalPlan,
+        child: LogicalPlanNode,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
     ):
         """Initialize a table sink node.
 
         Args:
-            child: The logical plan that produces data to be written
+            child: The logical plan node that produces data to be written
             table_name: Name of the table to write to
             mode: Write mode. Default: "error"
                  - error: Raises an error if table exists
@@ -92,16 +90,16 @@ class TableSink(LogicalPlan):
                  - overwrite: Overwrites existing table
                  - ignore: Silently ignores operation if table exists
         """
+        super().__init__()
         self.child = child
         self.table_name = table_name
         self.mode = mode
-        super().__init__(self.child.session_state)
 
-    def children(self) -> List[LogicalPlan]:
+    def children(self) -> List[LogicalPlanNode]:
         """Returns the child node of this sink operator."""
         return [self.child]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""
         return self.child.schema()
 
@@ -109,7 +107,7 @@ class TableSink(LogicalPlan):
         """Return the string representation for this table sink plan."""
         return f"TableSink(table_name='{self.table_name}', mode='{self.mode}')"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         """Create a new table sink with the same properties but different children.
 
         Args:
@@ -125,8 +123,12 @@ class TableSink(LogicalPlan):
             raise InternalError(
                 f"TableSink expects exactly one child but got {len(children)}"
             )
+        return self.copy(self, children)
+
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         return TableSink(
             child=children[0],
-            table_name=self.table_name,
-            mode=self.mode,
+            table_name=node.table_name,
+            mode=node.mode,
         )

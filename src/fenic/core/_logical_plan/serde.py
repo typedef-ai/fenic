@@ -2,6 +2,7 @@ import cloudpickle  # nosec: B403
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 
 
 class LogicalPlanSerde:
@@ -17,28 +18,28 @@ class LogicalPlanSerde:
         Returns:
             bytes: The serialized plan
         """
-        # For now, we need to copy the plan in a bottom-up manner, and then walk it again top-down to remove the session state.
-        # We can't nullify the session state during the bottom-up traversal because some plan nodes rely on their children's
-        # session state during initialization. Clearing it too early can break this initialization logic.
-        # TODO(rohitrastogi): Decouple plan construction logic from plan validation logic.
-        def copy_plan(plan: LogicalPlan) -> LogicalPlan:
+        # For now, we need to copy the plan in a bottom-up manner.
+        def copy_plan(node: LogicalPlanNode) -> LogicalPlanNode:
             new_children = []
-            for child in plan.children():
+            for child in node.children():
                 new_children.append(copy_plan(child))
-            return plan.with_children(new_children)
+            return node.with_children(new_children)
 
-        def remove_session_state(plan: LogicalPlan) -> LogicalPlan:
-            plan.session_state = None
-            for child in plan.children():
-                remove_session_state(child)
-            return plan
-
-        copied_plan = copy_plan(plan)
-        remove_session_state(copied_plan)
-        return cloudpickle.dumps(copied_plan)
+        # we only want to serialize the logical plan node tree, not the session state.
+        copied_logical_plan_node = copy_plan(plan.logical_plan_node)
+        return cloudpickle.dumps(copied_logical_plan_node)
 
     @staticmethod
-    def deserialize(data: bytes) -> LogicalPlan:
+    def deserialize_into_logical_plan(data: bytes, session_state: BaseSessionState) -> LogicalPlan:
+        print("Deserializing into logical plan.")
+        logical_plan_node = LogicalPlanSerde.deserialize(data)
+        logical_plan = LogicalPlan(session_state)
+        logical_plan.logical_plan_node = logical_plan_node
+        #logical_plan.update_schema()
+        return logical_plan
+
+    @staticmethod
+    def deserialize(data: bytes) -> LogicalPlanNode:
         """Deserialize bytes back into a LogicalPlan using pickle.
 
         Args:
@@ -51,19 +52,14 @@ class LogicalPlanSerde:
 
     @staticmethod
     def build_logical_plan_with_session_state(
-        plan: LogicalPlan, session: BaseSessionState
+        node: LogicalPlanNode, session: BaseSessionState
     ) -> LogicalPlan:
         """Build a LogicalPlan with the session state.
 
         Args:
-            plan: The LogicalPlan to build
+            node: The LogicalPlanNode tree to source the plan
             session: The session state
         """
-        # TODO(DY): replace pickle with substrait so we don't need this step
-        new_children = []
-        for child in plan.children():
-            new_children.append(
-                LogicalPlanSerde.build_logical_plan_with_session_state(child, session)
-            )
-        plan.session_state = session
-        return plan.with_children(new_children)
+        plan = LogicalPlan(session)
+        plan.logical_plan_node = node
+        return plan

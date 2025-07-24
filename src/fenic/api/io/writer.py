@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 from pydantic import ConfigDict, validate_call
 
-from fenic.core._logical_plan.plans import FileSink, TableSink
+from fenic.core._logical_plan.plans import FileSink, LogicalPlan, TableSink
 from fenic.core.error import ValidationError
 from fenic.core.metrics import QueryMetrics
 
@@ -65,9 +65,8 @@ class DataFrameWriter:
             df.write.save_as_table("my_table", mode="overwrite")  # Replaces existing table
             ```
         """
-        sink_plan = TableSink(
-            child=self._dataframe._logical_plan, table_name=table_name, mode=mode
-        )
+        sink_plan = LogicalPlan(self._dataframe._logical_plan.session_state)
+        sink_plan = sink_plan.add_node(TableSink(self._dataframe._logical_plan.logical_plan_node, table_name, mode))
 
         metrics = self._dataframe._logical_plan.session_state.execution.save_as_table(
             sink_plan, table_name=table_name, mode=mode
@@ -114,12 +113,8 @@ class DataFrameWriter:
                 f"Your path '{file_path}' is missing the extension."
             )
 
-        sink_plan = FileSink(
-            child=self._dataframe._logical_plan,
-            sink_type="csv",
-            path=file_path,
-            mode=mode,
-        )
+        sink_plan = LogicalPlan(self._dataframe._logical_plan.session_state)
+        sink_plan = sink_plan.add_node(FileSink(self._dataframe._logical_plan.logical_plan_node, "csv", file_path, mode))
 
         metrics = self._dataframe._logical_plan.session_state.execution.save_to_file(
             sink_plan, file_path=file_path, mode=mode
@@ -166,12 +161,8 @@ class DataFrameWriter:
                 f"Your path '{file_path}' is missing the extension."
             )
 
-        sink_plan = FileSink(
-            child=self._dataframe._logical_plan,
-            sink_type="parquet",
-            path=file_path,
-            mode=mode,
-        )
+        sink_plan = LogicalPlan(self._dataframe._logical_plan.session_state)
+        sink_plan = sink_plan.add_node(FileSink(self._dataframe._logical_plan.logical_plan_node, "parquet", file_path, mode))
 
         metrics = self._dataframe._logical_plan.session_state.execution.save_to_file(
             sink_plan, file_path=file_path, mode=mode

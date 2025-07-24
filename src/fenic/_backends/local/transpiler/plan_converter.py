@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 from fenic._backends.local.transpiler.expr_converter import (
     ExprConverter,
 )
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 
 
 class PlanConverter:
@@ -69,10 +70,7 @@ class PlanConverter:
         self.session_state = session_state
         self.expr_converter = ExprConverter(session_state)
 
-    def convert(
-        self,
-        logical: LogicalPlan,
-    ) -> PhysicalPlan:
+    def convert(self, logical_plan: LogicalPlan) -> PhysicalPlan:
         # Note the order of the rules is important here.
         # NotFilterPushdownRule() and MergeFiltersRule() can be applied
         # in any order, but both must be applied before SemanticFilterRewriteRule()
@@ -81,11 +79,17 @@ class PlanConverter:
             LogicalPlanOptimizer(
                 [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
             )
-            .optimize(logical)
+            .optimize(logical_plan)
             .plan
         )
+        return self.convert_logical_plan_node_tree(logical.logical_plan_node)
+
+    def convert_logical_plan_node_tree(
+        self,
+        logical: LogicalPlanNode,
+    ) -> PhysicalPlan:
         if isinstance(logical, Projection):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
             physical_exprs = [
@@ -100,7 +104,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Filter):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
             physical_expr = self.expr_converter.convert(
@@ -116,7 +120,7 @@ class PlanConverter:
 
         elif isinstance(logical, Union):
             children_physical = [
-                self.convert(child)
+                self.convert_logical_plan_node_tree(child)
                 for child in logical.children()
             ]
             return UnionExec(
@@ -143,7 +147,7 @@ class PlanConverter:
                 session_state=self.session_state,
             )
         elif isinstance(logical, Limit):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
             return LimitExec(
@@ -154,7 +158,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Aggregate):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
             physical_group_exprs = [
@@ -177,10 +181,10 @@ class PlanConverter:
             left_logical = logical.children()[0]
             right_logical = logical.children()[1]
 
-            left_physical = self.convert(
+            left_physical = self.convert_logical_plan_node_tree(
                 left_logical
             )
-            right_physical = self.convert(
+            right_physical = self.convert_logical_plan_node_tree(
                 right_logical
             )
             left_on_exprs = [
@@ -202,10 +206,10 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticJoin):
-            left_physical = self.convert(
+            left_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
-            right_physical = self.convert(
+            right_physical = self.convert_logical_plan_node_tree(
                 logical.children()[1]
             )
 
@@ -223,10 +227,10 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticSimilarityJoin):
-            left_physical = self.convert(
+            left_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
-            right_physical = self.convert(
+            right_physical = self.convert_logical_plan_node_tree(
                 logical.children()[1]
             )
             return SemanticSimilarityJoinExec(
@@ -254,7 +258,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticCluster):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.children()[0]
             )
             physical_by_expr = self.expr_converter.convert(
@@ -278,7 +282,7 @@ class PlanConverter:
             physical_expr = self.expr_converter.convert(
                 logical._expr
             )
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 child_logical
             )
             target_field = logical._expr.to_column_field(child_logical)
@@ -292,7 +296,7 @@ class PlanConverter:
 
         elif isinstance(logical, DropDuplicates):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 child_logical
             )
 
@@ -305,7 +309,7 @@ class PlanConverter:
 
         elif isinstance(logical, Sort):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 child_logical
             )
 
@@ -336,7 +340,7 @@ class PlanConverter:
 
         elif isinstance(logical, Unnest):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 child_logical
             )
             return UnnestExec(
@@ -347,7 +351,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, FileSink):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.child
             )
             return FileSinkExec(
@@ -360,7 +364,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, TableSink):
-            child_physical = self.convert(
+            child_physical = self.convert_logical_plan_node_tree(
                 logical.child
             )
             return DuckDBTableSinkExec(
@@ -374,7 +378,7 @@ class PlanConverter:
 
         elif isinstance(logical, SQL):
             return SQLExec(
-                children=[self.convert(child) for child in logical.children()],
+                children=[self.convert_logical_plan_node_tree(child) for child in logical.children()],
                 query=logical.resolved_query,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,

@@ -15,12 +15,13 @@ from fenic.core.types import (
 )
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
+    pass
 import fenic.core._utils.misc as utils
 from fenic._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     AggregateExpr,
     LogicalExpr,
@@ -29,6 +30,7 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedSignature,
 )
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import ValidationError
@@ -81,18 +83,18 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         """Return the child expressions."""
         return self.exprs
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation with dynamic return type
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
-            plan.session_state.session_config,
+            session_state.session_config,
             self.temperature,
             self.max_tokens
         )
@@ -132,28 +134,32 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         """Return the child expressions."""
         return [self.expr]
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation with dynamic return type
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
     def __str__(self):
         schema_hash = utils.get_content_hash(str(self.schema))
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
-            plan.session_state.session_config,
+            session_state.session_config,
             self.temperature,
             self.max_tokens
         )
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(
+        self,
+        arg_types: List[DataType],
+        node: LogicalPlanNode,
+        session_state: BaseSessionState) -> DataType:
         """Return StructType based on the schema."""
         return convert_pydantic_type_to_custom_struct_type(self.schema)
 
@@ -196,21 +202,21 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         """Return the child expressions."""
         return self.exprs
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.predicate_{instruction_hash}({exprs_str})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for predicate)."""
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        validate_completion_parameters(self.model_alias, session_state.session_config, self.temperature)
 
 
 class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
@@ -248,18 +254,18 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         """Return the child expressions."""
         return self.exprs
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
-            plan.session_state.session_config,
+            session_state.session_config,
             self.temperature,
             self.max_tokens
         )
@@ -315,16 +321,16 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         labels_str = ", ".join(f"'{class_def.label}'" for class_def in self.classes)
         return f"semantic.classify({self.expr}, [{labels_str}])"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters (called after signature validation)."""
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        validate_completion_parameters(self.model_alias, session_state.session_config, self.temperature)
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
 class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.analyze_sentiment"
@@ -351,19 +357,19 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
         """Return the child expressions."""
         return [self.expr]
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
     def __str__(self):
         return f"semantic.analyze_sentiment({self.expr})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for analyze_sentiment)."""
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        validate_completion_parameters(self.model_alias, session_state.session_config, self.temperature)
 
 
 class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -392,24 +398,32 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
         """Return the child expressions."""
         return [self.expr]
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation with dynamic return type
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
     def __str__(self) -> str:
         return f"semantic.embed({self.expr}, {self.model_alias})"
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(
+        self,
+        arg_types: List[DataType],
+        node: LogicalPlanNode,
+        session_state: BaseSessionState) -> DataType:
         """Return EmbeddingType with specific dimensions based on model."""
-        return_type = self._get_embedding_type_from_config(plan)
+        return_type = self._get_embedding_type_from_config(node, session_state)
         return return_type
 
-    def _get_embedding_type_from_config(self, plan: LogicalPlan) -> EmbeddingType:
+    def _get_embedding_type_from_config(self, node: LogicalPlanNode, session_state: BaseSessionState) -> EmbeddingType:
         """Validate model configuration and return the correct EmbeddingType."""
-        semantic_config = plan.session_state.session_config.semantic
+        return self._validate_model_config(node, session_state)
+
+    def _validate_model_config(self, node: LogicalPlanNode, session_state: BaseSessionState) -> EmbeddingType:
+        """Validate model configuration and return the correct EmbeddingType."""
+        semantic_config = session_state.session_config.semantic
 
         # Check if any embedding models are configured
         if not semantic_config.embedding_models:
@@ -436,7 +450,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
             dimensions=embedding_params.output_dimensions
         )
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Embeddings don't use completion parameters."""
         pass
 
@@ -468,16 +482,16 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
         """Return the child expressions."""
         return [self.expr]
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(node, session_state)
         # Use mixin's implementation
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
-    def _validate_completion_parameters(self, plan: LogicalPlan):
+    def _validate_completion_parameters(self, node: LogicalPlanNode, session_state: BaseSessionState):
         """Validate completion parameters."""
-        validate_completion_parameters(self.model_alias, plan.session_state.session_config, self.temperature)
+        validate_completion_parameters(self.model_alias, session_state.session_config, self.temperature)
 
     def __str__(self) -> str:
         return f"semantic.summarize({self.expr})"

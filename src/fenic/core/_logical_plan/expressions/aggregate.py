@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
+    from fenic.core._logical_plan.plans.node import LogicalPlanNode
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     AggregateExpr,
     LogicalExpr,
@@ -52,15 +53,19 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, node: LogicalPlanNode, session_state: Optional[BaseSessionState] = None) -> ColumnField:
         """Use signature to validate and get return type, storing input type for transpiler."""
         # Get the input type first
-        self.input_type = self.expr.to_column_field(plan).data_type
+        self.input_type = self.expr.to_column_field(node, session_state).data_type
 
         # Now use the mixin implementation to validate and get return type
-        return super().to_column_field(plan)
+        return super().to_column_field(node, session_state)
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(
+            self,
+            arg_types: List[DataType],
+            node: LogicalPlanNode,
+            session_state: BaseSessionState) -> DataType:
         """Return EmbeddingType for embeddings, DoubleType for numeric types."""
         input_type = arg_types[0]
         if isinstance(input_type, EmbeddingType):
@@ -135,7 +140,11 @@ class ListExpr(ValidatedDynamicSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(
+            self,
+            arg_types: List[DataType],
+            node: LogicalPlanNode,
+            session_state: BaseSessionState) -> DataType:
         """Return ArrayType with element type matching the input type."""
         return ArrayType(arg_types[0])
 

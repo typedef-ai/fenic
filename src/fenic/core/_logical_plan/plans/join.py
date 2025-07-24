@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     LogicalExpr,
 )
-from fenic.core._logical_plan.plans.base import LogicalPlan, ensure_same_session
+from fenic.core._logical_plan.plans.base import ensure_same_session
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
+
+#from fenic.core._logical_plan.plans.base import ensure_same_session
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.error import TypeMismatchError
 from fenic.core.types import (
@@ -21,30 +25,33 @@ from fenic.core.types.enums import SemanticSimilarityMetric
 SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 
 
-class Join(LogicalPlan):
+class Join(LogicalPlanNode):
     def __init__(
         self,
-        left: LogicalPlan,
-        right: LogicalPlan,
+        left: LogicalPlanNode,
+        right: LogicalPlanNode,
         left_on: List[LogicalExpr],
         right_on: List[LogicalExpr],
         how: str,
     ):
+        super().__init__()
         self._left = left
         self._right = right
         self._left_on = left_on
         self._right_on = right_on
         self._how = how
-        ensure_same_session(left.session_state, right.session_state)
-        super().__init__(left.session_state)
 
-    def children(self) -> List[LogicalPlan]:
+    def set_input(self, input: LogicalPlanNode):
+        # Nothing to do here, as we require 2 inputs (the left and the right)
+        pass
+
+    def children(self) -> List[LogicalPlanNode]:
         return [self._left, self._right]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         for left_on, right_on in zip(self._left_on, self._right_on, strict=False):
-            left_type = left_on.to_column_field(self._left).data_type
-            right_type = right_on.to_column_field(self._right).data_type
+            left_type = left_on.to_column_field(self._left, session_state).data_type
+            right_type = right_on.to_column_field(self._right, session_state).data_type
             if left_type != right_type:
                 raise TypeMismatchError.from_message(
                     f"Join condition: Cannot compare '{left_on.name}' ({left_type}) with "
@@ -102,34 +109,41 @@ class Join(LogicalPlan):
     def how(self) -> str:
         return self._how
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         if len(children) != 2:
             raise ValueError("Join must have exactly two children")
-        result = Join(children[0], children[1], self._left_on, self._right_on, self._how)
-        result.set_cache_info(self.cache_info)
-        return result
+        return self.copy(self, children)
 
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
+        return Join(children[0], children[1], node._left_on, node._right_on, node._how)
 
-class BaseSemanticJoin(LogicalPlan, ABC):
+    @classmethod
+    def validate_same_session(
+            cls,
+            current_session_state: BaseSessionState,
+            other_session_state: BaseSessionState) -> None:
+        ensure_same_session(current_session_state, other_session_state)
+
+class BaseSemanticJoin(LogicalPlanNode, ABC):
     def __init__(
         self,
-        left: LogicalPlan,
-        right: LogicalPlan,
+        left: LogicalPlanNode,
+        right: LogicalPlanNode,
         left_on: LogicalExpr,
         right_on: LogicalExpr,
     ):
+        super().__init__()
         self._left = left
         self._right = right
         self._left_on = left_on
         self._right_on = right_on
-        ensure_same_session(left.session_state, right.session_state)
-        super().__init__(left.session_state)
 
     @abstractmethod
     def _validate_columns(self) -> None:
         pass
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         self._validate_columns()
         return Schema(
             self._left.schema().column_fields + self._right.schema().column_fields
@@ -141,19 +155,26 @@ class BaseSemanticJoin(LogicalPlan, ABC):
     def right_on(self) -> LogicalExpr:
         return self._right_on
 
-    def children(self) -> List[LogicalPlan]:
+    def children(self) -> List[LogicalPlanNode]:
         return [self._left, self._right]
 
     @abstractmethod
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         raise NotImplementedError("Subclasses must implement with_children")
+
+    @classmethod
+    def validate_same_session(
+            cls,
+            current_session_state: BaseSessionState,
+            other_session_state: BaseSessionState) -> None:
+        ensure_same_session(current_session_state, other_session_state)
 
 
 class SemanticJoin(BaseSemanticJoin):
     def __init__(
         self,
-        left: LogicalPlan,
-        right: LogicalPlan,
+        left: LogicalPlanNode,
+        right: LogicalPlanNode,
         left_on: ColumnExpr,
         right_on: ColumnExpr,
         join_instruction: str,
@@ -161,12 +182,15 @@ class SemanticJoin(BaseSemanticJoin):
         model_alias: Optional[str] = None,
         examples: Optional[JoinExampleCollection] = None,
     ):
-        validate_completion_parameters(model_alias, left.session_state.session_config, temperature)
         self._join_instruction = join_instruction
         self._examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
         super().__init__(left, right, left_on, right_on)
+
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        validate_completion_parameters(self.model_alias, session_state.session_config, self.temperature)
+        return super()._build_schema(session_state)
 
     def _validate_columns(self) -> None:
         left_schema = self._left.schema()
@@ -209,29 +233,30 @@ class SemanticJoin(BaseSemanticJoin):
             f"right_on={self._right_on.name}, join_instruction={self._join_instruction})"
         )
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode:
         if len(children) != 2:
             raise ValueError(f"SemanticJoin expects 2 children, got {len(children)}")
+        return self.copy(self, children)
 
-        result = SemanticJoin(
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
+        return SemanticJoin(
             left=children[0],
             right=children[1],
-            left_on=self._left_on,
-            right_on=self._right_on,
-            join_instruction=self._join_instruction,
-            examples=self._examples,
-            temperature=self.temperature,
-            model_alias=self.model_alias,
+            left_on=node._left_on,
+            right_on=node._right_on,
+            join_instruction=node._join_instruction,
+            examples=node._examples,
+            temperature=node.temperature,
+            model_alias=node.model_alias,
         )
-        result.set_cache_info(self.cache_info)
-        return result
 
 
 class SemanticSimilarityJoin(BaseSemanticJoin):
     def __init__(
         self,
-        left: LogicalPlan,
-        right: LogicalPlan,
+        left: LogicalPlanNode,
+        right: LogicalPlanNode,
         left_on: LogicalExpr,
         right_on: LogicalExpr,
         k: int,
@@ -243,13 +268,13 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         self._similarity_score_column = similarity_score_column
         super().__init__(left, right, left_on, right_on)
 
-    def _validate_columns(self) -> None:
-        left_dtype = self._left_on.to_column_field(self._left).data_type
+    def _validate_columns(self, session_state: BaseSessionState) -> None:
+        left_dtype = self._left_on.to_column_field(self._left, session_state).data_type
         if not isinstance(left_dtype, EmbeddingType):
             raise TypeMismatchError.from_message(
                 f"Cannot apply semantic.sim_join on non embeddings type left join key column '{self._left_on.name}' with type {left_dtype}",
             )
-        right_dtype = self._right_on.to_column_field(self._right).data_type
+        right_dtype = self._right_on.to_column_field(self._right, session_state).data_type
         if not left_dtype == right_dtype:
             raise TypeMismatchError.from_message(
                 f"Cannot apply semantic.sim_join with mismatched types: left column '{self._left_on.name}' has type {left_dtype}, right column '{self._right_on.name}' has type {right_dtype}",
@@ -270,8 +295,8 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             f"right_on={self._right_on.name}, k={self._k}, "
         )
 
-    def _build_schema(self) -> Schema:
-        self._validate_columns()
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        self._validate_columns(session_state)
         # add scores field if requested by user.
         additional_fields = []
         if self._similarity_score_column:
@@ -287,20 +312,21 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             + additional_fields
         )
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlanNode]) -> LogicalPlanNode :
         if len(children) != 2:
             raise ValueError(
                 f"SemanticSimilarityJoin expects 2 children, got {len(children)}"
             )
+        return self.copy(self, children)
 
-        result = SemanticSimilarityJoin(
+    @classmethod
+    def _create_new_node(cls, node: LogicalPlanNode, children: List[LogicalPlanNode]) -> LogicalPlanNode:
+        return SemanticSimilarityJoin(
             left=children[0],
             right=children[1],
-            left_on=self._left_on,
-            right_on=self._right_on,
-            k=self._k,
-            similarity_metric=self._similarity_metric,
-            similarity_score_column=self._similarity_score_column,
+            left_on=node._left_on,
+            right_on=node._right_on,
+            k=node._k,
+            similarity_metric=node._similarity_metric,
+            similarity_score_column=node._similarity_score_column,
         )
-        result.set_cache_info(self.cache_info)
-        return result

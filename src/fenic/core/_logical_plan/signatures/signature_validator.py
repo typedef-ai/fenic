@@ -9,8 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan.plans.base import LogicalPlan
+    from fenic.core._logical_plan.plans.node import LogicalPlanNode
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.signatures.function_signature import FunctionSignature
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
@@ -36,8 +37,9 @@ class SignatureValidator:
     def validate_and_infer_type(
         self,
         args: List[LogicalExpr],
-        plan: LogicalPlan,
-        dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlan], DataType]] = None
+        node: LogicalPlanNode,
+        session_state: BaseSessionState,
+        dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlanNode], DataType]] = None
     ) -> DataType:
         """Validate arguments and infer return type using the plan's schema.
         
@@ -46,7 +48,8 @@ class SignatureValidator:
         
         Args:
             args: List of LogicalExpr arguments to validate
-            plan: LogicalPlan object for schema context
+            node: LogicalPlanNode object for schema context
+            session_state: BaseSessionState
             dynamic_return_type_func: Optional function for dynamic return type inference
             
         Returns:
@@ -60,4 +63,4 @@ class SignatureValidator:
             self._signature = FunctionRegistry.get_signature(self.function_name)
         
         # Delegate to the signature's validate_and_infer_type method
-        return self._signature.validate_and_infer_type(args, plan, dynamic_return_type_func)
+        return self._signature.validate_and_infer_type(args, node, session_state, dynamic_return_type_func)

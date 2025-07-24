@@ -16,6 +16,7 @@ from fenic import (
 )
 from fenic.api.session.config import OpenAIModelConfig
 from fenic.core._logical_plan.plans import InMemorySource
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.error import ConfigurationError
 from fenic.core.error import ValidationError as FenicValidationError
 
@@ -198,11 +199,16 @@ def test_inmemory_source(local_session):
 
     # Check that the logical plan is an InMemorySource.
     assert isinstance(
-        df._logical_plan, InMemorySource
+        df._logical_plan, LogicalPlan
+    ), "Expected a LogicalPlan."
+
+    assert isinstance(
+        df._logical_plan.logical_plan_node, InMemorySource
     ), "Expected an InMemorySource logical node."
 
     # Verify the schema.
     schema = df.schema
+
     expected_columns = {"col1", "col2"}
     actual_columns = {field.name for field in schema.column_fields}
     assert (

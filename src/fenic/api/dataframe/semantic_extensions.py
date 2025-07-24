@@ -125,8 +125,8 @@ class SemanticExtensions:
             )
 
         return self._df._from_logical_plan(
+            self._df._logical_plan,
             SemanticCluster(
-                self._df._logical_plan,
                 by_expr,
                 num_clusters=num_clusters,
                 max_iter=max_iter,
@@ -242,10 +242,14 @@ class SemanticExtensions:
                 "join_instruction must contain exactly one :left and one :right column"
             )
 
+        SemanticJoin.validate_same_session(
+            self._df._logical_plan.session_state,
+            other._logical_plan.session_state)
         return self._df._from_logical_plan(
+            self._df._logical_plan,
             SemanticJoin(
-                left=self._df._logical_plan,
-                right=other._logical_plan,
+                left=self._df._logical_plan.logical_plan_node,
+                right=other._logical_plan.logical_plan_node,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 join_instruction=join_instruction,
@@ -353,10 +357,14 @@ class SemanticExtensions:
         _validate_column(left_on, "left_on")
         _validate_column(right_on, "right_on")
 
+        SemanticSimilarityJoin.validate_same_session(
+            self._df._logical_plan.session_state,
+            other._logical_plan.session_state)
         return self._df._from_logical_plan(
+            self._df._logical_plan,
             SemanticSimilarityJoin(
-                self._df._logical_plan,
-                other._logical_plan,
+                self._df._logical_plan.logical_plan_node,
+                other._logical_plan.logical_plan_node,
                 Column._from_col_or_name(left_on)._logical_expr,
                 Column._from_col_or_name(right_on)._logical_expr,
                 k,

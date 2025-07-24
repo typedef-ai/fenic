@@ -44,6 +44,7 @@ from fenic.core._logical_plan.plans import (
 from fenic.core._logical_plan.plans import (
     Union as UnionLogicalPlan,
 )
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 from fenic.core.error import ValidationError
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import Schema
@@ -97,23 +98,15 @@ class DataFrame:
 
     @classmethod
     def _from_logical_plan(
-        cls, logical_plan: LogicalPlan
+        cls,
+        logical_plan: LogicalPlan,
+        node: LogicalPlanNode
     ) -> DataFrame:
-        """Factory method to create DataFrame instances.
-
-        This method is intended for internal use by the Session class and other
-        DataFrame methods that need to create new DataFrame instances.
-
-        Args:
-            logical_plan: The logical plan for this DataFrame
-
-        Returns:
-            A new DataFrame instance
-        """
+        """Factory method to create DataFrame instances."""
         if not isinstance(logical_plan, LogicalPlan):
             raise TypeError(f"Expected LogicalPlan, got {type(logical_plan)}")
         df = super().__new__(cls)
-        df._logical_plan = logical_plan
+        df._logical_plan = logical_plan.add_node(node)
         return df
 
     @property
@@ -400,7 +393,10 @@ class DataFrame:
         table_name = f"cache_{uuid.uuid4().hex}"
         cache_info = CacheInfo(duckdb_table_name=table_name)
         self._logical_plan.set_cache_info(cache_info)
-        return self._from_logical_plan(self._logical_plan)
+
+        return self._from_logical_plan(
+            LogicalPlan(self._logical_plan.session_state),
+            self._logical_plan.logical_plan_node)
 
     def cache(self) -> DataFrame:
         """Alias for persist(). Mark DataFrame for caching after first computation.
@@ -479,7 +475,8 @@ class DataFrame:
                 exprs.append(c._logical_expr)
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            self._logical_plan,
+            Projection(exprs)
         )
 
     def where(self, condition: Column) -> DataFrame:
@@ -548,7 +545,8 @@ class DataFrame:
             ```
         """
         return self._from_logical_plan(
-            Filter(self._logical_plan, condition._logical_expr),
+            self._logical_plan,
+            Filter(condition._logical_expr),
         )
 
     def with_column(self, col_name: str, col: Union[Any, Column]) -> DataFrame:
@@ -634,7 +632,8 @@ class DataFrame:
         exprs.append(col.alias(col_name)._logical_expr)
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            self._logical_plan,
+            Projection(exprs)
         )
 
     def with_column_renamed(self, col_name: str, new_col_name: str) -> DataFrame:
@@ -699,7 +698,8 @@ class DataFrame:
             return self
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            self._logical_plan,
+            Projection(exprs)
         )
 
     def drop(self, *col_names: str) -> DataFrame:
@@ -780,7 +780,8 @@ class DataFrame:
             raise ValueError("Cannot drop all columns from DataFrame")
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, remaining_cols)
+            self._logical_plan,
+            Projection(remaining_cols)
         )
 
     def union(self, other: DataFrame) -> DataFrame:
@@ -859,8 +860,14 @@ class DataFrame:
             # +---+-----+
             ```
         """
+        UnionLogicalPlan.validate_same_session(
+            self._logical_plan.session_state,
+            [other._logical_plan.session_state])
         return self._from_logical_plan(
-            UnionLogicalPlan([self._logical_plan, other._logical_plan]),
+            self._logical_plan,
+            UnionLogicalPlan(
+                [self._logical_plan.logical_plan_node,
+                 other._logical_plan.logical_plan_node])
         )
 
     def limit(self, n: int) -> DataFrame:
@@ -908,7 +915,10 @@ class DataFrame:
             # +---+-------+
             ```
         """
-        return self._from_logical_plan(Limit(self._logical_plan, n))
+        return self._from_logical_plan(
+            self._logical_plan,
+            Limit(n)
+        )
 
     @overload
     def join(
@@ -1035,10 +1045,21 @@ class DataFrame:
 
         # Build join conditions
         left_conditions, right_conditions = build_join_conditions(on, left_on, right_on)
+        Join.validate_same_session(
+            self._logical_plan.session_state,
+            other._logical_plan.session_state)
 
         return self._from_logical_plan(
-            Join(self._logical_plan, other._logical_plan, left_conditions, right_conditions, how),
+            self._logical_plan,
+            Join(
+                self._logical_plan.logical_plan_node,
+                other._logical_plan.logical_plan_node,
+                left_conditions,
+                right_conditions,
+                how
+            )
         )
+
 
     def explode(self, column: ColumnOrName) -> DataFrame:
         """Create a new row for each element in an array column.
@@ -1094,8 +1115,14 @@ class DataFrame:
             # +---+-----+-----+
             ```
         """
+        # return self._from_logical_plan(
+        #     Explode(self._logical_plan, Column._from_col_or_name(column)._logical_expr),
+        # )
         return self._from_logical_plan(
-            Explode(self._logical_plan, Column._from_col_or_name(column)._logical_expr),
+            self._logical_plan,
+            Explode(
+                Column._from_col_or_name(column)._logical_expr
+            )
         )
 
     def group_by(self, *cols: ColumnOrName) -> GroupedData:
@@ -1256,7 +1283,8 @@ class DataFrame:
                 exprs.append(col(c)._logical_expr)
 
         return self._from_logical_plan(
-            DropDuplicates(self._logical_plan, exprs),
+            self._logical_plan,
+            DropDuplicates(exprs),
         )
 
     def sort(
@@ -1368,7 +1396,8 @@ class DataFrame:
         col_args = cols
         if cols is None:
             return self._from_logical_plan(
-                Sort(self._logical_plan, [])
+                self._logical_plan,
+                Sort([])
             )
         elif not isinstance(cols, List):
             col_args = [cols]
@@ -1418,7 +1447,8 @@ class DataFrame:
                 sort_exprs.append(SortExpr(c_expr, ascending=asc_bool))
 
         return self._from_logical_plan(
-            Sort(self._logical_plan, sort_exprs),
+            self._logical_plan,
+            Sort(sort_exprs),
         )
 
     def order_by(
@@ -1508,7 +1538,8 @@ class DataFrame:
                 raise TypeError(f"Column {c} not found in DataFrame.")
             exprs.append(col(c)._logical_expr)
         return self._from_logical_plan(
-            Unnest(self._logical_plan, exprs),
+            self._logical_plan,
+            Unnest(exprs),
         )
 
 

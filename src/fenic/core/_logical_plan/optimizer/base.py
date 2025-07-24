@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List
 
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.node import LogicalPlanNode
 
 
 @dataclass
@@ -15,6 +16,10 @@ class OptimizationResult:
     plan: LogicalPlan
     was_modified: bool
 
+@dataclass
+class OptimizerNodeResult:
+    node: LogicalPlanNode
+    was_modified: bool
 
 class LogicalPlanOptimizerRule(ABC):
     @abstractmethod

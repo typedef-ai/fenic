@@ -250,7 +250,7 @@ def test_table_writer_ignore_mode(local_session):
     assert count == 3  # Should still have the count from the first dataframe
 
 
-def test_logical_plan_sink_nodes(local_session):
+def test_logical_plan_nodes_sink_nodes(local_session):
     """Test creation of logical plan sink nodes directly."""
     df = local_session.create_dataframe({"a": [1, 2, 3]})
 
@@ -261,11 +261,14 @@ def test_logical_plan_sink_nodes(local_session):
         path="test.csv",
         mode="overwrite",
     )
+    file_sink._build_schema_with_validation(local_session._session_state)
 
     # Create a TableSink node
     table_sink = TableSink(
         child=df._logical_plan, table_name="test_table", mode="overwrite"
     )
+    table_sink._build_schema_with_validation(local_session._session_state)
+
     file_sink_columns = file_sink.schema().column_names()
     table_sink_columns = table_sink.schema().column_names()
 

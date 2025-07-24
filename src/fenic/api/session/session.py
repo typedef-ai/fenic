@@ -23,6 +23,7 @@ from pydantic import ConfigDict, validate_call
 
 from fenic.api.catalog import Catalog
 from fenic.api.session.config import SessionConfig
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.error import PlanError, ValidationError
 from fenic.core.types.query_result import DataLike
 
@@ -214,7 +215,8 @@ class Session:
             raise PlanError(f"Failed to create DataFrame from {data}") from e
 
         return DataFrame._from_logical_plan(
-            InMemorySource(pl_df, self._session_state)
+            LogicalPlan(self._session_state),
+            InMemorySource(pl_df)
         )
 
     def table(self, table_name: str) -> DataFrame:
@@ -237,7 +239,8 @@ class Session:
         if not self._session_state.catalog.does_table_exist(table_name):
             raise ValueError(f"Table {table_name} does not exist")
         return DataFrame._from_logical_plan(
-            TableSource(table_name, self._session_state),
+            LogicalPlan(self._session_state),
+            TableSource(table_name),
         )
 
     def sql(self, query: str, /, **tables: DataFrame) -> DataFrame:
@@ -297,15 +300,21 @@ class Session:
                 f"Make sure to pass them as keyword arguments, e.g., sql(..., {next(iter(missing))}=df)."
             )
 
+        session_states = []
         logical_plans = []
         template_names = []
         for name, table in tables.items():
             if name in placeholders:
                 template_names.append(name)
-                logical_plans.append(table._logical_plan)
+                logical_plans.append(table._logical_plan.logical_plan_node)
+                session_states.append(table._logical_plan.session_state)
 
+        SQL.validate_same_session(
+            self._session_state,
+            session_states)
         return DataFrame._from_logical_plan(
-            SQL(logical_plans, template_names, query, self._session_state),
+            LogicalPlan(self._session_state),
+            SQL(logical_plans, template_names, query),
         )
 
     def stop(self):
