@@ -63,11 +63,18 @@ ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelCon
 
 @dataclass
 class ResolvedSemanticConfig:
-    language_models: dict[str, ResolvedModelConfig]
-    default_language_model: str
-    embedding_models: Optional[dict[str, ResolvedOpenAIModelConfig]] = None
-    default_embedding_model: Optional[str] = None
+    language_models: Optional[ResolvedLanguageModelConfig] = None
+    embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
 
+@dataclass
+class ResolvedLanguageModelConfig:
+    model_configs: dict[str, ResolvedModelConfig]
+    default_model: str
+
+@dataclass
+class ResolvedEmbeddingModelConfig:
+    model_configs: dict[str, ResolvedOpenAIModelConfig]
+    default_model: str
 
 @dataclass
 class ResolvedCloudConfig:
@@ -76,7 +83,6 @@ class ResolvedCloudConfig:
 
 @dataclass
 class ResolvedSessionConfig:
-
     app_name: str
     db_path: Optional[Path]
     semantic: ResolvedSemanticConfig

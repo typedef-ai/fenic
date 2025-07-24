@@ -2,7 +2,8 @@ import polars as pl
 import pytest
 
 from fenic import JoinExample, JoinExampleCollection, col
-from fenic.core.error import PlanError
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.core.error import PlanError, ValidationError
 
 
 def _create_semantic_join_dataframe(local_session):
@@ -219,3 +220,23 @@ def test_semantic_join_empty_result(local_session):
         "skill": pl.String,
         "other_col_right": pl.String,
     }
+
+def test_semantic_join_without_models():
+    """Test semantic.join() method without models."""
+    session_config = SessionConfig(
+        app_name="semantic_join_without_models",
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {notes1:left} will help me learn {notes2:right}")
+    session.stop()
+    session_config = SessionConfig(
+        app_name="semantic_join_with_models",
+        semantic=SemanticConfig(
+            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+        ),
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {notes1:left} will help me learn {notes2:right}")
+    session.stop()
