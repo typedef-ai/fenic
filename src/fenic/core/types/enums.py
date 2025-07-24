@@ -28,7 +28,7 @@ Valid values:
 - "right": The right branch of a join.
 """
 
-TranscriptFormatType = Literal["srt", "generic"]
+TranscriptFormatType = Literal["srt", "generic", "webvtt"]
 """
 Type alias representing supported transcript formats.
 
@@ -36,8 +36,9 @@ Valid values:
 
 - "srt": SubRip Subtitle format with indexed entries and timestamp ranges
 - "generic": Conversation transcript format with speaker names and timestamps
+- "webvtt": Web Video Text Tracks format with speaker names and timestamps
 
-Both formats are parsed into a unified schema with fields: index, speaker,
+All formats are parsed into a unified schema with fields: index, speaker,
 start_time, end_time, duration, content, format.
 """
 

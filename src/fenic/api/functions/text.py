@@ -432,13 +432,13 @@ def concat(*cols: ColumnOrName) -> Column:
 def parse_transcript(column: ColumnOrName, format: TranscriptFormatType) -> Column:
     """Parses a transcript from text to a structured format with unified schema.
 
-    Converts transcript text in various formats (srt, generic) to a standardized structure
+    Converts transcript text in various formats (srt, webvtt, generic) to a standardized structure
     with fields: index, speaker, start_time, end_time, duration, content, format.
     All timestamps are returned as floating-point seconds from the start.
 
     Args:
         column: The input string column or column name containing transcript text
-        format: The format of the transcript ("srt" or "generic")
+        format: The format of the transcript ("srt", "webvtt", or "generic")
 
     Returns:
         Column: A column containing an array of structured transcript entries with unified schema:
@@ -449,13 +449,15 @@ def parse_transcript(column: ColumnOrName, format: TranscriptFormatType) -> Colu
             - end_time: Optional[float] - End time in seconds
             - duration: Optional[float] - Duration in seconds
             - content: str - Transcript content/text
-            - format: str - Original format ("srt" or "generic")
+            - format: str - Original format ("srt", "webvtt", or "generic")
 
     Examples:
         >>> # Parse SRT format transcript
         >>> df.select(text.parse_transcript(col("transcript"), "srt"))
         >>> # Parse generic conversation transcript
         >>> df.select(text.parse_transcript(col("transcript"), "generic"))
+        >>> # Parse WebVTT format transcript
+        >>> df.select(text.parse_transcript(col("transcript"), "webvtt"))
     """
     return Column._from_logical_expr(
         TsParseExpr(Column._from_col_or_name(column)._logical_expr, format)

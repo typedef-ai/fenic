@@ -29,7 +29,7 @@ TRANSCRIPT_OUTPUT_TYPE = ArrayType(
             StructField("end_time", DoubleType),  # Optional[float] - End time in seconds
             StructField("duration", DoubleType),  # Optional[float] - Duration in seconds
             StructField("content", StringType),  # str - Transcript content/text
-            StructField("format", StringType),  # str - Original format ("srt" or "generic")
+            StructField("format", StringType),  # str - Original format ("srt", "webvtt", or "generic")
         ]
     )
 )
