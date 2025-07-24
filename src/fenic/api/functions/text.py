@@ -1045,10 +1045,13 @@ def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method:
         - 100 indicates the strings are identical
         - 0 indicates maximum dissimilarity (as defined by the method)
 
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.ratio
+
     Args:
         column: A string column or column name. This is the left-hand side of the comparison.
         other: A second string column or literal string. This is the right-hand side of the comparison.
         method: A string indicating which similarity method to use. Must be one of:
+            - `"indel"`: Indel distance — counts only insertions and deletions (no substitutions); based on the Longest Common Subsequence.
             - `"levenshtein"`: Levenshtein distance (edit distance)
             - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
             - `"jaro"`: Jaro similarity, accounts for transpositions and proximity
@@ -1087,6 +1090,8 @@ def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, st
     them back into a string, then applies the specified similarity metric.
     Useful for comparing strings where word order doesn't matter.
 
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_sort_ratio
+
     Args:
         column: First string column to compare
         other: Second string column or literal string to compare against
@@ -1119,6 +1124,8 @@ def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str
     and intersection vs right set. Returns the maximum similarity score.
     Useful for comparing strings where both word order and duplicates
     don't matter.
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_set_ratio
 
     Args:
         column: First string column to compare
