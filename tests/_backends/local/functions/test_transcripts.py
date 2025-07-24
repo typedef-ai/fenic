@@ -37,6 +37,42 @@ This is a test."""
     assert entry2["format"] == "srt"
 
 
+def test_parse_transcript_webvtt_format(local_session):
+    """Test parsing WebVTT format with unified schema."""
+    webvtt_content = """WEBVTT
+1
+00:00:01.000 --> 00:00:04.000
+Hello, world!
+
+2
+00:00:05.000 --> 00:00:08.000
+<v User1>This is a test.</v>"""
+
+    df = local_session.create_dataframe({"transcript": [webvtt_content]})
+    result = df.select(text.parse_transcript(col("transcript"), "webvtt")).to_polars()
+
+    entries = result.to_series().to_list()[0]
+    assert len(entries) == 2
+
+    # Check first entry with unified schema
+    entry1 = entries[0]
+    assert entry1["index"] == 1
+    assert entry1["speaker"] is None  # WebVTT doesn't currently parse the speakers
+    assert entry1["start_time"] == 1.0  # 00:00:01,000 = 1 second
+    assert entry1["end_time"] == 4.0   # 00:00:04,000 = 4 seconds
+    assert entry1["duration"] == 3.0   # 4 - 1 = 3 seconds
+    assert entry1["content"] == "Hello, world!"
+    assert entry1["format"] == "webvtt"
+
+    # Check second entry
+    entry2 = entries[1]
+    assert entry2["index"] == 2
+    assert entry2["start_time"] == 5.0
+    assert entry2["end_time"] == 8.0
+    assert entry2["duration"] == 3.0
+    assert entry2["content"] == "<v User1>This is a test.</v>"
+    assert entry2["format"] == "webvtt"
+
 def test_parse_transcript_generic_format(local_session):
     """Test parsing generic conversation format with unified schema."""
     generic_content = """Nitay (00:01.451)
