@@ -1047,7 +1047,7 @@ def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method:
 
     Args:
         column: A string column or column name. This is the left-hand side of the comparison.
-        other: A second string column, column name, or literal string. This is the right-hand side of the comparison.
+        other: A second string column or literal string. This is the right-hand side of the comparison.
         method: A string indicating which similarity method to use. Must be one of:
             - `"levenshtein"`: Levenshtein distance (edit distance)
             - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
@@ -1056,7 +1056,7 @@ def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method:
             - `"hamming"`: Hamming distance. Counts differing positions between two equal-length strings, padding shorter string if needed.
 
     Returns:
-        Column: A integer column with similarity scores in the range [0, 100].
+        Column: A double column with similarity scores in the range [0, 100].
 
     Example:
         ```python
@@ -1091,7 +1091,7 @@ def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, st
         method: Similarity algorithm to use after token sorting
 
     Returns:
-        Column with similarity scores between 0 and 100
+        Double column with similarity scores between 0 and 100
 
     Example:
         ```python
@@ -1124,7 +1124,7 @@ def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str
         method: Similarity algorithm to use for comparison
 
     Returns:
-        Column with similarity scores between 0 and 100
+        Double column with similarity scores between 0 and 100
 
     Example:
         ```python
