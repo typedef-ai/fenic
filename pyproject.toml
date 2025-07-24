@@ -26,13 +26,13 @@ dependencies = [
   "numpy>=2.0.0",
   "polars>=1.20.0",
   "tiktoken>=0.9.0",
-  "pylance>=0.23.2",
   "lancedb>=0.22.0",
   "openai>=1.82.0",
   "sqlglot>=26.25.3",
   "pandas>=2.2.2",
   "cloudpickle>=3.1.1",
   "jinja2>=3.1.6",
+  "scikit-learn>=1.7.1",
 ]
 
 [project.urls]

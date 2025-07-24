@@ -41,7 +41,7 @@ def test_semantic_cluster_with_centroids(local_session):
     assert polars_df.schema == {
         "blurb": pl.Utf8,
         "embeddings": pl.Array(pl.Float32, 1536),
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "cluster_centroid": pl.Array(pl.Float32, 1536),
     }
 
@@ -65,7 +65,7 @@ def test_semantic_cluster_derived_column(local_session):
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
     }
 
 def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_session):
@@ -87,7 +87,7 @@ def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_sess
     )
     result = df.to_polars()
     assert result.schema == {
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "blurbs": pl.List(pl.String),
     }
     assert set(result["cluster_label"].to_list()) == {0, 1, None}
@@ -131,7 +131,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     )
 
     assert result.schema == {
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "feedback_count": pl.UInt32,
         "theme_summary": pl.Utf8,
     }

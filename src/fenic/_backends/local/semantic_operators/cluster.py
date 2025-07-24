@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 import numpy as np
 import polars as pl
 import pyarrow as pa
-from lance.util import KMeans
+from sklearn.cluster import KMeans
 
 from fenic._backends.local.semantic_operators.utils import (
     filter_invalid_embeddings_expr,
@@ -21,7 +21,7 @@ class Cluster:
         num_centroids: int,
         label_column: str,
         centroid_info: Optional[Tuple[str, int]],
-        num_iter: int = 50,
+        num_iter: int = 100,
     ):
         self.input = input
         self.embedding_column_name = embedding_column_name
@@ -47,10 +47,18 @@ class Cluster:
         centroids = None
         if not valid_df.is_empty():
             embeddings = np.stack(valid_df[self.embedding_column_name])
-            kmeans = KMeans(k=self.num_centroids, max_iters=self.num_iter)
-            kmeans.fit(embeddings)
-            predicted = kmeans.predict(embeddings).tolist()
-            cluster_centroids = kmeans.centroids.to_numpy(zero_copy_only=False)
+
+            # Using sklearn KMeans with k-means++ initialization (default)
+            kmeans = KMeans(
+                n_clusters=self.num_centroids,
+                max_iter=self.num_iter,
+                init='k-means++',  # This is the default, but being explicit
+                n_init=10,  # Number of times to run k-means with different centroid seeds (big improvement in quality)
+                random_state=42  # For reproducibility
+            )
+
+            predicted = kmeans.fit_predict(embeddings)
+            cluster_centroids = kmeans.cluster_centers_
 
             if self.centroid_info is not None:
                 centroids = [None] * df.height
