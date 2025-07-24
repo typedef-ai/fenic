@@ -10,6 +10,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
 from fenic.core.error import InvalidExampleCollectionError, ValidationError
 from fenic.core.types import ClassDefinition, ColumnField, StringType
 
@@ -242,3 +243,24 @@ def test_semantic_classification_err_handling_invalid_column(local_session):
             col("user_comments"),
             semantic.classify("invalid_column", categories).alias("category"),
         )
+
+def test_semantic_classify_without_models():
+    """Test that an error is raised if no language models are configured."""
+    session_config = SessionConfig(
+        app_name="semantic_classify_without_models",
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.classify(col("text"), ["hello", "world"]).alias("classified_text"))
+    session.stop()
+
+    session_config = SessionConfig(
+        app_name="semantic_classify_with_models",
+        semantic=SemanticConfig(
+            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+        ),
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.classify(col("text"), ["hello", "world"]).alias("classified_text"))
+    session.stop()

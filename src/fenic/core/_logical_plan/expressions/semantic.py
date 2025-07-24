@@ -404,23 +404,29 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
         """Return EmbeddingType with specific dimensions based on model."""
-        return_type = self._validate_model_config(plan)
+        return_type = self._get_embedding_type_from_config(plan)
         return return_type
 
-    def _validate_model_config(self, plan: LogicalPlan) -> EmbeddingType:
+    def _get_embedding_type_from_config(self, plan: LogicalPlan) -> EmbeddingType:
         """Validate model configuration and return the correct EmbeddingType."""
-        session_config = plan.session_state.session_config
-        semantic_config = session_config.semantic
+        semantic_config = plan.session_state.session_config.semantic
 
-        model_alias = self.model_alias or semantic_config.default_embedding_model
-        if model_alias not in semantic_config.embedding_models:
-            available = ', '.join(semantic_config.embedding_models.keys()) or 'none'
+        # Check if any embedding models are configured
+        if not semantic_config.embedding_models:
+            raise ValidationError(
+                "No embedding models configured. This operation requires embedding models. "
+                "Please add embedding_models to your SemanticConfig."
+            )
+        embedding_model_configs = semantic_config.embedding_models
+        model_alias = self.model_alias or embedding_model_configs.default_model
+        if model_alias not in embedding_model_configs.model_configs:
+            available = ', '.join(embedding_model_configs.model_configs.keys())
             raise ValidationError(
                 f"Embedding model alias '{model_alias}' not found in SessionConfig. "
                 f"Available models: {available}"
             )
 
-        model_config = semantic_config.embedding_models[model_alias]
+        model_config = embedding_model_configs.model_configs[model_alias]
         model_provider = ModelProvider.OPENAI
         model_name = model_config.model_name
         embedding_params = model_catalog.get_embedding_model_parameters(model_provider, model_name)
