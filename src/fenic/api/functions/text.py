@@ -1058,12 +1058,14 @@ def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method:
     Returns:
         Column: A double column with similarity scores in the range [0, 100].
 
-    Example:
+    Example: Compare two columns
         ```python
         result = df.select(
             compute_fuzzy_ratio(col("a"), col("b"), method="levenshtein").alias("sim")
         )
         ```
+
+    Example: Compare a column to a literal string
         ```python
         result = df.select(
             compute_fuzzy_ratio(col("a"), "world", method="jaro").alias("sim_to_world")
@@ -1095,7 +1097,7 @@ def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, st
 
     Example:
         ```python
-        # df.select(compute_fuzzy_token_sort_ratio("name", "Smith John", "levenshtein"))
+        # df.select(compute_fuzzy_token_sort_ratio(col("city"), "city  new  york", "levenshtein"))
         # "new york city" → ["new", "york", "city"] → sorted → ["city", "new", "york"] → "city new york"
         # "city new york" → ["city", "new", "york"] → sorted → ["city", "new", "york"] → "city new york"
         # levenshtein similarity("city new york", "city new york") = 100
@@ -1128,7 +1130,7 @@ def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str
 
     Example:
         ```python
-        # df.select(compute_fuzzy_token_set_ratio("description", "city of new york", "indel"))
+        # df.select(compute_fuzzy_token_set_ratio(col("city"), "city of new york", "indel"))
         # "new york city new" → unique tokens: {"city", "new", "york"}
         # "city of new york" → unique tokens: {"city", "new", "of", "york"}
         # intersection: {"city", "new", "york"}
