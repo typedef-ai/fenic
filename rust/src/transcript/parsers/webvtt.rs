@@ -69,9 +69,9 @@ impl FormatParser for WebVttParser {
         if pos + webvtt_header.len() > len
             || &bytes[pos..pos + webvtt_header.len()] != webvtt_header
         {
-            return Err(ParseError::InvalidTranscriptFormat(format!(
-                "Missing 'WEBVTT' header at start of file"
-            )));
+            return Err(ParseError::InvalidTranscriptFormat(
+                "Missing 'WEBVTT' header at start of file".to_string(),
+            ));
         }
         pos += webvtt_header.len();
 
