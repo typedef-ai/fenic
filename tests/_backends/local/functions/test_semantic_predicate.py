@@ -124,7 +124,7 @@ def test_single_semantic_filter_with_none(local_session):
     result = df.to_polars()
     assert result["sentiment"].to_list()[2] is None
 
-def test_semantic_map_without_models():
+def test_semantic_predicate_without_models():
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(
         app_name="semantic_predicate_without_models",
