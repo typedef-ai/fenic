@@ -85,16 +85,16 @@ def _deserialize_logical_expr_helper(
     )
 
 
-# # Import all expression modules to register their serialization functions
-# # This must be done after the main functions are defined
-# from fenic.core._serde.proto.expressions import (  # noqa: F401, E402
-#     aggregate,
-#     basic,
-#     binary,
-#     case,
-#     embedding,
-#     json,
-#     markdown,
-#     semantic,
-#     text,
-# )
+# Import all expression modules to register their serialization functions
+# This must be done after the main functions are defined
+from fenic.core._serde.proto.expressions import (  # noqa: F401, E402
+    aggregate,
+    basic,
+    binary,
+    case,
+    embedding,
+    json,
+    markdown,
+    semantic,
+    text,
+)
