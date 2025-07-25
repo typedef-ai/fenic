@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+import json
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
 
