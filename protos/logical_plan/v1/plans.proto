@@ -148,8 +148,10 @@ message SemanticCluster {
   LogicalPlan input = 1;
   LogicalExpr by_expr = 2;
   int32 num_clusters = 3;
-  string label_column = 4;
-  optional string centroid_column = 5;
+  int32 max_iter = 4;
+  int32 num_init = 5;
+  string label_column = 6;
+  optional string centroid_column = 7;
 }
 
 message FileSink {

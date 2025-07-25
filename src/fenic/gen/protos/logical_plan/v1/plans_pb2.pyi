@@ -226,18 +226,22 @@ class SQL(_message.Message):
     def __init__(self, inputs: _Optional[_Iterable[_Union[LogicalPlan, _Mapping]]] = ..., template_names: _Optional[_Iterable[str]] = ..., templated_query: _Optional[str] = ...) -> None: ...
 
 class SemanticCluster(_message.Message):
-    __slots__ = ("input", "by_expr", "num_clusters", "label_column", "centroid_column")
+    __slots__ = ("input", "by_expr", "num_clusters", "max_iter", "num_init", "label_column", "centroid_column")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     BY_EXPR_FIELD_NUMBER: _ClassVar[int]
     NUM_CLUSTERS_FIELD_NUMBER: _ClassVar[int]
+    MAX_ITER_FIELD_NUMBER: _ClassVar[int]
+    NUM_INIT_FIELD_NUMBER: _ClassVar[int]
     LABEL_COLUMN_FIELD_NUMBER: _ClassVar[int]
     CENTROID_COLUMN_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
     by_expr: _expressions_pb2.LogicalExpr
     num_clusters: int
+    max_iter: int
+    num_init: int
     label_column: str
     centroid_column: str
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., by_expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., num_clusters: _Optional[int] = ..., label_column: _Optional[str] = ..., centroid_column: _Optional[str] = ...) -> None: ...
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., by_expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., num_clusters: _Optional[int] = ..., max_iter: _Optional[int] = ..., num_init: _Optional[int] = ..., label_column: _Optional[str] = ..., centroid_column: _Optional[str] = ...) -> None: ...
 
 class FileSink(_message.Message):
     __slots__ = ("input", "path", "format", "mode")

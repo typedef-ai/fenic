@@ -90,10 +90,10 @@ def _deserialize_logical_plan_helper(
 
 # Import all plan modules to register their serialization functions
 # This must be done after the main functions are defined
-# from fenic.core._serde.proto.plans import (  # noqa: F401 E402
-#     aggregate,
-#     join,
-#     sink,
-#     source,
-#     transform,
-# )
+from fenic.core._serde.proto.plans import (  # noqa: F401 E402
+    aggregate,
+    join,
+    sink,
+    source,
+    transform,
+)
