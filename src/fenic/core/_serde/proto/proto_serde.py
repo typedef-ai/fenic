@@ -1,7 +1,5 @@
 """Main API for logical plan and expression serialization/deserialization."""
 
-from typing import Optional
-
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde.proto.serde_context import create_serde_context
@@ -33,22 +31,19 @@ class ProtoSerde(SupportsLogicalPlanSerde):
 
     @staticmethod
     def deserialize(
-        data: bytes, session_state: Optional[BaseSessionState] = None
+        data: bytes
     ) -> LogicalPlan:
         """Deserialize a logical plan from binary protobuf format.
 
         Args:
             data: Binary protobuf data to deserialize.
-            session_state: Optional session state to include in the plan.
 
         Returns:
             The deserialized logical plan.
         """
         context = create_serde_context()
         logical_plan_proto = LogicalPlanProto.FromString(data)
-        logical_plan = context.deserialize_logical_plan(
-            "root", logical_plan_proto, session_state
-        )
+        logical_plan = context.deserialize_logical_plan("root", logical_plan_proto)
         return logical_plan
 
     @staticmethod

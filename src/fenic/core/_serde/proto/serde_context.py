@@ -5,14 +5,13 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, List, Optional, Type, TypeVar
+from typing import Any, Iterable, List, Optional, Type, TypeVar
 
 import numpy as np
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 from jambo import SchemaConverter
 from pydantic import BaseModel
 
-from fenic import DataType
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalExpr
 from fenic.core._logical_plan.expressions.semantic import ResolvedClassDefinition
@@ -23,6 +22,7 @@ from fenic.core._logical_plan.expressions.text import (
     TextChunkExprConfiguration,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._serde.proto.errors import (
     DeserializationError,
     SerdeError,
@@ -40,12 +40,14 @@ from fenic.core._serde.proto.types import (
     PydanticModelTypeProto,
     RecursiveTextChunkExprConfigurationProto,
     ResolvedClassDefinitionProto,
+    ResolvedModelAliasProto,
     ScalarArrayProto,
     ScalarStructFieldProto,
     ScalarStructProto,
     ScalarValueProto,
     TextChunkExprConfigurationProto,
 )
+from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
 # Used for type hinting support in serialize_enum_value and deserialize_enum_value
@@ -77,6 +79,7 @@ class SerdeContext:
     CONDITION = "condition"
     THEN = "then"
     OPERATOR = "operator"
+    CHILD = "child"
 
     def __init__(self):
         """Initialize a SerdeContext with an empty path tracker."""
@@ -167,7 +170,7 @@ class SerdeContext:
 
     def deserialize_logical_expr(
         self, field_name: str, expr_proto: LogicalExprProto
-    ) -> LogicalExpr:
+    ) -> Optional[LogicalExpr]:
         """Deserialize a logical expression with field path tracking.
 
         Args:
@@ -208,7 +211,7 @@ class SerdeContext:
         return result
 
     def deserialize_logical_expr_list(
-        self, field_name: str, expr_proto_list: List[LogicalExprProto]
+        self, field_name: str, expr_proto_list: Iterable[LogicalExprProto]
     ) -> List[LogicalExpr]:
         """Deserialize a list of logical expressions with field path tracking.
 
@@ -220,6 +223,8 @@ class SerdeContext:
             A list of deserialized logical expressions.
         """
         result = []
+        if not expr_proto_list:
+            return result
         with self.path_context(field_name):
             for i, expr_proto in enumerate(expr_proto_list):
                 with self.path_context(f"[{i}]"):
@@ -256,7 +261,7 @@ class SerdeContext:
         target_type: Type[EnumType],
         proto_enum_type: EnumTypeWrapper,
         serialized_value: int,
-    ) -> EnumType:
+    ) -> Optional[EnumType]:
         """Deserialize an enum value with field path tracking.
 
         Args:
@@ -340,7 +345,7 @@ class SerdeContext:
 
         with self.path_context(field_name):
             try:
-                return deserialize_logical_plan(plan_proto, self, session_state)
+                return deserialize_logical_plan(plan_proto, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
@@ -417,6 +422,41 @@ class SerdeContext:
     # =============================================================================
     # Common Utility Serde Functions
     # =============================================================================
+    def serialize_resolved_model_alias(
+        self,
+        field_name: str,
+        model_alias: Optional[ResolvedModelAlias],
+    ) -> ResolvedModelAliasProto:
+        """Serialize a resolved model alias."""
+        if not model_alias:
+            return None
+        with self.path_context(field_name):
+            try:
+                return ResolvedModelAliasProto(
+                    name=model_alias.name,
+                    profile=model_alias.profile,
+                )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def deserialize_resolved_model_alias(
+        self,
+        field_name: str,
+        model_alias_proto: ResolvedModelAliasProto,
+    ) -> ResolvedModelAlias:
+        """Deserialize a resolved model alias."""
+        with self.path_context(field_name):
+            try:
+                # Optional field will be populated as "" if not present, which is falsey
+                if not model_alias_proto.profile:
+                    return ResolvedModelAlias(name=model_alias_proto.name)
+                else:
+                    return ResolvedModelAlias(
+                        name=model_alias_proto.name,
+                        profile=model_alias_proto.profile,
+                    )
+            except Exception as e:
+                self._handle_serde_error(e)
 
     def serialize_resolved_class_definition(
         self,
@@ -809,13 +849,13 @@ class SerdeContext:
                 self._handle_serde_error(e)
 
     def serialize_fenic_schema(
-        self, field_name: str, schema: Schema
+        self, schema: Schema, field_name: str = "schema",
     ) -> FenicSchemaProto:
         """Serialize a Fenic schema.
 
         Args:
-            field_name: The name of the field being serialized.
             schema: The Fenic schema to serialize.
+            field_name: The name of the field being serialized.
 
         Returns:
             The serialized protobuf representation of the schema.
@@ -837,13 +877,13 @@ class SerdeContext:
                 self._handle_serde_error(e)
 
     def deserialize_fenic_schema(
-        self, field_name: str, schema_proto: FenicSchemaProto
+        self, schema_proto: FenicSchemaProto, field_name: str = "schema"
     ) -> Schema:
         """Deserialize a Fenic schema.
 
         Args:
-            field_name: The name of the field being deserialized.
             schema_proto: The protobuf representation to deserialize.
+            field_name: The name of the field being deserialized.
 
         Returns:
             The deserialized Fenic schema.

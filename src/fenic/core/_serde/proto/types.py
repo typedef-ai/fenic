@@ -47,6 +47,21 @@ from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
 from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
     ResolvedClassDefinition as ResolvedClassDefinitionProto,
 )
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ResolvedModelAlias as ResolvedModelAliasProto,
+)
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ScalarArray as ScalarArrayProto,
+)
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ScalarStruct as ScalarStructProto,
+)
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ScalarStructField as ScalarStructFieldProto,
+)
+from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ScalarValue as ScalarValueProto,
+)
 
 # DataType protobuf classes
 from fenic.gen.protos.logical_plan.v1.complex_types_pb2 import (
@@ -271,18 +286,6 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     RLikeExpr as RLikeExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    ScalarArray as ScalarArrayProto,
-)
-from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    ScalarStruct as ScalarStructProto,
-)
-from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    ScalarStructField as ScalarStructFieldProto,
-)
-from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
-    ScalarValue as ScalarValueProto,
-)
-from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticClassifyExpr as SemanticClassifyExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -454,6 +457,7 @@ __all__ = [
     "JoinExampleProto",
     "JoinExampleCollectionProto",
     "ResolvedClassDefinitionProto",
+    "ResolvedModelAliasProto",
     # Expression classes
     "LogicalExprProto",
     "ColumnExprProto",

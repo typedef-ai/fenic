@@ -659,6 +659,7 @@ def _serialize_jinja_expr(logical: JinjaExpr, context: SerdeContext) -> LogicalE
         jinja=JinjaExprProto(
             exprs=context.serialize_logical_expr_list("exprs", logical.exprs),
             template=logical.template,
+            strict=logical.strict
         )
     )
 
@@ -668,6 +669,7 @@ def _deserialize_jinja_expr(logical_proto: JinjaExprProto, context: SerdeContext
     return JinjaExpr(
         exprs=context.deserialize_logical_expr_list("exprs", logical_proto.exprs),
         template=logical_proto.template,
+        strict=logical_proto.strict
     )
 
 

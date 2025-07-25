@@ -235,7 +235,7 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
         return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
     def _eq_specific(self, other: TextChunkExpr) -> bool:
-        return self.chunk_configuration == other.chunk_configuration
+        return self.chunking_configuration == other.chunking_configuration
 
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII

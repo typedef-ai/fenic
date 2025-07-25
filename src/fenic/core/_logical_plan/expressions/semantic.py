@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -136,7 +135,7 @@ class SemanticMapExpr(SemanticExpr):
             self.max_tokens,
         )
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, _session_state: BaseSessionState) -> DataType:
         if self.response_format:
             return convert_pydantic_type_to_custom_struct_type(self.response_format)
         else:

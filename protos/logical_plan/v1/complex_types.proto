@@ -2,9 +2,40 @@ syntax = "proto3";
 
 package logical_plan.v1;
 
+message ScalarValue {
+  oneof value_type {
+    string string_value = 1;
+    int32 int_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+    bytes bytes_value = 5;
+    ScalarArray array_value = 6;
+    ScalarStruct struct_value = 7;
+    //all types we support for LiteralExpr
+  }
+}
+
+message ScalarArray {
+  repeated ScalarValue elements = 1;
+}
+
+message ScalarStruct {
+  repeated ScalarStructField fields = 1;
+}
+
+message ScalarStructField {
+  string name = 1;
+  ScalarValue value = 2;
+}
+
 message ResolvedClassDefinition {
   string label = 1;
   string description = 2;
+}
+
+message ResolvedModelAlias {
+  string name = 1;
+  optional string profile = 2;
 }
 
 // NumPy array serialization
@@ -43,7 +74,7 @@ message SummarizationFormat {
 // Semantic example types
 // TODO(brandon): figure out how this is going to work with structured format map examples
 message MapExample {
-  map<string, string> input = 1;
+  map<string, ScalarValue> input = 1;
   string output = 2;
 }
 
@@ -61,7 +92,7 @@ message ClassifyExampleCollection {
 }
 
 message PredicateExample {
-  map<string, string> input = 1;
+  map<string, ScalarValue> input = 1;
   bool output = 2;
 }
 
@@ -70,8 +101,8 @@ message PredicateExampleCollection {
 }
 
 message JoinExample {
-  string left = 1;
-  string right = 2;
+  ScalarValue left = 1;
+  ScalarValue right = 2;
   bool output = 3;
 }
 

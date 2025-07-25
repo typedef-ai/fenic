@@ -54,13 +54,21 @@ from fenic.core.types.summarize import KeyPoints, Paragraph
 @serialize_logical_expr.register
 def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize a semantic map expression."""
+    def serialize_map_example(example: MapExample) -> MapExampleProto:
+        input_proto = {
+            key: context.serialize_scalar_value(key, value)
+            for key, value in example.input.items()
+        }
+        # TODO deal with output type potentially being BaseModel
+        return MapExampleProto(
+            input=input_proto,
+            output=example.output,
+        )
+
     examples_proto = (
         MapExampleCollectionProto(
             examples=[
-                MapExampleProto(
-                    input=example.input,
-                    output=example.output,
-                )
+                serialize_map_example(example)
                 for example in logical.examples.examples
             ]
         )
@@ -76,11 +84,12 @@ def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext
 
     return LogicalExprProto(
         semantic_map=SemanticMapExprProto(
-            instruction=logical.instruction,
+            template=logical.template,
+            strict=logical.strict,
             exprs=context.serialize_logical_expr_list("exprs", logical.exprs),
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
             response_format=output_schema_proto,
             examples=examples_proto,
         )
@@ -93,21 +102,27 @@ def _deserialize_semantic_map_expr(
     context: SerdeContext,
 ) -> SemanticMapExpr:
     """Deserialize a semantic map expression."""
+    def deserialize_map_example(example: MapExampleProto) -> MapExample:
+        input_dict = {
+            key: context.deserialize_scalar_value(key, value)
+            for key, value in example.input.items()
+        }
+        return MapExample(input=input_dict, output=example.output)
+
     examples = MapExampleCollection(
         examples=[
-            MapExample(
-                input=example.input,
-                output=example.output,
-            )
+            deserialize_map_example(example)
             for example in logical_proto.examples.examples
         ]
     ) if logical_proto.examples.examples else None
 
     return SemanticMapExpr(
-        instruction=logical_proto.instruction,
+        jinja_template=logical_proto.template,
+        strict=logical_proto.strict,
+        exprs=context.deserialize_logical_expr_list("exprs", logical_proto.exprs),
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
         response_format=context.deserialize_pydantic_model_type("response_format", logical_proto.response_format) if logical_proto.response_format else None,
         examples=examples,
     )
@@ -130,7 +145,7 @@ def _serialize_semantic_extract_expr(logical: SemanticExtractExpr, context: Serd
             schema=schema_proto,
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias)
         )
     )
 
@@ -146,7 +161,7 @@ def _deserialize_semantic_extract_expr(
         schema=context.deserialize_pydantic_model_type("schema", logical_proto.schema),
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
     )
 
 
@@ -157,10 +172,17 @@ def _deserialize_semantic_extract_expr(
 @serialize_logical_expr.register
 def _serialize_semantic_pred_expr(logical: SemanticPredExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize a semantic predicate expression."""
+    def serialize_predicate_example(example: PredicateExample) -> PredicateExampleProto:
+        input_proto = {
+            key: context.serialize_scalar_value(key, value)
+            for key, value in example.input.items()
+        }
+        return PredicateExampleProto(input=input_proto, output=example.output)
+
     examples_proto = (
         PredicateExampleCollectionProto(
             examples=[
-                PredicateExampleProto(input=example.input, output=example.output)
+                serialize_predicate_example(example)
                 for example in logical.examples.examples
             ]
         )
@@ -170,9 +192,11 @@ def _serialize_semantic_pred_expr(logical: SemanticPredExpr, context: SerdeConte
 
     return LogicalExprProto(
         semantic_pred=SemanticPredExprProto(
-            instruction=logical.instruction,
+            template=logical.template,
+            strict=logical.strict,
+            exprs=context.serialize_logical_expr_list("exprs", logical.exprs),
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
             examples=examples_proto,
         )
     )
@@ -184,20 +208,26 @@ def _deserialize_semantic_pred_expr(
     context: SerdeContext,
 ) -> SemanticPredExpr:
     """Deserialize a semantic predicate expression."""
+    def deserialize_predicate_example(example: PredicateExampleProto) -> PredicateExample:
+        input_dict = {
+            key: context.deserialize_scalar_value(key, value)
+            for key, value in example.input.items()
+        }
+        return PredicateExample(input=input_dict, output=example.output)
+
     examples = PredicateExampleCollection(
         examples=[
-            PredicateExample(
-                input=example.input,
-                output=example.output,
-            )
+            deserialize_predicate_example(example)
             for example in logical_proto.examples.examples
         ]
     ) if logical_proto.examples.examples else None
 
     return SemanticPredExpr(
-        instruction=logical_proto.instruction,
+        jinja_template=logical_proto.template,
+        strict=logical_proto.strict,
+        exprs=context.deserialize_logical_expr_list("exprs", logical_proto.exprs),
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
         examples=examples,
     )
 
@@ -212,9 +242,10 @@ def _serialize_semantic_reduce_expr(logical: SemanticReduceExpr, context: SerdeC
     return LogicalExprProto(
         semantic_reduce=SemanticReduceExprProto(
             instruction=logical.instruction,
+            input_expr=context.serialize_logical_expr("input_expr", logical.input_expr),
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
         )
     )
 
@@ -225,11 +256,15 @@ def _deserialize_semantic_reduce_expr(
     context: SerdeContext,
 ) -> SemanticReduceExpr:
     """Deserialize a semantic reduce expression."""
+    order_by_exprs = context.deserialize_logical_expr_list("order_by_exprs", logical_proto.order_by_exprs)
     return SemanticReduceExpr(
         instruction=logical_proto.instruction,
+        input_expr=context.deserialize_logical_expr("input_expr", logical_proto.input_expr),
+        group_context_exprs=context.deserialize_logical_expr_list("group_context_exprs", logical_proto.group_context_exprs),
+        order_by_exprs=order_by_exprs,
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
     )
 
 
@@ -262,7 +297,7 @@ def _serialize_semantic_classify_expr(
                 for class_definition in logical.classes
             ],
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
             examples=examples_proto,
         )
     )
@@ -291,7 +326,7 @@ def _deserialize_semantic_classify_expr(
             for class_definition in logical_proto.classes
         ],
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
         examples=examples,
     )
 
@@ -310,7 +345,7 @@ def _serialize_analyze_sentiment_expr(
         analyze_sentiment=AnalyzeSentimentExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
         )
     )
 
@@ -324,7 +359,7 @@ def _deserialize_analyze_sentiment_expr(
     return AnalyzeSentimentExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
     )
 
 
@@ -338,7 +373,7 @@ def _serialize_embeddings_expr(logical: EmbeddingsExpr, context: SerdeContext) -
     return LogicalExprProto(
         embeddings=EmbeddingsExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
         )
     )
 
@@ -351,7 +386,7 @@ def _deserialize_embeddings_expr(
     """Deserialize an embeddings expression."""
     return EmbeddingsExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
     )
 
 
@@ -381,7 +416,7 @@ def _serialize_semantic_summarize_expr(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
             format=format_proto,
             temperature=logical.temperature,
-            model_alias=logical.model_alias,
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
         )
     )
 
@@ -403,5 +438,5 @@ def _deserialize_semantic_summarize_expr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         format=summary_format,
         temperature=logical_proto.temperature,
-        model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
     )

@@ -2,37 +2,37 @@ import os
 from enum import Enum
 
 import polars as pl
+import pytest
 from pydantic import BaseModel, Field
 
-from fenic import (
-    DataFrame,
-    col,
-    lit,
-    semantic,
-    text,
-)
+from fenic import DataFrame, col, lit, semantic, text
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
-from fenic.core._serde import LogicalPlanSerde
+from fenic.core._serde.cloudpickle_serde import CloudPickleSerde
+from fenic.core._serde.proto.proto_serde import ProtoSerde
+from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 from fenic.core.types import ClassDefinition
+from fenic.core.types.semantic_examples import MapExample, MapExampleCollection
 
 
-def _test_df_serialization(df: DataFrame, session: BaseSessionState) -> DataFrame:
+def _test_df_serialization(df: DataFrame, session: BaseSessionState,
+                           serde_implementation: SupportsLogicalPlanSerde) -> DataFrame:
     """Helper method to test serialization/deserialization of a DataFrame."""
     plan = df._logical_plan
-    deserialized_df = _test_plan_serialization(plan, session)
+    deserialized_df = _test_plan_serialization(plan, session, serde_implementation)
     return deserialized_df
 
+
 def _test_plan_serialization(
-    plan: LogicalPlan, session_state: BaseSessionState
+    plan: LogicalPlan, session_state: BaseSessionState, serde_implementation: SupportsLogicalPlanSerde
 ) -> LogicalPlan:
     """Helper method to test serialization/deserialization of a plan.
 
     TODO: Add special checking for subclass fields
     """
     # Serialize and deserialize
-    serialized = LogicalPlanSerde.serialize(plan)
-    deserialized = LogicalPlanSerde.deserialize(serialized)
+    serialized = serde_implementation.serialize(plan)
+    deserialized = serde_implementation.deserialize(serialized)
     deserialized_df = DataFrame._from_logical_plan(
         deserialized,
         session_state
@@ -47,52 +47,67 @@ def _test_plan_serialization(
 
     return deserialized_df
 
+
 class CategoryEnum(Enum):
     A = "a"
     B = "b"
     C = "c"
+
 
 class BasicReviewModel(BaseModel):
     positive_feature: str = Field(
         ..., description="Positive feature described in the review"
     )
 
-def test_basic_plan(local_session):
+
+serde_implementations = [
+    ProtoSerde,
+    CloudPickleSerde,
+]
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_basic_plan(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create a simple DataFrame
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     plan = df._logical_plan
-    _ = _test_plan_serialization(plan, local_session._session_state)
+    _ = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
 
 
-def test_transform_plans(local_session):
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_transform_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create base DataFrame
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     expected = df.to_polars()
 
     # Test Projection
     projection = df.select("a", "b")
-    deserialized_df = _test_plan_serialization(projection._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(projection._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = projection.to_polars()
     assert result.equals(expected)
 
     # Test Filter
     filter_plan = df.filter(df["a"] > 1)
-    deserialized_df = _test_plan_serialization(filter_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(filter_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = filter_plan.to_polars()
     assert result.equals(expected)
 
     # Test Sort
     sort_plan = df.sort("a", ascending=True)
-    deserialized_df = _test_plan_serialization(sort_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(sort_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = sort_plan.to_polars()
     assert result.equals(expected)
 
     # Test Limit
     limit_plan = df.limit(2)
-    deserialized_df = _test_plan_serialization(limit_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(limit_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = limit_plan.to_polars()
     assert result.equals(expected)
@@ -100,7 +115,8 @@ def test_transform_plans(local_session):
     # Test Union
     df2 = local_session.create_dataframe({"a": [4, 5, 6], "b": ["p", "q", "r"]})
     union_plan = df.union(df2)
-    deserialized_df = _test_plan_serialization(union_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(union_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = union_plan.to_polars()
     assert result.equals(expected)
@@ -108,20 +124,23 @@ def test_transform_plans(local_session):
     # Test Unnest
     df = local_session.create_dataframe({"a": [{"b": 1, "c": 2}, {"b": 3, "c": 4}]})
     unnest_plan = df.unnest("a")
-    deserialized_df = _test_plan_serialization(unnest_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(unnest_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = unnest_plan.to_polars()
     assert result.equals(expected)
 
 
-def test_join_plans(local_session):
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_join_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create DataFrames for joining
     left = local_session.create_dataframe({"id": [1, 2, 3], "name": ["a", "b", "c"]})
     right = local_session.create_dataframe({"id": [1, 2, 3], "value": ["foo", "bar", "baz"]})
 
     # Test regular Join
     join_plan = left.join(right, "id").order_by("id")
-    deserialized_df = _test_plan_serialization(join_plan._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(join_plan._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = join_plan.to_polars()
     assert result.equals(expected)
@@ -131,7 +150,8 @@ def test_join_plans(local_session):
     semantic_join = left.semantic.join(
         right, "match {{left_on}} to {{right_on}}", left_on=col("name"), right_on=col("value")
     ).order_by("id")
-    deserialized_df = _test_plan_serialization(semantic_join._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(semantic_join._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = semantic_join.to_polars()
     assert result.schema == expected.schema
@@ -148,13 +168,15 @@ def test_join_plans(local_session):
         )
         .order_by("id")
     )
-    deserialized_df = _test_plan_serialization(similarity_join._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(similarity_join._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = similarity_join.to_polars()
     assert result.schema == expected.schema
 
 
-def test_aggregate_plans(local_session):
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_aggregate_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create DataFrame for aggregation
     df = local_session.create_dataframe(
         {"group": ["a", "a", "b", "b"], "value": [1, 2, 3, 4]}
@@ -162,7 +184,8 @@ def test_aggregate_plans(local_session):
 
     # Test regular Aggregate
     aggregate = df.group_by("group").agg({"value": "sum"}).order_by("group")
-    deserialized_df = _test_plan_serialization(aggregate._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(aggregate._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = aggregate.to_polars()
     assert result.equals(expected)
@@ -174,12 +197,15 @@ def test_aggregate_plans(local_session):
         .group_by(col("cluster_label"))
         .agg({"value": "sum"})
     )
-    deserialized_df = _test_plan_serialization(semantic_aggregate._logical_plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(semantic_aggregate._logical_plan, local_session._session_state,
+                                               serde_implementation)
     result = deserialized_df.to_polars()
     expected = semantic_aggregate.to_polars()
     assert result.schema == expected.schema
 
-def test_file_source_plans(local_session):
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_file_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     test_data = """name,age,city
 John,25,New York
 Alice,30,San Francisco
@@ -200,7 +226,7 @@ David,33,Seattle"""
         # Simple plan with parquet file source
         df = local_session.read.parquet(temp_parquet_path)
         plan = df._logical_plan
-        deserialized_df = _test_plan_serialization(plan, local_session._session_state)
+        deserialized_df = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
         result = deserialized_df.to_polars()
         expected = df.to_polars()
         assert result.equals(expected)
@@ -212,7 +238,7 @@ David,33,Seattle"""
         )
         df3 = df.join(other=df2, on="age").order_by("a").where(col("age") > 25)
         plan = df3._logical_plan
-        deserialized_df = _test_plan_serialization(plan, local_session._session_state)
+        deserialized_df = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
         result = deserialized_df.to_polars()
         expected = df3.to_polars()
         assert result.equals(expected)
@@ -224,13 +250,13 @@ David,33,Seattle"""
             os.remove(temp_parquet_path)
 
 
-
-def test_table_source_plans(local_session):
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_table_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Simple plan with table source
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     df.write.save_as_table("test_table", mode="overwrite")
     plan = local_session.table("test_table")._logical_plan
-    deserialized_df = _test_plan_serialization(plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
     result = deserialized_df.to_polars()
     expected = df.to_polars()
     assert result.equals(expected)
@@ -244,16 +270,17 @@ def test_table_source_plans(local_session):
     df4 = local_session.table("test_table2")
     df5 = df3.join(other=df4, on="a").order_by("b").where(col("a") > 1)
     plan = df5._logical_plan
-    deserialized_df = _test_plan_serialization(plan, local_session._session_state)
+    deserialized_df = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
     result = deserialized_df.to_polars()
     expected = df5.to_polars()
     assert result.equals(expected)
 
-
     assert result.schema == expected.schema
     # grouping is not deterministic, so just test the schema matches
 
-def test_semantic_plans(local_session, extract_data_df):
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_cluster(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic cluster
     source = local_session.create_dataframe(
         {
@@ -267,26 +294,34 @@ def test_semantic_plans(local_session, extract_data_df):
         source.with_column("embeddings", semantic.embed(col("blurb")))
         .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
 
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_classify(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic classify
     # test with a list of strings as categories
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     df = df.select(semantic.classify(col("b"), ["a", "b", "c"]))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
 
     # test with a list of class definitions as categories
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    df = df.select(semantic.classify(col("b"), [ClassDefinition(label="a", description="a"), ClassDefinition(label="b", description="b"), ClassDefinition(label="c", description="c")]))
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    df = df.select(semantic.classify(col("b"), [ClassDefinition(label="a", description="a"),
+                                                ClassDefinition(label="b", description="b"),
+                                                ClassDefinition(label="c", description="c")]))
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
 
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_sim_join(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic sim join
     left = local_session.create_dataframe(
         {
-            "course_id": [1, 2,],
+            "course_id": [1, 2, ],
             "course_name": [
                 "History of The Atlantic World",
                 "Riemann Geometry",
@@ -311,9 +346,12 @@ def test_semantic_plans(local_session, extract_data_df):
             similarity_metric="cosine",
         )
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
 
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_analyze_sentiment(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic analyze sentiment
     comments_data = {
         "user_comments": [
@@ -327,15 +365,23 @@ def test_semantic_plans(local_session, extract_data_df):
             "sentiment"
         ),
     )
-    deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state)
+    deserialized_df = _test_df_serialization(categorized_comments_df, local_session._session_state,
+                                             serde_implementation)
     assert deserialized_df
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_extract(local_session, extract_data_df: DataFrame, serde_implementation: SupportsLogicalPlanSerde):
     # test extract with the base model
     df = extract_data_df.select(
         semantic.extract(col("review"), BasicReviewModel).alias("review_out")
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
 
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_map(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic map
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
     state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
@@ -344,9 +390,37 @@ def test_semantic_plans(local_session, extract_data_df):
         col("name"),
         semantic.map("What is the typical weather in {{city}} in summer?", city=col("city")).alias("weather"),
     )
-    deserialized_df = _test_df_serialization(df_select, local_session._session_state)
+    deserialized_df = _test_df_serialization(df_select, local_session._session_state, serde_implementation)
     assert deserialized_df
 
+    # semantic map with examples
+    source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
+    state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
+    df_select = source.select(
+        semantic.map(
+            state_prompt,
+            examples=MapExampleCollection(
+                [
+                    MapExample(input={"name": "Alice", "city": "New York City"}, output="New York"),
+                    MapExample(input={"name": "Bob", "city": "Chicago"}, output="Illinois"),
+                ]
+            ),
+            name=col("name"), city=col("city")
+        ).alias("state"),
+        col("name"),
+        semantic.map(
+            "What is the typical weather in {{city}} in summer?",
+            examples=MapExampleCollection([MapExample(input={"city": "New York"}, output="hot"),
+                                           MapExample(input={"city": "Chicago"}, output="cool")]),
+            city=col("city")
+        ).alias("weather"),
+    )
+    deserialized_df = _test_df_serialization(df_select, local_session._session_state, serde_implementation)
+    assert deserialized_df
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_predicate(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # semantic predicate
     instruction = "Review: '{{blurb}}'. The review speaks positively about apache spark."
     source = local_session.create_dataframe(
@@ -359,5 +433,5 @@ def test_semantic_plans(local_session, extract_data_df):
     df = source.filter(
         semantic.predicate(instruction, blurb=col("blurb"))
     )
-    deserialized_df = _test_df_serialization(df, local_session._session_state)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df

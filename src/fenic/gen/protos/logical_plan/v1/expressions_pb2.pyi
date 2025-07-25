@@ -158,51 +158,13 @@ class ColumnExpr(_message.Message):
     name: str
     def __init__(self, name: _Optional[str] = ...) -> None: ...
 
-class ScalarValue(_message.Message):
-    __slots__ = ("string_value", "int_value", "double_value", "bool_value", "bytes_value", "array_value", "struct_value")
-    STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
-    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
-    DOUBLE_VALUE_FIELD_NUMBER: _ClassVar[int]
-    BOOL_VALUE_FIELD_NUMBER: _ClassVar[int]
-    BYTES_VALUE_FIELD_NUMBER: _ClassVar[int]
-    ARRAY_VALUE_FIELD_NUMBER: _ClassVar[int]
-    STRUCT_VALUE_FIELD_NUMBER: _ClassVar[int]
-    string_value: str
-    int_value: int
-    double_value: float
-    bool_value: bool
-    bytes_value: bytes
-    array_value: ScalarArray
-    struct_value: ScalarStruct
-    def __init__(self, string_value: _Optional[str] = ..., int_value: _Optional[int] = ..., double_value: _Optional[float] = ..., bool_value: bool = ..., bytes_value: _Optional[bytes] = ..., array_value: _Optional[_Union[ScalarArray, _Mapping]] = ..., struct_value: _Optional[_Union[ScalarStruct, _Mapping]] = ...) -> None: ...
-
-class ScalarArray(_message.Message):
-    __slots__ = ("elements",)
-    ELEMENTS_FIELD_NUMBER: _ClassVar[int]
-    elements: _containers.RepeatedCompositeFieldContainer[ScalarValue]
-    def __init__(self, elements: _Optional[_Iterable[_Union[ScalarValue, _Mapping]]] = ...) -> None: ...
-
-class ScalarStruct(_message.Message):
-    __slots__ = ("fields",)
-    FIELDS_FIELD_NUMBER: _ClassVar[int]
-    fields: _containers.RepeatedCompositeFieldContainer[ScalarStructField]
-    def __init__(self, fields: _Optional[_Iterable[_Union[ScalarStructField, _Mapping]]] = ...) -> None: ...
-
-class ScalarStructField(_message.Message):
-    __slots__ = ("name", "value")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    VALUE_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    value: ScalarValue
-    def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[ScalarValue, _Mapping]] = ...) -> None: ...
-
 class LiteralExpr(_message.Message):
     __slots__ = ("value", "data_type")
     VALUE_FIELD_NUMBER: _ClassVar[int]
     DATA_TYPE_FIELD_NUMBER: _ClassVar[int]
-    value: ScalarValue
+    value: _complex_types_pb2.ScalarValue
     data_type: _datatypes_pb2.DataType
-    def __init__(self, value: _Optional[_Union[ScalarValue, _Mapping]] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
+    def __init__(self, value: _Optional[_Union[_complex_types_pb2.ScalarValue, _Mapping]] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
 
 class AliasExpr(_message.Message):
     __slots__ = ("expr", "name")
@@ -333,22 +295,24 @@ class EqualityComparisonExpr(_message.Message):
     def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ..., operator: _Optional[_Union[_enums_pb2.Operator, str]] = ...) -> None: ...
 
 class SemanticMapExpr(_message.Message):
-    __slots__ = ("instruction", "exprs", "max_tokens", "temperature", "model_alias", "response_format", "examples")
-    INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("template", "strict", "exprs", "max_tokens", "temperature", "model_alias", "response_format", "examples")
+    TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    STRICT_FIELD_NUMBER: _ClassVar[int]
     EXPRS_FIELD_NUMBER: _ClassVar[int]
     MAX_TOKENS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     RESPONSE_FORMAT_FIELD_NUMBER: _ClassVar[int]
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    instruction: str
+    template: str
+    strict: bool
     exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
     max_tokens: int
     temperature: float
-    model_alias: str
+    model_alias: _complex_types_pb2.ResolvedModelAlias
     response_format: _complex_types_pb2.PydanticModelType
     examples: _complex_types_pb2.MapExampleCollection
-    def __init__(self, instruction: _Optional[str] = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., response_format: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.MapExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, template: _Optional[str] = ..., strict: bool = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., response_format: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.MapExampleCollection, _Mapping]] = ...) -> None: ...
 
 class SemanticExtractExpr(_message.Message):
     __slots__ = ("expr", "schema", "max_tokens", "temperature", "model_alias")
@@ -361,32 +325,42 @@ class SemanticExtractExpr(_message.Message):
     schema: _complex_types_pb2.PydanticModelType
     max_tokens: int
     temperature: float
-    model_alias: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., schema: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    model_alias: _complex_types_pb2.ResolvedModelAlias
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., schema: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class SemanticPredExpr(_message.Message):
-    __slots__ = ("instruction", "temperature", "model_alias", "examples")
-    INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("template", "strict", "exprs", "temperature", "model_alias", "examples")
+    TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    STRICT_FIELD_NUMBER: _ClassVar[int]
+    EXPRS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
-    instruction: str
+    template: str
+    strict: bool
+    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
     temperature: float
-    model_alias: str
+    model_alias: _complex_types_pb2.ResolvedModelAlias
     examples: _complex_types_pb2.PredicateExampleCollection
-    def __init__(self, instruction: _Optional[str] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.PredicateExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, template: _Optional[str] = ..., strict: bool = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.PredicateExampleCollection, _Mapping]] = ...) -> None: ...
 
 class SemanticReduceExpr(_message.Message):
-    __slots__ = ("instruction", "max_tokens", "temperature", "model_alias")
+    __slots__ = ("instruction", "input_expr", "max_tokens", "temperature", "group_context_exprs", "order_by_exprs", "model_alias")
     INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
+    INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
     MAX_TOKENS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
+    GROUP_CONTEXT_EXPRS_FIELD_NUMBER: _ClassVar[int]
+    ORDER_BY_EXPRS_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     instruction: str
+    input_expr: LogicalExpr
     max_tokens: int
     temperature: float
-    model_alias: str
-    def __init__(self, instruction: _Optional[str] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    group_context_exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    order_by_exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    model_alias: _complex_types_pb2.ResolvedModelAlias
+    def __init__(self, instruction: _Optional[str] = ..., input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., group_context_exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., order_by_exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class SemanticClassifyExpr(_message.Message):
     __slots__ = ("expr", "classes", "temperature", "model_alias", "examples")
@@ -398,9 +372,9 @@ class SemanticClassifyExpr(_message.Message):
     expr: LogicalExpr
     classes: _containers.RepeatedCompositeFieldContainer[_complex_types_pb2.ResolvedClassDefinition]
     temperature: float
-    model_alias: str
+    model_alias: _complex_types_pb2.ResolvedModelAlias
     examples: _complex_types_pb2.ClassifyExampleCollection
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., classes: _Optional[_Iterable[_Union[_complex_types_pb2.ResolvedClassDefinition, _Mapping]]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ..., examples: _Optional[_Union[_complex_types_pb2.ClassifyExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., classes: _Optional[_Iterable[_Union[_complex_types_pb2.ResolvedClassDefinition, _Mapping]]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.ClassifyExampleCollection, _Mapping]] = ...) -> None: ...
 
 class AnalyzeSentimentExpr(_message.Message):
     __slots__ = ("expr", "temperature", "model_alias")
@@ -409,16 +383,16 @@ class AnalyzeSentimentExpr(_message.Message):
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     temperature: float
-    model_alias: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    model_alias: _complex_types_pb2.ResolvedModelAlias
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class EmbeddingsExpr(_message.Message):
     __slots__ = ("expr", "model_alias")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    model_alias: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    model_alias: _complex_types_pb2.ResolvedModelAlias
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class SemanticSummarizeExpr(_message.Message):
     __slots__ = ("expr", "format", "temperature", "model_alias")
@@ -429,8 +403,8 @@ class SemanticSummarizeExpr(_message.Message):
     expr: LogicalExpr
     format: _complex_types_pb2.SummarizationFormat
     temperature: float
-    model_alias: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., format: _Optional[_Union[_complex_types_pb2.SummarizationFormat, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[str] = ...) -> None: ...
+    model_alias: _complex_types_pb2.ResolvedModelAlias
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., format: _Optional[_Union[_complex_types_pb2.SummarizationFormat, _Mapping]] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class EmbeddingNormalizeExpr(_message.Message):
     __slots__ = ("expr",)
@@ -647,12 +621,14 @@ class ByteLengthExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class JinjaExpr(_message.Message):
-    __slots__ = ("exprs", "template")
+    __slots__ = ("exprs", "template", "strict")
     EXPRS_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    STRICT_FIELD_NUMBER: _ClassVar[int]
     exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
     template: str
-    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., template: _Optional[str] = ...) -> None: ...
+    strict: bool
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., template: _Optional[str] = ..., strict: bool = ...) -> None: ...
 
 class FuzzyRatioExpr(_message.Message):
     __slots__ = ("expr", "other", "method")

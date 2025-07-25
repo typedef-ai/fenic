@@ -5,6 +5,7 @@ from typing import Literal, Type, get_origin
 import pytest
 from pydantic import BaseModel, Field
 
+from fenic import col
 from fenic.core._logical_plan.expressions import (
     # Basic expressions
     AliasExpr,
@@ -89,7 +90,7 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
-from fenic.core._logical_plan.expressions.base import LogicalExpr, Operator
+from fenic.core._logical_plan.expressions.base import LogicalExpr, Operator, UnparameterizedExpr
 from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
@@ -309,18 +310,19 @@ expression_examples = {
     ],
     # Semantic expressions
     SemanticMapExpr: [
-        SemanticMapExpr(instruction="Process ${text_col}", max_tokens=100, temperature=0.1),
-        SemanticMapExpr(instruction="Extract ${name} from ${description}", max_tokens=200, temperature=0.2),
+        SemanticMapExpr(jinja_template="Process {{text_col}}", strict=True, max_tokens=100, temperature=0.1,  exprs=[ColumnExpr("text_col")]),
     ],
     SemanticExtractExpr: [
         SemanticExtractExpr(ColumnExpr("text_col"), schema=BasicResponseFormat, max_tokens=100, temperature=0.1),
     ],
     SemanticPredExpr: [
-        SemanticPredExpr(instruction="${name} Is this positive?", temperature=0.1),
-        SemanticPredExpr(instruction="${name} Contains important information?", temperature=0),
+        SemanticPredExpr(jinja_template="{{name}} Is this positive?", strict=True, exprs=[ColumnExpr("name")],  temperature=0.1),
+        SemanticPredExpr(jinja_template="{{name}} Contains important information?", strict=True, exprs=[ColumnExpr("name")], temperature=0),
     ],
     SemanticReduceExpr: [
-        SemanticReduceExpr(instruction="Summarize all ${documents}", max_tokens=100, temperature=0.1),
+        SemanticReduceExpr(instruction="Summarize all documents in group", group_context_exprs=[ColumnExpr("date")], order_by_exprs=[], input_expr=ColumnExpr("document"), max_tokens=100, temperature=0.1),
+        SemanticReduceExpr(instruction="Summarize all documents in group in {{date}}", group_context_exprs=[ColumnExpr("date")], order_by_exprs=[ColumnExpr("doc_index")], input_expr=ColumnExpr("document"), max_tokens=100, temperature=0.1),
+
     ],
     SemanticClassifyExpr: [
         SemanticClassifyExpr(
@@ -460,6 +462,7 @@ expression_examples = {
         JinjaExpr(
             [ColumnExpr("name"), ColumnExpr("age")],
             "Hello {{name}}, you are {{age}} years old",
+            strict=True
         ),
     ],
     FuzzyRatioExpr: [
@@ -494,19 +497,6 @@ class TestExpressionSerde:
 
     def _compare_expressions(self, original: LogicalExpr, deserialized: LogicalExpr, expr_class_name: str, example_index: int):
         """Compare key attributes of original and deserialized expressions."""
-        # For expressions with generated IDs or non-deterministic string representations,
-        # we'll do more targeted comparisons instead of exact string matching
-        
-        # Handle specific expression types that have known issues
-        if isinstance(original, LiteralExpr) and isinstance(deserialized, LiteralExpr):
-            assert original.literal == deserialized.literal, (
-                f"Literal value mismatch for {expr_class_name} example {example_index}"
-            )
-            assert original.data_type == deserialized.data_type, (
-                f"Literal type mismatch for {expr_class_name} example {example_index}"
-            )
-            return
-        
         if hasattr(original, 'schema') and hasattr(deserialized, 'schema') and issubclass(original.schema, BaseModel) and issubclass(deserialized.schema, BaseModel):
             if issubclass(original.schema, BasicResponseFormat):
                 # check that all the fields in the original schema are present in the deserialized schema            
@@ -525,36 +515,12 @@ class TestExpressionSerde:
                     assert field_info.description == deserialized_field_info.description, f"Field {name} description mismatch"
                     # Known issue that jambo will turn lists into optional fields in the model_json_schema
                     # assert field_info.is_required() == deserialized_field_info.is_required(), f"Field {name} required mismatch"
-                return
+                    return
             else:
                 raise ValueError(f"Unsupported schema type: {type(original.schema)}")
         
-        if isinstance(original, SemanticExtractExpr) and isinstance(deserialized, SemanticExtractExpr):
-            self._compare_expressions(original.expr, deserialized.expr, f"{expr_class_name}.expr", example_index)
-            return
-        
-        # For other expressions, try string comparison but be more lenient
-        original_str = str(original)
-        deserialized_str = str(deserialized)
-        
-        # Normalize strings for comparison (remove extra spaces, etc.)
-        original_normalized = ' '.join(original_str.split())
-        deserialized_normalized = ' '.join(deserialized_str.split())
-        assert original_normalized == deserialized_normalized, (
-                    f"String representation mismatch for {expr_class_name} example {example_index}:\n"
-                    f"Original: {original_str}\n"
-                    f"Deserialized: {deserialized_str}"
-                )
-               
-        # For specific expression types, we can add more detailed comparisons
-        if hasattr(original, 'name') and hasattr(deserialized, 'name'):
-            assert original.name == deserialized.name, f"Alias name mismatch for {expr_class_name} example {example_index}"
-        
-        if hasattr(original, 'dest_type') and hasattr(deserialized, 'dest_type'):
-            assert original.dest_type == deserialized.dest_type, f"Cast dest_type mismatch for {expr_class_name} example {example_index}"
-        
-        if hasattr(original, 'op') and hasattr(deserialized, 'op'):
-            assert original.op == deserialized.op, f"Operator mismatch for {expr_class_name} example {example_index}"
+        if not original == deserialized:
+            raise ValueError(f"Original {original} does not match deserialized {deserialized}. Class Name: {expr_class_name}, Example Index: {example_index}")
 
     @pytest.mark.parametrize("expr_class", expression_examples.keys())
     def test_all_expression_types_with_examples(self, expr_class: Type[LogicalExpr]):
@@ -601,7 +567,7 @@ class TestExpressionSerde:
         """Test that serializing an unregistered expression type raises an error."""
 
         # Create a mock expression that's not registered
-        class MockExpr(LogicalExpr):
+        class MockExpr(UnparameterizedExpr, LogicalExpr):
             def __init__(self):
                 pass
 
@@ -613,6 +579,7 @@ class TestExpressionSerde:
 
             def children(self):
                 return []
+
 
         mock_expr = MockExpr()
 

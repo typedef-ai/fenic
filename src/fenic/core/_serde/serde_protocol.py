@@ -1,7 +1,7 @@
 """Protocol for serialization/deserialization of LogicalPlan objects."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from fenic.core._interfaces.session_state import BaseSessionState
 
@@ -28,12 +28,11 @@ class SupportsLogicalPlanSerde(Protocol):
         ...
 
     @staticmethod
-    def deserialize(data: bytes, session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
+    def deserialize(data: bytes) -> LogicalPlan:
         """Deserialize bytes back into a LogicalPlan.
 
         Args:
-            data: The serialized plan data            
-            session_state: Optional session state to hydrate the plan with
+            data: The serialized plan data
 
         Returns:
             The deserialized plan

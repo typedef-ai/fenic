@@ -105,31 +105,6 @@ message ColumnExpr {
   string name = 1;
 }
 
-message ScalarValue {
-  oneof value_type {
-    string string_value = 1;
-    int32 int_value = 2;
-    double double_value = 3;
-    bool bool_value = 4;
-    bytes bytes_value = 5;
-    ScalarArray array_value = 6;
-    ScalarStruct struct_value = 7;
-    //all types we support for LiteralExpr
-  }
-}
-
-message ScalarArray {
-  repeated ScalarValue elements = 1;
-}
-
-message ScalarStruct {
-  repeated ScalarStructField fields = 1;
-}
-
-message ScalarStructField {
-  string name = 1;
-  ScalarValue value = 2;
-}
 
 message LiteralExpr {
   ScalarValue value = 1;
@@ -219,61 +194,67 @@ message EqualityComparisonExpr {
 
 // Semantic expressions - using descriptive  suffix naming
 message SemanticMapExpr {
-  string instruction = 1;
-  repeated LogicalExpr exprs = 2;  // Parsed from instruction
-  int32 max_tokens = 3;
-  float temperature = 4;
-  optional string model_alias = 5;
-  optional PydanticModelType response_format = 6;
-  optional MapExampleCollection examples = 7;
+  string template = 1;
+  bool strict = 2;
+  repeated LogicalExpr exprs = 3;  // Parsed from instruction
+  int32 max_tokens = 4;
+  double temperature = 5;
+  optional ResolvedModelAlias model_alias = 6;
+  optional PydanticModelType response_format = 7;
+  optional MapExampleCollection examples = 8;
 }
 
 message SemanticExtractExpr {
   LogicalExpr expr = 1;
   PydanticModelType schema = 2;
   int32 max_tokens = 3;
-  float temperature = 4;
-  optional string model_alias = 5;
+  double temperature = 4;
+  optional ResolvedModelAlias model_alias = 5;
 }
 
 message SemanticPredExpr {
-  string instruction = 2;
-  float temperature = 3;
-  optional string model_alias = 4;
-  optional PredicateExampleCollection examples = 5;
+  string template = 1;
+  bool strict = 2;
+  repeated LogicalExpr exprs = 3;  // Parsed from instruction
+  double temperature = 4;
+  optional ResolvedModelAlias model_alias = 5;
+  optional PredicateExampleCollection examples = 6;
 }
 
 message SemanticReduceExpr {
-  string instruction = 2;
+  string instruction = 1;
+  LogicalExpr input_expr = 2;
   int32 max_tokens = 3;
-  float temperature = 4;
-  optional string model_alias = 5;
+  double temperature = 4;
+  repeated LogicalExpr group_context_exprs = 5;
+  repeated LogicalExpr order_by_exprs = 6;
+  optional ResolvedModelAlias model_alias = 7;
 }
 
 message SemanticClassifyExpr {
   LogicalExpr expr = 1;
   repeated ResolvedClassDefinition classes = 2;
-  float temperature = 3;
-  optional string model_alias = 4;
+  double temperature = 3;
+  optional ResolvedModelAlias model_alias = 4;
   optional ClassifyExampleCollection examples = 5;
 }
 
 message AnalyzeSentimentExpr {
   LogicalExpr expr = 1;
-  float temperature = 2;
-  optional string model_alias = 3;
+  double temperature = 2;
+  optional ResolvedModelAlias model_alias = 3;
 }
 
 message EmbeddingsExpr {
   LogicalExpr expr = 1;
-  optional string model_alias = 2;
+  optional ResolvedModelAlias model_alias = 2;
 }
 
 message SemanticSummarizeExpr {
   LogicalExpr expr = 1;
   SummarizationFormat format = 2;
-  float temperature = 3;
-  optional string model_alias = 4;
+  double temperature = 3;
+  optional ResolvedModelAlias model_alias = 4;
 }
 
 // Embedding expressions
@@ -415,6 +396,7 @@ message ByteLengthExpr {
 message JinjaExpr {
   repeated LogicalExpr exprs = 1;
   string template = 2;
+  bool strict = 3;
 }
 
 message FuzzyRatioExpr {

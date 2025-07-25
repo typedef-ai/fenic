@@ -1,7 +1,7 @@
 """LogicalPlan serialization with pluggable backends."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._serde import CloudPickleSerde
@@ -28,10 +28,9 @@ class LogicalPlanSerde(SupportsLogicalPlanSerde):
     def deserialize(
         cls,
         serialized_plan: bytes,
-        session_state: Optional[BaseSessionState] = None,
     ) -> LogicalPlan:
         """Deserialize a LogicalPlan from bytes."""
-        return cls._serde.deserialize(serialized_plan, session_state)
+        return cls._serde.deserialize(serialized_plan)
 
 
     @classmethod

@@ -119,5 +119,5 @@ def _deserialize_md_get_code_blocks_expr(
 ) -> MdGetCodeBlocksExpr:
     return MdGetCodeBlocksExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        language_filter=logical_proto.language_filter,
+        language_filter=logical_proto.language_filter if logical_proto.HasField("language_filter") else None,
     )
