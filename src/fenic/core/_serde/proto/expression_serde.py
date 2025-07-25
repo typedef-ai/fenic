@@ -20,13 +20,17 @@ from fenic.core._serde.proto.types import LogicalExprProto
 
 @singledispatch
 def serialize_logical_expr(
-    logical: LogicalExpr, context: SerdeContext
+    logical: LogicalExpr, _context: SerdeContext
 ) -> LogicalExprProto:
     """Serialize a logical expression.
 
     The actual serialization implementations are registered in the expressions/ submodules.
     """
-    raise SerializationError(f"Serialization not implemented for {type(logical)}")
+    raise _context.create_serde_error(
+        SerializationError,
+        f"Serialization not implemented for {type(logical)}",
+        type(logical),
+    )
 
 
 def deserialize_logical_expr(
@@ -52,7 +56,8 @@ def _deserialize_logical_expr_helper(
 
     The actual deserialization implementations are registered in the expressions/ submodules.
     """
-    raise DeserializationError(
+    raise context.create_serde_error(
+        DeserializationError,
         f"Deserialization not implemented for {type(logical_proto)}"
     )
 

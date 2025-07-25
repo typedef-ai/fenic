@@ -1,7 +1,6 @@
 """Data type serialization/deserialization using singledispatch."""
 
 from functools import singledispatch
-from typing import Type, TypeVar
 
 from google.protobuf.message import Message
 
@@ -64,20 +63,14 @@ def serialize_data_type(data_type: DataType, context: SerdeContext) -> DataTypeP
         type(data_type),
     )
 
-
-DataTypeSubClass = TypeVar("DataTypeSubClass", bound=DataTypeProto)
-
-
 def deserialize_data_type(
     data_type_proto: DataTypeProto,
     context: SerdeContext,
-    _target_type: Type[DataTypeSubClass] = DataType,
-) -> DataTypeSubClass:
+) -> DataType:
     """Deserialize a data type."""
     which_oneof = data_type_proto.WhichOneof("data_type")
     underlying_proto = getattr(data_type_proto, which_oneof)
     return _deserialize_data_type_helper(underlying_proto, context)
-
 
 @singledispatch
 def _deserialize_data_type_helper(
