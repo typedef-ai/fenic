@@ -12,7 +12,7 @@ from fenic import (
     count,
     semantic,
 )
-from fenic.core.error import TypeMismatchError
+from fenic.core.error import TypeMismatchError, ValidationError
 
 
 def test_semantic_cluster_with_centroids(local_session):
@@ -28,7 +28,7 @@ def test_semantic_cluster_with_centroids(local_session):
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
+        .semantic.with_cluster_labels(col("embeddings"), num_clusters=2, num_init=5, max_iter=100, centroid_column="cluster_centroid")
     )
 
     assert df.schema.column_fields == [
@@ -56,7 +56,7 @@ def test_semantic_cluster_derived_column(local_session):
             ],
         }
     )
-    df = source.semantic.with_cluster_labels(semantic.embed(col("blurb")), 2)
+    df = source.semantic.with_cluster_labels(semantic.embed(col("blurb")), num_clusters=2)
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
@@ -81,7 +81,7 @@ def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_sess
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.with_cluster_labels(col("embeddings"), 2)
+        .semantic.with_cluster_labels(col("embeddings"), num_clusters=2)
         .group_by(col("cluster_label"))
         .agg(collect_list(col("blurb")).alias("blurbs"))
     )
@@ -174,3 +174,19 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session):
         .to_polars()
     )
     assert len(result) == 2
+
+def test_semantic_cluster_with_invalid_parameters(local_session):
+    source = local_session.create_dataframe(
+        {
+            "embeddings": [
+                [0.1, 0.5],
+                [0.2, 0.8],
+            ],
+        }
+    ).with_column("embeddings", col("embeddings").cast(EmbeddingType(embedding_model="dummy_model", dimensions=2)))
+    with pytest.raises(ValidationError, match="`num_clusters` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=0)
+    with pytest.raises(ValidationError, match="`max_iter` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=2, max_iter=0)
+    with pytest.raises(ValidationError, match="`num_init` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=2, num_init=0)
