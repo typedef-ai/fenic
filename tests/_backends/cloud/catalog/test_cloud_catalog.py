@@ -1,12 +1,21 @@
 import asyncio
+import base64
 import os
 import threading
 import uuid
 from datetime import datetime
-from typing import Any
 from unittest.mock import MagicMock
 
+import pyarrow as pa
 import pytest
+
+from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.core.types.datatypes import (
+    BooleanType,
+    EmbeddingType,
+    FloatType,
+    TranscriptType,
+)
 
 pytest.importorskip("fenic_cloud")
 from fenic_cloud.hasura_client.generated_graphql_client import Client
@@ -60,6 +69,9 @@ from fenic_cloud.hasura_client.generated_graphql_client.sc_drop_namespace import
 
 from fenic import ColumnField, IntegerType, Schema, StringType
 from fenic._backends.cloud.catalog import CloudCatalog
+from fenic._backends.cloud.cloud_catalog_utils import (
+    convert_custom_schema_to_pyarrow_schema,
+)
 from fenic._backends.cloud.manager import CloudSessionManager
 from fenic._backends.cloud.session_state import CloudSessionState
 from fenic._backends.local.catalog import (
@@ -122,6 +134,10 @@ def schema(): # noqa: D103
         column_fields=[
             ColumnField(name="id", data_type=IntegerType),
             ColumnField(name="name", data_type=StringType),
+            ColumnField(name="account_balance", data_type=FloatType),
+            ColumnField(name="is_active", data_type=BooleanType),
+            ColumnField(name="transcript", data_type=TranscriptType(format="generic")),
+            ColumnField(name="transcript_embedding", data_type=EmbeddingType(dimensions=384, embedding_model="openai/text-embedding-3-small")),
         ]
     )
 
@@ -138,12 +154,12 @@ def _load_table_side_effect(
                 updated_at=datetime.now(),
                 schema_=SimpleCatalogTableDetailsSchema(
                     schema_id=1,
-                    identifier_field_ids=[1, 2, 3],
+                    identifier_field_ids=[1],
                     fields=[
                         SimpleCatalogSchemaDetailsFields(
                             id=1,
                             name="id",
-                            data_type="int64",
+                            data_type=b"EgA=",
                             arrow_data_type="int64",
                             nullable=False,
                             metadata=None,
@@ -151,7 +167,7 @@ def _load_table_side_effect(
                         SimpleCatalogSchemaDetailsFields(
                             id=2,
                             name="name",
-                            data_type="string",
+                            data_type=b'CgA=',
                             arrow_data_type="string",
                             nullable=False,
                             metadata=None,
@@ -159,8 +175,32 @@ def _load_table_side_effect(
                         SimpleCatalogSchemaDetailsFields(
                             id=3,
                             name="account_balance",
-                            data_type="Decimal128",
-                            arrow_data_type="Decimal128",
+                            data_type=b'GgA=',
+                            arrow_data_type="float",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                        SimpleCatalogSchemaDetailsFields(
+                            id=4,
+                            name="is_active",
+                            data_type=b'KgA=',
+                            arrow_data_type="bool",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                        SimpleCatalogSchemaDetailsFields(
+                            id=5,
+                            name="transcript",
+                            data_type=b'SgkKB2dlbmVyaWM=',
+                            arrow_data_type='string',
+                            nullable=False,
+                            metadata=None,
+                        ),
+                        SimpleCatalogSchemaDetailsFields(
+                            id=6,
+                            name="transcript_embedding",
+                            data_type=b'QiIIgAMSHW9wZW5haS90ZXh0LWVtYmVkZGluZy0zLXNtYWxs',
+                            arrow_data_type='fixed_size_list<item: float>[384]',
                             nullable=False,
                             metadata=None,
                         ),
@@ -411,7 +451,7 @@ def test_does_database_exist(cloud_catalog):
     )
 
 
-def test_does_database_exist_use_default_catalog(cloud_catalog):
+def test_does_database_exist_use_default_catalog(cloud_catalog: CloudCatalog):
     cloud_catalog.set_current_catalog(DEFAULT_CATALOG_NAME)
     assert cloud_catalog.does_database_exist(DEFAULT_DATABASE_NAME)
     assert not cloud_catalog.does_database_exist("nonexistentdatabase")
@@ -419,7 +459,7 @@ def test_does_database_exist_use_default_catalog(cloud_catalog):
     assert cloud_catalog.does_database_exist(DEFAULT_DATABASE_NAME.upper())
 
 
-def test_list_tables(cloud_catalog):
+def test_list_tables(cloud_catalog: CloudCatalog):
     # If not database is selected, then we should raise an error
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
@@ -438,7 +478,7 @@ def test_list_tables_use_default_catalog(cloud_catalog_default_catalog):
     ]
 
 
-def test_does_table_exist(cloud_catalog):
+def test_does_table_exist(cloud_catalog: CloudCatalog):
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
     assert cloud_catalog.does_table_exist(TEST_TABLE_NAME_1)
@@ -458,18 +498,24 @@ def test_does_table_exist(cloud_catalog):
     )
 
 
-def test_get_table_schema(cloud_catalog):
+def test_get_table_schema(cloud_catalog: CloudCatalog):
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
     schema = cloud_catalog.describe_table(TEST_TABLE_NAME_1)
     assert schema is not None
-    assert len(schema.column_names()) == 3
-    assert schema.column_names() == ["id", "name", "account_balance"]
-
+    assert len(schema.column_names()) == 6
+    assert schema.column_names() == ["id", "name", "account_balance", "is_active", "transcript", "transcript_embedding"]
+    columns_by_name = {column.name: column for column in schema.column_fields}
+    assert columns_by_name["id"].data_type == IntegerType
+    assert columns_by_name["name"].data_type == StringType
+    assert columns_by_name["account_balance"].data_type == FloatType
+    assert columns_by_name["is_active"].data_type == BooleanType
+    assert columns_by_name["transcript"].data_type == TranscriptType(format="generic")
+    assert columns_by_name["transcript_embedding"].data_type == EmbeddingType(dimensions=384, embedding_model="openai/text-embedding-3-small")
     with pytest.raises(TableNotFoundError):
         cloud_catalog.describe_table("nonexistent_table")
 
-def test_create_database(cloud_catalog): # noqa: D103
+def test_create_database(cloud_catalog: CloudCatalog): # noqa: D103
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     assert cloud_catalog.create_database(TEST_NEW_DATABASE_NAME)
 
@@ -493,7 +539,7 @@ def test_create_database(cloud_catalog): # noqa: D103
     assert str(e.value) == "Database 'typedef_default' already exists"
 
 
-def test_drop_database(cloud_catalog): # noqa: D103
+def test_drop_database(cloud_catalog: CloudCatalog): # noqa: D103
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     assert cloud_catalog.drop_database(TEST_DATABASE_NAME)
 
@@ -517,7 +563,7 @@ def test_drop_database(cloud_catalog): # noqa: D103
     with pytest.raises(CatalogError):
         cloud_catalog.drop_database(f"{DEFAULT_CATALOG_NAME}.{DEFAULT_DATABASE_NAME}")
 
-def test_create_table(cloud_catalog, schema): # noqa: D103
+def test_create_table(cloud_catalog: CloudCatalog, schema: Schema): # noqa: D103
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
     assert cloud_catalog.create_table(
@@ -542,7 +588,7 @@ def test_create_table(cloud_catalog, schema): # noqa: D103
         )
 
 
-def test_drop_table(cloud_catalog): # noqa: D103
+def test_drop_table(cloud_catalog: CloudCatalog): # noqa: D103
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
     assert cloud_catalog.drop_table(TEST_TABLE_NAME_1)
@@ -564,7 +610,7 @@ def test_drop_table(cloud_catalog): # noqa: D103
         )
 
 
-def test_create_catalog(cloud_catalog): # noqa: D103
+def test_create_catalog(cloud_catalog: CloudCatalog): # noqa: D103
     with pytest.raises(CatalogError):
         cloud_catalog.create_catalog(DEFAULT_CATALOG_NAME)
 
@@ -578,7 +624,7 @@ def test_create_catalog(cloud_catalog): # noqa: D103
         cloud_catalog.create_catalog(TEST_CATALOG_NAME, ignore_if_exists=False)
 
 
-def test_drop_catalog(cloud_catalog): # noqa: D103
+def test_drop_catalog(cloud_catalog: CloudCatalog): # noqa: D103
     # can't drop the default catalog
     with pytest.raises(CatalogError):
         cloud_catalog.drop_catalog(DEFAULT_CATALOG_NAME)
@@ -596,9 +642,47 @@ def test_drop_catalog(cloud_catalog): # noqa: D103
     cloud_catalog.set_current_catalog(DEFAULT_CATALOG_NAME)
     assert cloud_catalog.drop_catalog(TEST_CATALOG_NAME)
 
+def test_schema_conversion(schema: Schema): # noqa: D103
+    pyarrow_schema = convert_custom_schema_to_pyarrow_schema(schema)
+    assert pyarrow_schema == pa.schema([
+        pa.field("id", pa.int64()),
+        pa.field("name", pa.string()),
+        pa.field("account_balance", pa.float32()),
+        pa.field("is_active", pa.bool_()),
+        pa.field("transcript", pa.string()),
+        pa.field("transcript_embedding", pa.list_(pa.float32(), 384)),
+    ])
+    context = SerdeContext()
+    nested_field_input = CloudCatalog._get_schema_input_from_schema(schema)
+    nested_fields_by_name = {field.name: field for field in nested_field_input.fields}
+    assert base64.b64decode(nested_fields_by_name["id"].data_type) == context.serialize_data_type(
+        "data_type",
+        IntegerType
+    ).SerializeToString()
+    assert base64.b64decode(nested_fields_by_name["name"].data_type) == context.serialize_data_type(
+        "data_type",
+        StringType
+    ).SerializeToString()
+    assert base64.b64decode(nested_fields_by_name["account_balance"].data_type) == context.serialize_data_type(
+        "data_type",
+        FloatType
+    ).SerializeToString()
+    assert base64.b64decode(nested_fields_by_name["is_active"].data_type) == context.serialize_data_type(
+        "data_type",
+        BooleanType
+    ).SerializeToString()
+    assert base64.b64decode(nested_fields_by_name["transcript"].data_type) == context.serialize_data_type(
+        "data_type",
+        TranscriptType(format="generic")
+    ).SerializeToString()
+    assert base64.b64decode(nested_fields_by_name["transcript_embedding"].data_type) == context.serialize_data_type(
+        "data_type",
+        EmbeddingType(dimensions=384, embedding_model="openai/text-embedding-3-small")
+    ).SerializeToString()
+
 def _init_cloud_catalog(
-    session_state: Any, client: Client, cloud_session_manager: Any
-) -> Any:
+    session_state: CloudSessionState, client: Client, cloud_session_manager: CloudSessionManager
+) -> CloudCatalog:
     os.environ["TYPEDEF_USER_ID"] = "mock_user_id"
     os.environ["TYPEDEF_USER_SECRET"] = "mock_user_secret"  # nosec B105
     os.environ["REMOTE_SESSION_AUTH_PROVIDER_URI"] = "mock_auth_provider_uri"
@@ -613,7 +697,7 @@ def _init_cloud_catalog(
     return cloud_catalog
 
 
-def _init_mock_state(ev_loop: asyncio.AbstractEventLoop) -> Any:
+def _init_mock_state(ev_loop: asyncio.AbstractEventLoop) -> CloudSessionState:
     """Initialize a mock session state with a given event loop."""
     mock_state = MagicMock(spec=CloudSessionState)
     mock_state.app_name = TEST_DEFAULT_APP_NAME
