@@ -148,7 +148,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         return super().to_column_field(plan)
 
     def __str__(self):
-        schema_hash = utils.get_content_hash(str(self.schema))
+        schema_hash = utils.get_content_hash(json.dumps(self.schema.model_json_schema()))
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 
