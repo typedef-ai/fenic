@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar, Union
+from typing import Any, ClassVar, Dict, Generic, List, Mapping, Type, TypeVar, Union
 
 import pandas as pd
 import polars as pl
@@ -35,7 +35,7 @@ class MapExample(BaseModel):
     string or structured model used in a semantic.map operation.
     """
 
-    input: Dict[str, Any]
+    input: Mapping[str, Any]
     output: Union[str, BaseModel]
 
 
@@ -57,7 +57,7 @@ class PredicateExample(BaseModel):
     used in a semantic.predicate operation.
     """
 
-    input: Dict[str, Any]
+    input: Mapping[str, Any]
     output: bool
 
 
@@ -87,7 +87,7 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
     - Improving model performance without changing the underlying model
     """
 
-    example_class: ClassVar[Type] = None
+    example_class: ClassVar[Type[ExampleType]]
 
     def __init__(self, examples: List[ExampleType] = None):
         """Initialize a collection of semantic examples.

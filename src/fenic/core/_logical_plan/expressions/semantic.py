@@ -22,7 +22,9 @@ from fenic.core.types import (
 )
 
 if TYPE_CHECKING:
+    from fenic import StringType
     from fenic.core._logical_plan import LogicalPlan
+
 import fenic.core._utils.misc as utils
 from fenic.core._inference.model_catalog import (
     model_catalog,
@@ -131,6 +133,12 @@ class SemanticMapExpr(SemanticExpr):
             self.temperature,
             self.max_tokens,
         )
+
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        if self.response_format:
+            return convert_pydantic_type_to_custom_struct_type(self.response_format)
+        else:
+            return StringType
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.template)

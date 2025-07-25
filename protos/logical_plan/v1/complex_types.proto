@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+message ResolvedClassDefinition {
+  string label = 1;
+  string description = 2;
+}
+
+// NumPy array serialization
+message NumpyArray {
+  bytes data = 1;
+  repeated int32 shape = 2;
+  string dtype = 3;
+}
+
+// Pydantic model type serialization (for response_format)
+message PydanticModelType {
+  string json_schema = 1;
+}
+
+// Pydantic model instances - direct protobuf messages for each type
+
+// KeyPoints format for summarization
+message KeyPoints {
+  int32 max_points = 1;
+}
+
+// Paragraph format for summarization
+message Paragraph {
+  int32 max_words = 1;
+}
+
+// Union type for summarization formats
+// TODO(brandon): figure out how to handle this.
+message SummarizationFormat {
+  oneof format_type {
+    KeyPoints key_points = 1;
+    Paragraph paragraph = 2;
+  }
+}
+
+// Semantic example types
+// TODO(brandon): figure out how this is going to work with structured format map examples
+message MapExample {
+  map<string, string> input = 1;
+  string output = 2;
+}
+
+message MapExampleCollection {
+  repeated MapExample examples = 1;
+}
+
+message ClassifyExample {
+  string input = 1;
+  string output = 2;
+}
+
+message ClassifyExampleCollection {
+  repeated ClassifyExample examples = 1;
+}
+
+message PredicateExample {
+  map<string, string> input = 1;
+  bool output = 2;
+}
+
+message PredicateExampleCollection {
+  repeated PredicateExample examples = 1;
+}
+
+message JoinExample {
+  string left = 1;
+  string right = 2;
+  bool output = 3;
+}
+
+message JoinExampleCollection {
+  repeated JoinExample examples = 1;
+}

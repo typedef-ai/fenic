@@ -38,6 +38,19 @@ from fenic.core.types import (
 
 logger = logging.getLogger(__name__)
 
+class ChunkLengthFunction(Enum):
+    CHARACTER = "CHARACTER"
+    WORD = "WORD"
+    # trunk-ignore(bandit/B105): not a token
+    TOKEN = "TOKEN"
+
+
+class ChunkCharacterSet(Enum):
+    CUSTOM = "CUSTOM"
+    ASCII = "ASCII"
+    UNICODE = "UNICODE"
+
+
 class TokenType(Enum):
     DELIMITER = auto()    # Literal text content
     COLUMN = auto()  # Column placeholder with optional format
@@ -192,19 +205,6 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
         return self.template == other.template
 
 
-class ChunkLengthFunction(Enum):
-    CHARACTER = "CHARACTER"
-    WORD = "WORD"
-    # trunk-ignore(bandit/B105): not a token
-    TOKEN = "TOKEN"
-
-
-class ChunkCharacterSet(Enum):
-    CUSTOM = "CUSTOM"
-    ASCII = "ASCII"
-    UNICODE = "UNICODE"
-
-
 class TextChunkExprConfiguration(BaseModel):
     desired_chunk_size: int = Field(gt=0)
     chunk_overlap_percentage: int = Field(default=0, ge=0, lt=100)
@@ -219,9 +219,10 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
         input_expr: LogicalExpr,
         desired_chunk_size: int,
         chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
+        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
     ):
         self.input_expr = input_expr
+        # Create the configuration object for internal use
         self.chunk_configuration = TextChunkExprConfiguration(
             desired_chunk_size=desired_chunk_size,
             chunk_overlap_percentage=chunk_overlap_percentage,
@@ -257,9 +258,10 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
         chunk_overlap_percentage: int = 0,
         chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
         chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
-        chunking_character_set_custom_characters: Optional[list[str]] = None
+        chunking_character_set_custom_characters: Optional[list[str]] = None,
     ):
         self.input_expr = input_expr
+        # Create the configuration object for internal use
         self.chunking_configuration = RecursiveTextChunkExprConfiguration(
             desired_chunk_size=desired_chunk_size,
             chunk_overlap_percentage=chunk_overlap_percentage,

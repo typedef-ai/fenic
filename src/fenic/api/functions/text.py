@@ -9,6 +9,8 @@ from fenic.api.functions.core import lit
 from fenic.core._logical_plan.expressions import (
     ArrayJoinExpr,
     ByteLengthExpr,
+    ChunkCharacterSet,
+    ChunkLengthFunction,
     ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
@@ -29,13 +31,12 @@ from fenic.core._logical_plan.expressions import (
     TextractExpr,
     TsParseExpr,
 )
-from fenic.core._logical_plan.expressions.text import (
-    ChunkCharacterSet,
-    ChunkLengthFunction,
-)
 from fenic.core.error import ValidationError
 from fenic.core.types import StringType
-from fenic.core.types.enums import FuzzySimilarityMethod, TranscriptFormatType
+from fenic.core.types.enums import (
+    FuzzySimilarityMethod,
+    TranscriptFormatType,
+)
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+// Binary operators for expressions
+enum Operator {
+  // Arithmetic operators
+  EQ = 0;
+  NOT_EQ = 1;
+  LT = 2;
+  LTEQ = 3;
+  GT = 4;
+  GTEQ = 5;
+  PLUS = 6;
+  MINUS = 7;
+  MULTIPLY = 8;
+  DIVIDE = 9;
+  AND = 10;
+  OR = 11;
+}
+
+// Text chunking function types
+enum ChunkLengthFunction {
+  CHARACTER = 0;
+  WORD = 1;
+  TOKEN = 2;
+}
+
+// Text chunking character set types
+enum ChunkCharacterSet {
+  CUSTOM = 0;
+  ASCII = 1;
+  UNICODE = 2;
+}

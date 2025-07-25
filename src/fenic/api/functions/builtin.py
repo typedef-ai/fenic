@@ -265,6 +265,11 @@ def array(
 def udf(f: Optional[Callable] = None, *, return_type: DataType):
     """A decorator or function for creating user-defined functions (UDFs) that can be applied to DataFrame rows.
 
+    Warning:
+        UDFs cannot be serialized and are not supported in cloud execution.
+        User-defined functions contain arbitrary Python code that cannot be transmitted
+        to remote workers. For cloud compatibility, use built-in fenic functions instead.
+
     When applied, UDFs will:
     - Access `StructType` columns as Python dictionaries (`dict[str, Any]`).
     - Access `ArrayType` columns as Python lists (`list[Any]`).

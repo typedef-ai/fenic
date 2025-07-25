@@ -19,6 +19,7 @@ from fenic.core._logical_plan.expressions import (
     LikeExpr,
     LiteralExpr,
     LogicalExpr,
+    Operator,
     OtherwiseExpr,
     RLikeExpr,
     SortExpr,
