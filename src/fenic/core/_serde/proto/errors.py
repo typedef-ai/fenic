@@ -1,19 +1,36 @@
 """Errors for the proto serde module."""
+
 from __future__ import annotations
 
 from typing import Optional, Type
 
 
 class SerdeError(Exception):
-    """Base exception for serialization errors."""
+    """Base exception for serialization/deserialization errors.
+
+    All serde-specific exceptions inherit from this class. Provides
+    consistent error handling with optional path and type information.
+    """
+
     pass
 
 
 class DeserializationError(SerdeError):
-    """Errors during deserialization."""
+    """Errors during deserialization from protobuf format."""
 
-    def __init__(self, message: str, object_type: Optional[Type] = None, field_path: Optional[str] = None):
-        """Initialize a DeserializationError."""
+    def __init__(
+        self,
+        message: str,
+        object_type: Optional[Type] = None,
+        field_path: Optional[str] = None,
+    ):
+        """Initialize a DeserializationError.
+
+        Args:
+            message: The error message.
+            object_type: Optional type information for the error.
+            field_path: Optional field path where the error occurred.
+        """
         self.object_type = object_type
         self.field_path = field_path
         if object_type and field_path:
@@ -22,16 +39,22 @@ class DeserializationError(SerdeError):
             super().__init__(message)
 
 
-class RegistrationError(SerdeError):
-    """Errors during type registration."""
-    pass
-
-
 class SerializationError(SerdeError):
-    """Errors during serialization."""
+    """Errors during serialization to protobuf format."""
 
-    def __init__(self, message: str, object_type: Optional[Type] = None, field_path: Optional[str] = None):
-        """Initialize a SerializationError."""
+    def __init__(
+        self,
+        message: str,
+        object_type: Optional[Type] = None,
+        field_path: Optional[str] = None,
+    ):
+        """Initialize a SerializationError.
+
+        Args:
+            message: The error message.
+            object_type: Optional type information for the error.
+            field_path: Optional field path where the error occurred.
+        """
         self.object_type = object_type
         self.field_path = field_path
         if object_type and field_path:

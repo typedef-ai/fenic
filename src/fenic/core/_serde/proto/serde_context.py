@@ -1,4 +1,5 @@
 """Helper utilities for path tracking in serde operations."""
+
 from __future__ import annotations
 
 import json
@@ -50,8 +51,14 @@ from fenic.core.types.schema import ColumnField, Schema
 # Used for type hinting support in serialize_enum_value and deserialize_enum_value
 EnumType = TypeVar("EnumType", bound=Enum)
 
+
 class SerdeContext:
-    """Context for managing serialization/deserialization state and path tracking."""
+    """Context for managing serialization/deserialization state and path tracking.
+
+    Provides centralized error handling, path tracking, and field-level serde operations
+    for protobuf serialization/deserialization. All serde operations should use this
+    context to ensure consistent error reporting and path information.
+    """
 
     # Common field name constants for improved usability
     EXPR = "expr"
@@ -70,7 +77,7 @@ class SerdeContext:
     OPERATOR = "operator"
 
     def __init__(self):
-        """Initialize a SerializationContext."""
+        """Initialize a SerdeContext with an empty path tracker."""
         self._path_tracker = PathTracker()
 
     @property
@@ -91,14 +98,28 @@ class SerdeContext:
         finally:
             self._path_tracker.pop()
 
-    def create_serde_error(self, error_class: Type[SerdeError], message: str, object_type: Optional[Type] = None) -> SerdeError:
-        """Create a serde error with the current path automatically included."""
+    def create_serde_error(
+        self,
+        error_class: Type[SerdeError],
+        message: str,
+        object_type: Optional[Type] = None,
+    ) -> SerdeError:
+        """Create a serde error with the current path automatically included.
+
+        Args:
+            error_class: The type of serde error to create.
+            message: The error message.
+            object_type: Optional type information for the error.
+
+        Returns:
+            A serde error with path information included.
+        """
         current_path = self.current_path
         return error_class(message, object_type, current_path if current_path else None)
 
     def _handle_serde_error(self, e: Exception) -> None:
         # If it's already a serde error with a path, re-raise as-is
-        if hasattr(e, 'field_path') and e.field_path:
+        if hasattr(e, "field_path") and e.field_path:
             raise
 
         # Otherwise, wrap it with path information
@@ -107,7 +128,9 @@ class SerdeContext:
             # Create a new error with path information
             if isinstance(e, SerdeError):
                 # Re-create the error with path information
-                new_error = type(e)(str(e), getattr(e, 'object_type', None), current_path)
+                new_error = type(e)(
+                    str(e), getattr(e, "object_type", None), current_path
+                )
                 raise new_error from e
             else:
                 # Wrap non-serde errors
@@ -120,26 +143,58 @@ class SerdeContext:
     # Core Serde Function Wrappers to preserve field path tracking
     # =============================================================================
 
-    def serialize_logical_expr(self, field_name: str, expr: LogicalExpr) -> LogicalExprProto:
-        """Serialize a logical expression with field path tracking."""
+    def serialize_logical_expr(
+        self, field_name: str, expr: LogicalExpr
+    ) -> LogicalExprProto:
+        """Serialize a logical expression with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            expr: The logical expression to serialize.
+
+        Returns:
+            The serialized protobuf representation.
+        """
         from fenic.core._serde.proto.expression_serde import serialize_logical_expr
+
         with self.path_context(field_name):
             try:
                 return serialize_logical_expr(expr, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_logical_expr(self, field_name: str, expr_proto: LogicalExprProto) -> LogicalExpr:
-        """Deserialize a logical expression with field path tracking."""
+    def deserialize_logical_expr(
+        self, field_name: str, expr_proto: LogicalExprProto
+    ) -> LogicalExpr:
+        """Deserialize a logical expression with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            expr_proto: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized logical expression.
+        """
         from fenic.core._serde.proto.expression_serde import deserialize_logical_expr
+
         with self.path_context(field_name):
             try:
                 return deserialize_logical_expr(expr_proto, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def serialize_logical_expr_list(self, field_name: str, expr_list: List[LogicalExpr]) -> List[LogicalExprProto]:
-        """Serialize a list of logical expressions with field path tracking."""
+    def serialize_logical_expr_list(
+        self, field_name: str, expr_list: List[LogicalExpr]
+    ) -> List[LogicalExprProto]:
+        """Serialize a list of logical expressions with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            expr_list: The list of logical expressions to serialize.
+
+        Returns:
+            A list of serialized protobuf representations.
+        """
         result = []
         with self.path_context(field_name):
             for i, expr in enumerate(expr_list):
@@ -150,8 +205,18 @@ class SerdeContext:
                         self._handle_serde_error(e)
         return result
 
-    def deserialize_logical_expr_list(self, field_name: str, expr_proto_list: List[LogicalExprProto]) -> List[LogicalExpr]:
-        """Deserialize a list of logical expressions with field path tracking."""
+    def deserialize_logical_expr_list(
+        self, field_name: str, expr_proto_list: List[LogicalExprProto]
+    ) -> List[LogicalExpr]:
+        """Deserialize a list of logical expressions with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            expr_proto_list: The list of protobuf representations to deserialize.
+
+        Returns:
+            A list of deserialized logical expressions.
+        """
         result = []
         with self.path_context(field_name):
             for i, expr_proto in enumerate(expr_proto_list):
@@ -162,36 +227,87 @@ class SerdeContext:
                         self._handle_serde_error(e)
         return result
 
-    def serialize_enum_value(self, field_name: str, enum_value: EnumType, target_proto: EnumTypeWrapper) -> int:
-        """Serialize an enum value with field path tracking."""
+    def serialize_enum_value(
+        self, field_name: str, enum_value: EnumType, target_proto: EnumTypeWrapper
+    ) -> int:
+        """Serialize an enum value with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            enum_value: The enum value to serialize.
+            target_proto: The protobuf enum type wrapper.
+
+        Returns:
+            The protobuf int representation of the enum value.
+        """
         from fenic.core._serde.proto.enum_serde import serialize_enum_value
+
         with self.path_context(field_name):
             try:
                 return serialize_enum_value(enum_value, target_proto, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_enum_value(self, field_name: str, target_type: Type[EnumType], proto_enum_type: EnumTypeWrapper, serialized_value: int) -> EnumType:
-        """Deserialize an enum value with field path tracking."""
+    def deserialize_enum_value(
+        self,
+        field_name: str,
+        target_type: Type[EnumType],
+        proto_enum_type: EnumTypeWrapper,
+        serialized_value: int,
+    ) -> EnumType:
+        """Deserialize an enum value with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            target_type: The target enum type to deserialize to.
+            proto_enum_type: The protobuf enum type wrapper.
+            serialized_value: The protobuf int representation of the enum value.
+
+        Returns:
+            The deserialized enum value.
+        """
         from fenic.core._serde.proto.enum_serde import deserialize_enum_value
+
         with self.path_context(field_name):
             try:
-                return deserialize_enum_value(target_type, proto_enum_type, serialized_value, self)
+                return deserialize_enum_value(
+                    target_type, proto_enum_type, serialized_value, self
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
+    def serialize_logical_plan(
+        self, field_name: str, plan: LogicalPlan
+    ) -> LogicalPlanProto:
+        """Serialize a logical plan with field path tracking.
 
-    def serialize_logical_plan(self, field_name: str, plan: LogicalPlan) -> LogicalPlanProto:
-        """Serialize a logical plan with field path tracking."""
+        Args:
+            field_name: The name of the field being serialized.
+            plan: The logical plan to serialize.
+
+        Returns:
+            The serialized protobuf representation of the logical plan.
+        """
         from fenic.core._serde.proto.plan_serde import serialize_logical_plan
+
         with self.path_context(field_name):
             try:
                 return serialize_logical_plan(plan, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def serialize_logical_plan_list(self, field_name: str, plan_list: List[LogicalPlan]) -> List[LogicalPlanProto]:
-        """Serialize a list of logical plans with field path tracking."""
+    def serialize_logical_plan_list(
+        self, field_name: str, plan_list: List[LogicalPlan]
+    ) -> List[LogicalPlanProto]:
+        """Serialize a list of logical plans with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            plan_list: The list of logical plans to serialize.
+
+        Returns:
+            A list of serialized protobuf representations of logical plans.
+        """
         result = []
         with self.path_context(field_name):
             for i, plan in enumerate(plan_list):
@@ -202,39 +318,94 @@ class SerdeContext:
                         self._handle_serde_error(e)
         return result
 
-    def deserialize_logical_plan(self, field_name: str, plan_proto: LogicalPlanProto, session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
-        """Deserialize a logical plan with field path tracking."""
+    def deserialize_logical_plan(
+        self,
+        field_name: str,
+        plan_proto: LogicalPlanProto,
+        session_state: Optional[BaseSessionState] = None,
+    ) -> LogicalPlan:
+        """Deserialize a logical plan with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            plan_proto: The protobuf representation to deserialize.
+            session_state: Optional session state to include in the plan.
+
+        Returns:
+            The deserialized logical plan.
+        """
         from fenic.core._serde.proto.plan_serde import deserialize_logical_plan
+
         with self.path_context(field_name):
             try:
                 return deserialize_logical_plan(plan_proto, self, session_state)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_logical_plan_list(self, field_name: str, plan_proto_list: List[LogicalPlanProto], session_state: Optional[BaseSessionState] = None) -> List[LogicalPlan]:
-        """Deserialize a list of logical plans with field path tracking."""
+    def deserialize_logical_plan_list(
+        self,
+        field_name: str,
+        plan_proto_list: List[LogicalPlanProto],
+        session_state: Optional[BaseSessionState] = None,
+    ) -> List[LogicalPlan]:
+        """Deserialize a list of logical plans with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            plan_proto_list: The list of protobuf representations to deserialize.
+            session_state: Optional session state to include in the plans.
+
+        Returns:
+            A list of deserialized logical plans.
+        """
         result = []
         with self.path_context(field_name):
             for i, plan_proto in enumerate(plan_proto_list):
                 with self.path_context(f"[{i}]"):
                     try:
-                        result.append(self.deserialize_logical_plan("plan", plan_proto, session_state))
+                        result.append(
+                            self.deserialize_logical_plan(
+                                "plan", plan_proto, session_state
+                            )
+                        )
                     except Exception as e:
                         self._handle_serde_error(e)
         return result
 
-    def serialize_data_type(self, field_name: str, data_type: DataType) -> DataTypeProto:
-        """Serialize a data type with field path tracking."""
+    def serialize_data_type(
+        self, field_name: str, data_type: DataType
+    ) -> DataTypeProto:
+        """Serialize a data type with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            data_type: The data type to serialize.
+
+        Returns:
+            The serialized protobuf representation of the data type.
+        """
         from fenic.core._serde.proto.datatype_serde import serialize_data_type
+
         with self.path_context(field_name):
             try:
                 return serialize_data_type(data_type, self)
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_data_type(self, field_name: str, data_type_proto: DataTypeProto) -> DataType:
-        """Deserialize a data type with field path tracking."""
+    def deserialize_data_type(
+        self, field_name: str, data_type_proto: DataTypeProto
+    ) -> DataType:
+        """Deserialize a data type with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            data_type_proto: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized data type.
+        """
         from fenic.core._serde.proto.datatype_serde import deserialize_data_type
+
         with self.path_context(field_name):
             try:
                 return deserialize_data_type(data_type_proto, self)
@@ -250,7 +421,15 @@ class SerdeContext:
         field_name: str,
         class_definition: ResolvedClassDefinition,
     ) -> ResolvedClassDefinitionProto:
-        """Serialize a resolved class definition."""
+        """Serialize a resolved class definition.
+
+        Args:
+            field_name: The name of the field being serialized.
+            class_definition: The resolved class definition to serialize.
+
+        Returns:
+            The serialized protobuf representation of the class definition.
+        """
         with self.path_context(field_name):
             try:
                 return ResolvedClassDefinitionProto(
@@ -265,10 +444,21 @@ class SerdeContext:
         field_name: str,
         class_definition_proto: ResolvedClassDefinitionProto,
     ) -> ResolvedClassDefinition:
-        """Deserialize a resolved class definition."""
+        """Deserialize a resolved class definition.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            class_definition_proto: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized resolved class definition.
+        """
         with self.path_context(field_name):
             try:
-                return ResolvedClassDefinition(label=class_definition_proto.label, description=class_definition_proto.description)
+                return ResolvedClassDefinition(
+                    label=class_definition_proto.label,
+                    description=class_definition_proto.description,
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
@@ -277,7 +467,15 @@ class SerdeContext:
         field_name: str,
         pydantic_model: Type[BaseModel],
     ) -> PydanticModelTypeProto:
-        """Serialize a Pydantic model to a protobuf model by dumping its json schema."""
+        """Serialize a Pydantic model to a protobuf model by dumping its json schema.
+
+        Args:
+            field_name: The name of the field being serialized.
+            pydantic_model: The Pydantic model type to serialize.
+
+        Returns:
+            The serialized protobuf representation containing the JSON schema.
+        """
         with self.path_context(field_name):
             try:
                 json_schema = pydantic_model.model_json_schema()
@@ -291,18 +489,38 @@ class SerdeContext:
         field_name: str,
         pydantic_proto: PydanticModelTypeProto,
     ) -> Optional[Type[BaseModel]]:
-        """Deserialize a Pydantic model from a protobuf model by loading its json schema."""
+        """Deserialize a Pydantic model from a protobuf model by loading its json schema.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            pydantic_proto: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized Pydantic model type, or None if empty.
+        """
         with self.path_context(field_name):
             try:
-                if not pydantic_proto.json_schema: # Optional field is not populated in parent message (proto3)
+                if (
+                    not pydantic_proto.json_schema
+                ):  # Optional field is not populated in parent message (proto3)
                     return None
                 json_schema = json.loads(pydantic_proto.json_schema)
                 return SchemaConverter.build(json_schema)
             except Exception as e:
                 self._handle_serde_error(e)
-    
-    def serialize_numpy_array(self, field_name: str, array: np.ndarray) -> NumpyArrayProto:
-        """Serialize an numpy array."""
+
+    def serialize_numpy_array(
+        self, field_name: str, array: np.ndarray
+    ) -> NumpyArrayProto:
+        """Serialize a numpy array.
+
+        Args:
+            field_name: The name of the field being serialized.
+            array: The numpy array to serialize.
+
+        Returns:
+            The serialized protobuf representation of the numpy array.
+        """
         with self.path_context(field_name):
             try:
                 return NumpyArrayProto(
@@ -313,12 +531,23 @@ class SerdeContext:
             except Exception as e:
                 self._handle_serde_error(e)
 
+    def deserialize_numpy_array(
+        self, field_name: str, serialized_array: NumpyArrayProto
+    ) -> np.ndarray:
+        """Deserialize a numpy array.
 
-    def deserialize_numpy_array(self, field_name: str, serialized_array: NumpyArrayProto) -> np.ndarray:
-        """Deserialize an numpy array."""
+        Args:
+            field_name: The name of the field being deserialized.
+            serialized_array: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized numpy array.
+        """
         with self.path_context(field_name):
             try:
-                np_array = np.frombuffer(serialized_array.data, dtype=serialized_array.dtype)
+                np_array = np.frombuffer(
+                    serialized_array.data, dtype=serialized_array.dtype
+                )
                 return np_array.reshape(serialized_array.shape)
             except Exception as e:
                 self._handle_serde_error(e)
@@ -332,20 +561,32 @@ class SerdeContext:
         field_name: str,
         config: RecursiveTextChunkExprConfiguration,
     ) -> RecursiveTextChunkExprConfigurationProto:
-        """Serialize a recursive text chunk expression configuration."""
+        """Serialize a recursive text chunk expression configuration.
+
+        Args:
+            field_name: The name of the field being serialized.
+            config: The recursive text chunk configuration to serialize.
+
+        Returns:
+            The serialized protobuf representation of the configuration.
+        """
         with self.path_context(field_name):
             try:
                 return RecursiveTextChunkExprConfigurationProto(
                     desired_chunk_size=config.desired_chunk_size,
                     chunk_overlap_percentage=config.chunk_overlap_percentage,
                     chunk_length_function_name=self.serialize_enum_value(
-                        "chunk_length_function_name", config.chunk_length_function_name, ChunkLengthFunctionProto
+                        "chunk_length_function_name",
+                        config.chunk_length_function_name,
+                        ChunkLengthFunctionProto,
                     ),
                     chunking_character_set_name=self.serialize_enum_value(
-                        "chunking_character_set_name", config.chunking_character_set_name, ChunkCharacterSetProto
-                        ),
+                        "chunking_character_set_name",
+                        config.chunking_character_set_name,
+                        ChunkCharacterSetProto,
+                    ),
                     chunking_character_set_custom_characters=config.chunking_character_set_custom_characters,
-                    )
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
@@ -354,73 +595,110 @@ class SerdeContext:
         field_name: str,
         config: RecursiveTextChunkExprConfigurationProto,
     ) -> RecursiveTextChunkExprConfiguration:
-        """Deserialize a recursive text chunk expression configuration."""
+        """Deserialize a recursive text chunk expression configuration.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            config: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized recursive text chunk configuration.
+        """
         with self.path_context(field_name):
             try:
                 return RecursiveTextChunkExprConfiguration(
                     desired_chunk_size=config.desired_chunk_size,
                     chunk_overlap_percentage=config.chunk_overlap_percentage,
                     chunk_length_function_name=self.deserialize_enum_value(
-                        "chunk_length_function_name", 
-                        ChunkLengthFunction, 
-                        ChunkLengthFunctionProto, 
+                        "chunk_length_function_name",
+                        ChunkLengthFunction,
+                        ChunkLengthFunctionProto,
                         config.chunk_length_function_name,
                     ),
                     chunking_character_set_name=self.deserialize_enum_value(
-                        "chunking_character_set_name", 
-                        ChunkCharacterSet, 
-                        ChunkCharacterSetProto, 
+                        "chunking_character_set_name",
+                        ChunkCharacterSet,
+                        ChunkCharacterSetProto,
                         config.chunking_character_set_name,
                     ),
                     chunking_character_set_custom_characters=config.chunking_character_set_custom_characters,
                 )
             except Exception as e:
                 self._handle_serde_error(e)
-    
-    
 
     def serialize_text_chunk_expr_configuration(
         self,
         field_name: str,
         config: TextChunkExprConfiguration,
     ) -> TextChunkExprConfigurationProto:
-        """Serialize a text chunk expression configuration."""
+        """Serialize a text chunk expression configuration.
+
+        Args:
+            field_name: The name of the field being serialized.
+            config: The text chunk configuration to serialize.
+
+        Returns:
+            The serialized protobuf representation of the configuration.
+        """
         with self.path_context(field_name):
             try:
                 return TextChunkExprConfigurationProto(
                     desired_chunk_size=config.desired_chunk_size,
                     chunk_overlap_percentage=config.chunk_overlap_percentage,
                     chunk_length_function_name=self.serialize_enum_value(
-                        "chunk_length_function_name", config.chunk_length_function_name, ChunkLengthFunctionProto
-                        ),
-                    )
+                        "chunk_length_function_name",
+                        config.chunk_length_function_name,
+                        ChunkLengthFunctionProto,
+                    ),
+                )
             except Exception as e:
                 self._handle_serde_error(e)
-
 
     def deserialize_text_chunk_expr_configuration(
         self,
         field_name: str,
         config: TextChunkExprConfigurationProto,
     ) -> TextChunkExprConfiguration:
-        """Deserialize a text chunk expression configuration."""
+        """Deserialize a text chunk expression configuration.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            config: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized text chunk configuration.
+        """
         with self.path_context(field_name):
             try:
                 return TextChunkExprConfiguration(
                     desired_chunk_size=config.desired_chunk_size,
                     chunk_overlap_percentage=config.chunk_overlap_percentage,
                     chunk_length_function_name=self.deserialize_enum_value(
-                            "chunk_length_function_name", 
-                            ChunkLengthFunction, 
-                            ChunkLengthFunctionProto, 
-                            config.chunk_length_function_name,
-                        ),
-                    )
+                        "chunk_length_function_name",
+                        ChunkLengthFunction,
+                        ChunkLengthFunctionProto,
+                        config.chunk_length_function_name,
+                    ),
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
     def serialize_scalar_value(self, field_name: str, value: Any) -> ScalarValueProto:
-        """Serialize a Python value to ScalarValue oneof."""
+        """Serialize a Python value to ScalarValue oneof.
+
+        Supports primitive types (str, int, float, bool, bytes), arrays, and structs.
+        Recursively serializes nested structures.
+
+        Args:
+            field_name: The name of the field being serialized.
+            value: The Python value to serialize.
+
+        Returns:
+            The serialized protobuf representation of the scalar value.
+
+        Raises:
+            SerializationError: If the value type is not supported or is None.
+        """
         with self.path_context(field_name):
             try:
                 if isinstance(value, str):
@@ -435,27 +713,56 @@ class SerdeContext:
                     return ScalarValueProto(bytes_value=value)
                 elif isinstance(value, list):
                     # Serialize arrays recursively
-                    elements = [self.serialize_scalar_value("element", element) for element in value]
-                    return ScalarValueProto(array_value=ScalarArrayProto(elements=elements))
+                    elements = [
+                        self.serialize_scalar_value("element", element)
+                        for element in value
+                    ]
+                    return ScalarValueProto(
+                        array_value=ScalarArrayProto(elements=elements)
+                    )
                 elif isinstance(value, dict):
                     # Serialize structs recursively, ensuring sorted field order for consistency
                     fields = []
                     for key in sorted(value.keys()):
                         field = ScalarStructFieldProto(
-                            name=key, value=self.serialize_scalar_value("value", value[key])
+                            name=key,
+                            value=self.serialize_scalar_value("value", value[key]),
                         )
                         fields.append(field)
-                    return ScalarValueProto(struct_value=ScalarStructProto(fields=fields))
+                    return ScalarValueProto(
+                        struct_value=ScalarStructProto(fields=fields)
+                    )
                 elif value is None:
-                    raise self.create_serde_error(SerializationError, "Cannot serialize None/null values - please provide a concrete type")
+                    raise self.create_serde_error(
+                        SerializationError,
+                        "Cannot serialize None/null values - please provide a concrete type",
+                    )
                 else:
-                    raise self.create_serde_error(SerializationError, f"Cannot serialize scalar value of type: {type(value)}")
+                    raise self.create_serde_error(
+                        SerializationError,
+                        f"Cannot serialize scalar value of type: {type(value)}",
+                    )
             except Exception as e:
                 self._handle_serde_error(e)
 
+    def deserialize_scalar_value(
+        self, field_name: str, scalar_value: ScalarValueProto
+    ) -> Any:
+        """Deserialize a ScalarValue oneof to Python value.
 
-    def deserialize_scalar_value(self, field_name: str, scalar_value: ScalarValueProto) -> Any:
-        """Deserialize a ScalarValue oneof to Python value."""
+        Supports primitive types (str, int, float, bool, bytes), arrays, and structs.
+        Recursively deserializes nested structures.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            scalar_value: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized Python value.
+
+        Raises:
+            DeserializationError: If the value type is unknown or unsupported.
+        """
         with self.path_context(field_name):
             try:
                 which_oneof = scalar_value.WhichOneof("value_type")
@@ -482,43 +789,78 @@ class SerdeContext:
                         result[field.name] = self.deserialize_scalar_value(field.value)
                     return result
                 else:
-                    raise self.create_serde_error(DeserializationError, f"Unknown scalar value type: {which_oneof}")
+                    raise self.create_serde_error(
+                        DeserializationError,
+                        f"Unknown scalar value type: {which_oneof}",
+                    )
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def serialize_fenic_schema(self, field_name: str, schema: Schema) -> FenicSchemaProto:
-        """Serialize a Fenic schema."""
+    def serialize_fenic_schema(
+        self, field_name: str, schema: Schema
+    ) -> FenicSchemaProto:
+        """Serialize a Fenic schema.
+
+        Args:
+            field_name: The name of the field being serialized.
+            schema: The Fenic schema to serialize.
+
+        Returns:
+            The serialized protobuf representation of the schema.
+        """
         with self.path_context(field_name):
             try:
-                return FenicSchemaProto(column_fields=[
-                    ColumnFieldProto(
-                        name=field.name, 
-                        data_type=self.serialize_data_type("data_type", field.data_type)
-                    ) 
-                    for field in schema.column_fields
-                ])
+                return FenicSchemaProto(
+                    column_fields=[
+                        ColumnFieldProto(
+                            name=field.name,
+                            data_type=self.serialize_data_type(
+                                "data_type", field.data_type
+                            ),
+                        )
+                        for field in schema.column_fields
+                    ]
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_fenic_schema(self, field_name: str, schema_proto: FenicSchemaProto) -> Schema:
-        """Deserialize a Fenic schema."""
+    def deserialize_fenic_schema(
+        self, field_name: str, schema_proto: FenicSchemaProto
+    ) -> Schema:
+        """Deserialize a Fenic schema.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            schema_proto: The protobuf representation to deserialize.
+
+        Returns:
+            The deserialized Fenic schema.
+        """
         with self.path_context(field_name):
             try:
-                return Schema(column_fields=[
+                return Schema(
+                    column_fields=[
                         ColumnField(
-                            name=field.name, 
-                            data_type=self.deserialize_data_type("data_type", field.data_type)
+                            name=field.name,
+                            data_type=self.deserialize_data_type(
+                                "data_type", field.data_type
+                            ),
                         )
                         for field in schema_proto.column_fields
-                ])
+                    ]
+                )
             except Exception as e:
                 self._handle_serde_error(e)
+
 
 def create_serde_context() -> SerdeContext:
     """Create a new SerdeContext instance.
-    
+
     This is the preferred way to get a context for serde operations.
     Each context is independent and can be used concurrently.
+
+    Returns:
+        A new SerdeContext instance ready for serde operations.
     """
     return SerdeContext()
 
