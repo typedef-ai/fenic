@@ -56,27 +56,79 @@ from fenic.core.types.datatypes import (
 
 @singledispatch
 def serialize_data_type(data_type: DataType, context: SerdeContext) -> DataTypeProto:
-    """Serialize a data type."""
+    """Serialize a data type to its protobuf representation.
+
+    This function uses singledispatch to handle different data type classes.
+    Each data type class should have a corresponding register function that
+    implements the specific serialization logic.
+
+    Args:
+        data_type: The data type to serialize. Must be a registered type.
+        context: The serde context for error reporting and path tracking.
+
+    Returns:
+        DataTypeProto: The serialized protobuf representation of the data type.
+
+    Raises:
+        SerializationError: If the data type is not registered or serialization fails.
+    """
     raise context.create_serde_error(
         SerializationError,
         f"Serialization not implemented for {type(data_type)}",
         type(data_type),
     )
 
+
 def deserialize_data_type(
     data_type_proto: DataTypeProto,
     context: SerdeContext,
 ) -> DataType:
-    """Deserialize a data type."""
+    """Deserialize a data type from its protobuf representation.
+
+    This function determines which oneof field is set in the DataTypeProto
+    and delegates to the appropriate deserialization helper function.
+
+    Args:
+        data_type_proto: The protobuf representation to deserialize.
+        context: The serde context for error reporting and path tracking.
+
+    Returns:
+        DataType: The deserialized data type.
+
+    Raises:
+        DeserializationError: If the protobuf is empty or deserialization fails.
+    """
     which_oneof = data_type_proto.WhichOneof("data_type")
+    if which_oneof is None:
+        raise context.create_serde_error(
+            DeserializationError,
+            "Empty DataTypeProto - no data_type field is set",
+            type(data_type_proto),
+        )
     underlying_proto = getattr(data_type_proto, which_oneof)
     return _deserialize_data_type_helper(underlying_proto, context)
+
 
 @singledispatch
 def _deserialize_data_type_helper(
     underlying_proto: Message, context: SerdeContext
 ) -> DataType:
-    """Deserialize a data type."""
+    """Deserialize a data type from its underlying protobuf message.
+
+    This function uses singledispatch to handle different protobuf message types.
+    Each protobuf message type should have a corresponding register function that
+    implements the specific deserialization logic.
+
+    Args:
+        underlying_proto: The underlying protobuf message to deserialize.
+        context: The serde context for error reporting and path tracking.
+
+    Returns:
+        DataType: The deserialized data type.
+
+    Raises:
+        DeserializationError: If the protobuf type is not registered or deserialization fails.
+    """
     raise context.create_serde_error(
         DeserializationError,
         f"Deserialization not implemented for {type(underlying_proto)}",
@@ -217,9 +269,7 @@ def _serialize_struct_type(
         with context.path_context(f"struct_fields[{i}]"):
             field_proto = StructFieldProto(
                 name=field.name,
-                data_type=context.serialize_data_type(
-                    "data_type", field.data_type
-                ),
+                data_type=context.serialize_data_type("data_type", field.data_type),
             )
             struct_fields.append(field_proto)
     return DataTypeProto(struct=StructTypeProto(fields=struct_fields))
