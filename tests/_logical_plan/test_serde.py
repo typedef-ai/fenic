@@ -13,7 +13,7 @@ from fenic import (
 )
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
-from fenic.core._logical_plan.serde import LogicalPlanSerde
+from fenic.core._serde import LogicalPlanSerde
 from fenic.core.types import ClassDefinition
 
 

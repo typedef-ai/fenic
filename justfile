@@ -107,3 +107,10 @@ test-cloud: sync-cloud
 # preview generated docs
 preview-docs:
   uv run --group=docs mkdocs serve
+
+generate-protos:
+  @just generate-protos-py
+
+generate-protos-py:
+  buf generate --template buf.gen.py.yaml
+  uv run python scripts/fix_proto_imports.py

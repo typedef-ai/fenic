@@ -14,23 +14,6 @@ if TYPE_CHECKING:
 from fenic.core.types import ColumnField
 
 
-class Operator(Enum):
-    """Enumeration of supported operators for expressions."""
-
-    EQ = "="
-    NOT_EQ = "!="
-    LT = "<"
-    LTEQ = "<="
-    GT = ">"
-    GTEQ = ">="
-    PLUS = "+"
-    MINUS = "-"
-    MULTIPLY = "*"
-    DIVIDE = "/"
-    AND = "AND"
-    OR = "OR"
-
-
 class LogicalExpr(ABC):
     """Abstract base class for logical expressions."""
 
@@ -166,3 +149,20 @@ class BinaryExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.left, self.right]
+
+
+class Operator(Enum):
+    """Enumeration of supported operators for expressions."""
+
+    EQ = "="
+    NOT_EQ = "!="
+    LT = "<"
+    LTEQ = "<="
+    GT = ">"
+    GTEQ = ">="
+    PLUS = "+"
+    MINUS = "-"
+    MULTIPLY = "*"
+    DIVIDE = "/"
+    AND = "AND"
+    OR = "OR"

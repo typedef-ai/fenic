@@ -217,6 +217,15 @@ class StructExpr(ValidatedDynamicSignature, LogicalExpr):
 
 
 class UDFExpr(LogicalExpr):
+    """User-defined function expression.
+    
+    Warning:
+        UDFExpr cannot be serialized and is not supported in cloud execution.
+        This expression contains arbitrary Python code that cannot be transmitted
+        to remote workers. Use built-in fenic functions for cloud compatibility.
+    """
+
+    function_name = "udf"
     def __init__(
         self,
         func: Callable,
@@ -241,6 +250,7 @@ class UDFExpr(LogicalExpr):
 
 
 class IsNullExpr(LogicalExpr):
+
     def __init__(self, expr: LogicalExpr, is_null: bool):
         self.expr = expr
         self.is_null = is_null

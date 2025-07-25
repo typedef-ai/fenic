@@ -10,6 +10,7 @@ from fenic.core.types import BooleanType, ColumnField
 
 
 class WhenExpr(LogicalExpr):
+
     def __init__(self, expr: Optional[LogicalExpr], condition: LogicalExpr, value: LogicalExpr):
         self.expr = expr
         self.condition = condition
@@ -36,6 +37,7 @@ class WhenExpr(LogicalExpr):
 
 
 class OtherwiseExpr(LogicalExpr):
+
     def __init__(self, expr: LogicalExpr, value: LogicalExpr):
         self.expr = expr
         self.value = value

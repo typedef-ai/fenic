@@ -1,13 +1,23 @@
+"""CloudPickle-based implementation of LogicalPlan serialization."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
 import cloudpickle  # nosec: B403
 
 from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core._logical_plan.plans.base import LogicalPlan
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 
 
-class LogicalPlanSerde:
+class CloudPickleSerde(SupportsLogicalPlanSerde):
+    """CloudPickle-based LogicalPlan serialization implementation."""
+
     @staticmethod
     def serialize(plan: LogicalPlan) -> bytes:
-        """Serialize a LogicalPlan to bytes using pickle.
+        """Serialize a LogicalPlan to bytes using cloudpickle.
 
         Removes any local session state refs from the plan.
 
@@ -38,16 +48,18 @@ class LogicalPlanSerde:
         return cloudpickle.dumps(copied_plan)
 
     @staticmethod
-    def deserialize(data: bytes) -> LogicalPlan:
-        """Deserialize bytes back into a LogicalPlan using pickle.
+    def deserialize(data: bytes, _: Optional[BaseSessionState] = None) -> LogicalPlan:
+        """Deserialize bytes back into a LogicalPlan using cloudpickle.
 
         Args:
             data: The serialized plan data
+            session: The session data with which to rehydrate the LogicalPlan
 
         Returns:
             The deserialized plan
         """
-        return cloudpickle.loads(data)  # nosec: B301
+        deserialized: LogicalPlan = cloudpickle.loads(data)  # nosec: B301
+        return deserialized
 
     @staticmethod
     def build_logical_plan_with_session_state(
@@ -58,12 +70,14 @@ class LogicalPlanSerde:
         Args:
             plan: The LogicalPlan to build
             session: The session state
+
+        Returns:
+            LogicalPlan with session state restored
         """
-        # TODO(DY): replace pickle with substrait so we don't need this step
         new_children = []
         for child in plan.children():
             new_children.append(
-                LogicalPlanSerde.build_logical_plan_with_session_state(child, session)
+                CloudPickleSerde.build_logical_plan_with_session_state(child, session)
             )
         plan.session_state = session
         return plan.with_children(new_children)

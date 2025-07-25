@@ -7,7 +7,7 @@ used in query processing.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar
+from typing import Any, ClassVar, Dict, Generic, List, Mapping, Type, TypeVar
 
 import pandas as pd
 import polars as pl
@@ -32,7 +32,7 @@ class MapExample(BaseModel):
     string used in a semantic.map operation.
     """
 
-    input: Dict[str, str]
+    input: Mapping[str, str]
     output: str
 
 
@@ -54,7 +54,7 @@ class PredicateExample(BaseModel):
     used in a semantic.predicate operation.
     """
 
-    input: Dict[str, str]
+    input: Mapping[str, str]
     output: bool
 
 
@@ -84,7 +84,7 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
     - Improving model performance without changing the underlying model
     """
 
-    example_class: ClassVar[Type] = None
+    example_class: ClassVar[Type[ExampleType]]
 
     def __init__(self, examples: List[ExampleType] = None):
         """Initialize a collection of semantic examples.
