@@ -21,6 +21,9 @@ from fenic.core._serde.proto.types import (
     MdToJsonExprProto,
 )
 
+# =============================================================================
+# MdToJsonExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_md_to_json_expr(
@@ -32,6 +35,7 @@ def _serialize_md_to_json_expr(
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_md_to_json_expr(
     logical_proto: MdToJsonExprProto, context: SerdeContext
@@ -39,6 +43,11 @@ def _deserialize_md_to_json_expr(
     return MdToJsonExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
     )
+
+
+# =============================================================================
+# MdGenerateTocExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_md_generate_toc_expr(
@@ -51,6 +60,7 @@ def _serialize_md_generate_toc_expr(
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_md_generate_toc_expr(
     logical_proto: MdGenerateTocExprProto, context: SerdeContext
@@ -59,6 +69,11 @@ def _deserialize_md_generate_toc_expr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         max_level=logical_proto.max_level,
     )
+
+
+# =============================================================================
+# MdExtractHeaderChunks
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_md_extract_header_chunks(
@@ -71,6 +86,7 @@ def _serialize_md_extract_header_chunks(
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_md_extract_header_chunks(
     logical_proto: MdExtractHeaderChunksProto, context: SerdeContext
@@ -79,6 +95,11 @@ def _deserialize_md_extract_header_chunks(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         header_level=logical_proto.header_level,
     )
+
+
+# =============================================================================
+# MdGetCodeBlocksExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_md_get_code_blocks_expr(
@@ -90,6 +111,7 @@ def _serialize_md_get_code_blocks_expr(
             language_filter=logical.language_filter,
         )
     )
+
 
 @_deserialize_logical_expr_helper.register
 def _deserialize_md_get_code_blocks_expr(
