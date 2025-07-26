@@ -4,7 +4,7 @@ mod webvtt;
 
 pub use generic::GenericTranscriptParser;
 pub use srt::SrtParser;
-pub use webvtt::WebVttParser;
+pub use webvtt::WebVTTParser;
 
 use crate::transcript::types::{FormatParser, ParseError, UnifiedTranscriptEntry};
 use std::collections::HashMap;
@@ -71,7 +71,7 @@ impl Default for ParserRegistry {
         let mut registry = ParserRegistry::new();
         registry.register_parser("srt", Box::new(SrtParser));
         registry.register_parser("generic", Box::new(GenericTranscriptParser));
-        registry.register_parser("webvtt", Box::new(WebVttParser));
+        registry.register_parser("webvtt", Box::new(WebVTTParser));
         registry
     }
 }

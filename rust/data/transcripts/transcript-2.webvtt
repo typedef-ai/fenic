@@ -78,7 +78,7 @@ I mean, that part is, is super interesting to me because, know, think a lot of e
 Do that and lean into it and so tell us a bit more about like that class of problems and why that's hard and what you guys did maybe at Confluent and leading into responsive obviously in terms of helping make that easier for people and why it's a hard thing</v>
 
 14
-00:15:36.408 --> 00:16:05.23
+00:15:36.408 --> 00:16:05.229
 <v Apurva Mehta>So you're saying specifically the stateful stream computation problems, why not necessary and what makes them hard and what the industry as a whole generally has been doing about it. Is that question? Yeah. So when would you need it stateful stream processing? I think so I can talk about there's two ways. One, we can talk about the core operators that are stateful. I think that's maybe less interesting. Let's talk about the use cases and then we can...</v> 
 
 15

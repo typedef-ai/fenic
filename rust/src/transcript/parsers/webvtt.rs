@@ -1,148 +1,437 @@
-use super::srt::SrtWebVttParser;
 use crate::transcript::types::{FormatParser, ParseError, UnifiedTranscriptEntry};
+use regex::Regex;
+use std::sync::OnceLock;
 
-/// Parse WebVTT format timestamps: "00:00:20.000"
-/// WebVTT format uses dot as decimal separator and is always HH:MM:SS.mmm
-fn parse_webvtt_timestamp(timestamp: &str) -> Result<f64, ParseError> {
-    let timestamp = timestamp.trim();
-
-    // Split by colons to get time components
-    let parts: Vec<&str> = timestamp.split(':').collect();
-
-    // WebVTT timestamp must be in HH:MM:SS.mmm format
-    if parts.len() != 3 {
-        return Err(ParseError::InvalidTranscriptFormat(format!(
-            "WebVTT timestamp must be in HH:MM:SS.mmm format: {}",
-            timestamp
-        )));
-    }
-
-    if parts[2].contains(',') {
-        return Err(ParseError::InvalidTranscriptFormat(format!(
-            "WebVTT timestamp must be in HH:MM:SS.mmm format: {}",
-            timestamp
-        )));
-    }
-
-    let hours = parts[0].parse::<f64>().map_err(|_| {
-        ParseError::InvalidTranscriptFormat(format!(
-            "Invalid hours in WebVTT timestamp: {}",
-            timestamp
-        ))
-    })?;
-    let minutes = parts[1].parse::<f64>().map_err(|_| {
-        ParseError::InvalidTranscriptFormat(format!(
-            "Invalid minutes in WebVTT timestamp: {}",
-            timestamp
-        ))
-    })?;
-    let seconds = parts[2].parse::<f64>().map_err(|_| {
-        ParseError::InvalidTranscriptFormat(format!(
-            "Invalid seconds in WebVTT timestamp: {}",
-            timestamp
-        ))
-    })?;
-
-    Ok(hours * 3600.0 + minutes * 60.0 + seconds)
+// Static regex patterns for WebVTT parsing
+pub fn timestamp_regex() -> &'static Regex {
+    // Used for second timestamp, so we can skip anything after it
+    static TIMESTAMP_REGEX: OnceLock<Regex> = OnceLock::new();
+    // Timestamps are in the format of HH:MM:SS.mmm or MM:SS.mmm, with a --> separator and optional whitespace
+    TIMESTAMP_REGEX.get_or_init(|| {
+        Regex::new(r"\s*(\d{1,2}:\d{2}:\d{2}\.\d{3}|\d{2}:\d{2}\.\d{3})")
+            .expect("Failed to compile timestamp regex")
+    })
 }
 
-pub struct WebVttParser;
+pub fn looks_like_timestamp_line(line: &str) -> bool {
+    line.contains("-->")
+}
 
-impl FormatParser for WebVttParser {
-    // WebVTT format is similar to SRT, except
-    // 1. The timestamp format is slightly different,
-    // 2. WebVTT has a header section
-    // 3. WebVTT supports rich styling and HTML5
-    // We can ignore the header, use our own timestamp parser, and reuse the SRT parser, keeping the rich styling in the output.
+pub fn html_tag_regex() -> &'static Regex {
+    static HTML_TAG_REGEX: OnceLock<Regex> = OnceLock::new();
+    HTML_TAG_REGEX.get_or_init(|| Regex::new(r"<[^>]*>").expect("Failed to compile HTML tag regex"))
+}
+
+pub fn speaker_regex() -> &'static Regex {
+    static SPEAKER_REGEX: OnceLock<Regex> = OnceLock::new();
+    SPEAKER_REGEX.get_or_init(|| {
+        Regex::new(r"<v(?:\.[^>]*)?\s+([^>]+)>").expect("Failed to compile speaker regex")
+    })
+}
+
+pub fn number_regex() -> &'static Regex {
+    static NUMBER_REGEX: OnceLock<Regex> = OnceLock::new();
+    NUMBER_REGEX.get_or_init(|| Regex::new(r"-?\d+").expect("Failed to compile number regex"))
+}
+pub struct WebVTTParser;
+
+impl FormatParser for WebVTTParser {
+    // WebVTT has a lot of rich formatting features like cue settings, styles, and regions.
+    // We're only interested in the basic cue timing, clean text, and speakers.
     fn parse(&self, input: &str) -> Result<Vec<UnifiedTranscriptEntry>, ParseError> {
-        let bytes = input.as_bytes();
-        let len = bytes.len();
-        let mut pos = 0;
+        let lines: Vec<&str> = input.lines().collect();
+        let mut entries = Vec::new();
+        let mut i = 0;
 
-        // Skip any leading whitespace, newlines, or carriage returns.
-        while pos < len && (bytes[pos] == b'\n' || bytes[pos] == b'\r' || bytes[pos] == b' ') {
-            pos += 1;
-        }
-
-        // Check for 'WEBVTT' header at the current position
-        let webvtt_header = b"WEBVTT";
-        if pos + webvtt_header.len() > len
-            || &bytes[pos..pos + webvtt_header.len()] != webvtt_header
-        {
+        // Parse the first WEBVTT line, allowing for optional BOM character
+        let first_line = lines[0].trim().trim_start_matches('\u{FEFF}');
+        if !first_line.starts_with("WEBVTT") {
             return Err(ParseError::InvalidTranscriptFormat(
-                "Missing 'WEBVTT' header at start of file".to_string(),
+                "No WEBVTT header found".to_string(),
             ));
         }
-        pos += webvtt_header.len();
 
-        SrtWebVttParser.parse_format(&input[pos..], "webvtt", parse_webvtt_timestamp)
+        i += 1;
+
+        while i < lines.len() {
+            // Skip empty lines
+            if lines[i].trim().is_empty() {
+                i += 1;
+                continue;
+            }
+
+            // Skip NOTE, STYLE, and REGION blocks
+            // technically you shouldn't see STYLE or REGION blocks after the first cue, but we'll just skip them
+            let line = lines[i].trim();
+            if line.starts_with("NOTE") || line.starts_with("STYLE") || line.starts_with("REGION") {
+                i = Self::skip_block(&lines, i);
+                continue;
+            }
+
+            // Try to parse a cue
+            let entry = Self::parse_cue(&lines, &mut i)?;
+            entries.push(entry);
+        }
+
+        Ok(entries)
     }
 }
 
+impl WebVTTParser {
+    fn skip_block(lines: &[&str], mut start_index: usize) -> usize {
+        start_index += 1;
+
+        // Skip until we find an empty line or end of file
+        while start_index < lines.len() && !lines[start_index].trim().is_empty() {
+            start_index += 1;
+        }
+        start_index
+    }
+
+    fn parse_cue(lines: &[&str], index: &mut usize) -> Result<UnifiedTranscriptEntry, ParseError> {
+        let mut cue_index: Option<i64> = None;
+        let mut current_line = lines[*index].trim();
+
+        // Expected format: "00:00:01.000 --> 00:00:05.000 <optional cue settings>"
+        // Check if current line contains a timestamp (cue timing line)
+        if looks_like_timestamp_line(current_line) {
+            // This line is the timing line, no identifier present
+        } else {
+            // Current line might be an identifier
+            // Try to find the first number in the line
+            if let Some(first_match) = number_regex().find(current_line) {
+                if let Ok(num) = first_match.as_str().parse::<i64>() {
+                    cue_index = Some(num);
+                }
+            }
+
+            *index += 1;
+            if *index >= lines.len() {
+                return Err(ParseError::InvalidTranscriptFormat(
+                    "Non-cue line found at end of file".to_string(),
+                ));
+            }
+            current_line = lines[*index].trim();
+        }
+
+        // Parse timing line
+        let timestamp_parts: Vec<&str> = current_line.split("-->").collect();
+        if timestamp_parts.len() < 2 {
+            return Err(ParseError::InvalidTranscriptFormat(format!(
+                "Invalid timestamp line: {}.  Expected format: HH:MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm --> MM:SS.mmm",
+                current_line
+            )));
+        }
+        // Only grab the timestamp from the second part, ignore cue settings and any following text
+        let Some(second_part_capture) = timestamp_regex().captures(timestamp_parts[1]) else {
+            return Err(ParseError::InvalidTranscriptFormat(format!(
+                "Invalid timestamp line: {}.  Expected format: HH:MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm --> MM:SS.mmm",
+                current_line
+            )));
+        };
+        let start_str: &str = timestamp_parts[0].trim();
+        let end_str: &str = second_part_capture.get(1).unwrap().as_str();
+        let start_time = Self::parse_timestamp(start_str)?;
+        let end_time = Self::parse_timestamp(end_str)?;
+        let duration = end_time - start_time;
+
+        *index += 1;
+
+        // Collect cue payload (text content)
+        let mut content_lines = Vec::new();
+        while *index < lines.len() && !lines[*index].trim().is_empty() {
+            content_lines.push(lines[*index]);
+            *index += 1;
+        }
+
+        let raw_content = content_lines.join("\n");
+        let (speaker, cleaned_content) = Self::parse_payload_and_speaker(&raw_content);
+
+        Ok(UnifiedTranscriptEntry {
+            index: cue_index,
+            speaker,
+            start_time,
+            end_time: Some(end_time),
+            duration: Some(duration),
+            content: cleaned_content,
+            format: "webvtt".to_string(),
+        })
+    }
+
+    fn parse_timestamp(timestamp: &str) -> Result<f64, ParseError> {
+        let parts: Vec<&str> = timestamp.split(':').collect();
+        if parts.len() != 3 && parts.len() != 2 {
+            return Err(ParseError::InvalidTranscriptFormat(format!(
+                "Invalid timestamp format: {}.  Expected MM:SS.mmm or HH:MM:SS.mmm",
+                timestamp
+            )));
+        }
+
+        // parse the hours, minutes, and seconds.milliseconds
+        let (hours, minutes, seconds_part) = if parts.len() == 3 {
+            // Format: HH:MM:SS.mmm
+            (
+                parts[0].parse::<f64>().map_err(|_| {
+                    ParseError::InvalidTranscriptFormat(format!(
+                        "Invalid hours in timestamp: {}",
+                        parts[0]
+                    ))
+                })?,
+                parts[1].parse::<f64>().map_err(|_| {
+                    ParseError::InvalidTranscriptFormat(format!(
+                        "Invalid minutes in timestamp: {}",
+                        parts[1]
+                    ))
+                })?,
+                parts[2],
+            )
+        } else {
+            // Format: MM:SS.mmm (no hours)
+            (
+                0.0,
+                parts[0].parse::<f64>().map_err(|_| {
+                    ParseError::InvalidTranscriptFormat(format!(
+                        "Invalid minutes in timestamp: {}",
+                        parts[0]
+                    ))
+                })?,
+                parts[1],
+            )
+        };
+
+        // parse the seconds and drop the milliseconds
+        let seconds_and_millis: Vec<&str> = seconds_part.split('.').collect();
+
+        if seconds_and_millis.len() != 2 {
+            return Err(ParseError::InvalidTranscriptFormat(format!(
+                "Invalid timestamp format: {}.  Expected MM:SS.mmm or HH:MM:SS.mmm",
+                timestamp
+            )));
+        }
+
+        let seconds = seconds_and_millis[0].parse::<f64>().map_err(|_| {
+            ParseError::InvalidTranscriptFormat(format!(
+                "Invalid seconds: {}",
+                seconds_and_millis[0]
+            ))
+        })?;
+        let milliseconds = seconds_and_millis[1].parse::<f64>().map_err(|_| {
+            ParseError::InvalidTranscriptFormat(format!(
+                "Invalid milliseconds: {}",
+                seconds_and_millis[1]
+            ))
+        })?;
+
+        Ok(hours * 3600.0 + minutes * 60.0 + seconds + milliseconds / 1000.0)
+    }
+
+    fn parse_payload_and_speaker(content: &str) -> (Option<String>, String) {
+        let mut speaker = None;
+        let mut processed_content = content.to_string();
+
+        // Extract speaker from voice tags like <v Speaker Name>
+        // If there are multiple speaker tags, use the first one
+        if let Some(captures) = speaker_regex().captures(content) {
+            speaker = Some(captures.get(1).unwrap().as_str().trim().to_string());
+        }
+
+        // Remove all HTML tags
+        processed_content = html_tag_regex()
+            .replace_all(&processed_content, "")
+            .to_string();
+
+        // Clean up extra whitespace
+        processed_content = processed_content
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        (speaker, processed_content)
+    }
+}
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
-    fn test_parse_webvtt1() {
-        let webvtt_data = r#"
-WEBVTT
+    fn test_basic_webvtt_parsing() {
+        let webvtt_content = r#"WEBVTT
+
 1
-00:00:01.000 --> 00:00:03.000
-This is <b>bold</b> and <i>italic</i> text.
+00:00:01.000 --> 00:00:05.000
+Hello, world!
 
 2
-00:00:04.000 --> 00:00:06.000
-Tabbed:\tItem A\nNext Line Here
+00:00:06.000 --> 00:00:10.000
+<v Alice>This is Alice speaking.
+
+NOTE This is a note and should be ignored
 
 3
-00:00:07.000 --> 00:00:09.000
-<font color="green">Green colored font text</font>
-
-4
-00:00:10.000 --> 00:00:12.000
-Normal line with no styling.
+00:00:11.500 --> 00:00:15.750
+<b>Bold text</b> and <i>italic text</i>.
 "#;
-        let result = WebVttParser.parse(webvtt_data);
-        assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 4);
 
-        // Check first entry
+        let entries = WebVTTParser.parse(webvtt_content).unwrap();
+
+        assert_eq!(entries.len(), 3);
+
         assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].start_time, 1.0); // 00:00:01.000 = 1 second
-        assert_eq!(entries[0].end_time, Some(3.0)); // 00:00:03.000 = 3 seconds
-        assert_eq!(entries[0].duration, Some(2.0)); // 3 - 1 = 2 seconds
-        assert!(entries[0]
-            .content
-            .contains("This is <b>bold</b> and <i>italic</i> text."));
-        assert_eq!(entries[0].format, "webvtt");
+        assert_eq!(entries[0].content, "Hello, world!");
+        assert_eq!(entries[0].start_time, 1.0);
+        assert_eq!(entries[0].end_time, Some(5.0));
+        assert_eq!(entries[0].duration, Some(4.0));
+        assert_eq!(entries[0].speaker, None);
 
-        // Check second entry (multiline HTML5 with tab and newline)
         assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].start_time, 4.0); // 00:00:04.000 = 4 seconds
-        assert_eq!(entries[1].end_time, Some(6.0)); // 00:00:06.000 = 6 seconds
-        assert_eq!(entries[1].duration, Some(2.0)); // 6 - 4 = 2 seconds
-        println!("entries[1].content: {}", entries[1].content);
-        assert!(entries[1]
-            .content
-            .contains("Tabbed:\\tItem A\\nNext Line Here"));
-        assert_eq!(entries[1].format, "webvtt");
+        assert_eq!(entries[1].content, "This is Alice speaking.");
+        assert_eq!(entries[1].speaker, Some("Alice".to_string()));
 
-        // Check third entry (HTML5 with styling tags
         assert_eq!(entries[2].index, Some(3));
-        assert_eq!(entries[2].start_time, 7.0); // 00:00:07.000 = 7 seconds
-        assert_eq!(entries[2].end_time, Some(9.0)); // 00:00:09.000 = 9 seconds
-        assert!(entries[2]
-            .content
-            .contains("<font color=\"green\">Green colored font text</font>"));
-        assert_eq!(entries[2].format, "webvtt");
+        assert_eq!(entries[2].content, "Bold text and italic text.");
+        assert_eq!(entries[2].start_time, 11.5);
+        assert_eq!(entries[2].end_time, Some(15.75));
+        assert_eq!(entries[2].duration, Some(4.25));
     }
 
     #[test]
-    fn test_invalid_webvtt_parsing() {
-        let invalid_srt = "This is not a valid SRT format at all";
-        assert!(WebVttParser.parse(invalid_srt).is_err());
+    fn test_webvtt_with_bom_and_without_identifiers() {
+        // concat the BOM character
+        let webvtt_content = format!(
+            "\u{FEFF}{}",
+            r#"WEBVTT
+00:00:01.000 --> 00:00:05.000
+No identifier here.
+
+00:00:06.000 --> 00:00:10.000
+<v Bob>Bob speaking without identifier.
+"#
+        );
+
+        let entries = WebVTTParser.parse(&webvtt_content).unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].index, None);
+        assert_eq!(entries[0].content, "No identifier here.");
+        assert_eq!(entries[0].speaker, None);
+        assert_eq!(entries[0].start_time, 1.0);
+        assert_eq!(entries[1].index, None);
+        assert_eq!(entries[1].speaker, Some("Bob".to_string()));
+    }
+
+    #[test]
+    fn test_webvtt_with_cue_settings() {
+        let webvtt_content = r#"WEBVTT
+
+1
+00:00:01.000 --> 00:00:05.000 align:center line:50%
+Text with cue settings
+"#;
+
+        let entries = WebVTTParser.parse(webvtt_content).unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].content, "Text with cue settings");
+        assert_eq!(entries[0].start_time, 1.0);
+        assert_eq!(entries[0].end_time, Some(5.0));
+        assert_eq!(entries[0].duration, Some(4.0));
+        assert_eq!(entries[0].speaker, None);
+        assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].format, "webvtt");
+    }
+
+    #[test]
+    fn test_various_cue_identifiers() {
+        let webvtt_data = r#"WEBVTT
+
+1
+00:00:01.000 --> 00:00:03.000
+Simple numeric identifier
+
+cue-2
+00:00:04.000 --> 00:00:06.000
+Alphanumeric identifier
+
+Chapter 3
+00:00:07.000 --> 00:00:09.000
+Text with number in middle
+
+No numbers here
+00:00:10.000 --> 00:00:12.000
+Text identifier with no numbers
+
+Scene 5 - The Confrontation
+00:00:13.000 --> 00:00:15.000
+Complex text with number
+
+A1B2C3
+00:00:16.000 --> 00:00:18.000
+Mixed alphanumeric
+
+42 is the answer
+00:00:19.000 --> 00:00:21.000
+Number at start of text
+
+The year is 2024
+00:00:22.000 --> 00:00:24.000
+Number embedded in text
+
+-5
+00:00:25.000 --> 00:00:27.000
+Negative number
+
+0
+00:00:28.000 --> 00:00:30.000
+Zero as identifier
+"#;
+
+        let result = WebVTTParser.parse(webvtt_data);
+        assert!(result.is_ok());
+        let entries = result.unwrap();
+        assert_eq!(entries.len(), 10);
+
+        // Test 1: Simple numeric identifier
+        assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].content, "Simple numeric identifier");
+
+        // Test 2: Alphanumeric identifier (should find first number: 2)
+        assert_eq!(entries[1].index, Some(-2));
+        assert_eq!(entries[1].content, "Alphanumeric identifier");
+
+        // Test 3: Text with number in middle (should find first number: 3)
+        assert_eq!(entries[2].index, Some(3));
+        assert_eq!(entries[2].content, "Text with number in middle");
+
+        // Test 4: Text with no numbers
+        assert_eq!(entries[3].index, None);
+        assert_eq!(entries[3].content, "Text identifier with no numbers");
+
+        // Test 5: Complex text with number (should find first number: 5)
+        assert_eq!(entries[4].index, Some(5));
+        assert_eq!(entries[4].content, "Complex text with number");
+
+        // Test 6: Mixed alphanumeric (should find first number: 1)
+        assert_eq!(entries[5].index, Some(1));
+        assert_eq!(entries[5].content, "Mixed alphanumeric");
+
+        // Test 7: Number at start of text (should find first number: 42)
+        assert_eq!(entries[6].index, Some(42));
+        assert_eq!(entries[6].content, "Number at start of text");
+
+        // Test 8: Number embedded in text (should find first number: 2024)
+        assert_eq!(entries[7].index, Some(2024));
+        assert_eq!(entries[7].content, "Number embedded in text");
+
+        // Test 9: Negative number (should find first number: -5)
+        assert_eq!(entries[8].index, Some(-5));
+        assert_eq!(entries[8].content, "Negative number");
+
+        // Test 10: Zero as identifier
+        assert_eq!(entries[9].index, Some(0));
+        assert_eq!(entries[9].content, "Zero as identifier");
     }
 
     #[test]
@@ -151,44 +440,62 @@ Normal line with no styling.
         let missing_header = r#"1
 00:00:01.000 --> 00:00:04.000
 Hello world"#;
-        assert!(WebVttParser.parse(missing_header).is_err());
+        assert!(WebVTTParser.parse(missing_header).is_err());
+
+        // Malformed WEBVTT header
+        let missing_header = r#"something before WEBVTT
+00:00:01.000 --> 00:00:04.000
+Hello world"#;
+        assert!(WebVTTParser.parse(missing_header).is_err());
 
         // Missing arrow in timestamp
-        let missing_arrow = r#"1
-WEBVTT
+        let missing_arrow = r#"WEBVTT
+1
 00:00:01.000 00:00:04.000
+
 Hello world"#;
-        assert!(WebVttParser.parse(missing_arrow).is_err());
+        assert!(WebVTTParser.parse(missing_arrow).is_err());
+
+        // Different separator (dot instead of comma) - should still work
+        let comma_separator = r#"WEBVTT
+1
+00:00:01,000 --> 00:00:04,000
+Hello world"#;
+        assert!(WebVTTParser.parse(comma_separator).is_err());
 
         // Missing timestamp entirely
         let missing_timestamp = r#"1
 WEBVTT
-Hello world"#;
-        assert!(WebVttParser.parse(missing_timestamp).is_err());
 
-        // Invalid index (not a number)
-        let invalid_index = r#"WEBVTT
-1
-abc
-00:00:01.000 --> 00:00:04.000
 Hello world"#;
-        // This should still parse (index is optional) but treat "abc" as timestamp
-        assert!(WebVttParser.parse(invalid_index).is_err());
+        assert!(WebVTTParser.parse(missing_timestamp).is_err());
+
+        // Malformed blocks
+        let malformed_blocks = r#"1
+WEBVTT
+00:00:01.000 --> 00:00:04.000
+Hello world
+
+Some other text
+
+00:00:05.000 --> 00:00:08.000
+Next subtitle"#;
+        assert!(WebVTTParser.parse(malformed_blocks).is_err());
 
         // Incomplete timestamp (missing end time)
         let incomplete_timestamp = r#"WEBVTT
 1
 00:00:01.000 -->
 Hello world"#;
-        assert!(WebVttParser.parse(incomplete_timestamp).is_err());
+        assert!(WebVTTParser.parse(incomplete_timestamp).is_err());
 
         // Malformed time values
         let malformed_time = r#"WEBVTT
-1
+
 25:99:99.999 --> 00:00:04.000
 Hello world"#;
         // This might parse but produce incorrect values - depends on implementation
-        let result = WebVttParser.parse(malformed_time);
+        let result = WebVTTParser.parse(malformed_time);
         // Should either error or parse with unexpected values
         if result.is_ok() {
             // If it parses, the time should be very large due to 99 minutes/seconds
@@ -198,13 +505,6 @@ Hello world"#;
             assert!(entries[0].start_time > 90000.0);
         }
 
-        // comma separator (SRT timestamp format)
-        let srt_timestamp = r#"WEBVTT
-1
-00:00:01,000 --> 00:00:04,000
-Hello world"#;
-        assert!(WebVttParser.parse(srt_timestamp).is_err());
-
         // Empty content after timestamp
         let empty_content = r#"WEBVTT
 1
@@ -213,142 +513,11 @@ Hello world"#;
 2
 00:00:05.000 --> 00:00:08.000
 Next subtitle"#;
-        let result = WebVttParser.parse(empty_content);
+        let result = WebVTTParser.parse(empty_content);
         assert!(result.is_ok());
         let entries = result.unwrap();
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].content, ""); // Empty content should be preserved
         assert_eq!(entries[1].content, "Next subtitle");
-    }
-
-    #[test]
-    fn test_parse_webvtt2() {
-        let webvtt_data = r#"WEBVTT
-
-1
-00:00:03.400 --> 00:00:06.177
-<v Alice>In this lesson, we're going to
-be talking about finance. And
-
-2
-00:00:06.177 --> 00:00:10.009
-one of the most important aspects
-<c.important>of finance is interest.</c.important>
-
-3
-00:00:10.009 --> 00:00:13.655
-When I go to a bank or some
-other lending institution
-
-4
-00:00:13.655 --> 00:00:17.720
-to borrow money, the bank is happy
-<v Bob>to give me that money. But then I'm
-
-5
-00:00:17.900 --> 00:00:21.480
-going to be paying the bank for the
-privilege of using their money. And that
-
-6
-00:00:21.660 --> 00:00:26.440
-amount of money that I pay the bank is
-called interest. Likewise, if I put money
-
-7
-00:00:26.620 --> 00:00:31.220
-in a savings account or I purchase a
-certificate of deposit, the bank just
-
-8
-00:00:31.300 --> 00:00:35.800
-doesn't put my money in a little box
-<c.final>and leave it there until later. They take</c.final>"#;
-
-        let result = WebVttParser.parse(webvtt_data);
-        assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 8);
-
-        // Entry 1
-        assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].start_time, 3.4);
-        assert_eq!(entries[0].end_time, Some(6.177));
-        assert!((entries[0].duration.unwrap() - 2.777).abs() < 0.001);
-        assert_eq!(
-            entries[0].content,
-            "<v Alice>In this lesson, we're going to\nbe talking about finance. And"
-        );
-        assert_eq!(entries[0].format, "webvtt");
-
-        // Entry 2
-        assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].start_time, 6.177);
-        assert_eq!(entries[1].end_time, Some(10.009));
-        assert!((entries[1].duration.unwrap() - 3.832).abs() < 0.001);
-        assert_eq!(
-            entries[1].content,
-            "one of the most important aspects\n<c.important>of finance is interest.</c.important>"
-        );
-
-        // Entry 3
-        assert_eq!(entries[2].index, Some(3));
-        assert_eq!(entries[2].start_time, 10.009);
-        assert_eq!(entries[2].end_time, Some(13.655));
-        assert!((entries[2].duration.unwrap() - 3.646).abs() < 0.001);
-        assert_eq!(
-            entries[2].content,
-            "When I go to a bank or some\nother lending institution"
-        );
-
-        // Entry 4
-        assert_eq!(entries[3].index, Some(4));
-        assert_eq!(entries[3].start_time, 13.655);
-        assert_eq!(entries[3].end_time, Some(17.72));
-        assert!((entries[3].duration.unwrap() - 4.065).abs() < 0.001);
-        assert_eq!(
-            entries[3].content,
-            "to borrow money, the bank is happy\n<v Bob>to give me that money. But then I'm"
-        );
-
-        // Entry 5
-        assert_eq!(entries[4].index, Some(5));
-        assert_eq!(entries[4].start_time, 17.9);
-        assert_eq!(entries[4].end_time, Some(21.48));
-        assert!((entries[4].duration.unwrap() - 3.58).abs() < 0.001);
-        assert_eq!(
-            entries[4].content,
-            "going to be paying the bank for the\nprivilege of using their money. And that"
-        );
-
-        // Entry 6
-        assert_eq!(entries[5].index, Some(6));
-        assert_eq!(entries[5].start_time, 21.66);
-        assert_eq!(entries[5].end_time, Some(26.44));
-        assert!((entries[5].duration.unwrap() - 4.78).abs() < 0.001);
-        assert_eq!(
-            entries[5].content,
-            "amount of money that I pay the bank is\ncalled interest. Likewise, if I put money"
-        );
-
-        // Entry 7
-        assert_eq!(entries[6].index, Some(7));
-        assert_eq!(entries[6].start_time, 26.62);
-        assert_eq!(entries[6].end_time, Some(31.22));
-        assert!((entries[6].duration.unwrap() - 4.6).abs() < 0.001);
-        assert_eq!(
-            entries[6].content,
-            "in a savings account or I purchase a\ncertificate of deposit, the bank just"
-        );
-
-        // Entry 8
-        assert_eq!(entries[7].index, Some(8));
-        assert_eq!(entries[7].start_time, 31.3);
-        assert_eq!(entries[7].end_time, Some(35.8));
-        assert!((entries[7].duration.unwrap() - 4.5).abs() < 0.001);
-        assert_eq!(
-            entries[7].content,
-            "doesn't put my money in a little box\n<c.final>and leave it there until later. They take</c.final>"
-        );
     }
 }

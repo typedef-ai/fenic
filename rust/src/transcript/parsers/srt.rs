@@ -48,21 +48,9 @@ fn compute_duration(start_time: f64, end_time: Option<f64>) -> Option<f64> {
 }
 
 pub struct SrtParser;
-pub struct SrtWebVttParser;
 
 impl FormatParser for SrtParser {
     fn parse(&self, input: &str) -> Result<Vec<UnifiedTranscriptEntry>, ParseError> {
-        SrtWebVttParser.parse_format(input, "srt", parse_srt_timestamp)
-    }
-}
-
-impl SrtWebVttParser {
-    pub fn parse_format(
-        &self,
-        input: &str,
-        format: &str,
-        timestamp_parser: fn(&str) -> Result<f64, ParseError>,
-    ) -> Result<Vec<UnifiedTranscriptEntry>, ParseError> {
         let bytes = input.as_bytes();
         let len = bytes.len();
         let mut pos = 0;
@@ -162,9 +150,9 @@ impl SrtWebVttParser {
             }
             let text = std::str::from_utf8(&bytes[text_start..text_end])?.trim_end();
 
-            // Parse timestamps to seconds using the provided parser function
-            let start_time = timestamp_parser(start)?;
-            let end_time = timestamp_parser(end)?;
+            // Parse timestamps to seconds
+            let start_time = parse_srt_timestamp(start)?;
+            let end_time = parse_srt_timestamp(end)?;
             let duration = compute_duration(start_time, Some(end_time));
 
             entries.push(UnifiedTranscriptEntry {
@@ -174,7 +162,7 @@ impl SrtWebVttParser {
                 end_time: Some(end_time),
                 duration,
                 content: text.to_string(),
-                format: format.to_string(),
+                format: "srt".to_string(),
             });
         }
         Ok(entries)
