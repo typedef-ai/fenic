@@ -180,6 +180,15 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     FirstExpr as FirstExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    FuzzyRatioExpr as FuzzyRatioExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    FuzzyTokenSetRatioExpr as FuzzyTokenSetRatioExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    FuzzyTokenSortRatioExpr as FuzzyTokenSortRatioExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     ILikeExpr as ILikeExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -190,6 +199,9 @@ from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     IsNullExpr as IsNullExprProto,
+)
+from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
+    JinjaExpr as JinjaExprProto,
 )
 from fenic.gen.protos.logical_plan.v1.expressions_pb2 import (
     # JSON expressions
@@ -503,6 +515,10 @@ __all__ = [
     "ReplaceExprProto",
     "StrLengthExprProto",
     "ByteLengthExprProto",
+    "JinjaExprProto",
+    "FuzzyRatioExprProto",
+    "FuzzyTokenSortRatioExprProto",
+    "FuzzyTokenSetRatioExprProto",
     # JSON expression classes
     "JqExprProto",
     "JsonTypeExprProto",

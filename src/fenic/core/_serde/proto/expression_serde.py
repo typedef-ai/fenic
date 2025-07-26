@@ -38,6 +38,8 @@ def serialize_logical_expr(
     Raises:
         SerializationError: If the expression type is not registered or serialization fails.
     """
+    if logical is None:
+        return LogicalExprProto()
     raise context.create_serde_error(
         SerializationError,
         f"Serialization not implemented for {type(logical)}",

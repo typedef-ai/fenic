@@ -217,17 +217,11 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
+        chunking_configuration: TextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
         # Create the configuration object for internal use
-        self.chunk_configuration = TextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-        )
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -238,7 +232,7 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
         return [self.input_expr]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
+        return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
     def _eq_specific(self, other: TextChunkExpr) -> bool:
         return self.chunk_configuration == other.chunk_configuration
@@ -254,21 +248,11 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
-        chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
-        chunking_character_set_custom_characters: Optional[list[str]] = None,
+        chunking_configuration: RecursiveTextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
         # Create the configuration object for internal use
-        self.chunking_configuration = RecursiveTextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-            chunking_character_set_name=chunking_character_set_name,
-            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-        )
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property

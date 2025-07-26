@@ -191,7 +191,6 @@ def _serialize_semantic_reduce_expr(logical: SemanticReduceExpr, context: SerdeC
     """Serialize a semantic reduce expression."""
     return LogicalExprProto(
         semantic_reduce=SemanticReduceExprProto(
-            expr=context.serialize_logical_expr("expr", logical.expr),
             instruction=logical.instruction,
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
@@ -348,9 +347,16 @@ def _deserialize_semantic_summarize_expr(
     context: SerdeContext,
 ) -> SemanticSummarizeExpr:
     """Deserialize a semantic summarize expression."""
+    if logical_proto.format.HasField("key_points"):
+        summary_format = KeyPoints(max_points=logical_proto.format.key_points.max_points)
+    elif logical_proto.format.HasField("paragraph"):
+        summary_format = Paragraph(max_words=logical_proto.format.paragraph.max_words)
+    else:
+        raise ValueError(f"Unsupported summarize format: {logical_proto.format.WhichOneof('format')}")
+
     return SemanticSummarizeExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        format=context.deserialize_pydantic_model_type("format", logical_proto.format),
+        format=summary_format,
         temperature=logical_proto.temperature,
         model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
     )

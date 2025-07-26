@@ -100,11 +100,7 @@ def deserialize_data_type(
     """
     which_oneof = data_type_proto.WhichOneof("data_type")
     if which_oneof is None:
-        raise context.create_serde_error(
-            DeserializationError,
-            "Empty DataTypeProto - no data_type field is set",
-            type(data_type_proto),
-        )
+        return None
     underlying_proto = getattr(data_type_proto, which_oneof)
     return _deserialize_data_type_helper(underlying_proto, context)
 
