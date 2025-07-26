@@ -47,6 +47,9 @@ from fenic.core.types.semantic_examples import (
 )
 from fenic.core.types.summarize import KeyPoints, Paragraph
 
+# =============================================================================
+# SemanticMapExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext) -> LogicalExprProto:
@@ -83,7 +86,7 @@ def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext
         )
     )
 
-# Register semantic expression deserializers
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_map_expr(
     logical_proto: SemanticMapExprProto,
@@ -109,6 +112,11 @@ def _deserialize_semantic_map_expr(
         examples=examples,
     )
 
+
+# =============================================================================
+# SemanticExtractExpr
+# =============================================================================
+
 @serialize_logical_expr.register
 def _serialize_semantic_extract_expr(logical: SemanticExtractExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize a semantic extract expression."""
@@ -126,6 +134,7 @@ def _serialize_semantic_extract_expr(logical: SemanticExtractExpr, context: Serd
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_extract_expr(
     logical_proto: SemanticExtractExprProto,
@@ -139,6 +148,11 @@ def _deserialize_semantic_extract_expr(
         temperature=logical_proto.temperature,
         model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
     )
+
+
+# =============================================================================
+# SemanticPredExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_semantic_pred_expr(logical: SemanticPredExpr, context: SerdeContext) -> LogicalExprProto:
@@ -163,6 +177,7 @@ def _serialize_semantic_pred_expr(logical: SemanticPredExpr, context: SerdeConte
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_pred_expr(
     logical_proto: SemanticPredExprProto,
@@ -186,6 +201,11 @@ def _deserialize_semantic_pred_expr(
         examples=examples,
     )
 
+
+# =============================================================================
+# SemanticReduceExpr
+# =============================================================================
+
 @serialize_logical_expr.register
 def _serialize_semantic_reduce_expr(logical: SemanticReduceExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize a semantic reduce expression."""
@@ -197,6 +217,7 @@ def _serialize_semantic_reduce_expr(logical: SemanticReduceExpr, context: SerdeC
             model_alias=logical.model_alias,
         )
     )
+
 
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_reduce_expr(
@@ -210,6 +231,11 @@ def _deserialize_semantic_reduce_expr(
         temperature=logical_proto.temperature,
         model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
     )
+
+
+# =============================================================================
+# SemanticClassifyExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_semantic_classify_expr(
@@ -241,6 +267,7 @@ def _serialize_semantic_classify_expr(
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_classify_expr(
     logical_proto: SemanticClassifyExprProto,
@@ -268,6 +295,11 @@ def _deserialize_semantic_classify_expr(
         examples=examples,
     )
 
+
+# =============================================================================
+# AnalyzeSentimentExpr
+# =============================================================================
+
 @serialize_logical_expr.register
 def _serialize_analyze_sentiment_expr(
     logical: AnalyzeSentimentExpr,
@@ -282,6 +314,7 @@ def _serialize_analyze_sentiment_expr(
         )
     )
 
+
 @_deserialize_logical_expr_helper.register
 def _deserialize_analyze_sentiment_expr(
     logical_proto: AnalyzeSentimentExprProto,
@@ -294,6 +327,11 @@ def _deserialize_analyze_sentiment_expr(
         model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
     )
 
+
+# =============================================================================
+# EmbeddingsExpr
+# =============================================================================
+
 @serialize_logical_expr.register
 def _serialize_embeddings_expr(logical: EmbeddingsExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize an embeddings expression."""
@@ -303,6 +341,7 @@ def _serialize_embeddings_expr(logical: EmbeddingsExpr, context: SerdeContext) -
             model_alias=logical.model_alias,
         )
     )
+
 
 @_deserialize_logical_expr_helper.register
 def _deserialize_embeddings_expr(
@@ -314,6 +353,11 @@ def _deserialize_embeddings_expr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         model_alias=logical_proto.model_alias if logical_proto.model_alias else None,
     )
+
+
+# =============================================================================
+# SemanticSummarizeExpr
+# =============================================================================
 
 @serialize_logical_expr.register
 def _serialize_semantic_summarize_expr(
@@ -340,6 +384,7 @@ def _serialize_semantic_summarize_expr(
             model_alias=logical.model_alias,
         )
     )
+
 
 @_deserialize_logical_expr_helper.register
 def _deserialize_semantic_summarize_expr(

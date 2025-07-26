@@ -485,7 +485,7 @@ class ExprConverter:
 
         model = "cl100k_base"
         encoding = tiktoken.get_encoding(model)
-        config = logical.chunk_configuration
+        config = logical.chunking_configuration
         chunk_overlap = round(
             config.chunk_overlap_percentage * (config.desired_chunk_size / 100.0)
         )
