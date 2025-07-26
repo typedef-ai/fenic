@@ -61,3 +61,15 @@ class SerializationError(SerdeError):
             super().__init__(f"{message} at {field_path} in {object_type.__name__}")
         else:
             super().__init__(message)
+
+class UnsupportedTypeError(SerdeError):
+    """Errors for unsupported types."""
+
+    def __init__(self, object_type: Type, reason: str):
+        """Initialize an UnsupportedType error.
+
+        Args:
+            object_type: The unsupported type.
+            reason: The reason why the type is unsupported.
+        """
+        super().__init__(f"{object_type.__name__} is not currently supported for serde: {reason}")

@@ -173,6 +173,7 @@ def _serialize_sort_expr(logical: SortExpr, context: SerdeContext) -> LogicalExp
         sort=SortExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
             ascending=logical.ascending,
+            nulls_last=logical.nulls_last,
         )
     )
 
@@ -184,6 +185,7 @@ def _deserialize_sort_expr(
     return SortExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         ascending=logical_proto.ascending,
+        nulls_last=logical_proto.nulls_last,
     )
 
 
@@ -196,30 +198,19 @@ def _deserialize_sort_expr(
 def _serialize_index_expr(
     logical: IndexExpr, context: SerdeContext
 ) -> LogicalExprProto:
-    if isinstance(logical.index, str):
-        proto = IndexExprProto(
-            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            string_index=logical.index,
-        )
-    else:
-        proto = IndexExprProto(
-            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            int_index=logical.index,
-        )
-    return LogicalExprProto(index=proto)
+    return LogicalExprProto(index=IndexExprProto(
+        expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+        index=context.serialize_logical_expr("index", logical.index),
+    ))
 
 
 @_deserialize_logical_expr_helper.register
 def _deserialize_index_expr(
     logical_proto: IndexExprProto, context: SerdeContext
 ) -> IndexExpr:
-    if logical_proto.HasField("string_index"):
-        index = logical_proto.string_index
-    else:
-        index = logical_proto.int_index
     return IndexExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        index=index,
+        index=context.deserialize_logical_expr("index", logical_proto.index),
     )
 
 
@@ -258,7 +249,7 @@ def _serialize_cast_expr(logical: CastExpr, context: SerdeContext) -> LogicalExp
     return LogicalExprProto(
         cast=CastExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            data_type=context.serialize_data_type(SerdeContext.DATA_TYPE, logical.data_type),
+            dest_type=context.serialize_data_type("dest_type", logical.dest_type),
         )
     )
 
@@ -269,7 +260,7 @@ def _deserialize_cast_expr(
 ) -> CastExpr:
     return CastExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        data_type=context.deserialize_data_type(SerdeContext.DATA_TYPE, logical_proto.data_type),
+        dest_type=context.deserialize_data_type("dest_type", logical_proto.dest_type),
     )
 
 
@@ -308,7 +299,7 @@ def _serialize_in_expr(logical: InExpr, context: SerdeContext) -> LogicalExprPro
     return LogicalExprProto(
         in_expr=InExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            values=context.serialize_logical_expr_list(SerdeContext.VALUES, logical.values),
+            other=context.serialize_logical_expr(SerdeContext.OTHER, logical.other),
         )
     )
 
@@ -317,7 +308,7 @@ def _serialize_in_expr(logical: InExpr, context: SerdeContext) -> LogicalExprPro
 def _deserialize_in_expr(logical_proto: InExprProto, context: SerdeContext) -> InExpr:
     return InExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        values=context.deserialize_logical_expr_list(SerdeContext.VALUES, logical_proto.values),
+        other=context.deserialize_logical_expr(SerdeContext.OTHER, logical_proto.other),
     )
 
 
@@ -332,7 +323,8 @@ def _serialize_is_null_expr(
 ) -> LogicalExprProto:
     return LogicalExprProto(
         is_null=IsNullExprProto(
-            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr)
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+            is_null=logical.is_null,
         )
     )
 
@@ -342,7 +334,8 @@ def _deserialize_is_null_expr(
     logical_proto: IsNullExprProto, context: SerdeContext
 ) -> IsNullExpr:
     return IsNullExpr(
-        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        is_null=logical_proto.is_null,
     )
 
 
@@ -383,7 +376,7 @@ def _serialize_array_contains_expr(
     return LogicalExprProto(
         array_contains=ArrayContainsExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            value=context.serialize_logical_expr(SerdeContext.VALUE, logical.value),
+            other=context.serialize_logical_expr(SerdeContext.OTHER, logical.other),
         )
     )
 
@@ -394,5 +387,5 @@ def _deserialize_array_contains_expr(
 ) -> ArrayContainsExpr:
     return ArrayContainsExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        value=context.deserialize_logical_expr(SerdeContext.VALUE, logical_proto.value),
+        other=context.deserialize_logical_expr(SerdeContext.OTHER, logical_proto.other),
     )

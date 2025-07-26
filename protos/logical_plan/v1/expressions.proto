@@ -67,6 +67,10 @@ message LogicalExpr {
     ReplaceExpr replace = 68;
     StrLengthExpr str_length = 69;
     ByteLengthExpr byte_length = 70;
+    JinjaExpr jinja = 71;
+    FuzzyRatioExpr fuzzy_ratio = 72;
+    FuzzyTokenSortRatioExpr fuzzy_token_sort_ratio = 73;
+    FuzzyTokenSetRatioExpr fuzzy_token_set_ratio = 74;
 
     // JSON expressions
     JqExpr jq = 80;
@@ -140,15 +144,12 @@ message AliasExpr {
 message SortExpr {
   LogicalExpr expr = 1;
   bool ascending = 2;
+  bool nulls_last = 3;
 }
 
 message IndexExpr {
   LogicalExpr expr = 1;
-  oneof index_type {
-    int32 int_index = 2;
-    string string_index = 3;
-    LogicalExpr expr_index = 4;
-  }
+  LogicalExpr index = 2;
 }
 
 message ArrayExpr {
@@ -243,7 +244,6 @@ message SemanticPredExpr {
 }
 
 message SemanticReduceExpr {
-  LogicalExpr expr = 1;
   string instruction = 2;
   int32 max_tokens = 3;
   float temperature = 4;
@@ -410,6 +410,29 @@ message StrLengthExpr {
 
 message ByteLengthExpr {
   LogicalExpr expr = 1;
+}
+
+message JinjaExpr {
+  repeated LogicalExpr exprs = 1;
+  string template = 2;
+}
+
+message FuzzyRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  string method = 3;
+}
+
+message FuzzyTokenSortRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  string method = 3;
+}
+
+message FuzzyTokenSetRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  string method = 3;
 }
 
 // JSON expressions

@@ -63,6 +63,7 @@ class SerdeContext:
     # Common field name constants for improved usability
     EXPR = "expr"
     EXPRS = "exprs"
+    OTHER = "other"
     INPUT = "input"
     INPUTS = "inputs"
     LEFT = "left"
@@ -70,6 +71,7 @@ class SerdeContext:
     VALUE = "value"
     VALUES = "values"
     DATA_TYPE = "data_type"
+    SUBSTR = "substr"
     SCHEMA = "schema"
     FORMAT = "format"
     CONDITION = "condition"
@@ -394,7 +396,7 @@ class SerdeContext:
 
     def deserialize_data_type(
         self, field_name: str, data_type_proto: DataTypeProto
-    ) -> DataType:
+    ) -> Optional[DataType]:
         """Deserialize a data type with field path tracking.
 
         Args:
@@ -443,7 +445,7 @@ class SerdeContext:
         self,
         field_name: str,
         class_definition_proto: ResolvedClassDefinitionProto,
-    ) -> ResolvedClassDefinition:
+    ) -> Optional[ResolvedClassDefinition]:
         """Deserialize a resolved class definition.
 
         Args:
@@ -453,6 +455,8 @@ class SerdeContext:
         Returns:
             The deserialized resolved class definition.
         """
+        if not class_definition_proto:
+            return None
         with self.path_context(field_name):
             try:
                 return ResolvedClassDefinition(
@@ -490,6 +494,15 @@ class SerdeContext:
         pydantic_proto: PydanticModelTypeProto,
     ) -> Optional[Type[BaseModel]]:
         """Deserialize a Pydantic model from a protobuf model by loading its json schema.
+
+        While ideally, we would like to work directly with the json schema, we need the actual pydantic model type
+        so that we can use it to validate structured examples. For now, we can use `jambo` to deserialize the json schema.
+        The limitations below detail the known issues with this approach, but they should not impact the functionality of the system,
+        as long as the json that is generated from instances of the two are always the same.
+
+        Known Limitations:
+        - If a type is defined as a `Literal` in the original pydantic model, it will be deserialized as a dynamic enum type.
+        - If a type is defined as a `list` in the original pydantic model, in the deserialized pydantic model, the list will be omitted from pydantic's `required` fields.
 
         Args:
             field_name: The name of the field being deserialized.
@@ -699,16 +712,18 @@ class SerdeContext:
         Raises:
             SerializationError: If the value type is not supported or is None.
         """
+        if value is None:
+            return ScalarValueProto()
         with self.path_context(field_name):
             try:
                 if isinstance(value, str):
                     return ScalarValueProto(string_value=value)
+                elif isinstance(value, bool):
+                    return ScalarValueProto(bool_value=value)
                 elif isinstance(value, int):
                     return ScalarValueProto(int_value=value)
                 elif isinstance(value, float):
                     return ScalarValueProto(double_value=value)
-                elif isinstance(value, bool):
-                    return ScalarValueProto(bool_value=value)
                 elif isinstance(value, bytes):
                     return ScalarValueProto(bytes_value=value)
                 elif isinstance(value, list):
@@ -731,11 +746,6 @@ class SerdeContext:
                         fields.append(field)
                     return ScalarValueProto(
                         struct_value=ScalarStructProto(fields=fields)
-                    )
-                elif value is None:
-                    raise self.create_serde_error(
-                        SerializationError,
-                        "Cannot serialize None/null values - please provide a concrete type",
                     )
                 else:
                     raise self.create_serde_error(
@@ -766,6 +776,8 @@ class SerdeContext:
         with self.path_context(field_name):
             try:
                 which_oneof = scalar_value.WhichOneof("value_type")
+                if which_oneof is None:
+                    return None
                 if which_oneof == "string_value":
                     return scalar_value.string_value
                 elif which_oneof == "int_value":

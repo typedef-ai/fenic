@@ -23,8 +23,9 @@ from fenic.core._serde.proto.types import (
 def _serialize_when_expr(logical: WhenExpr, context: SerdeContext) -> LogicalExprProto:
     return LogicalExprProto(
         when=WhenExprProto(
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
             condition=context.serialize_logical_expr(SerdeContext.CONDITION, logical.condition),
-            then=context.serialize_logical_expr(SerdeContext.THEN, logical.then),
+            value=context.serialize_logical_expr(SerdeContext.VALUE, logical.value),
         )
     )
 
@@ -34,8 +35,9 @@ def _deserialize_when_expr(
     logical_proto: WhenExprProto, context: SerdeContext
 ) -> WhenExpr:
     return WhenExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         condition=context.deserialize_logical_expr(SerdeContext.CONDITION, logical_proto.condition),
-        then=context.deserialize_logical_expr(SerdeContext.THEN, logical_proto.then),
+        value=context.deserialize_logical_expr(SerdeContext.VALUE, logical_proto.value),
     )
 
 
@@ -50,7 +52,8 @@ def _serialize_otherwise_expr(
 ) -> LogicalExprProto:
     return LogicalExprProto(
         otherwise=OtherwiseExprProto(
-            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr)
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+            value=context.serialize_logical_expr(SerdeContext.VALUE, logical.value),
         )
     )
 
@@ -60,5 +63,6 @@ def _deserialize_otherwise_expr(
     logical_proto: OtherwiseExprProto, context: SerdeContext
 ) -> OtherwiseExpr:
     return OtherwiseExpr(
-        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        value=context.deserialize_logical_expr(SerdeContext.VALUE, logical_proto.value),
     )

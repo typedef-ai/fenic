@@ -32,8 +32,8 @@ def _serialize_arithmetic_expr(
 ) -> LogicalExprProto:
     return LogicalExprProto(
         arithmetic=ArithmeticExprProto(
-            left=context.serialize_logical_expr("left", logical.left),
-            right=context.serialize_logical_expr("right", logical.right),
+            left=context.serialize_logical_expr(SerdeContext.LEFT, logical.left),
+            right=context.serialize_logical_expr(SerdeContext.RIGHT, logical.right),
             operator=context.serialize_enum_value("operator", logical.op, OperatorProto),
         )
     )
@@ -45,8 +45,8 @@ def _deserialize_arithmetic_expr(
 ) -> ArithmeticExpr:
     """Deserialize an arithmetic expression."""
     return ArithmeticExpr(
-        left=context.deserialize_logical_expr("left", logical_proto.left),
-        right=context.deserialize_logical_expr("right", logical_proto.right),
+        left=context.deserialize_logical_expr(SerdeContext.LEFT, logical_proto.left),
+        right=context.deserialize_logical_expr(SerdeContext.RIGHT, logical_proto.right),
         op=context.deserialize_enum_value("operator", Operator, OperatorProto, logical_proto.operator),
     )
 
@@ -62,9 +62,9 @@ def _serialize_boolean_expr(
 ) -> LogicalExprProto:
     return LogicalExprProto(
         boolean=BooleanExprProto(
-            left=context.serialize_logical_expr("left", logical.left),
-            right=context.serialize_logical_expr("right", logical.right),
-            operator=context.serialize_enum_value("operator", logical.op, OperatorProto),
+            left=context.serialize_logical_expr(SerdeContext.LEFT, logical.left),
+            right=context.serialize_logical_expr(SerdeContext.RIGHT, logical.right),
+            operator=context.serialize_enum_value(SerdeContext.OPERATOR, logical.op, OperatorProto),
         )
     )
 
@@ -94,7 +94,7 @@ def _serialize_numeric_comparison_expr(
         numeric_comparison=NumericComparisonExprProto(
             left=context.serialize_logical_expr(SerdeContext.LEFT, logical.left),
             right=context.serialize_logical_expr(SerdeContext.RIGHT, logical.right),
-            operator=context.serialize_enum_value(SerdeContext.OPERATOR, logical.op, OperatorProto),
+            operator=context.serialize_enum_value("operator", logical.op, OperatorProto),
         )
     )
 
@@ -107,7 +107,7 @@ def _deserialize_numeric_comparison_expr(
     return NumericComparisonExpr(
         left=context.deserialize_logical_expr(SerdeContext.LEFT, logical_proto.left),
         right=context.deserialize_logical_expr(SerdeContext.RIGHT, logical_proto.right),
-        op=context.deserialize_enum_value(SerdeContext.OPERATOR, Operator, OperatorProto, logical_proto.operator),
+        op=context.deserialize_enum_value("operator", Operator, OperatorProto, logical_proto.operator),
     )
 
 
@@ -125,7 +125,7 @@ def _serialize_equality_comparison_expr(
         equality_comparison=EqualityComparisonExprProto(
             left=context.serialize_logical_expr(SerdeContext.LEFT, logical.left),
             right=context.serialize_logical_expr(SerdeContext.RIGHT, logical.right),
-            operator=context.serialize_enum_value(SerdeContext.OPERATOR, logical.op, OperatorProto),
+            operator=context.serialize_enum_value("operator", logical.op, OperatorProto),
         )
     )
 
@@ -138,5 +138,5 @@ def _deserialize_equality_comparison_expr(
     return EqualityComparisonExpr(
         left=context.deserialize_logical_expr(SerdeContext.LEFT, logical_proto.left),
         right=context.deserialize_logical_expr(SerdeContext.RIGHT, logical_proto.right),
-        op=context.deserialize_enum_value(SerdeContext.OPERATOR, Operator, OperatorProto, logical_proto.operator),
+        op=context.deserialize_enum_value("operator", Operator, OperatorProto, logical_proto.operator),
     )

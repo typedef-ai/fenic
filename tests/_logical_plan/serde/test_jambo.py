@@ -16,9 +16,14 @@ def test_jambo():
     json_schema = DocumentMetadata.model_json_schema()
 
     reconstituted_model = SchemaConverter.build(json_schema)
+    original_model_instance = DocumentMetadata(title="test", document_type="research paper", date="2021-01-01", keywords=["test"], summary="test")
     reconstituted_model_instance = reconstituted_model(title="test", document_type="research paper", date="2021-01-01", keywords=["test"], summary="test")
-    assert hasattr(reconstituted_model_instance, "title")
-    assert hasattr(reconstituted_model_instance, "document_type")
-    assert hasattr(reconstituted_model_instance, "date")
-    assert hasattr(reconstituted_model_instance, "keywords")
-    assert hasattr(reconstituted_model_instance, "summary")
+    for field_name, field_info in DocumentMetadata.model_fields.items():
+        if field_name != "document_type": # document_type is a literal, so it will be an enum in the serialized form.
+            assert getattr(reconstituted_model_instance, field_name) == getattr(original_model_instance, field_name)
+        assert field_info.description == reconstituted_model.model_fields[field_name].description
+    reconstituted_model_instance_json = reconstituted_model_instance.model_dump_json()
+    original_model_instance_json = original_model_instance.model_dump_json()
+    assert reconstituted_model_instance_json == original_model_instance_json
+    reconstituted_based_on_original_json = reconstituted_model.model_validate_json(original_model_instance_json)
+    assert reconstituted_based_on_original_json

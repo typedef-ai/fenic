@@ -79,7 +79,7 @@ def _serialize_json_contains_expr(
     return LogicalExprProto(
         json_contains=JsonContainsExprProto(
             expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
-            value=context.serialize_logical_expr(SerdeContext.VALUE, logical.value),
+            value=logical.value,
         )
     )
 
@@ -90,5 +90,5 @@ def _deserialize_json_contains_expr(
 ) -> JsonContainsExpr:
     return JsonContainsExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        value=context.deserialize_logical_expr(SerdeContext.VALUE, logical_proto.value),
+        value=logical_proto.value,
     )
