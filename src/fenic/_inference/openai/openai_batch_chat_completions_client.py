@@ -6,7 +6,9 @@ from openai import AsyncOpenAI
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
-    OpenAIPresetConfigurationManager,
+)
+from fenic._inference.common_openai.openai_preset_manager import (
+    OpenAICompletionsPresetManager,
 )
 from fenic._inference.model_client import (
     FatalException,
@@ -56,11 +58,9 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             max_backoffs=max_backoffs,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
         )
-        self.model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
-
-        # Use the preset configuration manager
-        self.preset_manager = OpenAIPresetConfigurationManager(
-            model_parameters=self.model_parameters,
+        self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
+        self._preset_manager = OpenAICompletionsPresetManager(
+            model_parameters=self._model_parameters,
             preset_configurations=preset_configurations,
             default_preset_name=default_preset_name
         )
@@ -84,7 +84,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             The response from the API or an exception
         """
         # Get preset-specific parameters
-        return await self._core.make_single_request(request, self.preset_manager.get_preset_configuration(request.model_preset))
+        return await self._core.make_single_request(request, self._preset_manager.get_preset_configuration(request.model_preset))
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for request deduplication.
@@ -125,5 +125,5 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         base_tokens = request.max_completion_tokens
 
         # Get preset-specific reasoning effort
-        preset_config = self.preset_manager.get_preset_configuration(request.model_preset)
+        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
         return base_tokens + preset_config.expected_additional_reasoning_tokens

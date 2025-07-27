@@ -17,6 +17,7 @@ from fenic.core.types import (
     StringType,
 )
 from fenic.core.types.enums import SemanticSimilarityMetric
+from fenic.core.types.semantic import ModelAlias
 
 SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 
@@ -158,7 +159,7 @@ class SemanticJoin(BaseSemanticJoin):
         right_on: ColumnExpr,
         join_instruction: str,
         temperature: float = 0.0,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
     ):
         validate_completion_parameters(model_alias, left.session_state.session_config, temperature)

@@ -11,6 +11,7 @@ from fenic.core._resolved_session_config import (
     ResolvedSessionConfig,
 )
 from fenic.core.error import ValidationError
+from fenic.core.types.semantic import ModelAlias
 
 
 def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
@@ -31,7 +32,7 @@ def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
 
 
 def validate_completion_parameters(
-    model_alias: Optional[str],
+    model_alias: Optional[ModelAlias],
     resolved_session_config: ResolvedSessionConfig,
     temperature: float,
     max_tokens: Optional[int] = None,
@@ -41,9 +42,9 @@ def validate_completion_parameters(
     If no model alias is provided, the session's default language model is used.
 
     Parameters:
-        model_alias (Optional[str]):
-            Alias of the language model to validate. Defaults to the session's
-            default if not provided.
+        model_alias (Optional[ModelAlias]):
+            ModelAlias object containing model name and optional preset.
+            Defaults to the session's default if not provided.
         resolved_session_config (ResolvedSessionConfig):
             The resolved session config containing model definitions.
         temperature (float):
@@ -61,17 +62,16 @@ def validate_completion_parameters(
             "Please add language_models to your SemanticConfig."
         )
     language_model_config = resolved_session_config.semantic.language_models
-    if model_alias is None:
-        model_alias = language_model_config.default_model
+    model_alias_name = model_alias.name if model_alias else language_model_config.default_model
 
-    if model_alias not in language_model_config.model_configs:
+    if model_alias_name not in language_model_config.model_configs:
         available_models = list(language_model_config.model_configs.keys())
         raise ValidationError(
-            f"Language model alias '{model_alias}' not found in SessionConfig. "
+            f"Language model alias '{model_alias_name}' not found in SessionConfig. "
             f"Available models: {', '.join(available_models)}"
         )
 
-    model_config = language_model_config.model_configs[model_alias_base]
+    model_config = language_model_config.model_configs[model_alias_name]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):
@@ -83,5 +83,3 @@ def validate_completion_parameters(
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
-
-    return model_alias, preset_name

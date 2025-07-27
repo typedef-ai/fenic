@@ -664,8 +664,8 @@ class ExprConverter:
         if logical.dimensions is None:
             raise InternalError("Embedding dimensions not set for embeddings expression")
 
+        embedding_model = self.session_state.get_embedding_model(logical.model_alias)
         def embeddings_fn(batch: pl.Series) -> pl.Series:
-            embedding_model = self.session_state.get_embedding_model(logical.model_alias)
             return pl.from_arrow(embedding_model.get_embeddings(batch))
 
         return physical_expr.map_batches(embeddings_fn, return_dtype=pl.Array(pl.Float32, logical.dimensions))

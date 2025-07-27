@@ -21,6 +21,7 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
+from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class LocalSessionState(BaseSessionState):
         """
         return SessionModelRegistry(semantic_config)
 
-    def get_language_model(self, alias: Optional[str] = None) -> LanguageModel:
+    def get_language_model(self, alias: Optional[ModelAlias] = None) -> LanguageModel:
         return self._model_registry.get_language_model(alias)
 
     def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:

@@ -17,6 +17,7 @@ from fenic.core._utils.misc import parse_instruction
 from fenic.core.types import (
     MapExampleCollection,
 )
+from fenic.core.types.semantic import ModelAlias
 
 
 class Map(BaseMultiColumnInputOperator[str, str]):
@@ -39,7 +40,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         model: LanguageModel,
         max_tokens: int,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):

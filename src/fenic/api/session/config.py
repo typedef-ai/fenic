@@ -43,6 +43,7 @@ default_preset_desc = """
             If presets are configured, which should be used by default?
         """
 
+
 class GoogleModelPreset(BaseModel):
     """Preset configurations for Google models.
 
@@ -84,6 +85,7 @@ class GoogleModelPreset(BaseModel):
 
 class GoogleGLAModelConfig(BaseModel):
     """Configuration for Google Generative Language (GLA) models.
+
     This class defines the configuration settings for models available in Google Developer AI Studio,
     including model selection and rate limiting parameters. These models are accessible using a GOOGLE_API_KEY environment variable.
 
@@ -175,6 +177,7 @@ class GoogleVertexModelConfig(BaseModel):
     presets: Optional[dict[str, GoogleModelPreset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
 
+
 class OpenAIModelPreset(BaseModel):
     """Configuration for a preset reasoning effort.
 
@@ -199,6 +202,7 @@ class OpenAIModelPreset(BaseModel):
     reasoning_effort: Optional[ReasoningEffort] = Field(
         default=None,
         description="The reasoning effort level for the preset")
+
 
 class OpenAIModelConfig(BaseModel):
     """Configuration for OpenAI models.
@@ -241,7 +245,10 @@ class OpenAIModelConfig(BaseModel):
         )
         ```
     """
-    model_name: Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, OPENAI_AVAILABLE_EMBEDDING_MODELS] = Field(..., description="The name of the OpenAI model to use")
+    model_name: Union[
+        OPENAI_AVAILABLE_LANGUAGE_MODELS,
+        OPENAI_AVAILABLE_EMBEDDING_MODELS
+    ] = Field(..., description="The name of the OpenAI model to use")
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     presets: Optional[dict[str, OpenAIModelPreset]] = Field(default=None, description=presets_desc)
@@ -278,6 +285,7 @@ class AnthropicModelPreset(BaseModel):
         default=None,
         description="The thinking budget in tokens for the preset",
         ge=1024)
+
 
 class AnthropicModelConfig(BaseModel):
     """Configuration for Anthropic models.
@@ -328,6 +336,7 @@ class AnthropicModelConfig(BaseModel):
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
     presets: Optional[dict[str, AnthropicModelPreset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
+
 
 ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig, GoogleVertexModelConfig]
 
@@ -406,19 +415,21 @@ class SemanticConfig(BaseModel):
         It sets the default language and embedding models if they are not set
         and there is only one model available.
         """
-        # Set default language model if not set and only one model exists
-        if self.language_models and self.default_language_model is None and len(self.language_models) == 1:
-            self.default_language_model = list(self.language_models.keys())[0]
+        if self.language_models:
+            # Set default language model if not set and only one model exists
+            if self.default_language_model is None and len(self.language_models) == 1:
+                self.default_language_model = list(self.language_models.keys())[0]
 
-        # Set default preset for each model if not set and only one preset exists
-        for model_config in self.language_models.values():
-            if model_config.presets is not None:
-                preset_names = list(model_config.presets.keys())
-                if model_config.default_preset is None and len(preset_names) == 1:
-                    model_config.default_preset = preset_names[0]
+            # Set default preset for each model if not set and only one preset exists
+            for model_config in self.language_models.values():
+                if model_config.presets is not None:
+                    preset_names = list(model_config.presets.keys())
+                    if model_config.default_preset is None and len(preset_names) == 1:
+                        model_config.default_preset = preset_names[0]
 
         # Set default embedding model if not set and only one model exists
-        if self.embedding_models is not None and self.default_embedding_model is None and len(self.embedding_models) == 1:
+        if self.embedding_models is not None and self.default_embedding_model is None and len(
+                self.embedding_models) == 1:
             self.default_embedding_model = list(self.embedding_models.keys())[0]
 
     @model_validator(mode="after")
@@ -442,10 +453,12 @@ class SemanticConfig(BaseModel):
         if self.language_models:
             available_language_model_aliases = list(self.language_models.keys())
             if self.default_language_model is None and len(self.language_models) > 1:
-                raise ConfigurationError(f"default_language_model is not set, and multiple language models are configured. Please specify one of: {available_language_model_aliases} as a default_language_model.")
+                raise ConfigurationError(
+                    f"default_language_model is not set, and multiple language models are configured. Please specify one of: {available_language_model_aliases} as a default_language_model.")
 
             if self.default_language_model is not None and self.default_language_model not in self.language_models:
-                raise ConfigurationError(f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
+                raise ConfigurationError(
+                    f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
 
             for model_alias, language_model in self.language_models.items():
                 if isinstance(language_model, OpenAIModelConfig):
@@ -464,26 +477,29 @@ class SemanticConfig(BaseModel):
                     raise ConfigurationError(
                         f"Invalid language model: {model_alias}: {language_model} unsupported model type.")
 
-            if language_model.presets is not None:
-                preset_names = list(language_model.presets.keys())
-                if language_model.default_preset is None and len(preset_names) > 0:
-                    raise ConfigurationError(f"default_preset is not set for model {model_alias}, but multiple presets are configured. Please specify one of: {preset_names} as a default_preset.")
-                if language_model.default_preset is not None and language_model.default_preset not in preset_names:
-                    raise ConfigurationError(f"default_preset {language_model.default_preset} is not in configured presets for model {model_alias}. Available presets: {preset_names}")
+                if language_model.presets is not None:
+                    preset_names = list(language_model.presets.keys())
+                    if language_model.default_preset is None and len(preset_names) > 0:
+                        raise ConfigurationError(
+                            f"default_preset is not set for model {model_alias}, but multiple presets are configured. Please specify one of: {preset_names} as a default_preset.")
+                    if language_model.default_preset is not None and language_model.default_preset not in preset_names:
+                        raise ConfigurationError(
+                            f"default_preset {language_model.default_preset} is not in configured presets for model {model_alias}. Available presets: {preset_names}")
 
-            completion_model = model_catalog.get_completion_model_parameters(language_model_provider,
-                                                                             language_model_name)
-            if completion_model is None:
-                raise ConfigurationError(
-                    model_catalog.generate_unsupported_completion_model_error_message(
-                        language_model_provider,
-                        language_model_name
+                completion_model = model_catalog.get_completion_model_parameters(language_model_provider,
+                                                                                 language_model_name)
+                if completion_model is None:
+                    raise ConfigurationError(
+                        model_catalog.generate_unsupported_completion_model_error_message(
+                            language_model_provider,
+                            language_model_name
+                        )
                     )
-                )
         if self.embedding_models is not None:
             available_embedding_model_aliases = list(self.embedding_models.keys())
             if self.default_embedding_model is None and len(self.embedding_models) > 1:
-                raise ConfigurationError("default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: {available_embedding_model_aliases} as a default_embedding_model.")
+                raise ConfigurationError(
+                    "default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: {available_embedding_model_aliases} as a default_embedding_model.")
 
             if self.default_embedding_model is not None and self.default_embedding_model not in self.embedding_models:
                 raise ConfigurationError(
@@ -496,7 +512,7 @@ class SemanticConfig(BaseModel):
                     raise ConfigurationError(
                         f"Invalid embedding model: {model_alias}: {embedding_model} unsupported model type")
                 embedding_model_parameters = model_catalog.get_embedding_model_parameters(embedding_model_provider,
-                                                                                     embedding_model_name)
+                                                                                          embedding_model_name)
                 if embedding_model_parameters is None:
                     raise ConfigurationError(model_catalog.generate_unsupported_embedding_model_error_message(
                         embedding_model_provider,
@@ -629,7 +645,8 @@ class SessionConfig(BaseModel):
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
             if isinstance(model, OpenAIModelConfig):
                 presets = {
-                    preset: ResolvedOpenAIModelPreset(reasoning_effort=preset_config.reasoning_effort) for preset, preset_config in model.presets.items()
+                    preset: ResolvedOpenAIModelPreset(reasoning_effort=preset_config.reasoning_effort) for
+                    preset, preset_config in model.presets.items()
                 } if model.presets else None
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
@@ -640,7 +657,8 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, GoogleGLAModelConfig):
                 presets = {
-                    preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for preset, preset_config in model.presets.items()
+                    preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
+                    preset, preset_config in model.presets.items()
                 } if model.presets else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
@@ -652,7 +670,8 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, GoogleVertexModelConfig):
                 presets = {
-                    preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for preset, preset_config in model.presets.items()
+                    preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
+                    preset, preset_config in model.presets.items()
                 } if model.presets else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
@@ -664,7 +683,8 @@ class SessionConfig(BaseModel):
                 )
             else:
                 presets = {
-                    preset: ResolvedAnthropicModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for preset, preset_config in model.presets.items()
+                    preset: ResolvedAnthropicModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
+                    preset, preset_config in model.presets.items()
                 } if model.presets else None
                 return ResolvedAnthropicModelConfig(
                     model_name=model.model_name,
@@ -690,11 +710,6 @@ class SessionConfig(BaseModel):
             )
             if self.semantic and self.semantic.embedding_models else None
         )
-        all_language_model_aliases = set(resolved_language_models.keys())
-        for alias, model in resolved_language_models.items():
-            if model.presets:
-                for preset_name in model.presets:
-                    all_language_model_aliases.add(f"{alias}.{preset_name}")
 
         resolved_semantic = ResolvedSemanticConfig(
             language_models=language_models,

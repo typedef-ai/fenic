@@ -1,12 +1,11 @@
 import re
 from enum import Enum
-from typing import Any, Dict, Optional, Type
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 import polars as pl
 from pydantic import BaseModel, create_model
 
-from fenic.core._logical_plan.utils import parse_model_alias
+from fenic.core.types.semantic import ModelAlias
 
 
 def convert_row_to_instruction_context(row: Dict[str, Any]) -> str:
@@ -73,16 +72,15 @@ def filter_invalid_embeddings_expr(embedding_column: str) -> pl.Expr:
         & ~pl.col(embedding_column).arr.contains(float('nan'))  # 3. No NaN elements
     )
 
-def extract_model_preset(model_alias: Optional[str]) -> Optional[str]:
+def extract_model_preset(model_alias: Optional[ModelAlias]) -> Optional[str]:
     """Extract preset name from model alias.
 
     Args:
-        model_alias: Model alias in format 'model' or 'model.preset'
+        model_alias: ModelAlias object containing name and optional preset
 
     Returns:
         Preset name if present, None otherwise
     """
     if model_alias:
-        _, preset_name = parse_model_alias(model_alias)
-        return preset_name
+        return model_alias.preset
     return None
