@@ -1,7 +1,6 @@
 """Core functionality for OpenAI chat completions clients."""
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 from openai import (
@@ -13,13 +12,12 @@ from openai import (
 )
 from openai.types import CompletionUsage
 
+from fenic._inference.common_openai.openai_preset_manager import (
+    OpenAICompletionPresetConfiguration,
+)
 from fenic._inference.model_client import (
     FatalException,
     TransientException,
-)
-from fenic._inference.preset_config_manager import (
-    BasePresetConfiguration,
-    PresetConfigurationManager,
 )
 from fenic._inference.rate_limit_strategy import TokenEstimate
 from fenic._inference.request_utils import generate_completion_request_key
@@ -33,67 +31,20 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
-from fenic.core._resolved_session_config import ResolvedOpenAIModelPreset
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class OpenAIPresetConfiguration(BasePresetConfiguration):
-    additional_parameters: dict[str, Any] = field(default_factory=dict)
-    reasoning_effort: Optional[str] = None
-    expected_additional_reasoning_tokens: int = 0
-
-
-class OpenAIPresetConfigurationManager(
-    PresetConfigurationManager[ResolvedOpenAIModelPreset, OpenAIPresetConfiguration]):
-    """Manages OpenAI-specific preset configurations."""
-
-    def __init__(self,
-                 model_parameters,
-                 preset_configurations: Optional[dict[str, ResolvedOpenAIModelPreset]] = None,
-                 default_preset_name: Optional[str] = None):
-        self.model_parameters = model_parameters
-        super().__init__(preset_configurations, default_preset_name)
-
-    def _process_preset(self, preset: ResolvedOpenAIModelPreset) -> OpenAIPresetConfiguration:
-        """Process OpenAI preset configuration."""
-        additional_parameters = {}
-        additional_reasoning_tokens = 0
-        if self.model_parameters.supports_reasoning:
-            reasoning_effort = preset.reasoning_effort
-            # OpenAI does not support disabling reasoning for o-series models, so we default to low
-            if not reasoning_effort:
-                reasoning_effort = "low"
-            additional_parameters["reasoning_effort"] = reasoning_effort
-            if reasoning_effort == "low":
-                additional_reasoning_tokens = 4096
-            elif reasoning_effort == "medium":
-                additional_reasoning_tokens = 8192
-            elif reasoning_effort == "high":
-                additional_reasoning_tokens = 16384
-
-        return OpenAIPresetConfiguration(
-            reasoning_effort=preset.reasoning_effort,
-            additional_parameters=additional_parameters,
-            expected_additional_reasoning_tokens=additional_reasoning_tokens
-        )
-
-    def _get_default_configuration(self) -> OpenAIPresetConfiguration:
-        """Get default OpenAI configuration."""
-        return OpenAIPresetConfiguration()
 
 
 class OpenAIChatCompletionsCore:
     """Core functionality for OpenAI chat completions clients."""
 
     def __init__(
-            self,
-            model: str,
-            model_provider: ModelProvider,
-            token_counter: TokenCounter,
-            client: AsyncOpenAI,
+        self,
+        model: str,
+        model_provider: ModelProvider,
+        token_counter: TokenCounter,
+        client: AsyncOpenAI,
     ):
         """Initialize the OpenAI chat completions client core.
 
@@ -123,7 +74,7 @@ class OpenAIChatCompletionsCore:
     async def make_single_request(
         self,
         request: FenicCompletionsRequest,
-        preset_configuration: Optional[OpenAIPresetConfiguration] = None
+        preset_configuration: Optional[OpenAICompletionPresetConfiguration] = None
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         """Make a single request to the OpenAI API.
 

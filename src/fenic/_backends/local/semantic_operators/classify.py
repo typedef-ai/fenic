@@ -12,7 +12,6 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.semantic_operators.utils import (
     create_classification_pydantic_model,
     extract_model_preset,
-    stringify_enum_type,
 )
 from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
@@ -22,6 +21,7 @@ from fenic._constants import (
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core._logical_plan.expressions import ResolvedClassDefinition
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
+from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
         model: LanguageModel,
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.classes = classes
         self.valid_labels = {class_def.label for class_def in classes}

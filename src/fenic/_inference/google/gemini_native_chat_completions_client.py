@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from dataclasses import dataclass, field
 from functools import cache
 from typing import Optional, Union
 
@@ -11,18 +10,14 @@ from google.genai.types import (
     FinishReason,
     GenerateContentConfigDict,
     GenerateContentResponse,
-    ThinkingConfigDict,
 )
 from pydantic import BaseModel
 
+from fenic._inference.google.google_preset_manager import GoogleCompletionsPresetManager
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
-)
-from fenic._inference.preset_config_manager import (
-    BasePresetConfiguration,
-    PresetConfigurationManager,
 )
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
@@ -37,7 +32,6 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
-    CompletionModelParameters,
     ModelProvider,
     model_catalog,
 )
@@ -46,107 +40,6 @@ from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
-
-@dataclass
-class GooglePresetConfiguration(BasePresetConfiguration):
-    """Configuration for Google Gemini model presets.
-
-    Attributes:
-        thinking_enabled: Whether thinking/reasoning is enabled for this preset
-        thinking_token_budget: Token budget allocated for thinking/reasoning
-        additional_generation_config: Additional Google-specific generation configuration
-    """
-    thinking_enabled: bool = False
-    thinking_token_budget: int = 0
-    additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
-
-
-class GooglePresetConfigurationManager(PresetConfigurationManager[ResolvedGoogleModelPreset, GooglePresetConfiguration]):
-    """Manages Google-specific preset configurations.
-
-    This class handles the conversion of Fenic preset configurations to
-    Google Gemini-specific configurations, including thinking/reasoning settings.
-    """
-
-    def __init__(self,
-                 model_parameters : CompletionModelParameters,
-                 preset_configurations: Optional[dict[str, ResolvedGoogleModelPreset]] = None,
-                 default_preset_name: Optional[str] = None):
-        """Initialize the Google preset configuration manager.
-
-        Args:
-            model_parameters: Parameters for the completion model
-            preset_configurations: Dictionary of preset configurations
-            default_preset_name: Name of the default preset to use
-        """
-        self.model_parameters = model_parameters
-        super().__init__(preset_configurations, default_preset_name)
-
-    def _process_preset(self, preset: ResolvedGoogleModelPreset) -> GooglePresetConfiguration:
-        """Process Google preset configuration.
-
-        Converts a Fenic preset configuration to a Google-specific configuration,
-        handling thinking/reasoning settings based on model capabilities.
-
-        Args:
-            preset: The Fenic preset configuration to process
-
-        Returns:
-            Google-specific preset configuration
-        """
-        additional_generation_config: GenerateContentConfigDict = {}
-        thinking_enabled = False
-        expected_thinking_tokens = 0
-
-        if self.model_parameters.supports_reasoning:
-            if preset.thinking_token_budget is None or preset.thinking_token_budget == 0:
-                # Thinking disabled
-                thinking_enabled = False
-                thinking_config: ThinkingConfigDict = {
-                    "include_thoughts": False,
-                    "thinking_budget": 0
-                }
-                additional_generation_config.update({"thinking_config": thinking_config})
-            else:
-                # Thinking enabled
-                thinking_enabled = True
-                thinking_config: ThinkingConfigDict = {
-                    "include_thoughts": False,
-                    "thinking_budget": preset.thinking_token_budget
-                }
-                additional_generation_config.update({"thinking_config": thinking_config})
-
-                if preset.thinking_token_budget > 0:
-                    expected_thinking_tokens = preset.thinking_token_budget
-                else:  # preset.thinking_token_budget == -1
-                    # Dynamic budget - approximate with default value
-                    expected_thinking_tokens = 16384
-
-        return GooglePresetConfiguration(
-            thinking_enabled=thinking_enabled,
-            thinking_token_budget=expected_thinking_tokens,
-            additional_generation_config=additional_generation_config
-        )
-
-    def _get_default_configuration(self) -> GooglePresetConfiguration:
-        """Get default Google configuration.
-
-        Returns:
-            Default configuration with thinking disabled
-        """
-        if self.model_parameters.supports_reasoning:
-            return GooglePresetConfiguration(
-                thinking_enabled=False,
-                thinking_token_budget=0,
-                additional_generation_config=GenerateContentConfigDict(
-                    thinking_config=ThinkingConfigDict(
-                        include_thoughts=False,
-                        thinking_budget=0
-                    )
-                )
-            )
-        return GooglePresetConfiguration()
-
 
 
 class GeminiNativeChatCompletionsClient(
@@ -210,8 +103,7 @@ class GeminiNativeChatCompletionsClient(
             model_provider, model
         )
 
-        # Use the preset configuration manager
-        self.preset_manager = GooglePresetConfigurationManager(
+        self._preset_manager = GoogleCompletionsPresetManager(
             model_parameters=self._model_parameters,
             preset_configurations=preset_configurations,
             default_preset_name=default_preset_name
@@ -289,7 +181,7 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget with safety margin)
         """
-        preset_config = self.preset_manager.get_preset_configuration(request.model_preset)
+        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
         return request.max_completion_tokens + int(1.5 * preset_config.thinking_token_budget)
 
 
@@ -360,7 +252,7 @@ class GeminiNativeChatCompletionsClient(
         """
         
         # Get preset-specific configuration
-        preset_config = self.preset_manager.get_preset_configuration(request.model_preset)
+        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
         max_output_tokens = request.max_completion_tokens + int(1.5 * preset_config.thinking_token_budget)
 
         generation_config: GenerateContentConfigDict = {

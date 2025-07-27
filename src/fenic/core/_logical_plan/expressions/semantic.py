@@ -39,6 +39,7 @@ from fenic.core.types import (
     EmbeddingType,
 )
 from fenic.core.types.schema import ColumnField
+from fenic.core.types.semantic import ModelAlias
 
 
 class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -49,7 +50,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         instruction: str,
         max_tokens: int,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
@@ -132,7 +133,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         schema: type[BaseModel],
         max_tokens: int,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.expr = expr
         self.max_tokens = max_tokens
@@ -185,7 +186,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         self,
         instruction: str,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
         self.instruction = instruction
@@ -241,7 +242,7 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         instruction: str,
         max_tokens: int,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.instruction = instruction
         self.exprs = [
@@ -304,7 +305,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         classes: List[ResolvedClassDefinition],
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.expr = expr
         self.classes = classes
@@ -353,7 +354,7 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
         self,
         expr: LogicalExpr,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.expr = expr
         self.temperature = temperature
@@ -469,7 +470,7 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
         expr: LogicalExpr,
         format: Union[KeyPoints, Paragraph],
         temperature: float,
-        model_alias: Optional[str] = None
+        model_alias: Optional[ModelAlias] = None
     ):
         self.expr = expr
         self.format = format

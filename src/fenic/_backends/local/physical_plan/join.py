@@ -16,6 +16,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
+from fenic.core.types.semantic import ModelAlias
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -101,7 +102,7 @@ class SemanticJoinExec(PhysicalPlan):
         join_instruction: str,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
-        model_alias: str,
+        model_alias: Optional[ModelAlias] = None,
         temperature = 0.0,
         examples: Optional[JoinExampleCollection] = None,
     ):

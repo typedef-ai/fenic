@@ -4,6 +4,7 @@ import pytest
 from fenic import ColumnField, Schema, StringType, col
 from fenic.api.functions import semantic
 from fenic.core.error import ValidationError
+from fenic.core.types.semantic import ModelAlias
 
 
 def test_semantic_map_multiple_models(multi_model_local_session):
@@ -13,8 +14,8 @@ def test_semantic_map_multiple_models(multi_model_local_session):
     population_prompt = "What is the population of {state}? Only return the number of people."
     df_select = source.select(
         col("name"),
-        semantic.map(instruction=state_prompt, model_alias="model_1", max_output_tokens=64).alias("state_capital"),
-        semantic.map(instruction=population_prompt, model_alias="model_2", max_output_tokens=64).alias(
+        semantic.map(instruction=state_prompt, model_alias=ModelAlias(name="model_1"), max_output_tokens=64).alias("state_capital"),
+        semantic.map(instruction=population_prompt, model_alias=ModelAlias(name="model_2"), max_output_tokens=64).alias(
             "state_population"),
     )
 
@@ -34,7 +35,7 @@ def test_semantic_map_multiple_models(multi_model_local_session):
     with pytest.raises(ValidationError, match="Language model alias 'model_3' not found in SessionConfig. Available models: model_1, model_2"):
         df_select.select(
             col("name"),
-            semantic.map(instruction=state_prompt, model_alias="model_3", max_output_tokens=64).alias("state_capital"),
-            semantic.map(instruction=population_prompt, model_alias="model_2", max_output_tokens=64).alias(
+            semantic.map(instruction=state_prompt, model_alias=ModelAlias(name="model_3"), max_output_tokens=64).alias("state_capital"),
+            semantic.map(instruction=population_prompt, model_alias=ModelAlias(name="model_2"), max_output_tokens=64).alias(
                 "state_population"),
         )

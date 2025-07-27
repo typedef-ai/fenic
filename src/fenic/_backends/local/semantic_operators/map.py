@@ -22,6 +22,7 @@ from fenic.core.types import (
     MapExample,
     MapExampleCollection,
 )
+from fenic.core.types.semantic import ModelAlias
 
 
 class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
@@ -62,7 +63,7 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
         model: LanguageModel,
         max_tokens: int,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):

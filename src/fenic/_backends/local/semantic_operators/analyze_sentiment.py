@@ -17,6 +17,7 @@ from fenic._constants import (
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
+from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
         input: pl.Series,
         model: LanguageModel,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ModelAlias] = None,
     ):
         super().__init__(
             input,

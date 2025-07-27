@@ -7,11 +7,13 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
     CompletionOnlyRequestSender,
 )
+from fenic._backends.local.semantic_operators.utils import extract_model_preset
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core.types import (
     KeyPoints,
     Paragraph,
 )
+from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +44,8 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
         input: pl.Series,
         format: Union[KeyPoints, Paragraph],
         temperature: float,
-        model: LanguageModel
-
+        model: LanguageModel,
+        model_alias: Optional[ModelAlias] = None,
     ):
         self.format = format
 
@@ -54,6 +56,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
+                    model_preset=extract_model_preset(model_alias),
                 ),
                 model=model,
             ),

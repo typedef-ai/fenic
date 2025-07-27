@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
 from fenic._inference import (
@@ -6,9 +7,6 @@ from fenic._inference import (
     LanguageModel,
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
-)
-from fenic._inference.model_client import (
-    ModelClient,
 )
 from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
@@ -23,6 +21,7 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
+from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -115,11 +114,11 @@ class SessionModelRegistry:
             for embedding_model in self.embedding_model_registry.models.values():
                 embedding_model.reset_metrics()
 
-    def get_language_model(self, alias: Optional[str] = None) -> LanguageModel:
+    def get_language_model(self, alias: Optional[ModelAlias] = None) -> LanguageModel:
         """Get a language model by alias or return the default model.
 
         Args:
-            alias (Optional[str], optional): Alias of the language model to retrieve. Defaults to None.
+            alias (Optional[ModelAlias], optional): ModelAlias containing name and optional preset. Defaults to None.
 
         Returns:
             LanguageModel: The requested language model.
@@ -131,9 +130,9 @@ class SessionModelRegistry:
             raise InternalError("Requested language model, but no language models are configured.")
         if alias is None:
             return self.language_model_registry.default_model
-        language_model_for_alias = self.language_model_registry.models.get(alias)
+        language_model_for_alias = self.language_model_registry.models.get(alias.name)
         if language_model_for_alias is None:
-            raise InternalError(f"Language Model with alias '{alias}' not found in configured models: {sorted(list(self.language_model_registry.models.keys()))}")
+            raise InternalError(f"Language Model with alias '{alias.name}' not found in configured models: {sorted(list(self.language_model_registry.models.keys()))}")
         return language_model_for_alias
 
     def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:
@@ -195,7 +194,7 @@ class SessionModelRegistry:
 
         return EmbeddingModel(client=client)
 
-    def _initialize_language_models(self, model_alias: str, model_config: ResolvedModelConfig) -> dict[str, LanguageModel]:
+    def _initialize_language_model(self, model_config: ResolvedModelConfig) -> LanguageModel:
         """Initialize a language model with the given configuration.
 
         Args:
@@ -210,7 +209,6 @@ class SessionModelRegistry:
             ConfigurationError: If the model configuration is not supported.
             ImportError: If required dependencies for Anthropic models are not installed.
         """
-        configured_clients: dict[str, ModelClient] = {}
         try:
             if isinstance(model_config, ResolvedOpenAIModelConfig):
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
@@ -220,11 +218,6 @@ class SessionModelRegistry:
                     preset_configurations=model_config.presets,
                     default_preset_name=model_config.default_preset,
                 )
-                configured_clients[model_alias]= client
-
-                if model_config.presets is not None:
-                    for preset in model_config.presets.keys():
-                        configured_clients[f"{model_alias}.{preset}"] = client
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
                 try:
@@ -246,10 +239,6 @@ class SessionModelRegistry:
                     preset_configurations=model_config.presets,
                     default_preset_name=model_config.default_preset,
                 )
-                configured_clients[model_alias]= client
-                if model_config.presets is not None:
-                    for preset in model_config.presets.keys():
-                        configured_clients[f"{model_alias}.{preset}"] = client
 
             elif isinstance(model_config, ResolvedGoogleModelConfig):
                 try:
@@ -268,16 +257,10 @@ class SessionModelRegistry:
                         preset_configurations=model_config.presets,
                         default_preset_name=model_config.default_preset,
                     )
-                configured_clients[model_alias]= client
-                if model_config.presets is not None:
-                    for preset in model_config.presets.keys():
-                        configured_clients[f"{model_alias}.{preset}"] = client
 
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
-            return {
-                alias: LanguageModel(client=client) for alias, client in configured_clients.items()
-            }
+            return LanguageModel(client=client)
 
         except Exception as e:
             raise SessionError(f"Failed to create language model client: {e}") from e

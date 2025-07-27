@@ -1,6 +1,5 @@
 import functools
 import math
-from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 import anthropic
@@ -20,14 +19,13 @@ from anthropic.types import (
 )
 from pydantic import BaseModel
 
+from fenic._inference.anthropic.anthropic_preset_manager import (
+    AnthropicCompletionsPresetManager,
+)
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
-)
-from fenic._inference.preset_config_manager import (
-    BasePresetConfiguration,
-    PresetConfigurationManager,
 )
 from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
 from fenic._inference.request_utils import generate_completion_request_key
@@ -39,7 +37,6 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
-    CompletionModelParameters,
     ModelProvider,
     model_catalog,
 )
@@ -58,72 +55,6 @@ CONTENT_BLOCK_DELTA = "content_block_delta"
 
 EPHEMERAL_CACHE_CONTROL = CacheControlEphemeralParam(type="ephemeral")
 
-@dataclass
-class AnthropicPresetConfiguration(BasePresetConfiguration):
-    """Configuration for Anthropic model presets.
-
-    Attributes:
-        thinking_enabled: Whether thinking/reasoning is enabled for this preset
-        thinking_token_budget: Token budget allocated for thinking/reasoning
-        thinking_config: Anthropic-specific thinking configuration
-    """
-    thinking_enabled: bool = False
-    thinking_token_budget: int = 0
-    thinking_config: anthropic.types.ThinkingConfigParam = field(default_factory= lambda : anthropic.types.ThinkingConfigDisabledParam(type="disabled"))
-
-
-class AnthropicPresetConfigurationManager(PresetConfigurationManager[ResolvedAnthropicModelPreset, AnthropicPresetConfiguration]):
-    """Manages Anthropic-specific preset configurations.
-
-    This class handles the conversion of Fenic preset configurations to
-    Anthropic-specific configurations, including thinking/reasoning settings.
-    """
-
-    def __init__(self,
-                 model_parameters : CompletionModelParameters,
-                 preset_configurations: Optional[dict[str, ResolvedAnthropicModelPreset]] = None,
-                 default_preset_name: Optional[str] = None):
-        """Initialize the Anthropic preset configuration manager.
-
-        Args:
-            model_parameters: Parameters for the completion model
-            preset_configurations: Dictionary of preset configurations
-            default_preset_name: Name of the default preset to use
-        """
-        self.model_parameters = model_parameters
-        super().__init__(preset_configurations, default_preset_name)
-
-    def _process_preset(self, preset: ResolvedAnthropicModelPreset) -> AnthropicPresetConfiguration:
-        """Process Anthropic preset configuration.
-
-        Converts a Fenic preset configuration to an Anthropic-specific configuration,
-        handling thinking/reasoning settings based on model capabilities.
-
-        Args:
-            preset: The Fenic preset configuration to process
-
-        Returns:
-            Anthropic-specific preset configuration
-        """
-        if preset.thinking_token_budget and self.model_parameters.supports_reasoning:
-            return AnthropicPresetConfiguration(
-                thinking_enabled=True,
-                thinking_token_budget=preset.thinking_token_budget,
-                thinking_config=anthropic.types.ThinkingConfigEnabledParam(
-                    type="enabled",
-                    budget_tokens=preset.thinking_token_budget
-                )
-            )
-        else:
-            return AnthropicPresetConfiguration()
-
-    def _get_default_configuration(self) -> AnthropicPresetConfiguration:
-        """Get default Anthropic configuration.
-
-        Returns:
-            Default configuration with thinking disabled
-        """
-        return AnthropicPresetConfiguration()
 
 class AnthropicBatchCompletionsClient(
     ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
@@ -165,18 +96,17 @@ class AnthropicBatchCompletionsClient(
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="cl100k_base")
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
-        self.tokenizer_adjustment_ratio = 1.05
-        self.model = model
-        self.sync_client = anthropic.Client()
-        self.client = AsyncAnthropic()
-        self.metrics = LMMetrics()
-        self.output_formatter_tool_name = "output_formatter"
-        self.output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
-        self.model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model)
+        self._tokenizer_adjustment_ratio = 1.05
+        self._sync_client = anthropic.Client()
+        self._client = AsyncAnthropic()
+        self._metrics = LMMetrics()
+        self._output_formatter_tool_name = "output_formatter"
+        self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
+        self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model)
 
         # Use the preset configuration manager
-        self.preset_manager = AnthropicPresetConfigurationManager(
-            model_parameters=self.model_parameters,
+        self._preset_manager = AnthropicCompletionsPresetManager(
+            model_parameters=self._model_parameters,
             preset_configurations=preset_configurations or {},
             default_preset_name=default_preset_name
         )
@@ -196,7 +126,7 @@ class AnthropicBatchCompletionsClient(
             Completion response, transient exception, or fatal exception
         """
         system_prompt, message_params = self.convert_messages(request.messages)
-        preset_configuration = self.preset_manager.get_preset_configuration(request.model_preset)
+        preset_configuration = self._preset_manager.get_preset_configuration(request.model_preset)
         request_max_tokens = request.max_completion_tokens + preset_configuration.thinking_token_budget
         messages_creation_payload: dict[str, Any] = {
             "model": self.model,
@@ -211,7 +141,7 @@ class AnthropicBatchCompletionsClient(
             if not preset_configuration.thinking_enabled:
                 # Anthropic does not allow forced tool use if thinking is enabled.
                 messages_creation_payload.update({"tool_choice": ToolChoiceToolParam(
-                    name=self.output_formatter_tool_name,
+                    name=self._output_formatter_tool_name,
                     type="tool"
                 )})
 
@@ -242,11 +172,11 @@ class AnthropicBatchCompletionsClient(
                 )
 
                 # Update metrics (existing logic)
-                self.metrics.num_cached_input_tokens += num_pre_cached_tokens
-                self.metrics.num_uncached_input_tokens += total_input_tokens
-                self.metrics.num_output_tokens += output_tokens
-                self.metrics.num_requests += 1
-                self.metrics.cost += model_catalog.calculate_completion_model_cost(
+                self._metrics.num_cached_input_tokens += num_pre_cached_tokens
+                self._metrics.num_uncached_input_tokens += total_input_tokens
+                self._metrics.num_output_tokens += output_tokens
+                self._metrics.num_requests += 1
+                self._metrics.cost += model_catalog.calculate_completion_model_cost(
                     model_provider=ModelProvider.ANTHROPIC,
                     model_name=self.model,
                     uncached_input_tokens=total_input_tokens,
@@ -274,7 +204,7 @@ class AnthropicBatchCompletionsClient(
         """
         content = ""
         usage_data: anthropic.types.Usage | None = None
-        async with self.client.messages.stream(**payload) as stream:
+        async with self._client.messages.stream(**payload) as stream:
             async for chunk in stream:
                 if chunk.type == CONTENT_BLOCK_DELTA:
                     if chunk.delta.type == TEXT_DELTA:
@@ -296,7 +226,7 @@ class AnthropicBatchCompletionsClient(
         """
         tool_use_content: str = ""
         usage_data: anthropic.types.Usage | None = None
-        async with self.client.messages.stream(**payload) as stream:
+        async with self._client.messages.stream(**payload) as stream:
             async for chunk in stream:
                 if chunk.type == CONTENT_BLOCK_DELTA:
                     if chunk.delta.type == INPUT_JSON_DELTA:
@@ -321,13 +251,13 @@ class AnthropicBatchCompletionsClient(
             Estimated token count for the response format
         """
         tool_param = self.create_response_format_tool(response_format)
-        approx_tool_tokens = self.sync_client.messages.count_tokens(
+        approx_tool_tokens = self._sync_client.messages.count_tokens(
             model=self.model, messages=[
                 MessageParam(content="user prompt", role="user"),
             ], system="empty",
             tools=[tool_param],
             tool_choice=ToolChoiceToolParam(
-                name=self.output_formatter_tool_name,
+                name=self._output_formatter_tool_name,
                 type="tool"
             )
         )
@@ -353,7 +283,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
-        return request.max_completion_tokens + self.preset_manager.get_preset_configuration(request.model_preset).thinking_token_budget
+        return request.max_completion_tokens + self._preset_manager.get_preset_configuration(request.model_preset).thinking_token_budget
 
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
@@ -370,7 +300,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Adjusted token count
         """
-        return math.ceil(super().count_tokens(messages) * self.tokenizer_adjustment_ratio)
+        return math.ceil(super().count_tokens(messages) * self._tokenizer_adjustment_ratio)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for the request.
@@ -412,11 +342,11 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Current language model metrics
         """
-        return self.metrics
+        return self._metrics
 
     def reset_metrics(self):
         """Reset metrics to initial state."""
-        self.metrics = LMMetrics()
+        self._metrics = LMMetrics()
 
     def create_response_format_tool(self, response_format: type[BaseModel]) -> ToolParam:
         """Create a tool parameter for structured output.
@@ -433,9 +363,9 @@ class AnthropicBatchCompletionsClient(
         # Convert Pydantic model to JSON schema
         json_schema = response_format.model_json_schema()
         tool_param = ToolParam(
-            name=self.output_formatter_tool_name,
+            name=self._output_formatter_tool_name,
             input_schema=json_schema,
-            description=self.output_formatter_tool_description,
+            description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL
         )
         return tool_param

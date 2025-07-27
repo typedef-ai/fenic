@@ -12,7 +12,7 @@ ConfigT = TypeVar('ConfigT')
 class BasePresetConfiguration:
     pass
 
-class PresetConfigurationManager(Generic[PresetT, ConfigT], ABC):
+class PresetManager(Generic[PresetT, ConfigT], ABC):
     """Abstract base class for managing preset configurations across providers."""
     
     def __init__(self, 
