@@ -36,8 +36,13 @@ pub fn number_regex() -> &'static Regex {
 pub struct WebVTTParser;
 
 impl FormatParser for WebVTTParser {
-    // WebVTT has a lot of rich formatting features like cue settings, styles, and regions.
-    // We're only interested in the basic cue timing, clean text, and speakers.
+    // Parses WebVTT format, extracting:
+    // - Cue timestamps (start/end)
+    // - Speaker information from <v> tags
+    // - Clean text content (stripped of HTML tags and cue settings)
+    // - Cue index from first number in identifier line
+    // - Skips NOTE, STYLE, and REGION blocks
+    // Reference: https://www.w3.org/TR/webvtt1/
     fn parse(&self, input: &str) -> Result<Vec<UnifiedTranscriptEntry>, ParseError> {
         let lines: Vec<&str> = input.lines().collect();
         let mut entries = Vec::new();
