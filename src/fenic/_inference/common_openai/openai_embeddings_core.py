@@ -1,6 +1,7 @@
 """Core functionality for OpenAI embeddings clients."""
 
 import hashlib
+import logging
 from typing import List, Union
 
 from openai import (
@@ -17,13 +18,14 @@ from fenic._inference.model_client import (
 )
 from fenic._inference.rate_limit_strategy import TokenEstimate
 from fenic._inference.token_counter import TokenCounter
+from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
 from fenic.core.metrics import RMMetrics
 
-
+logger = logging.getLogger(__name__)
 class OpenAIEmbeddingsCore:
     """Core functionality for OpenAI embeddings clients."""
 
@@ -48,7 +50,7 @@ class OpenAIEmbeddingsCore:
         self._client = client
         self._metrics = RMMetrics()
         self._model_parameters = model_catalog.get_embedding_model_parameters(self._model_provider, self._model)
-        self._model_identifier = f"{model_provider.value}:{model}"
+        self._model_identifier = f"{model_provider.value}/{model}"
 
     def reset_metrics(self) -> None:
         """Reset the metrics."""
@@ -59,7 +61,7 @@ class OpenAIEmbeddingsCore:
         return self._metrics
 
     async def make_single_request(
-        self, request: str
+        self, request: FenicEmbeddingsRequest
     ) -> Union[None, List[float], TransientException, FatalException]:
         """Make a single request to the OpenAI API.
 
@@ -69,11 +71,15 @@ class OpenAIEmbeddingsCore:
         Returns:
             The embedding vector or an exception
         """
+        if request.model_profile:
+            logger.warning(
+                "OpenAI embeddings client does not support model presets."
+            )
         try:
             # TODO(rohitrastogi): Embeddings API supports multiple inputs per request.
             # We should use this feature if we're RPM constrained instead of TPM constrained.
             response = await self._client.embeddings.create(
-                input=request,
+                input=request.doc,
                 model=self._model,
             )
             usage = response.usage
@@ -100,7 +106,7 @@ class OpenAIEmbeddingsCore:
         except OpenAIError as e:
             return FatalException(e)
 
-    def get_request_key(self, request: str) -> str:
+    def get_request_key(self, request: FenicEmbeddingsRequest) -> str:
         """Generate a unique key for request deduplication.
 
         Args:
@@ -109,9 +115,9 @@ class OpenAIEmbeddingsCore:
         Returns:
             A unique key for the request
         """
-        return hashlib.sha256(request.encode()).hexdigest()[:10]
+        return hashlib.sha256(request.doc.encode()).hexdigest()[:10]
 
-    def estimate_tokens_for_request(self, request: str) -> TokenEstimate:
+    def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
         """Estimate the number of tokens for a request.
 
         Args:
@@ -120,4 +126,4 @@ class OpenAIEmbeddingsCore:
         Returns:
             TokenEstimate with input token count
         """
-        return TokenEstimate(input_tokens=self._token_counter.count_tokens(request), output_tokens=0) 
+        return TokenEstimate(input_tokens=self._token_counter.count_tokens(request.doc), output_tokens=0)

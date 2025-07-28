@@ -17,8 +17,10 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     OpenAILanguageModel,
+    get_model_provider_for_model_config,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
@@ -125,14 +127,36 @@ def pytest_addoption(parser):
         help="Model Name to run tests against",
     )
 
+@pytest.fixture
+def embedding_model_name(local_session_config) -> str:
+    embedding_model = local_session_config.semantic.embedding_models[
+        local_session_config.semantic.default_embedding_model
+    ]
+    model_provider = get_model_provider_for_model_config(embedding_model)
+    return f"{model_provider.value}/{embedding_model.model_name}"
 
 @pytest.fixture
 def examples_session_config(app_name) -> SessionConfig:
     """Creates a test session config."""
-    embedding_model = OpenAIEmbeddingModel(
-        model_name="text-embedding-3-small",
+    embedding_model = GoogleDeveloperEmbeddingModel(
+        model_name="gemini-embedding-001",
         rpm=3000,
-        tpm=1_000_000
+        tpm=1_000_000,
+        profiles={
+            "low": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=768),
+            "medium": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
+            "high": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=3072),
+            "high-classification": GoogleDeveloperEmbeddingModel.Profile(
+                output_dimensionality=3072, task_type="CLASSIFICATION"
+            ),
+            "high-clustering": GoogleDeveloperEmbeddingModel.Profile(
+                output_dimensionality=3072, task_type="CLUSTERING"
+            ),
+            "high-similarity": GoogleDeveloperEmbeddingModel.Profile(
+                output_dimensionality=3072, task_type="SEMANTIC_SIMILARITY"
+            ),
+        },
+        default_profile="high-similarity",
     )
     # limits are small so we can run the examples in parallel
     flash_lite_model = GoogleDeveloperLanguageModel(
@@ -146,64 +170,57 @@ def examples_session_config(app_name) -> SessionConfig:
             language_models={
                 "flash-lite": flash_lite_model,
             },
-            embedding_models={"oai-small": embedding_model},
+            embedding_models={"gemini": embedding_model},
         ),
     )
+
 
 @pytest.fixture
 def multi_model_local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
-    nano = OpenAILanguageModel(
-                model_name="gpt-4.1-nano",
-                rpm=250,
-                tpm=50_000
-            )
+    nano = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=250, tpm=50_000)
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
 
     if model_provider == ModelProvider.OPENAI:
         language_models = {
             "model_1": nano,
             "model_2": OpenAILanguageModel(
-                model_name="gpt-4.1-mini",
-                rpm=250,
-                tpm=50_000
-            )
+                model_name="gpt-4.1-mini", rpm=250, tpm=50_000
+            ),
         }
     elif model_provider == ModelProvider.ANTHROPIC:
         language_models = {
             "model_1": nano,
-            "model_2" : AnthropicLanguageModel(
+            "model_2": AnthropicLanguageModel(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=500,
                 input_tpm=50_000,
                 output_tpm=20_000,
-            )
+            ),
         }
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
         language_models = {
             "model_1": nano,
-            "model_2" : GoogleDeveloperLanguageModel(
+            "model_2": GoogleDeveloperLanguageModel(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
-            )
+            ),
         }
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
         language_models = {
             "model_1": nano,
-            "model_2" : GoogleVertexLanguageModel(
+            "model_2": GoogleVertexLanguageModel(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
-            )
+            ),
         }
     else:
         raise ValueError(f"Unsupported model provider: {model_provider}")
     embedding_model = OpenAIEmbeddingModel(
-        model_name="text-embedding-3-small",
-        rpm=3000,
-        tpm=1_000_000
+        model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
     )
     return SessionConfig(
         app_name=app_name,
@@ -212,8 +229,9 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
             default_language_model="model_1",
             embedding_models={"oai-small": embedding_model},
             default_embedding_model="oai-small",
-        )
+        ),
     )
+
 
 @pytest.fixture
 def multi_model_local_session(multi_model_local_session_config, request):
@@ -231,7 +249,9 @@ def local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
     model_name = request.config.getoption(MODEL_NAME_ARG)
-    model_parameters = model_catalog.get_completion_model_parameters(model_provider, model_name)
+    model_parameters = model_catalog.get_completion_model_parameters(
+        model_provider, model_name
+    )
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
         if model_parameters.supports_reasoning:
@@ -239,18 +259,12 @@ def local_session_config(app_name, request) -> SessionConfig:
                 model_name=model_name,
                 rpm=500,
                 tpm=100_000,
-                profiles= {
-                    "low": OpenAILanguageModel.Profile(
-                        reasoning_effort="low"
-                    ),
-                    "medium" : OpenAILanguageModel.Profile(
-                        reasoning_effort="medium"
-                    ),
-                    "high" : OpenAILanguageModel.Profile(
-                        reasoning_effort="high"
-                    )
+                profiles={
+                    "low": OpenAILanguageModel.Profile(reasoning_effort="low"),
+                    "medium": OpenAILanguageModel.Profile(reasoning_effort="medium"),
+                    "high": OpenAILanguageModel.Profile(reasoning_effort="high"),
                 },
-                default_profile="medium"
+                default_profile="medium",
             )
         else:
             language_model = OpenAILanguageModel(
@@ -265,19 +279,13 @@ def local_session_config(app_name, request) -> SessionConfig:
                 rpm=500,
                 input_tpm=100_000,
                 output_tpm=75_000,
-                profiles= {
+                profiles={
                     "thinking_disabled": AnthropicLanguageModel.Profile(),
-                    "low": AnthropicLanguageModel.Profile(
-                        thinking_token_budget=1024
-                    ),
-                    "medium" : AnthropicLanguageModel.Profile(
-                        thinking_token_budget=4096
-                    ),
-                    "high": AnthropicLanguageModel.Profile(
-                        thinking_token_budget=8192
-                    )
+                    "low": AnthropicLanguageModel.Profile(thinking_token_budget=1024),
+                    "medium": AnthropicLanguageModel.Profile(thinking_token_budget=4096),
+                    "high": AnthropicLanguageModel.Profile(thinking_token_budget=8192),
                 },
-                default_profile="low"
+                default_profile="low",
             )
         else:
             language_model = AnthropicLanguageModel(
@@ -292,22 +300,14 @@ def local_session_config(app_name, request) -> SessionConfig:
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
-                profiles= {
+                profiles={
                     "thinking_disabled": GoogleDeveloperLanguageModel.Profile(),
-                    "auto": GoogleDeveloperLanguageModel.Profile(
-                        thinking_token_budget=-1
-                    ),
-                    "low": GoogleDeveloperLanguageModel.Profile(
-                        thinking_token_budget=1024
-                    ),
-                    "medium" : GoogleDeveloperLanguageModel.Profile(
-                        thinking_token_budget=4096
-                    ),
-                    "high": GoogleDeveloperLanguageModel.Profile(
-                        thinking_token_budget=8192
-                    )
+                    "auto": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1),
+                    "low": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
+                    "medium": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096),
+                    "high": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=8192),
                 },
-                default_profile="auto"
+                default_profile="auto",
             )
         else:
             language_model = GoogleDeveloperLanguageModel(
@@ -323,20 +323,12 @@ def local_session_config(app_name, request) -> SessionConfig:
                 tpm=500_000,
                 profiles={
                     "thinking_disabled": GoogleVertexLanguageModel.Profile(),
-                    "auto": GoogleVertexLanguageModel.Profile(
-                        thinking_token_budget=-1
-                    ),
-                    "low": GoogleVertexLanguageModel.Profile(
-                        thinking_token_budget=1024
-                    ),
-                    "medium": GoogleVertexLanguageModel.Profile(
-                        thinking_token_budget=4096
-                    ),
-                    "high": GoogleVertexLanguageModel.Profile(
-                        thinking_token_budget=8192
-                    )
+                    "auto": GoogleVertexLanguageModel.Profile(thinking_token_budget=-1),
+                    "low": GoogleVertexLanguageModel.Profile(thinking_token_budget=1024),
+                    "medium": GoogleVertexLanguageModel.Profile(thinking_token_budget=4096),
+                    "high": GoogleVertexLanguageModel.Profile(thinking_token_budget=8192),
                 },
-                default_profile="auto"
+                default_profile="auto",
             )
         else:
             language_model = GoogleVertexLanguageModel(
@@ -346,11 +338,16 @@ def local_session_config(app_name, request) -> SessionConfig:
             )
     else:
         raise ValueError(f"Unsupported model provider: {model_provider}")
-    embedding_model = OpenAIEmbeddingModel(
-        model_name="text-embedding-3-small",
-        rpm=3000,
-        tpm=1_000_000
-    )
+    if model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
+        embedding_model = GoogleDeveloperEmbeddingModel(
+            model_name="gemini-embedding-001", rpm=3000, tpm=1_000_000, profiles={
+                "default" : GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
+            }
+        )
+    else:
+        embedding_model = OpenAIEmbeddingModel(
+            model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
+        )
     return SessionConfig(
         app_name=app_name,
         semantic=SemanticConfig(
@@ -358,8 +355,8 @@ def local_session_config(app_name, request) -> SessionConfig:
                 "test_model": language_model,
             },
             default_language_model="test_model",
-            embedding_models={"oai-small": embedding_model},
-            default_embedding_model="oai-small",
+            embedding_models={"embedding": embedding_model},
+            default_embedding_model="embedding",
         ),
     )
 

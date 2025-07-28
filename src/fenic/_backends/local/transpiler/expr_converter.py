@@ -676,7 +676,7 @@ class ExprConverter:
 
         embedding_model = self.session_state.get_embedding_model(logical.model_alias)
         def embeddings_fn(batch: pl.Series) -> pl.Series:
-            return pl.from_arrow(embedding_model.get_embeddings(batch))
+            return pl.from_arrow(embedding_model.get_embeddings(batch, logical.model_alias))
 
         return physical_expr.map_batches(embeddings_fn, return_dtype=pl.Array(pl.Float32, logical.dimensions))
 

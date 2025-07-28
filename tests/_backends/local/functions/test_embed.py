@@ -1,3 +1,6 @@
+from random import choice
+from string import ascii_lowercase
+
 import numpy as np
 import polars as pl
 import pytest
@@ -18,13 +21,14 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_embeddings(extract_data_df):
+def test_embeddings(extract_data_df, embedding_model_name):
     df = extract_data_df.select(semantic.embed(col("review")).alias("embeddings"))
     assert df.schema.column_fields == [
-        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small"))
+        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model=embedding_model_name))
     ]
 
     result = df.to_polars()
@@ -39,10 +43,22 @@ def test_embeddings(extract_data_df):
         ).alias("embeddings")
     )
     assert df.schema.column_fields == [
-        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model="openai/text-embedding-3-small"))
+        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model=embedding_model_name))
     ]
     result = df.to_polars()
     assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+
+def test_embedding_very_long_string(local_session, embedding_model_name):
+    if ModelProvider.OPENAI.value in embedding_model_name:
+        string_val = "".join((" " if i%5 == 0 else choice(ascii_lowercase)) for i in range(32768))
+        data = {
+            "review": [string_val],
+        }
+        df = local_session.create_dataframe(data)
+        df = df.select(semantic.embed(col("review")).alias("embeddings"))
+        with pytest.raises(Exception, match="Failed to execute query: Error code: 400"):
+            df.to_polars()
+
 
 def test_embedding_without_models():
     """Test that an error is raised if no embedding models are configured."""

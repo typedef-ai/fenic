@@ -50,3 +50,8 @@ class FenicCompletionsRequest:
     structured_output: Optional[type[BaseModel]]
     temperature: float
     model_profile: Optional[str] = None
+
+@dataclass
+class FenicEmbeddingsRequest:
+    doc: str
+    model_profile: Optional[str] = None

@@ -18,7 +18,6 @@ from typing import (
     Union,
 )
 
-from openai.types.chat.chat_completion_token_logprob import ChatCompletionTokenLogprob
 from pydantic import BaseModel
 from tqdm import tqdm
 
@@ -28,7 +27,6 @@ from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
-from fenic._inference.types import LMRequestMessages
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import LMMetrics
 
@@ -47,22 +45,6 @@ class ResponseUsage:
     cached_tokens: int = 0
     thinking_tokens: int = 0  # Separate thinking token count
 
-
-@dataclass
-class FenicCompletionsResponse:
-    completion: str
-    logprobs: Optional[List[ChatCompletionTokenLogprob]]
-    usage: Optional[ResponseUsage] = None
-
-
-@dataclass
-class FenicCompletionsRequest:
-    messages: LMRequestMessages
-    max_completion_tokens: int
-    top_logprobs: Optional[int]
-    structured_output: Optional[type[BaseModel]]
-    temperature: float
-    model_profile: Optional[str] = None
 
 
 # Exception classes

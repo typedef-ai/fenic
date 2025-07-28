@@ -15,7 +15,7 @@ from fenic import (
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_semantic_cluster_with_centroids(local_session):
+def test_semantic_cluster_with_centroids(local_session, embedding_model_name):
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -33,9 +33,9 @@ def test_semantic_cluster_with_centroids(local_session):
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
         ColumnField("cluster_label", IntegerType),
-        ColumnField("cluster_centroid", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("cluster_centroid", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
     ]
     polars_df = df.to_polars()
     assert polars_df.schema == {
@@ -137,7 +137,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     }
 
 
-def test_semantic_clustering_on_persisted_embeddings_table(local_session):
+def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedding_model_name):
     """Test group_by() on a semantic cluster id with a saved embeddings table."""
     data = {
         "feedback": [
@@ -160,7 +160,7 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session):
         ColumnField("feedback", StringType),
         ColumnField("submission_date", StringType),
         ColumnField("user_id", IntegerType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
     ]
     result = (
         df_embeddings.semantic.with_cluster_labels(col("embeddings"), 2)

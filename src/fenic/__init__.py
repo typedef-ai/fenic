@@ -9,7 +9,9 @@ from fenic.api import (
     DataFrame,
     DataFrameReader,
     DataFrameWriter,
+    GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
+    GoogleVertexEmbeddingModel,
     GoogleVertexLanguageModel,
     GroupedData,
     Lineage,
@@ -89,6 +91,8 @@ from fenic.core import (
     StructType,
     TranscriptType,
 )
+from fenic.core.error import InvalidExampleCollectionError
+from fenic.core.types.semantic import ModelAlias
 from fenic.logging import configure_logging
 
 __all__ = [
@@ -100,8 +104,11 @@ __all__ = [
     "OpenAIEmbeddingModel",
     "AnthropicLanguageModel",
     "GoogleDeveloperLanguageModel",
+    "GoogleDeveloperEmbeddingModel",
     "GoogleVertexLanguageModel",
+    "GoogleVertexEmbeddingModel",
     "SemanticConfig",
+    "ModelAlias",
     # IO
     "DataFrameReader",
     "DataFrameWriter",

@@ -8,6 +8,9 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
+from fenic._inference.google.gemini_batch_embeddings_client import (
+    GoogleBatchEmbeddingsClient,
+)
 from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
@@ -184,11 +187,24 @@ class SessionModelRegistry:
             SessionError: If model initialization fails.
         """
         try:
-            rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
-            client = OpenAIBatchEmbeddingsClient(
-                rate_limit_strategy=rate_limit_strategy,
-                model=model_config.model_name,
-            )
+            if isinstance(model_config, ResolvedOpenAIModelConfig):
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
+                client = OpenAIBatchEmbeddingsClient(
+                    rate_limit_strategy=rate_limit_strategy,
+                    model=model_config.model_name,
+                )
+            elif isinstance(model_config, ResolvedGoogleModelConfig):
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
+                client = GoogleBatchEmbeddingsClient(
+                    rate_limit_strategy=rate_limit_strategy,
+                    model=model_config.model_name,
+                    model_provider=model_config.model_provider,
+                    profiles=model_config.profiles,
+                    default_profile_name=model_config.default_profile
+                )
+            else:
+                raise ConfigurationError(f"Unsupported model configuration: {model_config}")
+
         except Exception as e:
             raise SessionError(f"Failed to create retrieval model client: {e}") from e
 
