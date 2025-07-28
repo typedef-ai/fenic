@@ -4,12 +4,20 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DocumentPathType,
     DoubleType,
+    EmbeddingType,
     FloatType,
     IntegerType,
+    JsonType,
+    MarkdownType,
     StringType,
     StructField,
     StructType,
+    TranscriptType,
+    _HtmlType,
+    _PrimitiveType,
+    _StringBackedType,
 )
 
 
@@ -96,3 +104,63 @@ def _find_common_supertype(type1: DataType, type2: DataType, path="") -> DataTyp
         return StructType(merged_fields)
 
     raise TypeInferenceError(f"Incompatible types: {type1} vs {type2}", path)
+
+def is_logical_type(type: DataType) -> bool:
+    """Check if a type is a logical type.  If it is a _StringBackedType, or a struct or array that contains a _StringBackedType, it is logical type.
+
+    Args:
+        type: The type to check.
+
+    Returns:
+        True if the type is a logical type, False otherwise.
+    """
+    if isinstance(type, _StringBackedType):
+        return True
+    elif isinstance(type, StructType):
+        return any(is_logical_type(field.data_type) for field in type.struct_fields)
+    elif isinstance(type, ArrayType):
+        return is_logical_type(type.element_type)
+    return False
+
+UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
+def can_cast(src: DataType, dst: DataType) -> bool:
+    if type(src) in UNIMPLEMENTED_TYPES or type(dst) in UNIMPLEMENTED_TYPES:
+        raise NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
+
+    if isinstance(src, EmbeddingType):
+        return NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
+
+    if (src == ArrayType(element_type=FloatType) or src == ArrayType(element_type=DoubleType)) and isinstance(dst, EmbeddingType):
+        return True
+
+    if src == dst:
+        return True
+
+    if dst == MarkdownType:
+        return can_cast(src, StringType)
+
+    if src == MarkdownType:
+        return can_cast(StringType, dst)
+
+    if dst == JsonType or src == JsonType:
+        return True
+
+    if isinstance(src, _PrimitiveType) and isinstance(dst, _PrimitiveType):
+        # Disallow string → bool
+        if src == StringType and dst == BooleanType:
+            return False
+        return True
+
+    if isinstance(src, ArrayType) and isinstance(dst, ArrayType):
+        return can_cast(src.element_type, dst.element_type)
+
+    if isinstance(src, StructType) and isinstance(dst, StructType):
+        src_fields = {f.name: f.data_type for f in src.struct_fields}
+        dst_fields = {f.name: f.data_type for f in dst.struct_fields}
+        for name, dst_type in dst_fields.items():
+            if name in src_fields and not can_cast(src_fields[name], dst_type):
+                return False
+        return True
+
+    return False
+

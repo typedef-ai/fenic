@@ -57,3 +57,4 @@ def generate_unique_arrow_view_name() -> str:
         'temp_arrow_view_1a2b3c4d5e6f...'
     """
     return f"temp_arrow_view_{uuid.uuid4().hex}"
+

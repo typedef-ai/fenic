@@ -11,27 +11,17 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedSignature,
 )
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
+from fenic.core._utils.type_inference import can_cast
 from fenic.core.error import PlanError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ArrayType,
     BooleanType,
     ColumnField,
     DataType,
-    DocumentPathType,
-    DoubleType,
-    EmbeddingType,
-    FloatType,
     IntegerType,
-    JsonType,
-    MarkdownType,
     StringType,
     StructField,
     StructType,
-    TranscriptType,
-)
-from fenic.core.types.datatypes import (
-    _HtmlType,
-    _PrimitiveType,
 )
 
 
@@ -302,7 +292,7 @@ class CastExpr(LogicalExpr):
         self.source_type = self.expr.to_column_field(plan).data_type
         src = self.source_type
         dst = self.dest_type
-        if not _can_cast(src, dst):
+        if not can_cast(src, dst):
             raise PlanError(f"Unsupported cast: {src} → {dst}")
         return ColumnField(str(self), dst)
 
@@ -374,44 +364,3 @@ class InExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
 
-UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
-def _can_cast(src: DataType, dst: DataType) -> bool:
-    if type(src) in UNIMPLEMENTED_TYPES or type(dst) in UNIMPLEMENTED_TYPES:
-        raise NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
-
-    if isinstance(src, EmbeddingType):
-        return NotImplementedError(f"Unimplemented type: Cannot cast {src} → {dst}")
-
-    if (src == ArrayType(element_type=FloatType) or src == ArrayType(element_type=DoubleType)) and isinstance(dst, EmbeddingType):
-        return True
-
-    if src == dst:
-        return True
-
-    if dst == MarkdownType:
-        return _can_cast(src, StringType)
-
-    if src == MarkdownType:
-        return _can_cast(StringType, dst)
-
-    if dst == JsonType or src == JsonType:
-        return True
-
-    if isinstance(src, _PrimitiveType) and isinstance(dst, _PrimitiveType):
-        # Disallow string → bool
-        if src == StringType and dst == BooleanType:
-            return False
-        return True
-
-    if isinstance(src, ArrayType) and isinstance(dst, ArrayType):
-        return _can_cast(src.element_type, dst.element_type)
-
-    if isinstance(src, StructType) and isinstance(dst, StructType):
-        src_fields = {f.name: f.data_type for f in src.struct_fields}
-        dst_fields = {f.name: f.data_type for f in dst.struct_fields}
-        for name, dst_type in dst_fields.items():
-            if name in src_fields and not _can_cast(src_fields[name], dst_type):
-                return False
-        return True
-
-    return False

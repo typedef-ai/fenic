@@ -105,7 +105,8 @@ from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
     convert_pydantic_type_to_custom_struct_type,
 )
-from fenic.core.error import InternalError
+from fenic.core._utils.type_inference import can_cast, infer_dtype_from_pyobj
+from fenic.core.error import ExecutionError, InternalError
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
@@ -339,8 +340,9 @@ class ExprConverter:
         struct = pl.struct(
             [self._convert_expr(arg) for arg in logical.args]
         )
-        converted_udf = _convert_udf_to_map_elements(
-            logical.func
+        converted_udf = _convert_udf_to_map_elements_and_validate_return_type(
+            logical.func,
+            logical.return_type,
         )
         return struct.map_elements(
             converted_udf,
@@ -1162,7 +1164,7 @@ def _calculate_similarity_numpy(
 
     raise InternalError(f"Unknown similarity metric: {metric}. Invalid state.")
 
-def _convert_udf_to_map_elements(udf: Callable) -> Callable:
+def _convert_udf_to_map_elements_and_validate_return_type(udf: Callable, return_type: DataType) -> Callable:
     """Converts a scalar-based UDF into one that works with `map_elements` in Polars.
 
     Args:
@@ -1171,11 +1173,20 @@ def _convert_udf_to_map_elements(udf: Callable) -> Callable:
 
     Returns:
         A function that operates on a row (Struct) and applies the UDF to the unwrapped values.
+    
+    Raises:
+        ExecutionError: If the type of the UDF's return value does not match the expected return type.
     """
 
     def adapted_udf(row):
+        def udf_with_validate_return_type(udf: Callable, return_type: DataType, *args, **kwargs) -> DataType:
+            result = udf(*args, **kwargs)
+            dtype = infer_dtype_from_pyobj(result)
+            if not can_cast(dtype, return_type):
+                raise ExecutionError(f"The type of UDF's return value ({dtype}) does not match expected return type ({return_type})")
+            return result
         column_values = list(row.values())
         # Unpack the row (Struct) by its column names
-        return udf(*column_values)
+        return udf_with_validate_return_type(udf, return_type, *column_values)
 
     return adapted_udf
