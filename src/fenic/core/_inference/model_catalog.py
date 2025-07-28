@@ -1,16 +1,18 @@
 from enum import Enum
 from typing import Dict, Literal, Optional, TypeAlias, Union
 
+from fenic.core.error import InternalError
+
 
 class ModelProvider(Enum):
     """Enum representing different model providers supported by the system."""
+
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GOOGLE_DEVELOPER = "google-developer"
     GOOGLE_VERTEX = "google-vertex"
 
 class TieredTokenCost:
-
     def __init__(
         self,
         input_token_cost: float,
@@ -23,6 +25,7 @@ class TieredTokenCost:
         self.cached_input_token_write_cost = cached_input_token_write_cost
         self.output_token_cost = output_token_cost
 
+
 class CompletionModelParameters:
     """Parameters for completion models including costs and context window size.
 
@@ -34,6 +37,7 @@ class CompletionModelParameters:
         context_window_length: Maximum number of tokens in the context window
         max_output_tokens: Maximum number of tokens the model can generate in a single request.
     """
+
     def __init__(
         self,
         input_token_cost: float,
@@ -42,7 +46,7 @@ class CompletionModelParameters:
         max_output_tokens: int,
         max_temperature: float = 1,
         cached_input_token_write_cost: float = 0.0,
-        cached_input_token_read_cost: float= 0.0,
+        cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
         supports_reasoning = False,
     ):
@@ -66,10 +70,48 @@ class EmbeddingModelParameters:
         output_dimensions: Number of dimensions in the embedding output
         max_input_size: Maximum number of tokens in the input string
     """
-    def __init__(self, input_token_cost: float, output_dimensions: int, max_input_size: int):
+
+    def __init__(
+        self,
+        input_token_cost: float,
+        allowed_output_dimensions: Union[int, list[int]],
+        max_input_size: int,
+        default_dimensionality: Optional[int] = None,
+    ):
         self.input_token_cost = input_token_cost
-        self.output_dimensions = output_dimensions
+        self.output_dimensions = allowed_output_dimensions
         self.max_input_size = max_input_size
+
+        # Convenience properties
+        self.has_fixed_dimensions = isinstance(allowed_output_dimensions, int)
+        if self.has_fixed_dimensions:
+            self.fixed_dimensions = allowed_output_dimensions
+            self.default_dimensions = default_dimensionality or self.fixed_dimensions
+        else:
+            self.fixed_dimensions = None
+            self.dimension_options = allowed_output_dimensions
+            if not default_dimensionality:
+                default_dimensionality = allowed_output_dimensions[-1]
+            elif default_dimensionality not in allowed_output_dimensions:
+                raise InternalError(f"Cannot create EmbeddingModelParameters with default output dimensions: {default_dimensionality}."
+                                    f" Allowed output dimensions: {allowed_output_dimensions}")
+            self.default_dimensions = default_dimensionality
+
+
+    def get_possible_dimensions(self) -> list[int]:
+        """Get the possible dimensions for the model."""
+        if self.has_fixed_dimensions:
+            return [self.fixed_dimensions]
+        else:
+            return self.dimension_options
+
+    def validate_dimensions(self, requested_dimensions: int) -> bool:
+        """Validate if requested dimensions are supported."""
+        if self.has_fixed_dimensions:
+            return requested_dimensions == self.fixed_dimensions
+        else:
+            return requested_dimensions in self.dimension_options
+
 
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
@@ -95,12 +137,24 @@ OpenAILanguageModelName = Literal[
     "o1-mini",
     "o3",
     "o3-mini",
-    "o4-mini"
+    "o4-mini",
 ]
 
 OpenAIEmbeddingModelName = Literal[
-    "text-embedding-3-small",
-    "text-embedding-3-large"
+    "text-embedding-3-small", "text-embedding-3-large"
+]
+
+GoogleVertexEmbeddingModelName = Literal[
+    "gemini-embedding-001",
+    "gemini-embedding-exp-03-07",
+    "text-multilingual-embedding-002",
+    "text-embedding-005",
+]
+
+GoogleDeveloperEmbeddingModelName = Literal[
+    "gemini-embedding-001",
+    "gemini-embedding-exp-03-07",
+    "text-embedding-004"
 ]
 
 AnthropicLanguageModelName = Literal[
@@ -132,12 +186,57 @@ GoogleDeveloperLanguageModelName = Literal[
     "gemini-2.0-flash-001",
     "gemini-2.0-flash-exp",
 ]
-
-
 GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
-AVAILABLE_LANGUAGE_MODELS = Union[OpenAILanguageModelName, AnthropicLanguageModelName, GoogleDeveloperLanguageModelName]
-AVAILABLE_EMBEDDING_MODELS = Union[OpenAIEmbeddingModelName]
+class ProviderModelCollection:
+    """A collection of models for a specific provider.
+
+    This class maintains a collection of models for a specific provider,
+    including their costs, context windows, and other parameters. It provides methods
+    to query model information and calculate costs for different operations.
+    """
+
+
+    def __init__(self, provider: ModelProvider) -> None:
+        self.provider = provider
+        self.completion_models: CompletionModelCollection = {}
+        self.embedding_models: EmbeddingModelCollection = {}
+
+
+    def add_model(
+        self,
+        name: str,
+        parameters: Union[EmbeddingModelParameters, CompletionModelParameters],
+        snapshots: Optional[list[str]] = None,
+    ):
+        if snapshots is None:
+            snapshots = []
+
+        if isinstance(parameters, EmbeddingModelParameters):
+            if name in self.embedding_models:
+                raise InternalError(
+                    f"Attempted to add configuration for embedding model {name} to collection, but it already exists"
+                )
+            self.embedding_models[name] = parameters
+            for snapshot in snapshots:
+                if snapshot in self.embedding_models:
+                    raise InternalError(
+                        f"Attempted to add configuration for embedding model snapshot {snapshot} to collection, but it already exists"
+                    )
+                self.embedding_models[snapshot] = parameters
+        else:
+            if name in self.completion_models:
+                raise InternalError(
+                    f"Attempted to add configuration for completion model {name} to collection, but it already exists"
+                )
+            self.completion_models[name] = parameters
+            for snapshot in snapshots:
+                if snapshot in self.completion_models:
+                    raise InternalError(
+                        f"Attempted to add configuration for completion model snapshot {snapshot} to collection, but it already exists"
+                    )
+                self.completion_models[snapshot] = parameters
+
 
 class ModelCatalog:
     """Catalog of supported models and their parameters for different providers.
@@ -146,10 +245,26 @@ class ModelCatalog:
     including their costs, context windows, and other parameters. It provides methods
     to query model information and calculate costs for different operations.
     """
+
     def __init__(self):
-        # Base model collections
-        self._anthropic_models = {
-            "claude-opus-4-0": CompletionModelParameters(
+        self.provider_model_collections: dict[
+            ModelProvider, ProviderModelCollection
+        ] = {}
+        self._initialize_models()
+
+    def _initialize_models(self):
+        """Initialize all models in the catalog using the new API."""
+        self._initialize_anthropic_models()
+        self._initialize_openai_models()
+        self._initialize_google_gla_models()
+        self._initialize_google_vertex_models()
+
+    def _initialize_anthropic_models(self):
+        """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-0",
+            CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
                 cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
@@ -158,7 +273,13 @@ class ModelCatalog:
                 max_output_tokens=32_000,
                 supports_reasoning=True,
             ),
-            "claude-sonnet-4-0": CompletionModelParameters(
+            snapshots=["claude-opus-4-20250514", "claude-4-opus-20250514"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-4-0",
+            CompletionModelParameters(
                 input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
                 cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
                 cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
@@ -167,7 +288,13 @@ class ModelCatalog:
                 max_output_tokens=64_000,
                 supports_reasoning=True,
             ),
-            "claude-3-7-sonnet-latest": CompletionModelParameters(
+            snapshots=["claude-sonnet-4-20250514", "claude-4-sonnet-20250514"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-3-7-sonnet-latest",
+            CompletionModelParameters(
                 input_token_cost=3.0 / 1_000_000,  # $3 per 1M tokens
                 cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
                 cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
@@ -176,7 +303,13 @@ class ModelCatalog:
                 max_output_tokens=128_000,
                 supports_reasoning=True,
             ),
-            "claude-3-5-sonnet-latest": CompletionModelParameters(
+            snapshots=["claude-3-7-sonnet-20250219"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-3-5-sonnet-latest",
+            CompletionModelParameters(
                 input_token_cost=3 / 1_000_000,  # $3 per 1M tokens
                 cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
                 cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
@@ -184,7 +317,13 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=8_192,
             ),
-            "claude-3-5-haiku-latest": CompletionModelParameters(
+            snapshots=["claude-3-5-sonnet-20241022", "claude-3-5-sonnet-20240620"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-3-5-haiku-latest",
+            CompletionModelParameters(
                 input_token_cost=0.80 / 1_000_000,  # $0.80 per 1M tokens
                 cached_input_token_write_cost=1.00 / 1_000_000,  # $1.00 per 1M tokens
                 cached_input_token_read_cost=0.08 / 1_000_000,  # $0.08 per 1M tokens
@@ -192,7 +331,13 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=8_000,
             ),
-            "claude-3-opus-latest": CompletionModelParameters(
+            snapshots=["claude-3-5-haiku-20241022"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-3-opus-latest",
+            CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
                 cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
@@ -200,7 +345,13 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=4_096,
             ),
-            "claude-3-haiku-20240307" : CompletionModelParameters(
+            snapshots=["claude-3-opus-20240229"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-3-haiku-20240307",
+            CompletionModelParameters(
                 input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
                 cached_input_token_write_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
                 cached_input_token_read_cost=0.03 / 1_000_000,  # $0.03 per 1M tokens
@@ -208,9 +359,14 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=4_096,
             ),
-        }
-        self._openai_models = {
-            "gpt-4": CompletionModelParameters(
+        )
+
+    def _initialize_openai_models(self):
+        """Initialize OpenAI models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4",
+            CompletionModelParameters(
                 input_token_cost=30 / 1_000_000,  # $30 per 1M tokens
                 cached_input_token_read_cost=0.0,  # N/A
                 output_token_cost=60 / 1_000_000,  # $60 per 1M tokens
@@ -218,7 +374,13 @@ class ModelCatalog:
                 max_output_tokens=8_192,
                 max_temperature=2,
             ),
-            "gpt-4-turbo" : CompletionModelParameters(
+            snapshots=["gpt-4-0314", "gpt-4-0613"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4-turbo",
+            CompletionModelParameters(
                 input_token_cost=10 / 1_000_000,  # $10 per 1M tokens
                 cached_input_token_read_cost=0.0,  # N/A
                 output_token_cost=30 / 1_000_000,  # $30 per 1M tokens
@@ -226,7 +388,13 @@ class ModelCatalog:
                 max_output_tokens=4_096,
                 max_temperature=2,
             ),
-            "gpt-4o-mini": CompletionModelParameters(
+            snapshots=["gpt-4-turbo-2024-04-09"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4o-mini",
+            CompletionModelParameters(
                 input_token_cost=0.300 / 1_000_000,  # $0.300 per 1M tokens
                 cached_input_token_read_cost=0.150 / 1_000_000,  # $0.150 per 1M tokens
                 output_token_cost=1.200 / 1_000_000,  # $1.200 per 1M tokens
@@ -234,7 +402,13 @@ class ModelCatalog:
                 max_output_tokens=16_384,
                 max_temperature=2,
             ),
-            "gpt-4o": CompletionModelParameters(
+            snapshots=["gpt-4o-mini-2024-07-18"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4o",
+            CompletionModelParameters(
                 input_token_cost=3.750 / 1_000_000,  # $3.750 per 1M tokens
                 cached_input_token_read_cost=1.875 / 1_000_000,  # $1.875 per 1M tokens
                 output_token_cost=15.00 / 1_000_000,  # $15.00 per 1M tokens
@@ -242,7 +416,13 @@ class ModelCatalog:
                 max_output_tokens=16_384,
                 max_temperature=2,
             ),
-            "gpt-4.1-nano": CompletionModelParameters(
+            snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4.1-nano",
+            CompletionModelParameters(
                 input_token_cost=0.100 / 1_000_000,  # $0.100 per 1M tokens
                 cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
                 output_token_cost=0.400 / 1_000_000,  # $0.400 per 1M tokens
@@ -250,7 +430,13 @@ class ModelCatalog:
                 max_output_tokens=32_768,
                 max_temperature=2,
             ),
-            "gpt-4.1-mini": CompletionModelParameters(
+            snapshots=["gpt-4.1-nano-2025-04-14"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4.1-mini",
+            CompletionModelParameters(
                 input_token_cost=0.400 / 1_000_000,  # $0.400 per 1M tokens
                 cached_input_token_read_cost=0.100 / 1_000_000,  # $0.100 per 1M tokens
                 output_token_cost=1.600 / 1_000_000,  # $1.600 per 1M tokens
@@ -258,7 +444,13 @@ class ModelCatalog:
                 max_output_tokens=32_768,
                 max_temperature=2,
             ),
-            "gpt-4.1": CompletionModelParameters(
+            snapshots=["gpt-4.1-mini-2025-04-14"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-4.1",
+            CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
                 cached_input_token_read_cost=0.500 / 1_000_000,  # $0.500 per 1M tokens
                 output_token_cost=8.00 / 1_000_000,  # $8.00 per 1M tokens
@@ -266,33 +458,54 @@ class ModelCatalog:
                 max_output_tokens=32_768,
                 max_temperature=2,
             ),
-            "o1": CompletionModelParameters(
+            snapshots=["gpt-4.1-2025-04-14"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o1",
+            CompletionModelParameters(
                 input_token_cost=15 / 1_000_000,  # $15 per 1M tokens
-                cached_input_token_read_cost=7.50 / 1_000_000,  # N/A
-                output_token_cost=60 / 1_000_000,  # $30 per 1M tokens
+                cached_input_token_read_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
+                output_token_cost=60 / 1_000_000,  # $60 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "o1-mini": CompletionModelParameters(
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o1-mini",
+            CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
                 cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
                 output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
                 context_window_length=128_000,
                 max_output_tokens=65_536,
-                supports_reasoning=True
+                supports_reasoning=True,
             ),
-            "o3" : CompletionModelParameters(
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o3",
+            CompletionModelParameters(
                 input_token_cost=2 / 1_000_000,  # $2 per 1M tokens
-                cached_input_token_read_cost=0.50 / 1_000_000,  # $1.50 per 1M tokens
-                output_token_cost=8 / 1_000_000,  # $10 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=8 / 1_000_000,  # $8 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "o3-mini" : CompletionModelParameters(
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o3-mini",
+            CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
                 cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
                 output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
@@ -301,7 +514,12 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "o4-mini" : CompletionModelParameters(
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o4-mini",
+            CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
                 cached_input_token_read_cost=0.275 / 1_000_000,  # $0.275 per 1M tokens
                 output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
@@ -310,24 +528,38 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-        }
-        self._openai_embedding_models = {
-            "text-embedding-3-small": EmbeddingModelParameters(
-                input_token_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
-                output_dimensions=1536,
-                max_input_size=8192,
-            ),
-            "text-embedding-3-large": EmbeddingModelParameters(
-                input_token_cost=0.13 / 1_000_000,  # $0.13 per 1M tokens
-                output_dimensions=3072,
-                max_input_size=8192,
-            ),
-        }
+        )
 
-        self._google_vertex_completion_models = {
-            "gemini-2.5-pro": CompletionModelParameters(
+        # OpenAI Embedding Models
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "text-embedding-3-small",
+            EmbeddingModelParameters(
+                input_token_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
+                allowed_output_dimensions=1536,
+                max_input_size=8192,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "text-embedding-3-large",
+            EmbeddingModelParameters(
+                input_token_cost=0.13 / 1_000_000,  # $0.13 per 1M tokens
+                allowed_output_dimensions=3072,
+                max_input_size=8192,
+            ),
+        )
+
+    def _initialize_google_vertex_models(self):
+        """Initialize the Google Vertex Models."""
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-2.5-pro",
+            CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
-                cached_input_token_read_cost=0.03125 / 1_000_000,  # $0.03125 per 1M tokens
+                cached_input_token_read_cost=0.03125
+                / 1_000_000,  # $0.03125 per 1M tokens
                 output_token_cost=10 / 1_000_000,  # $10 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
@@ -336,49 +568,114 @@ class ModelCatalog:
                 tiered_token_costs={
                     200_000: TieredTokenCost(
                         input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
-                        cached_input_token_read_cost=0.0625 / 1_000_000,  # $0.0625 per 1M tokens
+                        cached_input_token_read_cost=0.0625
+                        / 1_000_000,  # $0.0625 per 1M tokens
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
-                }
+                },
             ),
-            "gemini-2.5-flash": CompletionModelParameters(
-                input_token_cost=0.30 / 1_000_000,  # $1.25 per 1M tokens
-                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.0375 per 1M tokens
+            snapshots=["gemini-2.5-pro-preview-06-05"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-2.5-flash",
+            CompletionModelParameters(
+                input_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
                 output_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.5-flash-lite": CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000,  # $0.075 per 1M tokens
-                output_token_cost=0.40 / 1_000_000,  # $0.30 per 1M tokens
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-2.5-flash-lite",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=64_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.0-flash-lite": CompletionModelParameters(
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-2.0-flash-lite",
+            CompletionModelParameters(
                 input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
                 output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
             ),
-            "gemini-2.0-flash": CompletionModelParameters(
+            snapshots=["gemini-2.0-flash-lite-001"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-2.0-flash",
+            CompletionModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                cached_input_token_read_cost=0.0375 / 1_000_000,  # $0.01875 per 1M tokens
+                cached_input_token_read_cost=0.0375
+                / 1_000_000,  # $0.0375 per 1M tokens
                 output_token_cost=0.60 / 1_000_000,  # $0.60 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
             ),
-        }
+            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
+        )
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-embedding-001",
+            EmbeddingModelParameters(
+                input_token_cost=0.00015 / 1_000,  # $0.00015 per 1k tokens
+                allowed_output_dimensions=[768, 1536, 3072],
+                max_input_size=2048,
+                default_dimensionality=3072,
+            ),
+            snapshots=["gemini-embedding-exp-03-07"],
+        )
 
-        self._google_developer_completion_models = {
-            "gemini-2.5-pro" : CompletionModelParameters(
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "text-embedding-005",
+            EmbeddingModelParameters(
+                input_token_cost=0.000025
+                / 250,  # $0.000025/ 1k CHARACTERS (~ 250 tokens)
+                allowed_output_dimensions=[256, 512, 768],
+                max_input_size=2048,
+                default_dimensionality=768,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "text-multilingual-embedding-002",
+            EmbeddingModelParameters(
+                input_token_cost=0.000025
+                / 250,  # $0.000025/ 1k CHARACTERS (~ 250 tokens)
+                allowed_output_dimensions=[256, 512, 768],
+                max_input_size=2048,
+            ),
+        )
+
+    def _initialize_google_gla_models(self):
+        """Initialize Google models in the catalog."""
+        # Google GLA Models (same models, possibly different pricing)
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-2.5-pro",
+            CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
-                cached_input_token_read_cost=0.03125 / 1_000_000,  # $0.03125 per 1M tokens
+                cached_input_token_read_cost=0.03125
+                / 1_000_000,  # $0.03125 per 1M tokens
                 output_token_cost=10 / 1_000_000,  # $10 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
@@ -387,121 +684,92 @@ class ModelCatalog:
                 tiered_token_costs={
                     200_000: TieredTokenCost(
                         input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
-                        cached_input_token_read_cost=0.0625 / 1_000_000,  # $0.0625 per 1M tokens
+                        cached_input_token_read_cost=0.0625
+                        / 1_000_000,  # $0.0625 per 1M tokens
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
-                }
+                },
             ),
-            "gemini-2.5-flash" : CompletionModelParameters(
-                input_token_cost=0.15 / 1_000_000, # $1.25 per 1M tokens
-                cached_input_token_read_cost= 0.075/ 1_000_000, # $0.0375 per 1M tokens
-                output_token_cost=2.50 / 1_000_000, # $2.50 per 1M tokens
+            snapshots=["gemini-2.5-pro-preview-06-05"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-2.5-flash",
+            CompletionModelParameters(
+                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.5-flash-lite" : CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000, # $0.10 per 1M tokens
-                output_token_cost=0.40 / 1_000_000, # $0.30 per 1M tokens
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-2.5-flash-lite",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=64_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.0-flash-lite" : CompletionModelParameters(
-                input_token_cost=0.075 / 1_000_000, # $0.075 per 1M tokens
-                output_token_cost=0.30 / 1_000_000, # $0.30 per 1M tokens
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-2.0-flash-lite",
+            CompletionModelParameters(
+                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
             ),
-            "gemini-2.0-flash": CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000, # $0.15 per 1M tokens
-                cached_input_token_read_cost= 0.0375 / 1_000_000, # $0.01875 per 1M tokens
-                output_token_cost=0.40 / 1_000_000, # $0.60 per 1M tokens
+            snapshots=["gemini-2.0-flash-lite-001"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-2.0-flash",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                cached_input_token_read_cost=0.0375
+                / 1_000_000,  # $0.0375 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
             ),
-        }
+            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
+        )
 
-        # Snapshot mappings
-        self._language_model_snapshots: Dict[tuple[ModelProvider, AVAILABLE_LANGUAGE_MODELS], list[str]] = {
-            # OpenAI snapshots
-            (ModelProvider.OPENAI, "gpt-4.1-nano"): ["gpt-4.1-nano-2025-04-14"],
-            (ModelProvider.OPENAI, "gpt-4.1-mini"): ["gpt-4.1-mini-2025-04-14"],
-            (ModelProvider.OPENAI, "gpt-4.1"): ["gpt-4.1-2025-04-14"],
-            (ModelProvider.OPENAI, "gpt-4o-mini"): ["gpt-4o-mini-2024-07-18"],
-            (ModelProvider.OPENAI, "gpt-4o"): [
-                "gpt-4o-2024-05-13",
-                "gpt-4o-2024-08-06",
-                "gpt-4o-2024-11-20"
-            ],
-            (ModelProvider.OPENAI, "gpt-4-turbo"): ["gpt-4-turbo-2024-04-09"],
-            (ModelProvider.OPENAI, "gpt-4") : [
-                "gpt-4-0314",
-                "gpt-4-0613",
-            ],
-            # Anthropic snapshots
-            (ModelProvider.ANTHROPIC, "claude-opus-4-0"): ["claude-opus-4-20250514", "claude-4-opus-20250514"],
-            (ModelProvider.ANTHROPIC, "claude-sonnet-4-0"): ["claude-sonnet-4-20250514", "claude-4-sonnet-20250514"],
-            (ModelProvider.ANTHROPIC, "claude-3-7-sonnet-latest"): ["claude-3-7-sonnet-20250219"],
-            (ModelProvider.ANTHROPIC, "claude-3-5-haiku-latest"): ["claude-3-5-haiku-20241022"],
-            (ModelProvider.ANTHROPIC, "claude-3-5-sonnet-latest"): [
-                "claude-3-5-sonnet-20241022",
-                "claude-3-5-sonnet-20240620",
-            ],
-            (ModelProvider.ANTHROPIC, "claude-3-opus-latest"): ["claude-3-opus-20240229"],
-            # Google (Vertex) Snapshots
-            (ModelProvider.GOOGLE_VERTEX, "gemini-2.5-pro"): ["gemini-2.5-pro-preview-06-05"],
-            (ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash-lite"): ["gemini-2.0-flash-lite-001"],
-            (ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash"): [
-                "gemini-2.0-flash-001",
-                "gemini-2.0-flash-exp",
-            ],
-            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro") : ["gemini-2.5-pro-preview-06-05"],
-            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite") : ["gemini-2.0-flash-lite-001"],
-            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash") : [
-                "gemini-2.0-flash-001",
-                "gemini-2.0-flash-exp",
-            ],
-        }
-
-        #currently, no supported embedding models have snapshots.
-        self._embedding_model_snapshots: Dict[tuple[ModelProvider, AVAILABLE_EMBEDDING_MODELS], list[str]] = {}
-
-        # Create complete model collections including snapshots
-        self._complete_completion_models = {
-            ModelProvider.ANTHROPIC: self._create_complete_model_collection(
-                self._anthropic_models,
-                self._language_model_snapshots,
-                ModelProvider.ANTHROPIC
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-embedding-001",
+            EmbeddingModelParameters(
+                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                allowed_output_dimensions=[768, 1536, 3072],
+                max_input_size=2048,
+                default_dimensionality=3072,
             ),
-            ModelProvider.OPENAI: self._create_complete_model_collection(
-                self._openai_models,
-                self._language_model_snapshots,
-                ModelProvider.OPENAI
-            ),
-            ModelProvider.GOOGLE_DEVELOPER: self._create_complete_model_collection(
-                self._google_developer_completion_models,
-                self._language_model_snapshots,
-                ModelProvider.GOOGLE_DEVELOPER
-            ),
-            ModelProvider.GOOGLE_VERTEX: self._create_complete_model_collection(
-                self._google_vertex_completion_models,
-                self._language_model_snapshots,
-                ModelProvider.GOOGLE_VERTEX
-            )
-        }
+            snapshots=["gemini-embedding-exp-03-07"],
+        )
 
-        self._complete_embedding_models = {
-            ModelProvider.OPENAI: self._create_complete_model_collection(
-                self._openai_embedding_models,
-                self._embedding_model_snapshots,
-                ModelProvider.OPENAI
-            )
-        }
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "text-embedding-004",
+            EmbeddingModelParameters(
+                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                allowed_output_dimensions=768,
+                max_input_size=2048,
+                default_dimensionality=768,
+            ),
+        )
 
     # Public methods
     def get_completion_model_parameters(self, model_provider: ModelProvider,
@@ -552,7 +820,8 @@ class ModelCatalog:
         Returns:
             Error message string
         """
-        return f"Model '{model_name}' is not supported for {model_provider.value}. Supported Models: {self._get_supported_embeddings_models_by_provider(model_provider)}"
+        return (f"Model '{model_name}' is not supported for {model_provider.value}."
+                f" Supported Models: {self._get_supported_embeddings_models_by_provider_as_string(model_provider)}")
 
     def get_supported_completions_models_as_string(self) -> str:
         """Returns a comma-separated string of all supported completion models.
@@ -585,7 +854,7 @@ class ModelCatalog:
         uncached_input_tokens: int,
         cached_input_tokens_read: int,
         output_tokens: int,
-        cached_input_tokens_written: int = 0
+        cached_input_tokens_written: int = 0,
     ) -> float:
         """Calculates the total cost for a completion model operation.
 
@@ -624,11 +893,9 @@ class ModelCatalog:
                 + output_tokens * output_token_cost
         )
 
-    def calculate_embedding_model_cost(self,
-                                       model_provider: ModelProvider,
-                                       model_name: str,
-                                       billable_inputs: int
-                                       ) -> float:
+    def calculate_embedding_model_cost(
+        self, model_provider: ModelProvider, model_name: str, billable_inputs: int
+    ) -> float:
         """Calculates the total cost for an embedding model operation.
 
         Args:
@@ -644,34 +911,40 @@ class ModelCatalog:
         """
         model_costs = self.get_embedding_model_parameters(model_provider, model_name)
         if model_costs is None:
-            raise ValueError(self.generate_unsupported_embedding_model_error_message(model_provider, model_name))
+            raise ValueError(
+                self.generate_unsupported_embedding_model_error_message(
+                    model_provider, model_name
+                )
+            )
         return billable_inputs * model_costs.input_token_cost
 
-    # Private methods
-    def _create_complete_model_collection(
+    def _add_model_to_catalog(
         self,
-        base_models: Dict[str, Union[CompletionModelParameters, EmbeddingModelParameters]],
-        snapshots: Dict[tuple[ModelProvider, str], list[str]],
-        provider: ModelProvider
-    ) -> Dict[str, Union[CompletionModelParameters, EmbeddingModelParameters]]:
-        """Creates a complete model collection including snapshots.
+        model_provider: ModelProvider,
+        name: str,
+        parameters: Union[CompletionModelParameters, EmbeddingModelParameters],
+        snapshots: Optional[list[str]] = None,
+    ):
+        """A helper method to add a model to the catalog, adding it to the appropriate provider collection.
 
         Args:
-            base_models: Dictionary of base model parameters
-            snapshots: Dictionary mapping (provider, base_model) to list of snapshot names
-            provider: The provider to create the collection for
+            model_provider: The provider of the model
+            name: The name of the model
+            parameters: The parameters of the model
+            snapshots: The optional list of snapshot names for the model
 
-        Returns:
-            Complete model collection including snapshots
+        Raises:
+            InternalError: If the model already exists in the catalog
         """
-        models = base_models.copy()
-        for (snapshot_provider, base_model), snapshot_names in snapshots.items():
-            if snapshot_provider == provider:
-                for snapshot in snapshot_names:
-                    models[snapshot] = models[base_model]
-        return models
+        provider_model_collection = self.provider_model_collections.get(
+            model_provider, ProviderModelCollection(model_provider)
+        )
+        provider_model_collection.add_model(name, parameters, snapshots)
+        self.provider_model_collections[model_provider] = provider_model_collection
 
-    def _get_supported_completions_models_by_provider(self, model_provider: ModelProvider) -> CompletionModelCollection:
+    def _get_supported_completions_models_by_provider(
+        self, model_provider: ModelProvider
+    ) -> CompletionModelCollection:
         """Returns the collection of completion models for a specific provider.
 
         Args:
@@ -680,9 +953,11 @@ class ModelCatalog:
         Returns:
             Collection of completion models for the specified provider, including snapshots
         """
-        return self._complete_completion_models[model_provider]
+        return self.provider_model_collections[model_provider].completion_models
 
-    def _get_supported_embeddings_models_by_provider(self, model_provider: ModelProvider) -> EmbeddingModelCollection:
+    def _get_supported_embeddings_models_by_provider(
+        self, model_provider: ModelProvider
+    ) -> EmbeddingModelCollection:
         """Returns the collection of embedding models for a specific provider.
 
         Args:
@@ -691,9 +966,11 @@ class ModelCatalog:
         Returns:
             Collection of embedding models for the specified provider, including snapshots
         """
-        return self._complete_embedding_models[model_provider]
+        return self.provider_model_collections[model_provider].embedding_models
 
-    def _get_supported_completions_models_by_provider_as_string(self, model_provider: ModelProvider) -> str:
+    def _get_supported_completions_models_by_provider_as_string(
+        self, model_provider: ModelProvider
+    ) -> str:
         """Returns a comma-separated string of supported completion model names for a provider.
 
         Args:
@@ -702,7 +979,33 @@ class ModelCatalog:
         Returns:
             Comma-separated string of model names
         """
-        return ", ".join(sorted(self._get_supported_completions_models_by_provider(model_provider).keys()))
+        return ", ".join(
+            sorted(
+                self._get_supported_completions_models_by_provider(
+                    model_provider
+                ).keys()
+            )
+        )
+
+    def _get_supported_embeddings_models_by_provider_as_string(
+        self, model_provider: ModelProvider
+    ) -> str:
+        """Returns a comma-separated string of supported completion model names for a provider.
+
+        Args:
+            model_provider: The provider to get model names for
+
+        Returns:
+            Comma-separated string of model names
+        """
+        return ", ".join(
+            sorted(
+                self._get_supported_embeddings_models_by_provider(
+                    model_provider
+                ).keys()
+            )
+        )
+
 
 # Create a singleton instance
 model_catalog = ModelCatalog()
