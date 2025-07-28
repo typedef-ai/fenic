@@ -16,7 +16,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
-from fenic.core._utils.schema import (
+from fenic.core._utils.structured_outputs import (
     SemanticSchemaValidationError,
     validate_semantic_schema_structure,
 )

@@ -538,22 +538,23 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
 # when we add semantic.extract examples, this signature can change to
 # def validate_single_example_output_type(existing_examples: list[Union[MapExample, ExtractExample]], example: Union[MapExample, ExtractExample]):
 def _validate_single_example_output_type(existing_examples: list[MapExample], example: MapExample):
-    if existing_examples:
-        first_example = existing_examples[0]
-        first_is_basemodel = isinstance(first_example.output, BaseModel)
-        current_is_basemodel = isinstance(example.output, BaseModel)
-        if first_is_basemodel != current_is_basemodel:
-            first_type = type(first_example.output).__name__
-            current_type = type(example.output).__name__
+    if not existing_examples:
+        return
+    first_example = existing_examples[0]
+    first_is_basemodel = isinstance(first_example.output, BaseModel)
+    current_is_basemodel = isinstance(example.output, BaseModel)
+    if first_is_basemodel != current_is_basemodel:
+        first_type = type(first_example.output).__name__
+        current_type = type(example.output).__name__
+        raise InvalidExampleCollectionError(
+            f"All examples in Example Collection must have consistent output types. "
+            f"Existing examples have {first_type} outputs, but new example has {current_type} output."
+        )
+    # If both are BaseModel, ensure they're the same type
+    if first_is_basemodel and current_is_basemodel:
+        if not isinstance(first_example.output, type(example.output)):
             raise InvalidExampleCollectionError(
-                f"All examples in Example Collection must have consistent output types. "
-                f"Existing examples have {first_type} outputs, but new example has {current_type} output."
+                f"All BaseModel examples must be of the same type. "
+                f"Existing examples are {type(first_example.output).__name__}, "
+                f"but new example is {type(example.output).__name__}."
             )
-        # If both are BaseModel, ensure they're the same type
-        if first_is_basemodel and current_is_basemodel:
-            if not isinstance(first_example.output, type(example.output)):
-                raise InvalidExampleCollectionError(
-                    f"All BaseModel examples must be of the same type. "
-                    f"Existing examples are {type(first_example.output).__name__}, "
-                    f"but new example is {type(example.output).__name__}."
-                )

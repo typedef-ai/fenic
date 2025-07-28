@@ -1,6 +1,6 @@
 import logging
 import re
-from enum import Enum, auto
+from enum import Enum
 from typing import (
     Annotated,
     Any,
@@ -13,17 +13,9 @@ from typing import (
     get_args,
     get_origin,
 )
-from enum import Enum
-from typing import Any, Dict, List, Type
 
 import polars as pl
 from pydantic import BaseModel, create_model
-
-
-class SchemaOperationType(Enum):
-    """Enum representing different types of schema-based semantic operations."""
-    EXTRACT = auto()
-    GENERATE = auto()
 
 
 def convert_row_to_instruction_context(row: Dict[str, Any]) -> str:
@@ -96,36 +88,11 @@ def filter_invalid_embeddings_expr(embedding_column: str) -> pl.Expr:
 # =============================================================================
 
 # Shared schema explanation template for all structured operations
-SCHEMA_EXPLANATION_TEMPLATE = (
+SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT = (
     "How to read the field schema:\n"
     "- Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')\n"
     "- Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of [string])\n"
-    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n\n"
-)
-
-# Guidelines for extraction operations (semantic.extract)
-SCHEMA_GUIDELINES_EXTRACT_TEMPLATE = (
-    "Extraction Guidelines:\n"
-    "1. Extract only what is explicitly present or clearly supported in the document—do not guess or extrapolate.\n"
-    "2. For list fields, extract all items that match the field description.\n"
-    "3. If a field is not found in the document, return null for single values and [] for lists.\n"
-    "4. Ensure all field names in your structured output exactly match the field schema.\n"
-    "5. Be thorough and precise—capture all relevant content without changing or omitting meaning.\n\n"
-)
-
-# Guidelines for generation operations (semantic.map)
-SCHEMA_GUIDELINES_GENERATE_TEMPLATE = (
-    "Output Guidelines:\n"
-    "1. Generate output that matches the field descriptions exactly.\n"
-    "2. For list fields, include all relevant items that match the field description.\n"
-    "3. Ensure all field names in your structured output exactly match the field schema.\n"
-    "4. Use the field descriptions as guidance for what content to generate for each field.\n\n"
-)
-
-# Field schema section template
-FIELD_SCHEMA_TEMPLATE = (
-    "Field Schema:\n"
-    "{keys}"
+    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n"
 )
 
 
@@ -251,35 +218,3 @@ def validate_structured_response(
             exc_info=True,
         )
         return None
-
-
-def build_schema_prompt_section(
-    schema: Type[BaseModel],
-    operation_type: SchemaOperationType = SchemaOperationType.EXTRACT
-) -> str:
-    """Build the schema section of a system prompt for structured operations.
-
-    Args:
-        schema: The Pydantic model class
-        operation_type: The type of operation to determine appropriate guidelines
-
-    Returns:
-        Formatted schema section for inclusion in system prompts
-    """
-    schema_keys = convert_pydantic_model_to_key_descriptions(schema)
-
-    if operation_type == SchemaOperationType.EXTRACT:
-        guidelines = SCHEMA_GUIDELINES_EXTRACT_TEMPLATE
-        intro = "The field schema below defines the structure of the information you are expected to extract.\n\n"
-    elif operation_type == SchemaOperationType.GENERATE:
-        guidelines = SCHEMA_GUIDELINES_GENERATE_TEMPLATE
-        intro = "The field schema below defines the structure of the output you are expected to generate.\n\n"
-    else:
-        raise ValueError(f"Unsupported operation type: {operation_type}")
-
-    return (
-        intro +
-        SCHEMA_EXPLANATION_TEMPLATE +
-        guidelines +
-        FIELD_SCHEMA_TEMPLATE.format(keys=schema_keys)
-    )

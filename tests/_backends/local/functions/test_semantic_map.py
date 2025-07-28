@@ -14,6 +14,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
 from fenic.core.error import ValidationError
 
 
@@ -22,11 +23,6 @@ class ProductSummary(BaseModel):
     name: str = Field(description="Product name")
     description: str = Field(description="One-line description")
     category: str = Field(description="Product category")
-import pytest
-
-from fenic import MapExample, MapExampleCollection, col, semantic
-from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
-from fenic.core.error import ValidationError
 
 class PersonInfo(BaseModel):
     """Another test BaseModel for structured output."""

@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
+import jinja2
 import polars as pl
 from pydantic import BaseModel
 
@@ -8,8 +9,8 @@ from fenic._backends.local.semantic_operators.base import (
     CompletionOnlyRequestSender,
 )
 from fenic._backends.local.semantic_operators.utils import (
-    SchemaOperationType,
-    build_schema_prompt_section,
+    SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+    convert_pydantic_model_to_key_descriptions,
     convert_row_to_instruction_context,
     uppercase_instruction_placeholder,
     validate_structured_response,
@@ -23,29 +24,35 @@ from fenic.core.types import (
 
 
 class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
-    SYSTEM_PROMPT_PREFIX = (
-        "You are an AI assistant designed to follow instructions. "
-        "Your task is to generate responses based on instructions that reference one or more context fields. "
-        "Each input message will have two sections:\n"
-        "1. An instruction labeled with the prefix: ###Instruction\n"
-        "2. One or more context fields labeled with the prefix: ###Context\n"
-        "The instruction will reference the context fields using square brackets [LIKE_THIS]. "
-        "Each context field will be labeled with its name in square brackets, matching the references in the instruction. "
-        "Your response should fulfill the instruction by appropriately integrating each of the referenced context fields without using any external information. "
-        "Your response should not include unnecessary preamble or explanation."
-    )
 
     STRUCTURED_SYSTEM_PROMPT_PREFIX = (
-        "You are an AI assistant designed to follow instructions and generate structured output. "
+        "You are an AI assistant designed to follow instructions. "
+        "{% if is_structured_response %}"
+        "Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields."
+        "{% else %}"
         "Your task is to generate responses based on instructions that reference one or more context fields. "
+        "{% endif %}"
         "Each input message will have two sections:\n"
         "1. An instruction labeled with the prefix: ###Instruction\n"
         "2. One or more context fields labeled with the prefix: ###Context\n"
         "The instruction will reference the context fields using square brackets [LIKE_THIS]. "
         "Each context field will be labeled with its name in square brackets, matching the references in the instruction. "
         "Your response should fulfill the instruction by appropriately integrating each of the referenced context fields without using any external information. "
-        "Your response should not include unnecessary preamble or explanation.\n\n"
+        "Your response should not include unnecessary preamble or explanation.\n"
+        "{% if is_structured_response %}"
+        "Output Guidelines:\n"
+        "1. Generate output that matches the field descriptions exactly.\n"
+        "2. For list fields, include all relevant items that match the field description.\n"
+        "3. Ensure all field names in your structured output exactly match the field schema.\n"
+        "4. Use the field descriptions as guidance for what content to generate for each field.\n\n"
+        "{{ schema_explanation }}\n"
+        "Field Schema:\n"
+        "{{ schema_details }}"
+        "{% endif %}"
     )
+
+    # Pre-compiled template as class variable
+    _TEMPLATE = jinja2.Template(STRUCTURED_SYSTEM_PROMPT_PREFIX)
 
     def __init__(
         self,
@@ -76,12 +83,13 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
         self.response_format = response_format
 
     def build_system_message(self) -> str:
-        if self.response_format is not None:
-            return (
-                self.STRUCTURED_SYSTEM_PROMPT_PREFIX +
-                build_schema_prompt_section(self.response_format, SchemaOperationType.GENERATE)
-            )
-        return self.SYSTEM_PROMPT_PREFIX
+        is_structured_response = self.response_format is not None
+        schema_details = convert_pydantic_model_to_key_descriptions(self.response_format) if is_structured_response else None
+        return self._TEMPLATE.render(
+            is_structured_response=is_structured_response,
+            schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+            schema_details=schema_details
+        )
 
     def build_user_message(self, input: dict[str, str]) -> str:
         prompt = (
@@ -94,13 +102,14 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
         return prompt
 
     def postprocess(
-        self,
-        responses: List[Optional[str]]
+        self, responses: List[Optional[str]]
     ) -> Union[List[Optional[Dict[str, Any]]], List[Optional[str]]]:
         if self.response_format is None:
             return responses
         return [
-            validate_structured_response(json_resp, self.response_format, "semantic.map")
+            validate_structured_response(
+                json_resp, self.response_format, "semantic.map"
+            )
             for json_resp in responses
         ]
 

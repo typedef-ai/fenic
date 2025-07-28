@@ -32,7 +32,7 @@ from fenic.core._logical_plan.expressions.base import (
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
-from fenic.core.error import ValidationError
+from fenic.core.error import InvalidExampleCollectionError, ValidationError
 from fenic.core.types import (
     DataType,
     EmbeddingType,
@@ -94,10 +94,10 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
     def _validate_example_response_format(self, example_collection: MapExampleCollection):
         for example in example_collection.examples:
             if self.response_format is None and not isinstance(example.output, str):
-                raise ValidationError("If a `schema` is not provided to `semantic.map`, "
+                raise InvalidExampleCollectionError("If a `schema` is not provided to `semantic.map`, "
                                       "all examples are required to have outputs of type `str`.")
             if self.response_format is not None and not isinstance(example.output, self.response_format):
-                raise ValidationError("If a `schema` BaseModel is provided to `semantic.map`, "
+                raise InvalidExampleCollectionError("If a `schema` BaseModel is provided to `semantic.map`, "
                                       "all examples are required to have outputs of the same BaseModel type.")
 
 
