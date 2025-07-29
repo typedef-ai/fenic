@@ -7,6 +7,7 @@ from fenic.core.types.datatypes import (
     DoubleType,
     FloatType,
     IntegerType,
+    LogicalType,
     StringType,
     StructField,
     StructType,
@@ -96,3 +97,13 @@ def _find_common_supertype(type1: DataType, type2: DataType, path="") -> DataTyp
         return StructType(merged_fields)
 
     raise TypeInferenceError(f"Incompatible types: {type1} vs {type2}", path)
+
+def is_logical_type(type: DataType) -> bool:
+    """Check if a type is a logical type.  If type is a struct or array that contains a LogicalType, it is logical type."""
+    if isinstance(type, LogicalType):
+        return True
+    elif isinstance(type, StructType):
+        return any(is_logical_type(field.data_type) for field in type.struct_fields)
+    elif isinstance(type, ArrayType):
+        return is_logical_type(type.element_type)
+    return False

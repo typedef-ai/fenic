@@ -1,5 +1,6 @@
-from fenic import ArrayType, IntegerType, StructField, StructType, col, udf
-
+from fenic import ArrayType, IntegerType, MarkdownType, StructField, StructType, col, udf
+from fenic.core.error import ValidationError
+import pytest
 
 def test_with_column_udf(sample_df):
     @udf(return_type=IntegerType)
@@ -100,3 +101,22 @@ def test_udf_with_nested_types(local_session):
         special_sum3(col("struct_col"), col("array_col")).alias("result")
     ).to_polars()
     assert struct_result["result"].to_list() == [[20, 1, 2, 3], [40, 4, 5, 6]]
+
+def test_udf_with_logical_return_type(local_session):
+    # basic logical types
+    with pytest.raises(ValidationError):
+        @udf(return_type=MarkdownType)
+        def markdown_udf(x: str):
+            return f"# hello\n\n {x} \n\n# goodbye"
+
+    # array with logical type
+    with pytest.raises(ValidationError):
+        @udf(return_type=ArrayType(element_type=MarkdownType))
+        def markdown_array_udf(x: str):
+            return [f"# hello\n\n {x} \n\n# hello", f"# goodbye\n\n {x} \n\n# goodbye"]
+
+    # struct with logical type
+    with pytest.raises(ValidationError):
+        @udf(return_type=StructType([StructField("value1", IntegerType), StructField("value2", MarkdownType)]))
+        def markdown_struct_udf(x: str):
+            return {"value1": len(x), "value2": f"# hello\n\n {x} \n\n# goodbye"}

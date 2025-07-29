@@ -73,8 +73,8 @@ class _PrimitiveType(DataType):
     pass
 
 
-class _StringBackedType(DataType):
-    """Marker class for all string-backed logical types."""
+class LogicalType(DataType):
+    """Marker class for all logical types."""
 
     pass
 
@@ -311,7 +311,7 @@ class StructType(DataType):
 
 
 @dataclass(frozen=True)
-class EmbeddingType(DataType):
+class EmbeddingType(LogicalType):
     """A type representing a fixed-length embedding vector.
 
     Attributes:
@@ -358,7 +358,7 @@ class EmbeddingType(DataType):
 
 
 @dataclass(frozen=True)
-class _MarkdownType(_StringBackedType):
+class _MarkdownType(LogicalType):
     """Represents a markdown document."""
 
     def __str__(self) -> str:
@@ -382,7 +382,7 @@ class _MarkdownType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class _HtmlType(_StringBackedType):
+class _HtmlType(LogicalType):
     """Represents a valid HTML document."""
 
     def __str__(self) -> str:
@@ -406,7 +406,7 @@ class _HtmlType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class _JsonType(_StringBackedType):
+class _JsonType(LogicalType):
     """Represents a valid JSON document."""
 
     def __str__(self) -> str:
@@ -430,7 +430,7 @@ class _JsonType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class TranscriptType(_StringBackedType):
+class TranscriptType(LogicalType):
     """Represents a string containing a transcript in a specific format."""
 
     format: Literal["generic", "srt"]
@@ -457,7 +457,7 @@ class TranscriptType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class DocumentPathType(_StringBackedType):
+class DocumentPathType(LogicalType):
     """Represents a string containing a a document's local (file system) or remote (URL) path."""
 
     format: Literal["pdf"] = "pdf"
