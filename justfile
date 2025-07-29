@@ -77,14 +77,14 @@ syncMinMaxFlag := if sync == "min" {
 # sync project dependencies - set sync=false to skip in other target deps
 sync:
   [ "{{ sync }}" != "false" ] && \
-  uv sync --extra=google --extra=anthropic {{ syncMinMaxFlag }} || true
+  uv sync --extra=google --extra=anthropic --extra=cohere {{ syncMinMaxFlag }} || true
 
 alias sync-local := sync
 
 # sync project dependencies related to fenic cloud
 sync-cloud:
   [ "{{ sync }}" != "false" ] && \
-  uv sync --extra=cloud --extra=google --extra=anthropic {{ syncMinMaxFlag }} || true
+  uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere {{ syncMinMaxFlag }} || true
 
 # sync rust changes (via maturin)
 sync-rust:

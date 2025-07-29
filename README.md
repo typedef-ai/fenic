@@ -40,6 +40,9 @@ export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # For Google
 export GOOGLE_API_KEY="your-google-api-key"
+
+# For Cohere
+export COHERE_API_KEY="your-cohere-api-key"
 ```
 
 ## Quickstart

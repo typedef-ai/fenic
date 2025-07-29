@@ -40,6 +40,7 @@ from fenic.api.lineage import Lineage
 from fenic.api.session import (
     AnthropicLanguageModel,
     CloudConfig,
+    CohereEmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
@@ -58,6 +59,7 @@ __all__ = [
     "OpenAILanguageModel",
     "OpenAIEmbeddingModel",
     "AnthropicLanguageModel",
+    "CohereEmbeddingModel",
     "GoogleDeveloperEmbeddingModel",
     "GoogleDeveloperLanguageModel",
     "GoogleVertexEmbeddingModel",

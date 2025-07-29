@@ -4,21 +4,21 @@ from urllib.parse import urlparse
 import pandas as pd
 import polars as pl
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from fenic import (
+    CohereEmbeddingModel,
     ColumnField,
+    GoogleDeveloperEmbeddingModel,
+    GoogleVertexEmbeddingModel,
     IntegerType,
     OpenAIEmbeddingModel,
+    OpenAILanguageModel,
     SemanticConfig,
     Session,
     SessionConfig,
     StringType,
     col,
-)
-from fenic.api.session.config import (
-    GoogleDeveloperEmbeddingModel,
-    GoogleVertexEmbeddingModel,
-    OpenAILanguageModel,
 )
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
@@ -282,6 +282,102 @@ def test_google_developer_embedding_unsupported_dimensionality():
                 }
             )
         )
+
+def test_cohere_embedding_unsupported_dimensionality():
+    """Test Cohere embedding model with unsupported dimensionality."""
+    with pytest.raises(PydanticValidationError, match="Input should be less than or equal to 1536"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(output_dimensionality=2048)  # higher than 1536
+                        }
+                    )
+                }
+            )
+        )
+    with pytest.raises(ConfigurationError, match="The dimensionality of the Embeddings model profile invalid is invalid."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(output_dimensionality=768)  # not in [256, 512, 1024, 1536]
+                        }
+                    )
+                }
+            )
+        )
+
+def test_cohere_embedding_unsupported_input_type():
+    """Test Cohere embedding model with unsupported input type."""
+    with pytest.raises(PydanticValidationError, match="Input should be 'search_document', 'search_query', 'classification' or 'clustering'"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+            tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(input_type="hallucinate")  # Not in [search_query, search_document, classification, clustering]
+                        }
+                    )
+                }
+            )
+        )
+
+
+def test_cohere_embedding_profile_rejects_arbitrary_args():
+    """Test that CohereEmbeddingModel.Profile rejects arbitrary arguments."""
+    # This should raise an error now that we've added extra='forbid'
+    with pytest.raises(PydanticValidationError, match="Extra inputs are not permitted"):
+        CohereEmbeddingModel.Profile(
+            output_dimensionality=1024,
+            input_type="classification",
+            arbitrary_field="should_not_be_accepted",  # This should cause an error
+            another_field=123,  # This should also cause an error
+            yet_another_field={"nested": "data"}  # This should also cause an error
+        )
+    
+    # Valid profile should still work
+    profile = CohereEmbeddingModel.Profile(
+        output_dimensionality=1024,
+        input_type="classification"
+    )
+    assert profile.output_dimensionality == 1024
+    assert profile.input_type == "classification"
+
+
+def test_google_embeddings_profile_rejects_arbitrary_args():
+    """Test that GoogleVertexEmbeddingModel.Profile rejects arbitrary arguments."""
+    # This should raise an error now that we've added extra='forbid'
+    with pytest.raises(PydanticValidationError, match="Extra inputs are not permitted"):
+        GoogleVertexEmbeddingModel.Profile(
+            output_dimensionality=1536,
+            task_type="SEMANTIC_SIMILARITY",
+            arbitrary_field="should_not_be_accepted",  # This should cause an error
+            another_field=123,  # This should also cause an error
+            yet_another_field={"nested": "data"}  # This should also cause an error
+        )
+    
+    # Valid profile should still work
+    profile = GoogleVertexEmbeddingModel.Profile(
+        output_dimensionality=1536,
+        task_type="SEMANTIC_SIMILARITY"
+    )
+    assert profile.output_dimensionality == 1536
+    assert profile.task_type == "SEMANTIC_SIMILARITY"
 
 
 def test_session_config_with_valid_embedding_profile_dimensions():

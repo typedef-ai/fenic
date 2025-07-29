@@ -60,7 +60,7 @@ class GeminiNativeChatCompletionsClient(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
         model_provider: ModelProvider,
-        model: str = "gemini-2.0-flash-lite",
+        model: str,
         queue_size: int = 100,
         max_backoffs: int = 10,
         profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None,

@@ -6,10 +6,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
+    CohereEmbeddingModelName,
     EmbeddingModelParameters,
     GoogleDeveloperEmbeddingModelName,
     GoogleDeveloperLanguageModelName,
@@ -25,6 +26,8 @@ from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedAnthropicModelProfile,
     ResolvedCloudConfig,
+    ResolvedCohereModelConfig,
+    ResolvedCohereModelProfile,
     ResolvedEmbeddingModelConfig,
     ResolvedGoogleModelConfig,
     ResolvedGoogleModelProfile,
@@ -127,6 +130,8 @@ class GoogleDeveloperEmbeddingModel(BaseModel):
             profile = GoogleDeveloperEmbeddingModelConfig.Profile()
             ```
         """
+        model_config = ConfigDict(extra='forbid')
+
         output_dimensionality: Optional[int] = Field(default=None, gt=0, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
 
@@ -211,6 +216,7 @@ class GoogleDeveloperLanguageModel(BaseModel):
             profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
+        model_config = ConfigDict(extra='forbid')
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
@@ -286,6 +292,8 @@ class GoogleVertexEmbeddingModel(BaseModel):
             profile = GoogleVertexEmbeddingModelConfig.Profile()
             ```
         """
+        model_config = ConfigDict(extra='forbid')
+
         output_dimensionality: Optional[int] = Field(default=None, ge=768, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
 
@@ -369,6 +377,7 @@ class GoogleVertexLanguageModel(BaseModel):
             profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
+        model_config = ConfigDict(extra='forbid')
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
@@ -467,6 +476,7 @@ class OpenAILanguageModel(BaseModel):
             profile = OpenAILanguageModel.Profile(reasoning_effort="medium")
             ```
         """
+        model_config = ConfigDict(extra='forbid')
 
         reasoning_effort: Optional[ReasoningEffort] = Field(
             default=None, description="The reasoning effort level for the profile"
@@ -587,6 +597,7 @@ class AnthropicLanguageModel(BaseModel):
             profile = AnthropicLanguageModel.Profile(thinking_token_budget=8192)
             ```
         """
+        model_config = ConfigDict(extra='forbid')
 
         thinking_token_budget: Optional[int] = Field(
             default=None,
@@ -594,7 +605,85 @@ class AnthropicLanguageModel(BaseModel):
             ge=1024,
         )
 
-EmbeddingModel = Union[OpenAIEmbeddingModel, GoogleVertexEmbeddingModel, GoogleDeveloperEmbeddingModel]
+CohereEmbeddingTaskType = Literal[
+    "search_document",
+    "search_query",
+    "classification",
+    "clustering",
+]
+
+class CohereEmbeddingModel(BaseModel):
+    """Configuration for Cohere embedding models.
+
+    This class defines the configuration settings for Cohere embedding models,
+    including model selection and rate limiting parameters.
+
+    Attributes:
+        model_name: The name of the Cohere model to use.
+        rpm: Requests per minute limit for the model.
+        tpm: Tokens per minute limit for the model.
+        profiles: Optional dictionary of profile configurations.
+        default_profile: Default profile name to use if none specified.
+
+    Example:
+        Configuring a Cohere embedding model with profiles:
+        ```python
+        cohere_config = CohereEmbeddingModel(
+            model_name="embed-v4.0",
+            rpm=100,
+            tpm=50_000,
+            profiles={
+                "high_dim": CohereEmbeddingModel.Profile(
+                    embedding_dimensionality=1536,
+                    embedding_task_type="search_document"
+                ),
+                "classification": CohereEmbeddingModel.Profile(
+                    embedding_dimensionality=1024,
+                    embedding_task_type="classification"
+                )
+            },
+            default_profile="high_dim"
+        )
+        ```
+    """
+    model_name: CohereEmbeddingModelName = Field(
+        ..., description="The name of the Cohere model to use"
+    )
+    rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
+    tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
+    default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
+
+    class Profile(BaseModel):
+        """Profile configurations for Cohere embedding models.
+
+        This class defines profile configurations for Cohere embedding models, allowing
+        different output dimensionality and task type settings to be applied to the same model.
+
+        Attributes:
+            output_dimensionality: The dimensionality of the embedding created by this model.
+                If not provided, the model will use its default dimensionality.
+            input_type: The type of input text (search_query, search_document, classification, clustering)
+
+        Example:
+            Configuring a profile with custom dimensionality:
+
+            ```python
+            profile = CohereEmbeddingModel.Profile(output_dimensionality=1536)
+            ```
+
+            Configuring a profile with default settings:
+
+            ```python
+            profile = CohereEmbeddingModel.Profile()
+            ```
+        """
+        model_config = ConfigDict(extra='forbid')
+
+        output_dimensionality: Optional[int] = Field(default=None, gt=0, le=1536, description="Dimensionality of the embedding created by this model")
+        input_type: CohereEmbeddingTaskType = Field(default="search_document", description="Type of input")
+
+EmbeddingModel = Union[OpenAIEmbeddingModel, GoogleVertexEmbeddingModel, GoogleDeveloperEmbeddingModel, CohereEmbeddingModel]
 LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
 
@@ -1000,6 +1089,18 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile
                 )
+            elif isinstance(model, CohereEmbeddingModel):
+                profiles = {
+                    profile: ResolvedCohereModelProfile(output_dimensionality=profile.output_dimensionality, input_type=profile.input_type) for
+                    profile, profile_config in model.profiles.items()
+                } if model.profiles else None
+                return ResolvedCohereModelConfig(
+                    model_name=model.model_name,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                    profiles=profiles,
+                    default_profile=model.default_profile
+                )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")
 
@@ -1058,5 +1159,7 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.GOOGLE_VERTEX
     elif isinstance(model_config, AnthropicLanguageModel):
         return ModelProvider.ANTHROPIC
+    elif isinstance(model_config, CohereEmbeddingModel):
+        return ModelProvider.COHERE
     else :
         raise InternalError(f"Unknown model type: {type(model_config)}")

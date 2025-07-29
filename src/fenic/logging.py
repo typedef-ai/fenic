@@ -4,7 +4,7 @@ import logging
 import sys
 from typing import Optional, TextIO
 
-NOISY_LOGGER_NAMES = ("openai", "httpx", "google_genai")
+NOISY_LOGGER_NAMES = ("openai", "httpx", "google_genai", "cohere", "anthropic")
 
 
 def configure_logging(

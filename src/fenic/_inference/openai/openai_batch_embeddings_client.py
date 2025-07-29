@@ -29,8 +29,8 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
+        model: str,
         queue_size: int = 500,
-        model: str = "text-embedding-3-small",
         max_backoffs: int = 10,
     ):
         """Initialize the OpenAI batch embeddings client.

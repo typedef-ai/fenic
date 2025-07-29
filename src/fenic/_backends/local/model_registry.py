@@ -15,6 +15,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
+    ResolvedCohereModelConfig,
     ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
@@ -205,6 +206,22 @@ class SessionModelRegistry:
                     model=model_config.model_name,
                     model_provider=model_config.model_provider,
                     profiles=model_config.profiles,
+                    default_profile_name=model_config.default_profile
+                )
+            elif isinstance(model_config, ResolvedCohereModelConfig):
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
+                try:
+                    from fenic._inference.cohere.cohere_batch_embeddings_client import (
+                        CohereBatchEmbeddingsClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use Cohere models, please install the required dependencies by running: pip install fenic[cohere]"
+                    ) from err
+                client = CohereBatchEmbeddingsClient(
+                    rate_limit_strategy=rate_limit_strategy,
+                    model=model_config.model_name,
+                    profile_configurations=model_config.profiles,
                     default_profile_name=model_config.default_profile
                 )
             else:
