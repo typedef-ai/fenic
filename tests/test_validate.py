@@ -5,13 +5,8 @@ import pytest
 from pydantic import ConfigDict, ValidationError, validate_call
 
 from fenic import (
-    ExtractSchema,
-    ExtractSchemaField,
-    ExtractSchemaList,
-    IntegerType,
     PredicateExample,
     PredicateExampleCollection,
-    StringType,
 )
 from fenic.api.column import ColumnOrName
 from fenic.api.functions import array, avg, col, semantic, when
@@ -126,30 +121,3 @@ def test_catch_various_as_examples(local_session):
                 "Is this {name} from {city}?", [col("name"), col("city")]
             )
         )
-
-
-def test_catch_various_as_schema():
-    list_output_schema = ExtractSchema(
-        [
-            ExtractSchemaField(
-                name="issues_reported",
-                data_type=ExtractSchemaList(element_type=StringType),
-                description="All issues reported about the product",
-            ),
-            ExtractSchemaField(
-                name="phone_version",
-                data_type=IntegerType,
-                description="specific product number",
-            ),
-        ]
-    )
-    with pytest.raises(ValidationError):
-        semantic.extract(col("review"), [list_output_schema])
-    with pytest.raises(ValidationError):
-        semantic.extract(col("review"), col("support_ticket"))
-    with pytest.raises(ValidationError):
-        semantic.extract(col("review"), [col("support_ticket")])
-    with pytest.raises(ValidationError):
-        semantic.extract(col("review"), {"schema": list_output_schema})
-    with pytest.raises(ValidationError):
-        semantic.extract(col("review"), Enum("Test", ["FOO", "BAR"]))

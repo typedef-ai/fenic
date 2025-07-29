@@ -7,6 +7,7 @@ class ModelProvider(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GOOGLE_GLA = "google-gla"
+    GOOGLE_VERTEX = "google-vertex"
 
 class TieredTokenCost:
 
@@ -43,7 +44,7 @@ class CompletionModelParameters:
         cached_input_token_write_cost: float = 0.0,
         cached_input_token_read_cost: float= 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
-        requires_reasoning_effort = False,
+        supports_reasoning = False,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -54,7 +55,7 @@ class CompletionModelParameters:
         self.tiered_input_token_costs = tiered_token_costs
         self.max_output_tokens = max_output_tokens
         self.max_temperature = max_temperature
-        self.requires_reasoning_effort = requires_reasoning_effort
+        self.supports_reasoning = supports_reasoning
 
 
 class EmbeddingModelParameters:
@@ -63,10 +64,12 @@ class EmbeddingModelParameters:
     Attributes:
         input_token_cost: Cost per input token in USD
         output_dimensions: Number of dimensions in the embedding output
+        max_input_size: Maximum number of tokens in the input string
     """
-    def __init__(self, input_token_cost: float, output_dimensions: int):
+    def __init__(self, input_token_cost: float, output_dimensions: int, max_input_size: int):
         self.input_token_cost = input_token_cost
         self.output_dimensions = output_dimensions
+        self.max_input_size = max_input_size
 
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
@@ -115,14 +118,19 @@ ANTHROPIC_AVAILABLE_LANGUAGE_MODELS = Literal[
 ]
 
 GOOGLE_GLA_AVAILABLE_MODELS = Literal[
+    "gemini-2.5-pro",
     "gemini-2.5-pro-preview-06-05",
-    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite-preview-06-17",
     "gemini-2.0-flash-lite",
     "gemini-2.0-flash-lite-001",
     "gemini-2.0-flash",
     "gemini-2.0-flash-001",
     "gemini-2.0-flash-exp",
 ]
+
+
+GOOGLE_VERTEX_AVAILABLE_MODELS = Union[GOOGLE_GLA_AVAILABLE_MODELS]
 
 AVAILABLE_LANGUAGE_MODELS = Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, ANTHROPIC_AVAILABLE_LANGUAGE_MODELS, GOOGLE_GLA_AVAILABLE_MODELS]
 AVAILABLE_EMBEDDING_MODELS = Union[OPENAI_AVAILABLE_EMBEDDING_MODELS]
@@ -256,42 +264,106 @@ class ModelCatalog:
             "text-embedding-3-small": EmbeddingModelParameters(
                 input_token_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
                 output_dimensions=1536,
+                max_input_size=8192,
             ),
             "text-embedding-3-large": EmbeddingModelParameters(
                 input_token_cost=0.13 / 1_000_000,  # $0.13 per 1M tokens
                 output_dimensions=3072,
+                max_input_size=8192,
+            ),
+        }
+
+        self._google_vertex_completion_models = {
+            "gemini-2.5-pro": CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.03125 / 1_000_000,  # $0.03125 per 1M tokens
+                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                supports_reasoning=True,
+                max_temperature=2.0,
+                tiered_token_costs={
+                    200_000: TieredTokenCost(
+                        input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
+                        cached_input_token_read_cost=0.0625 / 1_000_000,  # $0.0625 per 1M tokens
+                        output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
+                    )
+                }
+            ),
+            "gemini-2.5-flash": CompletionModelParameters(
+                input_token_cost=0.30 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.0375 per 1M tokens
+                output_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "gemini-2.5-flash-lite-preview-06-17": CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.30 per 1M tokens
+                context_window_length=1_000_000,
+                max_output_tokens=64_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "gemini-2.0-flash-lite": CompletionModelParameters(
+                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=8_192,
+                max_temperature=2.0,
+            ),
+            "gemini-2.0-flash": CompletionModelParameters(
+                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                cached_input_token_read_cost=0.0375 / 1_000_000,  # $0.01875 per 1M tokens
+                output_token_cost=0.60 / 1_000_000,  # $0.60 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=8_192,
+                max_temperature=2.0,
             ),
         }
 
         self._google_developer_completion_models = {
-            "gemini-2.5-pro-preview-06-05" : CompletionModelParameters(
-                input_token_cost=1.25 / 1_000_000, # $1.25 per 1M tokens
-                cached_input_token_read_cost= 0.03125/ 1_000_000, # $0.03125 per 1M tokens
-                output_token_cost=10 / 1_000_000, # $10 per 1M tokens
+            "gemini-2.5-pro" : CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.03125 / 1_000_000,  # $0.03125 per 1M tokens
+                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                requires_reasoning_effort=True,
+                max_temperature=2.0,
+                supports_reasoning=True,
                 tiered_token_costs={
-                    200_000 : TieredTokenCost(
-                        input_token_cost=2.50 / 1_000_000, # $2.50 per 1M tokens
-                        cached_input_token_read_cost= 0.0625/ 1_000_000, # $0.0625 per 1M tokens
-                        output_token_cost=15 / 1_000_000, # $15.00 per 1M tokens
+                    200_000: TieredTokenCost(
+                        input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
+                        cached_input_token_read_cost=0.0625 / 1_000_000,  # $0.0625 per 1M tokens
+                        output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 }
             ),
-            "gemini-2.5-flash-preview-05-20" : CompletionModelParameters(
+            "gemini-2.5-flash" : CompletionModelParameters(
                 input_token_cost=0.15 / 1_000_000, # $1.25 per 1M tokens
-                cached_input_token_read_cost= 0.0375/ 1_000_000, # $0.0375 per 1M tokens
-                output_token_cost=0.60 / 1_000_000, # $.60 per 1M tokens (non reasoning)
+                cached_input_token_read_cost= 0.075/ 1_000_000, # $0.0375 per 1M tokens
+                output_token_cost=2.50 / 1_000_000, # $2.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                requires_reasoning_effort=True,
+                max_temperature=2.0,
+                supports_reasoning=True,
+            ),
+            "gemini-2.5-flash-lite-preview-06-17" : CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000, # $0.075 per 1M tokens
+                output_token_cost=0.40 / 1_000_000, # $0.30 per 1M tokens
+                context_window_length=1_000_000,
+                max_output_tokens=64_000,
+                max_temperature=2.0,
+                supports_reasoning=True,
             ),
             "gemini-2.0-flash-lite" : CompletionModelParameters(
                 input_token_cost=0.075 / 1_000_000, # $0.075 per 1M tokens
                 output_token_cost=0.30 / 1_000_000, # $0.30 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
+                max_temperature=2.0,
             ),
             "gemini-2.0-flash": CompletionModelParameters(
                 input_token_cost=0.10 / 1_000_000, # $0.15 per 1M tokens
@@ -299,6 +371,7 @@ class ModelCatalog:
                 output_token_cost=0.40 / 1_000_000, # $0.60 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
+                max_temperature=2.0,
             ),
         }
 
@@ -330,6 +403,13 @@ class ModelCatalog:
             ],
             (ModelProvider.ANTHROPIC, "claude-3-opus-latest"): ["claude-3-opus-20240229"],
             # Google (Vertex) Snapshots
+            (ModelProvider.GOOGLE_VERTEX, "gemini-2.5-pro"): ["gemini-2.5-pro-preview-06-05"],
+            (ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash-lite"): ["gemini-2.0-flash-lite-001"],
+            (ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash"): [
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-exp",
+            ],
+            (ModelProvider.GOOGLE_GLA, "gemini-2.5-pro") : ["gemini-2.5-pro-preview-06-05"],
             (ModelProvider.GOOGLE_GLA, "gemini-2.0-flash-lite") : ["gemini-2.0-flash-lite-001"],
             (ModelProvider.GOOGLE_GLA, "gemini-2.0-flash") : [
                 "gemini-2.0-flash-001",
@@ -357,6 +437,11 @@ class ModelCatalog:
                 self._language_model_snapshots,
                 ModelProvider.GOOGLE_GLA
             ),
+            ModelProvider.GOOGLE_VERTEX: self._create_complete_model_collection(
+                self._google_vertex_completion_models,
+                self._language_model_snapshots,
+                ModelProvider.GOOGLE_VERTEX
+            )
         }
 
         self._complete_embedding_models = {
@@ -364,7 +449,7 @@ class ModelCatalog:
                 self._openai_embedding_models,
                 self._embedding_model_snapshots,
                 ModelProvider.OPENAI
-            ),
+            )
         }
 
     # Public methods
@@ -491,14 +576,14 @@ class ModelCatalog:
     def calculate_embedding_model_cost(self,
                                        model_provider: ModelProvider,
                                        model_name: str,
-                                       tokens: int
+                                       billable_inputs: int
                                        ) -> float:
         """Calculates the total cost for an embedding model operation.
 
         Args:
             model_provider: The provider of the model
             model_name: The name of the model
-            tokens: Number of tokens to embed
+            billable_inputs: Number of tokens or characters to embed (some Google models charge per character)
 
         Returns:
             Total cost in USD
@@ -509,7 +594,7 @@ class ModelCatalog:
         model_costs = self.get_embedding_model_parameters(model_provider, model_name)
         if model_costs is None:
             raise ValueError(self.generate_unsupported_embedding_model_error_message(model_provider, model_name))
-        return tokens * model_costs.input_token_cost
+        return billable_inputs * model_costs.input_token_cost
 
     # Private methods
     def _create_complete_model_collection(

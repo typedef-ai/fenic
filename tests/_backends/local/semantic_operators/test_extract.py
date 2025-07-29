@@ -1,5 +1,5 @@
-from enum import Enum
-from typing import List, Optional
+from textwrap import dedent
+from typing import List, Literal, Optional
 
 import polars as pl
 from pydantic import BaseModel, Field
@@ -7,64 +7,46 @@ from pydantic import BaseModel, Field
 from fenic._backends.local.semantic_operators.extract import Extract
 
 
-class StatusEnum(str, Enum):
-    """Enumeration for the status of a task."""
-
-    TODO = "To Do"
-    IN_PROGRESS = "In Progress"
-    DONE = "Done"
-
-
-class SubTask(BaseModel):
-    """Model representing a sub-task of a main task."""
-
-    title: str = Field(..., description="Title of the sub-task.")
-    completed: bool = Field(..., description="Whether the sub-task has been completed.")
-
-
-class Task(BaseModel):
-    """Model representing a task in a to-do application."""
-
-    id: int = Field(..., description="Unique identifier for the task.")
-    title: str = Field(..., description="Title or name of the task.")
-    description: Optional[str] = Field(
-        None, description="Detailed description of the task."
-    )
-    tags: List[str] = Field(..., description="List of tags associated with the task.")
-    status: StatusEnum = Field(..., description="Current status of the task.")
-    subtasks: List[SubTask] = Field(
-        ..., description="List of sub-tasks related to this task."
+class WorkExperience(BaseModel):
+    company: str = Field(description="Name of the company")
+    title: str = Field(description="Job title held")
+    start_year: int = Field(description="Year the job started")
+    end_year: Optional[int] = Field(None, description="Year the job ended (if applicable)")
+    description: Optional[str] = Field(None, description="Short description of responsibilities")
+    employment_type: Optional[Literal["full-time", "part-time", "contractor"]] = Field(
+        None, description="Type of employment"
     )
 
+class Education(BaseModel):
+    institution: str = Field(description="Name of the educational institution")
+    major: str = Field(description="Field of study")
+    graduation_year: Optional[int] = Field(None, description="Year of graduation")
 
-class TaskList(BaseModel):
-    """Container model holding a list of tasks."""
-
-    owner: str = Field(..., description="Username of the task list owner.")
-    tasks: List[Task] = Field(..., description="List of tasks belonging to the user.")
-
+class Resume(BaseModel):
+    name: str = Field(description="Full name of the candidate")
+    work_experience: List[WorkExperience] = Field(description="List of work experiences")
+    skills: List[str] = Field(description="List of individual skills mentioned")
+    education: Optional[Education] = Field(None, description="Education details")
 
 class TestExtract:
     """Test cases for the Extract operator."""
 
     def test_build_prompts(self, local_session):
-        document = """
-Alice has a task list containing one main task. The task has the ID `1` and is titled **"Build Pydantic Model"**. Its purpose is to **create a sample with nested structures, enums, and lists**.
+        jane_resume = dedent(
+            """\
+            Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a full-time Machine Learning Engineer, focusing on NLP research.
+            Before that, she was at Google as a full-time Software Engineer from 2018 to 2021, building distributed systems.
 
-This task is currently marked as **"In Progress"**. It is associated with the tags: **python**, **pydantic**, and **modeling**.
+            She is skilled in Python, PyTorch, and distributed computing. Also familiar with Rust and Kubernetes.
 
-There are two subtasks under this main task:
-1. **"Write model"** – this subtask has already been completed.
-2. **"Add descriptions"** – this subtask is still pending.
+            She graduated from MIT in 2017 with a degree in Computer Science."""
+        ).strip()
 
-        The task list belongs to the user **alice**.
-        """
-
-        input = pl.Series("input", [document])
+        input = pl.Series("input", [jane_resume])
 
         extract = Extract(
             input=input,
-            schema=TaskList,
+            schema=Resume,
             model=local_session._session_state.get_language_model(),
             max_output_tokens=1024,
             temperature=0,
@@ -76,53 +58,51 @@ There are two subtasks under this main task:
                 extract.build_request_messages_batch(),
             )
         )
-        expected = [
-            [
-                {
-                    "content": "You are an expert at structured data extraction. Your task is "
-                    "to extract relevant information from a given document. Your "
-                    "output must be a structured JSON object. Expected JSON keys and "
-                    "descriptions:\n"
-                    "owner (str): Username of the task list owner.\n"
-                    "tasks (list of objects): List of tasks belonging to the user.\n"
-                    "tasks[item].id (int): Unique identifier for the task.\n"
-                    "tasks[item].title (str): Title or name of the task.\n"
-                    "tasks[item].description (str (optional)): Detailed description "
-                    "of the task.\n"
-                    "tasks[item].tags (list of str): List of tags associated with "
-                    "the task.\n"
-                    "tasks[item].status (StatusEnum): Current status of the task.\n"
-                    "tasks[item].subtasks (list of objects): List of sub-tasks "
-                    "related to this task.\n"
-                    "tasks[item].subtasks[item].title (str): Title of the sub-task.\n"
-                    "tasks[item].subtasks[item].completed (bool): Whether the "
-                    "sub-task has been completed.Notes on the structure:\n"
-                    "- Field names with parent.child notation indicate nested "
-                    "objects\n"
-                    "- [item] notation indicates items within a list\n"
-                    "- Type information is provided in parentheses\n",
-                    "role": "system",
-                },
-                {
-                    "content": "\n"
-                    "Alice has a task list containing one main task. The task has "
-                    'the ID `1` and is titled **"Build Pydantic Model"**. Its '
-                    "purpose is to **create a sample with nested structures, enums, "
-                    "and lists**.\n"
-                    "\n"
-                    'This task is currently marked as **"In Progress"**. It is '
-                    "associated with the tags: **python**, **pydantic**, and "
-                    "**modeling**.\n"
-                    "\n"
-                    "There are two subtasks under this main task:\n"
-                    '1. **"Write model"** – this subtask has already been '
-                    "completed.\n"
-                    '2. **"Add descriptions"** – this subtask is still pending.\n'
-                    "\n"
-                    "        The task list belongs to the user **alice**.\n"
-                    "        ",
-                    "role": "user",
-                },
-            ]
-        ]
+
+        expected = [[
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert at structured data extraction. Your task is to extract relevant information from a given document using only the information explicitly stated in the text. You must adhere strictly to the provided field definitions. Do not infer or generate information that is not directly supported by the document.\n\n"
+                    "The field schema below defines the structure of the information you are expected to extract.\n\n"
+                    "How to read the field schema:\n"
+                    "- Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')\n"
+                    "- Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of [string])\n"
+                    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n\n"
+                    "Extraction Guidelines:\n"
+                    "1. Extract only what is explicitly present or clearly supported in the document—do not guess or extrapolate.\n"
+                    "2. For list fields, extract all items that match the field description.\n"
+                    "3. If a field is not found in the document, return null for single values and [] for lists.\n"
+                    "4. Ensure all field names in your structured output exactly match the field schema.\n"
+                    "5. Be thorough and precise—capture all relevant content without changing or omitting meaning.\n\n"
+                    "Field Schema:\n"
+                    "name (str): Full name of the candidate\n"
+                    "work_experience (list of objects): List of work experiences\n"
+                    "work_experience[item].company (str): Name of the company\n"
+                    "work_experience[item].title (str): Job title held\n"
+                    "work_experience[item].start_year (int): Year the job started\n"
+                    "work_experience[item].end_year (int (optional)): Year the job ended (if applicable)\n"
+                    "work_experience[item].description (str (optional)): Short description of responsibilities\n"
+                    "work_experience[item].employment_type ('full-time' or 'part-time' or 'contractor' (optional)): Type of employment\n"
+                    "skills (list of str): List of individual skills mentioned\n"
+                    "education (object (optional)): Education details\n"
+                    "education.institution (str): Name of the educational institution\n"
+                    "education.major (str): Field of study\n"
+                    "education.graduation_year (int (optional)): Year of graduation"
+                ),
+            },
+            {
+                "role": "user",
+                "content": dedent(
+                    """\
+                    Jane Doe is a software engineer with over 6 years of experience. She worked at OpenAI from 2021 to 2024 as a full-time Machine Learning Engineer, focusing on NLP research.
+                    Before that, she was at Google as a full-time Software Engineer from 2018 to 2021, building distributed systems.
+
+                    She is skilled in Python, PyTorch, and distributed computing. Also familiar with Rust and Kubernetes.
+
+                    She graduated from MIT in 2017 with a degree in Computer Science."""
+                ),
+            },
+        ]]
+
         assert result == expected

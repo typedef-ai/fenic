@@ -1,20 +1,21 @@
 """Expression classes for internal implementation of column operations."""
 
-from fenic.core._logical_plan.expressions.aggregate import (
-    AggregateExpr as AggregateExpr,
-)
 from fenic.core._logical_plan.expressions.aggregate import AvgExpr as AvgExpr
 from fenic.core._logical_plan.expressions.aggregate import CountExpr as CountExpr
+from fenic.core._logical_plan.expressions.aggregate import FirstExpr as FirstExpr
 from fenic.core._logical_plan.expressions.aggregate import ListExpr as ListExpr
 from fenic.core._logical_plan.expressions.aggregate import MaxExpr as MaxExpr
 from fenic.core._logical_plan.expressions.aggregate import MinExpr as MinExpr
+from fenic.core._logical_plan.expressions.aggregate import StdDevExpr as StdDevExpr
 from fenic.core._logical_plan.expressions.aggregate import SumExpr as SumExpr
 from fenic.core._logical_plan.expressions.arithmetic import (
     ArithmeticExpr as ArithmeticExpr,
 )
+from fenic.core._logical_plan.expressions.base import AggregateExpr as AggregateExpr
 from fenic.core._logical_plan.expressions.base import BinaryExpr as BinaryExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr as LogicalExpr
 from fenic.core._logical_plan.expressions.base import Operator as Operator
+from fenic.core._logical_plan.expressions.base import SemanticExpr as SemanticExpr
 from fenic.core._logical_plan.expressions.basic import AliasExpr as AliasExpr
 from fenic.core._logical_plan.expressions.basic import (
     ArrayContainsExpr as ArrayContainsExpr,
@@ -75,10 +76,10 @@ from fenic.core._logical_plan.expressions.semantic import (
     EmbeddingsExpr as EmbeddingsExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
-    SemanticClassifyExpr as SemanticClassifyExpr,
+    ResolvedClassDefinition as ResolvedClassDefinition,
 )
 from fenic.core._logical_plan.expressions.semantic import (
-    SemanticExpr as SemanticExpr,
+    SemanticClassifyExpr as SemanticClassifyExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticExtractExpr as SemanticExtractExpr,
@@ -91,6 +92,9 @@ from fenic.core._logical_plan.expressions.semantic import (
 )
 from fenic.core._logical_plan.expressions.semantic import (
     SemanticReduceExpr as SemanticReduceExpr,
+)
+from fenic.core._logical_plan.expressions.semantic import (
+    SemanticSummarizeExpr as SemanticSummarizeExpr,
 )
 from fenic.core._logical_plan.expressions.text import ArrayJoinExpr as ArrayJoinExpr
 from fenic.core._logical_plan.expressions.text import (
@@ -112,7 +116,17 @@ from fenic.core._logical_plan.expressions.text import (
 )
 from fenic.core._logical_plan.expressions.text import EndsWithExpr as EndsWithExpr
 from fenic.core._logical_plan.expressions.text import EscapingRule as EscapingRule
+from fenic.core._logical_plan.expressions.text import (
+    FuzzyRatioExpr as FuzzyRatioExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    FuzzyTokenSetRatioExpr as FuzzyTokenSetRatioExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    FuzzyTokenSortRatioExpr as FuzzyTokenSortRatioExpr,
+)
 from fenic.core._logical_plan.expressions.text import ILikeExpr as ILikeExpr
+from fenic.core._logical_plan.expressions.text import JinjaExpr as JinjaExpr
 from fenic.core._logical_plan.expressions.text import LikeExpr as LikeExpr
 from fenic.core._logical_plan.expressions.text import (
     ParsedTemplateFormat as ParsedTemplateFormat,

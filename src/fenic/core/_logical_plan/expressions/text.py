@@ -3,25 +3,42 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Set, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+
+from fenic.core._logical_plan.jinja_validation import (
+    VariableTree,
+)
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
+    from fenic.core._logical_plan.plans.base import LogicalPlan
+
+import logging
 
 from pydantic import BaseModel, Field
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core.error import TypeMismatchError
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    ValidatedDynamicSignature,
+    ValidatedSignature,
+)
+from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
+from fenic.core.error import ValidationError
 from fenic.core.types import (
-    ArrayType,
-    BooleanType,
     ColumnField,
-    DoubleType,
-    IntegerType,
+    DataType,
+    FuzzySimilarityMethod,
+    JsonType,
     StringType,
     StructField,
     StructType,
 )
+
+logger = logging.getLogger(__name__)
+
+class TokenType(Enum):
+    DELIMITER = auto()    # Literal text content
+    COLUMN = auto()  # Column placeholder with optional format
 
 
 class EscapingRule(Enum):
@@ -33,101 +50,100 @@ class EscapingRule(Enum):
     QUALIFIED = auto()
 
     @classmethod
-    def from_string(cls, s: str) -> EscapingRule:
+    def from_string(cls, s: str) -> 'EscapingRule':
         s_upper = s.upper()
         if s_upper in cls.__members__:
             return cls[s_upper]
         valid = ", ".join(m.lower() for m in cls.__members__)
         raise ValueError(f"Invalid escaping rule '{s}'. Valid are {valid}")
 
-
 @dataclass
 class ParsedTemplateFormat:
     delimiters: List[str] = field(default_factory=list)
     escaping_rules: List[EscapingRule] = field(default_factory=list)
     columns: List[str] = field(default_factory=list)
-    new_columns: Set[str] = field(default_factory=set)
+    _original_format: str = field(default="", init=False)
 
-    def parse(self, format_string: str, existing_columns: Set[str]) -> None:
-        self.delimiters.clear()
-        self.escaping_rules.clear()
-        self.columns.clear()
-        self.new_columns.clear()
+    @classmethod
+    def parse(cls, format_string: str) -> 'ParsedTemplateFormat':
+        """Parse a template format string like 'prefix${col1}middle${col2:csv}suffix'."""
+        instance = cls()
+        instance._original_format = format_string
 
-        self.delimiters.append("")  # Start with empty delimiter
+        try:
+            tokens = instance._tokenize(format_string)
+            instance._process_tokens(tokens)
+            return instance
+        except ValueError as e:
+            # Enhance error with dump() context
+            raise ValidationError(f"{e}\n\nDebug:\n{instance.dump()}") from e
 
-        class ParserState(Enum):
-            DELIMITER = auto()
-            COLUMN = auto()
-            FORMAT = auto()
-
-        state = ParserState.DELIMITER
-        token_begin = 0
+    def _tokenize(self, format_string: str) -> List[Tuple[TokenType, str]]:
+        """Break format string into TEXT and COLUMN tokens."""
+        tokens = []
         pos = 0
 
         while pos < len(format_string):
-            char = format_string[pos]
-            if state == ParserState.DELIMITER:
-                if char == "$":
-                    # Add any pending text to the current delimiter
-                    self.delimiters[-1] += format_string[token_begin:pos]
-                    pos += 1
-                    if pos >= len(format_string):
-                        self._throw_invalid_format(
-                            "Unexpected end after $", len(self.columns)
-                        )
+            dollar_pos = format_string.find('$', pos)
 
-                    if format_string[pos] == "{":
-                        state = ParserState.COLUMN
-                        token_begin = pos + 1
-                    elif format_string[pos] == "$":
-                        # Escaped $$
-                        self.delimiters[-1] += "$"
-                        token_begin = pos + 1
-                    else:
-                        self._throw_invalid_format(
-                            f"Expected '{{' or '$' after '$', got '{format_string[pos:pos+16]}'",
-                            len(self.columns),
-                        )
-                # else keep scanning for next $
-            elif state == ParserState.COLUMN:
-                if char in ("}", ":"):
-                    col_name = format_string[token_begin:pos].strip()
-                    self.columns.append(col_name)
-                    if col_name not in existing_columns:
-                        self.new_columns.add(col_name)
+            if dollar_pos == -1:
+                if pos < len(format_string):
+                    tokens.append((TokenType.DELIMITER, format_string[pos:]))
+                break
 
-                    if char == ":":
-                        state = ParserState.FORMAT
-                        token_begin = pos + 1
-                    else:  # char == '}'
-                        self.escaping_rules.append(EscapingRule.NONE)
-                        self.delimiters.append("")
-                        state = ParserState.DELIMITER
-                        token_begin = pos + 1
-            elif state == ParserState.FORMAT:
-                if char == "}":
-                    fmt_str = format_string[token_begin:pos].strip()
-                    rule = EscapingRule.from_string(fmt_str)
-                    self.escaping_rules.append(rule)
-                    self.delimiters.append("")
-                    state = ParserState.DELIMITER
-                    token_begin = pos + 1
+            if dollar_pos > pos:
+                tokens.append((TokenType.DELIMITER, format_string[pos:dollar_pos]))
 
-            pos += 1
+            if dollar_pos + 1 >= len(format_string):
+                raise ValueError(f"Unexpected end after '$' at position {dollar_pos}")
 
-        if state == ParserState.DELIMITER:
-            self.delimiters[-1] += format_string[token_begin:pos]
+            next_char = format_string[dollar_pos + 1]
+            if next_char == '$':
+                tokens.append((TokenType.DELIMITER, '$'))
+                pos = dollar_pos + 2
+            elif next_char == '{':
+                brace_pos = format_string.find('}', dollar_pos + 2)
+                if brace_pos == -1:
+                    raise ValueError(f"Unmatched opening brace starting at position {dollar_pos + 1}")
+
+                column_content = format_string[dollar_pos + 2:brace_pos]
+                tokens.append((TokenType.COLUMN, column_content))
+                pos = brace_pos + 1
+            else:
+                raise ValueError(f"Expected '{{' or '$' after '$' at position {dollar_pos + 1}, got '{next_char}'")
+
+        return tokens
+
+    def _process_tokens(self, tokens: List[Tuple[TokenType, str]]) -> None:
+        """Process tokens into delimiters, columns, and escaping rules."""
+        self.delimiters.append("")  # Start with empty delimiter
+
+        for token_type, content in tokens:
+            if token_type == TokenType.DELIMITER:
+                self.delimiters[-1] += content
+            elif token_type == TokenType.COLUMN:
+                self._process_column_token(content)
+                self.delimiters.append("")  # Start new delimiter after column
+
+    def _process_column_token(self, content: str) -> None:
+        """Process a column token like 'col_name' or 'col_name:csv'."""
+        if ':' in content:
+            col_name, format_spec = content.split(':', 1)
+            col_name = col_name.strip()
+            format_spec = format_spec.strip()
+            escaping_rule = EscapingRule.from_string(format_spec)
         else:
-            self._throw_invalid_format("Unbalanced braces", len(self.columns))
+            col_name = content.strip()
+            escaping_rule = EscapingRule.NONE
 
-    def _throw_invalid_format(self, message: str, column_index: int):
-        raise ValueError(
-            f"Invalid format string: {message} (at or near column {column_index})\n"
-            f"Debug:\n{self.dump()}"
-        )
+        if not col_name:
+            raise ValueError("Column name cannot be empty")
+
+        self.columns.append(col_name)
+        self.escaping_rules.append(escaping_rule)
 
     def dump(self) -> str:
+        """Return a debug representation of the parsed format."""
         lines = []
         for i, delim in enumerate(self.delimiters):
             lines.append(f"Delimiter {i}: {repr(delim)}")
@@ -136,36 +152,39 @@ class ParsedTemplateFormat:
                 lines.append(f"  Escaping: {self.escaping_rules[i].name}")
         return "\n".join(lines)
 
+    def to_struct_schema(self) -> StructType:
+        return StructType(
+            struct_fields=[
+                StructField(
+                    name=col,
+                    data_type=JsonType if self.escaping_rules[i] == EscapingRule.JSON else StringType
+                )
+                for i, col in enumerate(self.columns)
+            ]
+        )
 
-class TextractExpr(LogicalExpr):
+class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
+    function_name = "text.extract"
+
     def __init__(self, input_expr: LogicalExpr, template: str):
         self.input_expr = input_expr
         self.template = template
-        self.parsed_template = ParsedTemplateFormat()
-        self.parsed_template.parse(template, set())
+        self.parsed_template = ParsedTemplateFormat.parse(template)
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self):
-        return f"text.extract('{self.template}', {self.input_expr})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        expr_field = self.input_expr.to_column_field(plan)
-        if expr_field.data_type != StringType:
-            raise TypeError(
-                f"text.extract requires string type for input expression, got {expr_field.data_type}. "
-                "The input must be a text column to extract fields from."
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        struct_fields = [
-            StructField(name=col, data_type=StringType)
-            for col in self.parsed_template.columns
-        ]
-        result_field = ColumnField(str(self), StructType(struct_fields=struct_fields))
-        return result_field
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
+
+    def __str__(self):
+        return f"{self.function_name}('{self.template}', {self.input_expr})"
+
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+        """Return StructType with fields based on parsed template."""
+        return self.parsed_template.to_struct_schema()
 
 
 class ChunkLengthFunction(Enum):
@@ -187,132 +206,121 @@ class TextChunkExprConfiguration(BaseModel):
     chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
 
 
-class TextChunkExpr(LogicalExpr):
+class TextChunkExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.chunk"
+
     def __init__(
         self,
         input_expr: LogicalExpr,
-        chunk_configuration: TextChunkExprConfiguration,
+        desired_chunk_size: int,
+        chunk_overlap_percentage: int = 0,
+        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
     ):
         self.input_expr = input_expr
-        self.chunk_configuration = chunk_configuration
+        self.chunk_configuration = TextChunkExprConfiguration(
+            desired_chunk_size=desired_chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=chunk_length_function_name,
+        )
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"text_chunk({self.input_expr}, {self.chunk_configuration})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_chunk requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
 
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
     chunking_character_set_custom_characters: Optional[list[str]] = None
 
 
-class RecursiveTextChunkExpr(LogicalExpr):
+class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.recursive_chunk"
+
     def __init__(
         self,
         input_expr: LogicalExpr,
-        chunking_configuration: RecursiveTextChunkExprConfiguration,
+        desired_chunk_size: int,
+        chunk_overlap_percentage: int = 0,
+        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
+        chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
+        chunking_character_set_custom_characters: Optional[list[str]] = None
     ):
         self.input_expr = input_expr
-        self.chunking_configuration = chunking_configuration
+        self.chunking_configuration = RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=desired_chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=chunk_length_function_name,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
+        )
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"text_chunk({self.input_expr}, {self.chunking_configuration})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_chunk requires a string input, got {input_field.data_type}"
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
-
-class CountTokensExpr(LogicalExpr):
-    def __init__(
-        self,
-        input_expr: LogicalExpr,
-    ):
-        self.input_expr = input_expr
-
     def __str__(self) -> str:
-        return f"count_tokens({self.input_expr})"
+        return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
-    def _validate_types(self, plan: "LogicalPlan"):
-        input_field = self.input_expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"count_tokens requires a string input, got {input_field.data_type}"
-            )
 
-    def to_column_field(self, plan: "LogicalPlan") -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=IntegerType)
+class CountTokensExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.count_tokens"
+
+    def __init__(self, input_expr: LogicalExpr):
+        self.input_expr = input_expr
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
-class ConcatExpr(LogicalExpr):
+class ConcatExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.concat"
+
     def __init__(self, exprs: List[LogicalExpr]):
         self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"concat({', '.join(str(expr) for expr in self.exprs)})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        for arg in self.exprs:
-            arg_field = arg.to_column_field(plan)
-            if isinstance(arg_field.data_type, ArrayType) or isinstance(
-                arg_field.data_type, StructType
-            ):
-                raise TypeError(
-                    f"concat requires primitive types castable to strings, got {arg_field.data_type}"
-                )
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
 
-class ArrayJoinExpr(LogicalExpr):
+class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.array_join"
+
     def __init__(self, expr: LogicalExpr, delimiter: str):
         self.expr = expr
         self.delimiter = delimiter
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"array_join({self.expr}, {self.delimiter})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != ArrayType(element_type=StringType):
-            raise TypeError(
-                f"array_join requires an array of strings as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.delimiter})"
 
-class ContainsExpr(LogicalExpr):
+
+class ContainsExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column contains a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -320,35 +328,31 @@ class ContainsExpr(LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to search for within each value
+        substr: The substring to search for within each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
     """
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    function_name = "text.contains"
+
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"contains({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"contains requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=BooleanType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
+        return [self.expr, self.substr]
+
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.substr})"
 
 
-class ContainsAnyExpr(LogicalExpr):
+class ContainsAnyExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column contains any of multiple substrings.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -363,29 +367,28 @@ class ContainsAnyExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.contains_any"
+
     def __init__(
         self, expr: LogicalExpr, substrs: List[str], case_insensitive: bool = True
     ):
         self.expr = expr
         self.substrs = substrs
         self.case_insensitive = case_insensitive
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"contains_any({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"contains_any requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=BooleanType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
 
-class RLikeExpr(LogicalExpr):
+
+class RLikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for matching a string column against a regular expression pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -397,33 +400,35 @@ class RLikeExpr(LogicalExpr):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the regular expression pattern is invalid
+        ValidationError: If the regular expression pattern is invalid
     """
+
+    function_name = "text.rlike"
 
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.pattern = pattern
 
-    def __str__(self) -> str:
-        return f"rlike({self.expr}, {self.pattern})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"rlike requires column of type string as input, got {input_field.data_type}"
-            )
+        # Validate regex pattern at construction time
         try:
-            re.compile(self.pattern)
+            re.compile(pattern)
         except Exception as e:
-            raise ValueError(f"Invalid regex pattern: {self.pattern}") from e
-        return ColumnField(name=str(self), data_type=BooleanType)
+            raise ValidationError(f"Invalid regex pattern: {pattern}") from e
+
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
-class LikeExpr(LogicalExpr):
+
+class LikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for matching a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -435,13 +440,30 @@ class LikeExpr(LogicalExpr):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the LIKE pattern is invalid
+        ValidationError: If the LIKE pattern is invalid
     """
+
+    function_name = "text.like"
 
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.raw_pattern = pattern
         self.pattern = self._convert_to_regex(pattern)
+
+        # Validate the converted pattern
+        try:
+            re.compile(self.pattern)
+        except Exception as e:
+            raise ValidationError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
+
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _convert_to_regex(self, pattern: str) -> str:
         # Convert SQL LIKE pattern to regex pattern
@@ -453,25 +475,10 @@ class LikeExpr(LogicalExpr):
         return pattern
 
     def __str__(self) -> str:
-        return f"like({self.expr}, {self.raw_pattern}, {self.pattern})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"like/ilike requires column of type string as input, got {input_field.data_type}"
-            )
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValueError(f"Invalid LIKE/ILIKE pattern: {self.raw_pattern}") from e
-        return ColumnField(name=str(self), data_type=BooleanType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
 
 
-class ILikeExpr(LikeExpr):
+class ILikeExpr(ValidatedSignature, LogicalExpr):
     """Expression for case-insensitive matching of a string column against a SQL LIKE pattern.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -484,72 +491,64 @@ class ILikeExpr(LikeExpr):
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the LIKE pattern is invalid
+        ValidationError: If the LIKE pattern is invalid
     """
+
+    function_name = "text.ilike"
 
     def __init__(self, expr: LogicalExpr, pattern: str):
         self.expr = expr
         self.raw_pattern = pattern
         self.pattern = self._convert_to_regex(pattern)
 
-    def __str__(self) -> str:
-        return f"ilike({self.expr}, {self.raw_pattern}, {self.pattern})"
+        # Validate the converted pattern
+        try:
+            re.compile(self.pattern)
+        except Exception as e:
+            raise ValidationError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
 
-    def _convert_to_regex(self, pattern: str) -> str:
-        converted_pattern = super()._convert_to_regex(pattern)
-        return f"(?i){converted_pattern}"
+        self._validator = SignatureValidator(self.function_name)
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return super().to_column_field(plan)
-
-    def count_semantic_predicate_expressions(self) -> int:
-        return self.expr.count_semantic_predicate_expressions()
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
 
-class TsParseExpr(LogicalExpr):
-    # Unified schema for all transcript formats
-    OUTPUT_TYPE = ArrayType(
-        element_type=StructType(
-            [
-                StructField("index", IntegerType),        # Optional[int] - Entry index (1-based)
-                StructField("speaker", StringType),       # Optional[str] - Speaker name
-                StructField("start_time", DoubleType),    # float - Start time in seconds
-                StructField("end_time", DoubleType),      # Optional[float] - End time in seconds
-                StructField("duration", DoubleType),      # Optional[float] - Duration in seconds
-                StructField("content", StringType),       # str - Transcript content/text
-                StructField("format", StringType),        # str - Original format ("srt" or "generic")
-            ]
-        )
-    )
+    def _convert_to_regex(self, pattern: str) -> str:
+        # Convert SQL LIKE pattern to regex pattern with case insensitivity
+        # Escape special regex characters except % and _
+        special_chars = r"[](){}^$.|+\\"
+        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
+        # Convert SQL wildcards to regex wildcards
+        pattern = pattern.replace("%", ".*").replace("_", ".")
+        return f"(?i){pattern}"
+
+
+class TsParseExpr(ValidatedSignature, LogicalExpr):
+    function_name = "text.parse_transcript"
 
     def __init__(self, expr: LogicalExpr, format: str):
         self.expr = expr
         self.format = format
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"parse_transcript({self.expr}, {self.format})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeMismatchError(
-                "text.parse_transcript()",
-                self.expr,
-                StringType,
-            )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=self.OUTPUT_TYPE)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.format})"
 
-class StartsWithExpr(LogicalExpr):
+
+class StartsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column starts with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -557,38 +556,29 @@ class StartsWithExpr(LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the start of each value
+        substr: The substring to check for at the start of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the substring starts with a regular expression anchor (^)
+        ValidationError: If the substring starts with a regular expression anchor (^)
     """
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    function_name = "text.starts_with"
+
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"starts_with({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"starts_with requires column of type string as input, got {input_field.data_type}"
-            )
-        if isinstance(self.substr, str) and self.substr.startswith("^"):
-            raise ValueError("substr should not start with a regular expression anchor")
-        return ColumnField(name=str(self), data_type=BooleanType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
+        return [self.expr, self.substr]
 
 
-class EndsWithExpr(LogicalExpr):
+class EndsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column ends with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -596,38 +586,29 @@ class EndsWithExpr(LogicalExpr):
 
     Args:
         expr: The input string column expression
-        substr: The substring to check for at the end of each value
+        substr: The substring to check for at the end of each value (column expression or LiteralExpr string)
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If the substring ends with a regular expression anchor ($)
+        ValidationError: If the substring ends with a regular expression anchor ($)
     """
 
-    def __init__(self, expr: LogicalExpr, substr: Union[str, LogicalExpr]):
+    function_name = "text.ends_with"
+
+    def __init__(self, expr: LogicalExpr, substr: LogicalExpr):
         self.expr = expr
         self.substr = substr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"ends_with({self.expr}, {self.substr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"ends_with requires column of type string as input, got {input_field.data_type}"
-            )
-        if isinstance(self.substr, str) and self.substr.endswith("$"):
-            raise ValueError("substr should not end with a regular expression anchor")
-        return ColumnField(name=str(self), data_type=BooleanType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.substr, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.substr]
+        return [self.expr, self.substr]
 
 
-class RegexpSplitExpr(LogicalExpr):
+class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
     """Expression for splitting a string column using a regular expression pattern.
 
     This expression creates an array of substrings by splitting the input string column
@@ -644,27 +625,27 @@ class RegexpSplitExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.regexp_split"
+
     def __init__(self, expr: LogicalExpr, pattern: str, limit: int = -1):
         self.expr = expr
         self.pattern = pattern
         self.limit = limit
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"regexp_split({self.expr}, {self.pattern}, limit={self.limit})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"regexp_split requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=ArrayType(element_type=StringType))
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.pattern}, limit={self.limit})"
 
-class SplitPartExpr(LogicalExpr):
+
+
+class SplitPartExpr(ValidatedSignature, LogicalExpr):
     """Expression for splitting a string column and returning a specific part.
 
     This expression splits each string by a delimiter and returns the specified part (1-based indexing).
@@ -680,42 +661,33 @@ class SplitPartExpr(LogicalExpr):
 
     Args:
         expr: The input string column expression
-        delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        delimiter: The delimiter to split on (column expression or LiteralExpr string)
+        part_number: Which part to return (1-based, column expression or LiteralExpr integer)
 
     Raises:
-        TypeError: If the input expression is not a string column
-        ValueError: If part_number is 0
+        TypeMismatchError: If the input expression is not a string column
+        ValidationError: If part_number is 0
     """
 
+    function_name = "text.split_part"
+
     def __init__(
-        self, expr: LogicalExpr, delimiter: Union[LogicalExpr, str], part_number: int
+        self, expr: LogicalExpr, delimiter: LogicalExpr, part_number: LogicalExpr
     ):
         self.expr = expr
         self.delimiter = delimiter
         self.part_number = part_number
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return (
-            f"text_split({self.expr}, {self.delimiter}, part_number={self.part_number})"
-        )
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"text_split requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        if isinstance(self.delimiter, str):
-            return [self.expr]
-        else:
-            return [self.expr, self.delimiter]
+        return [self.expr, self.delimiter, self.part_number]
 
 
-class StringCasingExpr(LogicalExpr):
+class StringCasingExpr(ValidatedSignature, LogicalExpr):
     """Expression for converting the case of a string column.
 
     This expression creates a new string column with all values converted to the specified case.
@@ -728,26 +700,22 @@ class StringCasingExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.string_casing"
+
     def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
         self.expr = expr
         self.case = case
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"string_casing({self.expr}, {self.case})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"string_casing requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class StripCharsExpr(LogicalExpr):
+class StripCharsExpr(ValidatedSignature, LogicalExpr):
     """Expression for removing specified characters from string ends.
 
     This expression creates a new string column with specified characters removed from
@@ -763,32 +731,33 @@ class StripCharsExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.strip_chars"
+
     def __init__(
         self,
         expr: LogicalExpr,
-        chars: Union[LogicalExpr, str, None],
+        chars: Optional[LogicalExpr],
         side: Literal["left", "right", "both"] = "both",
     ):
         self.expr = expr
         self.chars = chars
         self.side = side
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"strip_chars({self.expr}, {self.chars}, side={self.side})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"strip_chars requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        if self.chars is not None:
+            return [self.expr, self.chars]
+        else:
+            return [self.expr]
 
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.chars}, side={self.side})"
 
-class ReplaceExpr(LogicalExpr):
+class ReplaceExpr(ValidatedSignature, LogicalExpr):
     """Expression for replacing substrings in a string column.
 
     This expression creates a new string column with occurrences of a search pattern
@@ -798,48 +767,43 @@ class ReplaceExpr(LogicalExpr):
 
     Args:
         expr: The input string column expression
-        search: The pattern to search for (can be a string or column expression)
-        replacement: The string to replace with (can be a string or column expression)
+        search: The pattern to search for (column expression or LiteralExpr string)
+        replacement: The string to replace with (column expression or LiteralExpr string)
         literal: Whether to treat the pattern as a literal string (True) or regex (False)
-        replacement_count: Max number of replacements to make. -1 for all occurrences.
 
     Raises:
         TypeError: If the input expression is not a string column
-        ValueError: If replacement_count is not >= 1 or -1
+        ValidationError: If replacement_count is not >= 1 or -1
     """
+
+    function_name = "text.replace"
 
     def __init__(
         self,
         expr: LogicalExpr,
-        search: Union[LogicalExpr, str],
-        replacement: Union[LogicalExpr, str],
+        search: LogicalExpr,
+        replacement: LogicalExpr,
         literal: bool,
-        replacement_count: int,
     ):
         self.expr = expr
         self.search = search
         self.literal = literal
         self.replacement = replacement
-        self.replacement_count = replacement_count
 
-    def __str__(self) -> str:
-        return f"replace({self.expr}, {self.search}, {self.replacement}, {self.replacement_count})"
+        self._validator = SignatureValidator(self.function_name)
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"replace requires column of type string as input, got {input_field.data_type}"
-            )
-        if self.replacement_count != -1 and self.replacement_count < 1:
-            raise ValueError("replacement_count must be >= 1 or -1 for all")
-        return ColumnField(name=str(self), data_type=StringType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.search, self.replacement]
+
+    def __str__(self) -> str:
+        return f"{self.function_name}({self.expr}, {self.search}, {self.replacement})"
 
 
-class StrLengthExpr(LogicalExpr):
+class StrLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column.
 
     This expression creates a new integer column with the number of characters in each value
@@ -852,25 +816,21 @@ class StrLengthExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.str_length"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"str_length({self.expr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"str_length requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=IntegerType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class ByteLengthExpr(LogicalExpr):
+class ByteLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column in bytes.
 
     This expression creates a new integer column with the number of bytes in each value
@@ -883,19 +843,141 @@ class ByteLengthExpr(LogicalExpr):
         TypeError: If the input expression is not a string column
     """
 
+    function_name = "text.byte_length"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"byte_length({self.expr})"
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != StringType:
-            raise TypeError(
-                f"byte_length requires column of type string as input, got {input_field.data_type}"
-            )
-        return ColumnField(name=str(self), data_type=IntegerType)
+    @property
+    def validator(self):
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+class JinjaExpr(LogicalExpr):
+    """Expression for evaluating a Jinja template.
+
+    This expression creates a new string column with the result of evaluating the Jinja template.
+
+    Args:
+        exprs: The input string column expressions
+        template: The Jinja template to evaluate
+    """
+
+    def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
+        self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
+        expr_names = {expr.name: expr for expr in exprs}
+        available_columns = sorted(expr_names.keys())
+
+        self.template: str = template
+        self.exprs: List[Union[ColumnExpr, AliasExpr]] = []
+
+        for variable_name in self.variable_tree.variables.keys():
+            if variable_name not in expr_names:
+                raise ValidationError(
+                    f"Template variable '{variable_name}' is not defined. "
+                    f"Available columns: {', '.join(available_columns)}. "
+                    f"Either provide a column expression for '{variable_name}' or "
+                    f"modify the template to use an available column."
+                )
+
+            expr = expr_names[variable_name]
+            self.exprs.append(expr)
+
+        # Warn about unused columns
+        used_variables = set(self.variable_tree.variables.keys())
+        for column_name in expr_names.keys():
+            if column_name not in used_variables:
+                logger.warning(
+                    f"Column '{column_name}' is defined but not referenced in the template. "
+                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
+                    f"To remove this warning, exclude unused columns from the expression list."
+                )
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+
+        return ColumnField(
+            name=str(self),
+            data_type=StringType,
+        )
+
+    def __str__(self) -> str:
+        return f"text.jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
+
+class FuzzyRatioExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the similarity between two strings using a fuzzy matching algorithm.
+
+    This expression creates a new float column with the similarity score between the two input strings.
+    The similarity score is computed using a fuzzy matching algorithm.
+
+    Args:
+        expr: The input string column expression
+        other: The other string column expression
+    """
+
+    function_name = "text.fuzzy_ratio"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]
+
+class FuzzyTokenSortRatioExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the fuzzy token sort ratio between two strings.
+
+    This expression creates a new float column with the fuzzy token sort ratio between the two input strings.
+    The fuzzy token sort ratio is computed using a fuzzy matching algorithm.
+    """
+
+    function_name = "text.fuzzy_token_sort_ratio"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]
+
+class FuzzyTokenSetRatioExpr(ValidatedSignature, LogicalExpr):
+    """Expression for computing the fuzzy token set ratio between two strings.
+
+    This expression creates a new float column with the fuzzy token set ratio between the two input strings.
+    The fuzzy token set ratio is computed using a fuzzy matching algorithm.
+    """
+
+    function_name = "text.fuzzy_token_set_ratio"
+
+    def __init__(self, expr: LogicalExpr, other: LogicalExpr, method: FuzzySimilarityMethod):
+        self.expr = expr
+        self.other = other
+        self.method = method
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.other]

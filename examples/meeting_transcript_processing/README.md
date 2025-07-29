@@ -47,18 +47,12 @@ Break down transcripts into individual speaking segments with speaker, start_tim
 
 ### Step 3: Semantic Schema Definition
 
-Define extraction schemas using both Fenic's `ExtractSchema` and Pydantic models:
+Define extraction schemas using Pydantic models:
 
 ```python
-# Technical entities using ExtractSchema
-technical_entities_schema = fc.ExtractSchema([
-    fc.ExtractSchemaField(
-        name="services",
-        data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-        description="Technical services or systems mentioned"
-    ),
+class TechnicalEntitiesSchema(BaseModel):
+    services: str = Field(description="Technical services or systems mentioned")
     # ... more fields
-])
 
 # Action items using Pydantic
 class ActionItemSchema(BaseModel):
@@ -75,7 +69,7 @@ Apply AI-powered extraction to identify structured information from natural lang
 ```python
 enriched_df = segments_df.with_column(
     "technical_entities",
-    fc.semantic.extract(fc.col("content"), technical_entities_schema)
+    fc.semantic.extract(fc.col("content"), TechnicalEntitiesSchema)
 ).with_column(
     "action_items",
     fc.semantic.extract(fc.col("content"), ActionItemSchema)
@@ -165,4 +159,3 @@ The example can be extended to:
 - Uses `gpt-4o-mini` for fast and cost-effective semantic extraction
 - Handles mixed transcript formats automatically
 - Implements workarounds for current framework limitations
-- Demonstrates both ExtractSchema and Pydantic model approaches

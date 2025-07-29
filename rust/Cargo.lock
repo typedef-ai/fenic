@@ -1503,6 +1503,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+name = "minijinja"
+version = "2.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e60ac08614cc09062820e51d5d94c2fce16b94ea4e5003bb81b99a95f84e876"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2349,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "polars_plugins"
-version = "0.0.3"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "criterion",
@@ -2359,10 +2368,12 @@ dependencies = [
  "jaq-std",
  "markdown",
  "memchr",
+ "minijinja",
  "polars",
  "polars-arrow",
  "pyo3",
  "pyo3-polars",
+ "rapidfuzz",
  "reqwest",
  "rstest",
  "serde",
@@ -2667,6 +2678,12 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
 ]
+
+[[package]]
+name = "rapidfuzz"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "270e04e5ea61d40841942bb15e451c29ee1618637bcf97fc7ede5dd4a9b1601b"
 
 [[package]]
 name = "raw-cpuid"

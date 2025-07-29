@@ -1,3 +1,4 @@
+import math
 import re
 
 import polars as pl
@@ -5,21 +6,24 @@ import pytest
 
 from fenic import (
     ColumnField,
+    DoubleType,
     EmbeddingType,
     IntegerType,
     StringType,
     avg,
     col,
-    collect_list,
     count,
+    first,
     lit,
     max,
     mean,
     min,
     semantic,
+    stddev,
     sum,
 )
-from fenic.core.error import TypeMismatchError
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.core.error import ValidationError
 
 
 def test_sum_aggregation(sample_df):
@@ -242,39 +246,6 @@ def test_empty_groupby(local_session):
     assert direct_result.equals(grouped_result)
 
 
-def test_semantic_grouping(local_session):
-    source = local_session.create_dataframe(
-        {
-            "blurb": [
-                "Rust is a memory-safe systems programming language with zero-cost abstractions.",
-                "Tokio is an asynchronous runtime for Rust that powers many high-performance applications.",
-                "Hiking in the Alps offers breathtaking views and serene landscapes",
-                None,
-            ],
-        }
-    )
-    df = (
-        source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.group_by(col("embeddings"), 2)
-        .agg(collect_list(col("blurb")).alias("blurbs"))
-    )
-    result = df.to_polars()
-    assert result.schema == {
-        "_cluster_id": pl.Int64,
-        "blurbs": pl.List(pl.String),
-    }
-    assert set(result["_cluster_id"].to_list()) == {0, 1, None}
-
-    with pytest.raises(
-        TypeMismatchError,
-        match="semantic.group_by grouping expression must be an embedding column type",
-    ):
-        df = source.semantic.group_by(col("blurb"), 2).agg(
-            collect_list(col("blurb")).alias("blurbs")
-        )
-        result = df.to_polars()
-
-
 def test_semantic_reduce_with_groupby(local_session):
     """Test semantic.reduce() method."""
     data = {
@@ -317,80 +288,26 @@ def test_semantic_reduce_with_groupby(local_session):
         "num_attendees": pl.Int64,
     }
 
-
-def test_semantic_cluster_and_reduce(local_session):
-    """Test combining semantic clustering with semantic reduction."""
-    data = {
-        "feedback": [
-            "The mobile app crashes frequently when uploading photos. Very frustrating experience.",
-            "App keeps freezing during image uploads. Need urgent fix for the crash issues.",
-            "Love the new dark mode theme! The UI is much easier on the eyes now.",
-            "Great update with the dark mode. The contrast is perfect for night time use.",
-            "Customer service was unhelpful and took days to respond to my ticket.",
-            "Support team is slow to respond. Had to wait 3 days for a simple question.",
-        ],
-        "submission_date": ["2024-03-01"] * 6,
-        "user_id": [1, 2, 3, 4, 5, 6],
-    }
-    df = local_session.create_dataframe(data)
-
-    # First cluster the feedback, then summarize each cluster
-    result = (
-        df.with_column("embeddings", semantic.embed(col("feedback")))
-        .semantic.group_by(col("embeddings"), 2)
-        .agg(
-            count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
-                "theme_summary"
-            ),
-        )
-        .to_polars()
+def test_semantic_reduce_without_models():
+    """Test semantic.reduce() method without models."""
+    session_config = SessionConfig(
+        app_name="semantic_reduce_without_models",
     )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from these {notes}").alias("summary"))
+    session.stop()
 
-    assert result.schema == {
-        "_cluster_id": pl.Int64,
-        "feedback_count": pl.UInt32,
-        "theme_summary": pl.Utf8,
-    }
-
-
-def test_groupby_saved_embeddings_table(local_session):
-    """Test groupBy() with a saved embeddings table."""
-    data = {
-        "feedback": [
-            "The mobile app crashes frequently when uploading photos. Very frustrating experience.",
-            "App keeps freezing during image uploads. Need urgent fix for the crash issues.",
-            "Love the new dark mode theme! The UI is much easier on the eyes now.",
-            "Great update with the dark mode. The contrast is perfect for night time use.",
-            "Customer service was unhelpful and took days to respond to my ticket.",
-            "Support team is slow to respond. Had to wait 3 days for a simple question.",
-        ],
-        "submission_date": ["2024-03-01"] * 6,
-        "user_id": [1, 2, 3, 4, 5, 6],
-    }
-    df = local_session.create_dataframe(data)
-    df.with_column("embeddings", semantic.embed(col("feedback"))).write.save_as_table(
-        "feedback_embeddings", mode="overwrite"
+    session_config = SessionConfig(
+        app_name="semantic_reduce_with_models",
+        semantic=SemanticConfig(
+            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+        ),
     )
-    df_embeddings = local_session.table("feedback_embeddings")
-    assert df_embeddings.schema.column_fields == [
-        ColumnField("feedback", StringType),
-        ColumnField("submission_date", StringType),
-        ColumnField("user_id", IntegerType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
-    ]
-    result = (
-        df_embeddings.semantic.group_by(col("embeddings"), 2)
-        .agg(
-            count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
-                "grouped_feedback"
-            ),
-        )
-        .to_polars()
-    )
-    assert len(result) == 2
-
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No language models configured."):
+        session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from these {notes}").alias("summary"))
+    session.stop()
 
 def test_groupby_derived_columns(local_session):
     """Test groupBy() with a derived column."""
@@ -433,7 +350,6 @@ def test_groupby_nested_aggregation(local_session):
         ValueError, match="Nested aggregation functions are not allowed"
     ):
         df.group_by("age").agg(sum(sum("salary"))).to_polars()
-
 
 def test_avg_embedding_aggregation(local_session):
     """Test that avg() works correctly on EmbeddingType columns."""
@@ -515,3 +431,60 @@ def test_avg_embedding_with_nulls(local_session):
     group_b_result = result.filter(pl.col("group") == "B")["avg_embedding"][0].to_list()
     assert group_a_result == pytest.approx([2.0, 3.0], rel=1e-6)
     assert group_b_result == pytest.approx([3.0, 1.0], rel=1e-6)
+
+def test_first_aggregation(local_session):
+    data = {
+        "age": [25, 25, 30],
+        "salary": [5, 5, 15],
+    }
+    df = local_session.create_dataframe(data)
+    result = df.group_by("age").agg(first("salary")).sort("age").to_polars()
+    expected = pl.DataFrame({
+        "age": [25, 30],
+        "first(salary)": [5, 15],
+    })
+    assert result.schema == {
+        "age": pl.Int64,
+        "first(salary)": pl.Int64,
+    }
+    assert result.equals(expected)
+
+def test_stddev_aggregation(local_session):
+    data = {
+        "age": [25, 25, 30, 30, 30],
+        "salary": [10, 20, 30, 40, 50],
+    }
+    df = local_session.create_dataframe(data)
+
+    fenic_df = (
+        df
+        .select(
+            col("age"),
+            col("salary")
+        )
+        .group_by("age")
+        .agg(stddev("salary"))
+        .sort("age")
+    )
+
+    assert fenic_df.schema.column_fields == [
+        ColumnField("age", IntegerType),
+        ColumnField("stddev(salary)", DoubleType),
+    ]
+    result = fenic_df.to_polars()
+
+    expected = pl.DataFrame({
+        "age": [25, 30],
+        "stddev(salary)": [math.sqrt(50), 10.0],
+    })
+
+    assert result.schema == {
+        "age": pl.Int64,
+        "stddev(salary)": pl.Float64,
+    }
+
+    # Check group keys match
+    assert result["age"].to_list() == expected["age"].to_list()
+
+    for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=True):
+        assert res_val == pytest.approx(exp_val, rel=1e-9)

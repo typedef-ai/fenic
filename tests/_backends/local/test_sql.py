@@ -4,7 +4,17 @@ from datetime import date
 import polars as pl
 import pytest
 
-from fenic import ArrayType, ColumnField, IntegerType, Session, StringType, text
+from fenic import (
+    ArrayType,
+    ColumnField,
+    EmbeddingType,
+    FloatType,
+    IntegerType,
+    Session,
+    StringType,
+    col,
+    text,
+)
 from fenic.core.error import PlanError, ValidationError
 
 
@@ -124,21 +134,24 @@ def test_sql_coerce_datetype(local_session_config):
     df = session.create_dataframe(pl.DataFrame({
         "id": [1, 2],
         "date_str": ["2023-12-25", "2024-01-01"],
-        "date_array": [[date(2023, 12, 25), date(2024, 1, 1)], [date(2024, 1, 2), date(2024, 1, 3)]]
+        "date_array": [[date(2023, 12, 25), date(2024, 1, 1)], [date(2024, 1, 2), date(2024, 1, 3)]],
+        "embeddings": [[1.0, 2.0], [3.0, 4.0]]
     }))
+    df = df.with_column("embeddings", col("embeddings").cast(EmbeddingType(embedding_model="test", dimensions=2)))
 
     # Use DuckDB to parse string as date
     df = session.sql("""
-        SELECT id, CAST(date_str AS DATE) as parsed_date, date_array
+        SELECT id, CAST(date_str AS DATE) as parsed_date, date_array, embeddings
         FROM {df1}
         ORDER BY id
     """, df1=df)
 
-    # Should be coerced back to string in fenic schema
+    # Should be coerced back to string and list in fenic schema
     assert df.schema.column_fields == [
         ColumnField("id", IntegerType),
         ColumnField("parsed_date", StringType),  # Date coerced back to string
         ColumnField("date_array", ArrayType(StringType)),
+        ColumnField("embeddings", ArrayType(FloatType)),
     ]
 
     # Collect and verify data
@@ -146,7 +159,8 @@ def test_sql_coerce_datetype(local_session_config):
     expected = pl.DataFrame({
         "id": [1, 2],
         "parsed_date": ["2023-12-25", "2024-01-01"],
-        "date_array": [["2023-12-25", "2024-01-01"], ["2024-01-02", "2024-01-03"]]
+        "date_array": [["2023-12-25", "2024-01-01"], ["2024-01-02", "2024-01-03"]],
+        "embeddings": [[1.0, 2.0], [3.0, 4.0]]
     })
     assert df.equals(expected)
 

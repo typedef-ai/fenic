@@ -40,6 +40,8 @@ from fenic.core._utils.type_inference import (
 from fenic.core.error import ValidationError
 from fenic.core.types.datatypes import (
     DataType,
+    IntegerType,
+    StringType,
 )
 
 
@@ -76,13 +78,13 @@ class Column:
             raise TypeError("Direct construction of Column is not allowed")
         return super().__new__(cls)
 
-    def get_item(self, key: Union[str, int]) -> Column:
+    def get_item(self, key: Union[str, int, Column]) -> Column:
         """Access an item in a struct or array column.
 
         This method allows accessing elements in complex data types:
 
-        - For array columns, the key should be an integer index
-        - For struct columns, the key should be a field name
+        - For array columns, the key should be an integer index or a column expression that evaluates to an integer
+        - For struct columns, the key should be a literal field name
 
         Args:
             key (Union[str, int]): The index (for arrays) or field name (for structs) to access
@@ -102,7 +104,12 @@ class Column:
             df.select(col("struct_column").get_item("field_name"))
             ```
         """
-        return Column._from_logical_expr(IndexExpr(self._logical_expr, key))
+        if isinstance(key, Column):
+            return Column._from_logical_expr(IndexExpr(self._logical_expr, key._logical_expr))
+        elif isinstance(key, str):
+            return Column._from_logical_expr(IndexExpr(self._logical_expr, LiteralExpr(key, StringType)))
+        else:
+            return Column._from_logical_expr(IndexExpr(self._logical_expr, LiteralExpr(key, IntegerType)))
 
     def __getitem__(self, key: Union[str, int]) -> Column:
         """Access an item in a struct or array column using [] syntax.
@@ -130,6 +137,10 @@ class Column:
             df.select(col("struct_column")["field_name"])
             ```
         """
+        if not isinstance(key, (str, int)):
+            raise TypeError(
+                f"Column [] syntax requires a string or integer index, got {type(key).__name__}"
+            )
         return self.get_item(key)
 
     def __getattr__(self, name: str) -> Column:
@@ -397,11 +408,10 @@ class Column:
             ```
         """
         if isinstance(other, str):
-            return Column._from_logical_expr(ContainsExpr(self._logical_expr, other))
+            other_expr = LiteralExpr(other, StringType)
         else:
-            return Column._from_logical_expr(
-                ContainsExpr(self._logical_expr, other._logical_expr)
-            )
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(ContainsExpr(self._logical_expr, other_expr))
 
     def contains_any(self, others: List[str], case_insensitive: bool = True) -> Column:
         """Check if the column contains any of the specified substrings.
@@ -462,11 +472,12 @@ class Column:
             ValueError: If the substring starts with a regular expression anchor (^)
         """
         if isinstance(other, str):
-            return Column._from_logical_expr(StartsWithExpr(self._logical_expr, other))
+            if other.startswith("^"):
+                raise ValidationError("substr should not start with a regular expression anchor")
+            other_expr = LiteralExpr(other, StringType)
         else:
-            return Column._from_logical_expr(
-                StartsWithExpr(self._logical_expr, other._logical_expr)
-            )
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(StartsWithExpr(self._logical_expr, other_expr))
 
     def ends_with(self, other: Union[str, Column]) -> Column:
         """Check if the column ends with a substring.
@@ -495,11 +506,12 @@ class Column:
             ValueError: If the substring ends with a regular expression anchor ($)
         """
         if isinstance(other, str):
-            return Column._from_logical_expr(EndsWithExpr(self._logical_expr, other))
+            if other.endswith("$"):
+                raise ValidationError("substr should not end with a regular expression anchor")
+            other_expr = LiteralExpr(other, StringType)
         else:
-            return Column._from_logical_expr(
-                EndsWithExpr(self._logical_expr, other._logical_expr)
-            )
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(EndsWithExpr(self._logical_expr, other_expr))
 
     def rlike(self, other: str) -> Column:
         r"""Check if the column matches a regular expression pattern.
@@ -867,7 +879,7 @@ class Column:
 
 ColumnOrName = Union[Column, str]
 
-Column.get_item = validate_call(config=ConfigDict(strict=True))(Column.get_item)
+Column.get_item = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))(Column.get_item)
 Column.getItem = Column.get_item
 Column.alias = validate_call(config=ConfigDict(strict=True))(Column.alias)
 Column.cast = validate_call(

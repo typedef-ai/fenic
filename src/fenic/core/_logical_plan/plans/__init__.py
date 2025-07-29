@@ -3,7 +3,7 @@
 Note: These classes are not part of the public API and should not be used directly.
 """
 
-from fenic.core._logical_plan.plans.aggregate import Aggregate, SemanticAggregate
+from fenic.core._logical_plan.plans.aggregate import Aggregate
 from fenic.core._logical_plan.plans.base import CacheInfo, LogicalPlan
 from fenic.core._logical_plan.plans.join import (
     Join,
@@ -18,11 +18,13 @@ from fenic.core._logical_plan.plans.source import (
 )
 from fenic.core._logical_plan.plans.transform import (
     SQL,
+    CentroidInfo,
     DropDuplicates,
     Explode,
     Filter,
     Limit,
     Projection,
+    SemanticCluster,
     Sort,
     Union,
 )
@@ -32,6 +34,7 @@ from fenic.core._logical_plan.serde import LogicalPlanSerde
 __all__ = [
     "Aggregate",
     "SemanticAggregate",
+    "SemanticCluster",
     "CacheInfo",
     "LogicalPlan",
     "LogicalPlanSerde",
@@ -53,4 +56,5 @@ __all__ = [
     "Sort",
     "Union",
     "Unnest",
+    "CentroidInfo",
 ]

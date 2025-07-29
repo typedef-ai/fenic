@@ -65,10 +65,11 @@ def main():
             cloud=CloudConfig(
                 size=CloudExecutorSize.SMALL,
             ),
-            semantic=SemanticConfig(
-                language_model=OpenAIModelConfig(
-                    model_name="gpt-4o-mini", rpm=1000, tpm=1000000
-                ),
+             semantic=SemanticConfig(
+                language_models={ "model1": OpenAIModelConfig(
+                    model_name="gpt-4.1-nano", rpm=500, tpm=200_000
+                )},
+                default_language_model="model1",
             ),
         )
     )

@@ -4,7 +4,6 @@ from urllib.parse import urlparse
 import pandas as pd
 import polars as pl
 import pytest
-from pydantic import ValidationError
 
 from fenic import (
     ColumnField,
@@ -13,6 +12,7 @@ from fenic import (
     Session,
     SessionConfig,
     StringType,
+    col,
 )
 from fenic.api.session.config import OpenAIModelConfig
 from fenic.core._logical_plan.plans import InMemorySource
@@ -134,14 +134,32 @@ def test_create_dataframe_unsupported_type(local_session):
         local_session.create_dataframe(42)  # int is not supported
 
 
-def test_local_session_with_lm_only():
-    """Verify that a local_session is created successfully when we only supply 'lm' in semantic_config."""
+def test_local_session_with_language_models_only():
+    """Verify that a local_session is created successfully when we only supply 'language_models' in semantic_config."""
     session_config = SessionConfig(
         app_name="test_app",
         semantic=SemanticConfig(
             language_models={"mini" :OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
             default_language_model="mini"
         ),
+    )
+    session = Session.get_or_create(session_config)
+    session.stop()
+
+def test_local_session_with_no_semantic_config():
+    """Verify that a local_session is created successfully if we supply no semantic config."""
+    session_config = SessionConfig(
+        app_name="test_app",
+    )
+    session = Session.get_or_create(session_config)
+    session.create_dataframe({"text": ["hello"]}).select((col("text")).alias("text"))
+    session.stop()
+
+def test_local_session_with_embedding_models_only():
+    """Verify that a local_session is created successfully if we supply only embedding models."""
+    session_config = SessionConfig(
+        app_name="test_app",
+        semantic=SemanticConfig(embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}),
     )
     session = Session.get_or_create(session_config)
     session.stop()
@@ -158,7 +176,7 @@ def test_local_session_with_single_lm_no_explicit_default():
     assert session_config.semantic.language_models["mini"].model_name == "gpt-4o-mini"
 
 def test_local_session_with_ambiguous_default_lm():
-    """Verify that a local_session is created successfully if we supply one language model and no default."""
+    """Verify that a local session creation error is raised if we supply two language models with no default."""
     with pytest.raises(ConfigurationError):
         SessionConfig(
             app_name="test_app",
@@ -167,22 +185,6 @@ def test_local_session_with_ambiguous_default_lm():
                                  "nano" : OpenAIModelConfig(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
             ),
         )
-
-
-def test_session_builder_missing_lm():
-    """Verify that if we only set 'semantic.rm' (and not 'semantic.lm'),
-    we get a ValueError upon session creation.
-    """
-    with pytest.raises(ValidationError):
-        SessionConfig(
-            app_name="semantic_test2",
-            semantic=SemanticConfig(
-                embedding_models={"oai-small": OpenAIModelConfig(
-                    model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
-                )},
-            ),
-        )
-
 
 def test_inmemory_source(local_session):
     """Test the in-memory source by creating a DataFrame from a Polars DataFrame.

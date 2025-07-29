@@ -1,5 +1,8 @@
+pub mod arrow_scalar_extractor;
 pub mod chunking;
 pub mod dtypes;
+pub mod fuzz;
+pub mod jinja;
 pub mod json;
 pub mod markdown_json;
 pub mod transcript;

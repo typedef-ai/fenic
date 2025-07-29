@@ -1,10 +1,10 @@
 """Document metadata extraction example using fenic semantic operations.
 
-This example demonstrates how to extract structured metadata from unstructured
-document text using both ExtractSchema and Pydantic model approaches.
+This example demonstrates how to extract structured metadata from unstructured document text
+using Fenic’s Pydantic model integration for schema definitions.
 """
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +32,6 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     print("Document Metadata Extraction Example")
     print("=" * 50)
-    print("Comparing ExtractSchema vs Pydantic model approaches")
     print()
 
     # Sample document data - diverse text types for metadata extraction
@@ -66,73 +65,14 @@ def main(config: Optional[fc.SessionConfig] = None):
     docs_df.select("id", fc.text.length("text").alias("text_length")).show()
     print()
 
-    # Method 1: Using ExtractSchema
-    print("Method 1: ExtractSchema Approach")
-    print("-" * 40)
-
-    # Define schema for document metadata extraction
-    doc_metadata_schema = fc.ExtractSchema([
-        fc.ExtractSchemaField(
-            name="title",
-            data_type=fc.StringType,
-            description="The main title or subject of the document"
-        ),
-        fc.ExtractSchemaField(
-            name="document_type",
-            data_type=fc.StringType,
-            description="Type of document (e.g., research paper, product announcement, meeting notes, news article, technical documentation)"
-        ),
-        fc.ExtractSchemaField(
-            name="date",
-            data_type=fc.StringType,
-            description="Any date mentioned in the document (publication date, meeting date, etc.)"
-        ),
-        fc.ExtractSchemaField(
-            name="keywords",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-            description="List of key topics, technologies, or important terms mentioned in the document"
-        ),
-        fc.ExtractSchemaField(
-            name="summary",
-            data_type=fc.StringType,
-            description="Brief one-sentence summary of the document's main purpose or content"
-        )
-    ])
-
-    # Apply extraction using ExtractSchema
-    extracted_df = docs_df.select(
-        "id",
-        fc.semantic.extract("text", doc_metadata_schema).alias("metadata")
-    )
-
-    # Flatten the extracted metadata into separate columns
-    extract_schema_results = extracted_df.select(
-        "id",
-        extracted_df.metadata.title.alias("title"),
-        extracted_df.metadata.document_type.alias("document_type"),
-        extracted_df.metadata.date.alias("date"),
-        extracted_df.metadata.keywords.alias("keywords"),
-        extracted_df.metadata.summary.alias("summary")
-    )
-
-    print("ExtractSchema Results:")
-    extract_schema_results.show()
-    print()
-
-    # Method 2: Using Pydantic Model
-    print("Method 2: Pydantic Model Approach")
-    print("-" * 40)
-
     # Define Pydantic model for document metadata
-    # Note: Pydantic models for extraction support simple data types (str, int, float, bool, Literal)
-    # Complex types like lists must be represented as strings (e.g., comma-separated values)
     class DocumentMetadata(BaseModel):
         """Pydantic model for document metadata extraction."""
-        title: str = Field(..., description="The main title or subject of the document")
-        document_type: Literal["research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(..., description="Type of document")
-        date: str = Field(..., description="Any date mentioned in the document (publication date, meeting date, etc.)")
-        keywords: str = Field(..., description="Comma-separated list of key topics, technologies, or important terms mentioned in the document")
-        summary: str = Field(..., description="Brief one-sentence summary of the document's main purpose or content")
+        title: str = Field(description="The main title or subject of the document")
+        document_type: Literal["research paper", "product announcement", "meeting notes", "news article", "technical documentation", "other"] = Field(description="Type of document")
+        date: str = Field(description="Any date mentioned in the document (publication date, meeting date, etc.)")
+        keywords: List[str] = Field(description="List of key topics, technologies, or important terms mentioned in the document")
+        summary: str = Field(description="Brief one-sentence summary of the document's main purpose or content")
 
     # Apply extraction using Pydantic model
     pydantic_extracted_df = docs_df.select(
@@ -150,30 +90,8 @@ def main(config: Optional[fc.SessionConfig] = None):
         pydantic_extracted_df.metadata.summary.alias("summary")
     )
 
-    print("Pydantic Model Results:")
+    print("Extraction Results:")
     pydantic_results.show()
-    print()
-
-    # Method Comparison
-    print("Key Differences Between Approaches:")
-    print("-" * 50)
-    print("ExtractSchema:")
-    print("  ✓ Supports complex data types (lists, nested structures)")
-    print("  ✓ Native Fenic schema definition")
-    print("  ✓ Type-safe with proper list handling")
-    print()
-    print("Pydantic Model:")
-    print("  ✓ Familiar Python class syntax")
-    print("  ✓ Leverages existing Pydantic knowledge")
-    print("  ✓ Supports Literal types for constraining string values")
-    print("  ✗ Limited to simple data types (str, int, float, bool, Literal)")
-    print("  → Lists must be comma-separated strings")
-    print()
-
-    # Show the difference in keywords output
-    print("Notice the keywords field difference:")
-    print("ExtractSchema: Returns actual list → ['item1', 'item2', ...]")
-    print("Pydantic Model: Returns comma-separated string → 'item1, item2, ...'")
     print()
 
     # Clean up

@@ -16,9 +16,11 @@ from fenic.api.functions.builtin import (
     desc,
     desc_nulls_first,
     desc_nulls_last,
+    first,
     max,
     mean,
     min,
+    stddev,
     struct,
     sum,
     udf,
@@ -61,4 +63,6 @@ __all__ = [
     "array_join",
     "replace",
     "when",
+    "first",
+    "stddev",
 ]

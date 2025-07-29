@@ -69,6 +69,26 @@ jobs:
           toolchain: stable
           cache: true
           cache-shared-key: shared-rust-cache
+      - name: Check if Rust unit tests need to be run
+        id: rust_changed
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if git diff --quiet origin/${{ github.base_ref }} -- rust/; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            # For schedule and manual triggers, always run tests
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Run Rust unit tests
+        if: steps.rust_changed.outputs.changed == 'true'
+        working-directory: rust
+        run: |
+          export LD_LIBRARY_PATH=$(python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"):$LD_LIBRARY_PATH
+          cargo test --no-default-features --locked
       # yamllint disable-line rule:line-length
       - name: run ${{ matrix.test }} tests with ${{ matrix.dependency == 'true' && 'synced' || matrix.dependency }} dependencies
         shell: bash

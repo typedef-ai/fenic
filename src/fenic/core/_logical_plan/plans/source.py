@@ -4,6 +4,7 @@ from typing import List, Literal, Optional
 
 import polars as pl
 
+from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_polars_schema_to_custom_schema
@@ -25,6 +26,11 @@ class InMemorySource(LogicalPlan):
 
     def _repr(self) -> str:
         return f"InMemorySource({self.schema()})"
+
+    def _repr_with_indent(self, level: int) -> str:
+        indent = PRETTY_PRINT_INDENT * level
+        inner = self.schema()._str_with_indent(base_indent=level + 1)
+        return f"InMemorySource(\n{inner}\n{indent})"
 
     def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
         if len(children) != 0:

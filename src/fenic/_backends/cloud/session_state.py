@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import os
 from typing import Optional
 
 import grpc
@@ -23,6 +25,7 @@ from fenic._backends.cloud.engine_config import CloudSessionConfig
 from fenic._backends.cloud.execution import CloudExecution
 from fenic._backends.cloud.settings import CloudSettings
 from fenic.core._interfaces import BaseSessionState
+from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._resolved_session_config import (
     CloudExecutorSize,
     ResolvedSessionConfig,
@@ -38,6 +41,7 @@ engine_instance_size_map = {
 
 logger = logging.getLogger(__name__)
 
+GRPC_MAX_MESSAGE_SIZE = 1024 * 1024 * 10  # 10MB
 
 class CloudSessionState(BaseSessionState):
     """Maintains the state for a cloud session, including database connections and cached dataframes and indices."""
@@ -53,10 +57,12 @@ class CloudSessionState(BaseSessionState):
     arrow_ipc_channel: Optional[grpc.Channel] = None
     engine_uri: Optional[str] = None
     arrow_ipc_uri: Optional[str] = None
+    arrow_ipc_uri_secure: bool = False
     app_uuid: Optional[str] = None
     session_id: Optional[str] = None
     session_name: Optional[str] = None
     session_canonical_name: Optional[str] = None
+    cloud_catalog: BaseCatalog = None
 
     def __init__(
         self,
@@ -115,7 +121,16 @@ class CloudSessionState(BaseSessionState):
 
     @property
     def catalog(self):
-        pass
+        from fenic._backends.cloud.catalog import CloudCatalog
+        from fenic._backends.cloud.manager import CloudSessionManager
+
+        if self.cloud_catalog is None:
+            self.cloud_catalog = CloudCatalog(
+                ephemeral_catalog_id=self.ephemeral_catalog_id,
+                asyncio_loop=self.asyncio_loop,
+                cloud_session_manager=CloudSessionManager(),
+            )
+        return self.cloud_catalog
 
     # properties and methods referencing dynamic state managed by the CloudSessionManager
     @property
@@ -144,7 +159,10 @@ class CloudSessionState(BaseSessionState):
                 "are active and correct, and set in your environment. "
                 "If authentication is still failing, please file a ticket with Typedef support."
             )
-        return [("hasura-auth-token", self.client_token)]
+        return [("hasura-auth-token", self.client_token),
+                ("session-id", self.session_uuid),
+                ("content-type", "application/grpc"),
+                ("endpoint", "actions")]
 
     def _get_entrypoint_grpc_metadata(self):
         """Get metadata with authorization header for gRPC requests."""
@@ -224,6 +242,7 @@ class CloudSessionState(BaseSessionState):
         self.session_canonical_name = response.canonical_name
         self.engine_uri = response.uris.remote_actions_uri
         self.arrow_ipc_uri = response.uris.remote_results_uri_prefix
+        self.ephemeral_catalog_id = response.ephemeral_catalog_id
         logger.info(
             f"{'Found' if existing else 'Created'} Executor with session_id: {self.session_uuid}"
         )
@@ -243,14 +262,19 @@ class CloudSessionState(BaseSessionState):
             secure = False
             self.engine_channel = grpc.aio.insecure_channel(self.engine_uri)
             self.arrow_ipc_channel = grpc.aio.insecure_channel(self.arrow_ipc_uri)
+            self.arrow_ipc_uri_secure = False
         else:
             # For cloud engines, use secure channel
             secure = True
             credentials = grpc.ssl_channel_credentials()
-            self.engine_channel = grpc.aio.secure_channel(self.engine_uri, credentials)
-            self.arrow_ipc_channel = grpc.aio.secure_channel(
-                self.arrow_ipc_uri, credentials
-            )
+            self.engine_uri = _add_port_to_cloud_uri(self.engine_uri)
+            self.arrow_ipc_uri = _add_port_to_cloud_uri(self.arrow_ipc_uri)
+            self.arrow_ipc_uri_secure = True
+            self.engine_channel = grpc.aio.secure_channel(
+                target=self.engine_uri,
+                credentials=credentials,
+                options=_get_grpc_retry_policy())
+            self.arrow_ipc_channel = grpc.aio.secure_channel(target=self.arrow_ipc_uri, credentials=credentials)
         self.engine_stub = EngineServiceStub(self.engine_channel)
         logger.debug(
             f"Created {'secure' if secure else 'insecure'} gRPC channels to engine and arrow_ipc at {self.engine_uri} and {self.arrow_ipc_uri}"
@@ -285,3 +309,40 @@ class CloudSessionState(BaseSessionState):
             request, metadata=self._get_entrypoint_grpc_metadata()
         )
         logger.info(f"Terminated cloud session {self.session_uuid}")
+
+def _add_port_to_cloud_uri(uri: str) -> str:
+    """Add the port to the cloud URI.
+       It assumes 443 as the default port for cloud URIs."""
+    return uri + ":443"
+
+def _get_grpc_retry_policy():
+    # check out https://github.com/grpc/grpc/blob/master/examples/python/retry/async_retry_client.py for more details
+    service_config_json = os.getenv(
+        "TYPEDEF_CLOUD_GRPC_RETRY_POLICY",
+        json.dumps(
+            {
+                "methodConfig": [
+                    {
+                        "name": [{}],
+                        "retryPolicy": {
+                            "maxAttempts": 5,
+                            "initialBackoff": "10s",
+                            "maxBackoff": "120s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNKNOWN", "UNAVAILABLE"],
+                        },
+                    }
+                ]
+            }
+        )
+    )
+    logger.debug(f"Using retry policy: {service_config_json}")
+
+    options = [
+        ("grpc.enable_retries", 1),
+        ("grpc.service_config", service_config_json),
+        ('grpc.max_send_message_length', os.getenv("TYPEDEF_CLOUD_GRPC_MAX_SEND_MESSAGE_LENGTH", GRPC_MAX_MESSAGE_SIZE)),
+        ('grpc.max_receive_message_length', os.getenv("TYPEDEF_CLOUD_GRPC_MAX_RECEIVE_MESSAGE_LENGTH", GRPC_MAX_MESSAGE_SIZE)),
+    ]
+
+    return options

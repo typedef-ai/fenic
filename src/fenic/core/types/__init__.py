@@ -1,5 +1,6 @@
 """Schema module for defining and manipulating DataFrame schemas."""
 
+from fenic.core.types.classify import ClassDefinition
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
@@ -17,11 +18,10 @@ from fenic.core.types.datatypes import (
     StructType,
     TranscriptType,
 )
-from fenic.core.types.enums import BranchSide, SemanticSimilarityMetric
-from fenic.core.types.extract_schema import (
-    ExtractSchema,
-    ExtractSchemaField,
-    ExtractSchemaList,
+from fenic.core.types.enums import (
+    BranchSide,
+    FuzzySimilarityMethod,
+    SemanticSimilarityMetric,
 )
 from fenic.core.types.query_result import DataLike, DataLikeType, QueryResult
 from fenic.core.types.schema import (
@@ -38,11 +38,16 @@ from fenic.core.types.semantic_examples import (
     PredicateExample,
     PredicateExampleCollection,
 )
+from fenic.core.types.summarize import (
+    KeyPoints,
+    Paragraph,
+)
 
 __all__ = [
     "ArrayType",
     "BooleanType",
     "BranchSide",
+    "ClassDefinition",
     "ClassifyExample",
     "ClassifyExampleCollection",
     "ColumnField",
@@ -53,9 +58,6 @@ __all__ = [
     "DocumentPathType",
     "DoubleType",
     "EmbeddingType",
-    "ExtractSchema",
-    "ExtractSchemaField",
-    "ExtractSchemaList",
     "FloatType",
     "HtmlType",
     "IntegerType",
@@ -73,5 +75,9 @@ __all__ = [
     "StringType",
     "StructField",
     "StructType",
+    "KeyPoints",
+    "Paragraph",
     "TranscriptType",
+    "FuzzySimilarityMethod",
 ]
+

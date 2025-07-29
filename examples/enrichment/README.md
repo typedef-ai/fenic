@@ -63,9 +63,9 @@ config = SessionConfig(
 
 # Define extraction schema with Pydantic
 class ErrorAnalysis(BaseModel):
-    error_category: str = Field(..., description="Main category of the error")
-    affected_component: str = Field(..., description="Specific component affected")
-    potential_cause: str = Field(..., description="Most likely root cause")
+    error_category: str = Field(description="Main category of the error")
+    affected_component: str = Field(description="Specific component affected")
+    potential_cause: str = Field(description="Most likely root cause")
 
 # Stage 1: Template extraction
 parsed = logs_df.select(
@@ -128,11 +128,11 @@ log_template = "${service:none} | ${timestamp:none} | ${level:none} - ${message:
 
 ## Troubleshooting
 
-**Issue**: Template extraction returns empty fields  
+**Issue**: Template extraction returns empty fields
 **Solution**: Check template format matches log structure exactly, including spaces
 
-**Issue**: Missing service metadata after join  
+**Issue**: Missing service metadata after join
 **Solution**: Use left join to preserve all logs; add default values for missing metadata
 
-**Issue**: Generic remediation steps  
+**Issue**: Generic remediation steps
 **Solution**: Include more context in semantic.map prompt (service, team, criticality)

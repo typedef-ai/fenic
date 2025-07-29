@@ -11,16 +11,18 @@ from pydantic import BaseModel, Field, model_validator
 from fenic._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     GOOGLE_GLA_AVAILABLE_MODELS,
+    GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,
     ModelProvider,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
-    ReasoningEffort,
     ResolvedAnthropicModelConfig,
     ResolvedCloudConfig,
-    ResolvedGoogleGLAModelConfig,
+    ResolvedEmbeddingModelConfig,
+    ResolvedGoogleModelConfig,
+    ResolvedLanguageModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSemanticConfig,
@@ -31,14 +33,39 @@ from fenic.core.error import ConfigurationError
 
 class GoogleGLAModelConfig(BaseModel):
     """Configuration for Google GenerativeLAnguage (GLA) models.
-    
+
     This class defines the configuration settings for models available in Google Developer AI Studio,
     including model selection and rate limiting parameters. These models are accessible using a GEMINI_API_KEY environment variable.
     """
     model_name: GOOGLE_GLA_AVAILABLE_MODELS
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
-    reasoning_effort: Optional[ReasoningEffort] = Field(default=None, description="Reasoning effort level. Required for Gemini 2.5 models.")
+    default_thinking_budget: Optional[int] = Field(
+        default=None,
+        description="""
+            If configuring a reasoning model, provide a default thinking budget in tokens. If not provided, we will defer to
+            the model's default settings. To have the model automatically determine a thinking budget based on the complexity of
+            the prompt, set this to -1. To disable thinking for the model, set this to 0 (not supported on gemini-2.5-pro).
+        """, ge=-1)
+
+
+class GoogleVertexModelConfig(BaseModel):
+    """Configuration for Google Vertex models.
+
+    This class defines the configuration settings for models available in Google Vertex AI,
+    including model selection and rate limiting parameters. In order to use these models, you must have a
+    Google Cloud service account, or use the `gcloud` cli tool to authenticate your local environment.
+    """
+    model_name: GOOGLE_VERTEX_AVAILABLE_MODELS = Field(..., description="The name of the Google Vertex model to use")
+    rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
+    tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    default_thinking_budget: Optional[int] = Field(
+        default=None,
+        description="""
+            If configuring a reasoning model, provide a default thinking budget in tokens. If not provided, we will defer to
+            the model's default settings. To have the model automatically determine a thinking budget based on the complexity of
+            the prompt, set this to -1. To disable thinking for the model, set this to 0 (not supported on gemini-2.5-pro).
+        """, ge=-1)
 
 class OpenAIModelConfig(BaseModel):
     """Configuration for OpenAI models.
@@ -100,7 +127,7 @@ class AnthropicModelConfig(BaseModel):
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
 
 
-ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig]
+ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig, GoogleVertexModelConfig]
 
 
 class SemanticConfig(BaseModel):
@@ -121,7 +148,7 @@ class SemanticConfig(BaseModel):
         The embedding model is optional and only required for operations that
         need semantic search or embedding capabilities.
     """
-    language_models: dict[str, ModelConfig]
+    language_models: Optional[dict[str, ModelConfig]] = None
     default_language_model: Optional[str] = None
     embedding_models: Optional[dict[str, ModelConfig]] = None
     default_embedding_model: Optional[str] = None
@@ -134,7 +161,7 @@ class SemanticConfig(BaseModel):
         and there is only one model available.
         """
         # Set default language model if not set and only one model exists
-        if self.default_language_model is None and len(self.language_models) == 1:
+        if self.language_models and self.default_language_model is None and len(self.language_models) == 1:
             self.default_language_model = list(self.language_models.keys())[0]
         # Set default embedding model if not set and only one model exists
         if self.embedding_models is not None and self.default_embedding_model is None and len(self.embedding_models) == 1:
@@ -153,28 +180,35 @@ class SemanticConfig(BaseModel):
         Raises:
             ConfigurationError: If any of the models are not supported.
         """
-        if len(self.language_models) == 0:
-            raise ConfigurationError("You must specify at least one language model configuration.")
-        available_language_model_aliases = list(self.language_models.keys())
-        if self.default_language_model is None and len(self.language_models) > 1:
-            raise ConfigurationError(f"default_language_model is not set, and multiple language models are configured. Please specify one of: {available_language_model_aliases} as a default_language_model.")
+        # Skip validation if no models configured (embedding-only or empty config)
+        if not self.language_models and not self.embedding_models:
+            return self
 
-        if self.default_language_model is not None and self.default_language_model not in self.language_models:
-            raise ConfigurationError(f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
+        # Validate language models if provided
+        if self.language_models:
+            available_language_model_aliases = list(self.language_models.keys())
+            if self.default_language_model is None and len(self.language_models) > 1:
+                raise ConfigurationError(f"default_language_model is not set, and multiple language models are configured. Please specify one of: {available_language_model_aliases} as a default_language_model.")
 
-        for model_alias, language_model in self.language_models.items():
-            if isinstance(language_model, OpenAIModelConfig):
-                language_model_provider = ModelProvider.OPENAI
-                language_model_name = language_model.model_name
-            elif isinstance(language_model, AnthropicModelConfig):
-                language_model_provider = ModelProvider.ANTHROPIC
-                language_model_name = language_model.model_name
-            elif isinstance(language_model, GoogleGLAModelConfig):
-                language_model_provider = ModelProvider.GOOGLE_GLA
-                language_model_name = language_model.model_name
-            else:
-                raise ConfigurationError(
-                    f"Invalid language model: {model_alias}: {language_model} unsupported model type.")
+            if self.default_language_model is not None and self.default_language_model not in self.language_models:
+                raise ConfigurationError(f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
+
+            for model_alias, language_model in self.language_models.items():
+                if isinstance(language_model, OpenAIModelConfig):
+                    language_model_provider = ModelProvider.OPENAI
+                    language_model_name = language_model.model_name
+                elif isinstance(language_model, AnthropicModelConfig):
+                    language_model_provider = ModelProvider.ANTHROPIC
+                    language_model_name = language_model.model_name
+                elif isinstance(language_model, GoogleGLAModelConfig):
+                    language_model_provider = ModelProvider.GOOGLE_GLA
+                    language_model_name = language_model.model_name
+                elif isinstance(language_model, GoogleVertexModelConfig):
+                    language_model_provider = ModelProvider.GOOGLE_VERTEX
+                    language_model_name = language_model.model_name
+                else:
+                    raise ConfigurationError(
+                        f"Invalid language model: {model_alias}: {language_model} unsupported model type.")
 
             completion_model = model_catalog.get_completion_model_parameters(language_model_provider,
                                                                              language_model_name)
@@ -185,17 +219,14 @@ class SemanticConfig(BaseModel):
                         language_model_name
                     )
                 )
-            if isinstance(language_model, GoogleGLAModelConfig) and completion_model.requires_reasoning_effort:
-                if language_model.reasoning_effort is None:
-                    raise ConfigurationError(f"Reasoning effort level is required for {language_model_provider.value}:{language_model_name} Please specify reasoning_effort for model {model_alias}.")
-
         if self.embedding_models is not None:
+            available_embedding_model_aliases = list(self.embedding_models.keys())
             if self.default_embedding_model is None and len(self.embedding_models) > 1:
-                raise ConfigurationError("embedding_models is set but default_embedding_model is missing (ambiguous).")
+                raise ConfigurationError("default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: {available_embedding_model_aliases} as a default_embedding_model.")
 
             if self.default_embedding_model is not None and self.default_embedding_model not in self.embedding_models:
                 raise ConfigurationError(
-                    f"default_embedding_model {self.default_embedding_model} is not in embedding_models")
+                    f"default_embedding_model {self.default_embedding_model} is not in configured map of embedding models. Available models: {available_embedding_model_aliases} .")
             for model_alias, embedding_model in self.embedding_models.items():
                 if isinstance(embedding_model, OpenAIModelConfig):
                     embedding_model_provider = ModelProvider.OPENAI
@@ -255,17 +286,17 @@ class SessionConfig(BaseModel):
     Attributes:
         app_name: Name of the application using this session. Defaults to "default_app".
         db_path: Optional path to a local database file for persistent storage.
-        semantic: Configuration for semantic models (required).
+        semantic: Configuration for semantic models (optional).
         cloud: Optional configuration for cloud execution.
 
     Note:
-        The semantic configuration is required as it defines the language models
-        that will be used for processing. The cloud configuration is optional and
-        only needed for distributed processing.
+        The semantic configuration is optional. When not provided, only non-semantic operations
+        are available. The cloud configuration is optional and only needed for
+        distributed processing.
     """
     app_name: str = "default_app"
     db_path: Optional[Path] = None
-    semantic: SemanticConfig
+    semantic: Optional[SemanticConfig] = None
     cloud: Optional[CloudConfig] = None
 
     def _to_resolved_config(self) -> ResolvedSessionConfig:
@@ -277,11 +308,20 @@ class SessionConfig(BaseModel):
                     tpm=model.tpm
                 )
             elif isinstance(model, GoogleGLAModelConfig):
-                return ResolvedGoogleGLAModelConfig(
+                return ResolvedGoogleModelConfig(
+                    model_provider=ModelProvider.GOOGLE_GLA,
                     model_name=model.model_name,
                     rpm=model.rpm,
                     tpm=model.tpm,
-                    reasoning_effort=model.reasoning_effort
+                    default_thinking_budget=model.default_thinking_budget,
+                )
+            elif isinstance(model, GoogleVertexModelConfig):
+                return ResolvedGoogleModelConfig(
+                    model_name=model.model_name,
+                    model_provider=ModelProvider.GOOGLE_VERTEX,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                    default_thinking_budget=model.default_thinking_budget,
                 )
             else:
                 return ResolvedAnthropicModelConfig(
@@ -291,25 +331,25 @@ class SessionConfig(BaseModel):
                     output_tpm=model.output_tpm
                 )
 
-        resolved_language_models = {
-            alias: resolve_model(cfg)
-            for alias, cfg in self.semantic.language_models.items()
-        }
+        language_models = (
+            ResolvedLanguageModelConfig(
+                model_configs={alias: resolve_model(cfg) for alias, cfg in self.semantic.language_models.items()},
+                default_model=self.semantic.default_language_model,
+            )
+            if self.semantic and self.semantic.language_models else None
+        )
 
-        resolved_embedding_models = (
-            {
-                alias: resolve_model(cfg)  # type: ignore[arg-type]
-                for alias, cfg in self.semantic.embedding_models.items()
-            }
-            if self.semantic.embedding_models
-            else None
+        embedding_models = (
+            ResolvedEmbeddingModelConfig(
+                model_configs={alias: resolve_model(cfg) for alias, cfg in self.semantic.embedding_models.items()},
+                default_model=self.semantic.default_embedding_model,
+            )
+            if self.semantic and self.semantic.embedding_models else None
         )
 
         resolved_semantic = ResolvedSemanticConfig(
-            language_models=resolved_language_models,
-            default_language_model=self.semantic.default_language_model,
-            embedding_models=resolved_embedding_models,
-            default_embedding_model=self.semantic.default_embedding_model,
+            language_models=language_models,
+            embedding_models=embedding_models,
         )
 
         resolved_cloud = (

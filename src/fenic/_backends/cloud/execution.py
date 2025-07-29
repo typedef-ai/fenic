@@ -32,6 +32,7 @@ from fenic_cloud.protos.engine.v1.engine_pb2 import (
 )
 from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 
+from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic.core._interfaces import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlanSerde
@@ -89,20 +90,9 @@ class CloudExecution(BaseExecution):
             self.session_state.asyncio_loop,
         )
         execution_id = future.result()
+        df = self._get_execution_result_from_arrow(execution_id)
 
-        result_future = asyncio.run_coroutine_threadsafe(
-            self._get_execution_result_from_arrow(execution_id),
-            self.session_state.asyncio_loop,
-        )
-        df = result_future.result()
-
-        return df, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return df, self._get_query_execution_metrics(execution_id)
 
     def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows."""
@@ -130,14 +120,7 @@ class CloudExecution(BaseExecution):
                 f"Result of show execution '{execution_id}' did not include show string."
             )
 
-        # TODO: Get the metrics from hasura
-        return result_response.show_result, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return result_response.show_result, self._get_query_execution_metrics(execution_id)
 
     def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows."""
@@ -164,14 +147,7 @@ class CloudExecution(BaseExecution):
                 f"Result of count execution '{execution_id}' did not include count field."
             )
 
-        # TODO: Get the metrics from hasura
-        return result_response.count_result, QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        return result_response.count_result, self._get_query_execution_metrics(execution_id)
 
     def build_lineage(self, plan: LogicalPlan) -> BaseLineage:
         """Build a lineage graph from a logical plan."""
@@ -392,14 +368,20 @@ class CloudExecution(BaseExecution):
             ) from e
         return result_response
 
-    async def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
+    def _get_execution_result_from_arrow(self, execution_id: str) -> pl.DataFrame:
         """Get the result of an execution as a Polars DataFrame."""
         try:
+            logger.debug(f"Connecting to arrow IPC: {self.session_state.arrow_ipc_uri}")
             arrow_client = pa.flight.connect(
-                f"grpc://{self.session_state.arrow_ipc_uri}"
+                _get_arrow_grpc_uri(
+                    self.session_state.arrow_ipc_uri,
+                    self.session_state.arrow_ipc_uri_secure)
             )
+            options = pa.flight.FlightCallOptions(
+                headers=_get_arrow_ipc_headers(self.session_state.session_uuid))
             reader = arrow_client.do_get(
-                pa.flight.Ticket(str(execution_id).encode("utf-8"))
+                pa.flight.Ticket(str(execution_id).encode("utf-8")),
+                options,
             )
             table = reader.read_all()
             return pl.DataFrame(table)
@@ -411,3 +393,26 @@ class CloudExecution(BaseExecution):
             raise CloudSessionError(
                 "Failed while connecting to arrow IPC"
             ) from e
+
+    def _get_query_execution_metrics(self, execution_id: str) -> QueryMetrics:
+        """Get query execution metrics from the cloud catalog."""
+        future = asyncio.run_coroutine_threadsafe(
+            get_query_execution_metrics(self.session_state.hasura_user_client, execution_id),
+            self.session_state.asyncio_loop,
+        )
+        return future.result()
+
+def _get_arrow_ipc_headers(
+        session_id: str,
+    ) -> list[Tuple[str, str]]:
+    """Get the headers for the arrow IPC connection."""
+    logger.debug(f"Getting arrow IPC headers for session: {session_id}")
+    return [(b"session-id", session_id.encode("utf-8")),
+            (b"content-type", b"application/grpc"),
+            (b"endpoint", b"results")]
+
+def _get_arrow_grpc_uri(
+    uri: str,
+    secure: bool) -> str:
+    """Get the gRPC URI for the arrow IPC connection."""
+    return f"grpc+tls://{uri}" if secure else f"grpc://{uri}"

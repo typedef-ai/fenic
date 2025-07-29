@@ -6,10 +6,18 @@ and few-shot prompting, and recursive summarization techniques.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 import fenic as fc
 
+
+class PodcastSpeakersSchema(BaseModel):
+    """Schema for extracting speaker information from the podcast description."""
+    host_name: str = Field(description="The name of the podcast host (usually Lex Fridman)")
+    guest_names: List[str] = Field(description="List of all guest names mentioned in the podcast description")
+    guest_roles: List[str] = Field(description="List of professional roles, titles, or affiliations of the guests")
 
 def main(config: Optional[fc.SessionConfig] = None):
     """Process podcast transcript to generate various types of summaries."""
@@ -222,32 +230,10 @@ def main(config: Optional[fc.SessionConfig] = None):
     # 7. Extract host and guest names using semantic operations
     print("\n=== Step 7: Extracting Host and Guest Names ===")
 
-    # Define schema for extracting speaker information
-    podcast_speakers_schema = fc.ExtractSchema([
-        # Single host name
-        fc.ExtractSchemaField(
-            name="host_name",
-            data_type=fc.StringType,
-            description="The name of the podcast host (usually Lex Fridman)"
-        ),
-        # List of guest names
-        fc.ExtractSchemaField(
-            name="guest_names",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-            description="List of all guest names mentioned in the podcast description"
-        ),
-        # List of guest roles/titles
-        fc.ExtractSchemaField(
-            name="guest_roles",
-            data_type=fc.ExtractSchemaList(element_type=fc.StringType),
-            description="List of professional roles, titles, or affiliations of the guests"
-        )
-    ])
-
     # Apply semantic extraction to the description field
     speakers_extracted_df = meta_extracted_df.select(
         "*",
-        fc.semantic.extract(fc.col("description"), podcast_speakers_schema).alias("speakers_info")
+        fc.semantic.extract(fc.col("description"), PodcastSpeakersSchema).alias("speakers_info")
     )
 
     print("Semantic extraction of speakers applied")

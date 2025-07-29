@@ -15,8 +15,10 @@ from typing import Literal, Optional, Union
 from fenic._inference.model_catalog import (
     ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
     GOOGLE_GLA_AVAILABLE_MODELS,
+    GOOGLE_VERTEX_AVAILABLE_MODELS,
     OPENAI_AVAILABLE_EMBEDDING_MODELS,
     OPENAI_AVAILABLE_LANGUAGE_MODELS,
+    ModelProvider,
 )
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
@@ -47,24 +49,32 @@ class ResolvedAnthropicModelConfig:
     output_tpm: int
 
 @dataclass
-class ResolvedGoogleGLAModelConfig:
-    model_name: GOOGLE_GLA_AVAILABLE_MODELS
+class ResolvedGoogleModelConfig:
+    model_provider: Literal[ModelProvider.GOOGLE_GLA, ModelProvider.GOOGLE_VERTEX]
+    model_name: Union[GOOGLE_GLA_AVAILABLE_MODELS, GOOGLE_VERTEX_AVAILABLE_MODELS]
     rpm: int
     tpm: int
-    reasoning_effort: Optional[ReasoningEffort]
+    default_thinking_budget: Optional[int] = None
 
-ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleGLAModelConfig]
+ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]
 
 
 # --- Semantic / Cloud / Session Configs ---
 
 @dataclass
 class ResolvedSemanticConfig:
-    language_models: dict[str, ResolvedModelConfig]
-    default_language_model: str
-    embedding_models: Optional[dict[str, ResolvedOpenAIModelConfig]] = None
-    default_embedding_model: Optional[str] = None
+    language_models: Optional[ResolvedLanguageModelConfig] = None
+    embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
 
+@dataclass
+class ResolvedLanguageModelConfig:
+    model_configs: dict[str, ResolvedModelConfig]
+    default_model: str
+
+@dataclass
+class ResolvedEmbeddingModelConfig:
+    model_configs: dict[str, ResolvedOpenAIModelConfig]
+    default_model: str
 
 @dataclass
 class ResolvedCloudConfig:
@@ -73,7 +83,6 @@ class ResolvedCloudConfig:
 
 @dataclass
 class ResolvedSessionConfig:
-
     app_name: str
     db_path: Optional[Path]
     semantic: ResolvedSemanticConfig

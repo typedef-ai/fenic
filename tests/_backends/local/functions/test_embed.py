@@ -12,6 +12,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
@@ -37,6 +38,27 @@ def test_embeddings(extract_data_df):
     ]
     result = df.to_polars()
     assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+
+def test_embedding_without_models():
+    """Test that an error is raised if no embedding models are configured."""
+    session_config = SessionConfig(
+        app_name="embedding_without_models",
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No embedding models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.embed(col("text")).alias("embeddings"))
+    session.stop()
+
+    session_config = SessionConfig(
+        app_name="embedding_with_models",
+        semantic=SemanticConfig(
+            language_models={"mini" :OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
+        ),
+    )
+    session = Session.get_or_create(session_config)
+    with pytest.raises(ValidationError, match="No embedding models configured."):
+        session.create_dataframe({"text": ["hello"]}).select(semantic.embed(col("text")).alias("embeddings"))
+    session.stop()
 
 
 def test_normalization(local_session):
@@ -210,7 +232,7 @@ def test_similarity_validation_errors(local_session):
     df2 = df2.select(col("vectors2").cast(EmbeddingType(dimensions=2, embedding_model="different")).alias("embeddings2"))
 
     combined = df.join(df2, how="cross")
-    with pytest.raises(TypeMismatchError, match="Embedding types must match"):
+    with pytest.raises(TypeMismatchError, match="embedding.compute_similarity does not match any valid signature*"):
         combined.select(embedding.compute_similarity(col("embeddings"), col("embeddings2")).alias("similarity"))
 
 
