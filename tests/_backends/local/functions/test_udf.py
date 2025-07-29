@@ -1,6 +1,16 @@
-from fenic import ArrayType, IntegerType, MarkdownType, StructField, StructType, col, udf
-from fenic.core.error import ValidationError
 import pytest
+
+from fenic import (
+    ArrayType,
+    IntegerType,
+    MarkdownType,
+    StructField,
+    StructType,
+    col,
+    udf,
+)
+from fenic.core.error import ValidationError
+
 
 def test_with_column_udf(sample_df):
     @udf(return_type=IntegerType)

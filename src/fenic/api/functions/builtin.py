@@ -24,9 +24,9 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
+from fenic.core._utils.type_inference import is_logical_type
 from fenic.core.error import ValidationError
 from fenic.core.types import DataType
-from fenic.core._utils.type_inference import is_logical_type
 
 """Built-in functions."""
 
