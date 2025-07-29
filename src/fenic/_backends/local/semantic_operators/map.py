@@ -28,7 +28,7 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
     STRUCTURED_SYSTEM_PROMPT_PREFIX = (
         "You are an AI assistant designed to follow instructions. "
         "{% if is_structured_response %}"
-        "Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields."
+        "Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields. "
         "{% else %}"
         "Your task is to generate responses based on instructions that reference one or more context fields. "
         "{% endif %}"

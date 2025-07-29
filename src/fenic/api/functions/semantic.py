@@ -17,8 +17,8 @@ from fenic.core._logical_plan.expressions import (
     SemanticSummarizeExpr,
 )
 from fenic.core._utils.structured_outputs import (
-    SemanticSchemaValidationError,
-    validate_semantic_schema_structure,
+    OutputFormatValidationError,
+    validate_output_format,
 )
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -82,6 +82,12 @@ def map(
         semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
         ```
     """
+    if schema:
+        try:
+            validate_output_format(schema)
+        except OutputFormatValidationError as e:
+            raise ValidationError("Invalid response schema") from e
+
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
@@ -144,9 +150,9 @@ def extract(
         ```
     """
     try:
-        validate_semantic_schema_structure(schema)
-    except SemanticSchemaValidationError as e:
-        raise ValidationError(f"Invalid extraction schema: {str(e)}") from None
+        validate_output_format(schema)
+    except OutputFormatValidationError as e:
+        raise ValidationError("Invalid extraction schema") from e
 
     return Column._from_logical_expr(
         SemanticExtractExpr(

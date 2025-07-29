@@ -4,11 +4,11 @@ from typing import List, Union, get_args, get_origin
 from pydantic import BaseModel
 
 
-class SemanticSchemaValidationError(Exception):
+class OutputFormatValidationError(Exception):
     """Error raised when a semantic operation schema is invalid."""
 
 
-def validate_semantic_schema_structure(
+def validate_output_format(
     model: type[BaseModel],
 ) -> None:
     """Check a Pydantic model type to ensure it is valid schema for semantic operations.
@@ -24,14 +24,14 @@ def validate_semantic_schema_structure(
     """
     # Check the field structure and the types for the pydantic model
     if len(model.__pydantic_fields__.items()) == 0:
-        raise SemanticSchemaValidationError(
+        raise OutputFormatValidationError(
             "Output schema cannot be empty. "
             "Please specify at least one output field."
         )
 
     for field_name, field_info in model.__pydantic_fields__.items():
         if field_info.description is None:
-            raise SemanticSchemaValidationError(
+            raise OutputFormatValidationError(
                 f"Extract schema field {field_name} has no description. Please specify a description for each field."
             )
 
@@ -46,7 +46,7 @@ def _validate_semantic_field_type(annotation, field_name: str) -> None:
 
     # Handle Pydantic models
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        validate_semantic_schema_structure(annotation)
+        validate_output_format(annotation)
         return
 
     # Handle generic types (List, Optional, Union, etc.)
@@ -69,7 +69,7 @@ def _validate_semantic_field_type(annotation, field_name: str) -> None:
             return
         else:
             # This is a Union with multiple non-None types - not supported
-            raise SemanticSchemaValidationError(
+            raise OutputFormatValidationError(
                 f"Union types are not supported in field {field_name}. Only Optional[T] is allowed."
             )
 
@@ -78,7 +78,7 @@ def _validate_semantic_field_type(annotation, field_name: str) -> None:
         return
 
     # If we get here, it's an unsupported type
-    raise SemanticSchemaValidationError(
+    raise OutputFormatValidationError(
         f"Unsupported data type in semantic schema field '{field_name}': {annotation}. "
         "Supported types are: str, int, float, bool, List[T], Optional[T], Literal, and nested Pydantic models."
     )

@@ -1,8 +1,7 @@
 from textwrap import dedent
 
 import polars as pl
-from fenic_cloud.hasura_client.generated_graphql_client import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from fenic import MapExample, MapExampleCollection
 from fenic._backends.local.semantic_operators.map import Map
@@ -135,7 +134,7 @@ class TestMap:
             [
                 {
                     "content": str.strip(dedent("""\
-                    You are an AI assistant designed to follow instructions. Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields.Each input message will have two sections:
+                    You are an AI assistant designed to follow instructions. Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields. Each input message will have two sections:
                     1. An instruction labeled with the prefix: ###Instruction
                     2. One or more context fields labeled with the prefix: ###Context
                     The instruction will reference the context fields using square brackets [LIKE_THIS]. Each context field will be labeled with its name in square brackets, matching the references in the instruction. Your response should fulfill the instruction by appropriately integrating each of the referenced context fields without using any external information. Your response should not include unnecessary preamble or explanation.

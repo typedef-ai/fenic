@@ -197,7 +197,7 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
 
     example_class = MapExample
 
-    def create_example(self, example: MapExample) -> "MapExampleCollection":
+    def create_example(self, example: MapExample) -> MapExampleCollection:
         """Create an example in the collection with output type validation.
 
         Ensures all examples in the collection have consistent output types
@@ -213,9 +213,9 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
             InvalidExampleCollectionError: If the example output type doesn't match
                 the existing examples in the collection.
         """
-        if not isinstance(example, self.example_class):
+        if not isinstance(example, MapExample):
             raise InvalidExampleCollectionError(
-                f"Expected example of type {self.example_class.__name__}, got {type(example).__name__}"
+                f"Expected example of type {MapExample.__name__}, got {type(example).__name__}"
             )
         _validate_single_example_output_type(self.examples, example)
         self.examples.append(example)
