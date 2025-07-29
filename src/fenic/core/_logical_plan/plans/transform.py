@@ -18,7 +18,7 @@ from fenic.core._logical_plan.expressions import (
     LogicalExpr,
     SortExpr,
 )
-from fenic.core._logical_plan.plans.base import LogicalPlan, ensure_same_session
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
@@ -38,15 +38,28 @@ from fenic.core.types import (
 logger = logging.getLogger(__name__)
 
 class Projection(LogicalPlan):
-    def __init__(self, input: LogicalPlan, exprs: List[LogicalExpr]):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            exprs: List[LogicalExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._exprs = exprs
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, exprs: List[LogicalExpr], schema: Schema) -> Projection:
+        return Projection(input, exprs, None, schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, exprs: List[LogicalExpr], session_state: BaseSessionState) -> Projection:
+        return Projection(input, exprs, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         fields = []
         for expr in self._exprs:
             if isinstance(expr, AggregateExpr):
@@ -55,7 +68,7 @@ class Projection(LogicalPlan):
                     "Please use the agg() method instead."
                 )
 
-            fields.append(expr.to_column_field(self._input))
+            fields.append(expr.to_column_field(self._input, session_state))
         return Schema(fields)
 
     def exprs(self) -> List[LogicalExpr]:
@@ -65,18 +78,23 @@ class Projection(LogicalPlan):
         exprs_str = ", ".join(str(expr) for expr in self._exprs)
         return f"Projection(exprs=[{exprs_str}])"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Projection must have exactly one child")
-        result = Projection(children[0], self._exprs)
+        result = self.from_session_state(children[0], self._exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Filter(LogicalPlan):
-    def __init__(self, input: LogicalPlan, predicate: LogicalExpr):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            predicate: LogicalExpr,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
-        actual_type = predicate.to_column_field(input).data_type
+        actual_type = predicate.to_column_field(input, session_state).data_type
         if actual_type != BooleanType:
             raise ValueError(
                 f"Filter predicate must return a boolean value, but got {actual_type}. "
@@ -96,12 +114,20 @@ class Filter(LogicalPlan):
                 "Please use the sort() method instead."
             )
         self._predicate = predicate
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, predicate: LogicalExpr, schema: Schema) -> Filter:
+        return Filter(input, predicate, schema=schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, predicate: LogicalExpr, session_state: BaseSessionState) -> Filter:
+        return Filter(input, predicate, session_state=session_state)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
     def predicate(self) -> LogicalExpr:
@@ -111,26 +137,35 @@ class Filter(LogicalPlan):
         """Return the representation for the Filter node."""
         return f"Filter(predicate={self._predicate})"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Filter must have exactly one child")
-        result = Filter(children[0], self._predicate)
+        result = self.from_session_state(children[0], self._predicate, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Union(LogicalPlan):
-    def __init__(self, inputs: List[LogicalPlan]):
+    def __init__(
+            self,
+            inputs: List[LogicalPlan],
+            session_state:Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._inputs = inputs
-        first_input = inputs[0]
-        for input in inputs[1:]:
-            ensure_same_session(input.session_state, first_input.session_state)
-        super().__init__(first_input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, inputs: List[LogicalPlan], schema: Schema) -> Union:
+        return Union(inputs, None, schema)
+
+    @classmethod
+    def from_session_state(cls, inputs: List[LogicalPlan], session_state: BaseSessionState) -> Union:
+        return Union(inputs, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return self._inputs
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         schemas = [input_plan.schema() for input_plan in self._inputs]
 
         # Check that all schemas have the same columns and types
@@ -156,47 +191,73 @@ class Union(LogicalPlan):
     def _repr(self) -> str:
         return "Union"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
-        result = Union(children)
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
+        result = Union.from_session_state(children, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Limit(LogicalPlan):
-    def __init__(self, input: LogicalPlan, n: int):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            n: int,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self.n = n
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, n: int, schema: Schema) -> Limit:
+        return Limit(input, n, schema=schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, n: int, session_state: BaseSessionState) -> Limit:
+        return Limit(input, n, session_state=session_state)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
     def _repr(self) -> str:
         return f"Limit(n={self.n})"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Limit must have exactly one child")
-        result = Limit(children[0], self.n)
+        result = self.from_session_state(children[0], self.n, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Explode(LogicalPlan):
-    def __init__(self, input: LogicalPlan, expr: LogicalExpr):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            expr: LogicalExpr,
+            session_state:Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._expr = expr
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, expr: LogicalExpr, schema: Schema) -> Explode:
+        return Explode(input, expr, schema=schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, expr: LogicalExpr, session_state: BaseSessionState) -> Explode:
+        return Explode(input, expr, session_state=session_state)
 
     def children(self) -> list[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         input_schema = self._input.schema()
-        exploded_field = self._expr.to_column_field(self._input)
+        exploded_field = self._expr.to_column_field(self._input, session_state)
 
         if not isinstance(exploded_field.data_type, ArrayType):
             raise ValueError(
@@ -226,37 +287,46 @@ class Explode(LogicalPlan):
     def _repr(self) -> str:
         return f"Explode({self._expr})"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Explode must have exactly one child")
-        result = Explode(children[0], self._expr)
+        result = Explode.from_session_state(children[0], self._expr, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class DropDuplicates(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        subset: List[ColumnExpr],
-    ):
+            self,
+            input: LogicalPlan,
+            subset: List[ColumnExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self.subset = subset
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, subset: List[ColumnExpr], schema: Schema) -> DropDuplicates:
+        return DropDuplicates(input, subset, None, schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, subset: List[ColumnExpr], session_state: BaseSessionState) -> DropDuplicates:
+        return DropDuplicates(input, subset, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
     def _repr(self) -> str:
         return f"DropDuplicates(subset={', '.join(str(expr) for expr in self.subset)})"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("DropDuplicates must have exactly one child")
-        result = DropDuplicates(children[0], self.subset)
+        result = DropDuplicates.from_session_state(children[0], self.subset, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
@@ -269,18 +339,27 @@ class DropDuplicates(LogicalPlan):
 
 class Sort(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        sort_exprs: List[SortExpr],
-    ):
+            self,
+            input: LogicalPlan,
+            sort_exprs: List[SortExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._sort_exprs = sort_exprs
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, sort_exprs: List[SortExpr], schema: Schema) -> Sort:
+        return Sort(input, sort_exprs, schema=schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, sort_exprs: List[SortExpr], session_state: BaseSessionState) -> Sort:
+        return Sort(input, sort_exprs, session_state=session_state)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
     def sort_exprs(self) -> List[LogicalExpr]:
@@ -289,24 +368,37 @@ class Sort(LogicalPlan):
     def _repr(self) -> str:
         return f"Sort(cols={', '.join(str(expr) for expr in self._sort_exprs)})"
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Sort must have exactly one child")
-        result = Sort(children[0], self._sort_exprs)
+        result = self.from_session_state(children[0], self._sort_exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Unnest(LogicalPlan):
-    def __init__(self, input: LogicalPlan, exprs: List[ColumnExpr]):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            exprs: List[ColumnExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._exprs = exprs
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, exprs: List[ColumnExpr], schema: Schema) -> Unnest:
+        return Unnest(input, exprs, None, schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, exprs: List[ColumnExpr], session_state: BaseSessionState) -> Unnest:
+        return Unnest(input, exprs, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         column_fields = []
         for field in self._input.schema().column_fields:
             if field.name in {expr.name for expr in self._exprs}:
@@ -330,15 +422,21 @@ class Unnest(LogicalPlan):
     def col_names(self) -> List[str]:
         return [expr.name for expr in self._exprs]
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Unnest must have exactly one child")
-        result = Unnest(children[0], self._exprs)
+        result = Unnest.from_session_state(children[0], self._exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 class SQL(LogicalPlan):
-    def __init__(self, inputs: List[LogicalPlan], template_names: List[str], templated_query: str, session_state: BaseSessionState):
+    def __init__(
+            self,
+            inputs: List[LogicalPlan],
+            template_names: List[str],
+            templated_query: str,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         # Note: inputs[i] corresponds to template_names[i]
         if len(inputs) != len(template_names):
             raise InternalError("inputs and template_names must have the same length")
@@ -346,9 +444,19 @@ class SQL(LogicalPlan):
         self._template_names = template_names
         self._templated_query = templated_query
         self.resolved_query, self.view_names = self._replace_query_placeholders()
-        for input in inputs:
-            ensure_same_session(input.session_state, session_state)
-        super().__init__(session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, inputs: List[LogicalPlan], template_names: List[str], templated_query: str, schema: Schema) -> SQL:
+        return SQL(inputs, template_names, templated_query, None, schema)
+
+    @classmethod
+    def from_session_state(cls,
+        inputs: List[LogicalPlan],
+        template_names: List[str],
+        templated_query: str,
+        session_state: BaseSessionState) -> SQL:
+        return SQL(inputs, template_names, templated_query, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return self._inputs
@@ -370,7 +478,7 @@ class SQL(LogicalPlan):
         view_names = [template_name_to_view_name[name] for name in self._template_names]
         return replaced_sql, view_names
 
-    def _build_schema(self) -> Schema:
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
         self._validate_query()
         db_conn = duckdb.connect()
         for view_name, input in zip(self.view_names, self._inputs, strict=True):
@@ -408,11 +516,12 @@ class SQL(LogicalPlan):
         root_expr = statements[0]
         _validate_select_only_tree(root_expr)
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         """Create and return a new instance of the SQL plan with the given children."""
         if len(children) == 0:
             raise InternalError("SQL node must have at least one child")
-        result = SQL(children, self._template_names, self._templated_query, self.session_state)
+        # The list of input session states is empty because the session state has already been validated.
+        result = SQL.from_session_state(children, self._template_names, self._templated_query, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
@@ -423,15 +532,16 @@ class CentroidInfo:
 
 class SemanticCluster(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        by_expr: LogicalExpr,
-        num_clusters: int,
-        max_iter: int,
-        num_init: int,
-        label_column: str,
-        centroid_column: Optional[str],
-    ):
+            self,
+            input: LogicalPlan,
+            by_expr: LogicalExpr,
+            num_clusters: int,
+            max_iter: int,
+            num_init: int,
+            label_column: str,
+            centroid_column: Optional[str],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._by_expr = by_expr
         self._num_clusters = num_clusters
@@ -440,13 +550,21 @@ class SemanticCluster(LogicalPlan):
         self._label_column = label_column
         self._centroid_column = centroid_column
         self._centroid_info: Optional[CentroidInfo] = None
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], schema: Schema) -> SemanticCluster:
+        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, None, schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], session_state: BaseSessionState) -> SemanticCluster:
+        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
-        by_expr_type = self._by_expr.to_column_field(self._input).data_type
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        by_expr_type = self._by_expr.to_column_field(self._input, session_state).data_type
         if not isinstance(by_expr_type, EmbeddingType):
             raise TypeMismatchError.from_message(
                 f"semantic.with_cluster_labels by expression must be an embedding column type (EmbeddingType); "
@@ -481,10 +599,10 @@ class SemanticCluster(LogicalPlan):
     def label_column(self) -> str:
         return self._label_column
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("SemanticCluster must have exactly one child")
-        result = SemanticCluster(
+        result = SemanticCluster.from_session_state(
             children[0],
             self._by_expr,
             num_clusters=self._num_clusters,
@@ -492,6 +610,7 @@ class SemanticCluster(LogicalPlan):
             num_init=self._num_init,
             label_column=self._label_column,
             centroid_column=self._centroid_column,
+            session_state=session_state,
         )
         result.set_cache_info(self.cache_info)
         return result

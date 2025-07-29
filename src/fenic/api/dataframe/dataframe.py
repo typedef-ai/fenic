@@ -26,6 +26,7 @@ from fenic.api.dataframe.semantic_extensions import SemanticExtensions
 from fenic.api.functions import col, lit
 from fenic.api.io.writer import DataFrameWriter
 from fenic.api.lineage import Lineage
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     SortExpr,
 )
@@ -44,7 +45,7 @@ from fenic.core._logical_plan.plans import (
 from fenic.core._logical_plan.plans import (
     Union as UnionLogicalPlan,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import SessionError, ValidationError
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import Schema
 from fenic.core.types.enums import JoinType
@@ -83,6 +84,7 @@ class DataFrame:
     """
 
     _logical_plan: LogicalPlan
+    _session_state: BaseSessionState
 
     def __new__(cls):
         """Prevent direct DataFrame construction.
@@ -97,7 +99,9 @@ class DataFrame:
 
     @classmethod
     def _from_logical_plan(
-        cls, logical_plan: LogicalPlan
+        cls,
+        logical_plan: LogicalPlan,
+        session_state: BaseSessionState,
     ) -> DataFrame:
         """Factory method to create DataFrame instances.
 
@@ -106,6 +110,7 @@ class DataFrame:
 
         Args:
             logical_plan: The logical plan for this DataFrame
+            session_state: The session state for this DataFrame
 
         Returns:
             A new DataFrame instance
@@ -113,6 +118,7 @@ class DataFrame:
         if not isinstance(logical_plan, LogicalPlan):
             raise TypeError(f"Expected LogicalPlan, got {type(logical_plan)}")
         df = super().__new__(cls)
+        df._session_state = session_state
         df._logical_plan = logical_plan
         return df
 
@@ -232,7 +238,7 @@ class DataFrame:
             n: Number of rows to display
             explain_analyze: Whether to print the explain analyze plan
         """
-        output, metrics = self._logical_plan.session_state.execution.show(self._logical_plan, n)
+        output, metrics = self._session_state.execution.show(self._logical_plan, n)
         logger.info(metrics.get_summary())
         print(output)
         if explain_analyze:
@@ -251,7 +257,7 @@ class DataFrame:
         Returns:
             QueryResult: A QueryResult with materialized data and query metrics
         """
-        result: Tuple[pl.DataFrame, QueryMetrics] = self._logical_plan.session_state.execution.collect(self._logical_plan)
+        result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
         df, metrics = result
         logger.info(metrics.get_summary())
 
@@ -345,7 +351,7 @@ class DataFrame:
         Returns:
             int: The number of rows in the DataFrame
         """
-        return self._logical_plan.session_state.execution.count(self._logical_plan)[0]
+        return self._session_state.execution.count(self._logical_plan)[0]
 
     def lineage(self) -> Lineage:
         """Create a Lineage object to trace data through transformations.
@@ -372,7 +378,7 @@ class DataFrame:
         See Also:
             LineageQuery: Full documentation of lineage querying capabilities
         """
-        return Lineage(self._logical_plan.session_state.execution.build_lineage(self._logical_plan))
+        return Lineage(self._session_state.execution.build_lineage(self._logical_plan))
 
     def persist(self) -> DataFrame:
         """Mark this DataFrame to be persisted after first computation.
@@ -400,7 +406,9 @@ class DataFrame:
         table_name = f"cache_{uuid.uuid4().hex}"
         cache_info = CacheInfo(duckdb_table_name=table_name)
         self._logical_plan.set_cache_info(cache_info)
-        return self._from_logical_plan(self._logical_plan)
+        return self._from_logical_plan(
+            self._logical_plan,
+            self._session_state)
 
     def cache(self) -> DataFrame:
         """Alias for persist(). Mark DataFrame for caching after first computation.
@@ -479,7 +487,8 @@ class DataFrame:
                 exprs.append(c._logical_expr)
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def where(self, condition: Column) -> DataFrame:
@@ -548,7 +557,8 @@ class DataFrame:
             ```
         """
         return self._from_logical_plan(
-            Filter(self._logical_plan, condition._logical_expr),
+            Filter.from_session_state(self._logical_plan, condition._logical_expr, self._session_state),
+            self._session_state,
         )
 
     def with_column(self, col_name: str, col: Union[Any, Column]) -> DataFrame:
@@ -634,7 +644,8 @@ class DataFrame:
         exprs.append(col.alias(col_name)._logical_expr)
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def with_column_renamed(self, col_name: str, new_col_name: str) -> DataFrame:
@@ -699,7 +710,8 @@ class DataFrame:
             return self
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, exprs)
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def drop(self, *col_names: str) -> DataFrame:
@@ -780,7 +792,8 @@ class DataFrame:
             raise ValueError("Cannot drop all columns from DataFrame")
 
         return self._from_logical_plan(
-            Projection(self._logical_plan, remaining_cols)
+            Projection.from_session_state(self._logical_plan, remaining_cols, self._session_state),
+            self._session_state,
         )
 
     def union(self, other: DataFrame) -> DataFrame:
@@ -859,8 +872,10 @@ class DataFrame:
             # +---+-----+
             ```
         """
+        self._ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
-            UnionLogicalPlan([self._logical_plan, other._logical_plan]),
+            UnionLogicalPlan.from_session_state([self._logical_plan, other._logical_plan], self._session_state),
+            self._session_state,
         )
 
     def limit(self, n: int) -> DataFrame:
@@ -908,7 +923,9 @@ class DataFrame:
             # +---+-------+
             ```
         """
-        return self._from_logical_plan(Limit(self._logical_plan, n))
+        return self._from_logical_plan(
+            Limit.from_session_state(self._logical_plan, n, self._session_state),
+            self._session_state)
 
     @overload
     def join(
@@ -1036,8 +1053,16 @@ class DataFrame:
         # Build join conditions
         left_conditions, right_conditions = build_join_conditions(on, left_on, right_on)
 
+        self._ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
-            Join(self._logical_plan, other._logical_plan, left_conditions, right_conditions, how),
+            Join.from_session_state(
+                self._logical_plan,
+                other._logical_plan,
+                left_conditions,
+                right_conditions,
+                how,
+                self._session_state),
+            self._session_state,
         )
 
     def explode(self, column: ColumnOrName) -> DataFrame:
@@ -1095,7 +1120,8 @@ class DataFrame:
             ```
         """
         return self._from_logical_plan(
-            Explode(self._logical_plan, Column._from_col_or_name(column)._logical_expr),
+            Explode.from_session_state(self._logical_plan, Column._from_col_or_name(column)._logical_expr, self._session_state),
+            self._session_state,
         )
 
     def group_by(self, *cols: ColumnOrName) -> GroupedData:
@@ -1256,7 +1282,8 @@ class DataFrame:
                 exprs.append(col(c)._logical_expr)
 
         return self._from_logical_plan(
-            DropDuplicates(self._logical_plan, exprs),
+            DropDuplicates.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def sort(
@@ -1368,7 +1395,8 @@ class DataFrame:
         col_args = cols
         if cols is None:
             return self._from_logical_plan(
-                Sort(self._logical_plan, [])
+                Sort.from_session_state(self._logical_plan, [], self._session_state),
+                self._session_state,
             )
         elif not isinstance(cols, List):
             col_args = [cols]
@@ -1418,7 +1446,8 @@ class DataFrame:
                 sort_exprs.append(SortExpr(c_expr, ascending=asc_bool))
 
         return self._from_logical_plan(
-            Sort(self._logical_plan, sort_exprs),
+            Sort.from_session_state(self._logical_plan, sort_exprs, self._session_state),
+            self._session_state,
         )
 
     def order_by(
@@ -1508,8 +1537,28 @@ class DataFrame:
                 raise TypeError(f"Column {c} not found in DataFrame.")
             exprs.append(col(c)._logical_expr)
         return self._from_logical_plan(
-            Unnest(self._logical_plan, exprs),
+            Unnest.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
+
+    @classmethod
+    def _ensure_same_session(
+            cls,
+            session_state: BaseSessionState,
+            other_session_states: List[BaseSessionState]):
+        """Ensure that any session context passed are from the same session context.
+
+        This check prevents accidental combinations of DataFrames created in different
+        sessions, which can lead to inconsistent behavior due to differing configurations,
+        catalogs, or function registries.
+        """
+        for other_session_state in other_session_states:
+            if session_state is not other_session_state:
+                raise SessionError(
+                    "Cannot combine DataFrames created in different sessions. "
+                    "This operation requires all inputs to belong to the same session context. "
+                    "Make sure that you're not mixing DataFrames from different interactive environments, notebooks, or clients."
+                )
 
 
 DataFrame.show = validate_call(config=ConfigDict(strict=True))(DataFrame.show)

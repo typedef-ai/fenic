@@ -24,7 +24,7 @@ def _test_df_serialization(df: DataFrame, session: BaseSessionState) -> DataFram
     return deserialized_df
 
 def _test_plan_serialization(
-    plan: LogicalPlan, session: BaseSessionState
+    plan: LogicalPlan, session_state: BaseSessionState
 ) -> LogicalPlan:
     """Helper method to test serialization/deserialization of a plan.
 
@@ -33,22 +33,20 @@ def _test_plan_serialization(
     # Serialize and deserialize
     serialized = LogicalPlanSerde.serialize(plan)
     deserialized = LogicalPlanSerde.deserialize(serialized)
-    deserialized_with_session_state = (
-        LogicalPlanSerde.build_logical_plan_with_session_state(deserialized, session)
-    )
     deserialized_df = DataFrame._from_logical_plan(
-        deserialized_with_session_state
+        deserialized,
+        session_state
     )
-    deserialized_with_session_state._build_schema()
-    plan._build_schema()
+    deserialized._build_schema(session_state)
+    plan._build_schema(session_state)
 
     # Test equivalence
-    assert isinstance(deserialized_with_session_state, type(plan))
-    assert plan._repr() == deserialized_with_session_state._repr()
-    assert str(plan._build_schema()) == str(deserialized_with_session_state._build_schema())
+    assert isinstance(deserialized, type(plan))
+    assert plan._repr() == deserialized._repr()
+    assert str(plan._build_schema(session_state)) == str(deserialized._build_schema(session_state))
 
     # Test children if any
-    assert len(plan.children()) == len(deserialized_with_session_state.children())
+    assert len(plan.children()) == len(deserialized.children())
     for orig_child, deser_child in zip(plan.children(), deserialized.children(), strict=False):
         assert orig_child._repr() == deser_child._repr()
 

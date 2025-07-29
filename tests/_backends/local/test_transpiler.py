@@ -92,9 +92,9 @@ def test_convert_source_plan(local_session):
 
 def test_convert_projection_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    source = InMemorySource.from_session_state(df, local_session._session_state)
     plan_converter = PlanConverter(local_session._session_state)
-    proj = Projection(source, [ColumnExpr("a")])
+    proj = Projection.from_session_state(source, [ColumnExpr("a")], local_session._session_state)
     physical = plan_converter.convert(
         proj,
     )
@@ -103,12 +103,12 @@ def test_convert_projection_plan(local_session):
 
 def test_convert_filter_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    source = InMemorySource.from_session_state(df, local_session._session_state)
     plan_converter = PlanConverter(local_session._session_state)
     filter_expr = NumericComparisonExpr(
         ColumnExpr("a"), LiteralExpr(2, IntegerType), Operator.GT
     )
-    filt = Filter(source, filter_expr)
+    filt = Filter.from_session_state(source, filter_expr, local_session._session_state)
     physical = plan_converter.convert(
         filt,
     )
@@ -119,9 +119,9 @@ def test_convert_union_plan(local_session):
     plan_converter = PlanConverter(local_session._session_state)
     df1 = pl.DataFrame({"a": [1, 2]})
     df2 = pl.DataFrame({"a": [3, 4]})
-    source1 = InMemorySource(df1, local_session._session_state)
-    source2 = InMemorySource(df2, local_session._session_state)
-    union = Union([source1, source2])
+    source1 = InMemorySource.from_session_state(df1, local_session._session_state)
+    source2 = InMemorySource.from_session_state(df2, local_session._session_state)
+    union = Union.from_session_state([source1, source2], local_session._session_state)
     physical = plan_converter.convert(
         union,
     )
