@@ -81,7 +81,7 @@ class PlanConverter:
             LogicalPlanOptimizer(
                 [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
             )
-            .optimize(logical)
+            .optimize(logical, self.session_state)
             .plan
         )
         if isinstance(logical, Projection):
@@ -281,7 +281,7 @@ class PlanConverter:
             child_physical = self.convert(
                 child_logical
             )
-            target_field = logical._expr.to_column_field(child_logical)
+            target_field = logical._expr.to_column_field(child_logical, self.session_state)
             return ExplodeExec(
                 child_physical,
                 physical_expr,

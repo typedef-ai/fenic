@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 
 
@@ -18,11 +19,12 @@ class OptimizationResult:
 
 class LogicalPlanOptimizerRule(ABC):
     @abstractmethod
-    def apply(self, logical_plan: LogicalPlan) -> OptimizationResult:
+    def apply(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
         """Apply the optimization rule to the logical plan.
 
         Args:
             logical_plan: The logical plan to optimize
+            session_state: The session state to use for the optimization
 
         Returns:
             OptimizationResult: The optimized plan and whether any changes were made
@@ -34,11 +36,12 @@ class LogicalPlanOptimizer:
     def __init__(self, rules: List[LogicalPlanOptimizerRule] = None):
         self.rules = rules
 
-    def optimize(self, logical_plan: LogicalPlan) -> OptimizationResult:
+    def optimize(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
         """Optimize the logical plan using all rules.
 
         Args:
             logical_plan: The logical plan to optimize
+            session_state: The session state to use for the optimization
 
         Returns:
             OptimizationResult: The optimized plan and whether any changes were made
@@ -47,7 +50,7 @@ class LogicalPlanOptimizer:
         optimized_plan = logical_plan
 
         for rule in self.rules:
-            result = rule.apply(optimized_plan)
+            result = rule.apply(optimized_plan, session_state)
             optimized_plan = result.plan
             any_changes = any_changes or result.was_modified
 

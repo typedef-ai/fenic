@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Union
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.signatures.type_signature import (
     Exact,
@@ -50,11 +51,12 @@ class FunctionSignature:
         self,
         args: List[LogicalExpr],
         plan: LogicalPlan,
-        dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlan], DataType]] = None
+        session_state: BaseSessionState,
+        dynamic_return_type_func: Optional[Callable[[List[DataType], LogicalPlan, BaseSessionState], DataType]] = None
     ) -> DataType:
         """Validate arguments and infer return type using the plan's schema."""
         # Get types of all arguments using to_column_field
-        arg_types = [arg.to_column_field(plan).data_type for arg in args]
+        arg_types = [arg.to_column_field(plan, session_state).data_type for arg in args]
 
         # Validate against signature (no implicit casting in initial implementation)
         self.type_signature.validate(arg_types, self.function_name)
@@ -63,7 +65,7 @@ class FunctionSignature:
         if self.return_type == ReturnTypeStrategy.DYNAMIC:
             if dynamic_return_type_func is None:
                 raise InternalError(f"DYNAMIC return type requires dynamic_return_type_func for {self.function_name}")
-            return_type = dynamic_return_type_func(arg_types, plan)
+            return_type = dynamic_return_type_func(arg_types, plan, session_state)
         else:
             return_type = self.infer_return_type(arg_types)
 

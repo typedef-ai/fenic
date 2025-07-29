@@ -125,7 +125,7 @@ class SemanticExtensions:
             )
 
         return self._df._from_logical_plan(
-            SemanticCluster(
+            SemanticCluster.from_session_state(
                 self._df._logical_plan,
                 by_expr,
                 num_clusters=num_clusters,
@@ -133,7 +133,9 @@ class SemanticExtensions:
                 num_init=num_init,
                 label_column=label_column,
                 centroid_column=centroid_column,
-            )
+                session_state=self._df._session_state,
+            ),
+            self._df._session_state,
         )
 
     def join(
@@ -243,15 +245,18 @@ class SemanticExtensions:
             )
 
         return self._df._from_logical_plan(
-            SemanticJoin(
+            SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 join_instruction=join_instruction,
-                examples=examples,
                 model_alias=model_alias,
+                examples=examples,
+                session_state=self._df._session_state,
+                right_session_state=other._session_state,
             ),
+            self._df._session_state,
         )
 
     def sim_join(
@@ -354,7 +359,7 @@ class SemanticExtensions:
         _validate_column(right_on, "right_on")
 
         return self._df._from_logical_plan(
-            SemanticSimilarityJoin(
+            SemanticSimilarityJoin.from_session_state(
                 self._df._logical_plan,
                 other._logical_plan,
                 Column._from_col_or_name(left_on)._logical_expr,
@@ -362,7 +367,10 @@ class SemanticExtensions:
                 k,
                 similarity_metric,
                 similarity_score_column,
+                self._df._session_state,
+                other._session_state,
             ),
+            self._df._session_state,
         )
 
     # Spark aliases

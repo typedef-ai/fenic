@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import BinaryExpr
 from fenic.core.types import (
     BooleanType,
@@ -14,9 +15,9 @@ from fenic.core.types.datatypes import is_dtype_numeric
 
 
 class EqualityComparisonExpr(BinaryExpr):
-    def _validate_types(self, plan: LogicalPlan):
-        left_type = self.left.to_column_field(plan).data_type
-        right_type = self.right.to_column_field(plan).data_type
+    def _validate_types(self, plan: LogicalPlan, session_state: BaseSessionState):
+        left_type = self.left.to_column_field(plan, session_state).data_type
+        right_type = self.right.to_column_field(plan, session_state).data_type
 
         if left_type != right_type:
             raise TypeError(
@@ -26,15 +27,15 @@ class EqualityComparisonExpr(BinaryExpr):
             )
         return
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        self._validate_types(plan, session_state)
         return ColumnField(str(self), BooleanType)
 
 
 class NumericComparisonExpr(BinaryExpr):
-    def _validate_types(self, plan: LogicalPlan):
-        left_type = self.left.to_column_field(plan).data_type
-        right_type = self.right.to_column_field(plan).data_type
+    def _validate_types(self, plan: LogicalPlan, session_state: BaseSessionState):
+        left_type = self.left.to_column_field(plan, session_state).data_type
+        right_type = self.right.to_column_field(plan, session_state).data_type
 
         if not is_dtype_numeric(left_type) or not is_dtype_numeric(right_type):
             raise TypeError(
@@ -44,15 +45,15 @@ class NumericComparisonExpr(BinaryExpr):
             )
         return
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        self._validate_types(plan, session_state)
         return ColumnField(str(self), BooleanType)
 
 
 class BooleanExpr(BinaryExpr):
-    def _validate_types(self, plan: LogicalPlan):
-        left_type = self.left.to_column_field(plan).data_type
-        right_type = self.right.to_column_field(plan).data_type
+    def _validate_types(self, plan: LogicalPlan, session_state: BaseSessionState):
+        left_type = self.left.to_column_field(plan, session_state).data_type
+        right_type = self.right.to_column_field(plan, session_state).data_type
 
         if left_type != BooleanType or right_type != BooleanType:
             raise TypeError(
@@ -62,6 +63,6 @@ class BooleanExpr(BinaryExpr):
             )
         return
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        self._validate_types(plan, session_state)
         return ColumnField(str(self), BooleanType)

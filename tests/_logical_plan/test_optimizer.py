@@ -21,7 +21,7 @@ def test_merge_filters_basic(local_session):
     )
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -46,7 +46,7 @@ def test_merge_filters_with_cache(local_session):
     df = df.filter(col("id") > 1)
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -94,7 +94,7 @@ def test_semantic_predicate_rewrite_basic(local_session):
     )
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -151,7 +151,7 @@ def test_semantic_predicate_rewrite_complex(local_session):
 
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -194,7 +194,7 @@ def test_semantic_predicate_rewrite_noop(local_session):
 
     was_modified = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .was_modified
     )
     assert not was_modified
@@ -209,7 +209,7 @@ def test_semantic_predicate_rewrite_noop(local_session):
 
     was_modified = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .was_modified
     )
     assert not was_modified
@@ -237,7 +237,7 @@ def test_semantic_predicate_preserves_cache(local_session):
     df = df.select(col("blurb1"))
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -273,7 +273,7 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
     df = df.filter(col("a_numeric_column") > 0).cache()
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -295,7 +295,7 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
     df = df.filter(col("a_numeric_column") > 0)
     was_modified = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .was_modified
     )
     assert not was_modified
@@ -328,7 +328,7 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
     )
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -389,7 +389,7 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
     )
     plan = (
         LogicalPlanOptimizer([MergeFiltersRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -419,7 +419,7 @@ def test_not_filter_pushdown_simple(local_session):
     )
     df = source.filter(~(col("a_boolean_column")))
     plan = (
-        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
+        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan, df._session_state).plan
     )
     golden_repr = dedent(
         """
@@ -443,7 +443,7 @@ def test_not_filter_pushdown_or(local_session):
     )
     df = source.filter(~(col("a_boolean_column") | (col("a_numeric_column") > 0)))
     plan = (
-        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
+        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan, df._session_state).plan
     )
     golden_repr = dedent(
         """
@@ -474,7 +474,7 @@ def test_not_filter_pushdown_with_other_semantic_exprs(local_session):
     )
     plan = (
         LogicalPlanOptimizer([NotFilterPushdownRule(), SemanticFilterRewriteRule()])
-        .optimize(df._logical_plan)
+        .optimize(df._logical_plan, df._session_state)
         .plan
     )
     golden_repr = dedent(
@@ -502,7 +502,7 @@ def test_not_filter_pushdown_and(local_session):
     )
     df = source.filter(~(col("a_boolean_column") & (col("a_numeric_column") > 0)))
     plan = (
-        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan).plan
+        LogicalPlanOptimizer([NotFilterPushdownRule()]).optimize(df._logical_plan, df._session_state).plan
     )
     golden_repr = dedent(
         """
@@ -539,7 +539,7 @@ def test_not_filter_pushdown_nested_ors(local_session):
 
     # Optimize the plan
     optimizer = LogicalPlanOptimizer([NotFilterPushdownRule()])
-    plan = optimizer.optimize(filtered_df._logical_plan).plan
+    plan = optimizer.optimize(filtered_df._logical_plan, filtered_df._session_state).plan
     golden_repr = dedent(
         """
         Filter(predicate=(NOT bool_a AND (NOT bool_b AND (bool_c AND (num_x > lit(15))))))
