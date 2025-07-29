@@ -255,16 +255,20 @@ def test_logical_plan_sink_nodes(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
 
     # Create a FileSink node
-    file_sink = FileSink(
+    file_sink = FileSink.from_session_state(
         child=df._logical_plan,
         sink_type="csv",
         path="test.csv",
         mode="overwrite",
+        session_state=df._session_state,
     )
 
     # Create a TableSink node
-    table_sink = TableSink(
-        child=df._logical_plan, table_name="test_table", mode="overwrite"
+    table_sink = TableSink.from_session_state(
+        child=df._logical_plan,
+        table_name="test_table",
+        mode="overwrite",
+        session_state=df._session_state
     )
     file_sink_columns = file_sink.schema().column_names()
     table_sink_columns = table_sink.schema().column_names()

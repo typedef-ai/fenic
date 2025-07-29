@@ -65,11 +65,11 @@ class DataFrameWriter:
             df.write.save_as_table("my_table", mode="overwrite")  # Replaces existing table
             ```
         """
-        sink_plan = TableSink(
-            child=self._dataframe._logical_plan, table_name=table_name, mode=mode
+        sink_plan = TableSink.from_session_state(
+            child=self._dataframe._logical_plan, table_name=table_name, mode=mode, session_state=self._dataframe._session_state
         )
 
-        metrics = self._dataframe._logical_plan.session_state.execution.save_as_table(
+        metrics = self._dataframe._session_state.execution.save_as_table(
             sink_plan, table_name=table_name, mode=mode
         )
         logger.info(metrics.get_summary())
@@ -114,14 +114,15 @@ class DataFrameWriter:
                 f"Your path '{file_path}' is missing the extension."
             )
 
-        sink_plan = FileSink(
+        sink_plan = FileSink.from_session_state(
             child=self._dataframe._logical_plan,
             sink_type="csv",
             path=file_path,
             mode=mode,
+            session_state=self._dataframe._session_state,
         )
 
-        metrics = self._dataframe._logical_plan.session_state.execution.save_to_file(
+        metrics = self._dataframe._session_state.execution.save_to_file(
             sink_plan, file_path=file_path, mode=mode
         )
         logger.info(metrics.get_summary())
@@ -166,14 +167,15 @@ class DataFrameWriter:
                 f"Your path '{file_path}' is missing the extension."
             )
 
-        sink_plan = FileSink(
+        sink_plan = FileSink.from_session_state(
             child=self._dataframe._logical_plan,
             sink_type="parquet",
             path=file_path,
             mode=mode,
+            session_state=self._dataframe._session_state,
         )
 
-        metrics = self._dataframe._logical_plan.session_state.execution.save_to_file(
+        metrics = self._dataframe._session_state.execution.save_to_file(
             sink_plan, file_path=file_path, mode=mode
         )
         logger.info(metrics.get_summary())
