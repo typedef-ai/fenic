@@ -214,7 +214,8 @@ class Session:
             raise PlanError(f"Failed to create DataFrame from {data}") from e
 
         return DataFrame._from_logical_plan(
-            InMemorySource(pl_df, self._session_state)
+            InMemorySource.from_session_state(pl_df, self._session_state),
+            self._session_state,
         )
 
     def table(self, table_name: str) -> DataFrame:
@@ -237,7 +238,8 @@ class Session:
         if not self._session_state.catalog.does_table_exist(table_name):
             raise ValueError(f"Table {table_name} does not exist")
         return DataFrame._from_logical_plan(
-            TableSource(table_name, self._session_state),
+            TableSource.from_session_state(table_name, self._session_state),
+            self._session_state,
         )
 
     def sql(self, query: str, /, **tables: DataFrame) -> DataFrame:
@@ -299,13 +301,17 @@ class Session:
 
         logical_plans = []
         template_names = []
+        input_session_states = []
         for name, table in tables.items():
             if name in placeholders:
                 template_names.append(name)
                 logical_plans.append(table._logical_plan)
+                input_session_states.append(table._session_state)
 
+        DataFrame._ensure_same_session(self._session_state, input_session_states)
         return DataFrame._from_logical_plan(
-            SQL(logical_plans, template_names, query, self._session_state),
+            SQL.from_session_state(logical_plans, template_names, query, self._session_state),
+            self._session_state,
         )
 
     def stop(self):

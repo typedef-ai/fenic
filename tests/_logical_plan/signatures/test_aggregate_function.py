@@ -2,6 +2,9 @@
 
 import pytest
 
+from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._interfaces.execution import BaseExecution
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.aggregate import AvgExpr, CountExpr, SumExpr
 from fenic.core.error import TypeMismatchError
 from fenic.core.types.datatypes import (
@@ -20,7 +23,7 @@ class MockColumn:
         self.name = name
         self.data_type = data_type
     
-    def to_column_field(self, plan):
+    def to_column_field(self, plan, session_state):
         return ColumnField(self.name, self.data_type)
     
     def __str__(self):
@@ -33,6 +36,24 @@ class MockPlan:
     def __init__(self, columns=None):
         self.columns = columns or []
 
+class MockSessionState(BaseSessionState):
+    """Mock session state for testing."""
+
+    def __init__(self):
+        pass
+
+    @property
+    def execution(self) -> BaseExecution:
+        return None
+
+    @property
+    def catalog(self) -> BaseCatalog:
+        """Access the catalog interface."""
+        return None
+
+    def stop(self) -> None:
+        """Clean up the session state."""
+        return None
 
 class TestAggregateFunction:
     """Test AggregateFunction base class."""
@@ -44,7 +65,7 @@ class TestAggregateFunction:
         plan = MockPlan()
         
         sum_expr = SumExpr(int_col)
-        result = sum_expr.to_column_field(plan)
+        result = sum_expr.to_column_field(plan, MockSessionState())
         
         # Should validate successfully and return same type for sum
         assert result.data_type == IntegerType
@@ -60,7 +81,7 @@ class TestAggregateFunction:
         
         # Should fail validation
         with pytest.raises(TypeMismatchError):
-            sum_expr.to_column_field(plan)
+            sum_expr.to_column_field(plan, MockSessionState())
     
     def test_avg_dynamic_return_type(self):
         """Test that AvgExpr correctly handles dynamic return types."""
@@ -69,13 +90,13 @@ class TestAggregateFunction:
         # Test numeric types return DoubleType
         int_col = MockColumn("int_col", IntegerType)
         avg_expr = AvgExpr(int_col)
-        result = avg_expr.to_column_field(plan)
+        result = avg_expr.to_column_field(plan, MockSessionState())
         assert result.data_type == DoubleType
         
         # Test embedding types return same type
         embedding_col = MockColumn("emb_col", EmbeddingType(dimensions=128, embedding_model="test"))
         avg_expr_emb = AvgExpr(embedding_col)
-        result_emb = avg_expr_emb.to_column_field(plan)
+        result_emb = avg_expr_emb.to_column_field(plan, MockSessionState())
         assert isinstance(result_emb.data_type, EmbeddingType)
         assert result_emb.data_type.embedding_model == "test"
         assert result_emb.data_type.dimensions == 128
@@ -88,7 +109,7 @@ class TestAggregateFunction:
         for data_type in [IntegerType, StringType, DoubleType]:
             col = MockColumn("col", data_type)
             count_expr = CountExpr(col)
-            result = count_expr.to_column_field(plan)
+            result = count_expr.to_column_field(plan, MockSessionState())
             
             # Count always returns IntegerType
             assert result.data_type == IntegerType

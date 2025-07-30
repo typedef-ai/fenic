@@ -9,33 +9,13 @@ class LogicalPlanSerde:
     def serialize(plan: LogicalPlan) -> bytes:
         """Serialize a LogicalPlan to bytes using pickle.
 
-        Removes any local session state refs from the plan.
-
         Args:
             plan: The LogicalPlan to serialize
 
         Returns:
             bytes: The serialized plan
         """
-        # For now, we need to copy the plan in a bottom-up manner, and then walk it again top-down to remove the session state.
-        # We can't nullify the session state during the bottom-up traversal because some plan nodes rely on their children's
-        # session state during initialization. Clearing it too early can break this initialization logic.
-        # TODO(rohitrastogi): Decouple plan construction logic from plan validation logic.
-        def copy_plan(plan: LogicalPlan) -> LogicalPlan:
-            new_children = []
-            for child in plan.children():
-                new_children.append(copy_plan(child))
-            return plan.with_children(new_children)
-
-        def remove_session_state(plan: LogicalPlan) -> LogicalPlan:
-            plan.session_state = None
-            for child in plan.children():
-                remove_session_state(child)
-            return plan
-
-        copied_plan = copy_plan(plan)
-        remove_session_state(copied_plan)
-        return cloudpickle.dumps(copied_plan)
+        return cloudpickle.dumps(plan)
 
     @staticmethod
     def deserialize(data: bytes) -> LogicalPlan:

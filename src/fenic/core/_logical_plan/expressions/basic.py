@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Literal
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
     ValidatedDynamicSignature,
@@ -44,7 +45,7 @@ class ColumnExpr(LogicalExpr):
     def __str__(self) -> str:
         return self.name
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         column_field = next(
             (f for f in plan.schema().column_fields if f.name == self.name), None
         )
@@ -69,7 +70,7 @@ class LiteralExpr(LogicalExpr):
     def __str__(self) -> str:
         return f"lit({self.literal})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         return ColumnField(str(self), self.data_type)
 
     def children(self) -> List[LogicalExpr]:
@@ -86,8 +87,8 @@ class AliasExpr(LogicalExpr):
     def __str__(self) -> str:
         return f"{self.expr} AS {self.name}"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return ColumnField(str(self.name), self.expr.to_column_field(plan).data_type)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        return ColumnField(str(self.name), self.expr.to_column_field(plan, session_state).data_type)
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
@@ -105,8 +106,8 @@ class SortExpr(LogicalExpr):
         direction = "asc" if self.ascending else "desc"
         return f"{direction}({self.expr})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        return ColumnField(str(self), self.expr.to_column_field(plan).data_type)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        return ColumnField(str(self), self.expr.to_column_field(plan, session_state).data_type)
 
     def column_expr(self) -> LogicalExpr:
         return self.expr
@@ -126,9 +127,9 @@ class IndexExpr(LogicalExpr):
     def __str__(self) -> str:
         return f"{self.expr}[{self.index}]"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        expr_field = self.expr.to_column_field(plan)
-        index_field = self.index.to_column_field(plan)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        expr_field = self.expr.to_column_field(plan, session_state)
+        index_field = self.index.to_column_field(plan, session_state)
         expr_type = expr_field.data_type
         index_type = index_field.data_type
 
@@ -184,7 +185,7 @@ class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return ArrayType with element type matching the first argument."""
         # Signature validation ensures all args have the same type
         return ArrayType(arg_types[0])
@@ -206,7 +207,7 @@ class StructExpr(ValidatedDynamicSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return StructType with fields based on argument names and types."""
         struct_fields = []
         for (arg, arg_type) in zip(self.children(), arg_types, strict=True):
@@ -231,9 +232,9 @@ class UDFExpr(LogicalExpr):
         args_str = ", ".join(str(arg) for arg in self.args)
         return f"{self.func.__name__}({args_str})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         for arg in self.args:
-            _ = arg.to_column_field(plan)
+            _ = arg.to_column_field(plan, session_state)
         return ColumnField(str(self), self.return_type)
 
     def children(self) -> List[LogicalExpr]:
@@ -248,7 +249,7 @@ class IsNullExpr(LogicalExpr):
     def __str__(self):
         return f"{self.expr} IS {'' if self.is_null else 'NOT'} NULL"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         return ColumnField(str(self), BooleanType)
 
     def children(self) -> List[LogicalExpr]:
@@ -298,8 +299,8 @@ class CastExpr(LogicalExpr):
     def __str__(self):
         return f"cast({self.expr} AS {self.dest_type})"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self.source_type = self.expr.to_column_field(plan).data_type
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        self.source_type = self.expr.to_column_field(plan, session_state).data_type
         src = self.source_type
         dst = self.dest_type
         if not _can_cast(src, dst):
@@ -317,11 +318,11 @@ class NotExpr(LogicalExpr):
     def __str__(self):
         return f"NOT {self.expr}"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if self.expr.to_column_field(plan).data_type != BooleanType:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        if self.expr.to_column_field(plan, session_state).data_type != BooleanType:
             raise TypeError(
                 f"Type mismatch: Cannot apply NOT to non-boolean types. "
-                f"Type: {self.expr.to_column_field(plan).data_type}. "
+                f"Type: {self.expr.to_column_field(plan, session_state).data_type}. "
                 f"Only boolean types are supported."
             )
         return ColumnField(str(self), BooleanType)
@@ -355,18 +356,18 @@ class InExpr(LogicalExpr):
     def __str__(self):
         return f"{self.expr} IN {self.other}"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        if not isinstance(self.other.to_column_field(plan).data_type, ArrayType):
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        if not isinstance(self.other.to_column_field(plan, session_state).data_type, ArrayType):
             raise TypeMismatchError.from_message(
                 f"The 'other' argument to IN must be an ArrayType. "
-                f"Got: {self.other.to_column_field(plan).data_type}. "
+                f"Got: {self.other.to_column_field(plan, session_state).data_type}. "
                 f"Expression: {self.expr} IN {self.other}"
             )
-        if self.expr.to_column_field(plan).data_type != self.other.to_column_field(plan).data_type.element_type:
+        if self.expr.to_column_field(plan, session_state).data_type != self.other.to_column_field(plan, session_state).data_type.element_type:
             raise TypeMismatchError.from_message(
                 f"The element being searched for must match the array's element type. "
-                f"Searched element type: {self.expr.to_column_field(plan).data_type}, "
-                f"Array element type: {self.other.to_column_field(plan).data_type.element_type}. "
+                f"Searched element type: {self.expr.to_column_field(plan, session_state).data_type}, "
+                f"Array element type: {self.other.to_column_field(plan, session_state).data_type.element_type}. "
                 f"Expression: {self.expr} IN {self.other}"
             )
         return ColumnField(str(self), BooleanType)
