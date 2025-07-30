@@ -16,6 +16,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
     ValidatedDynamicSignature,
@@ -182,7 +183,7 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
     def __str__(self):
         return f"{self.function_name}('{self.template}', {self.input_expr})"
 
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan) -> DataType:
+    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return StructType with fields based on parsed template."""
         return self.parsed_template.to_struct_schema()
 
@@ -899,9 +900,9 @@ class JinjaExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         for expr in self.exprs:
-            data_type = expr.to_column_field(plan).data_type
+            data_type = expr.to_column_field(plan, session_state).data_type
             self.variable_tree.validate_jinja_variable(expr.name, data_type)
 
         return ColumnField(

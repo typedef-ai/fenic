@@ -1,3 +1,4 @@
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     BooleanExpr,
     LogicalExpr,
@@ -26,32 +27,32 @@ class NotFilterPushdownRule(LogicalPlanOptimizerRule):
     the number of AND expressions that can be effectively reordered.
     """
 
-    def apply(self, logical_plan: LogicalPlan) -> OptimizationResult:
-        return self.optimize_node(logical_plan)
+    def apply(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
+        return self.optimize_node(logical_plan, session_state)
 
-    def optimize_node(self, node: LogicalPlan) -> OptimizationResult:
+    def optimize_node(self, node: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
         any_child_modified = False
         optimized_children = []
 
         # First, recursively optimize all children
         for child in node.children():
-            child_result = self.optimize_node(child)
+            child_result = self.optimize_node(child, session_state)
             optimized_children.append(child_result.plan)
             any_child_modified = any_child_modified or child_result.was_modified
 
         # Update node with optimized children
-        new_node = node.with_children(optimized_children)
+        new_node = node.with_children(optimized_children, session_state)
 
         # If this is a filter node, apply NOT pushdown to its predicate
         if isinstance(new_node, Filter):
-            filter_result = self.optimize_filter(new_node)
+            filter_result = self.optimize_filter(new_node, session_state)
             return OptimizationResult(
                 filter_result.plan, any_child_modified or filter_result.was_modified
             )
 
         return OptimizationResult(new_node, any_child_modified)
 
-    def optimize_filter(self, node: Filter) -> OptimizationResult:
+    def optimize_filter(self, node: Filter, session_state: BaseSessionState) -> OptimizationResult:
         predicate = node.predicate()
 
         # Apply selective NOT pushdown transformation to the predicate
@@ -59,7 +60,7 @@ class NotFilterPushdownRule(LogicalPlanOptimizerRule):
 
         # If the predicate was changed, create a new filter with the transformed predicate
         if transformed_predicate != predicate:
-            new_filter = Filter(node._input, transformed_predicate)
+            new_filter = Filter.from_session_state(node._input, transformed_predicate, session_state)
             new_filter.cache_info = node.cache_info
             return OptimizationResult(new_filter, True)
 

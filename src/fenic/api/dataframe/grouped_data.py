@@ -89,5 +89,6 @@ class GroupedData(BaseGroupedData):
 
         agg_exprs = self._process_agg_exprs(exprs)
         return self._df._from_logical_plan(
-            Aggregate(self._df._logical_plan, self._by_exprs, agg_exprs),
+            Aggregate.from_session_state(self._df._logical_plan, self._by_exprs, agg_exprs, self._df._session_state),
+            self._df._session_state,
         )

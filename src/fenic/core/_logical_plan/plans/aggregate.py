@@ -1,5 +1,8 @@
-from typing import List
+from __future__ import annotations
 
+from typing import List, Optional
+
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     LogicalExpr,
@@ -12,11 +15,12 @@ from fenic.core.types import Schema
 
 class Aggregate(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        group_exprs: List[LogicalExpr],
-        agg_exprs: List[AliasExpr],
-    ):
+            self,
+            input: LogicalPlan,
+            group_exprs: List[LogicalExpr],
+            agg_exprs: List[AliasExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._group_exprs = group_exprs
         self._agg_exprs = agg_exprs
@@ -26,14 +30,34 @@ class Aggregate(LogicalPlan):
             _validate_agg_expr(expr.expr, group_exprs)
         for expr in group_exprs:
             _validate_groupby_expr(expr)
-        super().__init__(self._input.session_state)
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_session_state(
+        cls,
+        input: LogicalPlan,
+        group_exprs: List[LogicalExpr],
+        agg_exprs: List[AliasExpr],
+        session_state: BaseSessionState,
+    ) -> Aggregate:
+        return Aggregate(input, group_exprs, agg_exprs, session_state)
+
+    @classmethod
+    def from_schema(
+        cls,
+        input: LogicalPlan,
+        group_exprs: List[LogicalExpr],
+        agg_exprs: List[AliasExpr],
+        schema: Schema,
+    ) -> Aggregate:
+        return Aggregate(input, group_exprs, agg_exprs, None, schema)
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
-    def _build_schema(self) -> Schema:
-        group_fields = [expr.to_column_field(self._input) for expr in self._group_exprs]
-        agg_fields = [expr.to_column_field(self._input) for expr in self._agg_exprs]
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        group_fields = [expr.to_column_field(self._input, session_state) for expr in self._group_exprs]
+        agg_fields = [expr.to_column_field(self._input, session_state) for expr in self._agg_exprs]
         return Schema(column_fields=group_fields + agg_fields)
 
     def _repr(self) -> str:
@@ -45,10 +69,10 @@ class Aggregate(LogicalPlan):
     def agg_exprs(self) -> List[LogicalExpr]:
         return self._agg_exprs
 
-    def with_children(self, children: List[LogicalPlan]) -> LogicalPlan:
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Aggregate must have exactly one child")
-        result = Aggregate(children[0], self._group_exprs, self._agg_exprs)
+        result = Aggregate.from_session_state(children[0], self._group_exprs, self._agg_exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
 

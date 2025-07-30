@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import BinaryExpr
 from fenic.core.types.datatypes import (
     DataType,
@@ -41,9 +42,9 @@ class ArithmeticExpr(BinaryExpr):
         else:
             return IntegerType
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        left_field = self.left.to_column_field(plan)
-        right_field = self.right.to_column_field(plan)
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        left_field = self.left.to_column_field(plan, session_state)
+        right_field = self.right.to_column_field(plan, session_state)
         self._validate_types(left_field.data_type, right_field.data_type)
         result_type = self._promote_type(left_field.data_type, right_field.data_type)
         return ColumnField(str(self), result_type)
