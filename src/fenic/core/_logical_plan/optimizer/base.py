@@ -37,7 +37,7 @@ class LogicalPlanOptimizer:
         self.session_state = session_state
         self.rules = rules
 
-    def optimize(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
+    def optimize(self, logical_plan: LogicalPlan) -> OptimizationResult:
         """Optimize the logical plan using all rules.
 
         Args:

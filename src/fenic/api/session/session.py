@@ -331,7 +331,7 @@ class Session:
 
         DataFrame.ensure_same_session(self._session_state, input_session_states)
         return DataFrame._from_logical_plan(
-            SQL.from_session_state(logical_plans, template_names, query, self._session_state, input_session_states),
+            SQL.from_session_state(logical_plans, template_names, query, self._session_state),
             self._session_state,
         )
 

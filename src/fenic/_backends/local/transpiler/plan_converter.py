@@ -82,7 +82,7 @@ class PlanConverter:
                 self.session_state,
                 [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
             )
-            .optimize(logical, self.session_state)
+            .optimize(logical)
             .plan
         )
         if isinstance(logical, Projection):
