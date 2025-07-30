@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from typing import TYPE_CHECKING, List
 
 from fenic.core.types import Schema
+
+if TYPE_CHECKING:
+    from fenic.core._interfaces.session_state import BaseSessionState
+    from fenic.core._logical_plan.plans.base import LogicalPlan
 
 
 class BaseCatalog(ABC):
@@ -96,11 +100,15 @@ class BaseCatalog(ABC):
     def create_view(
         self,
         view_name: str,
-        schema_blob: bytes,
-        view_blob: bytes,
+        logical_plan: "LogicalPlan",
         ignore_if_exists: bool = True,
     ) -> bool:
         """Create a new view in the current database."""
+        pass
+
+    @abstractmethod
+    def validate_view(self, logical_plan: "LogicalPlan", session_state: "BaseSessionState") -> None:
+        """Validate the schema of the specified view."""
         pass
 
     @abstractmethod
@@ -109,7 +117,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_view(self, view_name: str) -> Tuple[object, object]:
+    def describe_view(self, view_name: str) -> "LogicalPlan":
         """Get the serialized schema and logical plan of the specified view."""
         pass
 

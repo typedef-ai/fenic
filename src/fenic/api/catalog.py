@@ -5,6 +5,7 @@ from typing import List
 from pydantic import ConfigDict, validate_call
 
 from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.types import Schema
 
 
@@ -495,61 +496,7 @@ class Catalog:
         """
         return self.catalog.create_table(table_name, schema, ignore_if_exists)
 
-    @validate_call(config=ConfigDict(strict=True))
-    def create_view(
-        self,
-        view_name: str,
-        schema_blob,
-        view_blob: bytes,
-        ignore_if_exists: bool = True,
-    ) -> bool:
-        """Creates a new view.
-
-        Args:
-            view_name (str): Fully qualified or relative view name to create.
-            schema_blob (bytes): Serialized schema object of the source for the view to create.
-            view_blob (bytes): Serialized logical plan for the view to create.
-            ignore_if_exists (bool, optional): If True, return False when the view
-                already exists. If False, raise an error when the view already exists.
-                Defaults to True.
-
-        Returns:
-            bool: True if the view was created successfully, False if the view
-                already exists and ignore_if_exists is True.
-
-        Raises:
-            TableAlreadyExistsError: If the view already exists and ignore_if_exists is False
-        Example:
-            >>> session.catalog.create_view('my_view', schema_blob, view_blob
-            ]))
-            True
-            >>> session.catalog.create_table('my_view', schema_blob, view_blob,
-            ]), ignore_if_exists=True)
-            False
-            >>> session.catalog.create_table('my_view', schema_blob, view_blob,
-            ]), ignore_if_exists=False)
-            # Raises TableAlreadyExistsError.
-        """
-        return self.catalog.create_view(view_name, schema_blob, view_blob, ignore_if_exists)
-
-
-    def list_views(self) -> List[str]:
-        """Returns a list of views stored in the current database.
-
-        This method queries the current database to retrieve all available view names.
-
-        Returns:
-            List[str]: A list of view names stored in the database.
-            Returns an empty list if no views are found.
-
-        Example:
-            >>> session.catalog.list_views()
-            ['view1', 'view2', 'view3'].
-        """
-        return self.catalog.list_views()
-
-    @validate_call(config=ConfigDict(strict=True))
-    def describe_view(self, view_name: str) -> Schema:
+    def describe_view(self, view_name: str) -> LogicalPlan:
         """Returns the serialized schema and logical plan of the specified view.
 
         Args:
@@ -565,6 +512,21 @@ class Catalog:
             >>> session.catalog.describe_view('t1').
         """
         return self.catalog.describe_view(view_name)
+
+    def list_views(self) -> List[str]:
+        """Returns a list of views stored in the current database.
+
+        This method queries the current database to retrieve all available view names.
+
+        Returns:
+            List[str]: A list of view names stored in the database.
+            Returns an empty list if no views are found.
+
+        Example:
+            >>> session.catalog.list_views()
+            ['view1', 'view2', 'view3'].
+        """
+        return self.catalog.list_views()
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:
@@ -625,7 +587,6 @@ class Catalog:
     describeTable = describe_table
     dropTable = drop_table
     createTable = create_table
-    createView = create_view
     listViews = list_views
     describeView = describe_view
     doesViewExist = does_view_exist

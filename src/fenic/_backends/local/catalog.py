@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import List, Tuple
+from typing import List
 
 import duckdb
 import polars as pl
@@ -13,15 +13,17 @@ from fenic._backends.utils.catalog_utils import (
     DBIdentifier,
     TableIdentifier,
     compare_object_names,
+    validate_view,
 )
 from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
-    PlanError,
     TableAlreadyExistsError,
     TableNotFoundError,
 )
@@ -30,6 +32,7 @@ from fenic.core.types import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 DB_IGNORE_LIST = [
     "main",
@@ -243,6 +246,7 @@ class LocalCatalog(BaseCatalog):
                 views = self.system_tables.get_view(view_identifier.db, view_identifier.table)
                 return views is not None
             except Exception as e:
+                logger.error(f"View error: {e}")
                 raise CatalogError(
                     f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
                 ) from e
@@ -298,7 +302,7 @@ class LocalCatalog(BaseCatalog):
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
             return maybe_schema
 
-    def describe_view(self, view_name: str) -> Tuple[object, object]:
+    def describe_view(self, view_name: str) -> LogicalPlan:
         """Get the schema of the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
@@ -400,8 +404,7 @@ class LocalCatalog(BaseCatalog):
     def create_view(
         self,
         view_name: str,
-        schema_blob: bytes,
-        view_blob: bytes,
+        logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
     ) -> bool:
         """Create a new view in the current database."""
@@ -417,8 +420,7 @@ class LocalCatalog(BaseCatalog):
                     return False
                 with DuckDBTransaction(self.db_conn):
                     self.system_tables.save_view(
-                        view_identifier.db, view_identifier.table, schema_blob, view_blob
-                    )
+                        view_identifier.db, view_identifier.table, logical_plan)
                 return True
             except Exception as e:
                 raise CatalogError(
@@ -536,18 +538,13 @@ class LocalCatalog(BaseCatalog):
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
 
-    def validate_view_schema(self, plan_node):
-        for child in plan_node.children():
-            if child.children():
-                self.validate_view_schema(child)
-                continue
-
-            if child.schema() != child._build_schema():
-                    raise PlanError("Failed to validate schema against existing sources during logical plan construction—check the referenced tables, views or other sources.")
-            
     def _build_qualified_table_name(self, table_identifier: TableIdentifier,
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'
+
+    def validate_view(self, view_name: str, logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
+        """Validate the schema of the specified view."""
+        validate_view(view_name, logical_plan, session_state)
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

@@ -1,10 +1,12 @@
 import polars as pl
+import pytest
 
 from fenic import avg, col, count, semantic, sum
 
 
-def test_simple_metrics(local_session):
-    sales_data = {
+@pytest.fixture
+def sales_data():
+    return {
         "sale_id": [1, 2, 3, 4, 5, 6, 7, 8],
         "product_id": [101, 102, 103, 101, 102, 103, 104, 105],
         "customer_id": [1001, 1002, 1003, 1004, 1001, 1002, 1005, 1003],
@@ -21,9 +23,10 @@ def test_simple_metrics(local_session):
             "2023-01-22",
         ],
     }
-    sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
 
-    product_data = {
+@pytest.fixture
+def product_data():
+    return {
         "product_id": [101, 102, 103, 104, 105, 106],
         "product_name": ["Laptop", "Phone", "Tablet", "Monitor", "Keyboard", "Mouse"],
         "category": [
@@ -36,14 +39,19 @@ def test_simple_metrics(local_session):
         ],
         "price": [1000.00, 800.00, 500.00, 300.00, 50.00, 25.00],
     }
-    product_df = local_session.create_dataframe(pl.DataFrame(product_data))
 
-    customer_data = {
+@pytest.fixture
+def customer_data():
+    return {
         "customer_id": [1001, 1002, 1003, 1004, 1005],
         "customer_name": ["Alice", "Bob", "Charlie", "David", "Eve"],
         "city": ["New York", "San Francisco", "Chicago", "Boston", "Seattle"],
         "segment": ["Premium", "Standard", "Premium", "Standard", "Premium"],
     }
+
+def test_simple_metrics(local_session, sales_data, product_data, customer_data):
+    sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
+    product_df = local_session.create_dataframe(pl.DataFrame(product_data))
     customer_df = local_session.create_dataframe(pl.DataFrame(customer_data))
 
     # First query - premium electronics sales
@@ -149,47 +157,9 @@ def test_semantic_metrics(local_session):
             assert operator_metrics.rm_metrics.cost == 0
 
 
-def test_metrics_from_view(local_session):
-    sales_data = {
-        "sale_id": [1, 2, 3, 4, 5, 6, 7, 8],
-        "product_id": [101, 102, 103, 101, 102, 103, 104, 105],
-        "customer_id": [1001, 1002, 1003, 1004, 1001, 1002, 1005, 1003],
-        "quantity": [2, 1, 3, 1, 2, 2, 5, 1],
-        "amount": [200.50, 150.75, 300.25, 200.50, 150.75, 300.25, 500.00, 75.25],
-        "sale_date": [
-            "2023-01-15",
-            "2023-01-16",
-            "2023-01-17",
-            "2023-01-18",
-            "2023-01-19",
-            "2023-01-20",
-            "2023-01-21",
-            "2023-01-22",
-        ],
-    }
+def test_metrics_from_view(local_session, sales_data, product_data, customer_data):
     sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
-
-    product_data = {
-        "product_id": [101, 102, 103, 104, 105, 106],
-        "product_name": ["Laptop", "Phone", "Tablet", "Monitor", "Keyboard", "Mouse"],
-        "category": [
-            "Electronics",
-            "Electronics",
-            "Electronics",
-            "Computer",
-            "Computer",
-            "Computer",
-        ],
-        "price": [1000.00, 800.00, 500.00, 300.00, 50.00, 25.00],
-    }
     product_df = local_session.create_dataframe(pl.DataFrame(product_data))
-
-    customer_data = {
-        "customer_id": [1001, 1002, 1003, 1004, 1005],
-        "customer_name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-        "city": ["New York", "San Francisco", "Chicago", "Boston", "Seattle"],
-        "segment": ["Premium", "Standard", "Premium", "Standard", "Premium"],
-    }
     customer_df = local_session.create_dataframe(pl.DataFrame(customer_data))
 
     # First query - premium electronics sales
@@ -259,47 +229,9 @@ def test_metrics_from_view(local_session):
     assert limit_op.num_output_rows == metrics.num_output_rows
     assert limit_op.execution_time_ms > 0
 
-def test_metrics_from_view_with_cache(local_session):
-    sales_data = {
-        "sale_id": [1, 2, 3, 4, 5, 6, 7, 8],
-        "product_id": [101, 102, 103, 101, 102, 103, 104, 105],
-        "customer_id": [1001, 1002, 1003, 1004, 1001, 1002, 1005, 1003],
-        "quantity": [2, 1, 3, 1, 2, 2, 5, 1],
-        "amount": [200.50, 150.75, 300.25, 200.50, 150.75, 300.25, 500.00, 75.25],
-        "sale_date": [
-            "2023-01-15",
-            "2023-01-16",
-            "2023-01-17",
-            "2023-01-18",
-            "2023-01-19",
-            "2023-01-20",
-            "2023-01-21",
-            "2023-01-22",
-        ],
-    }
+def test_metrics_from_view_with_cache(local_session, sales_data, product_data, customer_data):
     sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
-
-    product_data = {
-        "product_id": [101, 102, 103, 104, 105, 106],
-        "product_name": ["Laptop", "Phone", "Tablet", "Monitor", "Keyboard", "Mouse"],
-        "category": [
-            "Electronics",
-            "Electronics",
-            "Electronics",
-            "Computer",
-            "Computer",
-            "Computer",
-        ],
-        "price": [1000.00, 800.00, 500.00, 300.00, 50.00, 25.00],
-    }
     product_df = local_session.create_dataframe(pl.DataFrame(product_data))
-
-    customer_data = {
-        "customer_id": [1001, 1002, 1003, 1004, 1005],
-        "customer_name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-        "city": ["New York", "San Francisco", "Chicago", "Boston", "Seattle"],
-        "segment": ["Premium", "Standard", "Premium", "Standard", "Premium"],
-    }
     customer_df = local_session.create_dataframe(pl.DataFrame(customer_data))
 
     # First query - premium electronics sales

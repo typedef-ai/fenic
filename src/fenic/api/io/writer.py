@@ -86,7 +86,7 @@ class DataFrameWriter:
         Returns:
             None.
         """
-        self._dataframe._logical_plan.session_state.execution.save_as_view(
+        self._dataframe._session_state.execution.save_as_view(
             logical_plan=self._dataframe._logical_plan, view_name=view_name
         )
 

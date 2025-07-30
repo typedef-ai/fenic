@@ -5,14 +5,17 @@ schema metadata, particularly for logical types that can't be directly
 represented in the physical storage system.
 """
 
+import base64
 import logging
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import duckdb
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
+from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
 from fenic.core.types import Schema
 
@@ -22,6 +25,7 @@ SCHEMA_METADATA_TABLE = "table_schemas"
 VIEWS_METADATA_TABLE = "table_views"
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class SystemTableClient:
@@ -215,35 +219,39 @@ class SystemTableClient:
             ) from e
 
     def save_view(
-        self, database_name: str, view_name: str, schema_blob: bytes, view_blob: bytes
+        self,
+        database_name: str,
+        view_name: str,
+        logical_plan: LogicalPlan
     ) -> None:
         database_name = database_name.casefold()
         view_name = view_name.casefold()
-
+        logical_plan_str = base64.b64encode(LogicalPlanSerde.serialize(logical_plan)).decode('utf-8')
         try:
             self.db_conn.execute(
                 f"""
                 INSERT OR REPLACE INTO "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}" (
-                    database_name, view_name, schema_blob, view_blob, creation_time
-                ) VALUES (?, ?, ?, ?, ?)
+                    database_name, view_name, view_blob, creation_time
+                ) VALUES (?, ?, ?, ?)
             """,
-                (database_name, view_name, schema_blob, view_blob, datetime.now()),
+                (database_name, view_name, logical_plan_str, datetime.now()),
             )
 
             logger.debug(f"Saved View for {database_name}.{view_name}")
         except Exception as e:
+            logger.error(f"View error while saving: {e}")
             raise CatalogError(
                 f"Failed to save view for {database_name}.{view_name}"
             ) from e
 
     def get_view(
         self, database_name: str, view_name: str
-    ) -> Optional[Tuple[object, object]]:
+    ) -> Optional[LogicalPlan]:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
             result = self.db_conn.execute(
                 f"""
-                SELECT schema_blob, view_blob
+                SELECT view_blob
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
                 WHERE database_name = ? AND view_name = ?
             """,
@@ -254,8 +262,10 @@ class SystemTableClient:
                 logger.debug(f"No view found for {database_name}.{view_name}")
                 return None
 
-            return result
+            view_blob = base64.b64decode(result[0])
+            return LogicalPlanSerde.deserialize(view_blob)
         except Exception as e:
+            logger.error(f"View error: {e}")
             raise CatalogError(
                 f"Failed to retrieve view for {database_name}.{view_name}"
             ) from e
@@ -378,7 +388,6 @@ class SystemTableClient:
                 CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}" (
                     database_name TEXT NOT NULL,
                     view_name TEXT NOT NULL,
-                    schema_blob TEXT NOT NULL,
                     view_blob TEXT NOT NULL,
                     creation_time TIMESTAMP NOT NULL,
                     PRIMARY KEY (database_name, view_name)

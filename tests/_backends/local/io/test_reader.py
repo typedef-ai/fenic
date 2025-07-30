@@ -975,7 +975,8 @@ def test_ingest_array_type(local_session, temp_dir):
     )
 
 
-def test_view_csv_nested(local_session, temp_dir):
+def test_view_csv_union(local_session, temp_dir):
+    """Test that views can be unioned and that the unioned view can be queried."""
     test_data = """name,age,city
 John,25,New York
 David,33,Seattle"""
@@ -986,7 +987,6 @@ David,33,Seattle"""
     df_csv = local_session.read.csv(test_file_path)
     df_csv.write.save_as_view("view")
     df_csv_view = local_session.view("view")
-    df_csv_view.collect()
     df_csv_view.write.save_as_view("view_nested")
     df_view_nested = local_session.view("view_nested")
 
@@ -1000,7 +1000,6 @@ David,33,Seattle"""
     df_view = local_session.view("df_view")
 
     df_union = df_view_nested.union(df_view)
-    df_union.collect()
     df_union.write.save_as_view("df_view_union")
 
     df_view_union = local_session.view("df_view_union")
@@ -1009,3 +1008,25 @@ David,33,Seattle"""
     result_name = df_view_union.select(col("name")).collect("polars").data
     values_name = result_name["name"].to_list()
     assert values_name == ["John", "David", "Alice", "Carol"]
+
+def test_view_schema_validation(local_session, temp_dir):
+    """Test that views are validated against the current state of the source."""
+    test_data = """name,age,city
+John,25,New York
+David,33,Seattle"""
+
+    test_file_path = f"{temp_dir.path}/test_csv_single_file.csv"
+    write_test_file(test_file_path, test_data, local_session, "csv")
+
+    df_csv = local_session.read.csv(test_file_path)
+    df_csv.write.save_as_view("df_csv_view")
+    df_csv_view = local_session.view("df_csv_view")
+    assert df_csv_view.schema == df_csv.schema
+
+    # Make a quick change in the file.
+    test_data_2 = """name,age
+John,25
+David,33"""
+    write_test_file(test_file_path, test_data_2, local_session, "csv")
+    with pytest.raises(PlanError):
+        local_session.view("df_csv_view")
