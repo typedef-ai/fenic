@@ -106,7 +106,10 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         Returns:
             TokenEstimate: The estimated token usage
         """
-        return self._core.estimate_tokens_for_request(request)
+        return TokenEstimate(
+            input_tokens=self.token_counter.count_tokens(request.messages),
+            output_tokens=self._get_max_output_tokens(request)
+        )
 
     def reset_metrics(self):
         """Reset all metrics to their initial values."""

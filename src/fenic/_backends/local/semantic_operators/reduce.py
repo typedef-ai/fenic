@@ -12,7 +12,7 @@ from fenic._backends.local.semantic_operators.utils import (
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.types import LMRequestMessages
-from fenic.core.types.semantic import ModelAlias
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
-            model_alias: Optional[ModelAlias] = None,
+            model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.input = input
         self.user_instruction = uppercase_instruction_placeholder(user_instruction)

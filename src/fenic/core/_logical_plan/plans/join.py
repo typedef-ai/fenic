@@ -9,6 +9,7 @@ from fenic.core._logical_plan.expressions import (
     LogicalExpr,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.error import TypeMismatchError
 from fenic.core.types import (
@@ -20,7 +21,6 @@ from fenic.core.types import (
     StringType,
 )
 from fenic.core.types.enums import SemanticSimilarityMetric
-from fenic.core.types.semantic import ModelAlias
 
 SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 
@@ -182,7 +182,7 @@ class SemanticJoin(BaseSemanticJoin):
         right_on: ColumnExpr,
         join_instruction: str,
         temperature: float = 0.0,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None,

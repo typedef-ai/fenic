@@ -23,7 +23,7 @@ def test_invalid_alias(local_session):
         df_select = source.select(
             semantic.map(state_prompt).alias("state"),
             col("name"),
-            semantic.map(instruction="What is the typical weather in {city} in summer?", model_alias=ModelAlias(name="not_in_configuration")).alias("weather"),
+            semantic.map(instruction="What is the typical weather in {city} in summer?", model_alias=ModelAlias(name="not_in_configuration", profile="unknown")).alias("weather"),
         )
         df_select.to_polars()
 

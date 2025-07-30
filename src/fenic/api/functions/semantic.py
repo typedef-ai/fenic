@@ -8,13 +8,16 @@ from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
     AnalyzeSentimentExpr,
     EmbeddingsExpr,
-    ResolvedClassDefinition,
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
+)
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedClassDefinition,
+    ResolvedModelAlias,
 )
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
@@ -89,14 +92,13 @@ def map(
         except OutputFormatValidationError as e:
             raise ValidationError("Invalid response schema") from e
 
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
             examples=examples,
             max_tokens=max_output_tokens,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             temperature=temperature,
             response_format=schema,
         )
@@ -157,12 +159,13 @@ def extract(
     except OutputFormatValidationError as e:
         raise ValidationError("Invalid extraction schema") from e
 
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticExtractExpr(
             Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
             temperature=temperature,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             schema=schema,
         )
     )
@@ -219,13 +222,12 @@ def predicate(
         semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
         ```
     """
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticPredExpr(
             instruction,
             examples=examples,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             temperature=temperature,
         )
     )
@@ -261,13 +263,12 @@ def reduce(
         semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
         ```
     """
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
             instruction,
             max_tokens=max_output_tokens,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             temperature=temperature,
         )
     )
@@ -353,14 +354,13 @@ def classify(
             f"Class labels must be unique. The following duplicate label(s) were found: {sorted(duplicates)}"
         )
 
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticClassifyExpr(
             Column._from_col_or_name(column)._logical_expr,
             classes,
             examples=examples,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             temperature=temperature,
         )
     )
@@ -390,12 +390,11 @@ def analyze_sentiment(
         semantic.analyze_sentiment(col('user_comment'))
         ```
     """
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         AnalyzeSentimentExpr(
             Column._from_col_or_name(column)._logical_expr,
-            model_alias=model_alias,
+            model_alias=resolved_model_alias,
             temperature=temperature,
         )
     )
@@ -425,10 +424,9 @@ def embed(
         df.select(semantic.embed(col("text_column")).alias("text_embeddings"))
         ```
     """
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
-        EmbeddingsExpr(Column._from_col_or_name(column)._logical_expr, model_alias=model_alias)
+        EmbeddingsExpr(Column._from_col_or_name(column)._logical_expr, model_alias=resolved_model_alias)
     )
 
 
@@ -457,9 +455,27 @@ def summarize(
     """
     if format is None:
         format = Paragraph()
-    if isinstance(model_alias, str):
-        model_alias = ModelAlias.from_str(model_alias)
+    resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature,
-                              model_alias=model_alias)
+                              model_alias=resolved_model_alias)
     )
+
+
+def _resolve_model_alias(model_alias: Optional[Union[str, ModelAlias]]) -> Optional[ResolvedModelAlias]:
+    """Convert a model alias from the API layer to the expression layer format.
+
+    Args:
+        model_alias: Either a string, a ModelAlias, or None
+
+    Returns:
+        A ResolvedModelAlias with optional profile, or None
+    """
+    if model_alias is None:
+        return None
+
+    if isinstance(model_alias, str):
+        return ResolvedModelAlias(name=model_alias)
+
+    # It's a ModelAlias, convert to ResolvedModelAlias
+    return ResolvedModelAlias(name=model_alias.name, profile=model_alias.profile)

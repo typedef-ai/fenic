@@ -19,7 +19,6 @@ from fenic._inference.model_client import (
     FatalException,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import TokenEstimate
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TokenCounter
 from fenic._inference.types import (
@@ -187,17 +186,3 @@ class OpenAIChatCompletionsCore:
             A unique key for the request
         """
         return generate_completion_request_key(request)
-
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
-        """Estimate the number of tokens for a request.
-
-        Args:
-            request: The request to estimate tokens for
-
-        Returns:
-            TokenEstimate with input token count
-        """
-        return TokenEstimate(
-            input_tokens=self._token_counter.count_tokens(request.messages.to_message_list()),
-            output_tokens=request.max_completion_tokens
-        )

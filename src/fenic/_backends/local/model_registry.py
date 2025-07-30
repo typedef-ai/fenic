@@ -12,6 +12,7 @@ from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,
@@ -21,7 +22,6 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
-from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -114,11 +114,11 @@ class SessionModelRegistry:
             for embedding_model in self.embedding_model_registry.models.values():
                 embedding_model.reset_metrics()
 
-    def get_language_model(self, alias: Optional[ModelAlias] = None) -> LanguageModel:
+    def get_language_model(self, alias: Optional[ResolvedModelAlias] = None) -> LanguageModel:
         """Get a language model by alias or return the default model.
 
         Args:
-            alias (Optional[ModelAlias], optional): ModelAlias containing name and optional profile. Defaults to None.
+            alias (Optional[ResolvedModelAlias], optional): ResolvedModelAlias containing name and optional profile. Defaults to None.
 
         Returns:
             LanguageModel: The requested language model.

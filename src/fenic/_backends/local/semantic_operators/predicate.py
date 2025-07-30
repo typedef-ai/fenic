@@ -17,8 +17,8 @@ from fenic._backends.local.semantic_operators.utils import (
 )
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import PredicateExample, PredicateExampleCollection
-from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
         model: LanguageModel,
         temperature: float,
         examples: Optional[PredicateExampleCollection] = None,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         super().__init__(
             input,

@@ -15,8 +15,8 @@ from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
-from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
         input: pl.Series,
         model: LanguageModel,
         temperature: float,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         super().__init__(
             input,

@@ -8,11 +8,11 @@ from fenic._backends.local.semantic_operators.base import (
     CompletionOnlyRequestSender,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import (
     KeyPoints,
     Paragraph,
 )
-from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
         format: Union[KeyPoints, Paragraph],
         temperature: float,
         model: LanguageModel,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.format = format
 

@@ -5,13 +5,13 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSessionConfig,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.semantic import ModelAlias
 
 
 def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
@@ -32,7 +32,7 @@ def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
 
 
 def validate_completion_parameters(
-    model_alias: Optional[ModelAlias],
+    model_alias: Optional[ResolvedModelAlias],
     resolved_session_config: ResolvedSessionConfig,
     temperature: float,
     max_tokens: Optional[int] = None,
@@ -42,8 +42,8 @@ def validate_completion_parameters(
     If no model alias is provided, the session's default language model is used.
 
     Parameters:
-        model_alias (Optional[ModelAlias]):
-            ModelAlias object containing model name and optional profile.
+        model_alias (Optional[ResolvedModelAlias]):
+            ResolvedModelAlias object containing model name and optional profile.
             Defaults to the session's default if not provided.
         resolved_session_config (ResolvedSessionConfig):
             The resolved session config containing model definitions.

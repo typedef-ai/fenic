@@ -18,9 +18,11 @@ from fenic._constants import (
     TOKEN_OVERHEAD_MISC,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core._logical_plan.expressions import ResolvedClassDefinition
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedClassDefinition,
+    ResolvedModelAlias,
+)
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
-from fenic.core.types.semantic import ModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
         model: LanguageModel,
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.classes = classes
         self.valid_labels = {class_def.label for class_def in classes}
