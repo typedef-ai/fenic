@@ -6,9 +6,8 @@ class ModelProvider(Enum):
     """Enum representing different model providers supported by the system."""
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
-    # These are the same so that EmbeddingType matching can work between Vertex/Developer embeddings for the same model.
-    GOOGLE_DEVELOPER = "google"
-    GOOGLE_VERTEX = "google"
+    GOOGLE_DEVELOPER = "google-developer"
+    GOOGLE_VERTEX = "google-vertex"
 
 class TieredTokenCost:
 

@@ -42,20 +42,8 @@ profiles_desc = """
 default_profiles_desc = """
             If profiles are configured, which should be used by default?
         """
-class ModelConfig(BaseModel):
-    """Base configuration class for all model types.
 
-    This is the base class for all model configurations. It defines the common
-    attributes that all models share.
-
-    Attributes:
-        model_name: The name of the model to use.
-        model_provider: The provider of the model (OpenAI, Anthropic, Google, etc.).
-    """
-    model_name: str
-    model_provider: ModelProvider
-
-class GoogleDeveloperLanguageModel(ModelConfig):
+class GoogleDeveloperLanguageModel(BaseModel):
     """Configuration for Gemini models accessible through Google Developer AI Studio.
 
     This class defines the configuration settings for Google Gemini models available in Google Developer AI Studio,
@@ -96,7 +84,6 @@ class GoogleDeveloperLanguageModel(ModelConfig):
         ```
     """
     model_name: GoogleDeveloperLanguageModelName
-    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_DEVELOPER)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
@@ -140,7 +127,7 @@ class GoogleDeveloperLanguageModel(ModelConfig):
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
 
-class GoogleVertexLanguageModel(ModelConfig):
+class GoogleVertexLanguageModel(BaseModel):
     """Configuration for Google Vertex AI models.
 
     This class defines the configuration settings for Google Gemini models available in Google Vertex AI,
@@ -181,7 +168,6 @@ class GoogleVertexLanguageModel(ModelConfig):
         ```
     """
     model_name: GoogleVertexLanguageModelName
-    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_VERTEX)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
@@ -225,7 +211,7 @@ class GoogleVertexLanguageModel(ModelConfig):
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
 
-class OpenAILanguageModel(ModelConfig):
+class OpenAILanguageModel(BaseModel):
     """Configuration for OpenAI language models.
 
     This class defines the configuration settings for OpenAI language models,
@@ -291,7 +277,6 @@ class OpenAILanguageModel(ModelConfig):
         ```
     """
     model_name: OpenAILanguageModelName = Field(..., description="The name of the OpenAI model to use")
-    model_provider: ModelProvider = Field(default=ModelProvider.OPENAI)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
@@ -324,7 +309,7 @@ class OpenAILanguageModel(ModelConfig):
             default=None, description="The reasoning effort level for the profile"
         )
 
-class OpenAIEmbeddingModel(ModelConfig):
+class OpenAIEmbeddingModel(BaseModel):
     """Configuration for OpenAI embedding models.
 
     This class defines the configuration settings for OpenAI embedding models,
@@ -347,14 +332,11 @@ class OpenAIEmbeddingModel(ModelConfig):
         ```
     """
     model_name: OpenAIEmbeddingModelName = Field(..., description="The name of the OpenAI embedding model to use")
-    model_provider: ModelProvider = ModelProvider.OPENAI
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
 
 
-
-
-class AnthropicLanguageModel(ModelConfig):
+class AnthropicLanguageModel(BaseModel):
     """Configuration for Anthropic language models.
 
     This class defines the configuration settings for Anthropic language models,
@@ -410,7 +392,6 @@ class AnthropicLanguageModel(ModelConfig):
         ```
     """
     model_name: AnthropicLanguageModelName = Field(..., description="The name of the Anthropic model to use")
-    model_provider: ModelProvider = ModelProvider.ANTHROPIC
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     input_tpm: int = Field(..., gt=0, description="Input tokens per minute; must be > 0")
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
@@ -452,6 +433,7 @@ class AnthropicLanguageModel(ModelConfig):
 
 EmbeddingModel = Union[OpenAIEmbeddingModel]
 LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
+ModelConfig = Union[EmbeddingModel, LanguageModel]
 
 class SemanticConfig(BaseModel):
     """Configuration for semantic language and embedding models.
@@ -609,8 +591,8 @@ class SemanticConfig(BaseModel):
                     f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
 
             for model_alias, language_model in self.language_models.items():
-                language_model_provider = language_model.model_provider
                 language_model_name = language_model.model_name
+                language_model_provider = get_model_provider_for_model_config(language_model)
 
                 if language_model.profiles is not None:
                     profile_names = list(language_model.profiles.keys())
@@ -640,7 +622,7 @@ class SemanticConfig(BaseModel):
                 raise ConfigurationError(
                     f"default_embedding_model {self.default_embedding_model} is not in configured map of embedding models. Available models: {available_embedding_model_aliases} .")
             for _model_alias, embedding_model in self.embedding_models.items():
-                embedding_model_provider = embedding_model.model_provider
+                embedding_model_provider = get_model_provider_for_model_config(embedding_model)
                 embedding_model_name = embedding_model.model_name
                 embedding_model_parameters = model_catalog.get_embedding_model_parameters(embedding_model_provider,
                                                                                           embedding_model_name)
@@ -799,7 +781,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
-                    model_provider=model.model_provider,
+                    model_provider=get_model_provider_for_model_config(model),
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -853,3 +835,16 @@ class SessionConfig(BaseModel):
             semantic=resolved_semantic,
             cloud=resolved_cloud
         )
+
+def get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
+    """Determine the ModelProvider for the given model configuration."""
+    if isinstance(model_config, (OpenAILanguageModel, OpenAIEmbeddingModel)):
+        return ModelProvider.OPENAI
+    elif isinstance(model_config, GoogleDeveloperLanguageModel):
+        return ModelProvider.GOOGLE_DEVELOPER
+    elif isinstance(model_config, GoogleVertexLanguageModel):
+        return ModelProvider.GOOGLE_VERTEX
+    elif isinstance(model_config, AnthropicLanguageModel):
+        return ModelProvider.ANTHROPIC
+    else :
+        raise InternalError(f"Unknown model type: {type(model_config)}")
