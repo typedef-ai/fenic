@@ -495,15 +495,80 @@ class Catalog:
         """
         return self.catalog.create_table(table_name, schema, ignore_if_exists)
 
+    def list_views(self) -> List[str]:
+        """Returns a list of views stored in the current database.
+
+        This method queries the current database to retrieve all available view names.
+
+        Returns:
+            List[str]: A list of view names stored in the database.
+            Returns an empty list if no views are found.
+
+        Example:
+            >>> session.catalog.list_views()
+            ['view1', 'view2', 'view3'].
+        """
+        return self.catalog.list_views()
+
+    @validate_call(config=ConfigDict(strict=True))
+    def does_view_exist(self, view_name: str) -> bool:
+        """Checks if a view with the specified name exists.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to check.
+
+        Returns:
+            bool: True if the view exists, False otherwise.
+
+        Example:
+            >>> session.catalog.does_view_exist('my_view')
+            True.
+        """
+        return self.catalog.does_view_exist(view_name)
+
+    @validate_call(config=ConfigDict(strict=True))
+    def drop_view(self, view_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drops the specified view.
+
+        By default this method will return False if the view doesn't exist.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to drop.
+            ignore_if_not_exists (bool, optional): If True, return False when the view
+                doesn't exist. If False, raise an error when the view doesn't exist.
+                Defaults to True.
+
+        Returns:
+            bool: True if the view was dropped successfully, False if the view
+                didn't exist and ignore_if_not_exist is True.
+
+        Raises:
+            TableNotFoundError: If the view doesn't exist and ignore_if_not_exists is False
+        Example:
+            >>> # For an existing view 'v1'
+            >>> session.catalog.drop_table('v1')
+            True
+            >>> # For a non-existent table 'v2'
+            >>> session.catalog.drop_table('v2', ignore_if_not_exists=True)
+            False
+            >>> session.catalog.drop_table('v2', ignore_if_not_exists=False)
+            # Raises TableNotFoundError.
+        """
+        return self.catalog.drop_view(view_name, ignore_if_not_exists)
+
     # Spark-style camelCase aliases
     doesCatalogExist = does_catalog_exist
     getCurrentCatalog = get_current_catalog
     setCurrentCatalog = set_current_catalog
     listCatalogs = list_catalogs
     doesDatabaseExist = does_database_exist
+    doesTableExist = does_table_exist
     getCurrentDatabase = get_current_database
     setCurrentDatabase = set_current_database
     listTables = list_tables
     describeTable = describe_table
     dropTable = drop_table
     createTable = create_table
+    listViews = list_views
+    doesViewExist = does_view_exist
+    dropView = drop_view

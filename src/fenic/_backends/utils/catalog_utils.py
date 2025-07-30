@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from fenic.core.error import ValidationError
+from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.source import FileSource, TableSource
+from fenic.core.error import PlanError, ValidationError
 
 
 class QualifiedNameParser:
@@ -140,3 +143,29 @@ def compare_object_names(object_name_1: str, object_name_2: str) -> bool:
 def normalize_object_name(name: str) -> str:
     """Normalize an object name, handling DuckDB's naming conventions."""
     return name.casefold()
+
+def validate_view(view_name: str,logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
+    """Validate the schema of the specified view."""
+    for child in logical_plan.children():
+        if child.children():
+            validate_view(view_name, child, session_state)
+            continue
+
+    if _is_source_logical_plan(logical_plan):
+        if isinstance(logical_plan, FileSource):
+            clone_logical_plan = FileSource.from_session_state(
+                logical_plan._paths, logical_plan._file_format, logical_plan._options, session_state)
+        else:
+            clone_logical_plan = TableSource.from_session_state(
+                logical_plan._table_name, session_state)
+
+        if logical_plan.schema() != clone_logical_plan.schema():
+            raise PlanError(
+                f"The persisted schema for the source {type(logical_plan)} in view {view_name} "
+                f"does not match the current state of the source."
+                f"Persisted schema: {logical_plan.schema()}"
+                f"Current schema: {clone_logical_plan.schema()}")
+
+def _is_source_logical_plan(logical_plan: LogicalPlan) -> bool:
+    return (isinstance(logical_plan, TableSource) or
+            isinstance(logical_plan, FileSource))
