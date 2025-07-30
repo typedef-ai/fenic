@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import List, Tuple
+from typing import List
 
 import duckdb
 import polars as pl
@@ -537,15 +537,6 @@ class LocalCatalog(BaseCatalog):
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
 
-    def validate_view_schema(self, plan_node):
-        for child in plan_node.children():
-            if child.children():
-                self.validate_view_schema(child)
-                continue
-
-            if child.schema() != child._build_schema():
-                    raise PlanError("Failed to validate schema against existing sources during logical plan construction—check the referenced tables, views or other sources.")
-            
     def _build_qualified_table_name(self, table_identifier: TableIdentifier,
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'

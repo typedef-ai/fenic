@@ -12,7 +12,6 @@ from fenic._backends.local.utils.io_utils import (
     does_path_exist,
     query_files,
 )
-from fenic._backends.schema_serde import serialize_schema
 from fenic.core._interfaces.execution import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlan
 from fenic.core._utils.schema import (

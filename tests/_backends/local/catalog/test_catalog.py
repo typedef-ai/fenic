@@ -14,8 +14,6 @@ from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
 )
-from fenic._backends.schema_serde import deserialize_schema, serialize_schema
-from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
@@ -226,8 +224,6 @@ def test_describe_view(local_session: Session):
     df1 = local_session.create_dataframe({"a": [1, 2, 3]})
     df1.write.save_as_view("df1")
     view_df1 = local_session.catalog.describe_view("df1")
-    print(view_df1)
-
     assert view_df1.schema().column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
