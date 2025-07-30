@@ -9,7 +9,7 @@ from fenic import (
     col,
     udf,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import UnimplementedError
 
 
 def test_with_column_udf(sample_df):
@@ -114,19 +114,19 @@ def test_udf_with_nested_types(local_session):
 
 def test_udf_with_logical_return_type(local_session):
     # basic logical types
-    with pytest.raises(ValidationError):
+    with pytest.raises(UnimplementedError):
         @udf(return_type=MarkdownType)
         def markdown_udf(x: str):
             return f"# hello\n\n {x} \n\n# goodbye"
 
     # array with logical type
-    with pytest.raises(ValidationError):
+    with pytest.raises(UnimplementedError):
         @udf(return_type=ArrayType(element_type=MarkdownType))
         def markdown_array_udf(x: str):
             return [f"# hello\n\n {x} \n\n# hello", f"# goodbye\n\n {x} \n\n# goodbye"]
 
     # struct with logical type
-    with pytest.raises(ValidationError):
+    with pytest.raises(UnimplementedError):
         @udf(return_type=StructType([StructField("value1", IntegerType), StructField("value2", MarkdownType)]))
         def markdown_struct_udf(x: str):
             return {"value1": len(x), "value2": f"# hello\n\n {x} \n\n# goodbye"}

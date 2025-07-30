@@ -73,7 +73,7 @@ class _PrimitiveType(DataType):
     pass
 
 
-class LogicalType(DataType):
+class _LogicalType(DataType):
     """Marker class for all logical types."""
 
     pass
@@ -311,7 +311,7 @@ class StructType(DataType):
 
 
 @dataclass(frozen=True)
-class EmbeddingType(LogicalType):
+class EmbeddingType(_LogicalType):
     """A type representing a fixed-length embedding vector.
 
     Attributes:
@@ -358,7 +358,7 @@ class EmbeddingType(LogicalType):
 
 
 @dataclass(frozen=True)
-class _MarkdownType(LogicalType):
+class _MarkdownType(_LogicalType):
     """Represents a markdown document."""
 
     def __str__(self) -> str:
@@ -382,7 +382,7 @@ class _MarkdownType(LogicalType):
 
 
 @dataclass(frozen=True)
-class _HtmlType(LogicalType):
+class _HtmlType(_LogicalType):
     """Represents a valid HTML document."""
 
     def __str__(self) -> str:
@@ -406,7 +406,7 @@ class _HtmlType(LogicalType):
 
 
 @dataclass(frozen=True)
-class _JsonType(LogicalType):
+class _JsonType(_LogicalType):
     """Represents a valid JSON document."""
 
     def __str__(self) -> str:
@@ -430,7 +430,7 @@ class _JsonType(LogicalType):
 
 
 @dataclass(frozen=True)
-class TranscriptType(LogicalType):
+class TranscriptType(_LogicalType):
     """Represents a string containing a transcript in a specific format."""
 
     format: Literal["generic", "srt"]
@@ -457,7 +457,7 @@ class TranscriptType(LogicalType):
 
 
 @dataclass(frozen=True)
-class DocumentPathType(LogicalType):
+class DocumentPathType(_LogicalType):
     """Represents a string containing a a document's local (file system) or remote (URL) path."""
 
     format: Literal["pdf"] = "pdf"
