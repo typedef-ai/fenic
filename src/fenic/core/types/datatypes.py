@@ -488,6 +488,17 @@ def is_dtype_numeric(dtype: DataType) -> bool:
     return dtype in (IntegerType, FloatType, DoubleType)
 
 
+def is_logical_type(type: DataType) -> bool:
+    """Check if a type is a logical type.  If type is a struct or array that contains a LogicalType, it is logical type."""
+    if isinstance(type, _LogicalType):
+        return True
+    elif isinstance(type, StructType):
+        return any(is_logical_type(field.data_type) for field in type.struct_fields)
+    elif isinstance(type, ArrayType):
+        return is_logical_type(type.element_type)
+    return False
+
+
 # === Instances of Singleton Types ===
 StringType = _StringType()
 """Represents a UTF-8 encoded string value."""

@@ -49,12 +49,6 @@ class ValidationError(FenicError):
     pass
 
 
-class UnimplementedError(FenicError):
-    """Raised to indicate the user is requesting unimplemented functionality."""
-
-    pass
-
-
 class InvalidExampleCollectionError(ValidationError):
     """Exception raised when a semantic example collection is invalid."""
 
