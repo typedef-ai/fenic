@@ -71,7 +71,6 @@ multiline
     # Check first entry with unified schema
     entry1 = entries[0]
     assert entry1["index"] == 1
-    assert entry1["identifier"] == "1"
     assert entry1["speaker"] is None  # WebVTT doesn't currently parse the speakers
     assert entry1["start_time"] == 1.0  # 00:00:01,000 = 1 second
     assert entry1["end_time"] == 4.0   # 00:00:04,000 = 4 seconds
@@ -82,7 +81,6 @@ multiline
     # Check second entry
     entry2 = entries[1]
     assert entry2["index"] == 2
-    assert entry2["identifier"] is None
     assert entry2["start_time"] == 5.0
     assert entry2["end_time"] == 8.0
     assert entry2["duration"] == 3.0
@@ -92,7 +90,6 @@ multiline
     # Check third entry
     entry3 = entries[2]
     assert entry3["index"] == 3
-    assert entry3["identifier"] == "cue 55"
     assert entry3["start_time"] == 9.0
     assert entry3["end_time"] == 12.0
     assert entry3["duration"] == 3.0

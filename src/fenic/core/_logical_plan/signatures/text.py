@@ -24,7 +24,6 @@ TRANSCRIPT_OUTPUT_TYPE = ArrayType(
     element_type=StructType(
         [
             StructField("index", IntegerType),  # Optional[int] - Entry index (1-based)
-            StructField("identifier", StringType),  # Optional[str] - Cue identifier
             StructField("speaker", StringType),  # Optional[str] - Speaker name
             StructField("start_time", DoubleType),  # float - Start time in seconds
             StructField("end_time", DoubleType),  # Optional[float] - End time in seconds

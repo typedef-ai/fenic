@@ -177,7 +177,6 @@ impl FormatParser for GenericTranscriptParser {
 
             unified_entries.push(UnifiedTranscriptEntry {
                 index: Some((i + 1) as i64), // Auto-generate 1-based index
-                identifier: None,            // Generic format doesn't have cue identifiers
                 speaker: if speaker.is_empty() {
                     None
                 } else {
@@ -210,7 +209,6 @@ Yeah, thanks, Nitay and Kostas.
         assert_eq!(entries.len(), 2);
 
         // Check first entry
-        assert_eq!(entries[0].identifier, None);
         assert_eq!(entries[0].speaker, Some("Nitay".to_string()));
         assert_eq!(entries[0].start_time, 1.451);
         assert_eq!(entries[0].end_time, Some(9.006)); // Look-ahead to next entry
@@ -219,7 +217,6 @@ Yeah, thanks, Nitay and Kostas.
         assert_eq!(entries[0].format, "generic");
 
         // Check second entry
-        assert_eq!(entries[1].identifier, None);
         assert_eq!(entries[1].speaker, Some("Apurva Mehta".to_string()));
         assert_eq!(entries[1].start_time, 9.006);
         assert_eq!(entries[1].end_time, None); // Last entry

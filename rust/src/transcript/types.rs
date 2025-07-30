@@ -4,8 +4,6 @@
 pub struct UnifiedTranscriptEntry {
     /// Entry index/number (auto-generated for formats that don't have it)
     pub index: Option<i64>,
-    /// Cue identifier (None for formats that don't have cue identifiers)
-    pub identifier: Option<String>,
     /// Speaker name/identifier (None for formats like SRT that don't have speakers)
     pub speaker: Option<String>,
     /// Start time in seconds from beginning of conversation

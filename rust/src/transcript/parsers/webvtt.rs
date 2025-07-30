@@ -85,15 +85,13 @@ impl WebVTTParser {
         cue_index: &mut usize,
     ) -> Result<UnifiedTranscriptEntry, ParseError> {
         let mut current_line = lines[*index].trim();
-        let mut cue_identifier = None;
 
         // Expected format: "00:00:01.000 --> 00:00:05.000 <optional cue settings>"
         // Check if current line contains a timestamp (cue timing line)
         if looks_like_timestamp_line(current_line) {
             // This line is the timing line, no identifier present
         } else {
-            // Current line might be an identifier.
-            cue_identifier = Some(current_line.trim().to_string());
+            // Current line might be an identifier.  Skip it.
             *index += 1;
             if *index >= lines.len() {
                 return Err(ParseError::InvalidTranscriptFormat(
@@ -141,7 +139,6 @@ impl WebVTTParser {
 
         Ok(UnifiedTranscriptEntry {
             index: Some(*cue_index as i64), // auto-generate 1-based index
-            identifier: cue_identifier,
             speaker,
             start_time,
             end_time: Some(end_time),
@@ -273,7 +270,6 @@ cue-3
         assert_eq!(entries.len(), 3);
 
         assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].identifier, Some("1".to_string()));
         assert_eq!(entries[0].content, "Hello, world!");
         assert_eq!(entries[0].start_time, 1.0);
         assert_eq!(entries[0].end_time, Some(5.0));
@@ -281,12 +277,13 @@ cue-3
         assert_eq!(entries[0].speaker, None);
 
         assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].identifier, Some("2".to_string()));
         assert_eq!(entries[1].content, "This is Alice speaking.");
+        assert_eq!(entries[1].start_time, 6.0);
+        assert_eq!(entries[1].end_time, Some(10.0));
+        assert_eq!(entries[1].duration, Some(4.0));
         assert_eq!(entries[1].speaker, Some("Alice".to_string()));
 
         assert_eq!(entries[2].index, Some(3));
-        assert_eq!(entries[2].identifier, Some("cue-3".to_string()));
         assert_eq!(entries[2].content, "Bold text and italic text.");
         assert_eq!(entries[2].start_time, 11.5);
         assert_eq!(entries[2].end_time, Some(15.75));
@@ -311,7 +308,6 @@ No cue identifier or speaker here.
 
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].identifier, None);
         assert_eq!(entries[0].content, "No cue identifier or speaker here.");
         assert_eq!(entries[0].speaker, None);
         assert_eq!(entries[0].start_time, 1.0);
@@ -320,7 +316,6 @@ No cue identifier or speaker here.
         assert_eq!(entries[0].format, "webvtt");
 
         assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].identifier, None);
         assert_eq!(entries[1].speaker, Some("Bob".to_string()));
         assert_eq!(entries[1].content, "Bob speaking without cue identifier.");
         assert_eq!(entries[1].start_time, 6.0);
@@ -346,7 +341,6 @@ No hours here.
 
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].identifier, None);
         assert_eq!(entries[0].content, "No hours here.");
         assert_eq!(entries[0].speaker, None);
         assert_eq!(entries[0].start_time, 1.0);
@@ -355,7 +349,6 @@ No hours here.
         assert_eq!(entries[0].format, "webvtt");
 
         assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].identifier, None);
         assert_eq!(entries[1].speaker, Some("Bob".to_string()));
         assert_eq!(entries[1].content, "Bob speaking an hour later.");
         assert_eq!(entries[1].start_time, 3606.0);
@@ -387,7 +380,6 @@ No identifier here
         let entries = WebVTTParser.parse(webvtt_content).unwrap();
 
         assert_eq!(entries.len(), 4);
-        assert_eq!(entries[0].identifier, Some("1".to_string()));
         assert_eq!(entries[0].content, "Text with cue settings");
         assert_eq!(entries[0].start_time, 1.0);
         assert_eq!(entries[0].end_time, Some(5.0));
@@ -397,7 +389,6 @@ No identifier here
         assert_eq!(entries[0].format, "webvtt");
 
         assert_eq!(entries[1].index, Some(2));
-        assert_eq!(entries[1].identifier, Some("bla bla".to_string()));
         assert_eq!(entries[1].content, "And with random text for identifiers");
         assert_eq!(entries[1].start_time, 6.0);
         assert_eq!(entries[1].end_time, Some(10.0));
@@ -407,7 +398,6 @@ No identifier here
         assert_eq!(entries[1].format, "webvtt");
 
         assert_eq!(entries[2].index, Some(3));
-        assert_eq!(entries[2].identifier, Some("cue-2".to_string()));
         assert_eq!(entries[2].content, "Alphanumeric identifier");
         assert_eq!(entries[2].start_time, 11.0);
         assert_eq!(entries[2].end_time, Some(15.0));
@@ -417,7 +407,6 @@ No identifier here
         assert_eq!(entries[2].format, "webvtt");
 
         assert_eq!(entries[3].index, Some(4));
-        assert_eq!(entries[3].identifier, None);
         assert_eq!(entries[3].content, "No identifier here");
         assert_eq!(entries[3].start_time, 16.0);
         assert_eq!(entries[3].end_time, Some(20.0));
