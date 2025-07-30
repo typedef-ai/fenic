@@ -7,7 +7,6 @@ from fenic.core.types.datatypes import (
     DoubleType,
     FloatType,
     IntegerType,
-    _LogicalType,
     StringType,
     StructField,
     StructType,
