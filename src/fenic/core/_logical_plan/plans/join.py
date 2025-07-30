@@ -199,13 +199,13 @@ class SemanticJoin(BaseSemanticJoin):
     def from_session_state(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: List[LogicalExpr],
-        right_on: List[LogicalExpr],
+        left_on: ColumnExpr,
+        right_on: ColumnExpr,
         join_instruction: str,
         temperature: float = 0.0,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
-        session_state: BaseSessionState = None) -> Join:
+        session_state: BaseSessionState = None) -> SemanticJoin:
         return SemanticJoin(left,
                 right,
                 left_on,
@@ -221,13 +221,13 @@ class SemanticJoin(BaseSemanticJoin):
     def from_schema(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: List[LogicalExpr],
-        right_on: List[LogicalExpr],
+        left_on: ColumnExpr,
+        right_on: ColumnExpr,
         join_instruction: str,
         temperature: float,
         model_alias: Optional[str] = None,
         examples: Optional[JoinExampleCollection] = None,
-        schema: Optional[Schema] = None) -> Join:
+        schema: Optional[Schema] = None) -> SemanticJoin:
         return SemanticJoin(left,
                 right,
                 left_on,
@@ -237,7 +237,7 @@ class SemanticJoin(BaseSemanticJoin):
                 model_alias,
                 examples,
                 None,
-                Schema)
+                schema)
 
 
     def _validate_columns(self) -> None:

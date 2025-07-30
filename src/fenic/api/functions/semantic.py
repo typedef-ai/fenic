@@ -17,7 +17,6 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core._logical_plan.resolved_types import (
     ResolvedClassDefinition,
-    ResolvedModelAlias,
 )
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
@@ -32,7 +31,7 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
-from fenic.core.types.semantic import ModelAlias
+from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
@@ -460,22 +459,3 @@ def summarize(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature,
                               model_alias=resolved_model_alias)
     )
-
-
-def _resolve_model_alias(model_alias: Optional[Union[str, ModelAlias]]) -> Optional[ResolvedModelAlias]:
-    """Convert a model alias from the API layer to the expression layer format.
-
-    Args:
-        model_alias: Either a string, a ModelAlias, or None
-
-    Returns:
-        A ResolvedModelAlias with optional profile, or None
-    """
-    if model_alias is None:
-        return None
-
-    if isinstance(model_alias, str):
-        return ResolvedModelAlias(name=model_alias)
-
-    # It's a ModelAlias, convert to ResolvedModelAlias
-    return ResolvedModelAlias(name=model_alias.name, profile=model_alias.profile)

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, get_args
+from typing import TYPE_CHECKING, Optional, Union, get_args
 
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     JoinExampleCollection,
 )
+from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
@@ -143,7 +144,7 @@ class SemanticExtensions:
         other: DataFrame,
         join_instruction: str,
         examples: Optional[JoinExampleCollection] = None,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[Union[str, ModelAlias]] = None
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
@@ -243,7 +244,7 @@ class SemanticExtensions:
             raise ValueError(
                 "join_instruction must contain exactly one :left and one :right column"
             )
-
+        resolved_model_alias = _resolve_model_alias(model_alias)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
             SemanticJoin.from_session_state(
@@ -252,7 +253,7 @@ class SemanticExtensions:
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 join_instruction=join_instruction,
-                model_alias=model_alias,
+                model_alias=resolved_model_alias,
                 examples=examples,
                 session_state=self._df._session_state,
             ),
