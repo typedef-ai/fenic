@@ -11,7 +11,7 @@ from fenic.core.types import (
     BooleanType,
     ColumnField,
 )
-from fenic.core.types.datatypes import is_dtype_numeric
+from fenic.core.types.datatypes import _is_dtype_numeric
 
 
 class EqualityComparisonExpr(BinaryExpr):
@@ -37,7 +37,7 @@ class NumericComparisonExpr(BinaryExpr):
         left_type = self.left.to_column_field(plan, session_state).data_type
         right_type = self.right.to_column_field(plan, session_state).data_type
 
-        if not is_dtype_numeric(left_type) or not is_dtype_numeric(right_type):
+        if not _is_dtype_numeric(left_type) or not _is_dtype_numeric(right_type):
             raise TypeError(
                 f"Type mismatch: Cannot apply {self.op} operator to non-numeric types. "
                 f"Left type: {left_type}, Right type: {right_type}. "
