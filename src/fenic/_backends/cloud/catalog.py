@@ -39,7 +39,6 @@ from fenic._backends.utils.catalog_utils import (
     compare_object_names,
 )
 from fenic.core._interfaces import BaseCatalog
-from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans import LogicalPlan
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
@@ -316,13 +315,6 @@ class CloudCatalog(BaseCatalog):
         # TODO: Implement does view exist for the cloud
         raise NotImplementedError(
             "Method to check if view exists not implemented for cloud catalog"
-        )
-
-    def validate_view(self, view_name: str, logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
-        """Validate the schema of the specified view."""
-        # TODO:
-        raise NotImplementedError(
-            "Validate view not implemented for cloud catalog"
         )
 
     def _drop_database(

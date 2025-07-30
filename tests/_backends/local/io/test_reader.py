@@ -975,7 +975,7 @@ def test_ingest_array_type(local_session, temp_dir):
     )
 
 
-def test_view_csv_union(local_session, temp_dir):
+def test_nested_views(local_session, temp_dir):
     """Test that views can be unioned and that the unioned view can be queried."""
     test_data = """name,age,city
 John,25,New York

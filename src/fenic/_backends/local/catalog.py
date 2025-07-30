@@ -13,10 +13,8 @@ from fenic._backends.utils.catalog_utils import (
     DBIdentifier,
     TableIdentifier,
     compare_object_names,
-    validate_view,
 )
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
@@ -539,10 +537,6 @@ class LocalCatalog(BaseCatalog):
     def _build_qualified_table_name(self, table_identifier: TableIdentifier,
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'
-
-    def validate_view(self, view_name: str, logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
-        """Validate the schema of the specified view."""
-        validate_view(view_name, logical_plan, session_state)
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

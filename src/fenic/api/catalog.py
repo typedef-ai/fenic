@@ -5,7 +5,6 @@ from typing import List
 from pydantic import ConfigDict, validate_call
 
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.types import Schema
 
 
@@ -496,23 +495,6 @@ class Catalog:
         """
         return self.catalog.create_table(table_name, schema, ignore_if_exists)
 
-    def describe_view(self, view_name: str) -> LogicalPlan:
-        """Returns the serialized schema and logical plan of the specified view.
-
-        Args:
-            view_name (str): Fully qualified or relative table name to describe.
-
-        Returns:
-            bytes: A serialized schema object describing the structure of the view source with field names and types.
-            bytes: A serialized logical plan
-        Raises:
-            TableNotFoundError: If the view doesn't exist.
-
-        Example:
-            >>> session.catalog.describe_view('t1').
-        """
-        return self.catalog.describe_view(view_name)
-
     def list_views(self) -> List[str]:
         """Returns a list of views stored in the current database.
 
@@ -527,9 +509,6 @@ class Catalog:
             ['view1', 'view2', 'view3'].
         """
         return self.catalog.list_views()
-
-    @validate_call(config=ConfigDict(strict=True))
-
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:
@@ -591,6 +570,5 @@ class Catalog:
     dropTable = drop_table
     createTable = create_table
     listViews = list_views
-    describeView = describe_view
     doesViewExist = does_view_exist
     dropView = drop_view

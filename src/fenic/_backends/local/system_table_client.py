@@ -25,7 +25,6 @@ SCHEMA_METADATA_TABLE = "table_schemas"
 VIEWS_METADATA_TABLE = "table_views"
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class SystemTableClient:
@@ -320,7 +319,6 @@ class SystemTableClient:
             ) from e
 
     def delete_database_views(self, database_name: str) -> int:
-
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
             result = self.db_conn.execute(

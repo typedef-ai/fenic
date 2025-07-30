@@ -223,7 +223,7 @@ def test_list_views(local_session: Session):
 def test_describe_view(local_session: Session):
     df1 = local_session.create_dataframe({"a": [1, 2, 3]})
     df1.write.save_as_view("df1")
-    view_df1 = local_session.catalog.describe_view("df1")
+    view_df1 = local_session._session_state.catalog.describe_view("df1")
     assert view_df1.schema().column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
