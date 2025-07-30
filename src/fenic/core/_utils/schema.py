@@ -29,13 +29,13 @@ from fenic.core.types.schema import (
 def convert_polars_schema_to_custom_schema(
     polars_schema: pl.Schema,
 ) -> Schema:
-    """Convert a Polars schema to an Omnitype Schema.
+    """Convert a Polars schema to a fenic Schema.
 
     Args:
         polars_schema: The Polars schema to convert
 
     Returns:
-        The corresponding Omnitype Schema with equivalent column fields
+        The corresponding fenic Schema with equivalent column fields
 
     Example:
         >>> custom_schema = convert_polars_schema_to_custom_schema(df.schema)
@@ -54,10 +54,10 @@ def convert_polars_schema_to_custom_schema(
 def convert_custom_schema_to_polars_schema(
     custom_schema: Schema,
 ) -> pl.Schema:
-    """Convert an Omnitype Schema to a Polars schema.
+    """Convert a fenic Schema to a Polars schema.
 
     Args:
-        custom_schema: The Omnitype Schema to convert
+        custom_schema: The fenic Schema to convert
 
     Returns:
         The corresponding Polars schema with equivalent fields
@@ -88,7 +88,7 @@ def convert_pydantic_type_to_custom_struct_type(
         ValueError: If the model is not a Pydantic model
 
     Example:
-        >>> struct_type = convert_pydantic_to_custom_struct_type(model)
+        >>> struct_type = convert_pydantic_type_to_custom_struct_type(model)
     """
     if not (isinstance(model, type) and issubclass(model, BaseModel)):
         raise ValueError(

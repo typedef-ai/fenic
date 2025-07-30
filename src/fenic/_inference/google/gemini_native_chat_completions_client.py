@@ -199,4 +199,4 @@ class GeminiNativeChatCompletionsClient(
             else:
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
-            return FatalException(e)
+            return TransientException(e)

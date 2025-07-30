@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.10, <3.13"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -443,6 +444,7 @@ requires-dist = [
     { name = "sqlglot", specifier = ">=26.25.3" },
     { name = "tiktoken", specifier = ">=0.9.0" },
 ]
+provides-extras = ["anthropic", "google", "cloud"]
 
 [package.metadata.requires-dev]
 dev = [
