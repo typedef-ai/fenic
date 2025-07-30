@@ -24,7 +24,6 @@ from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
-    PlanError,
     TableAlreadyExistsError,
     TableNotFoundError,
 )
