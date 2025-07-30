@@ -15,14 +15,14 @@ from fenic.core.types.datatypes import (
     _DoubleType,
     _FloatType,
     _IntegerType,
-    is_dtype_numeric,
+    _is_dtype_numeric,
 )
 from fenic.core.types.schema import ColumnField
 
 
 class ArithmeticExpr(BinaryExpr):
     def _validate_types(self, left_type: DataType, right_type: DataType):
-        if not is_dtype_numeric(left_type) or not is_dtype_numeric(right_type):
+        if not _is_dtype_numeric(left_type) or not _is_dtype_numeric(right_type):
             raise TypeError(
                 f"Type mismatch: Cannot apply {self.op} operator to non-numeric types. "
                 f"Left type: {left_type}, Right type: {right_type}. "

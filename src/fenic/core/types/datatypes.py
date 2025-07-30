@@ -483,19 +483,19 @@ class DocumentPathType(_LogicalType):
         return isinstance(other, DocumentPathType) and self.format == other.format
 
 
-def is_dtype_numeric(dtype: DataType) -> bool:
+def _is_dtype_numeric(dtype: DataType) -> bool:
     """Check if a data type is a numeric type."""
     return dtype in (IntegerType, FloatType, DoubleType)
 
 
-def is_logical_type(type: DataType) -> bool:
+def _is_logical_type(type: DataType) -> bool:
     """Check if a type is a logical type.  If type is a struct or array that contains a LogicalType, it is logical type."""
     if isinstance(type, _LogicalType):
         return True
     elif isinstance(type, StructType):
-        return any(is_logical_type(field.data_type) for field in type.struct_fields)
+        return any(_is_logical_type(field.data_type) for field in type.struct_fields)
     elif isinstance(type, ArrayType):
-        return is_logical_type(type.element_type)
+        return _is_logical_type(type.element_type)
     return False
 
 

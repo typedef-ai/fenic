@@ -26,7 +26,7 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core.error import ValidationError
 from fenic.core.types import DataType
-from fenic.core.types.datatypes import is_logical_type
+from fenic.core.types.datatypes import _is_logical_type
 
 """Built-in functions."""
 
@@ -304,7 +304,7 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
 
         return _udf_wrapper
 
-    if is_logical_type(return_type):
+    if _is_logical_type(return_type):
         raise NotImplementedError(f"return_type {return_type} is not supported for UDFs")
 
     if f is not None:

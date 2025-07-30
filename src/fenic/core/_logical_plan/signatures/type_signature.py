@@ -11,7 +11,7 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     DataType,
-    is_dtype_numeric,
+    _is_dtype_numeric,
 )
 
 
@@ -148,7 +148,7 @@ class Numeric(TypeSignature):
             )
 
         for i, actual_arg_type in enumerate(actual_arg_types):
-            if not is_dtype_numeric(actual_arg_type):
+            if not _is_dtype_numeric(actual_arg_type):
                 raise TypeMismatchError.from_message(
                     f"{func_name} expects numeric type for argument {i}, "
                     f"got {actual_arg_type}"
