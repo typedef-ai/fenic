@@ -23,7 +23,7 @@ from pydantic import ConfigDict, validate_call
 
 from fenic.api.catalog import Catalog
 from fenic.api.session.config import SessionConfig
-from fenic.core.error import CatalogError,PlanError, ValidationError
+from fenic.core.error import CatalogError, PlanError, ValidationError
 from fenic.core.types.query_result import DataLike
 
 
