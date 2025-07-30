@@ -95,14 +95,16 @@ test: test-local
   true
 
 # run local tests
-test-local: sync
-  uv run pytest -m "not cloud" tests
+test-local modelProvider="openai" modelName="gpt-4.1-nano" examplesModelProvider="openai" examplesModelName="gpt-4.1-nano" : sync
+  uv run pytest -m "not cloud" --model-provider {{ modelProvider }} --model-name {{ modelName }} \
+  --examples-model-provider {{ examplesModelProvider }} --examples-model-name {{ examplesModelName }} tests
 
 alias test-not-cloud := test-local
 
 # run fenic cloud related tests
-test-cloud: sync-cloud
-  uv run pytest -m cloud tests
+test-cloud modelProvider="openai" modelName="gpt-4.1-nano" examplesModelProvider="openai" examplesModelName="gpt-4.1-nano": sync-cloud
+  uv run pytest -m cloud --model-provider {{ modelProvider }} --model-name {{ modelName }} \
+  --examples-model-provider {{ examplesModelProvider }} --examples-model-name {{ examplesModelName }} tests
 
 # preview generated docs
 preview-docs:

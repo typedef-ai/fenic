@@ -17,18 +17,19 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    EmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
+    LanguageModel,
     OpenAILanguageModel,
     _get_model_provider_for_model_config,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
 MODEL_NAME_ARG = "--model-name"
-
 MODEL_PROVIDER_ARG = "--model-provider"
-
-AVAILABLE_MODEL_PROVIDERS = "--configure-model"
+EXAMPLES_MODEL_PROVIDER_ARG = "--examples-model-provider"
+EXAMPLES_MODEL_NAME_ARG = "--examples-model-name"
 
 
 class TestPath(Protocol):
@@ -126,6 +127,18 @@ def pytest_addoption(parser):
         default="gpt-4.1-nano",
         help="Model Name to run tests against",
     )
+    parser.addoption(
+        EXAMPLES_MODEL_PROVIDER_ARG,
+        action="store",
+        default="openai",
+        help="Model Provider to run example tests against",
+    )
+    parser.addoption(
+        EXAMPLES_MODEL_NAME_ARG,
+        action="store",
+        default="gpt-4.1-nano",
+        help="Language Model name to run example tests against",
+    )
 
 @pytest.fixture
 def embedding_model_name(local_session_config) -> str:
@@ -136,41 +149,19 @@ def embedding_model_name(local_session_config) -> str:
     return f"{model_provider.value}/{embedding_model.model_name}"
 
 @pytest.fixture
-def examples_session_config(app_name) -> SessionConfig:
+def examples_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
-    embedding_model = GoogleDeveloperEmbeddingModel(
-        model_name="gemini-embedding-001",
-        rpm=3000,
-        tpm=1_000_000,
-        profiles={
-            "low": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=768),
-            "medium": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
-            "high": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=3072),
-            "high-classification": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="CLASSIFICATION"
-            ),
-            "high-clustering": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="CLUSTERING"
-            ),
-            "high-similarity": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="SEMANTIC_SIMILARITY"
-            ),
-        },
-        default_profile="high-similarity",
-    )
-    # limits are small so we can run the examples in parallel
-    flash_lite_model = GoogleDeveloperLanguageModel(
-        model_name="gemini-2.0-flash-lite",
-        rpm=500,
-        tpm=250_000,
-    )
+    model_provider = ModelProvider(request.config.getoption(EXAMPLES_MODEL_PROVIDER_ARG))
+    model_name = request.config.getoption(EXAMPLES_MODEL_NAME_ARG)
+    embedding_model, language_model = configure_models_from_request_args(model_provider, model_name)
+
     return SessionConfig(
         app_name=app_name,
         semantic=SemanticConfig(
             language_models={
-                "flash-lite": flash_lite_model,
+                "default": language_model,
             },
-            embedding_models={"gemini": embedding_model},
+            embedding_models={"default": embedding_model},
         ),
     )
 
@@ -249,6 +240,21 @@ def local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
     model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
     model_name = request.config.getoption(MODEL_NAME_ARG)
+    embedding_model, language_model = configure_models_from_request_args(model_provider, model_name)
+    return SessionConfig(
+        app_name=app_name,
+        semantic=SemanticConfig(
+            language_models={
+                "test_model": language_model,
+            },
+            default_language_model="test_model",
+            embedding_models={"embedding": embedding_model},
+            default_embedding_model="embedding",
+        ),
+    )
+
+
+def configure_models_from_request_args(model_provider: ModelProvider, model_name: str) -> (EmbeddingModel, LanguageModel):
     model_parameters = model_catalog.get_completion_model_parameters(
         model_provider, model_name
     )
@@ -341,24 +347,14 @@ def local_session_config(app_name, request) -> SessionConfig:
     if model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
         embedding_model = GoogleDeveloperEmbeddingModel(
             model_name="gemini-embedding-001", rpm=3000, tpm=1_000_000, profiles={
-                "default" : GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
+                "default": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536, task_type="SEMANTIC_SIMILARITY"),
             }
         )
     else:
         embedding_model = OpenAIEmbeddingModel(
             model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
         )
-    return SessionConfig(
-        app_name=app_name,
-        semantic=SemanticConfig(
-            language_models={
-                "test_model": language_model,
-            },
-            default_language_model="test_model",
-            embedding_models={"embedding": embedding_model},
-            default_embedding_model="embedding",
-        ),
-    )
+    return embedding_model, language_model
 
 
 @pytest.fixture
