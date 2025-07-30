@@ -12,6 +12,7 @@ from fenic._backends.local.utils.io_utils import (
     does_path_exist,
     query_files,
 )
+from fenic._backends.schema_serde import serialize_schema
 from fenic.core._interfaces.execution import BaseExecution
 from fenic.core._logical_plan.serde import LogicalPlan
 from fenic.core._utils.schema import (
@@ -144,10 +145,11 @@ class LocalExecution(BaseExecution):
     ) -> None:
         """Save the table as a view in the current database."""
         self.session_state._check_active()
+
         if self.session_state.catalog.does_view_exist(view_name):
             raise CatalogError(f"View {view_name} already exists!")
         self.session_state.catalog.create_view(view_name, logical_plan, False)
-        
+
      # infer schema and save_to_file methods are overridden in the engine execution
      # because the file IO is handled differently in cloud execution.
     def save_to_file(

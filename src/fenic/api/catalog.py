@@ -529,6 +529,9 @@ class Catalog:
         return self.catalog.list_views()
 
     @validate_call(config=ConfigDict(strict=True))
+
+
+    @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists.
 

@@ -282,8 +282,7 @@ class CloudCatalog(BaseCatalog):
     def create_view(
         self,
         view_name: str,
-        schema_blob: bytes,
-        view_blob: bytes,
+        logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
     ) -> bool:
         """Create a new view in the current database."""

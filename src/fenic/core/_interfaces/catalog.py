@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import List
 
 from fenic.core.types import Schema
 
@@ -94,39 +94,4 @@ class BaseCatalog(ABC):
         self, table_name: str, schema: Schema, ignore_if_exists: bool = True
     ) -> bool:
         """Create a new table in the current database."""
-        pass
-
-    @abstractmethod
-    def create_view(
-        self,
-        view_name: str,
-        logical_plan: "LogicalPlan",
-        ignore_if_exists: bool = True,
-    ) -> bool:
-        """Create a new view in the current database."""
-        pass
-
-    @abstractmethod
-    def validate_view(self, logical_plan: "LogicalPlan", session_state: "BaseSessionState") -> None:
-        """Validate the schema of the specified view."""
-        pass
-
-    @abstractmethod
-    def drop_view(self, view_name: str, ignore_if_not_exists: bool = True) -> bool:
-        """Drop a view from the current database."""
-        pass
-
-    @abstractmethod
-    def describe_view(self, view_name: str) -> "LogicalPlan":
-        """Get the serialized schema and logical plan of the specified view."""
-        pass
-
-    @abstractmethod
-    def list_views(self) -> List[str]:
-        """Get a list of all views in the current database."""
-        pass
-
-    @abstractmethod
-    def does_view_exist(self, view_name: str) -> bool:
-        """Checks if a view with the specified name exists in the current database."""
         pass

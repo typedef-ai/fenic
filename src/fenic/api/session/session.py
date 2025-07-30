@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -15,6 +16,7 @@ from fenic.api.dataframe import DataFrame
 from fenic.api.io.reader import DataFrameReader
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans import SQL, InMemorySource, TableSource
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 
 if TYPE_CHECKING:
     from fenic._backends.cloud.session_state import CloudSessionState

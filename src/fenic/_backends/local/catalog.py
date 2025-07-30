@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import List
+from typing import List, Tuple
 
 import duckdb
 import polars as pl
@@ -24,6 +24,7 @@ from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
+    PlanError,
     TableAlreadyExistsError,
     TableNotFoundError,
 )
@@ -246,7 +247,6 @@ class LocalCatalog(BaseCatalog):
                 views = self.system_tables.get_view(view_identifier.db, view_identifier.table)
                 return views is not None
             except Exception as e:
-                logger.error(f"View error: {e}")
                 raise CatalogError(
                     f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
                 ) from e
@@ -301,7 +301,6 @@ class LocalCatalog(BaseCatalog):
             if maybe_schema is None:
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
             return maybe_schema
-
     def describe_view(self, view_name: str) -> LogicalPlan:
         """Get the schema of the specified view."""
         with self.lock:
@@ -421,7 +420,7 @@ class LocalCatalog(BaseCatalog):
                 with DuckDBTransaction(self.db_conn):
                     self.system_tables.save_view(
                         view_identifier.db, view_identifier.table, logical_plan)
-                return True
+                    return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
@@ -538,6 +537,15 @@ class LocalCatalog(BaseCatalog):
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
 
+    def validate_view_schema(self, plan_node):
+        for child in plan_node.children():
+            if child.children():
+                self.validate_view_schema(child)
+                continue
+
+            if child.schema() != child._build_schema():
+                    raise PlanError("Failed to validate schema against existing sources during logical plan construction—check the referenced tables, views or other sources.")
+            
     def _build_qualified_table_name(self, table_identifier: TableIdentifier,
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'
