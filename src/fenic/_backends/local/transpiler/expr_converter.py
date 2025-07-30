@@ -420,13 +420,8 @@ class ExprConverter:
     @_convert_expr.register(SemanticMapExpr)
     def _convert_semantic_map_expr(self, logical: SemanticMapExpr) -> pl.Expr:
         def sem_map_fn(batch: pl.Series) -> pl.Series:
-            expanded_df = pl.DataFrame(
-                {field: batch.struct.field(field) for field in batch.struct.fields}
-            )
-
             return SemanticMap(
-                input=expanded_df,
-                user_instruction=logical.instruction,
+                input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),
                 examples=logical.examples,
                 max_tokens=logical.max_tokens,
@@ -434,14 +429,13 @@ class ExprConverter:
                 response_format=logical.response_format,
             ).execute()
 
-        struct = pl.struct(
-            [
-                self._convert_expr(expr)
-                for expr in logical.exprs
-            ]
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        struct_expr = pl.struct(column_exprs)
+        jinja_expr = struct_expr.jinja.render(
+            template=logical.template,
         )
-        return struct.map_batches(sem_map_fn, return_dtype=pl.String)
 
+        return jinja_expr.map_batches(sem_map_fn, return_dtype=pl.String)
 
     @_convert_expr.register(RecursiveTextChunkExpr)
     def _convert_text_chunk_expr(self, logical: RecursiveTextChunkExpr) -> pl.Expr:
@@ -534,25 +528,21 @@ class ExprConverter:
 
     @_convert_expr.register(SemanticPredExpr)
     def _convert_semantic_pred_expr(self, logical: SemanticPredExpr) -> pl.Expr:
-        def sem_predicate_fn(batch: pl.Series) -> pl.Series:
-            expanded_df = pl.DataFrame(
-                {field: batch.struct.field(field) for field in batch.struct.fields}
-            )
+        def sem_pred_fn(batch: pl.Series) -> pl.Series:
             return SemanticPredicate(
-                input=expanded_df,
-                user_instruction=logical.instruction,
+                input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),
-                temperature=logical.temperature,
                 examples=logical.examples,
+                temperature=logical.temperature,
             ).execute()
 
-        struct = pl.struct(
-            [
-                self._convert_expr(expr)
-                for expr in logical.exprs
-            ]
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        struct_expr = pl.struct(column_exprs)
+        jinja_expr = struct_expr.jinja.render(
+            template=logical.template,
         )
-        return struct.map_batches(sem_predicate_fn, return_dtype=pl.Boolean)
+
+        return jinja_expr.map_batches(sem_pred_fn, return_dtype=pl.Boolean)
 
 
     @_convert_expr.register(SemanticClassifyExpr)

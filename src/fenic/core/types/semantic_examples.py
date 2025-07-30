@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar
-
+import logging
 import pandas as pd
 import polars as pl
 from pydantic import BaseModel
@@ -19,11 +19,11 @@ from fenic._constants import (
     EXAMPLE_OUTPUT_KEY,
     EXAMPLE_RIGHT_KEY,
 )
-from fenic.core._utils.misc import parse_instruction
 from fenic.core.error import InvalidExampleCollectionError
 
 ExampleType = TypeVar("ExampleType")
 
+logger = logging.getLogger(__name__)
 
 class MapExample(BaseModel):
     """A single semantic example for semantic mapping operations.
@@ -245,37 +245,12 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
 
         return rows
 
-    def _validate_with_instruction(self, instruction: str) -> None:
+    def _validate_with_template_names(self, expression_names: List[str]) -> None:
         """Validate that the collection matches the expected input columns from the instruction."""
         df = self.to_polars()
-        expected_cols = set(parse_instruction(instruction))
-        actual_cols = set(df.columns) - {EXAMPLE_OUTPUT_KEY}
+        actual_cols = list(set(df.columns) - {EXAMPLE_OUTPUT_KEY})
 
-        missing = expected_cols - actual_cols
-        extra = actual_cols - expected_cols
-
-        if missing:
-            raise InvalidExampleCollectionError(
-                f"The following columns are required by the instruction but missing from the collection: "
-                f"{', '.join(sorted(missing))}.\nExpected columns: {', '.join(sorted(expected_cols))}.\n"
-                f"Actual columns: {', '.join(sorted(actual_cols))}."
-            )
-
-        if extra:
-            raise InvalidExampleCollectionError(
-                f"The examples collection contains columns not used in the instruction: {', '.join(sorted(extra))}.\n"
-                f"Only the following columns are expected based on the instruction: "
-                f"{', '.join(sorted(expected_cols))}."
-            )
-        nulls_per_column = df.select(
-            [pl.col(col).is_null().any().alias(col) for col in expected_cols]
-        )
-        null_columns = [col for col in expected_cols if nulls_per_column[0, col]]
-
-        if null_columns:
-            raise InvalidExampleCollectionError(
-                f"The following columns contain null values in one or more examples: {', '.join(sorted(null_columns))}."
-            )
+        _validate_with_template_names(actual_cols, expression_names)
 
 
 class ClassifyExampleCollection(BaseExampleCollection[ClassifyExample]):
@@ -418,37 +393,12 @@ class PredicateExampleCollection(BaseExampleCollection[PredicateExample]):
 
         return rows
 
-    def _validate_with_instruction(self, instruction: str) -> None:
+    def _validate_with_template_names(self, expression_names: List[str]) -> None:
         """Validate that the collection matches the expected input columns from the instruction."""
         df = self.to_polars()
-        expected_cols = set(parse_instruction(instruction))
-        actual_cols = set(df.columns) - {EXAMPLE_OUTPUT_KEY}
+        actual_cols = list(set(df.columns) - {EXAMPLE_OUTPUT_KEY})
 
-        missing = expected_cols - actual_cols
-        extra = actual_cols - expected_cols
-
-        if missing:
-            raise InvalidExampleCollectionError(
-                f"The following columns are required by the instruction but missing from the collection: "
-                f"{', '.join(sorted(missing))}.\nExpected columns: {', '.join(sorted(expected_cols))}.\n"
-                f"Actual columns: {', '.join(sorted(actual_cols))}."
-            )
-
-        if extra:
-            raise InvalidExampleCollectionError(
-                f"The examples collection contains columns not used in the instruction: {', '.join(sorted(extra))}.\n"
-                f"Only the following columns are expected based on the instruction: "
-                f"{', '.join(sorted(expected_cols))}."
-            )
-        nulls_per_column = df.select(
-            [pl.col(col).is_null().any().alias(col) for col in expected_cols]
-        )
-        null_columns = [col for col in expected_cols if nulls_per_column[0, col]]
-
-        if null_columns:
-            raise InvalidExampleCollectionError(
-                f"The following columns contain null values in one or more examples: {', '.join(sorted(null_columns))}."
-            )
+        _validate_with_template_names(actual_cols, expression_names)
 
 
 class JoinExampleCollection(BaseExampleCollection[JoinExample]):
@@ -505,3 +455,22 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
             )
 
         return rows
+
+def _validate_with_template_names(collection_column_names: List[str], expression_names: List[str]) -> None:
+    """Validate that the collection matches the expected input columns from the instruction."""
+    missing = set(expression_names) - set(collection_column_names)
+    extra = set(collection_column_names) - set(expression_names)
+
+    if missing:
+        raise InvalidExampleCollectionError(
+            f"The following columns are required by the instruction but missing from the collection: "
+            f"{', '.join(sorted(missing))}.\nExpected columns: {', '.join(sorted(expression_names))}.\n"
+            f"Actual columns: {', '.join(sorted(collection_column_names))}."
+        )
+
+    if extra:
+        raise InvalidExampleCollectionError(
+            f"The examples collection contains columns not used in the instruction: {', '.join(sorted(extra))}.\n"
+            f"Only the following columns are expected based on the instruction: "
+            f"{', '.join(sorted(expression_names))}."
+        )

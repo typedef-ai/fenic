@@ -35,8 +35,11 @@ from fenic.core.error import ValidationError
 from fenic.core.types import (
     DataType,
     EmbeddingType,
+    StringType,
+    BooleanType,
 )
 from fenic.core.types.schema import ColumnField
+from fenic.core._logical_plan.jinja_validation import VariableTree
 
 
 class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -44,38 +47,24 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def __init__(
         self,
-        instruction: str,
+        jinja_template: str,
+        exprs: List[Union[ColumnExpr, LogicalExpr]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[str] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
+        self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
-        if not self.exprs:
-            raise ValidationError(
-                "semantic.map instruction requires at least one templated column."
-            )
         self.examples = None
         if examples:
-            examples._validate_with_instruction(instruction)
+            examples._validate_with_template_names([expr.name for expr in self.exprs])
             self.examples = examples
-
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
-
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -85,8 +74,14 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
         self._validate_completion_parameters(plan)
-        # Use mixin's implementation with dynamic return type
-        return super().to_column_field(plan)
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+
+        return ColumnField(
+            name=str(self),
+            data_type=StringType,
+        )
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
@@ -163,34 +158,20 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
 
     def __init__(
         self,
-        instruction: str,
+        jinja_template: str,
+        exprs: List[Union[ColumnExpr, LogicalExpr]],
         temperature: float,
         model_alias: Optional[str] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
-        if not self.exprs:
-            raise ValueError(
-                "semantic.predicate instruction requires at least one templated column."
-            )
+        self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.examples = None
         if examples:
-            examples._validate_with_instruction(instruction)
+            examples._validate_with_template_names([expr.name for expr in self.exprs])
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
-
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
-
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -200,8 +181,14 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
         self._validate_completion_parameters(plan)
-        # Use mixin's implementation
-        return super().to_column_field(plan)
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+
+        return ColumnField(
+            name=str(self),
+            data_type=BooleanType,
+        )
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)

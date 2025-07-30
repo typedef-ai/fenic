@@ -190,7 +190,7 @@ class TestMapExampleCollection:
         )
 
         # Valid instruction
-        collection._validate_with_instruction(
+        collection._validate_with_template_names(
             "Transform the {text} in {lang} to English"
         )
 
@@ -198,13 +198,13 @@ class TestMapExampleCollection:
         with pytest.raises(
             InvalidExampleCollectionError, match="collection contains columns not used"
         ):
-            collection._validate_with_instruction("Transform the {text} to English")
+            collection._validate_with_template_names("Transform the {text} to English")
 
         # Missing column in collection
         with pytest.raises(
             InvalidExampleCollectionError, match="missing from the collection"
         ):
-            collection._validate_with_instruction(
+            collection._validate_with_template_names(
                 "Transform the {text} in {lang} with {tone} to English"
             )
 
@@ -225,7 +225,7 @@ class TestMapExampleCollection:
             InvalidExampleCollectionError,
             match="following columns contain null values in one or more examples: lang.",
         ):
-            collection_with_nulls._validate_with_instruction(
+            collection_with_nulls._validate_with_template_names(
                 "Transform the {text} in {lang} to English"
             )
 
@@ -752,7 +752,7 @@ class TestEdgeCases:
 
         # This should fail validation with either instruction
         with pytest.raises(InvalidExampleCollectionError):
-            collection._validate_with_instruction("Get the person named {name}")
+            collection._validate_with_template_names("Get the person named {name}")
 
         with pytest.raises(InvalidExampleCollectionError):
-            collection._validate_with_instruction("Get the person with {full_name}")
+            collection._validate_with_template_names("Get the person with {full_name}")

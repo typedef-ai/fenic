@@ -15,6 +15,8 @@ from fenic.core._logical_plan.expressions import (
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
+    LogicalExpr,
+    ColumnExpr,
 )
 from fenic.core._utils.extract import (
     ExtractSchemaValidationError,
@@ -33,11 +35,12 @@ from fenic.core.types import (
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
-        instruction: str,
+        jinja_template: str,
         examples: Optional[MapExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
+        **columns: Column,
 ) -> Column:
     """Applies a natural language instruction to one or more text columns, enabling rich summarization and generation tasks.
 
@@ -80,9 +83,23 @@ def map(
         semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
         ```
     """
+    if not jinja_template:
+        raise ValidationError("need non empty jinja template")
+
+    if not columns:
+        raise ValidationError("need at least one column")
+
+    column_exprs: List[Union[ColumnExpr, LogicalExpr]] = []
+    for var_name, column in columns.items():
+        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
+            column_exprs.append(column.expr)
+        else:
+            column_exprs.append(column.alias(var_name)._logical_expr)
+
     return Column._from_logical_expr(
         SemanticMapExpr(
-            instruction,
+            jinja_template,
+            exprs=column_exprs,
             examples=examples,
             max_tokens=max_output_tokens,
             model_alias=model_alias,

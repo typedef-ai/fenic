@@ -868,33 +868,7 @@ class JinjaExpr(LogicalExpr):
 
     def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
         self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
-        expr_names = {expr.name: expr for expr in exprs}
-        available_columns = sorted(expr_names.keys())
-
-        self.template: str = template
-        self.exprs: List[Union[ColumnExpr, AliasExpr]] = []
-
-        for variable_name in self.variable_tree.variables.keys():
-            if variable_name not in expr_names:
-                raise ValidationError(
-                    f"Template variable '{variable_name}' is not defined. "
-                    f"Available columns: {', '.join(available_columns)}. "
-                    f"Either provide a column expression for '{variable_name}' or "
-                    f"modify the template to use an available column."
-                )
-
-            expr = expr_names[variable_name]
-            self.exprs.append(expr)
-
-        # Warn about unused columns
-        used_variables = set(self.variable_tree.variables.keys())
-        for column_name in expr_names.keys():
-            if column_name not in used_variables:
-                logger.warning(
-                    f"Column '{column_name}' is defined but not referenced in the template. "
-                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
-                    f"To remove this warning, exclude unused columns from the expression list."
-                )
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
