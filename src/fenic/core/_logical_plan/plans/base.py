@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core.error import InternalError, PlanError, SessionError
+from fenic.core.error import InternalError, PlanError
 from fenic.core.types.schema import Schema
 
 
@@ -20,15 +20,16 @@ class LogicalPlan(ABC):
             schema: Optional[Schema] = None,
             ):
         self.cache_info = None
-        if schema is None:
-            if session_state is None:
-                raise InternalError("session_state is required when schema is not provided")
-            self._schema = self._build_schema(session_state)
-            self._validate()
-        else:
-            self._schema = schema
+        if schema is None and session_state is None:
+            raise InternalError("Either a session state or a schema must be provided")
 
-    def _validate(self):
+        if schema:
+            self._schema = schema
+        else:
+            self._schema = self._build_schema(session_state)
+        self._validate_schema()
+
+    def _validate_schema(self):
         if self._schema is None:
             raise InternalError("schema is required")
 
@@ -117,17 +118,3 @@ class LogicalPlan(ABC):
             A new logical plan instance of the same type with updated children
         """
         pass
-
-def ensure_same_session(lhs: BaseSessionState, rhs: BaseSessionState):
-    """Ensure that two LogicalPlans belong to the same session context.
-
-    This check prevents accidental combinations of DataFrames created in different
-    sessions, which can lead to inconsistent behavior due to differing configurations,
-    catalogs, or function registries.
-    """
-    if lhs is not rhs:
-        raise SessionError(
-            "Cannot combine DataFrames created in different sessions. "
-            "This operation requires all inputs to belong to the same session context. "
-            "Make sure that you're not mixing DataFrames from different interactive environments, notebooks, or clients."
-        )

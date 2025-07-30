@@ -8,7 +8,7 @@ from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     LogicalExpr,
 )
-from fenic.core._logical_plan.plans.base import LogicalPlan, ensure_same_session
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.error import TypeMismatchError
 from fenic.core.types import (
@@ -26,15 +26,14 @@ SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 
 class Join(LogicalPlan):
     def __init__(
-        self,
-        left: LogicalPlan,
-        right: LogicalPlan,
-        left_on: List[LogicalExpr],
-        right_on: List[LogicalExpr],
-        how: str,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            left: LogicalPlan,
+            right: LogicalPlan,
+            left_on: List[LogicalExpr],
+            right_on: List[LogicalExpr],
+            how: str,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._left = left
         self._right = right
         self._left_on = left_on
@@ -49,10 +48,7 @@ class Join(LogicalPlan):
         left_on: List[LogicalExpr],
         right_on: List[LogicalExpr],
         how: str,
-        session_state: BaseSessionState,
-        right_session_state: Optional[BaseSessionState] = None) -> Join:
-        if right_session_state:
-            ensure_same_session(session_state, right_session_state)
+        session_state: BaseSessionState) -> Join:
         return Join(left, right, left_on, right_on, how, session_state, None)
 
     @classmethod
@@ -139,14 +135,13 @@ class Join(LogicalPlan):
 
 class BaseSemanticJoin(LogicalPlan, ABC):
     def __init__(
-        self,
-        left: LogicalPlan,
-        right: LogicalPlan,
-        left_on: LogicalExpr,
-        right_on: LogicalExpr,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            left: LogicalPlan,
+            right: LogicalPlan,
+            left_on: LogicalExpr,
+            right_on: LogicalExpr,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._left = left
         self._right = right
         self._left_on = left_on
@@ -209,10 +204,7 @@ class SemanticJoin(BaseSemanticJoin):
         temperature: float = 0.0,
         model_alias: Optional[str] = None,
         examples: Optional[JoinExampleCollection] = None,
-        session_state: BaseSessionState = None,
-        right_session_state: Optional[BaseSessionState] = None) -> Join:
-        if right_session_state:
-            ensure_same_session(session_state, right_session_state)
+        session_state: BaseSessionState = None) -> Join:
         return SemanticJoin(left,
                 right,
                 left_on,
@@ -334,10 +326,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
-        session_state: BaseSessionState = None,
-        right_session_state: Optional[BaseSessionState] = None) -> Join:
-        if right_session_state:
-            ensure_same_session(session_state, right_session_state)
+        session_state: BaseSessionState = None) -> Join:
         return SemanticSimilarityJoin(left,
                 right,
                 left_on,
@@ -427,7 +416,6 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             similarity_metric=self._similarity_metric,
             similarity_score_column=self._similarity_score_column,
             session_state=session_state,
-            right_session_state=None,
         )
         result.set_cache_info(self.cache_info)
         return result

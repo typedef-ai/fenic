@@ -126,6 +126,7 @@ class SemanticExtensions:
 
         return self._df._from_logical_plan(
             SemanticCluster.from_session_state(
+            SemanticCluster.from_session_state(
                 self._df._logical_plan,
                 by_expr,
                 num_clusters=num_clusters,
@@ -133,6 +134,9 @@ class SemanticExtensions:
                 num_init=num_init,
                 label_column=label_column,
                 centroid_column=centroid_column,
+                session_state=self._df._session_state,
+            ),
+            self._df._session_state,
                 session_state=self._df._session_state,
             ),
             self._df._session_state,
@@ -244,7 +248,9 @@ class SemanticExtensions:
                 "join_instruction must contain exactly one :left and one :right column"
             )
 
+        DataFrame.ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
+            SemanticJoin.from_session_state(
             SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
@@ -256,6 +262,7 @@ class SemanticExtensions:
                 session_state=self._df._session_state,
                 right_session_state=other._session_state,
             ),
+            self._df._session_state,
             self._df._session_state,
         )
 
@@ -358,7 +365,9 @@ class SemanticExtensions:
         _validate_column(left_on, "left_on")
         _validate_column(right_on, "right_on")
 
+        DataFrame.ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
+            SemanticSimilarityJoin.from_session_state(
             SemanticSimilarityJoin.from_session_state(
                 self._df._logical_plan,
                 other._logical_plan,
@@ -370,6 +379,7 @@ class SemanticExtensions:
                 self._df._session_state,
                 other._session_state,
             ),
+            self._df._session_state,
             self._df._session_state,
         )
 

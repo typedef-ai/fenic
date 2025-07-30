@@ -33,7 +33,8 @@ class LogicalPlanOptimizerRule(ABC):
 
 
 class LogicalPlanOptimizer:
-    def __init__(self, rules: List[LogicalPlanOptimizerRule] = None):
+    def __init__(self, session_state: BaseSessionState, rules: List[LogicalPlanOptimizerRule] = None):
+        self.session_state = session_state
         self.rules = rules
 
     def optimize(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
@@ -50,7 +51,7 @@ class LogicalPlanOptimizer:
         optimized_plan = logical_plan
 
         for rule in self.rules:
-            result = rule.apply(optimized_plan, session_state)
+            result = rule.apply(optimized_plan, self.session_state)
             optimized_plan = result.plan
             any_changes = any_changes or result.was_modified
 

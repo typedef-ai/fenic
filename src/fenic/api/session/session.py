@@ -321,12 +321,15 @@ class Session:
         logical_plans = []
         template_names = []
         input_session_states = []
+        input_session_states = []
         for name, table in tables.items():
             if name in placeholders:
                 template_names.append(name)
                 logical_plans.append(table._logical_plan)
                 input_session_states.append(table._session_state)
+                input_session_states.append(table._session_state)
 
+        DataFrame.ensure_same_session(self._session_state, input_session_states)
         return DataFrame._from_logical_plan(
             SQL.from_session_state(logical_plans, template_names, query, self._session_state, input_session_states),
             self._session_state,

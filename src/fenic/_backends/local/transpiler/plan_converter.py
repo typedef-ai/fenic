@@ -79,6 +79,7 @@ class PlanConverter:
         # for SemanticFilterRewriteRule() to produce optimal plans.
         logical = (
             LogicalPlanOptimizer(
+                self.session_state,
                 [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
             )
             .optimize(logical, self.session_state)

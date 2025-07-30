@@ -13,10 +13,11 @@ from fenic.core.types import Schema
 
 
 class InMemorySource(LogicalPlan):
-    def __init__(self,
-        source: pl.DataFrame,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None):
+    def __init__(
+            self,
+            source: pl.DataFrame,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._source = source
         super().__init__(session_state, schema)
 
@@ -54,13 +55,12 @@ class InMemorySource(LogicalPlan):
 
 class FileSource(LogicalPlan):
     def __init__(
-        self,
-        paths: list[str],
-        file_format: Literal["csv", "parquet"],
-        options: Optional[dict] = None,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            paths: list[str],
+            file_format: Literal["csv", "parquet"],
+            options: Optional[dict] = None,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         """A lazy FileSource that stores the file path, file format, options, and immediately infers the schema using the given session state."""
         self._paths = paths
         self._file_format = file_format
@@ -130,10 +130,11 @@ class FileSource(LogicalPlan):
         return result
 
 class TableSource(LogicalPlan):
-    def __init__(self,
-        table_name: str,
-        session_state: Optional[BaseSessionState],
-        schema: Optional[Schema]):
+    def __init__(
+            self,
+            table_name: str,
+            session_state: Optional[BaseSessionState],
+            schema: Optional[Schema]):
         self._table_name = table_name
         super().__init__(session_state, schema)
 

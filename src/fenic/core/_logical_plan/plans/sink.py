@@ -12,14 +12,13 @@ class FileSink(LogicalPlan):
     """Logical plan node that represents a file writing operation."""
 
     def __init__(
-        self,
-        child: LogicalPlan,
-        sink_type: Literal["csv", "parquet"],
-        path: str,
-        mode: Literal["error", "overwrite", "ignore"] = "error",
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            child: LogicalPlan,
+            sink_type: Literal["csv", "parquet"],
+            path: str,
+            mode: Literal["error", "overwrite", "ignore"] = "error",
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         """Initialize a file sink node.
 
         Args:
@@ -109,13 +108,12 @@ class TableSink(LogicalPlan):
     """Logical plan node that represents a table writing operation."""
 
     def __init__(
-        self,
-        child: LogicalPlan,
-        table_name: str,
-        mode: Literal["error", "append", "overwrite", "ignore"] = "error",
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            child: LogicalPlan,
+            table_name: str,
+            mode: Literal["error", "append", "overwrite", "ignore"] = "error",
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         """Initialize a table sink node.
 
         Args:

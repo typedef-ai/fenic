@@ -121,7 +121,7 @@ def test_convert_union_plan(local_session):
     df2 = pl.DataFrame({"a": [3, 4]})
     source1 = InMemorySource.from_session_state(df1, local_session._session_state)
     source2 = InMemorySource.from_session_state(df2, local_session._session_state)
-    union = Union.from_session_state([source1, source2], [local_session._session_state, local_session._session_state])
+    union = Union.from_session_state([source1, source2], local_session._session_state)
     physical = plan_converter.convert(
         union,
     )

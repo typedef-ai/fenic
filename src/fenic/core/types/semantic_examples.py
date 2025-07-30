@@ -7,7 +7,7 @@ used in query processing.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar
+from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar, Union
 
 import pandas as pd
 import polars as pl
@@ -29,11 +29,11 @@ class MapExample(BaseModel):
     """A single semantic example for semantic mapping operations.
 
     Map examples demonstrate the transformation of input variables to a specific output
-    string used in a semantic.map operation.
+    string or structured model used in a semantic.map operation.
     """
 
     input: Dict[str, str]
-    output: str
+    output: Union[str, BaseModel]
 
 
 class ClassifyExample(BaseModel):
@@ -191,11 +191,35 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
     the expected transformations for different inputs.
 
     Examples in this collection can have multiple input variables, each mapped
-    to their respective values, with a single output string representing the
-    expected transformation result.
+    to their respective values, with a single output string or structured model
+    representing the expected transformation result.
     """
 
     example_class = MapExample
+
+    def create_example(self, example: MapExample) -> MapExampleCollection:
+        """Create an example in the collection with output type validation.
+
+        Ensures all examples in the collection have consistent output types
+        (either all strings or all BaseModel instances).
+
+        Args:
+            example: The MapExample to add.
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            InvalidExampleCollectionError: If the example output type doesn't match
+                the existing examples in the collection.
+        """
+        if not isinstance(example, MapExample):
+            raise InvalidExampleCollectionError(
+                f"Expected example of type {MapExample.__name__}, got {type(example).__name__}"
+            )
+        _validate_single_example_output_type(self.examples, example)
+        self.examples.append(example)
+        return self
 
     @classmethod
     def from_polars(cls, df: pl.DataFrame) -> MapExampleCollection:
@@ -237,9 +261,14 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
         rows = []
         for example in self.examples:
             example_dict = example.model_dump()
+            # Handle BaseModel instances by converting to JSON string
+            output_value = example_dict[EXAMPLE_OUTPUT_KEY]
+            if isinstance(example.output, BaseModel):
+                output_value = example.output.model_dump_json()
+
             row = {
                 **example_dict[EXAMPLE_INPUT_KEY],
-                EXAMPLE_OUTPUT_KEY: example_dict[EXAMPLE_OUTPUT_KEY],
+                EXAMPLE_OUTPUT_KEY: output_value,
             }
             rows.append(row)
 
@@ -505,3 +534,27 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
             )
 
         return rows
+
+# when we add semantic.extract examples, this signature can change to
+# def validate_single_example_output_type(existing_examples: list[Union[MapExample, ExtractExample]], example: Union[MapExample, ExtractExample]):
+def _validate_single_example_output_type(existing_examples: list[MapExample], example: MapExample):
+    if not existing_examples:
+        return
+    first_example = existing_examples[0]
+    first_is_basemodel = isinstance(first_example.output, BaseModel)
+    current_is_basemodel = isinstance(example.output, BaseModel)
+    if first_is_basemodel != current_is_basemodel:
+        first_type = type(first_example.output).__name__
+        current_type = type(example.output).__name__
+        raise InvalidExampleCollectionError(
+            f"All examples in Example Collection must have consistent output types. "
+            f"Existing examples have {first_type} outputs, but new example has {current_type} output."
+        )
+    # If both are BaseModel, ensure they're the same type
+    if first_is_basemodel and current_is_basemodel:
+        if not isinstance(first_example.output, type(example.output)):
+            raise InvalidExampleCollectionError(
+                f"All BaseModel examples must be of the same type. "
+                f"Existing examples are {type(first_example.output).__name__}, "
+                f"but new example is {type(example.output).__name__}."
+            )

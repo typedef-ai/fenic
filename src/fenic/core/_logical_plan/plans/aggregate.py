@@ -15,13 +15,12 @@ from fenic.core.types import Schema
 
 class Aggregate(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        group_exprs: List[LogicalExpr],
-        agg_exprs: List[AliasExpr],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            input: LogicalPlan,
+            group_exprs: List[LogicalExpr],
+            agg_exprs: List[AliasExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._group_exprs = group_exprs
         self._agg_exprs = agg_exprs

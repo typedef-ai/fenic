@@ -27,6 +27,7 @@ from fenic.api.functions import col, lit
 from fenic.api.io.writer import DataFrameWriter
 from fenic.api.lineage import Lineage
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     SortExpr,
 )
@@ -45,7 +46,7 @@ from fenic.core._logical_plan.plans import (
 from fenic.core._logical_plan.plans import (
     Union as UnionLogicalPlan,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import SessionError, ValidationError
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import Schema
 from fenic.core.types.enums import JoinType
@@ -85,6 +86,7 @@ class DataFrame:
 
     _logical_plan: LogicalPlan
     _session_state: BaseSessionState
+    _session_state: BaseSessionState
 
     def __new__(cls):
         """Prevent direct DataFrame construction.
@@ -109,6 +111,7 @@ class DataFrame:
         Args:
             logical_plan: The logical plan for this DataFrame
             session_state: The session state for this DataFrame
+            session_state: The session state for this DataFrame
 
         Returns:
             A new DataFrame instance
@@ -116,6 +119,7 @@ class DataFrame:
         if not isinstance(logical_plan, LogicalPlan):
             raise TypeError(f"Expected LogicalPlan, got {type(logical_plan)}")
         df = super().__new__(cls)
+        df._session_state = session_state
         df._logical_plan = logical_plan
         df._session_state = session_state
         return df
@@ -237,6 +241,7 @@ class DataFrame:
             explain_analyze: Whether to print the explain analyze plan
         """
         output, metrics = self._session_state.execution.show(self._logical_plan, n)
+        output, metrics = self._session_state.execution.show(self._logical_plan, n)
         logger.info(metrics.get_summary())
         print(output)
         if explain_analyze:
@@ -255,6 +260,7 @@ class DataFrame:
         Returns:
             QueryResult: A QueryResult with materialized data and query metrics
         """
+        result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
         result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
         df, metrics = result
         logger.info(metrics.get_summary())
@@ -350,6 +356,7 @@ class DataFrame:
             int: The number of rows in the DataFrame
         """
         return self._session_state.execution.count(self._logical_plan)[0]
+        return self._session_state.execution.count(self._logical_plan)[0]
 
     def lineage(self) -> Lineage:
         """Create a Lineage object to trace data through transformations.
@@ -376,6 +383,7 @@ class DataFrame:
         See Also:
             LineageQuery: Full documentation of lineage querying capabilities
         """
+        return Lineage(self._session_state.execution.build_lineage(self._logical_plan))
         return Lineage(self._session_state.execution.build_lineage(self._logical_plan))
 
     def persist(self) -> DataFrame:
@@ -404,6 +412,9 @@ class DataFrame:
         table_name = f"cache_{uuid.uuid4().hex}"
         cache_info = CacheInfo(duckdb_table_name=table_name)
         self._logical_plan.set_cache_info(cache_info)
+        return self._from_logical_plan(
+            self._logical_plan,
+            self._session_state)
         return self._from_logical_plan(
             self._logical_plan,
             self._session_state)
@@ -487,6 +498,8 @@ class DataFrame:
         return self._from_logical_plan(
             Projection.from_session_state(self._logical_plan, exprs, self._session_state),
             self._session_state,
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def where(self, condition: Column) -> DataFrame:
@@ -555,6 +568,8 @@ class DataFrame:
             ```
         """
         return self._from_logical_plan(
+            Filter.from_session_state(self._logical_plan, condition._logical_expr, self._session_state),
+            self._session_state,
             Filter.from_session_state(self._logical_plan, condition._logical_expr, self._session_state),
             self._session_state,
         )
@@ -644,6 +659,8 @@ class DataFrame:
         return self._from_logical_plan(
             Projection.from_session_state(self._logical_plan, exprs, self._session_state),
             self._session_state,
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def with_column_renamed(self, col_name: str, new_col_name: str) -> DataFrame:
@@ -708,6 +725,8 @@ class DataFrame:
             return self
 
         return self._from_logical_plan(
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
             Projection.from_session_state(self._logical_plan, exprs, self._session_state),
             self._session_state,
         )
@@ -792,6 +811,8 @@ class DataFrame:
         return self._from_logical_plan(
             Projection.from_session_state(self._logical_plan, remaining_cols, self._session_state),
             self._session_state,
+            Projection.from_session_state(self._logical_plan, remaining_cols, self._session_state),
+            self._session_state,
         )
 
     def union(self, other: DataFrame) -> DataFrame:
@@ -870,6 +891,7 @@ class DataFrame:
             # +---+-----+
             ```
         """
+        self.ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
             UnionLogicalPlan.from_session_state(
                 [self._logical_plan, other._logical_plan],
@@ -922,6 +944,9 @@ class DataFrame:
             # +---+-------+
             ```
         """
+        return self._from_logical_plan(
+            Limit.from_session_state(self._logical_plan, n, self._session_state),
+            self._session_state)
         return self._from_logical_plan(
             Limit.from_session_state(self._logical_plan, n, self._session_state),
             self._session_state)
@@ -1052,6 +1077,7 @@ class DataFrame:
         # Build join conditions
         left_conditions, right_conditions = build_join_conditions(on, left_on, right_on)
 
+        self.ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
             Join.from_session_state(
                 self._logical_plan,
@@ -1119,6 +1145,8 @@ class DataFrame:
             ```
         """
         return self._from_logical_plan(
+            Explode.from_session_state(self._logical_plan, Column._from_col_or_name(column)._logical_expr, self._session_state),
+            self._session_state,
             Explode.from_session_state(self._logical_plan, Column._from_col_or_name(column)._logical_expr, self._session_state),
             self._session_state,
         )
@@ -1283,6 +1311,8 @@ class DataFrame:
         return self._from_logical_plan(
             DropDuplicates.from_session_state(self._logical_plan, exprs, self._session_state),
             self._session_state,
+            DropDuplicates.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
         )
 
     def sort(
@@ -1396,6 +1426,8 @@ class DataFrame:
             return self._from_logical_plan(
                 Sort.from_session_state(self._logical_plan, [], self._session_state),
                 self._session_state,
+                Sort.from_session_state(self._logical_plan, [], self._session_state),
+                self._session_state,
             )
         elif not isinstance(cols, List):
             col_args = [cols]
@@ -1445,6 +1477,8 @@ class DataFrame:
                 sort_exprs.append(SortExpr(c_expr, ascending=asc_bool))
 
         return self._from_logical_plan(
+            Sort.from_session_state(self._logical_plan, sort_exprs, self._session_state),
+            self._session_state,
             Sort.from_session_state(self._logical_plan, sort_exprs, self._session_state),
             self._session_state,
         )

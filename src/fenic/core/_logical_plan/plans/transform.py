@@ -18,7 +18,7 @@ from fenic.core._logical_plan.expressions import (
     LogicalExpr,
     SortExpr,
 )
-from fenic.core._logical_plan.plans.base import LogicalPlan, ensure_same_session
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
@@ -38,12 +38,12 @@ from fenic.core.types import (
 logger = logging.getLogger(__name__)
 
 class Projection(LogicalPlan):
-    def __init__(self,
-        input: LogicalPlan,
-        exprs: List[LogicalExpr],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-        ):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            exprs: List[LogicalExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._exprs = exprs
         super().__init__(session_state, schema)
@@ -85,12 +85,12 @@ class Projection(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 class Filter(LogicalPlan):
-    def __init__(self,
-        input: LogicalPlan,
-        predicate: LogicalExpr,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-        ):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            predicate: LogicalExpr,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         actual_type = predicate.to_column_field(input, session_state).data_type
         if actual_type != BooleanType:
@@ -143,10 +143,11 @@ class Filter(LogicalPlan):
         return result
 
 class Union(LogicalPlan):
-    def __init__(self,
-        inputs: List[LogicalPlan],
-        session_state:Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None):
+    def __init__(
+            self,
+            inputs: List[LogicalPlan],
+            session_state:Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._inputs = inputs
         super().__init__(session_state, schema)
 
@@ -155,11 +156,8 @@ class Union(LogicalPlan):
         return Union(inputs, None, schema)
 
     @classmethod
-    def from_session_state(cls, inputs: List[LogicalPlan], session_states: List[BaseSessionState]) -> Union:
-        first_state_input = session_states[0]
-        for input_session_state in session_states[1:]:
-            ensure_same_session(first_state_input, input_session_state)
-        return Union(inputs, first_state_input, None)
+    def from_session_state(cls, inputs: List[LogicalPlan], session_state: BaseSessionState) -> Union:
+        return Union(inputs, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
         return self._inputs
@@ -191,17 +189,18 @@ class Union(LogicalPlan):
         return "Union"
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
-        result = Union.from_session_state(children, [session_state])
+        result = Union.from_session_state(children, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
 
 class Limit(LogicalPlan):
-    def __init__(self,
-        input: LogicalPlan,
-        n: int,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            n: int,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self.n = n
         super().__init__(session_state, schema)
@@ -232,11 +231,12 @@ class Limit(LogicalPlan):
 
 
 class Explode(LogicalPlan):
-    def __init__(self,
-        input: LogicalPlan,
-        expr: LogicalExpr,
-        session_state:Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            expr: LogicalExpr,
+            session_state:Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._expr = expr
         super().__init__(session_state, schema)
@@ -294,12 +294,11 @@ class Explode(LogicalPlan):
 
 class DropDuplicates(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        subset: List[ColumnExpr],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            input: LogicalPlan,
+            subset: List[ColumnExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self.subset = subset
         super().__init__(session_state, schema)
@@ -337,12 +336,11 @@ class DropDuplicates(LogicalPlan):
 
 class Sort(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        sort_exprs: List[SortExpr],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            input: LogicalPlan,
+            sort_exprs: List[SortExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._sort_exprs = sort_exprs
         super().__init__(session_state, schema)
@@ -376,11 +374,12 @@ class Sort(LogicalPlan):
 
 
 class Unnest(LogicalPlan):
-    def __init__(self,
-        input: LogicalPlan,
-        exprs: List[ColumnExpr],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            exprs: List[ColumnExpr],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._exprs = exprs
         super().__init__(session_state, schema)
@@ -428,12 +427,13 @@ class Unnest(LogicalPlan):
         return result
 
 class SQL(LogicalPlan):
-    def __init__(self,
-        inputs: List[LogicalPlan],
-        template_names: List[str],
-        templated_query: str,
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,):
+    def __init__(
+            self,
+            inputs: List[LogicalPlan],
+            template_names: List[str],
+            templated_query: str,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         # Note: inputs[i] corresponds to template_names[i]
         if len(inputs) != len(template_names):
             raise InternalError("inputs and template_names must have the same length")
@@ -452,10 +452,7 @@ class SQL(LogicalPlan):
         inputs: List[LogicalPlan],
         template_names: List[str],
         templated_query: str,
-        session_state: BaseSessionState,
-        input_session_states: List[BaseSessionState]) -> SQL:
-        for input_session_state in input_session_states:
-            ensure_same_session(input_session_state, session_state)
+        session_state: BaseSessionState) -> SQL:
         return SQL(inputs, template_names, templated_query, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
@@ -521,7 +518,7 @@ class SQL(LogicalPlan):
         if len(children) == 0:
             raise InternalError("SQL node must have at least one child")
         # The list of input session states is empty because the session state has already been validated.
-        result = SQL.from_session_state(children, self._template_names, self._templated_query, session_state, [])
+        result = SQL.from_session_state(children, self._template_names, self._templated_query, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
@@ -532,17 +529,16 @@ class CentroidInfo:
 
 class SemanticCluster(LogicalPlan):
     def __init__(
-        self,
-        input: LogicalPlan,
-        by_expr: LogicalExpr,
-        num_clusters: int,
-        max_iter: int,
-        num_init: int,
-        label_column: str,
-        centroid_column: Optional[str],
-        session_state: Optional[BaseSessionState] = None,
-        schema: Optional[Schema] = None,
-    ):
+            self,
+            input: LogicalPlan,
+            by_expr: LogicalExpr,
+            num_clusters: int,
+            max_iter: int,
+            num_init: int,
+            label_column: str,
+            centroid_column: Optional[str],
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
         self._input = input
         self._by_expr = by_expr
         self._num_clusters = num_clusters
