@@ -5,9 +5,9 @@ from typing import List
 import duckdb
 import polars as pl
 
-from fenic._backends.local.schema_storage import (
+from fenic._backends.local.system_table_client import (
     SYSTEM_SCHEMA_NAME,
-    SchemaStorage,
+    SystemTableClient,
 )
 from fenic._backends.utils.catalog_utils import (
     DBIdentifier,
@@ -15,6 +15,7 @@ from fenic._backends.utils.catalog_utils import (
     compare_object_names,
 )
 from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
@@ -29,6 +30,7 @@ from fenic.core.types import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 DB_IGNORE_LIST = [
     "main",
@@ -76,8 +78,8 @@ class LocalCatalog(BaseCatalog):
         self.lock = threading.RLock()
         self.create_database(DEFAULT_DATABASE_NAME)
         self.set_current_database(DEFAULT_DATABASE_NAME)
-        self.schema_storage = SchemaStorage(self.db_conn)
-        self.schema_storage.initialize_system_schema()
+        self.system_tables = SystemTableClient(self.db_conn)
+        self.system_tables.initialize_system_table_client()
 
     def does_catalog_exist(self, catalog_name: str) -> bool:
         """Checks if a catalog with the specified name exists."""
@@ -182,7 +184,8 @@ class LocalCatalog(BaseCatalog):
                         self.db_conn.execute(
                             f'DROP SCHEMA IF EXISTS "{db_identifier.db}";'
                         )
-                    self.schema_storage.delete_database_schemas(db_identifier.db)
+                    self.system_tables.delete_database_schemas(database_name)
+                    self.system_tables.delete_database_views(database_name)
                 return True
             except Exception as e:
                 raise CatalogError(f"Failed to drop database: {database_name}") from e
@@ -230,6 +233,21 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to check if table: `{table_identifier.db}.{table_identifier.table}` exists"
                 ) from e
 
+    def does_view_exist(self, view_name: str) -> bool:
+        """Checks if a view with the specified name exists in the current database."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                    self.get_current_catalog(),
+                    self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            try:
+                views = self.system_tables.get_view(view_identifier.db, view_identifier.table)
+                return views is not None
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
+                ) from e
+            
     def list_tables(self) -> List[str]:
         """Get a list of all tables in the current database."""
         with self.lock:
@@ -252,6 +270,20 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to list tables in database '{self.get_current_database()}'"
                 ) from e
 
+    def list_views(self) -> List[str]:
+        """Get a list of all views in the current database."""
+        with self.lock:
+            try:
+                result_list = self.system_tables.list_views(self.get_current_database())
+
+                if len(result_list) > 0:
+                    return [str(element[0]) for element in result_list]
+                return []
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to list views in database '{self.get_current_database()}'"
+                ) from e
+            
     def describe_table(self, table_name: str) -> Schema:
         """Get the schema of the specified table."""
         with self.lock:
@@ -260,13 +292,29 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
 
-            maybe_schema = self.schema_storage.get_schema(
+            maybe_schema = self.system_tables.get_schema(
                 table_identifier.db, table_identifier.table
             )
             if maybe_schema is None:
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
             return maybe_schema
-
+    def describe_view(self, view_name: str) -> LogicalPlan:
+        """Get the schema of the specified view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                    self.get_current_catalog(),
+                    self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            try:
+                maybe_views = self.system_tables.get_view(
+                    view_identifier.db, view_identifier.table
+                )
+                if maybe_views is None:
+                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
+                return maybe_views
+            except Exception as e:
+                raise CatalogError(f"Failed to describe view: {view_name}") from e
+            
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table."""
         with self.lock:
@@ -282,13 +330,33 @@ class LocalCatalog(BaseCatalog):
                 with DuckDBTransaction(self.db_conn):
                     sql = f"DROP TABLE IF EXISTS {self._build_qualified_table_name(table_identifier)}"
                     self.db_conn.execute(sql)
-                    self.schema_storage.delete_schema(table_identifier.db, table_identifier.table)
+                    self.system_tables.delete_schema(table_identifier.db, table_identifier.table)
                 return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to drop table: `{table_identifier.db}.{table_identifier.table}`"
                 ) from e
 
+    def drop_view(self, view_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a view from the current database."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                    self.get_current_catalog(),
+                    self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            if not self.does_view_exist(view_name):
+                if not ignore_if_not_exists:
+                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
+                return False
+            try:
+                with DuckDBTransaction(self.db_conn):
+                    self.system_tables.delete_view(view_identifier.db, view_identifier.table)
+                return True
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to drop view: `{view_identifier.db}.{view_identifier.table}`"
+                ) from e
+            
     def create_table(
         self, table_name: str, schema: Schema, ignore_if_exists: bool = True
     ) -> bool:
@@ -313,7 +381,7 @@ class LocalCatalog(BaseCatalog):
                     self.db_conn.execute(
                         f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name} WHERE 1=0"
                     )
-                    self.schema_storage.save_schema(
+                    self.system_tables.save_schema(
                         table_identifier.db, table_identifier.table, schema
                     )
                 return True
@@ -329,6 +397,32 @@ class LocalCatalog(BaseCatalog):
                     pass
                 # trunk-ignore-end(bandit/B608)
 
+    def create_view(
+        self,
+        view_name: str,
+        logical_plan: LogicalPlan,
+        ignore_if_exists: bool = True,
+    ) -> bool:
+        """Create a new view in the current database."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)            
+            try:
+                if self.does_view_exist(view_name):
+                    if not ignore_if_exists:
+                        raise ValueError(f"View {view_name} already exists!")
+                    return False
+                with DuckDBTransaction(self.db_conn):
+                    self.system_tables.save_view(
+                        view_identifier.db, view_identifier.table, logical_plan)
+                    return True
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
+                ) from e
+            
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""
         temp_view_name = generate_unique_arrow_view_name()
@@ -344,7 +438,7 @@ class LocalCatalog(BaseCatalog):
                     self.db_conn.execute(
                         f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
                     )
-                    self.schema_storage.save_schema(
+                    self.system_tables.save_schema(
                         table_identifier.db, table_identifier.table, schema
                     )
             except Exception as e:
@@ -408,7 +502,7 @@ class LocalCatalog(BaseCatalog):
                     self.db_conn.execute(
                         f"CREATE OR REPLACE TABLE {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
                     )
-                    self.schema_storage.save_schema(
+                    self.system_tables.save_schema(
                         table_identifier.db, table_identifier.table, schema
                     )
             except Exception as e:

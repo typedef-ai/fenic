@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     AggregateExpr,
     BooleanExpr,
@@ -40,29 +41,29 @@ class SemanticFilterRewriteRule(LogicalPlanOptimizerRule):
     - Decomposing filters into `UNION ALL` operations with intermediate result caching to avoid recomputation.
     """
 
-    def apply(self, logical_plan: LogicalPlan) -> OptimizationResult:
-        return self.optimize_node(logical_plan)
+    def apply(self, logical_plan: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
+        return self.optimize_node(logical_plan, session_state)
 
-    def optimize_node(self, node: LogicalPlan) -> OptimizationResult:
+    def optimize_node(self, node: LogicalPlan, session_state: BaseSessionState) -> OptimizationResult:
         any_child_modified = False
         optimized_children = []
 
         for child in node.children():
-            child_result = self.optimize_node(child)
+            child_result = self.optimize_node(child, session_state)
             optimized_children.append(child_result.plan)
             any_child_modified = any_child_modified or child_result.was_modified
 
-        new_node = node.with_children(optimized_children)
+        new_node = node.with_children(optimized_children, session_state)
 
         if isinstance(new_node, Filter):
-            filter_result = self.optimize_filter(new_node)
+            filter_result = self.optimize_filter(new_node, session_state)
             return OptimizationResult(
                 filter_result.plan, any_child_modified or filter_result.was_modified
             )
 
         return OptimizationResult(new_node, any_child_modified)
 
-    def optimize_filter(self, node: Filter) -> OptimizationResult:
+    def optimize_filter(self, node: Filter, session_state: BaseSessionState) -> OptimizationResult:
         predicate = node.predicate()
 
         # Skip optimization if not an AND expression or doesn't contain semantic predicates
@@ -84,11 +85,11 @@ class SemanticFilterRewriteRule(LogicalPlanOptimizerRule):
         # Apply standard predicates first (if any)
         if standard_predicates:
             standard_predicate_expr = self._make_and_expr(standard_predicates)
-            result = Filter(result, standard_predicate_expr)
+            result = Filter.from_session_state(result, standard_predicate_expr, session_state)
 
         # Apply semantic predicates last
         for pred in semantic_predicates:
-            result = Filter(result, pred)
+            result = Filter.from_session_state(result, pred, session_state)
 
         result.cache_info = node.cache_info
 

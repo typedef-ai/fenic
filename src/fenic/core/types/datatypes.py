@@ -73,8 +73,8 @@ class _PrimitiveType(DataType):
     pass
 
 
-class _StringBackedType(DataType):
-    """Marker class for all string-backed logical types."""
+class _LogicalType(DataType):
+    """Marker class for all logical types."""
 
     pass
 
@@ -311,7 +311,7 @@ class StructType(DataType):
 
 
 @dataclass(frozen=True)
-class EmbeddingType(DataType):
+class EmbeddingType(_LogicalType):
     """A type representing a fixed-length embedding vector.
 
     Attributes:
@@ -358,7 +358,7 @@ class EmbeddingType(DataType):
 
 
 @dataclass(frozen=True)
-class _MarkdownType(_StringBackedType):
+class _MarkdownType(_LogicalType):
     """Represents a markdown document."""
 
     def __str__(self) -> str:
@@ -382,7 +382,7 @@ class _MarkdownType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class _HtmlType(_StringBackedType):
+class _HtmlType(_LogicalType):
     """Represents a valid HTML document."""
 
     def __str__(self) -> str:
@@ -406,7 +406,7 @@ class _HtmlType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class _JsonType(_StringBackedType):
+class _JsonType(_LogicalType):
     """Represents a valid JSON document."""
 
     def __str__(self) -> str:
@@ -430,7 +430,7 @@ class _JsonType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class TranscriptType(_StringBackedType):
+class TranscriptType(_LogicalType):
     """Represents a string containing a transcript in a specific format."""
 
     format: Literal["generic", "srt"]
@@ -457,7 +457,7 @@ class TranscriptType(_StringBackedType):
 
 
 @dataclass(frozen=True)
-class DocumentPathType(_StringBackedType):
+class DocumentPathType(_LogicalType):
     """Represents a string containing a a document's local (file system) or remote (URL) path."""
 
     format: Literal["pdf"] = "pdf"
@@ -483,9 +483,20 @@ class DocumentPathType(_StringBackedType):
         return isinstance(other, DocumentPathType) and self.format == other.format
 
 
-def is_dtype_numeric(dtype: DataType) -> bool:
+def _is_dtype_numeric(dtype: DataType) -> bool:
     """Check if a data type is a numeric type."""
     return dtype in (IntegerType, FloatType, DoubleType)
+
+
+def _is_logical_type(type: DataType) -> bool:
+    """Check if a type is a logical type.  If type is a struct or array that contains a LogicalType, it is logical type."""
+    if isinstance(type, _LogicalType):
+        return True
+    elif isinstance(type, StructType):
+        return any(_is_logical_type(field.data_type) for field in type.struct_fields)
+    elif isinstance(type, ArrayType):
+        return _is_logical_type(type.element_type)
+    return False
 
 
 # === Instances of Singleton Types ===
