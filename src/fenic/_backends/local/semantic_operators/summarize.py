@@ -7,7 +7,6 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
     CompletionOnlyRequestSender,
 )
-from fenic._backends.local.semantic_operators.utils import extract_model_preset
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core.types import (
     KeyPoints,
@@ -56,7 +55,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
-                    model_preset=extract_model_preset(model_alias),
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
                 model=model,
             ),

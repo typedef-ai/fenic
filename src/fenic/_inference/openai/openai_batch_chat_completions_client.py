@@ -7,8 +7,8 @@ from openai import AsyncOpenAI
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
 )
-from fenic._inference.common_openai.openai_preset_manager import (
-    OpenAICompletionsPresetManager,
+from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionsProfileManager,
 )
 from fenic._inference.model_client import (
     FatalException,
@@ -22,7 +22,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
-from fenic.core._resolved_session_config import ResolvedOpenAIModelPreset
+from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -37,8 +37,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         queue_size: int = 100,
         model: str = "gpt-4.1-nano",
         max_backoffs: int = 10,
-        preset_configurations: Optional[dict[str, ResolvedOpenAIModelPreset]] = None,
-        default_preset_name: Optional[str] = None,
+        profile_configurations: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
+        default_profile_name: Optional[str] = None,
     ):
         """Initialize the OpenAI batch chat completions client.
 
@@ -47,8 +47,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             queue_size: Size of the request queue
             model: The model to use
             max_backoffs: Maximum number of backoff attempts
-            preset_configurations: Dictionary of preset configurations
-            default_preset_name: Default preset to use when none specified
+            profile_configurations: Dictionary of profile configurations
+            default_profile_name: Default profile to use when none specified
         """
         super().__init__(
             model=model,
@@ -59,10 +59,10 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
-        self._preset_manager = OpenAICompletionsPresetManager(
+        self._profile_manager = OpenAICompletionsProfileManager(
             model_parameters=self._model_parameters,
-            preset_configurations=preset_configurations,
-            default_preset_name=default_preset_name
+            profile_configurations=profile_configurations,
+            default_profile_name=default_profile_name
         )
 
         self._core = OpenAIChatCompletionsCore(
@@ -83,8 +83,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         Returns:
             The response from the API or an exception
         """
-        # Get preset-specific parameters
-        return await self._core.make_single_request(request, self._preset_manager.get_preset_configuration(request.model_preset))
+        # Get profile-specific parameters
+        return await self._core.make_single_request(request, self._profile_manager.get_profile_by_name(request.model_profile))
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for request deduplication.
@@ -124,6 +124,6 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """Conservative estimate: max_completion_tokens + reasoning effort-based thinking tokens."""
         base_tokens = request.max_completion_tokens
 
-        # Get preset-specific reasoning effort
-        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
-        return base_tokens + preset_config.expected_additional_reasoning_tokens
+        # Get profile-specific reasoning effort
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        return base_tokens + profile_config.expected_additional_reasoning_tokens

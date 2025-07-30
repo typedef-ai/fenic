@@ -12,7 +12,6 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     convert_pydantic_model_to_key_descriptions,
-    extract_model_preset,
     validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
@@ -58,7 +57,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
                     max_output_tokens=max_output_tokens,
                     temperature=temperature,
                     response_format=self.output_model,
-                    model_preset=extract_model_preset(model_alias),
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
                 model=model,
             ),

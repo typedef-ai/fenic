@@ -6,8 +6,9 @@ class ModelProvider(Enum):
     """Enum representing different model providers supported by the system."""
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
-    GOOGLE_GLA = "google-gla"
-    GOOGLE_VERTEX = "google-vertex"
+    # These are the same so that EmbeddingType matching can work between Vertex/Developer embeddings for the same model.
+    GOOGLE_DEVELOPER = "google"
+    GOOGLE_VERTEX = "google"
 
 class TieredTokenCost:
 
@@ -122,7 +123,7 @@ AnthropicLanguageModelName = Literal[
     "claude-3-haiku-20240307",
 ]
 
-GoogleGLALanguageModelName = Literal[
+GoogleDeveloperLanguageModelName = Literal[
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -134,9 +135,9 @@ GoogleGLALanguageModelName = Literal[
 ]
 
 
-GoogleVertexLanguageModelName = GoogleGLALanguageModelName
+GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
-AVAILABLE_LANGUAGE_MODELS = Union[OpenAILanguageModelName, AnthropicLanguageModelName, GoogleGLALanguageModelName]
+AVAILABLE_LANGUAGE_MODELS = Union[OpenAILanguageModelName, AnthropicLanguageModelName, GoogleDeveloperLanguageModelName]
 AVAILABLE_EMBEDDING_MODELS = Union[OpenAIEmbeddingModelName]
 
 class ModelCatalog:
@@ -460,9 +461,9 @@ class ModelCatalog:
                 "gemini-2.0-flash-001",
                 "gemini-2.0-flash-exp",
             ],
-            (ModelProvider.GOOGLE_GLA, "gemini-2.5-pro") : ["gemini-2.5-pro-preview-06-05"],
-            (ModelProvider.GOOGLE_GLA, "gemini-2.0-flash-lite") : ["gemini-2.0-flash-lite-001"],
-            (ModelProvider.GOOGLE_GLA, "gemini-2.0-flash") : [
+            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro") : ["gemini-2.5-pro-preview-06-05"],
+            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite") : ["gemini-2.0-flash-lite-001"],
+            (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash") : [
                 "gemini-2.0-flash-001",
                 "gemini-2.0-flash-exp",
             ],
@@ -483,10 +484,10 @@ class ModelCatalog:
                 self._language_model_snapshots,
                 ModelProvider.OPENAI
             ),
-            ModelProvider.GOOGLE_GLA: self._create_complete_model_collection(
+            ModelProvider.GOOGLE_DEVELOPER: self._create_complete_model_collection(
                 self._google_developer_completion_models,
                 self._language_model_snapshots,
-                ModelProvider.GOOGLE_GLA
+                ModelProvider.GOOGLE_DEVELOPER
             ),
             ModelProvider.GOOGLE_VERTEX: self._create_complete_model_collection(
                 self._google_vertex_completion_models,

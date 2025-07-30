@@ -15,14 +15,14 @@ from fenic.core.types.semantic import ModelAlias
 
 
 def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
-    """Parse a model alias to extract base model and preset name.
+    """Parse a model alias to extract base model and profile name.
 
     Args:
-        model_alias: Model alias in format 'model' or 'model.preset'
+        model_alias: Model alias in format 'model' or 'model.profile'
 
     Returns:
-        Tuple of (base_model_alias, preset_name)
-        If no dot present, preset_name will be None
+        Tuple of (base_model_alias, profile_name)
+        If no dot present, profile_name will be None
     """
     if "." in model_alias:
         parts = model_alias.split(".", 1)  # Split on first dot only
@@ -43,7 +43,7 @@ def validate_completion_parameters(
 
     Parameters:
         model_alias (Optional[ModelAlias]):
-            ModelAlias object containing model name and optional preset.
+            ModelAlias object containing model name and optional profile.
             Defaults to the session's default if not provided.
         resolved_session_config (ResolvedSessionConfig):
             The resolved session config containing model definitions.
@@ -75,7 +75,7 @@ def validate_completion_parameters(
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):
-        model_provider = ModelProvider.GOOGLE_GLA
+        model_provider = ModelProvider.GOOGLE_DEVELOPER
     else:
         model_provider = ModelProvider.ANTHROPIC
     completion_parameters: CompletionModelParameters = model_catalog.get_completion_model_parameters(model_provider, model_config.model_name)

@@ -7,22 +7,22 @@ from pydantic import BaseModel
 
 
 class ModelAlias(BaseModel):
-    """A combination of a model name and an optional preset for that model.
+    """A combination of a model name and an optional profile for that model.
 
     Model aliases are used to select a specific model to use in a semantic operation.
 
     Attributes:
         name: The name of the model.
-        preset: The optional name of a preset configuration to use for the model.
+        profile: The optional name of a profile configuration to use for the model.
 
     Example:
         ```python
-        model_alias = ModelAlias(name="o4-mini", preset="low")
+        model_alias = ModelAlias(name="o4-mini", profile="low")
         ```
     """
 
     name: str
-    preset: Optional[str] = None
+    profile: Optional[str] = None
 
 
     @classmethod
@@ -43,4 +43,4 @@ class ModelAlias(BaseModel):
         Returns:
             str: The string representation of the ModelAlias.
         """
-        return f"{self.name}{f':{self.preset}' if self.preset else ''}"
+        return f"{self.name}{f':{self.profile}' if self.profile else ''}"

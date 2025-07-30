@@ -118,7 +118,7 @@ class SessionModelRegistry:
         """Get a language model by alias or return the default model.
 
         Args:
-            alias (Optional[ModelAlias], optional): ModelAlias containing name and optional preset. Defaults to None.
+            alias (Optional[ModelAlias], optional): ModelAlias containing name and optional profile. Defaults to None.
 
         Returns:
             LanguageModel: The requested language model.
@@ -202,7 +202,7 @@ class SessionModelRegistry:
             model_config (ModelConfig): Configuration for the language model.
 
         Returns:
-            dict[str, LanguageModel]: Dictionary mapping alias (and presets if configured) to initialized language models.
+            dict[str, LanguageModel]: Dictionary mapping alias to initialized language models.
 
         Raises:
             SessionError: If model initialization fails.
@@ -215,8 +215,8 @@ class SessionModelRegistry:
                 client = OpenAIBatchChatCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,
-                    preset_configurations=model_config.presets,
-                    default_preset_name=model_config.default_preset,
+                    profile_configurations=model_config.profiles,
+                    default_profile_name=model_config.default_profile,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
@@ -236,8 +236,8 @@ class SessionModelRegistry:
                 client = AnthropicBatchCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,
-                    preset_configurations=model_config.presets,
-                    default_preset_name=model_config.default_preset,
+                    profile_configurations=model_config.profiles,
+                    default_profile_name=model_config.default_profile,
                 )
 
             elif isinstance(model_config, ResolvedGoogleModelConfig):
@@ -254,8 +254,8 @@ class SessionModelRegistry:
                         model=model_config.model_name,
                         model_provider=model_config.model_provider,
                         rate_limit_strategy=rate_limit_strategy,
-                        preset_configurations=model_config.presets,
-                        default_preset_name=model_config.default_preset,
+                        profile_configurations=model_config.profiles,
+                        default_profile_name=model_config.default_profile,
                     )
 
             else:

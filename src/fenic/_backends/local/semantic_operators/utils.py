@@ -17,8 +17,6 @@ from typing import (
 import polars as pl
 from pydantic import BaseModel, create_model
 
-from fenic.core.types.semantic import ModelAlias
-
 
 def convert_row_to_instruction_context(row: Dict[str, Any]) -> str:
     """Format a row as text, returning None if any value is None."""
@@ -220,15 +218,3 @@ def validate_structured_response(
             exc_info=True,
         )
         return None
-def extract_model_preset(model_alias: Optional[ModelAlias]) -> Optional[str]:
-    """Extract preset name from model alias.
-
-    Args:
-        model_alias: ModelAlias object containing name and optional preset
-
-    Returns:
-        Preset name if present, None otherwise
-    """
-    if model_alias:
-        return model_alias.preset
-    return None

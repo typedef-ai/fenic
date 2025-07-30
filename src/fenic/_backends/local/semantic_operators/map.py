@@ -12,7 +12,6 @@ from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     convert_pydantic_model_to_key_descriptions,
     convert_row_to_instruction_context,
-    extract_model_preset,
     uppercase_instruction_placeholder,
     validate_structured_response,
 )
@@ -76,7 +75,7 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
                     max_output_tokens=max_tokens,
                     response_format=response_format,
                     temperature=temperature,
-                    model_preset=extract_model_preset(model_alias),
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
             examples,

@@ -11,7 +11,6 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     create_classification_pydantic_model,
-    extract_model_preset,
 )
 from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
@@ -57,7 +56,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
                     response_format=self.output_model,
-                    model_preset=extract_model_preset(model_alias),
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
             examples,

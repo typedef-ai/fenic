@@ -28,16 +28,16 @@ class CloudExecutorSize(str, Enum):
 # --- Model Configs ---
 
 @dataclass
-class ResolvedAnthropicModelPreset:
+class ResolvedAnthropicModelProfile:
     thinking_token_budget: Optional[int] = None
 
 @dataclass
-class ResolvedGoogleModelPreset:
+class ResolvedGoogleModelProfile:
     thinking_token_budget: Optional[int] = None
 
 
 @dataclass
-class ResolvedOpenAIModelPreset:
+class ResolvedOpenAIModelProfile:
     reasoning_effort: Optional[ReasoningEffort] = None
 
 @dataclass
@@ -45,8 +45,8 @@ class ResolvedOpenAIModelConfig:
     model_name: str
     rpm: int
     tpm: int
-    presets: Optional[dict[str, ResolvedOpenAIModelPreset]] = None
-    default_preset: Optional[str] = None
+    profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
+    default_profile: Optional[str] = None
 
 
 @dataclass
@@ -55,17 +55,17 @@ class ResolvedAnthropicModelConfig:
     rpm: int
     input_tpm: int
     output_tpm: int
-    presets: Optional[dict[str, ResolvedAnthropicModelPreset]] = None
-    default_preset: Optional[str] = None
+    profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
+    default_profile: Optional[str] = None
 
 @dataclass
 class ResolvedGoogleModelConfig:
     model_name: str
-    model_provider: Literal[ModelProvider.GOOGLE_GLA, ModelProvider.GOOGLE_VERTEX]
+    model_provider: Literal[ModelProvider.GOOGLE_DEVELOPER, ModelProvider.GOOGLE_VERTEX]
     rpm: int
     tpm: int
-    presets: Optional[dict[str, ResolvedGoogleModelPreset]] = None
-    default_preset: Optional[str] = None
+    profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None
+    default_profile: Optional[str] = None
 
 ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]
 

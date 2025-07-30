@@ -76,7 +76,7 @@ class CompletionOnlyRequestSender(RequestSender[str]):
             temperature=self.inference_config.temperature,
             response_format=self.inference_config.response_format,
             top_logprobs=self.inference_config.top_logprobs,
-            model_preset=self.inference_config.model_preset,
+            model_profile=self.inference_config.model_profile,
         )
 
         completions = [

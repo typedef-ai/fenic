@@ -40,7 +40,7 @@ from fenic.api.lineage import Lineage
 from fenic.api.session import (
     AnthropicLanguageModelConfig,
     CloudConfig,
-    GoogleGLALanguageModelConfig,
+    GoogleDeveloperLanguageModelConfig,
     GoogleVertexLanguageModelConfig,
     OpenAIEmbeddingModelConfig,
     OpenAILanguageModelConfig,
@@ -56,7 +56,7 @@ __all__ = [
     "OpenAILanguageModelConfig",
     "OpenAIEmbeddingModelConfig",
     "AnthropicLanguageModelConfig",
-    "GoogleGLALanguageModelConfig",
+    "GoogleDeveloperLanguageModelConfig",
     "GoogleVertexLanguageModelConfig",
     "SemanticConfig",
     "CloudConfig",

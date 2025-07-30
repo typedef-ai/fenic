@@ -62,7 +62,7 @@ class FenicCompletionsRequest:
     top_logprobs: Optional[int]
     structured_output: Optional[type[BaseModel]]
     temperature: float
-    model_preset: Optional[str] = None
+    model_profile: Optional[str] = None
 
 
 # Exception classes

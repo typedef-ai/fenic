@@ -7,7 +7,6 @@ import polars as pl
 
 from fenic._backends.local.semantic_operators.utils import (
     convert_row_to_instruction_context,
-    extract_model_preset,
     uppercase_instruction_placeholder,
 )
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
@@ -85,7 +84,7 @@ class Reduce:
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
-        self.model_preset = extract_model_preset(model_alias)
+        self.model_profile = model_alias.profile if model_alias else None
         self.prefix_tokens = (
             self.model.count_tokens([self.SYSTEM_MESSAGE])
             + PREFIX_TOKENS_PER_MESSAGE
@@ -128,7 +127,7 @@ class Reduce:
                 operation_name=operation_name,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                model_preset=self.model_preset,
+                model_profile=self.model_profile,
             )
             reduced_docs = [response.completion for response in responses]
             docs = reduced_docs

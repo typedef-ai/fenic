@@ -13,7 +13,9 @@ from google.genai.types import (
 )
 from pydantic import BaseModel
 
-from fenic._inference.google.google_preset_manager import GoogleCompletionsPresetManager
+from fenic._inference.google.google_profile_manager import (
+    GoogleCompletionsProfileManager,
+)
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -35,7 +37,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
-from fenic.core._resolved_session_config import ResolvedGoogleModelPreset
+from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
 
@@ -61,19 +63,19 @@ class GeminiNativeChatCompletionsClient(
         model: str = "gemini-2.0-flash-lite",
         queue_size: int = 100,
         max_backoffs: int = 10,
-        preset_configurations: Optional[dict[str, ResolvedGoogleModelPreset]] = None,
-        default_preset_name: Optional[str] = None,
+        profile_configurations: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
+        default_profile_name: Optional[str] = None,
     ):
         """Initialize the Gemini native chat completions client.
 
         Args:
             rate_limit_strategy: Strategy for rate limiting requests
-            model_provider: Google model provider (GLA or Vertex AI)
+            model_provider: Google model provider (Developer or Vertex AI)
             model: Gemini model name to use
             queue_size: Maximum size of the request queue
             max_backoffs: Maximum number of retry backoffs
-            preset_configurations: Dictionary of preset configurations
-            default_preset_name: Name of the default preset to use
+            profile_configurations: Dictionary of profile configurations
+            default_profile_name: Name of the default profile to use
         """
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
@@ -89,7 +91,7 @@ class GeminiNativeChatCompletionsClient(
 
         # Native gen-ai client. Passing `vertexai=True` automatically routes traffic
         # through Vertex-AI if the environment is configured for it.
-        if model_provider == ModelProvider.GOOGLE_GLA:
+        if model_provider == ModelProvider.GOOGLE_DEVELOPER:
             if "GEMINI_API_KEY" in os.environ:
                 self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
             else:
@@ -103,12 +105,11 @@ class GeminiNativeChatCompletionsClient(
             model_provider, model
         )
 
-        self._preset_manager = GoogleCompletionsPresetManager(
+        self._profile_manager = GoogleCompletionsProfileManager(
             model_parameters=self._model_parameters,
-            preset_configurations=preset_configurations,
-            default_preset_name=default_preset_name
+            profile_configurations=profile_configurations,
+            default_profile_name=default_profile_name,
         )
-
 
     def reset_metrics(self):
         """Reset metrics to initial state."""
@@ -122,7 +123,9 @@ class GeminiNativeChatCompletionsClient(
         """
         return self._metrics
 
-    def _convert_messages(self, messages: LMRequestMessages) -> list[genai.types.ContentUnion]:
+    def _convert_messages(
+        self, messages: LMRequestMessages
+    ) -> list[genai.types.ContentUnion]:
         """Convert Fenic LMRequestMessages → list of google-genai `Content` objects.
 
         Converts Fenic message format to Google's Content format, including
@@ -137,11 +140,23 @@ class GeminiNativeChatCompletionsClient(
         contents: list[genai.types.ContentUnion] = []
         # few-shot examples
         for example in messages.examples:
-            contents.append(genai.types.Content(role="user", parts=[genai.types.Part(text=example.user)]))
-            contents.append(genai.types.Content(role="model", parts=[genai.types.Part(text=example.assistant)]))
+            contents.append(
+                genai.types.Content(
+                    role="user", parts=[genai.types.Part(text=example.user)]
+                )
+            )
+            contents.append(
+                genai.types.Content(
+                    role="model", parts=[genai.types.Part(text=example.assistant)]
+                )
+            )
 
         # final user prompt
-        contents.append(genai.types.Content(role="user", parts=[genai.types.Part(text=messages.user)]))
+        contents.append(
+            genai.types.Content(
+                role="user", parts=[genai.types.Part(text=messages.user)]
+            )
+        )
         return contents
 
     def count_tokens(self, messages: Tokenizable) -> int:  # type: ignore[override]
@@ -181,9 +196,12 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget with safety margin)
         """
-        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
-        return request.max_completion_tokens + int(1.5 * preset_config.thinking_token_budget)
-
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return request.max_completion_tokens + int(
+            1.5 * profile_config.thinking_token_budget
+        )
 
     @cache  # noqa: B019 – builtin cache OK here.
     def _estimate_response_schema_tokens(self, response_format: type[BaseModel]) -> int:
@@ -198,9 +216,10 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Estimated token count for the response format
         """
-        schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
+        schema_str = json.dumps(
+            response_format.model_json_schema(), separators=(",", ":")
+        )
         return self._token_counter.count_tokens(schema_str)
-
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for the request.
@@ -226,14 +245,11 @@ class GeminiNativeChatCompletionsClient(
         # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
-        
+
         # Estimate output tokens
         output_tokens = self._get_max_output_tokens(request)
-        
-        return TokenEstimate(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens
-        )
+
+        return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
     async def make_single_request(
         self, request: FenicCompletionsRequest
@@ -250,10 +266,14 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Completion response, transient exception, or fatal exception
         """
-        
-        # Get preset-specific configuration
-        preset_config = self._preset_manager.get_preset_configuration(request.model_preset)
-        max_output_tokens = request.max_completion_tokens + int(1.5 * preset_config.thinking_token_budget)
+
+        # Get profile-specific configuration
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        max_output_tokens = request.max_completion_tokens + int(
+            1.5 * profile_config.thinking_token_budget
+        )
 
         generation_config: GenerateContentConfigDict = {
             "temperature": request.temperature,
@@ -262,7 +282,7 @@ class GeminiNativeChatCompletionsClient(
             "logprobs": request.top_logprobs,
             "system_instruction": request.messages.system,
         }
-        generation_config.update(preset_config.additional_generation_config)
+        generation_config.update(profile_config.additional_generation_config)
 
         if request.structured_output is not None:
             generation_config.update(
@@ -274,10 +294,12 @@ class GeminiNativeChatCompletionsClient(
         contents = self._convert_messages(request.messages)
 
         try:
-            response: GenerateContentResponse = await self._client.models.generate_content(
-                model=self.model,
-                contents=contents,
-                config=generation_config,
+            response: GenerateContentResponse = (
+                await self._client.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=generation_config,
+                )
             )
             candidate = response.candidates[0] if response.candidates else None
             completion_text = ""
@@ -290,17 +312,24 @@ class GeminiNativeChatCompletionsClient(
                             "Candidate generation failed due to max tokens limit. "
                             "Consider retrying the request with a higher max_completion_tokens value. "
                             "If using a reasoning model, consider increasing the thinking_token_budget. "
-                            f"Current max_completions_tokens: {request.max_completion_tokens}, Current thinking_token_budget: {preset_config.thinking_token_budget}."))
+                            f"Current max_completions_tokens: {request.max_completion_tokens}, Current thinking_token_budget: {profile_config.thinking_token_budget}."
+                        )
+                    )
                 else:
                     return FatalException(
-                        ExecutionError(f"Candidate generation failed due to stop reason: {candidate.finish_reason}"))
+                        ExecutionError(
+                            f"Candidate generation failed due to stop reason: {candidate.finish_reason}"
+                        )
+                    )
             else:
                 for part in candidate.content.parts:
                     if not part.thought:
                         completion_text = part.text
 
             if candidate.finish_reason != FinishReason.STOP:
-                logger.warning(f"Candidate generation for request {self.get_request_key(request)} was truncated for stop reason {candidate.finish_reason}")
+                logger.warning(
+                    f"Candidate generation for request {self.get_request_key(request)} was truncated for stop reason {candidate.finish_reason}"
+                )
 
             # Extract usage metrics
             usage_metadata = response.usage_metadata
@@ -308,11 +337,27 @@ class GeminiNativeChatCompletionsClient(
 
             self._metrics.num_requests += 1
             if usage_metadata:
-                total_prompt_tokens = usage_metadata.prompt_token_count if usage_metadata.prompt_token_count else 0
-                cached_prompt_tokens = usage_metadata.cached_content_token_count if usage_metadata.cached_content_token_count else 0
+                total_prompt_tokens = (
+                    usage_metadata.prompt_token_count
+                    if usage_metadata.prompt_token_count
+                    else 0
+                )
+                cached_prompt_tokens = (
+                    usage_metadata.cached_content_token_count
+                    if usage_metadata.cached_content_token_count
+                    else 0
+                )
                 uncached_prompt_tokens = total_prompt_tokens - cached_prompt_tokens
-                candidates_token_count = usage_metadata.candidates_token_count if usage_metadata.candidates_token_count else 0
-                thinking_tokens_count = usage_metadata.thoughts_token_count if usage_metadata.thoughts_token_count else 0
+                candidates_token_count = (
+                    usage_metadata.candidates_token_count
+                    if usage_metadata.candidates_token_count
+                    else 0
+                )
+                thinking_tokens_count = (
+                    usage_metadata.thoughts_token_count
+                    if usage_metadata.thoughts_token_count
+                    else 0
+                )
                 total_output_tokens = candidates_token_count + thinking_tokens_count
 
                 # Create ResponseUsage object
@@ -321,7 +366,7 @@ class GeminiNativeChatCompletionsClient(
                     completion_tokens=candidates_token_count,  # Google separates completion from thinking
                     total_tokens=total_prompt_tokens + total_output_tokens,
                     cached_tokens=cached_prompt_tokens,
-                    thinking_tokens=thinking_tokens_count
+                    thinking_tokens=thinking_tokens_count,
                 )
 
                 # Update metrics (existing logic)
@@ -337,7 +382,9 @@ class GeminiNativeChatCompletionsClient(
                     output_tokens=total_output_tokens,
                 )
 
-            return FenicCompletionsResponse(completion=completion_text, logprobs=None, usage=response_usage)
+            return FenicCompletionsResponse(
+                completion=completion_text, logprobs=None, usage=response_usage
+            )
 
         except ServerError as e:
             # Treat quota/timeouts as transient (retryable)

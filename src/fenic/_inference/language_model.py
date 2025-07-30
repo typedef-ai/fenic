@@ -25,7 +25,7 @@ class InferenceConfiguration:
     temperature: float
     top_logprobs: Optional[int] = None
     response_format: Optional[type[BaseModel]] = None
-    model_preset: Optional[str] = None
+    model_profile: Optional[str] = None
 
 class LanguageModel:
     def __init__(self, client: ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -45,7 +45,7 @@ class LanguageModel:
         temperature: float = 0,
         response_format: Optional[type[BaseModel]] = None,
         top_logprobs: Optional[int] = None,
-        model_preset: Optional[str] = None,
+        model_profile: Optional[str] = None,
         operation_name: Optional[str] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
         # Create batch requests
@@ -62,7 +62,7 @@ class LanguageModel:
                 top_logprobs=top_logprobs,
                 structured_output=response_format,
                 temperature=temperature,
-                model_preset=model_preset,
+                model_profile=model_profile,
             )
             requests.append(request)
 

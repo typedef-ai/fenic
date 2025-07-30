@@ -38,7 +38,7 @@ def main(config: Optional[fc.SessionConfig] = None):
                     rpm=500,
                     tpm=200_000
                 ),
-                # "gemini": fc.GoogleGLAModelConfig(
+                # "gemini": fc.GoogleDeveloperModelConfig(
                 #     model_name="gemini-2.0-flash",
                 #     rpm=500,
                 #     tpm=1_000_000

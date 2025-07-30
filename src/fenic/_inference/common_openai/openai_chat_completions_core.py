@@ -12,8 +12,8 @@ from openai import (
 )
 from openai.types import CompletionUsage
 
-from fenic._inference.common_openai.openai_preset_manager import (
-    OpenAICompletionPresetConfiguration,
+from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionProfileConfiguration,
 )
 from fenic._inference.model_client import (
     FatalException,
@@ -74,13 +74,13 @@ class OpenAIChatCompletionsCore:
     async def make_single_request(
         self,
         request: FenicCompletionsRequest,
-        preset_configuration: Optional[OpenAICompletionPresetConfiguration] = None
+        profile_configuration: Optional[OpenAICompletionProfileConfiguration] = None
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         """Make a single request to the OpenAI API.
 
         Args:
             request: The messages to send
-            preset_configuration: The optional preset configuration for the request (for passing reasoning_effort)
+            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort)
         Returns:
             The response text or an exception
         """
@@ -88,10 +88,10 @@ class OpenAIChatCompletionsCore:
             common_params: dict[str, Any] = {
                 "model": self._model,
                 "messages": request.messages.to_message_list(),
-                "max_completion_tokens": request.max_completion_tokens + preset_configuration.expected_additional_reasoning_tokens,
+                "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
-            if not preset_configuration or not preset_configuration.reasoning_effort:
+            if not profile_configuration or not profile_configuration.reasoning_effort:
                 # OpenAI does not allow temperature to be modified for o-series reasoning models.
                 common_params["temperature"] = request.temperature
 
@@ -103,8 +103,8 @@ class OpenAIChatCompletionsCore:
                         "top_logprobs": request.top_logprobs,
                     }
                 )
-            if preset_configuration:
-                common_params.update(preset_configuration.additional_parameters)
+            if profile_configuration:
+                common_params.update(profile_configuration.additional_parameters)
 
             # Choose between parse and create based on structured_output
             if request.structured_output:

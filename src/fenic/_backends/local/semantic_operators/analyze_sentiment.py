@@ -10,7 +10,6 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     create_classification_pydantic_model,
-    extract_model_preset,
 )
 from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
@@ -141,7 +140,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                     max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
                     temperature=temperature,
                     response_format=SENTIMENT_ANALYSIS_MODEL,
-                    model_preset=extract_model_preset(model_alias),
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
             EXAMPLES,

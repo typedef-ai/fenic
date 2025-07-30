@@ -19,8 +19,8 @@ from anthropic.types import (
 )
 from pydantic import BaseModel
 
-from fenic._inference.anthropic.anthropic_preset_manager import (
-    AnthropicCompletionsPresetManager,
+from fenic._inference.anthropic.anthropic_profile_manager import (
+    AnthropicCompletionsProfileManager,
 )
 from fenic._inference.model_client import (
     FatalException,
@@ -41,7 +41,7 @@ from fenic.core._inference.model_catalog import (
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
-    ResolvedAnthropicModelPreset,
+    ResolvedAnthropicModelProfile,
 )
 from fenic.core.metrics import LMMetrics
 
@@ -74,8 +74,8 @@ class AnthropicBatchCompletionsClient(
         queue_size: int = 100,
         model: str = "claude-3-5-haiku-latest",
         max_backoffs: int = 10,
-        preset_configurations: Optional[dict[str, ResolvedAnthropicModelPreset]] = None,
-        default_preset_name: Optional[str] = None,
+        profile_configurations: Optional[dict[str, ResolvedAnthropicModelProfile]] = None,
+        default_profile_name: Optional[str] = None,
     ):
         """Initialize the Anthropic batch completions client.
 
@@ -84,8 +84,8 @@ class AnthropicBatchCompletionsClient(
             queue_size: Maximum size of the request queue
             model: Anthropic model name to use
             max_backoffs: Maximum number of retry backoffs
-            preset_configurations: Dictionary of preset configurations
-            default_preset_name: Name of the default preset to use
+            profile_configurations: Dictionary of profile configurations
+            default_profile_name: Name of the default profile to use
         """
         super().__init__(
             model=model,
@@ -104,11 +104,11 @@ class AnthropicBatchCompletionsClient(
         self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
         self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model)
 
-        # Use the preset configuration manager
-        self._preset_manager = AnthropicCompletionsPresetManager(
+        # Use the profile configuration manager
+        self._profile_manager = AnthropicCompletionsProfileManager(
             model_parameters=self._model_parameters,
-            preset_configurations=preset_configurations or {},
-            default_preset_name=default_preset_name
+            profile_configurations=profile_configurations or {},
+            default_profile_name=default_profile_name
         )
 
     async def make_single_request(self, request: FenicCompletionsRequest) -> Union[
@@ -126,26 +126,26 @@ class AnthropicBatchCompletionsClient(
             Completion response, transient exception, or fatal exception
         """
         system_prompt, message_params = self.convert_messages(request.messages)
-        preset_configuration = self._preset_manager.get_preset_configuration(request.model_preset)
-        request_max_tokens = request.max_completion_tokens + preset_configuration.thinking_token_budget
+        profile_configuration = self._profile_manager.get_profile_by_name(request.model_profile)
+        request_max_tokens = request.max_completion_tokens + profile_configuration.thinking_token_budget
         messages_creation_payload: dict[str, Any] = {
             "model": self.model,
             "system": [system_prompt],
             "messages": message_params,
             "max_tokens": request_max_tokens,
-            "thinking": preset_configuration.thinking_config,
+            "thinking": profile_configuration.thinking_config,
         }
         if request.structured_output:
             tool_param = self.create_response_format_tool(request.structured_output)
             messages_creation_payload.update({"tools": [tool_param]})
-            if not preset_configuration.thinking_enabled:
+            if not profile_configuration.thinking_enabled:
                 # Anthropic does not allow forced tool use if thinking is enabled.
                 messages_creation_payload.update({"tool_choice": ToolChoiceToolParam(
                     name=self._output_formatter_tool_name,
                     type="tool"
                 )})
 
-        if not preset_configuration.thinking_enabled:
+        if not profile_configuration.thinking_enabled:
             # Anthropic does not allow configuring temperature if thinking is enabled.
             messages_creation_payload.update({"temperature": request.temperature})
 
@@ -283,7 +283,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
-        return request.max_completion_tokens + self._preset_manager.get_preset_configuration(request.model_preset).thinking_token_budget
+        return request.max_completion_tokens + self._profile_manager.get_profile_by_name(request.model_profile).thinking_token_budget
 
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.

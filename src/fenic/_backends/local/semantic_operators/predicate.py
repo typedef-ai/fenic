@@ -13,7 +13,6 @@ from fenic._backends.local.semantic_operators.types import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     convert_row_to_instruction_context,
-    extract_model_preset,
     uppercase_instruction_placeholder,
 )
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
@@ -58,7 +57,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                   max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
                   response_format=SimpleBooleanOutputModelResponse,
                   temperature=temperature,
-                  model_preset=extract_model_preset(model_alias),
+                  model_profile=model_alias.profile if model_alias else None,
                 ),
                 model=model,
             ),

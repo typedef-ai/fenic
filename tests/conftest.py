@@ -17,7 +17,7 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModelConfig,
-    GoogleGLALanguageModelConfig,
+    GoogleDeveloperLanguageModelConfig,
     OpenAILanguageModelConfig,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
@@ -135,7 +135,7 @@ def examples_session_config(app_name) -> SessionConfig:
         tpm=1_000_000
     )
     # limits are small so we can run the examples in parallel
-    flash_lite_model = GoogleGLALanguageModelConfig(
+    flash_lite_model = GoogleDeveloperLanguageModelConfig(
         model_name="gemini-2.0-flash-lite",
         rpm=500,
         tpm=250_000,
@@ -180,10 +180,10 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
                 output_tpm=20_000,
             )
         }
-    elif model_provider == ModelProvider.GOOGLE_GLA:
+    elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
         language_models = {
             "model_1": nano,
-            "model_2" : GoogleGLALanguageModelConfig(
+            "model_2" : GoogleDeveloperLanguageModelConfig(
                 model_name=request.config.getoption(MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
@@ -239,18 +239,18 @@ def local_session_config(app_name, request) -> SessionConfig:
                 model_name=model_name,
                 rpm=500,
                 tpm=100_000,
-                presets = {
-                    "low": OpenAILanguageModelConfig.Preset(
+                profiles= {
+                    "low": OpenAILanguageModelConfig.Profile(
                         reasoning_effort="low"
                     ),
-                    "medium" : OpenAILanguageModelConfig.Preset(
+                    "medium" : OpenAILanguageModelConfig.Profile(
                         reasoning_effort="medium"
                     ),
-                    "high" : OpenAILanguageModelConfig.Preset(
+                    "high" : OpenAILanguageModelConfig.Profile(
                         reasoning_effort="high"
                     )
                 },
-                default_preset="medium"
+                default_profile="medium"
             )
         else:
             language_model = OpenAILanguageModelConfig(
@@ -265,19 +265,19 @@ def local_session_config(app_name, request) -> SessionConfig:
                 rpm=500,
                 input_tpm=100_000,
                 output_tpm=75_000,
-                presets = {
-                    "thinking_disabled": AnthropicLanguageModelConfig.Preset(),
-                    "low": AnthropicLanguageModelConfig.Preset(
+                profiles= {
+                    "thinking_disabled": AnthropicLanguageModelConfig.Profile(),
+                    "low": AnthropicLanguageModelConfig.Profile(
                         thinking_token_budget=1024
                     ),
-                    "medium" : AnthropicLanguageModelConfig.Preset(
+                    "medium" : AnthropicLanguageModelConfig.Profile(
                         thinking_token_budget=4096
                     ),
-                    "high": AnthropicLanguageModelConfig.Preset(
+                    "high": AnthropicLanguageModelConfig.Profile(
                         thinking_token_budget=8192
                     )
                 },
-                default_preset="low"
+                default_profile="low"
             )
         else:
             language_model = AnthropicLanguageModelConfig(
@@ -286,31 +286,31 @@ def local_session_config(app_name, request) -> SessionConfig:
                 input_tpm=100_000,
                 output_tpm=75_000,
             )
-    elif model_provider == ModelProvider.GOOGLE_GLA:
+    elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
         if model_parameters.supports_reasoning:
-            language_model = GoogleGLALanguageModelConfig(
+            language_model = GoogleDeveloperLanguageModelConfig(
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
-                presets = {
-                    "thinking_disabled": GoogleGLALanguageModelConfig.Preset(),
-                    "auto": GoogleGLALanguageModelConfig.Preset(
+                profiles= {
+                    "thinking_disabled": GoogleDeveloperLanguageModelConfig.Profile(),
+                    "auto": GoogleDeveloperLanguageModelConfig.Profile(
                         thinking_token_budget=-1
                     ),
-                    "low": GoogleGLALanguageModelConfig.Preset(
+                    "low": GoogleDeveloperLanguageModelConfig.Profile(
                         thinking_token_budget=1024
                     ),
-                    "medium" : GoogleGLALanguageModelConfig.Preset(
+                    "medium" : GoogleDeveloperLanguageModelConfig.Profile(
                         thinking_token_budget=4096
                     ),
-                    "high": GoogleGLALanguageModelConfig.Preset(
+                    "high": GoogleDeveloperLanguageModelConfig.Profile(
                         thinking_token_budget=8192
                     )
                 },
-                default_preset="auto"
+                default_profile="auto"
             )
         else:
-            language_model = GoogleGLALanguageModelConfig(
+            language_model = GoogleDeveloperLanguageModelConfig(
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
@@ -321,22 +321,22 @@ def local_session_config(app_name, request) -> SessionConfig:
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
-                presets={
-                    "thinking_disabled": GoogleVertexLanguageModelConfig.Preset(),
-                    "auto": GoogleVertexLanguageModelConfig.Preset(
+                profiles={
+                    "thinking_disabled": GoogleVertexLanguageModelConfig.Profile(),
+                    "auto": GoogleVertexLanguageModelConfig.Profile(
                         thinking_token_budget=-1
                     ),
-                    "low": GoogleVertexLanguageModelConfig.Preset(
+                    "low": GoogleVertexLanguageModelConfig.Profile(
                         thinking_token_budget=1024
                     ),
-                    "medium": GoogleVertexLanguageModelConfig.Preset(
+                    "medium": GoogleVertexLanguageModelConfig.Profile(
                         thinking_token_budget=4096
                     ),
-                    "high": GoogleVertexLanguageModelConfig.Preset(
+                    "high": GoogleVertexLanguageModelConfig.Profile(
                         thinking_token_budget=8192
                     )
                 },
-                default_preset="auto"
+                default_profile="auto"
             )
         else:
             language_model = GoogleVertexLanguageModelConfig(
