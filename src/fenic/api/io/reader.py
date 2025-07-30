@@ -223,7 +223,6 @@ class DataFrameReader:
             options=options,
             session_state=self._session_state,
         )
-
         from fenic.api.dataframe import DataFrame
 
         return DataFrame._from_logical_plan(logical_node, self._session_state)

@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core._logical_plan.plans import FileSource, LogicalPlan, TableSource
+from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.source import FileSource, TableSource
 from fenic.core.error import PlanError, ValidationError
 
 

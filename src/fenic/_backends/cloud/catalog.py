@@ -3,7 +3,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Coroutine, Dict, List, Optional, Tuple
+from typing import Any, Coroutine, Dict, List, Optional
 from uuid import UUID
 
 import polars as pl
@@ -298,7 +298,7 @@ class CloudCatalog(BaseCatalog):
             "Drop view not implemented for cloud catalog"
         )
 
-    def describe_view(self, view_name: str) -> Tuple[object, object]:
+    def describe_view(self, view_name: str) -> LogicalPlan:
         # TODO: Implement describe view for the cloud
         raise NotImplementedError(
             "Describe view not implemented for cloud catalog"

@@ -29,7 +29,6 @@ from fenic.core._logical_plan.plans.transform import (
     Union,
 )
 from fenic.core._logical_plan.plans.transform import Unnest as Unnest
-from fenic.core._logical_plan.serde import LogicalPlanSerde
 
 __all__ = [
     "Aggregate",
@@ -37,14 +36,12 @@ __all__ = [
     "SemanticCluster",
     "CacheInfo",
     "LogicalPlan",
-    "LogicalPlanSerde",
     "Join",
     "SemanticJoin",
     "SemanticSimilarityJoin",
     "FileSink",
     "TableSink",
     "FileSource",
-    "ViewSource",
     "InMemorySource",
     "TableSource",
     "SQL",

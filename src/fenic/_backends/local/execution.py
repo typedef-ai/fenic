@@ -13,7 +13,7 @@ from fenic._backends.local.utils.io_utils import (
     query_files,
 )
 from fenic.core._interfaces.execution import BaseExecution
-from fenic.core._logical_plan.serde import LogicalPlan
+from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import (
     convert_polars_schema_to_custom_schema,
 )
