@@ -43,7 +43,7 @@ The pipeline processes logs through three stages:
 ### API Structure
 
 ```python
-from fenic.api.session import Session, SessionConfig, SemanticConfig, OpenAIModelConfig
+from fenic.api.session import Session, SessionConfig, SemanticConfig, OpenAILanguageModelConfig
 from fenic.api.functions import col, text, semantic
 from pydantic import BaseModel, Field
 
@@ -51,21 +51,23 @@ from pydantic import BaseModel, Field
 config = SessionConfig(
     app_name="log_enrichment",
     semantic=SemanticConfig(
-        language_models= {
-            "mini" : OpenAIModelConfig(
-            model_name="gpt-4o-mini",
-            rpm=500,
-            tpm=200_000
-        )
+        language_models={
+            "mini": OpenAILanguageModelConfig(
+                model_name="gpt-4o-mini",
+                rpm=500,
+                tpm=200_000
+            )
         }
     )
 )
+
 
 # Define extraction schema with Pydantic
 class ErrorAnalysis(BaseModel):
     error_category: str = Field(description="Main category of the error")
     affected_component: str = Field(description="Specific component affected")
     potential_cause: str = Field(description="Most likely root cause")
+
 
 # Stage 1: Template extraction
 parsed = logs_df.select(

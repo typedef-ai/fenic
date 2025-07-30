@@ -9,10 +9,10 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
     CompletionOnlyRequestSender,
 )
-from fenic._backends.local.semantic_operators.utils import extract_model_preset
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     convert_pydantic_model_to_key_descriptions,
+    extract_model_preset,
     validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel

@@ -238,7 +238,7 @@ class CloudSessionState(BaseSessionState):
         existing = response.existing
 
         self.session_uuid = response.uuid
-        self.session_name = response.name
+        self.session_name = response.model_name
         self.session_canonical_name = response.canonical_name
         self.engine_uri = response.uris.remote_actions_uri
         self.arrow_ipc_uri = response.uris.remote_results_uri_prefix

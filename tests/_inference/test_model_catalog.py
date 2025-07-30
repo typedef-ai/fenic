@@ -1,13 +1,13 @@
 from typing import get_args
 
 from fenic.core._inference.model_catalog import (
-    ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
-    OPENAI_AVAILABLE_EMBEDDING_MODELS,
-    OPENAI_AVAILABLE_LANGUAGE_MODELS,
+    AnthropicLanguageModelName,
     CompletionModelParameters,
     EmbeddingModelParameters,
     ModelCatalog,
     ModelProvider,
+    OpenAIEmbeddingModelName,
+    OpenAILanguageModelName,
 )
 
 
@@ -16,7 +16,7 @@ def test_all_language_models_have_valid_parameters():
     catalog = ModelCatalog()
     
     # Test OpenAI models
-    openai_models = get_args(OPENAI_AVAILABLE_LANGUAGE_MODELS)
+    openai_models = get_args(OpenAILanguageModelName)
     for model_name in openai_models:
         params = catalog.get_completion_model_parameters(ModelProvider.OPENAI, model_name)
         assert params is not None and isinstance(params, CompletionModelParameters), f"Could not fetch parameters for OpenAI model: {model_name}"
@@ -26,7 +26,7 @@ def test_all_language_models_have_valid_parameters():
         assert hasattr(params, "max_output_tokens"), f"Missing max_output_tokens for OpenAI model: {model_name}"
     
     # Test Anthropic models
-    anthropic_models = get_args(ANTHROPIC_AVAILABLE_LANGUAGE_MODELS)
+    anthropic_models = get_args(AnthropicLanguageModelName)
     for model_name in anthropic_models:
         params = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model_name)
         assert params is not None and isinstance(params, CompletionModelParameters), f"Could not fetch parameters for Anthropic model: {model_name}"
@@ -40,7 +40,7 @@ def test_all_embedding_models_have_valid_parameters():
     catalog = ModelCatalog()
 
     # Test OpenAI embedding models
-    openai_embedding_models = get_args(OPENAI_AVAILABLE_EMBEDDING_MODELS)
+    openai_embedding_models = get_args(OpenAIEmbeddingModelName)
     for model_name in openai_embedding_models:
         params = catalog.get_embedding_model_parameters(ModelProvider.OPENAI, model_name)
         assert params is not None and isinstance(params, EmbeddingModelParameters), f"Could not fetch parameters for OpenAI embedding model: {model_name}"

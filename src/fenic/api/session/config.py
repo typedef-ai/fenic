@@ -9,12 +9,12 @@ from typing import Optional, Union
 from pydantic import BaseModel, Field, model_validator
 
 from fenic.core._inference.model_catalog import (
-    ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
-    GOOGLE_GLA_AVAILABLE_MODELS,
-    GOOGLE_VERTEX_AVAILABLE_MODELS,
-    OPENAI_AVAILABLE_EMBEDDING_MODELS,
-    OPENAI_AVAILABLE_LANGUAGE_MODELS,
+    AnthropicLanguageModelName,
+    GoogleGLALanguageModelName,
+    GoogleVertexLanguageModelName,
     ModelProvider,
+    OpenAIEmbeddingModelName,
+    OpenAILanguageModelName,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
@@ -32,61 +32,33 @@ from fenic.core._resolved_session_config import (
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
 )
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, InternalError
 
 presets_desc = """
             Allow the same model configuration to be used with different presets, currently used to set thinking budget/reasoning effort
-            for reasoning models. To use a preset of a given model alias in a semantic operator, reference the model as <model_alias>.<preset_name>.
+            for reasoning models. To use a preset of a given model alias in a semantic operator, reference the model as `ModelAlias(name="<model_alias>", preset="<preset_name>")`.
         """
 
 default_preset_desc = """
             If presets are configured, which should be used by default?
         """
+class ModelConfig(BaseModel):
+    """Base configuration class for all model types.
 
-
-class GoogleModelPreset(BaseModel):
-    """Preset configurations for Google models.
-
-    This class defines preset configurations for Google Gemini models, allowing
-    different thinking/reasoning settings to be applied to the same model.
+    This is the base class for all model configurations. It defines the common
+    attributes that all models share.
 
     Attributes:
-        thinking_token_budget: If configuring a reasoning model, provide a thinking budget in tokens.
-            If not provided, or if set to 0, thinking will be disabled for the preset (not supported on gemini-2.5-pro).
-            To have the model automatically determine a thinking budget based on the complexity of
-            the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
-            It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
-            model to generate reasoning tokens even if thinking is disabled.
-
-    Example:
-        Configuring a preset with a fixed thinking budget:
-
-        ```python
-        preset = GoogleModelPreset(thinking_token_budget=4096)
-        ```
-
-        Configuring a preset with automatic thinking budget:
-
-        ```python
-        preset = GoogleModelPreset(thinking_token_budget=-1)
-        ```
-
-        Configuring a preset with thinking disabled:
-
-        ```python
-        preset = GoogleModelPreset(thinking_token_budget=0)
-        ```
+        model_name: The name of the model to use.
+        model_provider: The provider of the model (OpenAI, Anthropic, Google, etc.).
     """
-    thinking_token_budget: Optional[int] = Field(
-        default=None,
-        description="The thinking budget in tokens.",
-        ge=-1, lt=32768)
+    model_name: str
+    model_provider: ModelProvider
 
-
-class GoogleGLAModelConfig(BaseModel):
+class GoogleGLALanguageModelConfig(ModelConfig):
     """Configuration for Google Generative Language (GLA) models.
 
-    This class defines the configuration settings for models available in Google Developer AI Studio,
+    This class defines the configuration settings for Google Gemini models available in Google Developer AI Studio,
     including model selection and rate limiting parameters. These models are accessible using a GOOGLE_API_KEY environment variable.
 
     Attributes:
@@ -100,7 +72,7 @@ class GoogleGLAModelConfig(BaseModel):
         Configuring a Google GLA model with rate limits:
 
         ```python
-        config = GoogleGLAModelConfig(
+        config = GoogleGLALanguageModelConfig(
             model_name="gemini-2.0-flash",
             rpm=100,
             tpm=1000
@@ -110,32 +82,69 @@ class GoogleGLAModelConfig(BaseModel):
         Configuring a reasoning Google GLA model with presets:
 
         ```python
-        config = GoogleGLAModelConfig(
+        config = GoogleGLALanguageModelConfig(
             model_name="gemini-2.5-flash",
             rpm=100,
             tpm=1000,
             presets={
-                "thinking_disabled": GoogleModelPreset(),
-                "fast": GoogleModelPreset(thinking_token_budget=1024),
-                "thorough": GoogleModelPreset(thinking_token_budget=8192)
+                "thinking_disabled": GoogleGLALanguageModelConfig.Preset(),
+                "fast": GoogleGLALanguageModelConfig.Preset(thinking_token_budget=1024),
+                "thorough": GoogleGLALanguageModelConfig.Preset(thinking_token_budget=8192)
             },
             default_preset="fast"
         )
         ```
     """
-    model_name: GOOGLE_GLA_AVAILABLE_MODELS
+    model_name: GoogleGLALanguageModelName
+    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_GLA)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
-    presets: Optional[dict[str, GoogleModelPreset]] = Field(default=None, description=presets_desc)
+    presets: Optional[dict[str, Preset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
 
+    class Preset(BaseModel):
+        """Preset configurations for Google GLA models.
 
-class GoogleVertexModelConfig(BaseModel):
-    """Configuration for Google Vertex models.
+        This class defines preset configurations for Google Gemini models, allowing
+        different thinking/reasoning settings to be applied to the same model.
 
-    This class defines the configuration settings for models available in Google Vertex AI,
-    including model selection and rate limiting parameters. In order to use these models, you must have a
-    Google Cloud service account, or use the `gcloud` cli tool to authenticate your local environment.
+        Attributes:
+            thinking_token_budget: If configuring a reasoning model, provide a thinking budget in tokens.
+                If not provided, or if set to 0, thinking will be disabled for the preset (not supported on gemini-2.5-pro).
+                To have the model automatically determine a thinking budget based on the complexity of
+                the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
+                It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
+                model to generate reasoning tokens even if thinking is disabled.
+
+        Example:
+            Configuring a preset with a fixed thinking budget:
+
+            ```python
+            preset = GoogleGLALanguageModelConfig.Preset(thinking_token_budget=4096)
+            ```
+
+            Configuring a preset with automatic thinking budget:
+
+            ```python
+            preset = GoogleGLALanguageModelConfig.Preset(thinking_token_budget=-1)
+            ```
+
+            Configuring a preset with thinking disabled:
+
+            ```python
+            preset = GoogleGLALanguageModelConfig.Preset(thinking_token_budget=0)
+            ```
+        """
+
+        thinking_token_budget: Optional[int] = Field(
+            default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
+        )
+
+class GoogleVertexLanguageModelConfig(ModelConfig):
+    """Configuration for Google Vertex AI models.
+
+    This class defines the configuration settings for Google Gemini models available in Google Vertex AI,
+    including model selection and rate limiting parameters. These models are accessible using Google Cloud credentials.
 
     Attributes:
         model_name: The name of the Google Vertex model to use.
@@ -148,66 +157,78 @@ class GoogleVertexModelConfig(BaseModel):
         Configuring a Google Vertex model with rate limits:
 
         ```python
-        config = GoogleVertexModelConfig(
-            model_name="gemini-2.0",
+        config = GoogleVertexLanguageModelConfig(
+            model_name="gemini-2.0-flash",
             rpm=100,
-            tpm=500_000
+            tpm=1000
         )
         ```
 
-        Configuring a Google Vertex model with presets:
+        Configuring a reasoning Google Vertex model with presets:
 
         ```python
-        config = GoogleVertexModelConfig(
+        config = GoogleVertexLanguageModelConfig(
             model_name="gemini-2.5-flash",
             rpm=100,
-            tpm=500_000,
+            tpm=1000,
             presets={
-                "thinking_disabled": GoogleModelPreset(),
-                "fast": GoogleModelPreset(thinking_token_budget=1024),
-                "thorough": GoogleModelPreset(thinking_token_budget=8192)
+                "thinking_disabled": GoogleVertexLanguageModelConfig.Preset(),
+                "fast": GoogleVertexLanguageModelConfig.Preset(thinking_token_budget=1024),
+                "thorough": GoogleVertexLanguageModelConfig.Preset(thinking_token_budget=8192)
             },
             default_preset="fast"
         )
         ```
     """
-    model_name: GOOGLE_VERTEX_AVAILABLE_MODELS = Field(..., description="The name of the Google Vertex model to use")
+    model_name: GoogleVertexLanguageModelName
+    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_VERTEX)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
-    presets: Optional[dict[str, GoogleModelPreset]] = Field(default=None, description=presets_desc)
+    presets: Optional[dict[str, Preset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
 
+    class Preset(BaseModel):
+        """Preset configurations for Google Vertex models.
 
-class OpenAIModelPreset(BaseModel):
-    """Configuration for a preset reasoning effort.
+        This class defines preset configurations for Google Gemini models, allowing
+        different thinking/reasoning settings to be applied to the same underlying model.
 
-    This class defines preset configurations for OpenAI models, allowing
-    different reasoning effort settings to be applied to the same model.
+        Attributes:
+            thinking_token_budget: If configuring a reasoning model, provide a thinking budget in tokens.
+                If not provided, or if set to 0, thinking will be disabled for the preset (not supported on gemini-2.5-pro).
+                To have the model automatically determine a thinking budget based on the complexity of
+                the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
+                It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
+                model to generate reasoning tokens even if thinking is disabled.
 
-    Attributes:
-        reasoning_effort: If configuring a reasoning model, provide a reasoning effort. OpenAI has separate o-series reasoning models,
-            for which thinking cannot be disabled. If an o-series model is specified, but no `reasoning_effort` is provided,
-            the `reasoning_effort` will be set to `low`.
+        Example:
+            Configuring a preset with a fixed thinking budget:
 
-    Note:
-        When using an o-series reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+            ```python
+            preset = GoogleVertexLanguageModelConfig.Preset(thinking_token_budget=4096)
+            ```
 
-    Example:
-        Configuring a preset with medium reasoning effort:
+            Configuring a preset with automatic thinking budget:
 
-        ```python
-        preset = OpenAIModelPreset(reasoning_effort = "medium")
-        ```
-    """
-    reasoning_effort: Optional[ReasoningEffort] = Field(
-        default=None,
-        description="The reasoning effort level for the preset")
+            ```python
+            preset = GoogleVertexLanguageModelConfig.Preset(thinking_token_budget=-1)
+            ```
 
+            Configuring a preset with thinking disabled:
 
-class OpenAIModelConfig(BaseModel):
-    """Configuration for OpenAI models.
+            ```python
+            preset = GoogleVertexLanguageModelConfig.Preset(thinking_token_budget=0)
+            ```
+        """
 
-    This class defines the configuration settings for OpenAI language and embedding models,
+        thinking_token_budget: Optional[int] = Field(
+            default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
+        )
+
+class OpenAILanguageModelConfig(ModelConfig):
+    """Configuration for OpenAI language models.
+
+    This class defines the configuration settings for OpenAI language models,
     including model selection and rate limiting parameters.
 
     Attributes:
@@ -218,77 +239,123 @@ class OpenAIModelConfig(BaseModel):
         default_preset: The name of the default preset to use if presets are configured.
 
     Example:
-        Configuring an OpenAI Language model with rate limits:
+        Configuring an OpenAI language model with rate limits:
 
         ```python
-        config = OpenAIModelConfig(model_name="gpt-4.1-nano", rpm=100, tpm=100)
-        ```
-
-        Configuring an OpenAI Embedding model with rate limits:
-
-        ```python
-        config = OpenAIModelConfig(model_name="text-embedding-3-small", rpm=100, tpm=100)
+        config = OpenAILanguageModelConfig(
+            model_name="gpt-4.1-nano",
+            rpm=100,
+            tpm=100
+        )
         ```
 
         Configuring an OpenAI model with presets:
 
         ```python
-        config = OpenAIModelConfig(
-            model_name="gpt-4o-mini",
+        config = OpenAILanguageModelConfig(
+            model_name="o4-mini",
             rpm=100,
             tpm=100,
             presets={
-                "fast": OpenAIModelPreset(reasoning_effort="low"),
-                "thorough": OpenAIModelPreset(reasoning_effort="high")
+                "fast": OpenAILanguageModelConfig.Preset(reasoning_effort="low"),
+                "thorough": OpenAILanguageModelConfig.Preset(reasoning_effort="high")
             },
             default_preset="fast"
         )
         ```
+
+        Using a preset in a semantic operation:
+
+        ```python
+        config = SemanticConfig(
+            language_models={
+                "o4": OpenAILanguageModelConfig(
+                    model_name="o4-mini",
+                    rpm=1_000,
+                    tpm=1_000_000,
+                    presets={
+                        "fast": OpenAILanguageModelConfig.Preset(reasoning_effort="low"),
+                        "thorough": OpenAILanguageModelConfig.Preset(reasoning_effort="high")
+                    },
+                    default_preset="fast"
+                )
+            },
+            default_language_model="o4"
+        )
+
+        # Will use the default "fast" preset for the "o4" model
+        semantic.map(instruction="Construct a formal proof of the {hypothesis}.", model_alias="o4")
+
+        # Will use the "thorough" preset for the "o4" model
+        semantic.map(instruction="Construct a formal proof of the {hypothesis}.", model_alias=ModelAlias(name="o4", preset="thorough"))
+        ```
     """
-    model_name: Union[
-        OPENAI_AVAILABLE_LANGUAGE_MODELS,
-        OPENAI_AVAILABLE_EMBEDDING_MODELS
-    ] = Field(..., description="The name of the OpenAI model to use")
+    model_name: OpenAILanguageModelName = Field(..., description="The name of the OpenAI model to use")
+    model_provider: ModelProvider = Field(default=ModelProvider.OPENAI)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
-    presets: Optional[dict[str, OpenAIModelPreset]] = Field(default=None, description=presets_desc)
+    presets: Optional[dict[str, Preset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
 
+    class Preset(BaseModel):
+        """OpenAI-specific preset configurations.
 
-class AnthropicModelPreset(BaseModel):
-    """Configuration for a preset reasoning effort.
+        This class defines preset configurations for OpenAI models, allowing a user to reference
+        the same underlying model in semantic operations with different settings. For now, only
+        the reasoning effort can be customized.
 
-    This class defines preset configurations for Anthropic models, allowing
-    different thinking token budget settings to be applied to the same model.
+        Attributes:
+            reasoning_effort: If configuring a reasoning model, provide a reasoning effort. OpenAI has separate o-series reasoning models,
+                for which thinking cannot be disabled. If an o-series model is specified, but no `reasoning_effort` is provided,
+                the `reasoning_effort` will be set to `low`.
+
+        Note:
+            When using an o-series reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+
+        Example:
+            Configuring a preset with medium reasoning effort:
+
+            ```python
+            preset = OpenAILanguageModelConfig.Preset(reasoning_effort="medium")
+            ```
+        """
+
+        reasoning_effort: Optional[ReasoningEffort] = Field(
+            default=None, description="The reasoning effort level for the preset"
+        )
+
+class OpenAIEmbeddingModelConfig(ModelConfig):
+    """Configuration for OpenAI embedding models.
+
+    This class defines the configuration settings for OpenAI embedding models,
+    including model selection and rate limiting parameters.
 
     Attributes:
-        thinking_token_budget: If configuring a model that supports reasoning, provide a default thinking budget in tokens. If not provided,
-            thinking will be disabled for the preset. The minimum token budget supported by Anthropic is 1024 tokens.
-
-    Note:
-        If `thinking_token_budget` is set, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+        model_name: The name of the OpenAI embedding model to use.
+        rpm: Requests per minute limit; must be greater than 0.
+        tpm: Tokens per minute limit; must be greater than 0.
 
     Example:
-        Configuring a preset with a thinking budget:
+        Configuring an OpenAI embedding model with rate limits:
 
         ```python
-        preset = AnthropicModelPreset(thinking_token_budget=2048)
-        ```
-
-        Configuring a preset with a large thinking budget:
-
-        ```python
-        preset = AnthropicModelPreset(thinking_token_budget=8192)
+        config = OpenAIEmbeddingModelConfig(
+            model_name="text-embedding-3-small",
+            rpm=100,
+            tpm=100
+        )
         ```
     """
-    thinking_token_budget: Optional[int] = Field(
-        default=None,
-        description="The thinking budget in tokens for the preset",
-        ge=1024)
+    model_name: OpenAIEmbeddingModelName = Field(..., description="The name of the OpenAI embedding model to use")
+    model_provider: ModelProvider = ModelProvider.OPENAI
+    rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
+    tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
 
 
-class AnthropicModelConfig(BaseModel):
-    """Configuration for Anthropic models.
+
+
+class AnthropicLanguageModelConfig(ModelConfig):
+    """Configuration for Anthropic language models.
 
     This class defines the configuration settings for Anthropic language models,
     including model selection and separate rate limiting parameters for input and output tokens.
@@ -305,7 +372,7 @@ class AnthropicModelConfig(BaseModel):
         Configuring an Anthropic model with separate input/output rate limits:
 
         ```python
-        config = AnthropicModelConfig(
+        config = AnthropicLanguageModelConfig(
             model_name="claude-3-5-haiku-latest",
             rpm=100,
             input_tpm=100,
@@ -316,30 +383,75 @@ class AnthropicModelConfig(BaseModel):
         Configuring an Anthropic model with presets:
 
         ```python
-        config = AnthropicModelConfig(
-            model_name="claude-3-5-haiku-latest",
-            rpm=100,
-            input_tpm=100,
-            output_tpm=100,
-            presets={
-                "thinking_disabled": AnthropicModelPreset(),
-                "fast": AnthropicModelPreset(thinking_token_budget=1024),
-                "thorough": AnthropicModelPreset(thinking_token_budget=4096)
-            },
-            default_preset="fast"
+        config = SessionConfig(
+            semantic=SemanticConfig(
+                language_models={
+                    "claude": AnthropicLanguageModelConfig(
+                        model_name="claude-opus-4-0",
+                        rpm=100,
+                        input_tpm=100,
+                        output_tpm=100,
+                        presets={
+                            "thinking_disabled": AnthropicLanguageModelConfig.Preset(),
+                            "fast": AnthropicLanguageModelConfig.Preset(thinking_token_budget=1024),
+                            "thorough": AnthropicLanguageModelConfig.Preset(thinking_token_budget=4096)
+                        },
+                        default_preset="fast"
+                    )
+                },
+                default_language_model="claude"
         )
+
+        # Using the default "fast" preset for the "claude" model
+        semantic.map(instruction="Construct a formal proof of the {hypothesis}.", model_alias="claude")
+
+        # Using the "thorough" preset for the "claude" model
+        semantic.map(instruction="Construct a formal proof of the {hypothesis}.", model_alias=ModelAlias(name="claude", preset="thorough"))
         ```
     """
-    model_name: ANTHROPIC_AVAILABLE_LANGUAGE_MODELS = Field(..., description="The name of the Anthropic model to use")
+    model_name: AnthropicLanguageModelName = Field(..., description="The name of the Anthropic model to use")
+    model_provider: ModelProvider = ModelProvider.ANTHROPIC
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     input_tpm: int = Field(..., gt=0, description="Input tokens per minute; must be > 0")
     output_tpm: int = Field(..., gt=0, description="Output tokens per minute; must be > 0")
-    presets: Optional[dict[str, AnthropicModelPreset]] = Field(default=None, description=presets_desc)
+    presets: Optional[dict[str, Preset]] = Field(default=None, description=presets_desc)
     default_preset: Optional[str] = Field(default=None, description=default_preset_desc)
 
+    class Preset(BaseModel):
+        """Anthropic-specific preset configurations.
 
-ModelConfig = Union[OpenAIModelConfig, AnthropicModelConfig, GoogleGLAModelConfig, GoogleVertexModelConfig]
+        This class defines preset configurations for Anthropic models, allowing
+        different thinking token budget settings to be applied to the same model.
 
+        Attributes:
+            thinking_token_budget: If configuring a model that supports reasoning, provide a default thinking budget in tokens. If not provided,
+                thinking will be disabled for the preset. The minimum token budget supported by Anthropic is 1024 tokens.
+
+        Note:
+            If `thinking_token_budget` is set, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+
+        Example:
+            Configuring a preset with a thinking budget:
+
+            ```python
+            preset = AnthropicLanguageModelConfig.Preset(thinking_token_budget=2048)
+            ```
+
+            Configuring a preset with a large thinking budget:
+
+            ```python
+            preset = AnthropicLanguageModelConfig.Preset(thinking_token_budget=8192)
+            ```
+        """
+
+        thinking_token_budget: Optional[int] = Field(
+            default=None,
+            description="The thinking budget in tokens for the preset",
+            ge=1024,
+        )
+
+EmbeddingModelConfig = Union[OpenAIEmbeddingModelConfig]
+LanguageModelConfig = Union[OpenAILanguageModelConfig, AnthropicLanguageModelConfig, GoogleGLALanguageModelConfig, GoogleVertexLanguageModelConfig]
 
 class SemanticConfig(BaseModel):
     """Configuration for semantic language and embedding models.
@@ -365,7 +477,7 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAIModelConfig(
+                "gpt4": OpenAILanguageModelConfig(
                     model_name="gpt-4.1-nano",
                     rpm=100,
                     tpm=100
@@ -379,21 +491,26 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAIModelConfig(
+                "gpt4": OpenAILanguageModelConfig(
                     model_name="gpt-4.1-nano",
                     rpm=100,
                     tpm=100
                 ),
-                "claude": AnthropicModelConfig(
+                "claude": AnthropicLanguageModelConfig(
                     model_name="claude-3-5-haiku-latest",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100
+                ),
+                "gemini": GoogleGLALanguageModelConfig(
+                    model_name="gemini-2.0-flash",
+                    rpm=100,
+                    tpm=1000
                 )
             },
             default_language_model="gpt4",
             embedding_models={
-                "openai_embeddings": OpenAIModelConfig(
+                "openai_embeddings": OpenAIEmbeddingModelConfig(
                     model_name="text-embedding-3-small",
                     rpm=100,
                     tpm=100
@@ -402,10 +519,41 @@ class SemanticConfig(BaseModel):
             default_embedding_model="openai_embeddings"
         )
         ```
+
+        Configuring models with presets:
+
+        ```python
+        config = SemanticConfig(
+            language_models={
+                "gpt4": OpenAILanguageModelConfig(
+                    model_name="gpt-4o-mini",
+                    rpm=100,
+                    tpm=100,
+                    presets={
+                        "fast": OpenAILanguageModelConfig.Preset(reasoning_effort="low"),
+                        "thorough": OpenAILanguageModelConfig.Preset(reasoning_effort="high")
+                    },
+                    default_preset="fast"
+                ),
+                "claude": AnthropicLanguageModelConfig(
+                    model_name="claude-3-5-haiku-latest",
+                    rpm=100,
+                    input_tpm=100,
+                    output_tpm=100,
+                    presets={
+                        "fast": AnthropicLanguageModelConfig.Preset(thinking_token_budget=1024),
+                        "thorough": AnthropicLanguageModelConfig.Preset(thinking_token_budget=4096)
+                    },
+                    default_preset="fast"
+                )
+            },
+            default_language_model="gpt4"
+        )
+        ```
     """
-    language_models: Optional[dict[str, ModelConfig]] = None
+    language_models: Optional[dict[str, LanguageModelConfig]] = None
     default_language_model: Optional[str] = None
-    embedding_models: Optional[dict[str, ModelConfig]] = None
+    embedding_models: Optional[dict[str, EmbeddingModelConfig]] = None
     default_embedding_model: Optional[str] = None
 
     def model_post_init(self, __context) -> None:
@@ -461,23 +609,10 @@ class SemanticConfig(BaseModel):
                     f"default_language_model {self.default_language_model} is not in configured map of language models. Available models: {available_language_model_aliases} .")
 
             for model_alias, language_model in self.language_models.items():
-                if isinstance(language_model, OpenAIModelConfig):
-                    language_model_provider = ModelProvider.OPENAI
-                    language_model_name = language_model.model_name
-                elif isinstance(language_model, AnthropicModelConfig):
-                    language_model_provider = ModelProvider.ANTHROPIC
-                    language_model_name = language_model.model_name
-                elif isinstance(language_model, GoogleGLAModelConfig):
-                    language_model_provider = ModelProvider.GOOGLE_GLA
-                    language_model_name = language_model.model_name
-                elif isinstance(language_model, GoogleVertexModelConfig):
-                    language_model_provider = ModelProvider.GOOGLE_VERTEX
-                    language_model_name = language_model.model_name
-                else:
-                    raise ConfigurationError(
-                        f"Invalid language model: {model_alias}: {language_model} unsupported model type.")
+                language_model_provider = language_model.model_provider
+                language_model_name = language_model.model_name
 
-                if language_model.presets is not None:
+                if hasattr(language_model, "presets") and language_model.presets is not None:
                     preset_names = list(language_model.presets.keys())
                     if language_model.default_preset is None and len(preset_names) > 0:
                         raise ConfigurationError(
@@ -499,18 +634,14 @@ class SemanticConfig(BaseModel):
             available_embedding_model_aliases = list(self.embedding_models.keys())
             if self.default_embedding_model is None and len(self.embedding_models) > 1:
                 raise ConfigurationError(
-                    "default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: {available_embedding_model_aliases} as a default_embedding_model.")
+                    f"default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: {available_embedding_model_aliases} as a default_embedding_model.")
 
             if self.default_embedding_model is not None and self.default_embedding_model not in self.embedding_models:
                 raise ConfigurationError(
                     f"default_embedding_model {self.default_embedding_model} is not in configured map of embedding models. Available models: {available_embedding_model_aliases} .")
-            for model_alias, embedding_model in self.embedding_models.items():
-                if isinstance(embedding_model, OpenAIModelConfig):
-                    embedding_model_provider = ModelProvider.OPENAI
-                    embedding_model_name = embedding_model.model_name
-                else:
-                    raise ConfigurationError(
-                        f"Invalid embedding model: {model_alias}: {embedding_model} unsupported model type")
+            for _model_alias, embedding_model in self.embedding_models.items():
+                embedding_model_provider = embedding_model.model_provider
+                embedding_model_name = embedding_model.model_name
                 embedding_model_parameters = model_catalog.get_embedding_model_parameters(embedding_model_provider,
                                                                                           embedding_model_name)
                 if embedding_model_parameters is None:
@@ -592,7 +723,7 @@ class SessionConfig(BaseModel):
             app_name="my_app",
             semantic=SemanticConfig(
                 language_models={
-                    "gpt4": OpenAIModelConfig(
+                    "gpt4": OpenAILanguageModelConfig(
                         model_name="gpt-4.1-nano",
                         rpm=100,
                         tpm=100
@@ -610,12 +741,12 @@ class SessionConfig(BaseModel):
             db_path=Path("/path/to/database.db"),
             semantic=SemanticConfig(
                 language_models={
-                    "gpt4": OpenAIModelConfig(
+                    "gpt4": OpenAILanguageModelConfig(
                         model_name="gpt-4.1-nano",
                         rpm=100,
                         tpm=100
                     ),
-                    "claude": AnthropicModelConfig(
+                    "claude": AnthropicLanguageModelConfig(
                         model_name="claude-3-5-haiku-latest",
                         rpm=100,
                         input_tpm=100,
@@ -624,7 +755,7 @@ class SessionConfig(BaseModel):
                 },
                 default_language_model="gpt4",
                 embedding_models={
-                    "openai_embeddings": OpenAIModelConfig(
+                    "openai_embeddings": OpenAIEmbeddingModelConfig(
                         model_name="text-embedding-3-small",
                         rpm=100,
                         tpm=100
@@ -643,11 +774,17 @@ class SessionConfig(BaseModel):
 
     def _to_resolved_config(self) -> ResolvedSessionConfig:
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
-            if isinstance(model, OpenAIModelConfig):
+            if isinstance(model, OpenAIEmbeddingModelConfig):
+                return ResolvedOpenAIModelConfig(
+                    model_name=model.model_name,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                )
+            elif isinstance(model, OpenAILanguageModelConfig):
                 presets = {
                     preset: ResolvedOpenAIModelPreset(reasoning_effort=preset_config.reasoning_effort) for
                     preset, preset_config in model.presets.items()
-                } if model.presets else None
+                } if hasattr(model, "presets") and model.presets else None
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
                     rpm=model.rpm,
@@ -655,33 +792,20 @@ class SessionConfig(BaseModel):
                     presets=presets,
                     default_preset=model.default_preset
                 )
-            elif isinstance(model, GoogleGLAModelConfig):
+            elif isinstance(model, (GoogleGLALanguageModelConfig, GoogleVertexLanguageModelConfig)):
                 presets = {
                     preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
                     preset, preset_config in model.presets.items()
                 } if model.presets else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
-                    model_provider=ModelProvider.GOOGLE_GLA,
+                    model_provider=model.model_provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     presets=presets,
                     default_preset=model.default_preset,
                 )
-            elif isinstance(model, GoogleVertexModelConfig):
-                presets = {
-                    preset: ResolvedGoogleModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
-                    preset, preset_config in model.presets.items()
-                } if model.presets else None
-                return ResolvedGoogleModelConfig(
-                    model_name=model.model_name,
-                    model_provider=ModelProvider.GOOGLE_VERTEX,
-                    rpm=model.rpm,
-                    tpm=model.tpm,
-                    presets=presets,
-                    default_preset=model.default_preset,
-                )
-            else:
+            elif isinstance(model, AnthropicLanguageModelConfig):
                 presets = {
                     preset: ResolvedAnthropicModelPreset(thinking_token_budget=preset_config.thinking_token_budget) for
                     preset, preset_config in model.presets.items()
@@ -694,6 +818,8 @@ class SessionConfig(BaseModel):
                     presets=presets,
                     default_preset=model.default_preset
                 )
+            else:
+                raise InternalError(f"Unknown model type: {type(model)}")
 
         language_models = (
             ResolvedLanguageModelConfig(

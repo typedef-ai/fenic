@@ -37,7 +37,7 @@ def map(
     instruction: str,
     examples: Optional[MapExampleCollection] = None,
     schema: Optional[type[BaseModel]] = None,
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
 ) -> Column:
@@ -89,6 +89,8 @@ def map(
         except OutputFormatValidationError as e:
             raise ValidationError("Invalid response schema") from e
 
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
@@ -107,7 +109,7 @@ def extract(
     schema: type[BaseModel],
     max_output_tokens: int = 1024,
     temperature: float = 0,
-    model_alias: Optional[ModelAlias] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
 ) -> Column:
     """Extracts structured information from unstructured text using a provided Pydantic model schema.
 
@@ -170,7 +172,7 @@ def extract(
 def predicate(
     instruction: str,
     examples: Optional[PredicateExampleCollection] = None,
-    model_alias: Optional[ModelAlias] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
 ) -> Column:
     """Applies a natural language predicate to one or more string columns, returning a boolean result.
@@ -217,6 +219,8 @@ def predicate(
         semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
         ```
     """
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         SemanticPredExpr(
             instruction,
@@ -230,7 +234,7 @@ def predicate(
 @validate_call(config=ConfigDict(strict=True))
 def reduce(
     instruction: str,
-    model_alias: Optional[ModelAlias] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
 ) -> Column:
@@ -257,6 +261,8 @@ def reduce(
         semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
         ```
     """
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
             instruction,
@@ -272,7 +278,7 @@ def classify(
     column: ColumnOrName,
     classes: Union[List[str], List[ClassDefinition]],
     examples: Optional[ClassifyExampleCollection] = None,
-    model_alias: Optional[ModelAlias] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
 ) -> Column:
     """Classifies a string column into one of the provided classes.
@@ -347,6 +353,8 @@ def classify(
             f"Class labels must be unique. The following duplicate label(s) were found: {sorted(duplicates)}"
         )
 
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         SemanticClassifyExpr(
             Column._from_col_or_name(column)._logical_expr,
@@ -361,7 +369,7 @@ def classify(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def analyze_sentiment(
     column: ColumnOrName,
-    model_alias: Optional[ModelAlias] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
 ) -> Column:
     """Analyzes the sentiment of a string column. Returns one of 'positive', 'negative', or 'neutral'.
@@ -382,6 +390,8 @@ def analyze_sentiment(
         semantic.analyze_sentiment(col('user_comment'))
         ```
     """
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         AnalyzeSentimentExpr(
             Column._from_col_or_name(column)._logical_expr,
@@ -394,7 +404,7 @@ def analyze_sentiment(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def embed(
     column: ColumnOrName,
-    model_alias: Optional[str] = None,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
 ) -> Column:
     """Generate embeddings for the specified string column.
 
@@ -415,6 +425,8 @@ def embed(
         df.select(semantic.embed(col("text_column")).alias("text_embeddings"))
         ```
     """
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         EmbeddingsExpr(Column._from_col_or_name(column)._logical_expr, model_alias=model_alias)
     )
@@ -425,7 +437,7 @@ def summarize(
     column: ColumnOrName,
     format: Union[KeyPoints, Paragraph, None] = None,
     temperature: float = 0,
-    model_alias: Optional[ModelAlias] = None
+    model_alias: Optional[Union[str, ModelAlias]] = None
 ) -> Column:
     """Summarizes strings from a column.
 
@@ -445,6 +457,8 @@ def summarize(
     """
     if format is None:
         format = Paragraph()
+    if isinstance(model_alias, str):
+        model_alias = ModelAlias.from_str(model_alias)
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature,
                               model_alias=model_alias)

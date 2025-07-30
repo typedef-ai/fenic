@@ -33,7 +33,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="news_analysis",
         semantic=fc.SemanticConfig(
             language_models={
-                "openai": fc.OpenAIModelConfig(
+                "openai": fc.OpenAILanguageModelConfig(
                     model_name="gpt-4o-mini",
                     rpm=500,
                     tpm=200_000

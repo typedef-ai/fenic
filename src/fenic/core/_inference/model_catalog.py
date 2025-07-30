@@ -73,7 +73,7 @@ class EmbeddingModelParameters:
 
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
-OPENAI_AVAILABLE_LANGUAGE_MODELS = Literal[
+OpenAILanguageModelName = Literal[
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -98,12 +98,12 @@ OPENAI_AVAILABLE_LANGUAGE_MODELS = Literal[
     "o4-mini"
 ]
 
-OPENAI_AVAILABLE_EMBEDDING_MODELS = Literal[
+OpenAIEmbeddingModelName = Literal[
     "text-embedding-3-small",
     "text-embedding-3-large"
 ]
 
-ANTHROPIC_AVAILABLE_LANGUAGE_MODELS = Literal[
+AnthropicLanguageModelName = Literal[
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
     "claude-3-5-haiku-latest",
@@ -122,11 +122,10 @@ ANTHROPIC_AVAILABLE_LANGUAGE_MODELS = Literal[
     "claude-3-haiku-20240307",
 ]
 
-GOOGLE_GLA_AVAILABLE_MODELS = Literal[
+GoogleGLALanguageModelName = Literal[
     "gemini-2.5-pro",
-    "gemini-2.5-pro-preview-06-05",
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite-preview-06-17",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash-lite",
     "gemini-2.0-flash-lite-001",
     "gemini-2.0-flash",
@@ -135,10 +134,10 @@ GOOGLE_GLA_AVAILABLE_MODELS = Literal[
 ]
 
 
-GOOGLE_VERTEX_AVAILABLE_MODELS = Union[GOOGLE_GLA_AVAILABLE_MODELS]
+GoogleVertexLanguageModelName = GoogleGLALanguageModelName
 
-AVAILABLE_LANGUAGE_MODELS = Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, ANTHROPIC_AVAILABLE_LANGUAGE_MODELS, GOOGLE_GLA_AVAILABLE_MODELS]
-AVAILABLE_EMBEDDING_MODELS = Union[OPENAI_AVAILABLE_EMBEDDING_MODELS]
+AVAILABLE_LANGUAGE_MODELS = Union[OpenAILanguageModelName, AnthropicLanguageModelName, GoogleGLALanguageModelName]
+AVAILABLE_EMBEDDING_MODELS = Union[OpenAIEmbeddingModelName]
 
 class ModelCatalog:
     """Catalog of supported models and their parameters for different providers.
@@ -351,7 +350,7 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.5-flash-lite-preview-06-17": CompletionModelParameters(
+            "gemini-2.5-flash-lite": CompletionModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.075 per 1M tokens
                 output_token_cost=0.40 / 1_000_000,  # $0.30 per 1M tokens
                 context_window_length=1_000_000,
@@ -402,8 +401,8 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
-            "gemini-2.5-flash-lite-preview-06-17" : CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000, # $0.075 per 1M tokens
+            "gemini-2.5-flash-lite" : CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000, # $0.10 per 1M tokens
                 output_token_cost=0.40 / 1_000_000, # $0.30 per 1M tokens
                 context_window_length=1_000_000,
                 max_output_tokens=64_000,

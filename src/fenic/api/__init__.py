@@ -38,14 +38,12 @@ from fenic.api.functions import (
 from fenic.api.io import DataFrameReader, DataFrameWriter
 from fenic.api.lineage import Lineage
 from fenic.api.session import (
-    AnthropicModelConfig,
-    AnthropicModelPreset,
+    AnthropicLanguageModelConfig,
     CloudConfig,
-    GoogleGLAModelConfig,
-    GoogleModelPreset,
-    GoogleVertexModelConfig,
-    OpenAIModelConfig,
-    OpenAIModelPreset,
+    GoogleGLALanguageModelConfig,
+    GoogleVertexLanguageModelConfig,
+    OpenAIEmbeddingModelConfig,
+    OpenAILanguageModelConfig,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -55,13 +53,11 @@ __all__ = [
     # Session
     "Session",
     "SessionConfig",
-    "OpenAIModelConfig",
-    "OpenAIModelPreset",
-    "AnthropicModelConfig",
-    "AnthropicModelPreset",
-    "GoogleGLAModelConfig",
-    "GoogleModelPreset",
-    "GoogleVertexModelConfig",
+    "OpenAILanguageModelConfig",
+    "OpenAIEmbeddingModelConfig",
+    "AnthropicLanguageModelConfig",
+    "GoogleGLALanguageModelConfig",
+    "GoogleVertexLanguageModelConfig",
     "SemanticConfig",
     "CloudConfig",
     # IO
