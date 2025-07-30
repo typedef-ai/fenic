@@ -422,6 +422,7 @@ class ExprConverter:
         def sem_map_fn(batch: pl.Series) -> pl.Series:
             return SemanticMap(
                 input=batch,
+                jinja_template=logical.template,
                 model=self.session_state.get_language_model(logical.model_alias),
                 examples=logical.examples,
                 max_tokens=logical.max_tokens,
@@ -531,6 +532,7 @@ class ExprConverter:
         def sem_pred_fn(batch: pl.Series) -> pl.Series:
             return SemanticPredicate(
                 input=batch,
+                jinja_template=logical.template,
                 model=self.session_state.get_language_model(logical.model_alias),
                 examples=logical.examples,
                 temperature=logical.temperature,

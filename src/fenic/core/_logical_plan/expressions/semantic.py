@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Union
-
 from pydantic import BaseModel
 
 from fenic.core._logical_plan.utils import validate_completion_parameters
@@ -56,6 +55,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
+        self.template = jinja_template
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.max_tokens = max_tokens
@@ -65,7 +65,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self.examples = None
         if examples:
             self._validate_example_response_format(examples)
-            examples._validate_with_template_names([expr.name for expr in self.exprs])
+            examples._validate_input_column_names([expr.name for expr in self.exprs])
             self.examples = examples
         self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
 
@@ -87,13 +87,20 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         )
 
     def _validate_example_response_format(self, example_collection: MapExampleCollection):
+        """Validate that all examples have outputs matching the expected response format."""
         for example in example_collection.examples:
-            if self.response_format is None and not isinstance(example.output, str):
-                raise InvalidExampleCollectionError("If a `schema` is not provided to `semantic.map`, "
-                                      "all examples are required to have outputs of type `str`.")
-            if self.response_format is not None and not isinstance(example.output, self.response_format):
-                raise InvalidExampleCollectionError("If a `schema` BaseModel is provided to `semantic.map`, "
-                                      "all examples are required to have outputs of the same BaseModel type.")
+            if self.response_format is None:
+                if not isinstance(example.output, str):
+                    raise InvalidExampleCollectionError(
+                        "When no schema is provided to `semantic.map`, "
+                        "all example outputs must be strings."
+                    )
+            else:
+                if not isinstance(example.output, self.response_format):
+                    raise InvalidExampleCollectionError(
+                        f"When a schema BaseModel is provided to `semantic.map`, "
+                        f"all example outputs must be instances of {self.response_format}."
+                )
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
@@ -176,11 +183,12 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         model_alias: Optional[str] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
+        self.template = jinja_template
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.examples = None
         if examples:
-            examples._validate_with_template_names([expr.name for expr in self.exprs])
+            examples._validate_input_column_names([expr.name for expr in self.exprs])
             self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias

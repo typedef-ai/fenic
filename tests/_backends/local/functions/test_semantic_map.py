@@ -146,7 +146,7 @@ def test_semantic_map_with_schema(local_session):
     result = source.select(
         semantic.map(
             "Given product name {name} and details {details}, create a product summary.",
-            schema=ProductSummary
+            response_format=ProductSummary
         ).alias("summary")
     )
 
@@ -178,7 +178,7 @@ def test_semantic_map_schema_validation_with_basemodel_examples(local_session):
         semantic.map(
             "Given product name {name} and details {details}, create a product summary.",
             examples=examples,
-            schema=ProductSummary
+            response_format=ProductSummary
         ).alias("summary")
     )
 
@@ -210,7 +210,7 @@ def test_semantic_map_schema_validation_mismatch_error(local_session):
             semantic.map(
                 "Given name {name} and details {details}, create a product summary.",
                 examples=examples,
-                schema=ProductSummary  # Different type than example
+                response_format=ProductSummary  # Different type than example
             ).alias("summary")
         )
 
@@ -234,7 +234,7 @@ def test_semantic_map_schema_validation_string_examples_with_schema(local_sessio
             semantic.map(
                 "Given name {name} and details {details}, create a product summary.",
                 examples=examples,
-                schema=ProductSummary  # BaseModel schema but string example
+                response_format=ProductSummary  # BaseModel schema but string example
             ).alias("summary")
         )
 

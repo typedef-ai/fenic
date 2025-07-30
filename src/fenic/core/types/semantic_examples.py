@@ -275,12 +275,9 @@ class MapExampleCollection(BaseExampleCollection[MapExample]):
 
         return rows
 
-    def _validate_with_template_names(self, expression_names: List[str]) -> None:
+    def _validate_input_column_names(self, map_col_names: List[str]) -> None:
         """Validate that the collection matches the expected input columns from the instruction."""
-        df = self.to_polars()
-        actual_cols = list(set(df.columns) - {EXAMPLE_OUTPUT_KEY})
-
-        _validate_with_template_names(actual_cols, expression_names)
+        _validate_example_inputs(self.to_polars().columns, map_col_names)
 
 
 class ClassifyExampleCollection(BaseExampleCollection[ClassifyExample]):
@@ -423,12 +420,9 @@ class PredicateExampleCollection(BaseExampleCollection[PredicateExample]):
 
         return rows
 
-    def _validate_with_template_names(self, expression_names: List[str]) -> None:
+    def _validate_input_column_names(self, expression_names: List[str]) -> None:
         """Validate that the collection matches the expected input columns from the instruction."""
-        df = self.to_polars()
-        actual_cols = list(set(df.columns) - {EXAMPLE_OUTPUT_KEY})
-
-        _validate_with_template_names(actual_cols, expression_names)
+        _validate_example_inputs(self.to_polars().columns, expression_names)
 
 
 class JoinExampleCollection(BaseExampleCollection[JoinExample]):
@@ -486,16 +480,18 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
 
         return rows
 
-def _validate_with_template_names(collection_column_names: List[str], expression_names: List[str]) -> None:
+def _validate_example_inputs(example_col_names: List[str], expression_names: List[str]) -> None:
     """Validate that the collection matches the expected input columns from the instruction."""
-    missing = set(expression_names) - set(collection_column_names)
-    extra = set(collection_column_names) - set(expression_names)
+    example_col_names = set(example_col_names) - {EXAMPLE_OUTPUT_KEY}
+    expression_names = set(expression_names)
+    missing = expression_names - example_col_names
+    extra = example_col_names - expression_names
 
     if missing:
         raise InvalidExampleCollectionError(
             f"The following columns are required by the instruction but missing from the collection: "
             f"{', '.join(sorted(missing))}.\nExpected columns: {', '.join(sorted(expression_names))}.\n"
-            f"Actual columns: {', '.join(sorted(collection_column_names))}."
+            f"Actual columns: {', '.join(sorted(example_col_names))}."
         )
 
     if extra:

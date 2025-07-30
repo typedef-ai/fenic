@@ -5,7 +5,7 @@ import polars as pl
 from pydantic import BaseModel
 
 from fenic._backends.local.semantic_operators.base import (
-    BaseSingleColumnInputOperator,
+    BaseMultiColumnInputOperator,
     CompletionOnlyRequestSender,
 )
 from fenic._backends.local.semantic_operators.utils import (
@@ -20,39 +20,32 @@ from fenic.core.types import (
 )
 
 
-class Map(BaseSingleColumnInputOperator[str, str]):
-    SYSTEM_PROMPT = (
-        "You are an AI assistant designed to follow instructions. "
-        "{% if is_structured_response %}"
-        "Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields. "
-        "{% else %}"
-        "Your task is to generate responses based on instructions that reference one or more context fields. "
-        "{% endif %}"
-        "Each input message will have two sections:\n"
-        "1. An instruction labeled with the prefix: ###Instruction\n"
-        "2. One or more context fields labeled with the prefix: ###Context\n"
-        "The instruction will reference the context fields using square brackets [LIKE_THIS]. "
-        "Each context field will be labeled with its name in square brackets, matching the references in the instruction. "
-        "Your response should fulfill the instruction by appropriately integrating each of the referenced context fields without using any external information. "
-        "Your response should not include unnecessary preamble or explanation.\n"
-        "{% if is_structured_response %}"
-        "Output Guidelines:\n"
-        "1. Generate output that matches the field descriptions exactly.\n"
-        "2. For list fields, include all relevant items that match the field description.\n"
-        "3. Ensure all field names in your structured output exactly match the field schema.\n"
-        "4. Use the field descriptions as guidance for what content to generate for each field.\n\n"
-        "{{ schema_explanation }}\n"
-        "Field Schema:\n"
-        "{{ schema_details }}"
-        "{% endif %}"
+class Map(BaseMultiColumnInputOperator[str, str]):
+    STRING_OUTPUT_SYSTEM_PROMPT = (
+        "Follow the user's instruction exactly and generate only the requested output.\n\n"
+        "Requirements:\n"
+        "1. Follow the instruction exactly as written\n"
+        "2. Output only what is requested - no explanations, no prefixes, no metadata\n"
+        "3. Be concise and direct\n"
+        "4. Do not add formatting or structure unless explicitly requested"
     )
 
-    # Pre-compiled template as class variable
-    _TEMPLATE = jinja2.Template(SYSTEM_PROMPT)
+    RESPONSE_FORMAT_SYSTEM_PROMPT = jinja2.Template(
+        "Follow the user's instruction exactly and generate a structured output according to the field schema.\n\n"
+        "Field Schema:\n"
+        "{{ schema_details }}\n\n"
+        "{{ schema_explanation }}\n\n"
+        "Requirements:\n"
+        "1. Follow the instruction exactly as written\n"
+        "2. Generate output that matches the provided schema exactly\n"
+        "3. Include all required fields - no extra fields, no missing fields\n"
+        "5. Each field's content must match its description precisely"
+    ),
 
     def __init__(
         self,
         input: pl.Series,
+        jinja_template: str,
         model: LanguageModel,
         max_tokens: int,
         temperature: float,
@@ -61,7 +54,7 @@ class Map(BaseSingleColumnInputOperator[str, str]):
     ):
         super().__init__(
             input,
-            CompletionOnlyRequestSender(
+            request_sender=CompletionOnlyRequestSender(
                 model=model,
                 operator_name="semantic.map",
                 inference_config=InferenceConfiguration(
@@ -70,21 +63,21 @@ class Map(BaseSingleColumnInputOperator[str, str]):
                     temperature=temperature,
                 ),
             ),
-            examples,
+            jinja_template=jinja2.Template(jinja_template),
+            examples=examples,
         )
         self.response_format = response_format
 
     def build_system_message(self) -> str:
         is_structured_response = self.response_format is not None
-        schema_details = convert_pydantic_model_to_key_descriptions(self.response_format) if is_structured_response else None
-        return self._TEMPLATE.render(
-            is_structured_response=is_structured_response,
-            schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-            schema_details=schema_details
-        )
-
-    def postprocess(self, responses: List[Optional[str]]) -> List[Optional[str]]:
-        return responses
+        if is_structured_response:
+            schema_details = convert_pydantic_model_to_key_descriptions(self.response_format)
+            return self.RESPONSE_FORMAT_SYSTEM_PROMPT.render(
+                schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+                schema_details=schema_details
+            )
+        else:
+            return self.STRING_OUTPUT_SYSTEM_PROMPT
 
     def postprocess(
         self, responses: List[Optional[str]]

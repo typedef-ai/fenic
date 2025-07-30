@@ -205,7 +205,7 @@ class TestMapExampleCollection:
         )
 
         # Valid instruction
-        collection._validate_with_template_names(
+        collection._validate_input_column_names(
             "Transform the {text} in {lang} to English"
         )
 
@@ -213,13 +213,13 @@ class TestMapExampleCollection:
         with pytest.raises(
             InvalidExampleCollectionError, match="collection contains columns not used"
         ):
-            collection._validate_with_template_names("Transform the {text} to English")
+            collection._validate_input_column_names("Transform the {text} to English")
 
         # Missing column in collection
         with pytest.raises(
             InvalidExampleCollectionError, match="missing from the collection"
         ):
-            collection._validate_with_template_names(
+            collection._validate_input_column_names(
                 "Transform the {text} in {lang} with {tone} to English"
             )
 
@@ -240,7 +240,7 @@ class TestMapExampleCollection:
             InvalidExampleCollectionError,
             match="following columns contain null values in one or more examples: lang.",
         ):
-            collection_with_nulls._validate_with_template_names(
+            collection_with_nulls._validate_input_column_names(
                 "Transform the {text} in {lang} to English"
             )
 
@@ -289,7 +289,7 @@ class TestMapExampleCollection:
             input={"name": "SmartLamp", "details": "WiFi-enabled lamp with app control"},
             output=product
         )
-        
+
         with pytest.raises(InvalidExampleCollectionError, match="All examples in Example Collection must have consistent output types"):
             collection.create_example(basemodel_example)
 
@@ -351,7 +351,7 @@ class TestMapExampleCollection:
             input={"name": "John", "details": "A person"},
             output=person
         )
-        
+
         with pytest.raises(InvalidExampleCollectionError, match="All BaseModel examples must be of the same type"):
             collection.create_example(person_example)
 
@@ -403,7 +403,7 @@ class TestMapExampleCollection:
 
         # Add second BaseModel output
         product2 = ProductSummary(
-            name="DeskLamp", 
+            name="DeskLamp",
             description="Adjustable desk lamp for work",
             category="office"
         )
@@ -422,7 +422,7 @@ class TestMapExampleCollection:
         assert isinstance(output_values[0], str)
         assert '"name":"SmartLamp"' in output_values[0]
         assert '"category":"smart_home"' in output_values[0]
-        
+
         assert isinstance(output_values[1], str)
         assert '"name":"DeskLamp"' in output_values[1]
         assert '"category":"office"' in output_values[1]
@@ -950,7 +950,7 @@ class TestEdgeCases:
 
         # This should fail validation with either instruction
         with pytest.raises(InvalidExampleCollectionError):
-            collection._validate_with_template_names("Get the person named {name}")
+            collection._validate_input_column_names("Get the person named {name}")
 
         with pytest.raises(InvalidExampleCollectionError):
-            collection._validate_with_template_names("Get the person with {full_name}")
+            collection._validate_input_column_names("Get the person with {full_name}")

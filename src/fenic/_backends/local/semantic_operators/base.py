@@ -6,6 +6,7 @@ import polars as pl
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import FewShotExample, LMRequestMessages
 from fenic.core.types.semantic_examples import BaseExampleCollection
+from jinja2 import Template
 
 # Type variable for raw model output (e.g., completion text, completion text with log probabilities, explanations, etc.)
 ModelResponseType = TypeVar("ModelResponseType")
@@ -88,7 +89,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
 
     request_sender: RequestSender[ModelResponseType]
 
-    def __init__(self, request_sender: RequestSender[ModelResponseType]):
+    def __init__(self, input: pl.Series, request_sender: RequestSender[ModelResponseType], examples: Optional[BaseExampleCollection]):
         """Initializes the component with a request sender.
 
         Args:
@@ -96,6 +97,8 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 Component responsible for sending requests and retrieving model responses.
         """
         self.request_sender = request_sender
+        self.input = input
+        self.examples = examples
 
     def execute(self) -> pl.Series:
         """Run the full request building -> model -> postprocess pipeline.
@@ -107,12 +110,60 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         responses = self.request_sender.send_requests(prompts)
         return pl.Series(self.postprocess(responses))
 
-    @abstractmethod
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
-        """Construct the LLM prompts from the operator's input.
+        messages_batch = []
+        for document in self.input:
+            if not document:
+                messages_batch.append(None)
+            else:
+                messages_batch.append(
+                    self.build_request_messages(document)
+                )
+        return messages_batch
+
+    def build_request_messages(self, input: str) -> LMRequestMessages:
+        """Construct a prompt from a single input and optional in-context examples."""
+        return LMRequestMessages(
+            system=self.build_system_message(),
+            user=self.build_user_message(input),
+            examples=self.build_examples() if self.examples else [],
+        )
+
+    def build_examples(self) -> List[FewShotExample]:
+        """Convert the stored example collection into prompt message pairs.
 
         Returns:
-            A list of Prompts or None entries, one per row.
+            List of (UserMessage, AssistantMessage) tuples.
+        """
+        formatted_examples: List[FewShotExample] = []
+
+        for example in self.examples.examples:
+            formatted_examples.append(
+                self.build_example(example)
+            )
+
+        return formatted_examples
+
+    @abstractmethod
+    def build_system_message(self) -> str:
+        """Construct the system message for the prompt.
+        This typically includes task instructions or context.
+        """
+        pass
+
+    @abstractmethod
+    def build_user_message(self, input: str) -> str:
+        """Construct the user message for the prompt.
+        This typically includes the input text or a rendered version of the input.
+        """
+        pass
+
+    @abstractmethod
+    def build_example(self, example) -> FewShotExample:
+        """Convert the stored example collection into prompt message pairs.
+
+        Returns:
+            FewShotExample.
         """
         pass
 
@@ -152,50 +203,19 @@ class BaseSingleColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include in the prompt for few-shot learning.
         """
-        super().__init__(request_sender)
-        self.input = input
+        super().__init__(input, request_sender)
         self.examples = examples
 
-    def build_request_messages_batch(self) -> List[LMRequestMessages | None]:
-        messages_batch = []
-        for document in self.input:
-            if not document:
-                messages_batch.append(None)
-            else:
-                messages_batch.append(
-                    self.build_request_messages(
-                        document, self.build_examples() if self.examples else []
-                    )
-                )
-        return messages_batch
-
-    def build_request_messages(
-        self, input: str, examples: List[FewShotExample]
-    ) -> LMRequestMessages:
-        """Construct a prompt from a single input and optional in-context examples."""
-        return LMRequestMessages(
-            system=self.build_system_message(),
-            user=self.build_user_message(input),
-            examples=examples,
-        )
-
-    def build_examples(self) -> List[FewShotExample]:
+    def build_example(self, example) -> FewShotExample:
         """Convert the stored example collection into prompt message pairs.
 
         Returns:
             List of (UserMessage, AssistantMessage) tuples.
         """
-        formatted_examples: List[FewShotExample] = []
-
-        for example in self.examples.examples:
-            formatted_examples.append(
-                FewShotExample(
-                    user=self.build_user_message(example.input),
-                    assistant=self.convert_example_to_assistant_message(example),
-                )
-            )
-
-        return formatted_examples
+        return FewShotExample(
+            user=self.build_user_message(example.input),
+            assistant=self.convert_example_to_assistant_message(example),
+        )
 
     def convert_example_to_assistant_message(self, example) -> str:
         """Extract the assistant message text from a labeled example."""
@@ -221,3 +241,70 @@ class BaseSingleColumnInputOperator(
             A string containing the user message content.
         """
         return input
+
+
+class BaseMultiColumnInputOperator(
+    BaseOperator[ModelResponseType, OperatorOutputType], ABC
+):
+    """Base class for operators that consume multiple input fields per row."""
+
+    def __init__(
+        self,
+        input: pl.DataFrame,
+        request_sender: RequestSender[ModelResponseType],
+        jinja_template: Template,
+        examples: Optional[BaseExampleCollection],
+    ):
+        """Initializes the request component with input data, a request sender, and optional examples.
+
+        Args:
+            input (pl.DataFrame):
+                A Polars DataFrame containing multiple input columns.
+            request_sender (RequestSender[ModelResponseType]):
+                Component responsible for sending LLM requests.
+            examples (Optional[BaseExampleCollection]):
+                Optional labeled examples to include for few-shot prompting.
+        """
+        super().__init__(request_sender)
+        self.input = input
+        self.examples = examples
+        self.jinja_template = jinja_template
+
+    def build_example(self, example) -> FewShotExample:
+        """Convert example input/output pairs to message format for in-context learning.
+
+        Returns:
+            List of (UserMessage, AssistantMessage) tuples.
+        """
+        return FewShotExample(
+            user=self.build_example_user_message(example.input),
+            assistant=self.convert_example_to_assistant_message(example),
+        )
+
+    def convert_example_to_assistant_message(self, example):
+        """Extract assistant message text from a labeled example."""
+        return example.output
+
+    @abstractmethod
+    def build_system_message(self) -> str:
+        """Create the system message for a multi-column input row.
+
+        Returns:
+            A string containing the system message content.
+        """
+        pass
+
+    def build_example_user_message(self, input: dict[str, str]) -> str:
+        """Construct the user message from a row of named input values.
+
+        Args:
+            input: Dictionary mapping column names to string values.
+
+        Returns:
+            A string containing the user message content.
+        """
+        return self.jinja_template.render(input)
+
+    def build_user_message(self, rendered_input: str) -> str:
+        """Construct the user message from a rendered input string."""
+        return rendered_input

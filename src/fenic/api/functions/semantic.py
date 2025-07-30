@@ -36,39 +36,43 @@ from fenic.core.types import (
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
         jinja_template: str,
+        /,
+        *,
         examples: Optional[MapExampleCollection] = None,
-        schema: Optional[type[BaseModel]] = None,
+        response_format: Optional[type[BaseModel]] = None,
         model_alias: Optional[str] = None,
-        temperature: float = 0,
+        temperature: float = 0.0,
         max_output_tokens: int = 512,
         **columns: Column,
 ) -> Column:
-    """Applies a natural language instruction to one or more text columns, enabling rich summarization and generation tasks.
+    """Applies a generation prompt to one or more columns, enabling rich summarization and generation tasks.
 
     Args:
-        instruction: A string containing the semantic.map prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
+        jinja_template: A Jinja2 template containing the generation prompt.
+            The template should reference column values using standard Jinja2 syntax: {{ column_name }}.
+            These placeholders will be replaced with actual column values during query execution.
+            Refer to text.jinja for more details on jinja template limitations.
         examples: Optional collection of examples to guide the semantic mapping operation.
             Each example should demonstrate the expected input and output for the mapping.
-            The examples should be created using MapExampleCollection.create_example(),
-            providing instruction variables and their expected answers.
-        schema: Optional Pydantic model type that defines the output structure with descriptions for each field.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
-        max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
-            tokens, based on the model's context length and other operator-specific parameters.
+        response_format: Optional Pydantic model type that defines the output structure with descriptions for each field.
+        model_alias: Optional alias for the language model to use for the mapping.
+        temperature: Temperature parameter for the language model.
+        max_output_tokens: Maximum number of tokens the model can generate.
+        **columns: Column expressions to be used in the template, where keys match the template variable names.
 
     Returns:
         Column: A column expression representing the semantic mapping operation.
 
     Raises:
-        ValueError: If the instruction is not a string.
+        ValueError: If the jinja_template is empty.
 
     Example: Mapping without examples
         ```python
-        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
+        fc.semantic.map(
+            "Write a compelling one-line description for {{ name }}: {{ details }}",
+            name=fc.col("name"),
+            details=fc.col("details")
+        )
         ```
 
     Example: Mapping with few-shot examples
@@ -82,37 +86,42 @@ def map(
             input={"name": "AquaPure", "details": "A compact water filter that attaches to your faucet, removes over 99% of contaminants, and improves taste instantly."},
             output="Clean, great-tasting water straight from your tap."
         ))
-        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
+        fc.semantic.map(
+            "Write a compelling one-line description for {{ name }}: {{ details }}",
+            name=fc.col("name"),
+            details=fc.col("details"),
+            examples=examples
+        )
         ```
     """
     if not jinja_template:
-        raise ValidationError("need non empty jinja template")
+        raise ValidationError("Jinja template for semantic.map cannot be empty.")
 
     if not columns:
-        raise ValidationError("need at least one column")
+        raise ValidationError("semantic.map requires at least one column.")
 
-    if schema:
+    if response_format:
         try:
-            validate_output_format(schema)
+            validate_output_format(response_format)
         except OutputFormatValidationError as e:
-            raise ValidationError("Invalid response schema") from e
+            raise ValidationError(f"Invalid response format: {str(e)}") from None
 
-    column_exprs: List[Union[ColumnExpr, LogicalExpr]] = []
+    exprs: List[Union[ColumnExpr, LogicalExpr]] = []
     for var_name, column in columns.items():
         if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
-            column_exprs.append(column.expr)
+            exprs.append(column.expr)
         else:
-            column_exprs.append(column.alias(var_name)._logical_expr)
+            exprs.append(column.alias(var_name)._logical_expr)
 
     return Column._from_logical_expr(
         SemanticMapExpr(
             jinja_template,
-            exprs=column_exprs,
+            exprs=exprs,
             examples=examples,
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
-            response_format=schema,
+            response_format=response_format,
         )
     )
 
@@ -120,9 +129,9 @@ def map(
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def extract(
         column: ColumnOrName,
-        schema: type[BaseModel],
+        response_format: type[BaseModel],
         max_output_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float = 0.0,
         model_alias: Optional[str] = None,
 ) -> Column:
     """Extracts structured information from unstructured text using a provided Pydantic model schema.
@@ -143,7 +152,7 @@ def extract(
 
     Args:
         column: Column containing text to extract from.
-        schema: A Pydantic model type that defines the output structure with descriptions for each field.
+        response_format: A Pydantic model type that defines the output structure with descriptions for each field.
         model_alias: Optional alias for the language model to use for the extraction. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -167,9 +176,9 @@ def extract(
         ```
     """
     try:
-        validate_extract_schema_structure(schema)
-    except ExtractSchemaValidationError as e:
-        raise ValidationError(f"Invalid extraction schema: {str(e)}") from None
+        validate_output_format(response_format)
+    except OutputFormatValidationError as e:
+        raise ValidationError(f"Invalid response format: {str(e)}") from None
 
     return Column._from_logical_expr(
         SemanticExtractExpr(
@@ -177,7 +186,7 @@ def extract(
             max_tokens=max_output_tokens,
             temperature=temperature,
             model_alias=model_alias,
-            schema=schema,
+            schema=response_format,
         )
     )
 
@@ -185,64 +194,82 @@ def extract(
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
         jinja_template: str,
+        /,
+        *,
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[str] = None,
-        temperature: float = 0,
+        temperature: float = 0.0,
         **columns: Column,
 ) -> Column:
-    """Applies a natural language predicate to one or more string columns, returning a boolean result.
-
-    This is useful for filtering rows based on user-defined criteria expressed in natural language.
+    """Applies a boolean predicate to one or more columns, returning true/false for filtering.
 
     Args:
-        instruction: A string containing the semantic.predicate prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
-        examples: Optional collection of examples to guide the semantic predicate operation.
+        jinja_template: A Jinja2 template containing a yes/no question or claim to evaluate.
+            The template should reference column values using standard Jinja2 syntax: {{ column_name }}.
+            These placeholders will be replaced with actual column values during query execution.
+        examples: Optional collection of examples to guide the predicate evaluation.
             Each example should demonstrate the expected boolean output for different inputs.
-            The examples should be created using PredicateExampleCollection.create_example(),
-            providing instruction variables and their expected boolean answers.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
+        model_alias: Optional alias for the language model to use.
+        temperature: Temperature parameter for the language model.
+        **columns: Column expressions to be used in the template, where keys match the template variable names.
 
     Returns:
-        Column: A column expression that returns a boolean value after applying the natural language predicate.
+        Column: A boolean column expression for filtering rows.
 
     Raises:
-        ValueError: If the instruction is not a string.
+        ValueError: If the jinja_template is empty.
 
-    Example: Identifying product descriptions that mention wireless capability
+    Example: Filtering product descriptions
         ```python
-        semantic.predicate("Does the product description: {product_description} mention that the item is wireless?")
+        fc.semantic.predicate(
+            "Product: {{ description }}\n\nIs this product wireless?",
+            description=fc.col("product_description")
+        )
         ```
 
-    Example: Filtering support tickets that describe a billing issue
+    Example: Filtering support tickets
         ```python
-        semantic.predicate("Does this support message: {ticket_text} describe a billing issue?")
+        fc.semantic.predicate(
+            "Ticket: {{ ticket }}\n\nIs this about billing?",
+            ticket=fc.col("ticket_text")
+        )
         ```
 
-    Example: Filtering support tickets that describe a billing issue with examples
+    Example: Filtering with examples
         ```python
         examples = PredicateExampleCollection()
         examples.create_example(PredicateExample(
-            input={"ticket_text": "I was charged twice for my subscription and need help."},
-            output=True))
+            input={"ticket": "I was charged twice for my subscription and need help."},
+            output=True
+        ))
         examples.create_example(PredicateExample(
-            input={"ticket_text": "How do I reset my password?"},
-            output=False))
-        semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
+            input={"ticket": "How do I reset my password?"},
+            output=False
+        ))
+        fc.semantic.predicate(
+            "Ticket: {{ ticket }}\n\nIs this about billing?",
+            ticket=fc.col("ticket_text"),
+            examples=examples
+        )
         ```
     """
     if not jinja_template:
-        raise ValidationError("need non empty jinja template")
+        raise ValidationError("Jinja template for semantic.predicate cannot be empty.")
 
     if not columns:
-        raise ValidationError("need at least one column")
+        raise ValidationError("semantic.predicate requires at least one column.")
+
+    exprs: List[Union[ColumnExpr, LogicalExpr]] = []
+    for var_name, column in columns.items():
+        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
+            exprs.append(column.expr)
+        else:
+            exprs.append(column.alias(var_name)._logical_expr)
 
     return Column._from_logical_expr(
         SemanticPredExpr(
-            instruction,
+            jinja_template,
+            exprs=exprs,
             examples=examples,
             model_alias=model_alias,
             temperature=temperature,
