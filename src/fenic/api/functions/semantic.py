@@ -16,9 +16,9 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
-from fenic.core._utils.extract import (
-    ExtractSchemaValidationError,
-    validate_extract_schema_structure,
+from fenic.core._utils.structured_outputs import (
+    OutputFormatValidationError,
+    validate_output_format,
 )
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -35,6 +35,7 @@ from fenic.core.types import (
 def map(
         instruction: str,
         examples: Optional[MapExampleCollection] = None,
+        schema: Optional[type[BaseModel]] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
@@ -50,6 +51,7 @@ def map(
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
             providing instruction variables and their expected answers.
+        schema: Optional Pydantic model that defines the output structure with descriptions for each field.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -80,6 +82,12 @@ def map(
         semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
         ```
     """
+    if schema:
+        try:
+            validate_output_format(schema)
+        except OutputFormatValidationError as e:
+            raise ValidationError("Invalid response schema") from e
+
     return Column._from_logical_expr(
         SemanticMapExpr(
             instruction,
@@ -87,6 +95,7 @@ def map(
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
+            response_format=schema,
         )
     )
 
@@ -141,9 +150,9 @@ def extract(
         ```
     """
     try:
-        validate_extract_schema_structure(schema)
-    except ExtractSchemaValidationError as e:
-        raise ValidationError(f"Invalid extraction schema: {str(e)}") from None
+        validate_output_format(schema)
+    except OutputFormatValidationError as e:
+        raise ValidationError("Invalid extraction schema") from e
 
     return Column._from_logical_expr(
         SemanticExtractExpr(

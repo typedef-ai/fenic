@@ -440,7 +440,17 @@ class ExprConverter:
                 for expr in logical.exprs
             ]
         )
-        return struct.map_batches(sem_map_fn, return_dtype=pl.String)
+        if logical.struct_type:
+            return struct.map_batches(
+                sem_map_fn,
+                return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
+            )
+        return struct.map_batches(
+            sem_map_fn,
+            return_dtype=pl.String
+        )
+
+
 
 
     @_convert_expr.register(RecursiveTextChunkExpr)

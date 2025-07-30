@@ -1,6 +1,7 @@
 import pandas as pd
 import polars as pl
 import pytest
+from pydantic import BaseModel, Field
 
 from fenic.core.types.semantic_examples import (
     BaseExampleCollection,
@@ -14,6 +15,20 @@ from fenic.core.types.semantic_examples import (
     PredicateExample,
     PredicateExampleCollection,
 )
+
+
+class ProductSummary(BaseModel):
+    """Test BaseModel for structured output."""
+    name: str = Field(description="Product name")
+    description: str = Field(description="One-line description")
+    category: str = Field(description="Product category")
+
+
+class PersonInfo(BaseModel):
+    """Another test BaseModel for structured output."""
+    first_name: str = Field(description="First name")
+    last_name: str = Field(description="Last name")
+    age: int = Field(description="Age in years")
 
 
 class TestMapExampleCollection:
@@ -228,6 +243,189 @@ class TestMapExampleCollection:
             collection_with_nulls._validate_with_instruction(
                 "Transform the {text} in {lang} to English"
             )
+
+    def test_create_example_with_basemodel_output(self):
+        """Test creating MapExample with BaseModel output."""
+        collection = MapExampleCollection()
+
+        # Create BaseModel instance
+        product = ProductSummary(
+            name="GlowMate",
+            description="Modern touch-controlled lamp for better sleep",
+            category="lighting"
+        )
+
+        # Create example with BaseModel output
+        example = MapExample(
+            input={"name": "GlowMate", "details": "A rechargeable bedside lamp"},
+            output=product
+        )
+
+        collection.create_example(example)
+        assert len(collection.examples) == 1
+        assert collection.examples[0].input["name"] == "GlowMate"
+        assert isinstance(collection.examples[0].output, ProductSummary)
+        assert collection.examples[0].output.name == "GlowMate"
+        assert collection.examples[0].output.category == "lighting"
+
+    def test_mixed_string_and_basemodel_outputs_raises_error(self):
+        """Test that mixing string and BaseModel outputs raises an error."""
+        collection = MapExampleCollection()
+
+        # Add string output example first
+        string_example = MapExample(
+            input={"name": "BasicLamp", "details": "Simple desk lamp"},
+            output="A simple desk lamp for basic lighting needs"
+        )
+        collection.create_example(string_example)
+
+        # Try to add BaseModel output example - should raise error
+        product = ProductSummary(
+            name="SmartLamp",
+            description="WiFi-enabled smart lighting solution",
+            category="smart_home"
+        )
+        basemodel_example = MapExample(
+            input={"name": "SmartLamp", "details": "WiFi-enabled lamp with app control"},
+            output=product
+        )
+        
+        with pytest.raises(InvalidExampleCollectionError, match="All examples in Example Collection must have consistent output types"):
+            collection.create_example(basemodel_example)
+
+    def test_consistent_basemodel_outputs_allowed(self):
+        """Test that multiple BaseModel outputs of the same type are allowed."""
+        collection = MapExampleCollection()
+
+        # Add first BaseModel output example
+        product1 = ProductSummary(
+            name="SmartLamp",
+            description="WiFi-enabled smart lighting solution",
+            category="smart_home"
+        )
+        example1 = MapExample(
+            input={"name": "SmartLamp", "details": "WiFi-enabled lamp"},
+            output=product1
+        )
+        collection.create_example(example1)
+
+        # Add second BaseModel output example of same type - should work
+        product2 = ProductSummary(
+            name="DeskLamp",
+            description="Adjustable desk lamp for work",
+            category="office"
+        )
+        example2 = MapExample(
+            input={"name": "DeskLamp", "details": "Adjustable desk lamp"},
+            output=product2
+        )
+        collection.create_example(example2)
+
+        assert len(collection.examples) == 2
+        assert isinstance(collection.examples[0].output, ProductSummary)
+        assert isinstance(collection.examples[1].output, ProductSummary)
+
+    def test_mixed_basemodel_types_raises_error(self):
+        """Test that mixing different BaseModel types raises an error."""
+        collection = MapExampleCollection()
+
+        # Add ProductSummary output example first
+        product = ProductSummary(
+            name="SmartLamp",
+            description="WiFi-enabled smart lighting solution",
+            category="smart_home"
+        )
+        product_example = MapExample(
+            input={"name": "SmartLamp", "details": "WiFi-enabled lamp"},
+            output=product
+        )
+        collection.create_example(product_example)
+
+        # Try to add PersonInfo output example - should raise error
+        person = PersonInfo(
+            first_name="John",
+            last_name="Doe",
+            age=30
+        )
+        person_example = MapExample(
+            input={"name": "John", "details": "A person"},
+            output=person
+        )
+        
+        with pytest.raises(InvalidExampleCollectionError, match="All BaseModel examples must be of the same type"):
+            collection.create_example(person_example)
+
+    def test_basemodel_output_dataframe_serialization(self):
+        """Test that BaseModel outputs are properly serialized in DataFrame conversion."""
+        collection = MapExampleCollection()
+
+        # Add BaseModel output example
+        product = ProductSummary(
+            name="SmartLamp",
+            description="WiFi-enabled smart lighting solution",
+            category="smart_home"
+        )
+        example = MapExample(
+            input={"name": "SmartLamp", "details": "WiFi-enabled lamp"},
+            output=product
+        )
+        collection.create_example(example)
+
+        # Convert to DataFrame
+        df = collection.to_polars()
+
+        # Check that output is serialized as JSON string
+        output_value = df['output'].to_list()[0]
+        assert isinstance(output_value, str)
+        assert '"name":"SmartLamp"' in output_value
+        assert '"category":"smart_home"' in output_value
+
+        # Test pandas conversion too
+        df_pandas = collection.to_pandas()
+        output_value_pandas = df_pandas['output'].tolist()[0]
+        assert isinstance(output_value_pandas, str)
+        assert '"name":"SmartLamp"' in output_value_pandas
+
+    def test_basemodel_only_dataframe_conversion(self):
+        """Test DataFrame conversion with only BaseModel outputs."""
+        collection = MapExampleCollection()
+
+        # Add first BaseModel output
+        product1 = ProductSummary(
+            name="SmartLamp",
+            description="WiFi-enabled smart lighting solution",
+            category="smart_home"
+        )
+        collection.create_example(MapExample(
+            input={"name": "SmartLamp", "details": "WiFi-enabled lamp"},
+            output=product1
+        ))
+
+        # Add second BaseModel output
+        product2 = ProductSummary(
+            name="DeskLamp", 
+            description="Adjustable desk lamp for work",
+            category="office"
+        )
+        collection.create_example(MapExample(
+            input={"name": "DeskLamp", "details": "Adjustable desk lamp"},
+            output=product2
+        ))
+
+        # Convert to DataFrame
+        df = collection.to_polars()
+
+        output_values = df['output'].to_list()
+        assert len(output_values) == 2
+
+        # Both outputs should be serialized JSON
+        assert isinstance(output_values[0], str)
+        assert '"name":"SmartLamp"' in output_values[0]
+        assert '"category":"smart_home"' in output_values[0]
+        
+        assert isinstance(output_values[1], str)
+        assert '"name":"DeskLamp"' in output_values[1]
+        assert '"category":"office"' in output_values[1]
 
 
 class TestClassifyExampleCollection:

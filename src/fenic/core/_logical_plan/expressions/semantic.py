@@ -13,6 +13,7 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
+from fenic.core.types.datatypes import StringType
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -31,7 +32,7 @@ from fenic.core._logical_plan.expressions.base import (
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
-from fenic.core.error import ValidationError
+from fenic.core.error import InvalidExampleCollectionError, ValidationError
 from fenic.core.types import (
     DataType,
     EmbeddingType,
@@ -60,12 +61,14 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
+        self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
         if not self.exprs:
             raise ValidationError(
                 "semantic.map instruction requires at least one templated column."
             )
         self.examples = None
         if examples:
+            self._validate_example_response_format(examples)
             examples._validate_with_instruction(instruction)
             self.examples = examples
 
@@ -87,6 +90,22 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self._validate_completion_parameters(plan)
         # Use mixin's implementation with dynamic return type
         return super().to_column_field(plan)
+
+    def _validate_example_response_format(self, example_collection: MapExampleCollection):
+        for example in example_collection.examples:
+            if self.response_format is None and not isinstance(example.output, str):
+                raise InvalidExampleCollectionError("If a `schema` is not provided to `semantic.map`, "
+                                      "all examples are required to have outputs of type `str`.")
+            if self.response_format is not None and not isinstance(example.output, self.response_format):
+                raise InvalidExampleCollectionError("If a `schema` BaseModel is provided to `semantic.map`, "
+                                      "all examples are required to have outputs of the same BaseModel type.")
+
+
+    def _infer_dynamic_return_type(self, _arg_types: List[DataType], _plan: LogicalPlan) -> DataType:
+        """Infer the return type of the semantic.map expression."""
+        if self.struct_type is not None:
+            return self.struct_type
+        return StringType
 
     def _validate_completion_parameters(self, plan: LogicalPlan):
         """Validate completion parameters."""
