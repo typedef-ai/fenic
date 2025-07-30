@@ -1,3 +1,4 @@
+
 import pytest
 
 from fenic import (
@@ -177,6 +178,29 @@ def test_does_table_exist(local_session: Session):
         f"{DEFAULT_DATABASE_NAME}.{NON_EXISTING_TABLE_NAME}"
     )
 
+def test_does_view_exist(local_session: Session):
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+
+    view_name = "df1"
+    non_existing_view_name = "df2"
+
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    df1.write.save_as_view(view_name)
+
+    assert local_session.catalog.does_view_exist(view_name)
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME}.{view_name}"
+    )
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME.upper()}.{view_name}"
+    )
+    assert local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME.upper()}.{view_name}".upper()
+    )
+    assert not local_session.catalog.does_view_exist(non_existing_view_name)
+    assert not local_session.catalog.does_view_exist(
+        f"{DEFAULT_DATABASE_NAME}.{non_existing_view_name}"
+    )
 
 def test_list_tables(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
@@ -185,6 +209,22 @@ def test_list_tables(local_session: Session):
     assert TABLE_NAME_T1 in tables
     assert TABLE_NAME_T2 in tables
 
+def test_list_views(local_session: Session):
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    df1.write.save_as_view("df1")
+
+    df2 = local_session.create_dataframe({"b": [1, 2, 3]})
+    df2.write.save_as_view("df2")
+
+    views = local_session.catalog.list_views()
+    assert "df1" in views
+    assert "df2" in views
+
+def test_describe_view(local_session: Session):
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    df1.write.save_as_view("df1")
+    view_df1 = local_session._session_state.catalog.describe_view("df1")
+    assert view_df1.schema().column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
@@ -248,6 +288,28 @@ def test_drop_table(local_session: Session):
             NON_EXISTING_TABLE_NAME, ignore_if_not_exists=False
         )
 
+def test_drop_view(local_session: Session):
+    view_name_1 = "df1"
+    view_name_2 = "df2"
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    df1.write.save_as_view(view_name_1)
+
+    assert local_session.catalog.does_view_exist(view_name_1)
+    assert local_session.catalog.drop_view(view_name_1)
+    assert not local_session.catalog.does_view_exist(view_name_1)
+
+    df1.write.save_as_view(view_name_2)
+    assert local_session.catalog.does_view_exist(view_name_2)
+    assert local_session.catalog.drop_view(f"{DEFAULT_DATABASE_NAME}.{view_name_2}")
+    assert not local_session.catalog.does_view_exist(view_name_2)
+
+    with pytest.raises(
+        TableNotFoundError,
+        match="Table 'typedef_default.df3' does not exist",
+    ):
+        local_session.catalog.drop_view(
+            "typedef_default.df3", ignore_if_not_exists=False
+        )
 
 def test_create_table(local_session: Session):
     assert local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)

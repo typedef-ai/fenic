@@ -21,9 +21,10 @@ if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 from pydantic import ConfigDict, validate_call
 
+from fenic._backends.utils.catalog_utils import validate_view
 from fenic.api.catalog import Catalog
 from fenic.api.session.config import SessionConfig
-from fenic.core.error import PlanError, ValidationError
+from fenic.core.error import CatalogError, PlanError, ValidationError
 from fenic.core.types.query_result import DataLike
 
 
@@ -239,6 +240,25 @@ class Session:
             raise ValueError(f"Table {table_name} does not exist")
         return DataFrame._from_logical_plan(
             TableSource.from_session_state(table_name, self._session_state),
+            self._session_state,
+        )
+
+    def view(self, view_name: str) -> DataFrame:
+        """Returns the specified view as a DataFrame.
+
+        Args:
+            view_name: Name of the view
+        Returns:
+            DataFrame: Dataframe with the given view
+        """
+        if not self._session_state.catalog.does_view_exist(view_name):
+            raise CatalogError(f"View {view_name} does not exist")
+
+        view_plan = self._session_state.catalog.describe_view(view_name)
+        validate_view(view_name, view_plan, self._session_state)
+
+        return DataFrame._from_logical_plan(
+            view_plan,
             self._session_state,
         )
 

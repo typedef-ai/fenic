@@ -6,6 +6,7 @@ import pytest
 from botocore.session import get_session
 from pydantic import ValidationError
 
+from fenic import col
 from fenic._backends.local.utils.io_utils import does_path_exist
 from fenic.api.session import Session
 from fenic.core._logical_plan.plans import FileSink, TableSink
@@ -274,9 +275,9 @@ def test_logical_plan_sink_nodes(local_session):
     table_sink_columns = table_sink.schema().column_names()
 
     # Verify the nodes have the correct schema
-    for col in df.columns:
-        assert col in file_sink_columns
-        assert col in table_sink_columns
+    for column in df.columns:
+        assert column in file_sink_columns
+        assert column in table_sink_columns
 
     # Verify string representation
     assert "FileSink" in file_sink._repr()
@@ -327,3 +328,19 @@ def test_write_with_invalid_file_path(local_session, temp_dir):
     output_path = f"{temp_dir.path}/bad_test_file"
     with pytest.raises(FenicValidationError, match="Parquet writer requires a '.parquet' file extension."):
         df1.write.parquet(output_path, mode="overwrite")
+
+def test_view_writer_roundtrip(local_session):
+    """Test view writer."""
+    view_name = "test_view"
+
+    # Write a view first
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    df1.write.save_as_view(view_name)
+
+    # Verify the table was created
+    df = local_session.view(view_name)
+    assert df.columns == ["a"]
+
+    result = df.select(col("a")).collect("polars").data
+    values = result["a"].to_list()
+    assert values == [1, 2, 3]

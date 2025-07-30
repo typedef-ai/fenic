@@ -84,8 +84,6 @@ class Projection(LogicalPlan):
         result = self.from_session_state(children[0], self._exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
-
-
 class Filter(LogicalPlan):
     def __init__(
             self,
@@ -143,7 +141,6 @@ class Filter(LogicalPlan):
         result = self.from_session_state(children[0], self._predicate, session_state)
         result.set_cache_info(self.cache_info)
         return result
-
 
 class Union(LogicalPlan):
     def __init__(
