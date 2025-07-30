@@ -3,16 +3,6 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 // Static regex patterns for WebVTT parsing
-pub fn timestamp_regex() -> &'static Regex {
-    // Used for second timestamp, so we can skip anything after it
-    static TIMESTAMP_REGEX: OnceLock<Regex> = OnceLock::new();
-    // Timestamps are in the format of HH:MM:SS.mmm or MM:SS.mmm, with a --> separator and optional whitespace
-    TIMESTAMP_REGEX.get_or_init(|| {
-        Regex::new(r"\s*(\d{1,2}:\d{2}:\d{2}\.\d{3}|\d{2}:\d{2}\.\d{3})")
-            .expect("Failed to compile timestamp regex")
-    })
-}
-
 pub fn looks_like_timestamp_line(line: &str) -> bool {
     line.contains("-->")
 }
@@ -28,11 +18,6 @@ pub fn speaker_regex() -> &'static Regex {
         Regex::new(r"<v(?:\.[^>]*)?\s+([^>]+)>").expect("Failed to compile speaker regex")
     })
 }
-
-pub fn number_regex() -> &'static Regex {
-    static NUMBER_REGEX: OnceLock<Regex> = OnceLock::new();
-    NUMBER_REGEX.get_or_init(|| Regex::new(r"-?\d+").expect("Failed to compile number regex"))
-}
 pub struct WebVTTParser;
 
 impl FormatParser for WebVTTParser {
@@ -40,13 +25,14 @@ impl FormatParser for WebVTTParser {
     // - Cue timestamps (start/end)
     // - Speaker information from <v> tags
     // - Clean text content (stripped of HTML tags and cue settings)
-    // - Cue index from first number in identifier line
+    // - Ignore cue identifiers when indexing the cue entries
     // - Skips NOTE, STYLE, and REGION blocks
     // Reference: https://www.w3.org/TR/webvtt1/
     fn parse(&self, input: &str) -> Result<Vec<UnifiedTranscriptEntry>, ParseError> {
         let lines: Vec<&str> = input.lines().collect();
         let mut entries = Vec::new();
         let mut i = 0;
+        let mut cue_index = 0;
 
         // Parse the first WEBVTT line, allowing for optional BOM character
         let first_line = lines[0].trim().trim_start_matches('\u{FEFF}');
@@ -74,7 +60,7 @@ impl FormatParser for WebVTTParser {
             }
 
             // Try to parse a cue
-            let entry = Self::parse_cue(&lines, &mut i)?;
+            let entry = Self::parse_cue(&lines, &mut i, &mut cue_index)?;
             entries.push(entry);
         }
 
@@ -93,23 +79,21 @@ impl WebVTTParser {
         start_index
     }
 
-    fn parse_cue(lines: &[&str], index: &mut usize) -> Result<UnifiedTranscriptEntry, ParseError> {
-        let mut cue_index: Option<i64> = None;
+    fn parse_cue(
+        lines: &[&str],
+        index: &mut usize,
+        cue_index: &mut usize,
+    ) -> Result<UnifiedTranscriptEntry, ParseError> {
         let mut current_line = lines[*index].trim();
+        let mut cue_identifier = None;
 
         // Expected format: "00:00:01.000 --> 00:00:05.000 <optional cue settings>"
         // Check if current line contains a timestamp (cue timing line)
         if looks_like_timestamp_line(current_line) {
             // This line is the timing line, no identifier present
         } else {
-            // Current line might be an identifier
-            // Try to find the first number in the line
-            if let Some(first_match) = number_regex().find(current_line) {
-                if let Ok(num) = first_match.as_str().parse::<i64>() {
-                    cue_index = Some(num);
-                }
-            }
-
+            // Current line might be an identifier.
+            cue_identifier = Some(current_line.trim().to_string());
             *index += 1;
             if *index >= lines.len() {
                 return Err(ParseError::InvalidTranscriptFormat(
@@ -127,15 +111,16 @@ impl WebVTTParser {
                 current_line
             )));
         }
-        // Only grab the timestamp from the second part, ignore cue settings and any following text
-        let Some(second_part_capture) = timestamp_regex().captures(timestamp_parts[1]) else {
+        let end_timestamp_parts: Vec<&str> = timestamp_parts[1].split(".").collect();
+        if end_timestamp_parts.len() < 2 || end_timestamp_parts[1].len() < 3 {
             return Err(ParseError::InvalidTranscriptFormat(format!(
                 "Invalid timestamp line: {}.  Expected format: HH:MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm --> MM:SS.mmm",
                 current_line
             )));
-        };
+        }
+
         let start_str: &str = timestamp_parts[0].trim();
-        let end_str: &str = second_part_capture.get(1).unwrap().as_str();
+        let end_str: &str = timestamp_parts[1][..end_timestamp_parts[0].len() + 4].trim(); // 3 for milliseconds, 1 for the '.'
         let start_time = Self::parse_timestamp(start_str)?;
         let end_time = Self::parse_timestamp(end_str)?;
         let duration = end_time - start_time;
@@ -152,8 +137,11 @@ impl WebVTTParser {
         let raw_content = content_lines.join("\n");
         let (speaker, cleaned_content) = Self::parse_payload_and_speaker(&raw_content);
 
+        *cue_index += 1;
+
         Ok(UnifiedTranscriptEntry {
-            index: cue_index,
+            index: Some(*cue_index as i64), // auto-generate 1-based index
+            identifier: cue_identifier,
             speaker,
             start_time,
             end_time: Some(end_time),
@@ -275,7 +263,7 @@ Hello, world!
 
 NOTE This is a note and should be ignored
 
-3
+cue-3
 00:00:11.500 --> 00:00:15.750
 <b>Bold text</b> and <i>italic text</i>.
 "#;
@@ -285,6 +273,7 @@ NOTE This is a note and should be ignored
         assert_eq!(entries.len(), 3);
 
         assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].identifier, Some("1".to_string()));
         assert_eq!(entries[0].content, "Hello, world!");
         assert_eq!(entries[0].start_time, 1.0);
         assert_eq!(entries[0].end_time, Some(5.0));
@@ -292,10 +281,12 @@ NOTE This is a note and should be ignored
         assert_eq!(entries[0].speaker, None);
 
         assert_eq!(entries[1].index, Some(2));
+        assert_eq!(entries[1].identifier, Some("2".to_string()));
         assert_eq!(entries[1].content, "This is Alice speaking.");
         assert_eq!(entries[1].speaker, Some("Alice".to_string()));
 
         assert_eq!(entries[2].index, Some(3));
+        assert_eq!(entries[2].identifier, Some("cue-3".to_string()));
         assert_eq!(entries[2].content, "Bold text and italic text.");
         assert_eq!(entries[2].start_time, 11.5);
         assert_eq!(entries[2].end_time, Some(15.75));
@@ -303,28 +294,74 @@ NOTE This is a note and should be ignored
     }
 
     #[test]
-    fn test_webvtt_with_bom_and_without_identifiers() {
+    fn test_webvtt_with_bom() {
         // concat the BOM character
         let webvtt_content = format!(
             "\u{FEFF}{}",
             r#"WEBVTT
 00:00:01.000 --> 00:00:05.000
-No identifier here.
+No cue identifier or speaker here.
 
 00:00:06.000 --> 00:00:10.000
-<v Bob>Bob speaking without identifier.
+<v Bob>Bob speaking without cue identifier.
 "#
         );
 
         let entries = WebVTTParser.parse(&webvtt_content).unwrap();
 
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].index, None);
-        assert_eq!(entries[0].content, "No identifier here.");
+        assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].identifier, None);
+        assert_eq!(entries[0].content, "No cue identifier or speaker here.");
         assert_eq!(entries[0].speaker, None);
         assert_eq!(entries[0].start_time, 1.0);
-        assert_eq!(entries[1].index, None);
+        assert_eq!(entries[0].end_time, Some(5.0));
+        assert_eq!(entries[0].duration, Some(4.0));
+        assert_eq!(entries[0].format, "webvtt");
+
+        assert_eq!(entries[1].index, Some(2));
+        assert_eq!(entries[1].identifier, None);
         assert_eq!(entries[1].speaker, Some("Bob".to_string()));
+        assert_eq!(entries[1].content, "Bob speaking without cue identifier.");
+        assert_eq!(entries[1].start_time, 6.0);
+        assert_eq!(entries[1].end_time, Some(10.0));
+        assert_eq!(entries[1].duration, Some(4.0));
+        assert_eq!(entries[1].format, "webvtt");
+    }
+
+    #[test]
+    fn test_webvtt_with_no_hours() {
+        // concat the BOM character
+        let webvtt_content = format!(
+            r#"WEBVTT
+00:01.000 --> 00:05.000
+No hours here.
+
+01:00:06.000 --> 01:00:10.000
+<v Bob>Bob speaking an hour later.
+"#
+        );
+
+        let entries = WebVTTParser.parse(&webvtt_content).unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].identifier, None);
+        assert_eq!(entries[0].content, "No hours here.");
+        assert_eq!(entries[0].speaker, None);
+        assert_eq!(entries[0].start_time, 1.0);
+        assert_eq!(entries[0].end_time, Some(5.0));
+        assert_eq!(entries[0].duration, Some(4.0));
+        assert_eq!(entries[0].format, "webvtt");
+
+        assert_eq!(entries[1].index, Some(2));
+        assert_eq!(entries[1].identifier, None);
+        assert_eq!(entries[1].speaker, Some("Bob".to_string()));
+        assert_eq!(entries[1].content, "Bob speaking an hour later.");
+        assert_eq!(entries[1].start_time, 3606.0);
+        assert_eq!(entries[1].end_time, Some(3610.0));
+        assert_eq!(entries[1].duration, Some(4.0));
+        assert_eq!(entries[1].format, "webvtt");
     }
 
     #[test]
@@ -334,11 +371,23 @@ No identifier here.
 1
 00:00:01.000 --> 00:00:05.000 align:center line:50%
 Text with cue settings
+
+bla bla
+00:00:06.000 --> 00:00:10.000
+And with random text for identifiers
+
+cue-2
+00:00:11.000 --> 00:00:15.000
+Alphanumeric identifier
+
+00:00:16.000 --> 00:00:20.000
+No identifier here
 "#;
 
         let entries = WebVTTParser.parse(webvtt_content).unwrap();
 
-        assert_eq!(entries.len(), 1);
+        assert_eq!(entries.len(), 4);
+        assert_eq!(entries[0].identifier, Some("1".to_string()));
         assert_eq!(entries[0].content, "Text with cue settings");
         assert_eq!(entries[0].start_time, 1.0);
         assert_eq!(entries[0].end_time, Some(5.0));
@@ -346,97 +395,36 @@ Text with cue settings
         assert_eq!(entries[0].speaker, None);
         assert_eq!(entries[0].index, Some(1));
         assert_eq!(entries[0].format, "webvtt");
-    }
 
-    #[test]
-    fn test_various_cue_identifiers() {
-        let webvtt_data = r#"WEBVTT
+        assert_eq!(entries[1].index, Some(2));
+        assert_eq!(entries[1].identifier, Some("bla bla".to_string()));
+        assert_eq!(entries[1].content, "And with random text for identifiers");
+        assert_eq!(entries[1].start_time, 6.0);
+        assert_eq!(entries[1].end_time, Some(10.0));
+        assert_eq!(entries[1].duration, Some(4.0));
+        assert_eq!(entries[1].speaker, None);
+        assert_eq!(entries[1].index, Some(2));
+        assert_eq!(entries[1].format, "webvtt");
 
-1
-00:00:01.000 --> 00:00:03.000
-Simple numeric identifier
-
-cue-2
-00:00:04.000 --> 00:00:06.000
-Alphanumeric identifier
-
-Chapter 3
-00:00:07.000 --> 00:00:09.000
-Text with number in middle
-
-No numbers here
-00:00:10.000 --> 00:00:12.000
-Text identifier with no numbers
-
-Scene 5 - The Confrontation
-00:00:13.000 --> 00:00:15.000
-Complex text with number
-
-A1B2C3
-00:00:16.000 --> 00:00:18.000
-Mixed alphanumeric
-
-42 is the answer
-00:00:19.000 --> 00:00:21.000
-Number at start of text
-
-The year is 2024
-00:00:22.000 --> 00:00:24.000
-Number embedded in text
-
--5
-00:00:25.000 --> 00:00:27.000
-Negative number
-
-0
-00:00:28.000 --> 00:00:30.000
-Zero as identifier
-"#;
-
-        let result = WebVTTParser.parse(webvtt_data);
-        assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 10);
-
-        // Test 1: Simple numeric identifier
-        assert_eq!(entries[0].index, Some(1));
-        assert_eq!(entries[0].content, "Simple numeric identifier");
-
-        // Test 2: Alphanumeric identifier (should find first number: 2)
-        assert_eq!(entries[1].index, Some(-2));
-        assert_eq!(entries[1].content, "Alphanumeric identifier");
-
-        // Test 3: Text with number in middle (should find first number: 3)
         assert_eq!(entries[2].index, Some(3));
-        assert_eq!(entries[2].content, "Text with number in middle");
+        assert_eq!(entries[2].identifier, Some("cue-2".to_string()));
+        assert_eq!(entries[2].content, "Alphanumeric identifier");
+        assert_eq!(entries[2].start_time, 11.0);
+        assert_eq!(entries[2].end_time, Some(15.0));
+        assert_eq!(entries[2].duration, Some(4.0));
+        assert_eq!(entries[2].speaker, None);
+        assert_eq!(entries[2].index, Some(3));
+        assert_eq!(entries[2].format, "webvtt");
 
-        // Test 4: Text with no numbers
-        assert_eq!(entries[3].index, None);
-        assert_eq!(entries[3].content, "Text identifier with no numbers");
-
-        // Test 5: Complex text with number (should find first number: 5)
-        assert_eq!(entries[4].index, Some(5));
-        assert_eq!(entries[4].content, "Complex text with number");
-
-        // Test 6: Mixed alphanumeric (should find first number: 1)
-        assert_eq!(entries[5].index, Some(1));
-        assert_eq!(entries[5].content, "Mixed alphanumeric");
-
-        // Test 7: Number at start of text (should find first number: 42)
-        assert_eq!(entries[6].index, Some(42));
-        assert_eq!(entries[6].content, "Number at start of text");
-
-        // Test 8: Number embedded in text (should find first number: 2024)
-        assert_eq!(entries[7].index, Some(2024));
-        assert_eq!(entries[7].content, "Number embedded in text");
-
-        // Test 9: Negative number (should find first number: -5)
-        assert_eq!(entries[8].index, Some(-5));
-        assert_eq!(entries[8].content, "Negative number");
-
-        // Test 10: Zero as identifier
-        assert_eq!(entries[9].index, Some(0));
-        assert_eq!(entries[9].content, "Zero as identifier");
+        assert_eq!(entries[3].index, Some(4));
+        assert_eq!(entries[3].identifier, None);
+        assert_eq!(entries[3].content, "No identifier here");
+        assert_eq!(entries[3].start_time, 16.0);
+        assert_eq!(entries[3].end_time, Some(20.0));
+        assert_eq!(entries[3].duration, Some(4.0));
+        assert_eq!(entries[3].speaker, None);
+        assert_eq!(entries[3].index, Some(4));
+        assert_eq!(entries[3].format, "webvtt");
     }
 
     #[test]

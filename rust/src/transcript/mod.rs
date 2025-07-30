@@ -31,6 +31,7 @@ fn convert_format_to_struct(
         "output".into(),
         DataType::Struct(vec![
             Field::new("index".into(), DataType::Int64), // Nullable
+            Field::new("identifier".into(), DataType::String), // Nullable
             Field::new("speaker".into(), DataType::String), // Nullable
             Field::new("start_time".into(), DataType::Float64), // Required
             Field::new("end_time".into(), DataType::Float64), // Nullable
@@ -80,6 +81,7 @@ fn ts_parse_expr(inputs: &[Series], kwargs: TranscriptFormatKwargs) -> PolarsRes
                             for entry in entries {
                                 let fields = vec![
                                     Field::new("index".into(), DataType::Int64),
+                                    Field::new("identifier".into(), DataType::String),
                                     Field::new("speaker".into(), DataType::String),
                                     Field::new("start_time".into(), DataType::Float64),
                                     Field::new("end_time".into(), DataType::Float64),
@@ -89,6 +91,9 @@ fn ts_parse_expr(inputs: &[Series], kwargs: TranscriptFormatKwargs) -> PolarsRes
                                 ];
                                 let values = vec![
                                     entry.index.map_or(AnyValue::Null, AnyValue::Int64),
+                                    entry.identifier.as_ref().map_or(AnyValue::Null, |s| {
+                                        AnyValue::StringOwned(s.clone().into())
+                                    }),
                                     entry.speaker.as_ref().map_or(AnyValue::Null, |s| {
                                         AnyValue::StringOwned(s.clone().into())
                                     }),

@@ -157,7 +157,8 @@ impl FormatParser for SrtParser {
 
             entries.push(UnifiedTranscriptEntry {
                 index: entry_index.map(|i| i as i64),
-                speaker: None, // SRT format doesn't typically have speakers
+                identifier: None, // SRT format doesn't have identifiers
+                speaker: None,    // SRT format doesn't typically have speakers
                 start_time,
                 end_time: Some(end_time),
                 duration,
@@ -195,6 +196,7 @@ Third subtitle line 2.
 
         // Check first entry
         assert_eq!(entries[0].index, Some(1));
+        assert_eq!(entries[0].identifier, None);
         assert_eq!(entries[0].start_time, 1.0); // 00:00:01,000 = 1 second
         assert_eq!(entries[0].end_time, Some(4.0)); // 00:00:04,000 = 4 seconds
         assert_eq!(entries[0].duration, Some(3.0)); // 4 - 1 = 3 seconds
@@ -203,6 +205,7 @@ Third subtitle line 2.
 
         // Check third entry (multiline)
         assert_eq!(entries[2].index, Some(3));
+        assert_eq!(entries[2].identifier, None);
         assert_eq!(entries[2].start_time, 8.0); // 00:00:08,000 = 8 seconds
         assert_eq!(entries[2].end_time, Some(10.0)); // 00:00:10,000 = 10 seconds
         assert!(entries[2].content.contains("Third subtitle line 1."));
