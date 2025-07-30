@@ -37,7 +37,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         queue_size: int = 100,
         model: str = "gpt-4.1-nano",
         max_backoffs: int = 10,
-        profile_configurations: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
+        profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
         default_profile_name: Optional[str] = None,
     ):
         """Initialize the OpenAI batch chat completions client.
@@ -47,7 +47,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             queue_size: Size of the request queue
             model: The model to use
             max_backoffs: Maximum number of backoff attempts
-            profile_configurations: Dictionary of profile configurations
+            profiles: Dictionary of profile configurations
             default_profile_name: Default profile to use when none specified
         """
         super().__init__(
@@ -61,7 +61,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
         self._profile_manager = OpenAICompletionsProfileManager(
             model_parameters=self._model_parameters,
-            profile_configurations=profile_configurations,
+            profile_configurations=profiles,
             default_profile_name=default_profile_name
         )
 

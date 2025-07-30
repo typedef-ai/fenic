@@ -13,7 +13,7 @@ from fenic import (
     text,
 )
 from fenic.api.session import (
-    OpenAILanguageModelConfig,
+    OpenAILanguageModel,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -57,7 +57,7 @@ def test_embedding_without_models():
     session_config = SessionConfig(
         app_name="embedding_with_models",
         semantic=SemanticConfig(
-            language_models={"mini" :OpenAILanguageModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
+            language_models={"mini" :OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
         ),
     )
     session = Session.get_or_create(session_config)

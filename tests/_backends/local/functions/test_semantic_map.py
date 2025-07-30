@@ -7,7 +7,7 @@ from fenic import (
     ColumnField,
     MapExample,
     MapExampleCollection,
-    OpenAIEmbeddingModelConfig,
+    OpenAIEmbeddingModel,
     Schema,
     StringType,
     StructField,
@@ -132,7 +132,7 @@ def test_semantic_map_without_models():
     session_config = SessionConfig(
         app_name="semantic_map_with_models",
         semantic=SemanticConfig(
-            embedding_models={"oai-small" :OpenAIEmbeddingModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+            embedding_models={"oai-small" :OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
     )
     session = Session.get_or_create(session_config)

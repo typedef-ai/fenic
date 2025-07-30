@@ -63,7 +63,7 @@ class GeminiNativeChatCompletionsClient(
         model: str = "gemini-2.0-flash-lite",
         queue_size: int = 100,
         max_backoffs: int = 10,
-        profile_configurations: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
+        profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
         default_profile_name: Optional[str] = None,
     ):
         """Initialize the Gemini native chat completions client.
@@ -74,7 +74,7 @@ class GeminiNativeChatCompletionsClient(
             model: Gemini model name to use
             queue_size: Maximum size of the request queue
             max_backoffs: Maximum number of retry backoffs
-            profile_configurations: Dictionary of profile configurations
+            profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
         """
         token_counter = TiktokenTokenCounter(
@@ -107,7 +107,7 @@ class GeminiNativeChatCompletionsClient(
 
         self._profile_manager = GoogleCompletionsProfileManager(
             model_parameters=self._model_parameters,
-            profile_configurations=profile_configurations,
+            profile_configurations=profiles,
             default_profile_name=default_profile_name,
         )
 

@@ -215,7 +215,7 @@ class SessionModelRegistry:
                 client = OpenAIBatchChatCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,
-                    profile_configurations=model_config.profiles,
+                    profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                 )
 
@@ -236,7 +236,7 @@ class SessionModelRegistry:
                 client = AnthropicBatchCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,
-                    profile_configurations=model_config.profiles,
+                    profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                 )
 
@@ -254,7 +254,7 @@ class SessionModelRegistry:
                         model=model_config.model_name,
                         model_provider=model_config.model_provider,
                         rate_limit_strategy=rate_limit_strategy,
-                        profile_configurations=model_config.profiles,
+                        profiles=model_config.profiles,
                         default_profile_name=model_config.default_profile,
                     )
 

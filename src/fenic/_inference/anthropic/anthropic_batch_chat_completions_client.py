@@ -74,7 +74,7 @@ class AnthropicBatchCompletionsClient(
         queue_size: int = 100,
         model: str = "claude-3-5-haiku-latest",
         max_backoffs: int = 10,
-        profile_configurations: Optional[dict[str, ResolvedAnthropicModelProfile]] = None,
+        profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None,
         default_profile_name: Optional[str] = None,
     ):
         """Initialize the Anthropic batch completions client.
@@ -84,7 +84,7 @@ class AnthropicBatchCompletionsClient(
             queue_size: Maximum size of the request queue
             model: Anthropic model name to use
             max_backoffs: Maximum number of retry backoffs
-            profile_configurations: Dictionary of profile configurations
+            profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
         """
         super().__init__(
@@ -107,7 +107,7 @@ class AnthropicBatchCompletionsClient(
         # Use the profile configuration manager
         self._profile_manager = AnthropicCompletionsProfileManager(
             model_parameters=self._model_parameters,
-            profile_configurations=profile_configurations or {},
+            profile_configurations=profiles or {},
             default_profile_name=default_profile_name
         )
 

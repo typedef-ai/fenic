@@ -55,7 +55,7 @@ class ModelConfig(BaseModel):
     model_name: str
     model_provider: ModelProvider
 
-class GoogleDeveloperLanguageModelConfig(ModelConfig):
+class GoogleDeveloperLanguageModel(ModelConfig):
     """Configuration for Gemini models accessible through Google Developer AI Studio.
 
     This class defines the configuration settings for Google Gemini models available in Google Developer AI Studio,
@@ -72,7 +72,7 @@ class GoogleDeveloperLanguageModelConfig(ModelConfig):
         Configuring a Google Developer model with rate limits:
 
         ```python
-        config = GoogleDeveloperLanguageModelConfig(
+        config = GoogleDeveloperLanguageModel(
             model_name="gemini-2.0-flash",
             rpm=100,
             tpm=1000
@@ -82,14 +82,14 @@ class GoogleDeveloperLanguageModelConfig(ModelConfig):
         Configuring a reasoning Google Developer model with profiles:
 
         ```python
-        config = GoogleDeveloperLanguageModelConfig(
+        config = GoogleDeveloperLanguageModel(
             model_name="gemini-2.5-flash",
             rpm=100,
             tpm=1000,
             profiles={
-                "thinking_disabled": GoogleDeveloperLanguageModelConfig.Profile(),
-                "fast": GoogleDeveloperLanguageModelConfig.Profile(thinking_token_budget=1024),
-                "thorough": GoogleDeveloperLanguageModelConfig.Profile(thinking_token_budget=8192)
+                "thinking_disabled": GoogleDeveloperLanguageModel.Profile(),
+                "fast": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
+                "thorough": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=8192)
             },
             default_profile="fast"
         )
@@ -120,19 +120,19 @@ class GoogleDeveloperLanguageModelConfig(ModelConfig):
             Configuring a profile with a fixed thinking budget:
 
             ```python
-            profile = GoogleDeveloperLanguageModelConfig.Profile(thinking_token_budget=4096)
+            profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096)
             ```
 
             Configuring a profile with automatic thinking budget:
 
             ```python
-            profile = GoogleDeveloperLanguageModelConfig.Profile(thinking_token_budget=-1)
+            profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1)
             ```
 
             Configuring a profile with thinking disabled:
 
             ```python
-            profile = GoogleDeveloperLanguageModelConfig.Profile(thinking_token_budget=0)
+            profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
 
@@ -140,7 +140,7 @@ class GoogleDeveloperLanguageModelConfig(ModelConfig):
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
 
-class GoogleVertexLanguageModelConfig(ModelConfig):
+class GoogleVertexLanguageModel(ModelConfig):
     """Configuration for Google Vertex AI models.
 
     This class defines the configuration settings for Google Gemini models available in Google Vertex AI,
@@ -157,7 +157,7 @@ class GoogleVertexLanguageModelConfig(ModelConfig):
         Configuring a Google Vertex model with rate limits:
 
         ```python
-        config = GoogleVertexLanguageModelConfig(
+        config = GoogleVertexLanguageModel(
             model_name="gemini-2.0-flash",
             rpm=100,
             tpm=1000
@@ -167,14 +167,14 @@ class GoogleVertexLanguageModelConfig(ModelConfig):
         Configuring a reasoning Google Vertex model with profiles:
 
         ```python
-        config = GoogleVertexLanguageModelConfig(
+        config = GoogleVertexLanguageModel(
             model_name="gemini-2.5-flash",
             rpm=100,
             tpm=1000,
             profiles={
-                "thinking_disabled": GoogleVertexLanguageModelConfig.Profile(),
-                "fast": GoogleVertexLanguageModelConfig.Profile(thinking_token_budget=1024),
-                "thorough": GoogleVertexLanguageModelConfig.Profile(thinking_token_budget=8192)
+                "thinking_disabled": GoogleVertexLanguageModel.Profile(),
+                "fast": GoogleVertexLanguageModel.Profile(thinking_token_budget=1024),
+                "thorough": GoogleVertexLanguageModel.Profile(thinking_token_budget=8192)
             },
             default_profile="fast"
         )
@@ -205,19 +205,19 @@ class GoogleVertexLanguageModelConfig(ModelConfig):
             Configuring a profile with a fixed thinking budget:
 
             ```python
-            profile = GoogleVertexLanguageModelConfig.Profile(thinking_token_budget=4096)
+            profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=4096)
             ```
 
             Configuring a profile with automatic thinking budget:
 
             ```python
-            profile = GoogleVertexLanguageModelConfig.Profile(thinking_token_budget=-1)
+            profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=-1)
             ```
 
             Configuring a profile with thinking disabled:
 
             ```python
-            profile = GoogleVertexLanguageModelConfig.Profile(thinking_token_budget=0)
+            profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
 
@@ -225,7 +225,7 @@ class GoogleVertexLanguageModelConfig(ModelConfig):
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
 
-class OpenAILanguageModelConfig(ModelConfig):
+class OpenAILanguageModel(ModelConfig):
     """Configuration for OpenAI language models.
 
     This class defines the configuration settings for OpenAI language models,
@@ -242,7 +242,7 @@ class OpenAILanguageModelConfig(ModelConfig):
         Configuring an OpenAI language model with rate limits:
 
         ```python
-        config = OpenAILanguageModelConfig(
+        config = OpenAILanguageModel(
             model_name="gpt-4.1-nano",
             rpm=100,
             tpm=100
@@ -252,13 +252,13 @@ class OpenAILanguageModelConfig(ModelConfig):
         Configuring an OpenAI model with profiles:
 
         ```python
-        config = OpenAILanguageModelConfig(
+        config = OpenAILanguageModel(
             model_name="o4-mini",
             rpm=100,
             tpm=100,
             profiles={
-                "fast": OpenAILanguageModelConfig.Profile(reasoning_effort="low"),
-                "thorough": OpenAILanguageModelConfig.Profile(reasoning_effort="high")
+                "fast": OpenAILanguageModel.Profile(reasoning_effort="low"),
+                "thorough": OpenAILanguageModel.Profile(reasoning_effort="high")
             },
             default_profile="fast"
         )
@@ -269,13 +269,13 @@ class OpenAILanguageModelConfig(ModelConfig):
         ```python
         config = SemanticConfig(
             language_models={
-                "o4": OpenAILanguageModelConfig(
+                "o4": OpenAILanguageModel(
                     model_name="o4-mini",
                     rpm=1_000,
                     tpm=1_000_000,
                     profiles={
-                        "fast": OpenAILanguageModelConfig.Profile(reasoning_effort="low"),
-                        "thorough": OpenAILanguageModelConfig.Profile(reasoning_effort="high")
+                        "fast": OpenAILanguageModel.Profile(reasoning_effort="low"),
+                        "thorough": OpenAILanguageModel.Profile(reasoning_effort="high")
                     },
                     default_profile="fast"
                 )
@@ -316,7 +316,7 @@ class OpenAILanguageModelConfig(ModelConfig):
             Configuring a profile with medium reasoning effort:
 
             ```python
-            profile = OpenAILanguageModelConfig.Profile(reasoning_effort="medium")
+            profile = OpenAILanguageModel.Profile(reasoning_effort="medium")
             ```
         """
 
@@ -324,7 +324,7 @@ class OpenAILanguageModelConfig(ModelConfig):
             default=None, description="The reasoning effort level for the profile"
         )
 
-class OpenAIEmbeddingModelConfig(ModelConfig):
+class OpenAIEmbeddingModel(ModelConfig):
     """Configuration for OpenAI embedding models.
 
     This class defines the configuration settings for OpenAI embedding models,
@@ -339,7 +339,7 @@ class OpenAIEmbeddingModelConfig(ModelConfig):
         Configuring an OpenAI embedding model with rate limits:
 
         ```python
-        config = OpenAIEmbeddingModelConfig(
+        config = OpenAIEmbeddingModel(
             model_name="text-embedding-3-small",
             rpm=100,
             tpm=100
@@ -354,7 +354,7 @@ class OpenAIEmbeddingModelConfig(ModelConfig):
 
 
 
-class AnthropicLanguageModelConfig(ModelConfig):
+class AnthropicLanguageModel(ModelConfig):
     """Configuration for Anthropic language models.
 
     This class defines the configuration settings for Anthropic language models,
@@ -372,7 +372,7 @@ class AnthropicLanguageModelConfig(ModelConfig):
         Configuring an Anthropic model with separate input/output rate limits:
 
         ```python
-        config = AnthropicLanguageModelConfig(
+        config = AnthropicLanguageModel(
             model_name="claude-3-5-haiku-latest",
             rpm=100,
             input_tpm=100,
@@ -386,15 +386,15 @@ class AnthropicLanguageModelConfig(ModelConfig):
         config = SessionConfig(
             semantic=SemanticConfig(
                 language_models={
-                    "claude": AnthropicLanguageModelConfig(
+                    "claude": AnthropicLanguageModel(
                         model_name="claude-opus-4-0",
                         rpm=100,
                         input_tpm=100,
                         output_tpm=100,
                         profiles={
-                            "thinking_disabled": AnthropicLanguageModelConfig.profile(),
-                            "fast": AnthropicLanguageModelConfig.profile(thinking_token_budget=1024),
-                            "thorough": AnthropicLanguageModelConfig.profile(thinking_token_budget=4096)
+                            "thinking_disabled": AnthropicLanguageModel.Profile(),
+                            "fast": AnthropicLanguageModel.Profile(thinking_token_budget=1024),
+                            "thorough": AnthropicLanguageModel.Profile(thinking_token_budget=4096)
                         },
                         default_profile="fast"
                     )
@@ -434,13 +434,13 @@ class AnthropicLanguageModelConfig(ModelConfig):
             Configuring a profile with a thinking budget:
 
             ```python
-            profile = AnthropicLanguageModelConfig.Profile(thinking_token_budget=2048)
+            profile = AnthropicLanguageModel.Profile(thinking_token_budget=2048)
             ```
 
             Configuring a profile with a large thinking budget:
 
             ```python
-            profile = AnthropicLanguageModelConfig.Profile(thinking_token_budget=8192)
+            profile = AnthropicLanguageModel.Profile(thinking_token_budget=8192)
             ```
         """
 
@@ -450,8 +450,8 @@ class AnthropicLanguageModelConfig(ModelConfig):
             ge=1024,
         )
 
-EmbeddingModelConfig = Union[OpenAIEmbeddingModelConfig]
-LanguageModelConfig = Union[OpenAILanguageModelConfig, AnthropicLanguageModelConfig, GoogleDeveloperLanguageModelConfig, GoogleVertexLanguageModelConfig]
+EmbeddingModel = Union[OpenAIEmbeddingModel]
+LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
 
 class SemanticConfig(BaseModel):
     """Configuration for semantic language and embedding models.
@@ -477,7 +477,7 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAILanguageModelConfig(
+                "gpt4": OpenAILanguageModel(
                     model_name="gpt-4.1-nano",
                     rpm=100,
                     tpm=100
@@ -491,18 +491,18 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAILanguageModelConfig(
+                "gpt4": OpenAILanguageModel(
                     model_name="gpt-4.1-nano",
                     rpm=100,
                     tpm=100
                 ),
-                "claude": AnthropicLanguageModelConfig(
+                "claude": AnthropicLanguageModel(
                     model_name="claude-3-5-haiku-latest",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100
                 ),
-                "gemini": GoogleDeveloperLanguageModelConfig(
+                "gemini": GoogleDeveloperLanguageModel(
                     model_name="gemini-2.0-flash",
                     rpm=100,
                     tpm=1000
@@ -510,7 +510,7 @@ class SemanticConfig(BaseModel):
             },
             default_language_model="gpt4",
             embedding_models={
-                "openai_embeddings": OpenAIEmbeddingModelConfig(
+                "openai_embeddings": OpenAIEmbeddingModel(
                     model_name="text-embedding-3-small",
                     rpm=100,
                     tpm=100
@@ -525,24 +525,24 @@ class SemanticConfig(BaseModel):
         ```python
         config = SemanticConfig(
             language_models={
-                "gpt4": OpenAILanguageModelConfig(
+                "gpt4": OpenAILanguageModel(
                     model_name="gpt-4o-mini",
                     rpm=100,
                     tpm=100,
                     profiles={
-                        "fast": OpenAILanguageModelConfig.Profile(reasoning_effort="low"),
-                        "thorough": OpenAILanguageModelConfig.Profile(reasoning_effort="high")
+                        "fast": OpenAILanguageModel.Profile(reasoning_effort="low"),
+                        "thorough": OpenAILanguageModel.Profile(reasoning_effort="high")
                     },
                     default_profile="fast"
                 ),
-                "claude": AnthropicLanguageModelConfig(
+                "claude": AnthropicLanguageModel(
                     model_name="claude-3-5-haiku-latest",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100,
                     profiles={
-                        "fast": AnthropicLanguageModelConfig.Profile(thinking_token_budget=1024),
-                        "thorough": AnthropicLanguageModelConfig.Profile(thinking_token_budget=4096)
+                        "fast": AnthropicLanguageModel.Profile(thinking_token_budget=1024),
+                        "thorough": AnthropicLanguageModel.Profile(thinking_token_budget=4096)
                     },
                     default_profile="fast"
                 )
@@ -551,9 +551,9 @@ class SemanticConfig(BaseModel):
         )
         ```
     """
-    language_models: Optional[dict[str, LanguageModelConfig]] = None
+    language_models: Optional[dict[str, LanguageModel]] = None
     default_language_model: Optional[str] = None
-    embedding_models: Optional[dict[str, EmbeddingModelConfig]] = None
+    embedding_models: Optional[dict[str, EmbeddingModel]] = None
     default_embedding_model: Optional[str] = None
 
     def model_post_init(self, __context) -> None:
@@ -723,7 +723,7 @@ class SessionConfig(BaseModel):
             app_name="my_app",
             semantic=SemanticConfig(
                 language_models={
-                    "gpt4": OpenAILanguageModelConfig(
+                    "gpt4": OpenAILanguageModel(
                         model_name="gpt-4.1-nano",
                         rpm=100,
                         tpm=100
@@ -741,12 +741,12 @@ class SessionConfig(BaseModel):
             db_path=Path("/path/to/database.db"),
             semantic=SemanticConfig(
                 language_models={
-                    "gpt4": OpenAILanguageModelConfig(
+                    "gpt4": OpenAILanguageModel(
                         model_name="gpt-4.1-nano",
                         rpm=100,
                         tpm=100
                     ),
-                    "claude": AnthropicLanguageModelConfig(
+                    "claude": AnthropicLanguageModel(
                         model_name="claude-3-5-haiku-latest",
                         rpm=100,
                         input_tpm=100,
@@ -755,7 +755,7 @@ class SessionConfig(BaseModel):
                 },
                 default_language_model="gpt4",
                 embedding_models={
-                    "openai_embeddings": OpenAIEmbeddingModelConfig(
+                    "openai_embeddings": OpenAIEmbeddingModel(
                         model_name="text-embedding-3-small",
                         rpm=100,
                         tpm=100
@@ -774,13 +774,13 @@ class SessionConfig(BaseModel):
 
     def _to_resolved_config(self) -> ResolvedSessionConfig:
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
-            if isinstance(model, OpenAIEmbeddingModelConfig):
+            if isinstance(model, OpenAIEmbeddingModel):
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
                     rpm=model.rpm,
                     tpm=model.tpm,
                 )
-            elif isinstance(model, OpenAILanguageModelConfig):
+            elif isinstance(model, OpenAILanguageModel):
                 profiles = {
                     profile: ResolvedOpenAIModelProfile(reasoning_effort=profile_config.reasoning_effort) for
                     profile, profile_config in model.profiles.items()
@@ -792,7 +792,7 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile
                 )
-            elif isinstance(model, (GoogleDeveloperLanguageModelConfig, GoogleVertexLanguageModelConfig)):
+            elif isinstance(model, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
                 profiles = {
                     profile: ResolvedGoogleModelProfile(thinking_token_budget=profile_config.thinking_token_budget) for
                     profile, profile_config in model.profiles.items()
@@ -805,7 +805,7 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile,
                 )
-            elif isinstance(model, AnthropicLanguageModelConfig):
+            elif isinstance(model, AnthropicLanguageModel):
                 profiles = {
                     profile: ResolvedAnthropicModelProfile(thinking_token_budget=profile_config.thinking_token_budget) for
                     profile, profile_config in model.profiles.items()

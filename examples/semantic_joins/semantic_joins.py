@@ -16,7 +16,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="semantic_joins",
         semantic=fc.SemanticConfig(
             language_models={
-                "mini": fc.OpenAILanguageModelConfig(
+                "mini": fc.OpenAILanguageModel(
                     model_name="gpt-4o-mini",
                     rpm=500,
                     tpm=200_000,

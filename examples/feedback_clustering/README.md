@@ -129,14 +129,14 @@ config = fc.SessionConfig(
     app_name="feedback_clustering",
     semantic=fc.SemanticConfig(
         language_models={
-            "mini": fc.OpenAILanguageModelConfig(
+            "mini": fc.OpenAILanguageModel(
                 model_name="gpt-4o-mini",
                 rpm=500,
                 tpm=200_000,
             )
         },
         embedding_models={
-            "small": fc.OpenAIEmbeddingModelConfig(
+            "small": fc.OpenAIEmbeddingModel(
                 model_name="text-embedding-3-small",
                 rpm=3000,
                 tpm=1_000_000

@@ -2,7 +2,7 @@
 import polars as pl
 import pytest
 
-from fenic import KeyPoints, OpenAIEmbeddingModelConfig, col, semantic
+from fenic import KeyPoints, OpenAIEmbeddingModel, col, semantic
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -102,7 +102,7 @@ def test_semantic_summarize_without_models():
     session_config = SessionConfig(
         app_name="semantic_summarize_without_models",
         semantic=SemanticConfig(
-            embedding_models={"oai-small": OpenAIEmbeddingModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+            embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
     )
     session = Session.get_or_create(session_config)
