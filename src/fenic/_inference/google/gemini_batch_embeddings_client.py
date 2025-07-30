@@ -61,7 +61,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         self._metrics = RMMetrics()
         self._profile_manager = GoogleEmbeddingsProfileManager(
             model_parameters=self._model_parameters,
-            preset_configurations=profiles,
+            profiles=profiles,
             default_profile_name=default_profile_name,
         )
 

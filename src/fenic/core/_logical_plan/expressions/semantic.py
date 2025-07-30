@@ -11,7 +11,6 @@ from fenic.core._logical_plan.resolved_types import (
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
-    ResolvedOpenAIModelConfig,
 )
 from fenic.core.types import (
     ClassifyExampleCollection,
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 import fenic.core._utils.misc as utils
 from fenic.core._inference.model_catalog import (
-    ModelProvider,
     model_catalog,
 )
 from fenic.core._interfaces.session_state import BaseSessionState
@@ -463,10 +461,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
             )
 
         model_config = embedding_model_configs.model_configs[model_alias.name]
-        if isinstance(model_config, ResolvedOpenAIModelConfig):
-            model_provider = ModelProvider.OPENAI
-        else:
-            model_provider = model_config.model_provider
+        model_provider = model_config.model_provider
         model_name = model_config.model_name
         embedding_params = model_catalog.get_embedding_model_parameters(
             model_provider, model_name

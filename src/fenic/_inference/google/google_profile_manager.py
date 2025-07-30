@@ -13,11 +13,10 @@ from fenic.core._inference.model_catalog import (
     EmbeddingModelParameters,
 )
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
-from fenic.core.error import ConfigurationError
 
 
 @dataclass
-class GoogleCompletionsProfileConfiguration(BaseProfileConfiguration):
+class GoogleCompletionsProfileConfig(BaseProfileConfiguration):
     """Configuration for Google Gemini model profiles.
 
     Attributes:
@@ -30,44 +29,40 @@ class GoogleCompletionsProfileConfiguration(BaseProfileConfiguration):
     additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
 
 @dataclass
-class GoogleEmbeddingsProfileConfiguration(BaseProfileConfiguration):
-    """Configuration for Google Gemini embeddings model presets."""
+class GoogleEmbeddingsProfileConfig(BaseProfileConfiguration):
+    """Configuration for Google Gemini embeddings model profiles."""
     additional_embedding_config: EmbedContentConfigDict = field(default_factory=EmbedContentConfigDict)
 
-class GoogleEmbeddingsProfileManager(ProfileManager[ResolvedGoogleModelProfile, GoogleEmbeddingsProfileConfiguration]):
+class GoogleEmbeddingsProfileManager(ProfileManager[ResolvedGoogleModelProfile, GoogleEmbeddingsProfileConfig]):
 
     def __init__(
         self,
         model_parameters: EmbeddingModelParameters,
-        preset_configurations: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
+        profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
         default_profile_name: Optional[str] = None,
     ):
         self.model_parameters = model_parameters
-        super().__init__(preset_configurations, default_profile_name)
+        super().__init__(profiles, default_profile_name)
 
 
-    def _process_profile(self, preset: ResolvedGoogleModelProfile) -> GoogleEmbeddingsProfileConfiguration:
+    def _process_profile(self, profile: ResolvedGoogleModelProfile) -> GoogleEmbeddingsProfileConfig:
         config_dict = EmbedContentConfigDict()
-        if preset.embedding_dimensionality:
-            if not self.model_parameters.validate_dimensions(preset.embedding_dimensionality):
-                raise ConfigurationError(f"The dimensionality of the Google Embeddings model preset {preset} is invalid."
-                                         f"Requested dimensionality: {preset.embedding_dimensionality}"
-                                         f"Available Options: {self.model_parameters.get_possible_dimensions()}")
-            config_dict["output_dimensionality"] = preset.embedding_dimensionality
+        if profile.embedding_dimensionality:
+            config_dict["output_dimensionality"] = profile.embedding_dimensionality
 
-        if preset.embedding_task_type:
-            config_dict["task_type"] = preset.embedding_task_type
+        if profile.embedding_task_type:
+            config_dict["task_type"] = profile.embedding_task_type
 
-        return GoogleEmbeddingsProfileConfiguration(
+        return GoogleEmbeddingsProfileConfig(
            additional_embedding_config=config_dict,
         )
 
-    def get_default_profile(self) -> GoogleEmbeddingsProfileConfiguration:
-        return GoogleEmbeddingsProfileConfiguration()
+    def get_default_profile(self) -> GoogleEmbeddingsProfileConfig:
+        return GoogleEmbeddingsProfileConfig()
 
 
 
-class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile, GoogleCompletionsProfileConfiguration]):
+class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile, GoogleCompletionsProfileConfig]):
     """Manages Google-specific profile configurations.
 
     This class handles the conversion of Fenic profile configurations to
@@ -90,7 +85,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         self.model_parameters = model_parameters
         super().__init__(profile_configurations, default_profile_name)
 
-    def _process_profile(self, profile: ResolvedGoogleModelProfile) -> GoogleCompletionsProfileConfiguration:
+    def _process_profile(self, profile: ResolvedGoogleModelProfile) -> GoogleCompletionsProfileConfig:
         """Process Google profile configuration.
 
         Converts a Fenic profile configuration to a Google-specific configuration,
@@ -130,20 +125,20 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                     # Dynamic budget - approximate with default value
                     expected_thinking_tokens = 16384
 
-        return GoogleCompletionsProfileConfiguration(
+        return GoogleCompletionsProfileConfig(
             thinking_enabled=thinking_enabled,
             thinking_token_budget=expected_thinking_tokens,
             additional_generation_config=additional_generation_config
         )
 
-    def get_default_profile(self) -> GoogleCompletionsProfileConfiguration:
+    def get_default_profile(self) -> GoogleCompletionsProfileConfig:
         """Get default Google configuration.
 
         Returns:
             Default configuration with thinking disabled
         """
         if self.model_parameters.supports_reasoning:
-            return GoogleCompletionsProfileConfiguration(
+            return GoogleCompletionsProfileConfig(
                 thinking_enabled=False,
                 thinking_token_budget=0,
                 additional_generation_config=GenerateContentConfigDict(
@@ -153,4 +148,4 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                     )
                 )
             )
-        return GoogleCompletionsProfileConfiguration()
+        return GoogleCompletionsProfileConfig()

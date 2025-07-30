@@ -48,6 +48,7 @@ class ResolvedOpenAIModelConfig:
     model_name: str
     rpm: int
     tpm: int
+    model_provider: ModelProvider = ModelProvider.OPENAI
     profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
     default_profile: Optional[str] = None
 
@@ -58,6 +59,7 @@ class ResolvedAnthropicModelConfig:
     rpm: int
     input_tpm: int
     output_tpm: int
+    model_provider: ModelProvider = ModelProvider.ANTHROPIC
     profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
     default_profile: Optional[str] = None
 

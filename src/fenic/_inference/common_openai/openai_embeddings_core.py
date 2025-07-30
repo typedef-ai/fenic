@@ -26,6 +26,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core.metrics import RMMetrics
 
 logger = logging.getLogger(__name__)
+
 class OpenAIEmbeddingsCore:
     """Core functionality for OpenAI embeddings clients."""
 

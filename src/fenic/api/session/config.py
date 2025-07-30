@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
+    EmbeddingModelParameters,
     GoogleDeveloperLanguageModelName,
     GoogleVertexLanguageModelName,
     ModelProvider,
@@ -761,7 +762,7 @@ class SemanticConfig(BaseModel):
 
             for model_alias, language_model in self.language_models.items():
                 language_model_name = language_model.model_name
-                language_model_provider = get_model_provider_for_model_config(language_model)
+                language_model_provider = _get_model_provider_for_model_config(language_model)
 
                 if language_model.profiles is not None:
                     profile_names = list(language_model.profiles.keys())
@@ -790,8 +791,8 @@ class SemanticConfig(BaseModel):
             if self.default_embedding_model is not None and self.default_embedding_model not in self.embedding_models:
                 raise ConfigurationError(
                     f"default_embedding_model {self.default_embedding_model} is not in configured map of embedding models. Available models: {available_embedding_model_aliases} .")
-            for _model_alias, embedding_model in self.embedding_models.items():
-                embedding_model_provider = get_model_provider_for_model_config(embedding_model)
+            for model_alias, embedding_model in self.embedding_models.items():
+                embedding_model_provider = _get_model_provider_for_model_config(embedding_model)
                 embedding_model_name = embedding_model.model_name
                 embedding_model_parameters = model_catalog.get_embedding_model_parameters(embedding_model_provider,
                                                                                           embedding_model_name)
@@ -800,6 +801,18 @@ class SemanticConfig(BaseModel):
                         embedding_model_provider,
                         embedding_model_name
                     ))
+                if hasattr(embedding_model, "profiles") and embedding_model.profiles:
+                    profile_names = list(embedding_model.profiles.keys())
+                    if embedding_model.default_profile is None and len(profile_names) > 0:
+                        raise ConfigurationError(
+                            f"default_profile is not set for model {model_alias}, but multiple profiles are configured. Please specify one of: {profile_names} as a default_profile.")
+                    if embedding_model.default_profile is not None and embedding_model.default_profile not in profile_names:
+                        raise ConfigurationError(
+                            f"default_profile {embedding_model.default_profile} is not in configured profiles for model {model_alias}. Available profiles: {profile_names}")
+
+                    for profile_alias, profile in embedding_model.profiles.items():
+                        _validate_embedding_profile(embedding_model_parameters, profile_alias, profile)
+
 
         return self
 
@@ -950,7 +963,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
-                    model_provider=get_model_provider_for_model_config(model),
+                    model_provider=_get_model_provider_for_model_config(model),
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -1021,7 +1034,19 @@ class SessionConfig(BaseModel):
             cloud=resolved_cloud
         )
 
-def get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
+def _validate_embedding_profile(
+    embedding_model_parameters: EmbeddingModelParameters,
+    profile_alias: str,
+    profile: EmbeddingModel.Profile
+):
+    """Validate Embedding profile against embedding model parameters."""
+    if hasattr(profile, "output_dimensionality") and not embedding_model_parameters.supports_dimensions(profile.output_dimensionality):
+        raise ConfigurationError(
+            f"The dimensionality of the Embeddings model profile {profile_alias} is invalid."
+            f"Requested dimensionality: {profile.embedding_dimensionality}"
+            f"Available Options: {embedding_model_parameters.get_possible_dimensions()}")
+
+def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
     """Determine the ModelProvider for the given model configuration."""
     if isinstance(model_config, (OpenAILanguageModel, OpenAIEmbeddingModel)):
         return ModelProvider.OPENAI

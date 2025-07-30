@@ -105,7 +105,7 @@ class EmbeddingModelParameters:
         else:
             return self.dimension_options
 
-    def validate_dimensions(self, requested_dimensions: int) -> bool:
+    def supports_dimensions(self, requested_dimensions: int) -> bool:
         """Validate if requested dimensions are supported."""
         if self.has_fixed_dimensions:
             return requested_dimensions == self.fixed_dimensions

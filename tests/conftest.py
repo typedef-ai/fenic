@@ -20,7 +20,7 @@ from fenic.api.session.config import (
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     OpenAILanguageModel,
-    get_model_provider_for_model_config,
+    _get_model_provider_for_model_config,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
@@ -132,7 +132,7 @@ def embedding_model_name(local_session_config) -> str:
     embedding_model = local_session_config.semantic.embedding_models[
         local_session_config.semantic.default_embedding_model
     ]
-    model_provider = get_model_provider_for_model_config(embedding_model)
+    model_provider = _get_model_provider_for_model_config(embedding_model)
     return f"{model_provider.value}/{embedding_model.model_name}"
 
 @pytest.fixture
