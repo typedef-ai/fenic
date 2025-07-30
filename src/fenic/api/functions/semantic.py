@@ -18,9 +18,9 @@ from fenic.core._logical_plan.expressions import (
     LogicalExpr,
     ColumnExpr,
 )
-from fenic.core._utils.extract import (
-    ExtractSchemaValidationError,
-    validate_extract_schema_structure,
+from fenic.core._utils.structured_outputs import (
+    OutputFormatValidationError,
+    validate_output_format,
 )
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -37,6 +37,7 @@ from fenic.core.types import (
 def map(
         jinja_template: str,
         examples: Optional[MapExampleCollection] = None,
+        schema: Optional[type[BaseModel]] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
         max_output_tokens: int = 512,
@@ -53,6 +54,7 @@ def map(
             Each example should demonstrate the expected input and output for the mapping.
             The examples should be created using MapExampleCollection.create_example(),
             providing instruction variables and their expected answers.
+        schema: Optional Pydantic model type that defines the output structure with descriptions for each field.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -89,6 +91,12 @@ def map(
     if not columns:
         raise ValidationError("need at least one column")
 
+    if schema:
+        try:
+            validate_output_format(schema)
+        except OutputFormatValidationError as e:
+            raise ValidationError("Invalid response schema") from e
+
     column_exprs: List[Union[ColumnExpr, LogicalExpr]] = []
     for var_name, column in columns.items():
         if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
@@ -104,6 +112,7 @@ def map(
             max_tokens=max_output_tokens,
             model_alias=model_alias,
             temperature=temperature,
+            response_format=schema,
         )
     )
 
@@ -175,10 +184,11 @@ def extract(
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
-        instruction: str,
+        jinja_template: str,
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[str] = None,
         temperature: float = 0,
+        **columns: Column,
 ) -> Column:
     """Applies a natural language predicate to one or more string columns, returning a boolean result.
 
@@ -224,6 +234,12 @@ def predicate(
         semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
         ```
     """
+    if not jinja_template:
+        raise ValidationError("need non empty jinja template")
+
+    if not columns:
+        raise ValidationError("need at least one column")
+
     return Column._from_logical_expr(
         SemanticPredExpr(
             instruction,

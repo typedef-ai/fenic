@@ -7,7 +7,7 @@ from fenic._inference.language_model import InferenceConfiguration, LanguageMode
 from fenic._inference.types import FewShotExample, LMRequestMessages
 from fenic.core.types.semantic_examples import BaseExampleCollection
 
-# Type variable for raw model output (e.g., completion text, completiont text with log probabilities, explanations, etc.)
+# Type variable for raw model output (e.g., completion text, completion text with log probabilities, explanations, etc.)
 ModelResponseType = TypeVar("ModelResponseType")
 
 # Type variable for the final output returned by the operator after post-processing
