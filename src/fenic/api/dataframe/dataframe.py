@@ -872,7 +872,7 @@ class DataFrame:
             # +---+-----+
             ```
         """
-        self.ensure_same_session(self._session_state, [other._session_state])
+        self._ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
             UnionLogicalPlan.from_session_state([self._logical_plan, other._logical_plan], self._session_state),
             self._session_state,
@@ -1053,7 +1053,7 @@ class DataFrame:
         # Build join conditions
         left_conditions, right_conditions = build_join_conditions(on, left_on, right_on)
 
-        self.ensure_same_session(self._session_state, [other._session_state])
+        self._ensure_same_session(self._session_state, [other._session_state])
         return self._from_logical_plan(
             Join.from_session_state(
                 self._logical_plan,
@@ -1542,7 +1542,7 @@ class DataFrame:
         )
 
     @classmethod
-    def ensure_same_session(
+    def _ensure_same_session(
             cls,
             session_state: BaseSessionState,
             other_session_states: List[BaseSessionState]):

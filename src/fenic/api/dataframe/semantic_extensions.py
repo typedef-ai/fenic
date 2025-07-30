@@ -244,7 +244,7 @@ class SemanticExtensions:
                 "join_instruction must contain exactly one :left and one :right column"
             )
 
-        DataFrame.ensure_same_session(self._df._session_state, [other._session_state])
+        DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
             SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
@@ -358,7 +358,7 @@ class SemanticExtensions:
         _validate_column(left_on, "left_on")
         _validate_column(right_on, "right_on")
 
-        DataFrame.ensure_same_session(self._df._session_state, [other._session_state])
+        DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
             SemanticSimilarityJoin.from_session_state(
                 self._df._logical_plan,

@@ -241,25 +241,6 @@ class Session:
             TableSource.from_session_state(table_name, self._session_state),
             self._session_state,
         )
-
-    def view(self, view_name: str) -> DataFrame:
-        """Returns the specified view as a DataFrame.
-
-        Args:
-            view_name: Name of the view
-        Returns:
-            DataFrame: Dataframe with the given view
-        """
-        if not self._session_state.catalog.does_view_exist(view_name):
-            raise CatalogError(f"View {view_name} does not exist")
-
-        view_plan = self._session_state.catalog.describe_view(view_name)
-        self._session_state.catalog.validate_view(view_name, view_plan, self._session_state)
-
-        return DataFrame._from_logical_plan(
-            view_plan,
-            self._session_state,
-        )
     
     def sql(self, query: str, /, **tables: DataFrame) -> DataFrame:
         """Execute a read-only SQL query against one or more DataFrames using named placeholders.
@@ -321,15 +302,13 @@ class Session:
         logical_plans = []
         template_names = []
         input_session_states = []
-        input_session_states = []
         for name, table in tables.items():
             if name in placeholders:
                 template_names.append(name)
                 logical_plans.append(table._logical_plan)
                 input_session_states.append(table._session_state)
-                input_session_states.append(table._session_state)
 
-        DataFrame.ensure_same_session(self._session_state, input_session_states)
+        DataFrame._ensure_same_session(self._session_state, input_session_states)
         return DataFrame._from_logical_plan(
             SQL.from_session_state(logical_plans, template_names, query, self._session_state),
             self._session_state,

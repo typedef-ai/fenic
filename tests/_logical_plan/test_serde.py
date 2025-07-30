@@ -33,9 +33,6 @@ def _test_plan_serialization(
     # Serialize and deserialize
     serialized = LogicalPlanSerde.serialize(plan)
     deserialized = LogicalPlanSerde.deserialize(serialized)
-    # deserialized_with_session_state = (
-    #     LogicalPlanSerde.build_logical_plan_with_session_state(deserialized, session_state)
-    # )
     deserialized_df = DataFrame._from_logical_plan(
         deserialized,
         session_state
