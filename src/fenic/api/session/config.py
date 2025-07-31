@@ -284,7 +284,7 @@ class GoogleVertexEmbeddingModel(BaseModel):
             profile = GoogleVertexEmbeddingModelConfig.Profile()
             ```
         """
-        output_dimensionality: Optional[int] = Field(default=None, gt=0, le=3072, description="Dimensionality of the embedding created by this model")
+        output_dimensionality: Optional[int] = Field(default=None, ge=768, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
 
 
@@ -1040,10 +1040,10 @@ def _validate_embedding_profile(
     profile: EmbeddingModel.Profile
 ):
     """Validate Embedding profile against embedding model parameters."""
-    if hasattr(profile, "output_dimensionality") and not embedding_model_parameters.supports_dimensions(profile.output_dimensionality):
+    if hasattr(profile, "output_dimensionality") and profile.output_dimensionality is not None and not embedding_model_parameters.supports_dimensions(profile.output_dimensionality):
         raise ConfigurationError(
-            f"The dimensionality of the Embeddings model profile {profile_alias} is invalid."
-            f"Requested dimensionality: {profile.embedding_dimensionality}"
+            f"The dimensionality of the Embeddings model profile {profile_alias} is invalid. "
+            f"Requested dimensionality: {profile.output_dimensionality}. "
             f"Available Options: {embedding_model_parameters.get_possible_dimensions()}")
 
 def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
