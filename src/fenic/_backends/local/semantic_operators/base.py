@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Generic, List, Optional, TypeVar
 
 import polars as pl
+from jinja2 import Template
 
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import FewShotExample, LMRequestMessages
 from fenic.core.types.semantic_examples import BaseExampleCollection
-from jinja2 import Template
 
 # Type variable for raw model output (e.g., completion text, completion text with log probabilities, explanations, etc.)
 ModelResponseType = TypeVar("ModelResponseType")
@@ -119,6 +119,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 messages_batch.append(
                     self.build_request_messages(document)
                 )
+        print(messages_batch)
         return messages_batch
 
     def build_request_messages(self, input: str) -> LMRequestMessages:
@@ -203,8 +204,7 @@ class BaseSingleColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include in the prompt for few-shot learning.
         """
-        super().__init__(input, request_sender)
-        self.examples = examples
+        super().__init__(input, request_sender, examples)
 
     def build_example(self, example) -> FewShotExample:
         """Convert the stored example collection into prompt message pairs.
@@ -265,9 +265,7 @@ class BaseMultiColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include for few-shot prompting.
         """
-        super().__init__(request_sender)
-        self.input = input
-        self.examples = examples
+        super().__init__(input, request_sender, examples)
         self.jinja_template = jinja_template
 
     def build_example(self, example) -> FewShotExample:

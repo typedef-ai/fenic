@@ -9,7 +9,7 @@ from fenic.core._logical_plan.signatures.function_signature import (
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.type_signature import Exact, VariadicUniform
-from fenic.core.types.datatypes import BooleanType, StringType
+from fenic.core.types.datatypes import StringType
 
 
 def register_semantic_signatures():

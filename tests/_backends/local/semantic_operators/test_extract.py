@@ -62,35 +62,37 @@ class TestExtract:
         expected = [[
             {
                 "role": "system",
-                "content": (
-                    "You are an expert at structured data extraction. "
-                    "Your task is to extract relevant information from a given document using only the information explicitly stated in the text. "
-                    "You must adhere strictly to the provided field definitions. Do not infer or generate information that is not directly supported by the document.\n\n"
-                    "Extraction Guidelines:\n"
-                    "1. Extract only what is explicitly present or clearly supported in the document—do not guess or extrapolate.\n"
-                    "2. For list fields, extract all items that match the field description.\n"
-                    "3. If a field is not found in the document, return null for single values and [] for lists.\n"
-                    "4. Ensure all field names in your structured output exactly match the field schema.\n"
-                    "5. Be thorough and precise—capture all relevant content without changing or omitting meaning.\n\n"
-                    "How to read the field schema:\n"
-                    "- Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')\n"
-                    "- Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of [string])\n"
-                    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n\n"
-                    "Field Schema:\n"
-                    "name (str): Full name of the candidate\n"
-                    "work_experience (list of objects): List of work experiences\n"
-                    "work_experience[item].company (str): Name of the company\n"
-                    "work_experience[item].title (str): Job title held\n"
-                    "work_experience[item].start_year (int): Year the job started\n"
-                    "work_experience[item].end_year (int (optional)): Year the job ended (if applicable)\n"
-                    "work_experience[item].description (str (optional)): Short description of responsibilities\n"
-                    "work_experience[item].employment_type ('full-time' or 'part-time' or 'contractor' (optional)): Type of employment\n"
-                    "skills (list of str): List of individual skills mentioned\n"
-                    "education (object (optional)): Education details\n"
-                    "education.institution (str): Name of the educational institution\n"
-                    "education.major (str): Field of study\n"
-                    "education.graduation_year (int (optional)): Year of graduation"
-                ),
+                "content": dedent("""\
+                    Extract information from the document according to the output schema.
+
+                    Output Schema:
+                    name (str): Full name of the candidate
+                    work_experience (list of objects): List of work experiences
+                    work_experience[item].company (str): Name of the company
+                    work_experience[item].title (str): Job title held
+                    work_experience[item].start_year (int): Year the job started
+                    work_experience[item].end_year (int (optional)): Year the job ended (if applicable)
+                    work_experience[item].description (str (optional)): Short description of responsibilities
+                    work_experience[item].employment_type ('full-time' or 'part-time' or 'contractor' (optional)): Type of employment
+                    skills (list of str): List of individual skills mentioned
+                    education (object (optional)): Education details
+                    education.institution (str): Name of the educational institution
+                    education.major (str): Field of study
+                    education.graduation_year (int (optional)): Year of graduation
+
+                    How to read the output schema:
+                    - Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')
+                    - Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of str)
+                    - For lists: 'fieldname[item].subfield' means each item in the list has that subfield
+                    - Type annotations are shown in parentheses (e.g., string, integer, boolean, date)
+                    - Fields marked (optional) can be omitted if not applicable
+
+                    Requirements:
+                    1. Extract only information explicitly stated in the document
+                    2. Do not infer, guess, or generate information not present
+                    3. Include all required fields - no extra fields, no missing fields
+                    4. For list fields, extract all items that match the field description
+                    5. Be thorough and precise - capture all relevant content without changing meaning""").strip(),
             },
             {
                 "role": "user",

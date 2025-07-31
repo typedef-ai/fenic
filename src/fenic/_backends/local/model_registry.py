@@ -189,7 +189,7 @@ class SessionModelRegistry:
                 model=model_config.model_name,
             )
         except Exception as e:
-            raise SessionError(f"Failed to create retrieval model client: {e}") from e
+            raise SessionError(f"Failed to create embedding model client: {e}") from e
 
         return EmbeddingModel(client=client)
 

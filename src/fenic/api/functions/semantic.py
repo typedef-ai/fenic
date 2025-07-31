@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict, validate_call
 from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
     AnalyzeSentimentExpr,
+    ColumnExpr,
     EmbeddingsExpr,
+    LogicalExpr,
     ResolvedClassDefinition,
     SemanticClassifyExpr,
     SemanticExtractExpr,
@@ -15,8 +17,6 @@ from fenic.core._logical_plan.expressions import (
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
-    LogicalExpr,
-    ColumnExpr,
 )
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
@@ -95,10 +95,10 @@ def map(
         ```
     """
     if not jinja_template:
-        raise ValidationError("Jinja template for semantic.map cannot be empty.")
+        raise ValidationError("The `jinja_template` argument to `semantic.map` cannot be empty.")
 
     if not columns:
-        raise ValidationError("semantic.map requires at least one column.")
+        raise ValidationError("`semantic.map` requires at least one named column argument (e.g. `text=col('text')`).")
 
     if response_format:
         try:
@@ -201,7 +201,7 @@ def predicate(
         temperature: float = 0.0,
         **columns: Column,
 ) -> Column:
-    """Applies a boolean predicate to one or more columns, returning true/false for filtering.
+    r"""Applies a boolean predicate to one or more columns, returning true/false for filtering.
 
     Args:
         jinja_template: A Jinja2 template containing a yes/no question or claim to evaluate.
@@ -254,10 +254,10 @@ def predicate(
         ```
     """
     if not jinja_template:
-        raise ValidationError("Jinja template for semantic.predicate cannot be empty.")
+        raise ValidationError("The `jinja_template` argument to `semantic.predicate` must be a non-empty string.")
 
     if not columns:
-        raise ValidationError("semantic.predicate requires at least one column.")
+        raise ValidationError("`semantic.predicate` requires at least one named column argument (e.g. `text=col('text')`).")
 
     exprs: List[Union[ColumnExpr, LogicalExpr]] = []
     for var_name, column in columns.items():

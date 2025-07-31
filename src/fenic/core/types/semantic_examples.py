@@ -6,9 +6,9 @@ used in query processing.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar, Union
-import logging
 
 import pandas as pd
 import polars as pl
@@ -16,9 +16,9 @@ from pydantic import BaseModel
 
 from fenic._constants import (
     EXAMPLE_INPUT_KEY,
-    EXAMPLE_LEFT_KEY,
     EXAMPLE_OUTPUT_KEY,
-    EXAMPLE_RIGHT_KEY,
+    LEFT_ON_KEY,
+    RIGHT_ON_KEY,
 )
 from fenic.core.error import InvalidExampleCollectionError
 
@@ -26,6 +26,7 @@ ExampleType = TypeVar("ExampleType")
 
 logger = logging.getLogger(__name__)
 
+#TODO: add support for any validation for the examples
 class MapExample(BaseModel):
     """A single semantic example for semantic mapping operations.
 
@@ -33,7 +34,7 @@ class MapExample(BaseModel):
     string or structured model used in a semantic.map operation.
     """
 
-    input: Dict[str, str]
+    input: Dict[str, Any]
     output: Union[str, BaseModel]
 
 
@@ -55,7 +56,7 @@ class PredicateExample(BaseModel):
     used in a semantic.predicate operation.
     """
 
-    input: Dict[str, str]
+    input: Dict[str, Any]
     output: bool
 
 
@@ -66,8 +67,8 @@ class JoinExample(BaseModel):
     datasets against a specific condition, used in a semantic.join operation.
     """
 
-    left: str
-    right: str
+    left_on: Any
+    right_on: Any
     output: bool
 
 class BaseExampleCollection(ABC, Generic[ExampleType]):
@@ -436,8 +437,8 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
         collection = cls()
 
         required_columns = [
-            EXAMPLE_LEFT_KEY,
-            EXAMPLE_RIGHT_KEY,
+            LEFT_ON_KEY,
+            RIGHT_ON_KEY,
             EXAMPLE_OUTPUT_KEY,
         ]
         for col in required_columns:
@@ -454,8 +455,8 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
                     )
 
             example = JoinExample(
-                left=row[EXAMPLE_LEFT_KEY],
-                right=row[EXAMPLE_RIGHT_KEY],
+                left_on=row[LEFT_ON_KEY],
+                right_on=row[RIGHT_ON_KEY],
                 output=row[EXAMPLE_OUTPUT_KEY],
             )
             collection.create_example(example)
@@ -472,8 +473,8 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
             example_dict = example.model_dump()
             rows.append(
                 {
-                    EXAMPLE_LEFT_KEY: example_dict[EXAMPLE_LEFT_KEY],
-                    EXAMPLE_RIGHT_KEY: example_dict[EXAMPLE_RIGHT_KEY],
+                    LEFT_ON_KEY: example_dict[LEFT_ON_KEY],
+                    RIGHT_ON_KEY: example_dict[RIGHT_ON_KEY],
                     EXAMPLE_OUTPUT_KEY: example_dict[EXAMPLE_OUTPUT_KEY],
                 }
             )
@@ -482,6 +483,7 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
 
 def _validate_example_inputs(example_col_names: List[str], expression_names: List[str]) -> None:
     """Validate that the collection matches the expected input columns from the instruction."""
+    print("ya")
     example_col_names = set(example_col_names) - {EXAMPLE_OUTPUT_KEY}
     expression_names = set(expression_names)
     missing = expression_names - example_col_names
@@ -489,7 +491,7 @@ def _validate_example_inputs(example_col_names: List[str], expression_names: Lis
 
     if missing:
         raise InvalidExampleCollectionError(
-            f"The following columns are required by the instruction but missing from the collection: "
+            f"The following columns are required by the jinja template but missing from the examples collection: "
             f"{', '.join(sorted(missing))}.\nExpected columns: {', '.join(sorted(expression_names))}.\n"
             f"Actual columns: {', '.join(sorted(example_col_names))}."
         )

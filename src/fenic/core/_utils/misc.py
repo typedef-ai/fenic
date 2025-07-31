@@ -1,6 +1,4 @@
-import re
 import uuid
-
 
 # def parse_instruction(text: str) -> list[str]:
 #     """Extract variable names from instruction text that are wrapped in single curly braces.

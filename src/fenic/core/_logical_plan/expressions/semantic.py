@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Union
+
 from pydantic import BaseModel
 
 from fenic.core._logical_plan.utils import validate_completion_parameters
@@ -12,7 +13,6 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
-from fenic.core.types.datatypes import StringType
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -30,17 +30,17 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedSignature,
 )
 from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import InvalidExampleCollectionError, ValidationError
 from fenic.core.types import (
+    BooleanType,
     DataType,
     EmbeddingType,
     StringType,
-    BooleanType,
 )
 from fenic.core.types.schema import ColumnField
-from fenic.core._logical_plan.jinja_validation import VariableTree
 
 
 class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -77,9 +77,9 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(plan, session_state)
         for expr in self.exprs:
-            data_type = expr.to_column_field(plan).data_type
+            data_type = expr.to_column_field(plan, session_state).data_type
             self.variable_tree.validate_jinja_variable(expr.name, data_type)
 
         return ColumnField(
@@ -113,7 +113,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         )
 
     def __str__(self):
-        instruction_hash = utils.get_content_hash(self.instruction)
+        instruction_hash = utils.get_content_hash(self.template)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
@@ -201,9 +201,10 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan)
+        self._validate_completion_parameters(plan, session_state)
         for expr in self.exprs:
-            data_type = expr.to_column_field(plan).data_type
+            print("yo")
+            data_type = expr.to_column_field(plan, session_state).data_type
             self.variable_tree.validate_jinja_variable(expr.name, data_type)
 
         return ColumnField(
@@ -212,7 +213,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         )
 
     def __str__(self):
-        instruction_hash = utils.get_content_hash(self.instruction)
+        instruction_hash = utils.get_content_hash(self.template)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.predicate_{instruction_hash}({exprs_str})"
 

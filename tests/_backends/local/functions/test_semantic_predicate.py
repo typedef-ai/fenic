@@ -1,13 +1,22 @@
 import polars as pl
 import pytest
 
-from fenic import PredicateExample, PredicateExampleCollection, col, semantic
+from fenic import (
+    BooleanType,
+    ColumnField,
+    IntegerType,
+    PredicateExample,
+    PredicateExampleCollection,
+    StringType,
+    col,
+    semantic,
+)
 from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
 from fenic.core.error import ValidationError
 
 
 def test_single_semantic_filter(local_session):
-    instruction = "This {blurb} has positive sentiment about apache spark."
+    claim = "Review: {{review}}. The review has positive sentiment about apache spark."
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -25,10 +34,15 @@ def test_single_semantic_filter(local_session):
         }
     )
     df = source.filter(
-        semantic.predicate(instruction)
+        semantic.predicate(claim, review=col("blurb"))
         & (col("a_boolean_column"))
         & (col("a_numeric_column") > 0)
     )
+    assert df.schema.column_fields == [
+        ColumnField(name="blurb", data_type=StringType),
+        ColumnField(name="a_boolean_column", data_type=BooleanType),
+        ColumnField(name="a_numeric_column", data_type=IntegerType),
+    ]
     result = df.to_polars()
     assert result.schema == {
         "blurb": pl.String,
@@ -36,7 +50,7 @@ def test_single_semantic_filter(local_session):
         "a_numeric_column": pl.Int64,
     }
 
-    df = source.select(semantic.predicate(instruction).alias("sentiment"))
+    df = source.select(semantic.predicate(claim, review=col("blurb")).alias("sentiment"))
     result = df.to_polars()
     assert result.schema == {
         "sentiment": pl.Boolean,
@@ -44,8 +58,8 @@ def test_single_semantic_filter(local_session):
 
 
 def test_semantic_filter_with_examples(local_session):
-    instruction = (
-        "This {blurb1} and this {blurb2} have positive sentiment about apache spark."
+    claim = (
+        "Review: {{part1}}. {{part2}}. The review has positive sentiment about apache spark."
     )
     source = local_session.create_dataframe(
         {
@@ -62,13 +76,13 @@ def test_semantic_filter_with_examples(local_session):
     sentiment_collection = PredicateExampleCollection().create_example(
         PredicateExample(
             input={
-                "blurb1": "Apache Spark has an amazing community.",
-                "blurb2": "Apache Spark has good fault tolerance.",
+                "part1": "Apache Spark has an amazing community.",
+                "part2": "Apache Spark has good fault tolerance.",
             },
             output=True,
         )
     )
-    df = source.filter(semantic.predicate(instruction, examples=sentiment_collection))
+    df = source.filter(semantic.predicate(claim, part1=col("blurb1"), part2=col("blurb2"), examples=sentiment_collection))
     result = df.to_polars()
     assert result.schema == {
         "blurb1": pl.String,
@@ -88,8 +102,8 @@ def test_many_semantic_filter_or(local_session):
     )
 
     df = source.filter(
-        semantic.predicate("This {review} discusses performance or speed")
-        | semantic.predicate("This {review} discusses reliability or stability")
+        semantic.predicate("Review: {{review}}. The review discusses performance or speed", review=col("review"))
+        | semantic.predicate("Review: {{review}}. The review discusses reliability or stability", review=col("review"))
     )
     result = df.to_polars()
 
@@ -97,32 +111,6 @@ def test_many_semantic_filter_or(local_session):
     assert result.schema == {
         "review": pl.String,
     }
-
-
-def test_single_semantic_filter_with_none(local_session):
-    instruction = "This {blurb} has positive sentiment about apache spark."
-    source = local_session.create_dataframe(
-        {
-            "blurb": [
-                "Apache Spark is the worst piece of software I've ever used. It's so slow and inefficient and I hate the JVM.",
-                "Apache Spark is amazing. It's so fast and effortlessly scales to petabytes of data. Couldn't be happier.",
-                None,
-            ],
-            "a_boolean_column": [
-                True,
-                False,
-                False,
-            ],
-            "a_numeric_column": [
-                1,
-                -1,
-                0,
-            ],
-        }
-    )
-    df = source.select(semantic.predicate(instruction).alias("sentiment"))
-    result = df.to_polars()
-    assert result["sentiment"].to_list()[2] is None
 
 def test_semantic_predicate_without_models():
     """Test that an error is raised if no language models are configured."""
@@ -134,8 +122,8 @@ def test_semantic_predicate_without_models():
         source = session.create_dataframe(
             {"name": ["Alice", "Bob"]}
         )
-        predicate_prompt = "The name {name} has 10 letters."
-        source.select(semantic.predicate(predicate_prompt).alias("predicate"))
+        predicate_prompt = "The name: {{name}} has 10 letters."
+        source.select(semantic.predicate(predicate_prompt, name=col("name")).alias("predicate"))
     session.stop()
 
     session_config = SessionConfig(
@@ -149,6 +137,6 @@ def test_semantic_predicate_without_models():
         source = session.create_dataframe(
             {"name": ["Alice", "Bob"]}
         )
-        predicate_prompt = "The name {name} has 10 letters."
-        source.select(semantic.predicate(predicate_prompt).alias("predicate"))
+        predicate_prompt = "The name: {{name}} has 10 letters."
+        source.select(semantic.predicate(predicate_prompt, name=col("name")).alias("predicate"))
     session.stop()

@@ -1,3 +1,4 @@
+from textwrap import dedent
 from typing import Any, Dict, List, Optional, Union
 
 import jinja2
@@ -21,26 +22,30 @@ from fenic.core.types import (
 
 
 class Map(BaseMultiColumnInputOperator[str, str]):
-    STRING_OUTPUT_SYSTEM_PROMPT = (
-        "Follow the user's instruction exactly and generate only the requested output.\n\n"
-        "Requirements:\n"
-        "1. Follow the instruction exactly as written\n"
-        "2. Output only what is requested - no explanations, no prefixes, no metadata\n"
-        "3. Be concise and direct\n"
-        "4. Do not add formatting or structure unless explicitly requested"
-    )
+    STRING_OUTPUT_SYSTEM_PROMPT = dedent("""\
+        Follow the user's instruction exactly and generate only the requested output.
+
+        Requirements:
+        1. Follow the instruction exactly as written
+        2. Output only what is requested - no explanations, no prefixes, no metadata
+        3. Be concise and direct
+        4. Do not add formatting or structure unless explicitly requested""")
 
     RESPONSE_FORMAT_SYSTEM_PROMPT = jinja2.Template(
-        "Follow the user's instruction exactly and generate a structured output according to the field schema.\n\n"
-        "Field Schema:\n"
-        "{{ schema_details }}\n\n"
-        "{{ schema_explanation }}\n\n"
-        "Requirements:\n"
-        "1. Follow the instruction exactly as written\n"
-        "2. Generate output that matches the provided schema exactly\n"
-        "3. Include all required fields - no extra fields, no missing fields\n"
-        "5. Each field's content must match its description precisely"
-    ),
+        dedent("""\
+            Follow the user's instruction exactly and generate output according to the user's schema.
+
+            Output Schema:
+            {{ schema_definition }}
+
+            {{ schema_explanation }}
+
+            Requirements:
+            1. Follow the instruction exactly as written
+            2. Generate output that matches the provided schema exactly
+            3. Include all required fields - no extra fields, no missing fields
+            4. Each field's content must match its description precisely""").strip()
+    )
 
     def __init__(
         self,
@@ -71,10 +76,9 @@ class Map(BaseMultiColumnInputOperator[str, str]):
     def build_system_message(self) -> str:
         is_structured_response = self.response_format is not None
         if is_structured_response:
-            schema_details = convert_pydantic_model_to_key_descriptions(self.response_format)
             return self.RESPONSE_FORMAT_SYSTEM_PROMPT.render(
                 schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-                schema_details=schema_details
+                schema_definition=convert_pydantic_model_to_key_descriptions(self.response_format),
             )
         else:
             return self.STRING_OUTPUT_SYSTEM_PROMPT

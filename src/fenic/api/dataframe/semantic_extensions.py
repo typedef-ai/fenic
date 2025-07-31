@@ -12,9 +12,7 @@ from fenic.core.types import (
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
 
-import fenic.core._utils.misc as utils
 from fenic.api.column import Column, ColumnOrName
-from fenic.api.functions import col
 from fenic.core._logical_plan.expressions import LiteralExpr
 from fenic.core._logical_plan.plans import (
     SemanticCluster,
@@ -141,7 +139,9 @@ class SemanticExtensions:
     def join(
         self,
         other: DataFrame,
-        join_instruction: str,
+        jinja_template: str,
+        left_on: Column,
+        right_on: Column,
         examples: Optional[JoinExampleCollection] = None,
         model_alias: Optional[str] = None,
     ) -> DataFrame:
@@ -162,12 +162,11 @@ class SemanticExtensions:
         Args:
             other: The DataFrame to join with.
             join_instruction: A natural language description of how to match values.
-
-                - Must include one placeholder from the left DataFrame (e.g. `{resume_summary:left}`)
-                and one from the right (e.g. `{job_description:right}`).
+                - Must include one placeholder from the left DataFrame (e.g. `{left_on}`)
+                and one from the right (e.g. `{right_on}`).
                 - This instruction is evaluated as a boolean predicate - pairs where it's `True` are included,
                 pairs where it's `False` are excluded.
-            examples: Optional JoinExampleCollection containing labeled pairs (`left`, `right`, `output`)
+            examples: Optional JoinExampleCollection containing labeled pairs (`left_on`, `right_on`, `output`)
                 to guide the semantic join behavior.
             model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
 
@@ -210,48 +209,28 @@ class SemanticExtensions:
         if not isinstance(other, DataFrame):
             raise TypeError(f"other argument must be a DataFrame, got {type(other)}")
 
-        if not isinstance(join_instruction, str):
+        if not isinstance(jinja_template, str):
             raise TypeError(
-                f"join_instruction argument must be a string, got {type(join_instruction)}"
+                f"jinja_template argument must be a string, got {type(jinja_template)}"
             )
-        join_columns = utils.parse_instruction(join_instruction)
-        if len(join_columns) != 2:
-            raise ValueError(
-                f"join_instruction must contain exactly two columns, got {len(join_columns)}"
-            )
-        left_on = None
-        right_on = None
-        for join_col in join_columns:
-            if join_col.endswith(":left"):
-                if left_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :left columns"
-                    )
-                left_on = col(join_col.split(":")[0])
-            elif join_col.endswith(":right"):
-                if right_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :right columns"
-                    )
-                right_on = col(join_col.split(":")[0])
-            else:
-                raise ValueError(
-                    f"Column '{join_col}' must end with either :left or :right"
-                )
-
-        if left_on is None or right_on is None:
-            raise ValueError(
-                "join_instruction must contain exactly one :left and one :right column"
-            )
+        if not isinstance(left_on, Column):
+            raise TypeError(f"left_on argument must be a Column, got {type(left_on)}")
+        if not isinstance(right_on, Column):
+            raise TypeError(f"right_on argument must be a Column, got {type(right_on)}")
+        if examples is not None and not isinstance(examples, JoinExampleCollection):
+            raise TypeError(f"examples argument must be a JoinExampleCollection, got {type(examples)}")
+        if model_alias is not None and not isinstance(model_alias, str):
+            raise TypeError(f"model_alias argument must be a string, got {type(model_alias)}")
 
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
+
         return self._df._from_logical_plan(
             SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
-                join_instruction=join_instruction,
+                jinja_template=jinja_template,
                 model_alias=model_alias,
                 examples=examples,
                 session_state=self._df._session_state,

@@ -868,6 +868,7 @@ class JinjaExpr(LogicalExpr):
     """
 
     def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
+        self.template = template
         self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
 

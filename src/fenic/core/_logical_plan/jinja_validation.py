@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING, Union
-import logging
+from typing import TYPE_CHECKING, List, Optional, Union
+
 from jinja2 import Environment, nodes
 from jinja2.exceptions import TemplateSyntaxError
 
@@ -183,8 +184,7 @@ class VariableTree:
         return cls._build_schema_tree(relevant_accesses)
 
     def filter_used_expressions(self, exprs: List[Union[ColumnExpr, LogicalExpr]]) -> List[Union[ColumnExpr, LogicalExpr]]:
-        """
-        Filters expressions to only those used in the template, validating all template variables are defined.
+        """Filters expressions to only those used in the template, validating all template variables are defined.
 
         Args:
             exprs: List of expression objects to filter

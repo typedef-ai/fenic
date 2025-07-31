@@ -1,7 +1,9 @@
 import json
 import logging
+from textwrap import dedent
 from typing import List, Optional
 
+import jinja2
 import polars as pl
 
 from fenic._backends.local.semantic_operators.base import (
@@ -14,18 +16,17 @@ from fenic._backends.local.semantic_operators.types import (
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core.types import PredicateExample, PredicateExampleCollection
-import jinja2
 
 logger = logging.getLogger(__name__)
 
 class Predicate(BaseMultiColumnInputOperator[str, bool]):
-    SYSTEM_PROMPT = (
-        "Evaluate the user's question or claim and respond with either True or False.\n\n"
-        "Requirements:\n"
-        "1. Output ONLY True or False - nothing else\n"
-        "2. If the answer is unclear or ambiguous, output False\n"
-        "3. Evaluate based solely on the information provided"
-    )
+    SYSTEM_PROMPT = dedent("""\
+    Evaluate the user's question or claim and respond with either true or false.
+
+    Requirements:
+    1. Output ONLY true or false - nothing else
+    2. Convert yes/no questions: yes → true, no → false
+    3. If the answer is unclear or ambiguous, output false""")
 
     def __init__(
         self,
