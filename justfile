@@ -84,7 +84,7 @@ alias sync-local := sync
 # sync project dependencies related to fenic cloud
 sync-cloud:
   [ "{{ sync }}" != "false" ] && \
-  uv sync --extra=cloud {{ syncMinMaxFlag }} || true
+  uv sync --extra=cloud --extra=google --extra=anthropic {{ syncMinMaxFlag }} || true
 
 # sync rust changes (via maturin)
 sync-rust:
