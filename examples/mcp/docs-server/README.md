@@ -34,7 +34,7 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
      "mcpServers": {
        "fenic-docs": {
          "command": "/path/to/fenic/.venv/bin/python",
-         "args": ["/path/to/fenic/mcp/docs-server/server.py"],
+         "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"],
          "env": {
            "OPENAI_API_KEY": "your-openai-api-key",
            "GEMINI_API_KEY": "your-gemini-api-key"
