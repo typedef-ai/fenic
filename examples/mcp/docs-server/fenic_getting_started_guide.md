@@ -6,14 +6,14 @@ Fenic is an opinionated, PySpark-inspired DataFrame framework for building produ
 
 ### Key Features
 
-**AI-First Design**
+#### AI-First Design\*\*
 
 - Query engine designed from scratch for AI workloads, not retrofitted
 - Automatic batch optimization for API calls
 - Built-in retry logic and rate limiting
 - Token counting and cost tracking
 
-**Semantic Operations**
+#### Semantic Operations\*\*
 
 - `semantic.analyze_sentiment` - Built-in sentiment analysis
 - `semantic.classify` - Categorize text with few-shot examples
@@ -24,7 +24,7 @@ Fenic is an opinionated, PySpark-inspired DataFrame framework for building produ
 - `semantic.predicate` - Create predicates using natural language to filter rows
 - `semantic.reduce` - Aggregate grouped data with LLM operations
 
-**AI-Native Data Types**
+#### AI-Native Data Types\*\*
 
 - Markdown parsing and extraction as a first-class data type
 - Transcript processing (SRT, generic formats) with speaker and timestamp awareness

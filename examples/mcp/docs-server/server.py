@@ -7,7 +7,7 @@ import logging
 import os
 import threading
 import uuid
-from typing import Literal, List
+from typing import List, Literal
 
 from fastmcp import FastMCP
 from utils.schemas import get_learnings_schema
