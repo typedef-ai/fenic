@@ -59,6 +59,9 @@ class ColumnExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return []
 
+    def _eq_specific(self, other: ColumnExpr) -> bool:
+        return self.name == other.name
+
 
 class LiteralExpr(LogicalExpr):
     """Expression representing a literal value."""
@@ -75,6 +78,9 @@ class LiteralExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return []
+
+    def _eq_specific(self, other: LiteralExpr) -> bool:
+        return self.literal == other.literal and self.data_type == other.data_type
 
 
 class AliasExpr(LogicalExpr):
@@ -93,6 +99,8 @@ class AliasExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: AliasExpr) -> bool:
+        return self.name == other.name
 
 class SortExpr(LogicalExpr):
     """Expression representing a column sorted in ascending or descending order."""
@@ -115,6 +123,8 @@ class SortExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: SortExpr) -> bool:
+        return self.ascending == other.ascending and self.nulls_last == other.nulls_last
 
 class IndexExpr(LogicalExpr):
     """Expression representing an index or field access operation."""
@@ -164,9 +174,11 @@ class IndexExpr(LogicalExpr):
                 f"get_item cannot be applied to type {expr_type}. Supported types: ArrayType, StructType."
             )
 
-
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.index]
+
+    def _eq_specific(self, other: IndexExpr) -> bool:
+        return True
 
 
 class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
@@ -189,6 +201,9 @@ class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
         """Return ArrayType with element type matching the first argument."""
         # Signature validation ensures all args have the same type
         return ArrayType(arg_types[0])
+
+    def _eq_specific(self, other: ArrayExpr) -> bool:
+        return True
 
 
 class StructExpr(ValidatedDynamicSignature, LogicalExpr):
@@ -216,6 +231,9 @@ class StructExpr(ValidatedDynamicSignature, LogicalExpr):
             struct_fields.append(StructField(field_name, arg_type))
         return StructType(struct_fields)
 
+    def _eq_specific(self, other: StructExpr) -> bool:
+        return True
+
 
 class UDFExpr(LogicalExpr):
     def __init__(
@@ -240,6 +258,10 @@ class UDFExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.args
 
+    def _eq_specific(self, other: UDFExpr) -> bool:
+        # For dynamic UDFs, we can only check identity since its tricky to compare Callables
+        return self.func is other.func and self.return_type == other.return_type
+
 
 class IsNullExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, is_null: bool):
@@ -254,6 +276,9 @@ class IsNullExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+    def _eq_specific(self, other: IsNullExpr) -> bool:
+        return self.is_null == other.is_null
 
 
 class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
@@ -272,6 +297,9 @@ class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: ArrayLengthExpr) -> bool:
+        return True
+
 class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
     """Expression representing array contains check."""
 
@@ -289,6 +317,9 @@ class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return self._children
+
+    def _eq_specific(self, other: ArrayContainsExpr) -> bool:
+        return True
 
 class CastExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, dest_type: DataType):
@@ -310,6 +341,9 @@ class CastExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: CastExpr) -> bool:
+        return self.dest_type == other.dest_type
+
 
 class NotExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr):
@@ -330,6 +364,9 @@ class NotExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: NotExpr) -> bool:
+        return True
+
 
 class CoalesceExpr(ValidatedSignature, LogicalExpr):
     """Expression representing coalesce operation (first non-null value)."""
@@ -346,6 +383,9 @@ class CoalesceExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
+
+    def _eq_specific(self, other: CoalesceExpr) -> bool:
+        return True
 
 
 class InExpr(LogicalExpr):
@@ -374,6 +414,10 @@ class InExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
+
+    def _eq_specific(self, other: InExpr) -> bool:
+        return True
+
 
 UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
 def _can_cast(src: DataType, dst: DataType) -> bool:

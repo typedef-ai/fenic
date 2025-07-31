@@ -12,7 +12,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="security_vulnerability_ner",
         semantic=fc.SemanticConfig(
             language_models= {
-                "mini" : fc.OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)
+                "mini" : fc.OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)
             }
         )
     )

@@ -7,19 +7,23 @@ from openai import AsyncOpenAI
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
-from fenic._inference.model_catalog import ModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
-    TokenEstimate,
+    RequestT,
     TransientException,
+)
+from fenic._inference.rate_limit_strategy import (
+    TokenEstimate,
     UnifiedTokenRateLimitStrategy,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
+from fenic._inference.types import FenicEmbeddingsRequest
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import RMMetrics
 
 
-class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
+class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float]]):
     """Client for making batch requests to OpenAI's embeddings API."""
 
     def __init__(
@@ -46,14 +50,14 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
             token_counter=TiktokenTokenCounter(model_name=model),
         )
         self._core = OpenAIEmbeddingsCore(
-            model=model,
-            model_provider=ModelProvider.OPENAI,
+            model=self.model,
+            model_provider=self.model_provider,
             token_counter=TiktokenTokenCounter(model_name=model),
             client=AsyncOpenAI(),
         )
 
     async def make_single_request(
-        self, request: str
+        self, request: FenicEmbeddingsRequest
     ) -> Union[None, list[float], TransientException, FatalException]:
         """Make a single request to the OpenAI API.
 
@@ -65,7 +69,7 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
         """
         return await self._core.make_single_request(request)
 
-    def get_request_key(self, request: str) -> str:
+    def get_request_key(self, request: FenicEmbeddingsRequest) -> str:
         """Generate a unique key for request deduplication.
 
         Args:
@@ -76,8 +80,9 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: str) -> TokenEstimate:
-        """Estimate the number of tokens for a request.
+    def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
+        """Estimate the number of tokens for a request. Overriding the behavior in the base class
+           as Embedding models do not generate any output tokens.
 
         Args:
             request: The request to estimate tokens for
@@ -98,3 +103,6 @@ class OpenAIBatchEmbeddingsClient(ModelClient[str, list[float]]):
             The current metrics
         """
         return self._core.get_metrics()
+
+    def _get_max_output_tokens(self, request: RequestT) -> int:
+        return 0

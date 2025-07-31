@@ -17,14 +17,14 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="feedback_clustering",
         semantic=fc.SemanticConfig(
             language_models={
-                "mini": fc.OpenAIModelConfig(
+                "mini": fc.OpenAILanguageModel(
                     model_name="gpt-4o-mini",
                     rpm=500,
                     tpm=200_000,
                 )
             },
             embedding_models={
-                "small": fc.OpenAIModelConfig(
+                "small": fc.OpenAILanguageModel(
                     model_name="text-embedding-3-small",
                     rpm=3000,
                     tpm=1_000_000

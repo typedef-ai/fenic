@@ -1,7 +1,7 @@
 """Fenic is an opinionated, PySpark-inspired DataFrame framework for building production AI and agentic applications."""
 
 from fenic.api import (
-    AnthropicModelConfig,
+    AnthropicLanguageModel,
     Catalog,
     CloudConfig,
     Column,
@@ -9,11 +9,14 @@ from fenic.api import (
     DataFrame,
     DataFrameReader,
     DataFrameWriter,
-    GoogleGLAModelConfig,
-    GoogleVertexModelConfig,
+    GoogleDeveloperEmbeddingModel,
+    GoogleDeveloperLanguageModel,
+    GoogleVertexEmbeddingModel,
+    GoogleVertexLanguageModel,
     GroupedData,
     Lineage,
-    OpenAIModelConfig,
+    OpenAIEmbeddingModel,
+    OpenAILanguageModel,
     SemanticConfig,
     SemanticExtensions,
     Session,
@@ -88,6 +91,8 @@ from fenic.core import (
     StructType,
     TranscriptType,
 )
+from fenic.core.error import InvalidExampleCollectionError
+from fenic.core.types.semantic import ModelAlias
 from fenic.logging import configure_logging
 
 __all__ = [
@@ -95,11 +100,15 @@ __all__ = [
     "Session",
     "SessionConfig",
     "CloudConfig",
-    "OpenAIModelConfig",
-    "AnthropicModelConfig",
-    "GoogleGLAModelConfig",
-    "GoogleVertexModelConfig",
+    "OpenAILanguageModel",
+    "OpenAIEmbeddingModel",
+    "AnthropicLanguageModel",
+    "GoogleDeveloperLanguageModel",
+    "GoogleDeveloperEmbeddingModel",
+    "GoogleVertexLanguageModel",
+    "GoogleVertexEmbeddingModel",
     "SemanticConfig",
+    "ModelAlias",
     # IO
     "DataFrameReader",
     "DataFrameWriter",

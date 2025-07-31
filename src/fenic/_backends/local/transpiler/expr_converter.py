@@ -245,11 +245,12 @@ class ExprConverter:
         # Check if we're averaging embeddings
         if isinstance(logical.input_type, EmbeddingType):
             def embedding_avg(series: pl.Series, embedding_dim: int) -> pl.Series:
+                print(series)
                 # TODO(rohitrastogi): Benchmark processing each group concurrently using a threadpool.
                 # NumPy's mean() is already multi-threaded via C bindings, so additional threading may
                 # not be faster. Test with realistic embedding sizes and group counts.
                 result = []
-
+                # to list may not be required!
                 for emb_list in series.to_list():
                     if not emb_list:
                         result.append(None)
@@ -269,7 +270,7 @@ class ExprConverter:
                 lambda batch: embedding_avg(batch, logical.input_type.dimensions),
                 return_dtype=pl.Array(pl.Float32, logical.input_type.dimensions),
                 agg_list=True,
-                returns_scalar=True
+                returns_scalar=False
             )
         else:
             return converted_expr.mean()
@@ -311,7 +312,7 @@ class ExprConverter:
                 return handler(logical)
 
         if isinstance(logical, SemanticReduceExpr):
-
+            # arg sort, gather
             def sem_reduce_fn(batch: pl.Series) -> str:
                 return SemanticReduce(
                     input=batch,
@@ -319,15 +320,10 @@ class ExprConverter:
                     model=self.session_state.get_language_model(logical.model_alias),
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
+                    model_alias=logical.model_alias,
                 ).execute()
 
-            struct = pl.struct(
-                [
-                    self._convert_expr(expr)
-                    for expr in logical.exprs
-                ]
-            )
-            return struct.map_batches(
+            return self._convert_expr(logical.expr).map_batches(
                 sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True
             )
 
@@ -428,6 +424,7 @@ class ExprConverter:
                 max_tokens=logical.max_tokens,
                 temperature=logical.temperature,
                 response_format=logical.response_format,
+                model_alias=logical.model_alias,
             ).execute()
 
         column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
@@ -517,6 +514,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -536,6 +534,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 examples=logical.examples,
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
@@ -556,6 +555,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
                 examples=logical.examples,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -570,6 +570,7 @@ class ExprConverter:
                 input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -649,9 +650,9 @@ class ExprConverter:
         if logical.dimensions is None:
             raise InternalError("Embedding dimensions not set for embeddings expression")
 
+        embedding_model = self.session_state.get_embedding_model(logical.model_alias)
         def embeddings_fn(batch: pl.Series) -> pl.Series:
-            embedding_model = self.session_state.get_embedding_model(logical.model_alias)
-            return pl.from_arrow(embedding_model.get_embeddings(batch))
+            return pl.from_arrow(embedding_model.get_embeddings(batch, logical.model_alias))
 
         return physical_expr.map_batches(embeddings_fn, return_dtype=pl.Array(pl.Float32, logical.dimensions))
 

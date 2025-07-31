@@ -24,7 +24,7 @@ def register_semantic_signatures():
     # Semantic reduce - instruction-based aggregation
     FunctionRegistry.register("semantic.reduce", FunctionSignature(
         function_name="semantic.reduce",
-        type_signature=VariadicUniform(expected_min_args=1, required_type=StringType),  # Variable string inputs based on instruction
+        type_signature=Exact([StringType]),
         return_type=StringType
     ))
 

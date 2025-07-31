@@ -77,6 +77,7 @@ class CompletionOnlyRequestSender(RequestSender[str]):
             temperature=self.inference_config.temperature,
             response_format=self.inference_config.response_format,
             top_logprobs=self.inference_config.top_logprobs,
+            model_profile=self.inference_config.model_profile,
         )
 
         completions = [
@@ -99,6 +100,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         self.request_sender = request_sender
         self.input = input
         self.examples = examples
+
 
     def execute(self) -> pl.Series:
         """Run the full request building -> model -> postprocess pipeline.

@@ -31,6 +31,9 @@ class JqExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: JqExpr) -> bool:
+        return self.query == other.query
+
 class JsonTypeExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.type"
 
@@ -45,6 +48,9 @@ class JsonTypeExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+    def _eq_specific(self, other: JsonTypeExpr) -> bool:
+        return True
 
 class JsonContainsExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.contains"
@@ -74,3 +80,6 @@ class JsonContainsExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+    def _eq_specific(self, other: JsonContainsExpr) -> bool:
+        return self.value == other.value

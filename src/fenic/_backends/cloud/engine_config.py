@@ -6,7 +6,7 @@ import pickle  # nosec: B403
 
 from fenic import SessionConfig
 from fenic._constants import API_KEY_SUFFIX
-from fenic._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,
@@ -54,7 +54,7 @@ class CloudSessionConfig:
                 providers.add(get_model_provider_for_config(model_config))
 
         for provider in providers:
-            if provider == ModelProvider.GOOGLE_GLA:
+            if provider == ModelProvider.GOOGLE_DEVELOPER:
                 google_api_key = f"GOOGLE{API_KEY_SUFFIX}"
                 gemini_api_key = f"GEMINI{API_KEY_SUFFIX}"
                 if google_api_key in env_keys:

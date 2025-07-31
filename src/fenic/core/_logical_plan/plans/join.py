@@ -11,6 +11,7 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core.error import TypeMismatchError, ValidationError
 from fenic.core.types import (
@@ -180,7 +181,7 @@ class SemanticJoin(BaseSemanticJoin):
         right_on: LogicalExpr,
         jinja_template: str,
         temperature: float = 0.0,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None,
@@ -201,7 +202,7 @@ class SemanticJoin(BaseSemanticJoin):
         right_on: LogicalExpr,
         jinja_template: str,
         temperature: float = 0.0,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         session_state: BaseSessionState = None) -> SemanticJoin:
         return SemanticJoin(left,
@@ -222,7 +223,7 @@ class SemanticJoin(BaseSemanticJoin):
         right_on: LogicalExpr,
         jinja_template: str,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         schema: Optional[Schema] = None) -> SemanticJoin:
         return SemanticJoin(left,

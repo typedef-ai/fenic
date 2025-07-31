@@ -1,72 +1,60 @@
 import logging
 import math
 from concurrent.futures import ThreadPoolExecutor
+from textwrap import dedent
+from typing import Optional
 
 import polars as pl
+import jinja2
 
-from fenic._backends.local.semantic_operators.utils import (
-    convert_row_to_instruction_context,
-    uppercase_instruction_placeholder,
-)
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.types import LMRequestMessages
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
 logger = logging.getLogger(__name__)
 
-# Applied to the max context window length to set an upper bound on the input tokens for each request.
-# This is to avoid sending one massive request that would be slow to retry on failure.
-CONTEXT_WINDOW_REDUCTION_FACTOR = 1/3
+CONTEXT_WINDOW_REDUCTION_FACTOR = 0.7
 
 class Reduce:
-    SYSTEM_PROMPT = (
-        "You are an AI assistant specialized in hierarchical document aggregation. "
-        "You are part of a multi-stage aggregation pipeline. Your task is to synthesize a specific group of one or more documents "
-        "in multiple rounds, reducing the text inputs within that group into a single coherent output that satisfies the user instruction. "
-        "Document(s) within this group may be raw and structured (labeled with fields like [FIELD_1] or [FIELD_2]) or synthesized summaries. "
-        "User instructions will refer to these structured fields using square brackets. "
-        "Even in later stages where raw field labels are no longer present, you must continue to follow the instruction based on what those fields originally represented. "
-        "Your goal is to preserve key insights, eliminate redundancy within this group, and maintain fidelity to the original instruction across all levels of aggregation for this group. "
-        "Your response should not include unnecessary preamble or explanation."
-    )
+    """Hierarchical document reduction for handling context window limitations.
+
+    This class implements a greedy left-to-right packing algorithm that:
+    1. Processes documents in order, preserving temporal/logical sequence
+    2. Packs as many documents as possible into each LLM call
+    3. Hierarchically reduces results until a single summary remains
+
+    The left-to-right processing ensures that document order (e.g., temporal sorting)
+    is preserved throughout the reduction hierarchy. For example, with monthly reports
+    sorted by date, early batches will naturally group Q1 months, creating coherent
+    temporal summaries at each level.
+    """
+
+    SYSTEM_PROMPT = dedent("""\
+        Follow the user's instruction exactly and generate only the requested output.
+
+        Requirements:
+        1. Follow the instruction exactly as written
+        2. Output only what is requested - no explanations, no prefixes, no metadata
+        3. Be concise and direct
+        4. Do not add formatting or structure unless explicitly requested""")
+
+    USER_MESSAGE_TEMPLATE = jinja2.Template(dedent("""\
+        {{user_instruction}}
+
+        {% for doc in docs %}
+        <document{{loop.index}}>
+        {{doc}}
+        </document{{loop.index}}>
+        {%- if not loop.last %}
+
+        {% endif -%}
+        {% endfor %}"""))
 
     SYSTEM_MESSAGE = {
         "role": "system",
         "content": SYSTEM_PROMPT,
     }
-
-    LEAF_INSTRUCTION_TEMPLATE = (
-        "# Document Aggregation: Primary Level\n\n"
-        "## Your Task\n"
-        "You will be provided with one or more raw input documents from a group and a user instruction. "
-        "Each document includes structured fields labeled in square brackets like [FIELD_NAME]. "
-        "For example, an article document might include the fields: [TITLE], [BODY], and [TAG]. "
-        "The user instruction will reference these fields directly. "
-        "For instance, it might ask you to 'Summarize the articles using each article's [TITLE], [BODY], and [TAG]. "
-        "Your job is to synthesize all relevant information from all input documents within the group into a single coherent response that fulfills the instruction. "
-        "Your response should not include unnecessary preamble or explanation. "
-        "Preserve nuance across documents, draw meaningful connections, and avoid repetition.\n\n"
-        "## User Instruction:\n"
-        "{user_instruction}\n\n"
-        "## Input Document(s):\n"
-        "{docs_str}\n\n"
-        "## Your Response:\n"
-    )
-
-    NODE_INSTRUCTION_TEMPLATE = (
-        "# Document Aggregation: Higher Level Synthesis (Synthesizing Prior Summaries)\n\n"
-        "## Your Task\n"
-        "You are provided with a list of already-synthesized documents. Remember that these summaries were generated to capture the key information from "
-        "raw documents based on the original user instruction, which used structured fields like [ARTICLE_TITLE], [ARTICLE_CONTENT], and [TAG].\n\n"
-        "While the original field labels are not visible now, the essential information they represented has been preserved and condensed within these summaries. "
-        "Your task is to further synthesize these summaries, ensuring that the final output remains faithful to the original instruction. "
-        "Preserve nuance, remove redundancy, and ensure the result reads as a single, cohesive piece.\n\n"
-        "## Original User Instruction:\n"
-        "{user_instruction}\n\n"
-        "## Input Summaries:\n"
-        "{docs_str}\n\n"
-        "## Your Response:\n"
-    )
 
     def __init__(
             self,
@@ -75,34 +63,35 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
+            model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.input = input
-        self.user_instruction = uppercase_instruction_placeholder(user_instruction)
+        self.user_instruction = user_instruction
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.model_profile = model_alias.profile if model_alias else None
         self.prefix_tokens = (
             self.model.count_tokens([self.SYSTEM_MESSAGE])
             + PREFIX_TOKENS_PER_MESSAGE
         )
 
     def execute(self) -> pl.Series:
+        """Execute parallel reduction across all groups."""
         with ThreadPoolExecutor(max_workers=min(10, len(self.input))) as executor:
             results = list(
                 executor.map(lambda x: self._reduce_group(*x), enumerate(self.input))
             )
         return pl.Series(results)
 
-    @staticmethod
-    def _format_leaf_doc(doc: dict[str, str], doc_number: int) -> str:
-        return f"Document {doc_number}:\n{convert_row_to_instruction_context(doc)}"
-
-    @staticmethod
-    def _format_node_doc(doc: str, doc_number: int) -> str:
-        return f"Document {doc_number}:\n{doc}"
-
     def _reduce_group(self, group_index: int, group: pl.Series) -> str | None:
         """Reduces a single group of documents hierarchically until a single output is obtained.
+
+        The reduction preserves document order through greedy left-to-right packing:
+        - Level 0: Original documents in order
+        - Level 1+: Summaries from previous level, maintaining sequence
+
+        This ensures temporal/logical coherence when documents are pre-sorted.
 
         Args:
             group_index: The index of the current group being processed.
@@ -114,125 +103,140 @@ class Reduce:
         operation_name = f"semantic.reduce(group={group_index})"
         docs = group.to_list()
         tree_level = 0
+
+        # Continue until we have a single summary
+        # tree_level == 0 check ensures we process even single-document groups
         while len(docs) > 1 or tree_level == 0:
+            logger.debug(
+                f"Tree level {tree_level}: processing {len(docs)} documents for group {group_index}"
+            )
+
             messages_batch = self._build_request_messages_batch(docs, tree_level)
             if not messages_batch:
+                logger.warning(f"No valid documents to process in group {group_index}")
                 return None
+
             responses = self.model.get_completions(
                 messages=messages_batch,
                 operation_name=operation_name,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                model_profile=self.model_profile,
             )
+
+            # Extract completions for next level
             reduced_docs = [response.completion for response in responses]
             docs = reduced_docs
             tree_level += 1
+
         return docs[0]
 
     def _build_request_messages_batch(
-        self, docs: list[dict[str, str] | str], tree_level: int
+        self, docs: list[str], tree_level: int
     ) -> list[LMRequestMessages] | None:
-        """Creates batches of requests for documents in the same tree level to be processed by the language model.
+        """Creates batches of requests using greedy left-to-right packing.
+
+        This method preserves document order while maximizing context utilization:
+        1. Process documents left-to-right
+        2. Pack documents greedily until context limit reached
+        3. Start new batch and continue
+
+        This ensures that related documents (e.g., consecutive time periods)
+        are likely to be summarized together.
 
         Args:
             docs: A list of documents (raw or synthesized) to be batched.
             tree_level: The current level of the aggregation tree (0 for leaf nodes).
 
         Returns:
-            A list of Prompt objects, where each Prompt represents a batch of documents
-            formatted according to the current tree level and user instruction.
+            A list of LMRequestMessages, where each represents a batch of documents
+            packed greedily from left to right.
         """
-
-        def is_valid(doc):
-            if not bool(doc):
-                return False
-            if isinstance(doc, dict):
-                return all(doc.values())
-            return True
-
-        def format(doc, i):
-            return (
-                self._format_leaf_doc(doc, i)
-                if tree_level == 0
-                else self._format_node_doc(doc, i)
-            )
-
-        user_template = (
-            self.LEAF_INSTRUCTION_TEMPLATE
-            if tree_level == 0
-            else self.NODE_INSTRUCTION_TEMPLATE
-        )
         user_message_tokens = (
-            self.model.count_tokens(user_template) + self.prefix_tokens
+            self.model.count_tokens(self.user_instruction) + self.prefix_tokens
         )
-        # Multiply by CONTEXT_WINDOW_REDUCTION_FACTOR to avoid sending one massive request that would be slow to retry on failure.
+
+        # Calculate available tokens for documents
+        # Using safety factor to avoid edge cases with token counting
+        theoretical_max_input_tokens = (
+            self.model.max_context_window_length -
+            self.model.model_parameters.max_output_tokens
+        )
+        if theoretical_max_input_tokens <= 0:
+            theoretical_max_input_tokens = self.model.max_context_window_length
+
         max_input_tokens = math.floor(
-            (self.model.max_context_window_length - self.model.model_parameters.max_output_tokens) * CONTEXT_WINDOW_REDUCTION_FACTOR
+            theoretical_max_input_tokens * CONTEXT_WINDOW_REDUCTION_FACTOR
         )
 
         messages_batch: list[LMRequestMessages] = []
         request_docs: list[str] = []
         request_tokens = 0
-        doc_index = 1
 
         for doc in docs:
-            if not is_valid(doc):
+            if not doc:
+                logger.debug(f"Skipping empty document at tree level {tree_level}")
                 continue
 
-            formatted = format(doc, doc_index)
-            doc_tokens = self.model.count_tokens(formatted)
+            doc_tokens = self.model.count_tokens(doc)
 
+            # Check if single document exceeds context
             if user_message_tokens + doc_tokens > max_input_tokens:
                 raise ValueError(
-                    f"sem.reduce document is too large ({user_message_tokens + doc_tokens} tokens) and exceeds the maximum allowed size ({max_input_tokens} tokens) for the chosen model's context window.. "
+                    f"semantic.reduce document is too large ({user_message_tokens + doc_tokens} tokens) "
+                    f"and exceeds the maximum allowed size ({max_input_tokens} tokens) "
+                    f"for the chosen model's context window. "
                     f"Please reduce the document size by either: "
                     f"1) Summarizing the content before processing, or "
-                    f"2) Breaking it into smaller chunks using methods like text.recursive_character_chunk() or text.token_chunk(). "
+                    f"2) Breaking it into smaller chunks using methods like "
+                    f"text.recursive_character_chunk() or text.token_chunk()."
                 )
 
-            # Flush batch if adding this doc would exceed context
-            if user_message_tokens + request_tokens + doc_tokens > max_input_tokens:
+            # Check if adding this doc would exceed context limit
+            if request_docs and (user_message_tokens + request_tokens + doc_tokens > max_input_tokens):
+                # Flush current batch and start new one
                 messages_batch.append(
-                    self._build_request_messages(user_template, request_docs)
+                    self._build_request_messages(request_docs)
                 )
                 logger.debug(
-                    f"Tree level {tree_level}: created batch with {len(request_docs)} documents."
+                    f"Tree level {tree_level}: created batch with {len(request_docs)} documents "
+                    f"({request_tokens} tokens)"
                 )
-                request_docs = [formatted]
+                request_docs = [doc]
                 request_tokens = doc_tokens
             else:
-                request_docs.append(formatted)
+                # Add to current batch
+                request_docs.append(doc)
                 request_tokens += doc_tokens
 
-            doc_index += 1
-
+        # Handle final batch
         if request_docs:
             messages_batch.append(
-                self._build_request_messages(user_template, request_docs)
+                self._build_request_messages(request_docs)
             )
             logger.debug(
-                f"Tree level {tree_level}: created final batch with {len(request_docs)} documents."
+                f"Tree level {tree_level}: created final batch with {len(request_docs)} documents "
+                f"({request_tokens} tokens)"
             )
-        if not messages_batch:
-            return None
-        return messages_batch
+
+        return messages_batch if messages_batch else None
 
     def _build_request_messages(
-        self, template: str, docs: list[str]
+        self, docs: list[str]
     ) -> LMRequestMessages:
         """Builds a user message for the LLM.
 
         Args:
-            template: The instruction template to use (LEAF or NODE).
-            docs: A list of formatted documents to include in the prompt.
+            docs: A list of documents to include in the prompt.
 
         Returns:
             A LMRequestMessages ready to be sent to the LLM.
         """
         return LMRequestMessages(
             system=self.SYSTEM_PROMPT,
-            user=template.format(
-                docs_str="\n".join(docs), user_instruction=self.user_instruction
+            user=self.USER_MESSAGE_TEMPLATE.render(
+                docs=docs,
+                user_instruction=self.user_instruction
             ),
             examples=[],
         )

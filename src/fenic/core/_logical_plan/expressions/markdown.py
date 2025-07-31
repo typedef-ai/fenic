@@ -20,6 +20,9 @@ class MdToJsonExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: MdToJsonExpr) -> bool:
+        return True
+
 
 class MdGetCodeBlocksExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.get_code_blocks"
@@ -54,6 +57,9 @@ class MdGetCodeBlocksExpr(ValidatedSignature, LogicalExpr):
     }}]'''
         return query
 
+    def _eq_specific(self, other: MdGetCodeBlocksExpr) -> bool:
+        return self.language_filter == other.language_filter
+
 
 class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.generate_toc"
@@ -78,6 +84,9 @@ class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
     ("#" * .level) + " " + (.content | map(select(.type? == "text") | .text) | join(""))
     ] | join("\\n"))}}'''
         return query
+
+    def _eq_specific(self, other: MdGenerateTocExpr) -> bool:
+        return self.max_level == other.max_level
 
 
 class MdExtractHeaderChunks(ValidatedSignature, LogicalExpr):
@@ -125,3 +134,6 @@ walk_headings(.; [])'''
 
     def __str__(self) -> str:
         return f"markdown.extract_header_chunks({self.expr}, header_level={self.header_level})"
+
+    def _eq_specific(self, other: MdExtractHeaderChunks) -> bool:
+        return self.header_level == other.header_level

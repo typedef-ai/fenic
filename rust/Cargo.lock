@@ -2374,6 +2374,7 @@ dependencies = [
  "pyo3",
  "pyo3-polars",
  "rapidfuzz",
+ "regex",
  "reqwest",
  "rstest",
  "serde",

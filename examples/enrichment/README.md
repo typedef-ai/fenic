@@ -43,33 +43,35 @@ The pipeline processes logs through three stages:
 ### API Structure
 
 ```python
-from fenic.api.session import Session, SessionConfig, SemanticConfig, OpenAIModelConfig
+from fenic.api.session import Session, SessionConfig, SemanticConfig, OpenAILanguageModel
 from fenic.api.functions import col, text, semantic
 from pydantic import BaseModel, Field
 
 # Configure session
 config = SessionConfig(
-    app_name="log_enrichment",
-    semantic=SemanticConfig(
-        language_models= {
-            "mini" : OpenAIModelConfig(
+   app_name="log_enrichment",
+   semantic=SemanticConfig(
+      language_models={
+         "mini": OpenAILanguageModel(
             model_name="gpt-4o-mini",
             rpm=500,
             tpm=200_000
-        )
-        }
-    )
+         )
+      }
+   )
 )
+
 
 # Define extraction schema with Pydantic
 class ErrorAnalysis(BaseModel):
-    error_category: str = Field(description="Main category of the error")
-    affected_component: str = Field(description="Specific component affected")
-    potential_cause: str = Field(description="Most likely root cause")
+   error_category: str = Field(description="Main category of the error")
+   affected_component: str = Field(description="Specific component affected")
+   potential_cause: str = Field(description="Most likely root cause")
+
 
 # Stage 1: Template extraction
 parsed = logs_df.select(
-    "raw_message", text.extract("${timestamp:none} [${level:none}] ${service:none}: ${message:none}")
+   "raw_message", text.extract("${timestamp:none} [${level:none}] ${service:none}: ${message:none}")
 )
 
 # Stage 2: Metadata join
@@ -77,14 +79,14 @@ enriched = parsed.join(metadata_df, on="service", how="left")
 
 # Stage 3: Semantic enrichment
 final = enriched.select(
-    semantic.extract("message", ErrorAnalysis).alias("analysis"),
-    semantic.classify(
-        text.concat(col("message"), lit(" (criticality: "), col("criticality"), lit(")")),
-        ["low", "medium", "high", "critical"]
-    ).alias("incident_severity"),
-    semantic.map(
-        "Generate remediation steps for: {message} | Service: {service} | Team: {team_owner}"
-    ).alias("remediation_steps")
+   semantic.extract("message", ErrorAnalysis).alias("analysis"),
+   semantic.classify(
+      text.concat(col("message"), lit(" (criticality: "), col("criticality"), lit(")")),
+      ["low", "medium", "high", "critical"]
+   ).alias("incident_severity"),
+   semantic.map(
+      "Generate remediation steps for: {message} | Service: {service} | Team: {team_owner}"
+   ).alias("remediation_steps")
 )
 ```
 

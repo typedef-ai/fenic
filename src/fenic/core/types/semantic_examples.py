@@ -184,6 +184,8 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
         self.examples.append(example)
         return self
 
+    def __eq__(self, other: BaseExampleCollection) -> bool:
+        return self.to_polars().frame_equal(other.to_polars())
 
 class MapExampleCollection(BaseExampleCollection[MapExample]):
     """Collection of examples for semantic mapping operations.

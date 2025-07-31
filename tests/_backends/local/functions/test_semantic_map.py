@@ -7,6 +7,7 @@ from fenic import (
     ColumnField,
     MapExample,
     MapExampleCollection,
+    OpenAIEmbeddingModel,
     Schema,
     StringType,
     StructField,
@@ -14,7 +15,11 @@ from fenic import (
     col,
     semantic,
 )
-from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.api.session import (
+    SemanticConfig,
+    Session,
+    SessionConfig,
+)
 from fenic.core.error import ValidationError
 
 
@@ -127,7 +132,7 @@ def test_semantic_map_without_models():
     session_config = SessionConfig(
         app_name="semantic_map_with_models",
         semantic=SemanticConfig(
-            embedding_models={"oai-small" :OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+            embedding_models={"oai-small" :OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
     )
     session = Session.get_or_create(session_config)

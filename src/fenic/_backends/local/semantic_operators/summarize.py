@@ -8,6 +8,7 @@ from fenic._backends.local.semantic_operators.base import (
     CompletionOnlyRequestSender,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import (
     KeyPoints,
     Paragraph,
@@ -42,8 +43,8 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
         input: pl.Series,
         format: Union[KeyPoints, Paragraph],
         temperature: float,
-        model: LanguageModel
-
+        model: LanguageModel,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.format = format
 
@@ -54,6 +55,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
                 model=model,
             ),

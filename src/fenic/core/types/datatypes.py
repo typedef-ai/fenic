@@ -433,7 +433,7 @@ class _JsonType(_LogicalType):
 class TranscriptType(_LogicalType):
     """Represents a string containing a transcript in a specific format."""
 
-    format: Literal["generic", "srt"]
+    format: Literal["generic", "srt", "webvtt"]
 
     def __str__(self) -> str:
         """Return a string representation of the transcript type.

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, get_args
+from typing import TYPE_CHECKING, Optional, Union, get_args
 
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     JoinExampleCollection,
 )
+from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
@@ -143,7 +144,7 @@ class SemanticExtensions:
         left_on: Column,
         right_on: Column,
         examples: Optional[JoinExampleCollection] = None,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[Union[str, ModelAlias]] = None
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
@@ -214,14 +215,15 @@ class SemanticExtensions:
                 f"jinja_template argument must be a string, got {type(jinja_template)}"
             )
         if not isinstance(left_on, Column):
-            raise TypeError(f"left_on argument must be a Column, got {type(left_on)}")
+            raise TypeError(f"`left_on` argument must be a Column, got {type(left_on)} instead.")
         if not isinstance(right_on, Column):
-            raise TypeError(f"right_on argument must be a Column, got {type(right_on)}")
+            raise TypeError(f"`right_on` argument must be a Column, got {type(right_on)} instead.")
         if examples is not None and not isinstance(examples, JoinExampleCollection):
-            raise TypeError(f"examples argument must be a JoinExampleCollection, got {type(examples)}")
-        if model_alias is not None and not isinstance(model_alias, str):
-            raise TypeError(f"model_alias argument must be a string, got {type(model_alias)}")
+            raise TypeError(f"`examples` argument must be a JoinExampleCollection, got {type(examples)} instead.")
+        if model_alias is not None and not isinstance(model_alias, (str, ModelAlias)):
+            raise TypeError(f"`model_alias` argument must be a string or ModelAlias, got {type(model_alias)} instead.")
 
+        resolved_model_alias = _resolve_model_alias(model_alias)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
 
         return self._df._from_logical_plan(
@@ -231,7 +233,7 @@ class SemanticExtensions:
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 jinja_template=jinja_template,
-                model_alias=model_alias,
+                model_alias=resolved_model_alias,
                 examples=examples,
                 session_state=self._df._session_state,
             ),

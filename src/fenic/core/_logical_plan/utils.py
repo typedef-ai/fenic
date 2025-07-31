@@ -1,10 +1,11 @@
-from typing import Optional
+from typing import Optional, Tuple
 
-from fenic._inference.model_catalog import (
+from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedOpenAIModelConfig,
@@ -13,8 +14,25 @@ from fenic.core._resolved_session_config import (
 from fenic.core.error import ValidationError
 
 
+def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
+    """Parse a model alias to extract base model and profile name.
+
+    Args:
+        model_alias: Model alias in format 'model' or 'model.profile'
+
+    Returns:
+        Tuple of (base_model_alias, profile_name)
+        If no dot present, profile_name will be None
+    """
+    if "." in model_alias:
+        parts = model_alias.split(".", 1)  # Split on first dot only
+        return parts[0], parts[1]
+    else:
+        return model_alias, None
+
+
 def validate_completion_parameters(
-    model_alias: Optional[str],
+    model_alias: Optional[ResolvedModelAlias],
     resolved_session_config: ResolvedSessionConfig,
     temperature: float,
     max_tokens: Optional[int] = None,
@@ -24,9 +42,9 @@ def validate_completion_parameters(
     If no model alias is provided, the session's default language model is used.
 
     Parameters:
-        model_alias (Optional[str]):
-            Alias of the language model to validate. Defaults to the session's
-            default if not provided.
+        model_alias (Optional[ResolvedModelAlias]):
+            ResolvedModelAlias object containing model name and optional profile.
+            Defaults to the session's default if not provided.
         resolved_session_config (ResolvedSessionConfig):
             The resolved session config containing model definitions.
         temperature (float):
@@ -44,21 +62,20 @@ def validate_completion_parameters(
             "Please add language_models to your SemanticConfig."
         )
     language_model_config = resolved_session_config.semantic.language_models
-    if model_alias is None:
-        model_alias = language_model_config.default_model
+    model_alias_name = model_alias.name if model_alias else language_model_config.default_model
 
-    if model_alias not in language_model_config.model_configs:
+    if model_alias_name not in language_model_config.model_configs:
         available_models = list(language_model_config.model_configs.keys())
         raise ValidationError(
-            f"Language model alias '{model_alias}' not found in SessionConfig. "
+            f"Language model alias '{model_alias_name}' not found in SessionConfig. "
             f"Available models: {', '.join(available_models)}"
         )
 
-    model_config = language_model_config.model_configs[model_alias]
+    model_config = language_model_config.model_configs[model_alias_name]
     if isinstance(model_config, ResolvedOpenAIModelConfig):
         model_provider = ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedGoogleModelConfig):
-        model_provider = ModelProvider.GOOGLE_GLA
+        model_provider = ModelProvider.GOOGLE_DEVELOPER
     else:
         model_provider = ModelProvider.ANTHROPIC
     completion_parameters: CompletionModelParameters = model_catalog.get_completion_model_parameters(model_provider, model_config.model_name)

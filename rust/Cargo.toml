@@ -15,6 +15,7 @@ pyo3 = { version = "0.24.2", features = ["abi3-py39"] }
 pyo3-polars = { version = "0.21.0", features = ["derive", "dtype-struct"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+regex = "1.10.0"
 tiktoken-rs = "0.7.0"
 polars = { version = "0.48.1", features = ["dtype-struct", "dtype-array"] }
 jaq-core = "2.2.0"

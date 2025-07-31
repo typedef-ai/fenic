@@ -11,7 +11,12 @@ from fenic import (
     col,
     semantic,
 )
-from fenic.api.session import OpenAIModelConfig, SemanticConfig, Session, SessionConfig
+from fenic.api.session import (
+    OpenAIEmbeddingModel,
+    SemanticConfig,
+    Session,
+    SessionConfig,
+)
 from fenic.core.error import ValidationError
 
 
@@ -129,7 +134,7 @@ def test_semantic_predicate_without_models():
     session_config = SessionConfig(
         app_name="semantic_predicate_with_models",
         semantic=SemanticConfig(
-            embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
+            embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
     )
     session = Session.get_or_create(session_config)

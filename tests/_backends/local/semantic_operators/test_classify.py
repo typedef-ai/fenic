@@ -4,7 +4,7 @@ import polars as pl
 
 from fenic import ClassifyExample, ClassifyExampleCollection
 from fenic._backends.local.semantic_operators.classify import Classify
-from fenic.core._logical_plan.expressions import ResolvedClassDefinition
+from fenic.core._logical_plan.resolved_types import ResolvedClassDefinition
 
 
 class TestClassify:

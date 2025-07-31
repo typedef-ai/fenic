@@ -26,19 +26,19 @@ def main(config: Optional[fc.SessionConfig] = None):
     """Main analysis pipeline for news article bias detection."""
     # Configure session with semantic capabilities
     # Set your `OPENAI_API_KEY` environment variable.
-    # Alternatively, you can run the example with an Gemini (`GEMINI_API_KEY`) model by uncommenting the provided additional model configurations.
+    # Alternatively, you can run the example with an Gemini (`GOOGLE_API_KEY`) model by uncommenting the provided additional model configurations.
     # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
     print("🔧 Configuring fenic session...")
     config = config or fc.SessionConfig(
         app_name="news_analysis",
         semantic=fc.SemanticConfig(
             language_models={
-                "openai": fc.OpenAIModelConfig(
+                "openai": fc.OpenAILanguageModel(
                     model_name="gpt-4o-mini",
                     rpm=500,
                     tpm=200_000
                 ),
-                # "gemini": fc.GoogleGLAModelConfig(
+                # "gemini": fc.GoogleDeveloperModelConfig(
                 #     model_name="gemini-2.0-flash",
                 #     rpm=500,
                 #     tpm=1_000_000

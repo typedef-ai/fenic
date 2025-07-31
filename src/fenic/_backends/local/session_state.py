@@ -15,6 +15,7 @@ from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic._backends.local.temp_df_db_client import TempDFDBClient
 from fenic._inference import EmbeddingModel, LanguageModel
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
@@ -59,7 +60,7 @@ class LocalSessionState(BaseSessionState):
         """
         return SessionModelRegistry(semantic_config)
 
-    def get_language_model(self, alias: Optional[str] = None) -> LanguageModel:
+    def get_language_model(self, alias: Optional[ResolvedModelAlias] = None) -> LanguageModel:
         return self._model_registry.get_language_model(alias)
 
     def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:

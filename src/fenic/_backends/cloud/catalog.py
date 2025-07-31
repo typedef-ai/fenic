@@ -445,7 +445,7 @@ class CloudCatalog(BaseCatalog):
         filtered_catalogs = [
             catalog for catalog in result.catalogs if not catalog.ephemeral
         ]
-        return {catalog.name.casefold(): catalog for catalog in filtered_catalogs}
+        return {catalog.model_name.casefold(): catalog for catalog in filtered_catalogs}
 
     def _does_database_exist(self, catalog_name: str, database_name: str) -> bool:
         """Checks if a database with the specified name exists in the specified catalog."""
@@ -496,7 +496,7 @@ class CloudCatalog(BaseCatalog):
             )
         )
         databases = [
-            namespace.name for namespace in result.simple_catalog.list_namespaces
+            namespace.model_name for namespace in result.simple_catalog.list_namespaces
         ]
 
         # in case we are in the current catalog, always return the default database.
@@ -518,7 +518,7 @@ class CloudCatalog(BaseCatalog):
                 dataset_type=CatalogDatasetTypeReferenceEnum.TABLE,
             )
         )
-        return [dataset.name for dataset in result.catalog_dataset]
+        return [dataset.model_name for dataset in result.catalog_dataset]
 
     def _get_table(
             self,

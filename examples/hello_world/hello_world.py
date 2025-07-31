@@ -20,7 +20,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="hello_debug",
         semantic=fc.SemanticConfig(
             language_models= {
-                "mini": fc.OpenAIModelConfig(
+                "mini": fc.OpenAILanguageModel(
                     model_name="gpt-4o-mini",  # Fast and effective for log analysis
                     rpm=500,
                     tpm=200_000

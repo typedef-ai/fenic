@@ -12,7 +12,7 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
-from fenic.api.session.config import OpenAIModelConfig
+from fenic.api.session.config import OpenAILanguageModel
 
 # Configure logging
 logging.basicConfig(
@@ -69,7 +69,7 @@ def main(): # noqa: D103
                 size=CloudExecutorSize.SMALL,
             ),
             semantic=SemanticConfig(
-                language_models={ "model1": OpenAIModelConfig(
+                language_models={ "model1": OpenAILanguageModel(
                     model_name="gpt-4.1-nano", rpm=500, tpm=200_000
                 )},
                 default_language_model="model1",

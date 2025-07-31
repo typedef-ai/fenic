@@ -8,13 +8,14 @@ import pytest
 from fenic import (
     ColumnField,
     IntegerType,
+    OpenAIEmbeddingModel,
     SemanticConfig,
     Session,
     SessionConfig,
     StringType,
     col,
 )
-from fenic.api.session.config import OpenAIModelConfig
+from fenic.api.session.config import OpenAILanguageModel
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
 from fenic.core.error import ValidationError as FenicValidationError
@@ -139,7 +140,7 @@ def test_local_session_with_language_models_only():
     session_config = SessionConfig(
         app_name="test_app",
         semantic=SemanticConfig(
-            language_models={"mini" :OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
+            language_models={"mini" :OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
             default_language_model="mini"
         ),
     )
@@ -159,7 +160,7 @@ def test_local_session_with_embedding_models_only():
     """Verify that a local_session is created successfully if we supply only embedding models."""
     session_config = SessionConfig(
         app_name="test_app",
-        semantic=SemanticConfig(embedding_models={"oai-small": OpenAIModelConfig(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}),
+        semantic=SemanticConfig(embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}),
     )
     session = Session.get_or_create(session_config)
     session.stop()
@@ -169,7 +170,7 @@ def test_local_session_with_single_lm_no_explicit_default():
     session_config = SessionConfig(
         app_name="test_app",
         semantic=SemanticConfig(
-            language_models={"mini" : OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
+            language_models={"mini" : OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
         ),
     )
     assert session_config.semantic.default_language_model == "mini"
@@ -181,8 +182,8 @@ def test_local_session_with_ambiguous_default_lm():
         SessionConfig(
             app_name="test_app",
             semantic=SemanticConfig(
-                language_models={"mini" :OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000),
-                                 "nano" : OpenAIModelConfig(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
+                language_models={"mini" :OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000),
+                                 "nano" : OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
             ),
         )
 

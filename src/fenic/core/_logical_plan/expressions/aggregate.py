@@ -37,6 +37,9 @@ class SumExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: SumExpr) -> bool:
+        return True
+
 
 class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
     function_name = "avg"
@@ -69,7 +72,8 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
         else:
             return DoubleType
 
-
+    def _eq_specific(self, other: AvgExpr) -> bool:
+        return True
 
 class MinExpr(ValidatedSignature, AggregateExpr):
     function_name = "min"
@@ -85,6 +89,8 @@ class MinExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: MinExpr) -> bool:
+        return True
 
 class MaxExpr(ValidatedSignature, AggregateExpr):
     function_name = "max"
@@ -100,6 +106,8 @@ class MaxExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: MaxExpr) -> bool:
+        return True
 
 class CountExpr(ValidatedSignature, AggregateExpr):
     function_name = "count"
@@ -115,6 +123,8 @@ class CountExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: CountExpr) -> bool:
+        return True
 
 class ListExpr(ValidatedDynamicSignature, AggregateExpr):
     function_name = "collect_list"
@@ -140,6 +150,9 @@ class ListExpr(ValidatedDynamicSignature, AggregateExpr):
         """Return ArrayType with element type matching the input type."""
         return ArrayType(arg_types[0])
 
+    def _eq_specific(self, other: ListExpr) -> bool:
+        return True
+
 class FirstExpr(ValidatedSignature, AggregateExpr):
     function_name = "first"
 
@@ -154,6 +167,9 @@ class FirstExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: FirstExpr) -> bool:
+        return True
+
 class StdDevExpr(ValidatedSignature, AggregateExpr):
     function_name = "stddev"
 
@@ -167,3 +183,6 @@ class StdDevExpr(ValidatedSignature, AggregateExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+    def _eq_specific(self, other: StdDevExpr) -> bool:
+        return True
