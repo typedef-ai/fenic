@@ -1,6 +1,6 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
@@ -17,9 +17,6 @@ from fenic.core._logical_plan.expressions import (
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
-)
-from fenic.core._logical_plan.resolved_types import (
-    ResolvedClassDefinition,
 )
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,

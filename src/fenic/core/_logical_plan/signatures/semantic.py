@@ -8,7 +8,7 @@ from fenic.core._logical_plan.signatures.function_signature import (
     ReturnTypeStrategy,
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.type_signature import Exact, VariadicUniform
+from fenic.core._logical_plan.signatures.type_signature import Exact
 from fenic.core.types.datatypes import StringType
 
 

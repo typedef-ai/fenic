@@ -4,8 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from textwrap import dedent
 from typing import Optional
 
-import polars as pl
 import jinja2
+import polars as pl
 
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
 from fenic._inference.language_model import LanguageModel

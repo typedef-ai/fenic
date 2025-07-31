@@ -269,4 +269,4 @@ def test_hierarchical_reduction_logic(reduce_instance, mock_language_model):
     result = reduce_instance.execute()
     assert result[0] == "Final summary"
     assert call_count == 2  # Verify we went through 2 levels
-    assert False
+    raise AssertionError()

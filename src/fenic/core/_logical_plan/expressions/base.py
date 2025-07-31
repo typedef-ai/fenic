@@ -52,8 +52,8 @@ class LogicalExpr(ABC):
 
     def __eq__(self, other: LogicalExpr) -> bool:
         if not isinstance(other, LogicalExpr):
-            raise False
-        if type(self) != type(other):
+            return False
+        if type(self) is not type(other):
             return False
         if not self._eq_specific(other):
             return False
@@ -63,7 +63,7 @@ class LogicalExpr(ABC):
             return False
         return all(
             child1 == child2
-            for child1, child2 in zip(self_chldren, other_children)
+            for child1, child2 in zip(self_chldren, other_children, strict=False)
         )
 
     @abstractmethod

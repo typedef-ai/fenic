@@ -6,11 +6,11 @@ from fenic import (
     IntegerType,
     JoinExample,
     JoinExampleCollection,
+    OpenAIEmbeddingModel,
     StringType,
     col,
     text,
 )
-from fenic import JoinExample, JoinExampleCollection, OpenAIEmbeddingModel, col
 from fenic.api.session import (
     SemanticConfig,
     Session,
