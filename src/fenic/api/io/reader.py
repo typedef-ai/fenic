@@ -217,12 +217,12 @@ class DataFrameReader:
         # Convert all paths to strings
         paths_str = [str(p) for p in paths_list]
 
-        logical_node = FileSource(
+        logical_node = FileSource.from_session_state(
             paths=paths_str,
             file_format=file_format,
-            session_state=self._session_state,
             options=options,
+            session_state=self._session_state,
         )
         from fenic.api.dataframe import DataFrame
 
-        return DataFrame._from_logical_plan(logical_node)
+        return DataFrame._from_logical_plan(logical_node, self._session_state)

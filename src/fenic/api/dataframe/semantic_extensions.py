@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, get_args
+from typing import TYPE_CHECKING, Optional, Union, get_args
 
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     JoinExampleCollection,
 )
+from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
@@ -35,7 +36,15 @@ class SemanticExtensions:
         """
         self._df = df
 
-    def with_cluster_labels(self, by: ColumnOrName, num_clusters: int, label_column: str = "cluster_label", centroid_column: Optional[str] = None) -> DataFrame:
+    def with_cluster_labels(
+        self,
+        by: ColumnOrName,
+        num_clusters: int,
+        max_iter: int = 300,
+        num_init: int = 1,
+        label_column: str = "cluster_label",
+        centroid_column: Optional[str] = None,
+    ) -> DataFrame:
         """Cluster rows using K-means and add cluster metadata columns.
 
         This method clusters rows based on the given embedding column or expression using K-means.
@@ -45,6 +54,8 @@ class SemanticExtensions:
         Args:
             by: Column or expression producing embeddings to cluster (e.g., `embed(col("text"))`).
             num_clusters: Number of clusters to compute (must be > 0).
+            max_iter: Maximum iterations for a single run of the k-means algorithm. The algorithm stops when it either converges or reaches this limit.
+            num_init: Number of independent runs of k-means with different centroid seeds. The best result is selected.
             label_column: Name of the output column for cluster IDs. Default is "cluster_label".
             centroid_column: If provided, adds a column with this name containing the centroid embedding
                             for each row's assigned cluster.
@@ -56,6 +67,8 @@ class SemanticExtensions:
 
         Raises:
             ValidationError: If num_clusters is not a positive integer
+            ValidationError: If max_iter is not a positive integer
+            ValidationError: If num_init is not a positive integer
             ValidationError: If label_column is not a non-empty string
             ValidationError: If centroid_column is not a non-empty string
             TypeMismatchError: If the column is not an EmbeddingType
@@ -63,7 +76,7 @@ class SemanticExtensions:
         Example: Basic clustering
             ```python
             # Cluster customer feedback and add cluster metadata
-            clustered_df = df.semantic.with_cluster_labels("feedback_embeddings", 5)
+            clustered_df = df.semantic.with_cluster_labels("feedback_embeddings", num_clusters=5)
 
             # Then use regular operations to analyze clusters
             clustered_df.group_by("cluster_label").agg(count("*"), avg("rating"))
@@ -72,7 +85,7 @@ class SemanticExtensions:
         Example: Filter outliers using centroids
             ```python
             # Cluster and filter out rows far from their centroid
-            clustered_df = df.semantic.with_cluster_labels("embeddings", 3, centroid_column="cluster_centroid")
+            clustered_df = df.semantic.with_cluster_labels("embeddings", num_clusters=3, num_init=10, centroid_column="cluster_centroid")
             clean_df = clustered_df.filter(
                 embedding.compute_similarity("embeddings", "cluster_centroid", metric="cosine") > 0.7
             )
@@ -80,7 +93,15 @@ class SemanticExtensions:
         """
         # Validate num_clusters
         if not isinstance(num_clusters, int) or num_clusters <= 0:
-            raise ValidationError("`num_clusters` must be a positive integer greater than 0.")
+            raise ValidationError("`num_clusters` must be a positive integer.")
+
+        # Validate max_iter
+        if not isinstance(max_iter, int) or max_iter <= 0:
+            raise ValidationError("`max_iter` must be a positive integer.")
+
+        # Validate num_init
+        if not isinstance(num_init, int) or num_init <= 0:
+            raise ValidationError("`num_init` must be a positive integer.")
 
         # Validate clustering target
         if not isinstance(by, ColumnOrName):
@@ -105,9 +126,17 @@ class SemanticExtensions:
             )
 
         return self._df._from_logical_plan(
-            SemanticCluster(
-                self._df._logical_plan, by_expr, num_clusters, label_column, centroid_column
-            )
+            SemanticCluster.from_session_state(
+                self._df._logical_plan,
+                by_expr,
+                num_clusters=num_clusters,
+                max_iter=max_iter,
+                num_init=num_init,
+                label_column=label_column,
+                centroid_column=centroid_column,
+                session_state=self._df._session_state,
+            ),
+            self._df._session_state,
         )
 
     def join(
@@ -115,7 +144,7 @@ class SemanticExtensions:
         other: DataFrame,
         join_instruction: str,
         examples: Optional[JoinExampleCollection] = None,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[Union[str, ModelAlias]] = None
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
@@ -215,17 +244,20 @@ class SemanticExtensions:
             raise ValueError(
                 "join_instruction must contain exactly one :left and one :right column"
             )
-
+        resolved_model_alias = _resolve_model_alias(model_alias)
+        DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
-            SemanticJoin(
+            SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 join_instruction=join_instruction,
+                model_alias=resolved_model_alias,
                 examples=examples,
-                model_alias=model_alias,
+                session_state=self._df._session_state,
             ),
+            self._df._session_state,
         )
 
     def sim_join(
@@ -327,8 +359,9 @@ class SemanticExtensions:
         _validate_column(left_on, "left_on")
         _validate_column(right_on, "right_on")
 
+        DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
-            SemanticSimilarityJoin(
+            SemanticSimilarityJoin.from_session_state(
                 self._df._logical_plan,
                 other._logical_plan,
                 Column._from_col_or_name(left_on)._logical_expr,
@@ -336,7 +369,9 @@ class SemanticExtensions:
                 k,
                 similarity_metric,
                 similarity_score_column,
+                self._df._session_state,
             ),
+            self._df._session_state,
         )
 
     # Spark aliases

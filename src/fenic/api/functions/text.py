@@ -1,6 +1,6 @@
 """Text manipulation functions for Fenic DataFrames."""
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import ConfigDict, validate_call
 
@@ -9,8 +9,15 @@ from fenic.api.functions.core import lit
 from fenic.core._logical_plan.expressions import (
     ArrayJoinExpr,
     ByteLengthExpr,
+    ColumnExpr,
     ConcatExpr,
     CountTokensExpr,
+    FuzzyRatioExpr,
+    FuzzyTokenSetRatioExpr,
+    FuzzyTokenSortRatioExpr,
+    JinjaExpr,
+    LiteralExpr,
+    LogicalExpr,
     RecursiveTextChunkExpr,
     RegexpSplitExpr,
     ReplaceExpr,
@@ -25,47 +32,65 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
-    RecursiveTextChunkExprConfiguration,
-    TextChunkExprConfiguration,
 )
-from fenic.core.types.enums import TranscriptFormatType
+from fenic.core.error import ValidationError
+from fenic.core.types import StringType
+from fenic.core.types.enums import FuzzySimilarityMethod, TranscriptFormatType
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def extract(column: ColumnOrName, template: str) -> Column:
-    """Extracts fields from text using a template pattern.
+    """Extracts structured data from text using template-based pattern matching.
+
+    Matches each string in the input column against a template pattern with named
+    placeholders. Each placeholder can specify a format rule to handle different
+    data types within the text.
 
     Args:
-        template: Template string with fields marked as ``${field_name:format}``
         column: Input text column to extract from
+        template: Template string with placeholders as ``${field_name}`` or ``${field_name:format}``
+                 Available formats: none, csv, json, quoted
 
     Returns:
-        Column: A struct column containing the extracted fields
+        Column: Struct column with fields corresponding to template placeholders.
+                All fields are strings except JSON fields which preserve their parsed type.
 
-    Example: Basic field extraction
+    Template Syntax:
+        - ``${field_name}`` - Extract field as plain text
+        - ``${field_name:csv}`` - Parse as CSV field (handles quoted values)
+        - ``${field_name:json}`` - Parse as JSON and preserve type
+        - ``${field_name:quoted}`` - Extract quoted string (removes outer quotes)
+        - ``$`` - Literal dollar sign
+
+    Raises:
+        ValidationError: If template syntax is invalid
+
+    Example: Basic extraction
         ```python
-        # Extract name and age from a text column
-        df.select(text.extract(col("text"), "Name: ${name:csv}, Age: ${age:none}"))
+        text.extract(col("log"), "${date} ${level} ${message}")
+        # Input: "2024-01-15 ERROR Connection failed"
+        # Output: {date: "2024-01-15", level: "ERROR", message: "Connection failed"}
         ```
 
-    Example: Multiple field extraction with different formats
+    Example: Mixed format extraction
         ```python
-        # Extract multiple fields with different formats
-        df.select(text.extract(col("text"), "Product: ${product:csv}, Price: ${price:none}, Tags: ${tags:json}"))
+        text.extract(col("data"), 'Name: ${name:csv}, Price: ${price}, Tags: ${tags:json}')
+        # Input: 'Name: "Smith, John", Price: 99.99, Tags: ["a", "b"]'
+        # Output: {name: "Smith, John", price: "99.99", tags: ["a", "b"]}
         ```
 
-    Example: Extract and filter based on extracted fields
+    Example: Quoted field handling
         ```python
-        # Extract and filter based on extracted fields
-        df = df.select(
-            col("text"),
-            text.extract(col("text"), "Name: ${name:csv}, Age: ${age:none}").alias("extracted")
-        )
-        df = df.filter(col("extracted")["age"] == "30")
+        text.extract(col("record"), 'Title: ${title:quoted}, Author: ${author}')
+        # Input: 'Title: "To Kill a Mockingbird", Author: Harper Lee'
+        # Output: {title: "To Kill a Mockingbird", author: "Harper Lee"}
         ```
+
+    Note:
+        If a string doesn't match the template pattern, all extracted fields will be null.
     """
     return Column._from_logical_expr(
-        TextractExpr(Column._from_col_or_name(column)._logical_expr,template)
+        TextractExpr(Column._from_col_or_name(column)._logical_expr, template)
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
@@ -76,7 +101,7 @@ def recursive_character_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in characters) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -116,16 +141,14 @@ def recursive_character_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.CHARACTER,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.CHARACTER,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -138,7 +161,7 @@ def recursive_word_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in words) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -178,16 +201,14 @@ def recursive_word_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.WORD,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -200,7 +221,7 @@ def recursive_token_chunk(
     chunking_character_set_custom_characters: Optional[list[str]] = None,
 ) -> Column:
     r"""Chunks a string column into chunks of a specified size (in tokens) with an optional overlap.
-    
+
     The chunking is performed recursively, attempting to preserve the underlying structure of the text
     by splitting on natural boundaries (paragraph breaks, sentence breaks, etc.) to maintain context.
     By default, these characters are ['\n\n', '\n', '.', ';', ':', ' ', '-', ''], but this can be customized.
@@ -240,16 +261,14 @@ def recursive_token_chunk(
     else:
         chunking_character_set_name = ChunkCharacterSet.CUSTOM
 
-    chunk_configuration = RecursiveTextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.TOKEN,
-        chunking_character_set_name=chunking_character_set_name,
-        chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-    )
     return Column._from_logical_expr(
         RecursiveTextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=chunking_character_set_name,
+            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
         )
     )
 
@@ -259,7 +278,7 @@ def character_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in characters) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 
@@ -277,14 +296,12 @@ def character_chunk(
         df.select(text.character_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.CHARACTER,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.CHARACTER,
         )
     )
 
@@ -294,7 +311,7 @@ def word_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in words) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 
@@ -312,14 +329,12 @@ def word_chunk(
         df.select(text.word_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.WORD,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
         )
     )
 
@@ -329,7 +344,7 @@ def token_chunk(
     column: ColumnOrName, chunk_size: int, chunk_overlap_percentage: int = 0
 ) -> Column:
     """Chunks a string column into chunks of a specified size (in tokens) with an optional overlap.
-    
+
     The chunking is done by applying a simple sliding window across the text to create chunks of equal size.
     This approach does not attempt to preserve the underlying structure of the text.
 
@@ -347,14 +362,12 @@ def token_chunk(
         df.select(text.token_chunk(col("text"), 100, 20))
         ```
     """
-    chunk_configuration = TextChunkExprConfiguration(
-        desired_chunk_size=chunk_size,
-        chunk_overlap_percentage=chunk_overlap_percentage,
-        chunk_length_function_name=ChunkLengthFunction.TOKEN,
-    )
     return Column._from_logical_expr(
         TextChunkExpr(
-            Column._from_col_or_name(column)._logical_expr, chunk_configuration
+            Column._from_col_or_name(column)._logical_expr,
+            desired_chunk_size=chunk_size,
+            chunk_overlap_percentage=chunk_overlap_percentage,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
         )
     )
 
@@ -399,7 +412,7 @@ def concat(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat method.")
 
     flattened_args = []
     for arg in cols:
@@ -419,13 +432,13 @@ def concat(*cols: ColumnOrName) -> Column:
 def parse_transcript(column: ColumnOrName, format: TranscriptFormatType) -> Column:
     """Parses a transcript from text to a structured format with unified schema.
 
-    Converts transcript text in various formats (srt, generic) to a standardized structure
+    Converts transcript text in various formats (srt, webvtt, generic) to a standardized structure
     with fields: index, speaker, start_time, end_time, duration, content, format.
     All timestamps are returned as floating-point seconds from the start.
 
     Args:
         column: The input string column or column name containing transcript text
-        format: The format of the transcript ("srt" or "generic")
+        format: The format of the transcript ("srt", "webvtt", or "generic")
 
     Returns:
         Column: A column containing an array of structured transcript entries with unified schema:
@@ -436,13 +449,15 @@ def parse_transcript(column: ColumnOrName, format: TranscriptFormatType) -> Colu
             - end_time: Optional[float] - End time in seconds
             - duration: Optional[float] - Duration in seconds
             - content: str - Transcript content/text
-            - format: str - Original format ("srt" or "generic")
+            - format: str - Original format ("srt", "webvtt", or "generic")
 
     Examples:
         >>> # Parse SRT format transcript
         >>> df.select(text.parse_transcript(col("transcript"), "srt"))
         >>> # Parse generic conversation transcript
         >>> df.select(text.parse_transcript(col("transcript"), "generic"))
+        >>> # Parse WebVTT format transcript
+        >>> df.select(text.parse_transcript(col("transcript"), "webvtt"))
     """
     return Column._from_logical_expr(
         TsParseExpr(Column._from_col_or_name(column)._logical_expr, format)
@@ -467,7 +482,7 @@ def concat_ws(separator: str, *cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to concat_ws method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the concat_ws method.")
 
     flattened_args = []
     for arg in cols:
@@ -500,10 +515,6 @@ def array_join(column: ColumnOrName, delimiter: str) -> Column:
         df.select(text.array_join(col("array_column"), ","))
         ```
     """
-    if not isinstance(delimiter, str):
-        raise TypeError(
-            f"`array_join` expects a string for the delimiter, but got {type(delimiter).__name__}."
-        )
     return Column._from_logical_expr(
         ArrayJoinExpr(Column._from_col_or_name(column)._logical_expr, delimiter)
     )
@@ -541,12 +552,16 @@ def replace(
         ```
     """
     if isinstance(search, Column):
-        search = search._logical_expr
+        search_expr = search._logical_expr
+    else:
+        search_expr = lit(search)._logical_expr
     if isinstance(replace, Column):
-        replace = replace._logical_expr
+        replace_expr = replace._logical_expr
+    else:
+        replace_expr = lit(replace)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
-            Column._from_col_or_name(src)._logical_expr, search, replace, True, -1
+            Column._from_col_or_name(src)._logical_expr, search_expr, replace_expr, True
         )
     )
 
@@ -591,16 +606,19 @@ def regexp_replace(
         ```
     """
     if isinstance(pattern, Column):
-        pattern = pattern._logical_expr
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
     if isinstance(replacement, Column):
-        replacement = replacement._logical_expr
+        replacement_expr = replacement._logical_expr
+    else:
+        replacement_expr = lit(replacement)._logical_expr
     return Column._from_logical_expr(
         ReplaceExpr(
             Column._from_col_or_name(src)._logical_expr,
-            pattern,
-            replacement,
+            pattern_expr,
+            replacement_expr,
             False,
-            -1,
         )
     )
 
@@ -640,7 +658,7 @@ def split(src: ColumnOrName, pattern: str, limit: int = -1) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def split_part(
-    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[int, Column]
+    src: ColumnOrName, delimiter: Union[Column, str], part_number: Union[Column, int]
 ) -> Column:
     """Split a string and return a specific part using 1-based indexing.
 
@@ -658,7 +676,7 @@ def split_part(
     Args:
         src: The input string column or column name to split
         delimiter: The delimiter to split on (can be a string or column expression)
-        part_number: Which part to return (1-based, can be an integer or column expression)
+        part_number: Which part to return (1-based integer index or column expression)
 
     Returns:
         Column: A column containing the specified part from each split string
@@ -682,16 +700,22 @@ def split_part(
         ```
     """
     if isinstance(part_number, int) and part_number == 0:
-        raise ValueError(
+        raise ValidationError(
             f"`split_part` expects a non-zero integer for the part_number, but got {part_number}."
         )
-    if isinstance(delimiter, Column):
-        delimiter = delimiter._logical_expr
     if isinstance(part_number, Column):
-        part_number = part_number._logical_expr
+        part_number_expr = part_number._logical_expr
+    else:
+        part_number_expr = lit(part_number)._logical_expr
+
+    if isinstance(delimiter, Column):
+        delimiter_expr = delimiter._logical_expr
+    else:
+        delimiter_expr = lit(delimiter)._logical_expr
+
     return Column._from_logical_expr(
         SplitPartExpr(
-            Column._from_col_or_name(src)._logical_expr, delimiter, part_number
+            Column._from_col_or_name(src)._logical_expr, delimiter_expr, part_number_expr
         )
     )
 
@@ -812,10 +836,14 @@ def btrim(col: ColumnOrName, trim: Optional[Union[Column, str]]) -> Column:
         df.select(text.btrim(col("text"), col("chars")))
         ```
     """
-    if isinstance(trim, Column):
-        trim = trim._logical_expr
+    if trim is None:
+        trim_expr = None
+    elif isinstance(trim, Column):
+        trim_expr = trim._logical_expr
+    else:
+        trim_expr = lit(trim)._logical_expr
     return Column._from_logical_expr(
-        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim, "both")
+        StripCharsExpr(Column._from_col_or_name(col)._logical_expr, trim_expr, "both")
     )
 
 
@@ -907,3 +935,223 @@ def byte_length(column: ColumnOrName) -> Column:
     return Column._from_logical_expr(
         ByteLengthExpr(Column._from_col_or_name(column)._logical_expr)
     )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def jinja(
+    jinja_template: str,
+    /,
+    **columns: ColumnOrName
+) -> Column:
+    """Render a Jinja template using values from the specified columns.
+
+    This function evaluates a Jinja2 template string for each row, using the provided
+    columns as template variables. Only a subset of Jinja2 features is supported.
+
+    Args:
+        jinja_template: A Jinja2 template string to render for each row.
+                       Variables are referenced using double braces: {{ variable_name }}
+        **columns: Keyword arguments mapping variable names to columns.
+                  Each keyword becomes a variable in the template context.
+
+    Returns:
+        Column: A string column containing the rendered template for each row
+
+    Supported Features:
+        - Variable substitution: {{ variable }}
+        - Struct/object field access: {{ user.name }}
+        - Array indexing with literals: {{ items[0] }}, {{ data["key"] }}
+        - For loops: {% for item in items %}...{% endfor %}
+        - If/elif/else conditionals: {% if condition %}...{% endif %}
+        - Loop variables: {{ loop.index }}, {{ loop.first }}, etc.
+        - Constants: {{ "literal string" }}, {{ 42 }}
+
+    Not Supported (use column expressions instead):
+        - **Filters**: {{ name|upper }} → Use upper_name=fc.upper(col("name"))
+        - **Function calls**: {{ len(items) }} → Use item_count=fc.array_size(col("items"))
+        - **Operators**: {% if price > 100 %} → Use is_expensive=(col("price") > 100)
+        - **Arithmetic**: {{ price * quantity }} → Use total=col("price") * col("quantity")
+        - **Dynamic indexing**: {{ items[i] }} → Use item=(fc.col("items").get_item(col("index")))
+        - **Variable assignment**: {% set x = 5 %} → Pre-compute as column expression
+        - **Macros, includes, extends**: Not supported
+
+    Example: LLM prompt formatting with conditional context and examples
+        ```python
+        # Format prompts with user query, conditional context, and examples
+        prompt_template = '''
+        Answer the user's question.
+
+        {% if context %}
+        Context: {{ context }}
+        {% endif %}
+
+        {% if examples %}
+        Few-shot examples:
+        {% for ex in examples %}
+        Q: {{ ex.question }}
+        A: {{ ex.answer }}
+        {% endfor %}
+        {% endif %}
+
+        Question: {{ query }}
+
+        Please provide a {{ style }} response.'''
+
+        # Generate prompts with varying context based on query type
+        result = df.select(
+            text.jinja(
+                prompt_template,
+                # Direct columns
+                query=col("user_question"),
+                context=col("retrieved_context"),  # Can be null for some rows
+
+                # Column expression for conditional logic
+                style=fc.when(col("query_type") == "technical", "detailed and technical")
+                      .when(col("query_type") == "casual", "conversational")
+                      .otherwise("clear and concise"),
+
+                # Array of examples (struct array)
+                examples=col("few_shot_examples")  # Array of {question, answer} structs
+            ).alias("llm_prompt")
+        )
+        ```
+
+    Notes:
+        - Template syntax is validated at query planning time
+        - Complex operations can use column expressions
+        - Arrays can only be iterated with {% for %} or accessed with literal indices
+        - Structs can only use literal field names
+        - Null values will be rendered as empty strings
+    """
+    # Convert keyword arguments to column expressions with proper names
+    column_exprs: List[LogicalExpr] = []
+    for var_name, column in columns.items():
+        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
+            column_exprs.append(column.expr)
+        else:
+            column_exprs.append(column.alias(var_name)._logical_expr)
+
+    return Column._from_logical_expr(
+        JinjaExpr(column_exprs, jinja_template)
+    )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute the similarity between two strings using a fuzzy string matching algorithm.
+
+    This function computes a fuzzy similarity score between two string columns (or a string column
+    and a literal string) for each row. It supports multiple well-known string similarity metrics,
+    including Levenshtein, Damerau-Levenshtein, Jaro, Jaro-Winkler, and Hamming.
+
+    The returned score is a similarity percentage between 0 and 100, where:
+        - 100 indicates the strings are identical
+        - 0 indicates maximum dissimilarity (as defined by the method)
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.ratio
+
+    Args:
+        column: A string column or column name. This is the left-hand side of the comparison.
+        other: A second string column or literal string. This is the right-hand side of the comparison.
+        method: A string indicating which similarity method to use. Must be one of:
+            - `"indel"`: Indel distance — counts only insertions and deletions (no substitutions); based on the Longest Common Subsequence.
+            - `"levenshtein"`: Levenshtein distance (edit distance)
+            - `"damerau_levenshtein"`: Damerau-Levenshtein distance (includes transpositions)
+            - `"jaro"`: Jaro similarity, accounts for transpositions and proximity
+            - `"jaro_winkler"`: Jaro-Winkler similarity, gives higher scores for common prefixes
+            - `"hamming"`: Hamming distance. Counts differing positions between two equal-length strings, padding shorter string if needed.
+
+    Returns:
+        Column: A double column with similarity scores in the range [0, 100].
+
+    Example: Compare two columns
+        ```python
+        result = df.select(
+            compute_fuzzy_ratio(col("a"), col("b"), method="levenshtein").alias("sim")
+        )
+        ```
+
+    Example: Compare a column to a literal string
+        ```python
+        result = df.select(
+            compute_fuzzy_ratio(col("a"), "world", method="jaro").alias("sim_to_world")
+        )
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_sort_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute fuzzy similarity after sorting tokens in each string.
+
+    Tokenizes strings by whitespace, sorts tokens alphabetically, concatenates
+    them back into a string, then applies the specified similarity metric.
+    Useful for comparing strings where word order doesn't matter.
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_sort_ratio
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use after token sorting
+
+    Returns:
+        Double column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_sort_ratio(col("city"), "city  new  york", "levenshtein"))
+        # "new york city" → ["new", "york", "city"] → sorted → ["city", "new", "york"] → "city new york"
+        # "city new york" → ["city", "new", "york"] → sorted → ["city", "new", "york"] → "city new york"
+        # levenshtein similarity("city new york", "city new york") = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSortRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def compute_fuzzy_token_set_ratio(column: ColumnOrName, other: Union[Column, str], method: FuzzySimilarityMethod = "indel") -> Column:
+    """Compute fuzzy similarity using token set comparison.
+
+    Tokenizes strings by whitespace, creates sets of unique tokens, then
+    compares three combinations: diff1 vs diff2, intersection vs left set,
+    and intersection vs right set. Returns the maximum similarity score.
+    Useful for comparing strings where both word order and duplicates
+    don't matter.
+
+    Based on https://rapidfuzz.github.io/RapidFuzz/Usage/fuzz.html#rapidfuzz.fuzz.token_set_ratio
+
+    Args:
+        column: First string column to compare
+        other: Second string column or literal string to compare against
+        method: Similarity algorithm to use for comparison
+
+    Returns:
+        Double column with similarity scores between 0 and 100
+
+    Example:
+        ```python
+        # df.select(compute_fuzzy_token_set_ratio(col("city"), "city of new york", "indel"))
+        # "new york city new" → unique tokens: {"city", "new", "york"}
+        # "city of new york" → unique tokens: {"city", "new", "of", "york"}
+        # intersection: {"city", "new", "york"}
+        # diff1: {} (empty)
+        # diff2: {"of"}
+        # Compares: diff1 vs diff2, intersection vs set1, intersection vs set2
+        # Returns max similarity score = 100
+        ```
+    """
+    if isinstance(other, str):
+        other_expr = LiteralExpr(other, StringType)
+    else:
+        other_expr = other._logical_expr
+
+    return Column._from_logical_expr(FuzzyTokenSetRatioExpr(Column._from_col_or_name(column)._logical_expr, other_expr, method))

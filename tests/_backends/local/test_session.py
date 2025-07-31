@@ -6,7 +6,7 @@ from fenic import (
     Session,
     SessionConfig,
 )
-from fenic.api.session.config import OpenAIModelConfig
+from fenic.api.session.config import OpenAILanguageModel
 from fenic.core.error import SessionError
 
 
@@ -18,7 +18,7 @@ def test_multiple_sessions(local_session_config):
     session_config3 = SessionConfig(
         app_name="semantic_test2",
         semantic=SemanticConfig(
-            language_models={"mini": OpenAIModelConfig(model_name="gpt-4.1-mini", rpm=500, tpm=200_000)},
+            language_models={"mini": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000)},
             default_language_model="mini"
         ),
     )
@@ -49,7 +49,7 @@ def test_combining_dataframes_from_different_sessions_raises():
         app_name="test_session_1",
         semantic=SemanticConfig(
             language_models={
-                "test_model": OpenAIModelConfig(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
+                "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
     )
@@ -57,7 +57,7 @@ def test_combining_dataframes_from_different_sessions_raises():
         app_name="test_session_2",
         semantic=SemanticConfig(
             language_models={
-                "test_model": OpenAIModelConfig(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
+                "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
     )
@@ -81,7 +81,7 @@ def test_combining_dataframes_from_different_sessions_raises():
             app_name="test_session_3",
             semantic=SemanticConfig(
                 language_models={
-                    "test_model": OpenAIModelConfig(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
+                    "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
                 },
             ),
         )
@@ -95,7 +95,7 @@ def test_stopped_session_remains_stopped_after_new_session_same_name():
         app_name="reused_app_name",
         semantic=SemanticConfig(
             language_models={
-                "test_model": OpenAIModelConfig(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
+                "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
     )

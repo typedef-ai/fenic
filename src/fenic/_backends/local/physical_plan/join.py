@@ -14,6 +14,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
     RIGHT_ON_COL_NAME,
 )
 from fenic.core._logical_plan.plans import CacheInfo
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
 
@@ -101,7 +102,7 @@ class SemanticJoinExec(PhysicalPlan):
         join_instruction: str,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
-        model_alias: str,
+        model_alias: Optional[ResolvedModelAlias] = None,
         temperature = 0.0,
         examples: Optional[JoinExampleCollection] = None,
     ):
@@ -130,6 +131,7 @@ class SemanticJoinExec(PhysicalPlan):
             self.session_state.get_language_model(self.model_alias),
             examples=self.examples,
             temperature=self.temperature,
+            model_alias=self.model_alias,
         ).execute()
 
     def _build_lineage(

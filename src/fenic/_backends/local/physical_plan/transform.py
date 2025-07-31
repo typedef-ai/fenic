@@ -10,7 +10,7 @@ import polars as pl
 from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
 from fenic._backends.local.semantic_operators.cluster import Cluster
-from fenic.core._logical_plan.plans import CacheInfo
+from fenic.core._logical_plan.plans import CacheInfo, CentroidInfo
 from fenic.core.error import InternalError
 
 if TYPE_CHECKING:
@@ -337,8 +337,10 @@ class SemanticClusterExec(PhysicalPlan):
         by_expr: pl.Expr,
         by_expr_name: str,
         num_clusters: int,
+        max_iter: int,
+        num_init: int,
         label_column: str,
-        centroid_info: Optional[Tuple[str, int]],
+        centroid_info: Optional[CentroidInfo],
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
     ):
@@ -346,6 +348,8 @@ class SemanticClusterExec(PhysicalPlan):
         self.by_expr = by_expr
         self.by_expr_name = by_expr_name
         self.num_clusters = num_clusters
+        self.max_iter = max_iter
+        self.num_init = num_init
         self.label_column = label_column
         self.centroid_info = centroid_info
 
@@ -359,9 +363,11 @@ class SemanticClusterExec(PhysicalPlan):
         clustered_df = Cluster(
             child_df,
             self.by_expr_name,
-            self.num_clusters,
-            self.label_column,
-            self.centroid_info,
+            num_clusters=self.num_clusters,
+            max_iter=self.max_iter,
+            num_init=self.num_init,
+            label_column=self.label_column,
+            centroid_info=self.centroid_info,
         ).execute()
 
         # Remove the temporary column we added for clustering if it wasn't in the original

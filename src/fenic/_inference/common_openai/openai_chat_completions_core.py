@@ -1,9 +1,7 @@
 """Core functionality for OpenAI chat completions clients."""
 
-import hashlib
-import json
 import logging
-from typing import Union
+from typing import Any, Optional, Union
 
 from openai import (
     APIConnectionError,
@@ -14,32 +12,38 @@ from openai import (
 )
 from openai.types import CompletionUsage
 
-from fenic._inference.model_catalog import (
-    ModelProvider,
-    model_catalog,
+from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionProfileConfiguration,
 )
 from fenic._inference.model_client import (
     FatalException,
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
-    TokenEstimate,
     TransientException,
 )
+from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TokenCounter
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    ResponseUsage,
+)
+from fenic.core._inference.model_catalog import (
+    ModelProvider,
+    model_catalog,
+)
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
+
 
 class OpenAIChatCompletionsCore:
     """Core functionality for OpenAI chat completions clients."""
 
     def __init__(
-            self,
-            model: str,
-            model_provider: ModelProvider,
-            token_counter: TokenCounter,
-            client: AsyncOpenAI,
-            additional_params: dict = None,
+        self,
+        model: str,
+        model_provider: ModelProvider,
+        token_counter: TokenCounter,
+        client: AsyncOpenAI,
     ):
         """Initialize the OpenAI chat completions client core.
 
@@ -57,10 +61,6 @@ class OpenAIChatCompletionsCore:
         self._metrics = LMMetrics()
         self._model_parameters = model_catalog.get_completion_model_parameters(self._model_provider, self._model)
         self._model_identifier = f"{model_provider.value}:{model}"
-        if additional_params is None:
-            self._additional_params = {}
-        else:
-            self._additional_params = additional_params
 
     def reset_metrics(self) -> None:
         """Reset the metrics."""
@@ -71,24 +71,28 @@ class OpenAIChatCompletionsCore:
         return self._metrics
 
     async def make_single_request(
-            self, request: FenicCompletionsRequest
+        self,
+        request: FenicCompletionsRequest,
+        profile_configuration: Optional[OpenAICompletionProfileConfiguration] = None
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         """Make a single request to the OpenAI API.
 
         Args:
             request: The messages to send
-
+            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort)
         Returns:
             The response text or an exception
         """
         try:
-            common_params = {
+            common_params: dict[str, Any] = {
                 "model": self._model,
                 "messages": request.messages.to_message_list(),
-                "max_tokens": request.max_completion_tokens,
-                "temperature": request.temperature,
+                "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
+            if not profile_configuration or not profile_configuration.reasoning_effort:
+                # OpenAI does not allow temperature to be modified for o-series reasoning models.
+                common_params["temperature"] = request.temperature
 
             # Determine if we need logprobs
             if request.top_logprobs:
@@ -98,7 +102,8 @@ class OpenAIChatCompletionsCore:
                         "top_logprobs": request.top_logprobs,
                     }
                 )
-            common_params.update(self._additional_params)
+            if profile_configuration:
+                common_params.update(profile_configuration.additional_parameters)
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
@@ -111,27 +116,49 @@ class OpenAIChatCompletionsCore:
             else:
                 response = await self._client.chat.completions.create(**common_params)
 
+            # Extract usage metrics
             usage: CompletionUsage = response.usage
 
-            input_tokens = (
+            cached_input_tokens = (
                 usage.prompt_tokens_details.cached_tokens
                 if usage.prompt_tokens_details
                 else 0
             )
-            uncached_input_tokens = usage.prompt_tokens - input_tokens
-            output_tokens = usage.completion_tokens
+            uncached_input_tokens = usage.prompt_tokens - cached_input_tokens
+            total_prompt_tokens = usage.prompt_tokens
 
-            self._metrics.num_cached_input_tokens += input_tokens
+            # Extract reasoning (thinking) tokens if available
+            reasoning_tokens = (
+                usage.completion_tokens_details.reasoning_tokens
+                if usage.completion_tokens_details
+                else 0
+            )
+
+            # Separate completion tokens from reasoning tokens
+            total_output_tokens = usage.completion_tokens
+            completion_tokens = total_output_tokens - reasoning_tokens
+
+            # Create ResponseUsage object
+            response_usage = ResponseUsage(
+                prompt_tokens=total_prompt_tokens,
+                completion_tokens=completion_tokens,  # Actual completion tokens (excluding reasoning)
+                total_tokens=total_prompt_tokens + total_output_tokens,
+                cached_tokens=cached_input_tokens,
+                thinking_tokens=reasoning_tokens  # OpenAI's reasoning tokens
+            )
+
+            # Update metrics (existing logic)
+            self._metrics.num_cached_input_tokens += cached_input_tokens
             self._metrics.num_uncached_input_tokens += uncached_input_tokens
-            self._metrics.num_output_tokens += output_tokens
+            self._metrics.num_output_tokens += total_output_tokens
             self._metrics.num_requests += 1
 
             self._metrics.cost += model_catalog.calculate_completion_model_cost(
                 model_provider=self._model_provider,
                 model_name=self._model,
                 uncached_input_tokens=uncached_input_tokens,
-                cached_input_tokens_read=input_tokens,
-                output_tokens=output_tokens,
+                cached_input_tokens_read=cached_input_tokens,
+                output_tokens=total_output_tokens,
             )
             completion = response.choices[0].message.content
             if completion is None:
@@ -140,6 +167,7 @@ class OpenAIChatCompletionsCore:
             return FenicCompletionsResponse(
                 completion=response.choices[0].message.content,
                 logprobs=response.choices[0].logprobs,
+                usage=response_usage,
             )
 
         except (RateLimitError, APITimeoutError, APIConnectionError) as e:
@@ -157,18 +185,4 @@ class OpenAIChatCompletionsCore:
         Returns:
             A unique key for the request
         """
-        return hashlib.sha256(json.dumps(request.messages.to_message_list()).encode()).hexdigest()[:10]
-
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
-        """Estimate the number of tokens for a request.
-
-        Args:
-            request: The request to estimate tokens for
-
-        Returns:
-            TokenEstimate with input token count
-        """
-        return TokenEstimate(
-            input_tokens=self._token_counter.count_tokens(request.messages.to_message_list()),
-            output_tokens=request.max_completion_tokens
-        )
+        return generate_completion_request_key(request)

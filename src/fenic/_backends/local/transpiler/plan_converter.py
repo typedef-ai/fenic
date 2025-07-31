@@ -79,6 +79,7 @@ class PlanConverter:
         # for SemanticFilterRewriteRule() to produce optimal plans.
         logical = (
             LogicalPlanOptimizer(
+                self.session_state,
                 [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
             )
             .optimize(logical)
@@ -264,9 +265,11 @@ class PlanConverter:
                 child_physical,
                 physical_by_expr,
                 str(logical.by_expr()),
-                logical.num_clusters(),
-                logical.label_column(),
-                logical.centroid_info(),
+                num_clusters=logical.num_clusters(),
+                max_iter=logical.max_iter(),
+                num_init=logical.num_init(),
+                label_column=logical.label_column(),
+                centroid_info=logical.centroid_info(),
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
             )
@@ -279,7 +282,7 @@ class PlanConverter:
             child_physical = self.convert(
                 child_logical
             )
-            target_field = logical._expr.to_column_field(child_logical)
+            target_field = logical._expr.to_column_field(child_logical, self.session_state)
             return ExplodeExec(
                 child_physical,
                 physical_expr,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from io import StringIO
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 if TYPE_CHECKING:
@@ -22,10 +21,10 @@ from fenic._backends.local.semantic_operators import Extract as SemanticExtract
 from fenic._backends.local.semantic_operators import Map as SemanticMap
 from fenic._backends.local.semantic_operators import Predicate as SemanticPredicate
 from fenic._backends.local.semantic_operators import Reduce as SemanticReduce
+from fenic._backends.local.semantic_operators import Summarize as SemanticSummarize
 from fenic._backends.local.template import TemplateFormatReader
 from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     AliasExpr,
     AnalyzeSentimentExpr,
     ArithmeticExpr,
@@ -51,10 +50,14 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FuzzyRatioExpr,
+    FuzzyTokenSetRatioExpr,
+    FuzzyTokenSortRatioExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
     IsNullExpr,
+    JinjaExpr,
     JqExpr,
     JsonContainsExpr,
     JsonTypeExpr,
@@ -81,6 +84,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
+    SemanticSummarizeExpr,
     SortExpr,
     SplitPartExpr,
     StartsWithExpr,
@@ -96,6 +100,7 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
     convert_pydantic_type_to_custom_struct_type,
@@ -113,6 +118,7 @@ from fenic.core.types.datatypes import (
     StructType,
     _PrimitiveType,
 )
+from fenic.core.types.enums import FuzzySimilarityMethod
 
 
 class ExprConverter:
@@ -313,6 +319,7 @@ class ExprConverter:
                     model=self.session_state.get_language_model(logical.model_alias),
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
+                    model_alias=logical.model_alias,
                 ).execute()
 
             struct = pl.struct(
@@ -345,24 +352,25 @@ class ExprConverter:
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:
         return pl.struct(
-            [self._convert_expr(arg) for arg in logical.args]
+            [self._convert_expr(child) for child in logical.children()]
         )
 
 
     @_convert_expr.register(ArrayExpr)
     def _convert_array_expr(self, logical: ArrayExpr) -> pl.Expr:
         return pl.concat_list(
-            [self._convert_expr(arg) for arg in logical.args]
+            [self._convert_expr(child) for child in logical.children()]
         )
 
 
     @_convert_expr.register(IndexExpr)
     def _convert_index_expr(self, logical: IndexExpr) -> pl.Expr:
         base_expr = self._convert_expr(logical.expr)
-        if isinstance(logical.index, int):
-            return base_expr.list.get(logical.index, null_on_oob=True)
-        elif isinstance(logical.index, str):
-            return base_expr.struct.field(str(logical.index))
+        index_expr = self._convert_expr(logical.index)
+        if logical.input_type == "array":
+            return base_expr.list.get(index_expr, null_on_oob=True)
+        elif logical.input_type == "struct":
+            return base_expr.struct.field(logical.index.literal)
         else:
             raise NotImplementedError(f"Unsupported index key type: {type(logical.index)}")
 
@@ -382,26 +390,33 @@ class ExprConverter:
             text = str(row[str(logical.input_expr)])
             if not text:
                 return {col: None for col in logical.parsed_template.columns}
-            reader = TemplateFormatReader(logical.parsed_template, StringIO(text))
-            result_dict = reader.read_row() or {
+            reader = TemplateFormatReader(logical.parsed_template, text)
+            result_dict = reader.parse() or {
                 col: None for col in logical.parsed_template.columns
             }
             return {
                 col: result_dict.get(col, None) for col in logical.parsed_template.columns
             }
 
-        return_struct_type = StructType(
-            struct_fields=[
-                StructField(name=col, data_type=StringType)
-                for col in logical.parsed_template.columns
-            ]
-        )
+        return_struct_type = logical.parsed_template.to_struct_schema()
 
         return struct_expr.map_elements(
             extract_fields,
             return_dtype=convert_custom_dtype_to_polars(return_struct_type),
         )
 
+    @_convert_expr.register(JinjaExpr)
+    def _convert_jinja_expr(self, logical: JinjaExpr) -> pl.Expr:
+        # Convert all input expressions
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+
+        # Create struct of all inputs
+        struct_expr = pl.struct(column_exprs)
+
+        # Call the Jinja plugin
+        return struct_expr.jinja.render(
+            template=logical.template,
+        )
 
     @_convert_expr.register(SemanticMapExpr)
     def _convert_semantic_map_expr(self, logical: SemanticMapExpr) -> pl.Expr:
@@ -418,6 +433,7 @@ class ExprConverter:
                 max_tokens=logical.max_tokens,
                 temperature=logical.temperature,
                 response_format=logical.response_format,
+                model_alias=logical.model_alias,
             ).execute()
 
         struct = pl.struct(
@@ -426,7 +442,17 @@ class ExprConverter:
                 for expr in logical.exprs
             ]
         )
-        return struct.map_batches(sem_map_fn, return_dtype=pl.String)
+        if logical.struct_type:
+            return struct.map_batches(
+                sem_map_fn,
+                return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
+            )
+        return struct.map_batches(
+            sem_map_fn,
+            return_dtype=pl.String
+        )
+
+
 
 
     @_convert_expr.register(RecursiveTextChunkExpr)
@@ -508,6 +534,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -524,12 +551,14 @@ class ExprConverter:
             expanded_df = pl.DataFrame(
                 {field: batch.struct.field(field) for field in batch.struct.fields}
             )
+
             return SemanticPredicate(
                 input=expanded_df,
                 user_instruction=logical.instruction,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
                 examples=logical.examples,
+                model_alias=logical.model_alias,
             ).execute()
 
         struct = pl.struct(
@@ -546,9 +575,11 @@ class ExprConverter:
         def sem_classify_fn(batch: pl.Series) -> pl.Series:
             return SemanticClassify(
                 input=batch,
-                labels=logical.labels,
+                classes=logical.classes,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                examples=logical.examples,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -563,12 +594,29 @@ class ExprConverter:
                 input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
+                model_alias=logical.model_alias,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
             sem_sentiment_fn, return_dtype=pl.Utf8
         )
 
+    @_convert_expr.register(SemanticSummarizeExpr)
+    def _convert_semantic_summarize_expr(self,
+        logical: SemanticSummarizeExpr
+    ) -> pl.Expr:
+        def sem_summarize_fn(batch: pl.Series) -> pl.Series:
+            return SemanticSummarize(
+                input=batch,
+                format=logical.format,
+                temperature=logical.temperature,
+                model=self.session_state.get_language_model(logical.model_alias),
+
+            ).execute()
+
+        return self._convert_expr(logical.expr).map_batches(
+            sem_summarize_fn, return_dtype=pl.Utf8
+        )
 
     @_convert_expr.register(ArrayJoinExpr)
     def _convert_array_join_expr(self, logical: ArrayJoinExpr) -> pl.Expr:
@@ -580,11 +628,7 @@ class ExprConverter:
     @_convert_expr.register(ContainsExpr)
     def _convert_contains_expr(self, logical: ContainsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.contains(pattern=substr_expr, literal=True)
 
 
@@ -613,22 +657,14 @@ class ExprConverter:
     @_convert_expr.register(StartsWithExpr)
     def _convert_starts_with_expr(self, logical: StartsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.starts_with(prefix=substr_expr)
 
 
     @_convert_expr.register(EndsWithExpr)
     def _convert_ends_with_expr(self, logical: EndsWithExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        substr_expr = (
-            self._convert_expr(logical.substr)
-            if isinstance(logical.substr, LogicalExpr)
-            else pl.lit(logical.substr)
-        )
+        substr_expr = self._convert_expr(logical.substr)
         return physical_expr.str.ends_with(suffix=substr_expr)
 
 
@@ -638,9 +674,9 @@ class ExprConverter:
         if logical.dimensions is None:
             raise InternalError("Embedding dimensions not set for embeddings expression")
 
+        embedding_model = self.session_state.get_embedding_model(logical.model_alias)
         def embeddings_fn(batch: pl.Series) -> pl.Series:
-            embedding_model = self.session_state.get_embedding_model(logical.model_alias)
-            return pl.from_arrow(embedding_model.get_embeddings(batch))
+            return pl.from_arrow(embedding_model.get_embeddings(batch, logical.model_alias))
 
         return physical_expr.map_batches(embeddings_fn, return_dtype=pl.Array(pl.Float32, logical.dimensions))
 
@@ -648,65 +684,22 @@ class ExprConverter:
     @_convert_expr.register(SplitPartExpr)
     def _convert_split_part_expr(self, logical: SplitPartExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        is_delimiter_column = isinstance(logical.delimiter, LogicalExpr)
-        is_part_number_column = isinstance(logical.part_number, LogicalExpr)
+        part_number_expr = self._convert_expr(logical.part_number)
+        delimiter_expr = self._convert_expr(logical.delimiter)
 
-        # If neither delimiter nor part_number is a column, use the standard split_part
-        if not is_delimiter_column and not is_part_number_column:
-            # arr.get is zero indexed, split_part is 1-based per the Spark spec
-            if logical.part_number > 0:
-                pl_index = logical.part_number - 1
-            else:
-                pl_index = logical.part_number
-
-            return (
-                physical_expr.str.split(logical.delimiter)
-                .list.get(index=pl_index, null_on_oob=True)
-                .fill_null(
-                    ""
-                )  # spark semantics expect an empty string if part number is out of range
-            )
-
-        # Convert expressions for delimiter and part number
-        delimiter_expr = (
-            self._convert_expr(logical.delimiter)
-            if is_delimiter_column
-            else pl.lit(logical.delimiter)
-        )
-        part_number_expr = (
-            self._convert_expr(logical.part_number)
-            if is_part_number_column
-            else pl.lit(logical.part_number)
-        )
-
-        # If only delimiter is a column, we can pass it directly to split
-        if is_delimiter_column and not is_part_number_column:
-            # Convert part number from 1-based to 0-based for positive numbers
-            pl_index = (
-                logical.part_number - 1 if logical.part_number > 0 else logical.part_number
-            )
-            return (
-                physical_expr.str.split(delimiter_expr)
-                .list.get(index=pl_index, null_on_oob=True)
-                .fill_null("")
-            )
-
-        # If part_number is a column, use over expressions
-        # First split using the delimiter (either column or literal)
         split_expr = physical_expr.str.split(delimiter_expr)
 
         # Convert from 1-based to 0-based indexing for positive numbers
         part_expr = (
-            pl.when(part_number_expr.first() > 0)
-            .then(part_number_expr.first() - 1)
-            .otherwise(part_number_expr.first())
+            pl.when(part_number_expr > 0)
+            .then(part_number_expr - 1)
+            .otherwise(part_number_expr)
         )
 
         # Get the part and handle out of range with empty string
         return (
             split_expr.list.get(part_expr, null_on_oob=True)
             .fill_null("")
-            .over(part_number_expr)
         )
 
 
@@ -740,11 +733,7 @@ class ExprConverter:
     @_convert_expr.register(StripCharsExpr)
     def _convert_strip_chars_expr(self, logical: StripCharsExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        chars_expr = (
-            self._convert_expr(logical.chars)
-            if isinstance(logical.chars, LogicalExpr)
-            else pl.lit(logical.chars)
-        )
+        chars_expr = self._convert_expr(logical.chars) if logical.chars else None
 
         strip_methods = {
             "both": physical_expr.str.strip_chars,
@@ -777,57 +766,24 @@ class ExprConverter:
     @_convert_expr.register(ReplaceExpr)
     def _convert_replace_expr(self, logical: ReplaceExpr) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        is_search_column = isinstance(logical.search, LogicalExpr)
-        is_replace_column = isinstance(logical.replacement, LogicalExpr)
+        is_search_column = isinstance(logical.search, ColumnExpr)
+        physical_search_expr = self._convert_expr(logical.search)
+        physical_replacement_expr = self._convert_expr(logical.replacement)
 
-        # If neither search nor replacement is a column, use the standard string replace
-        if not is_search_column and not is_replace_column:
-            if logical.replacement_count == -1:
-                return physical_expr.str.replace_all(
-                    pattern=logical.search,
-                    value=logical.replacement,
-                    literal=logical.literal,
-                )
-            else:
-                return physical_expr.str.replace(
-                    pattern=logical.search,
-                    value=logical.replacement,
-                    literal=logical.literal,
-                    n=logical.replacement_count,
-                )
-
-        # Handle column-based replacement
-        if is_search_column:
-            search_expr = self._convert_expr(logical.search)
-            pattern_expr = search_expr.first()
-        else:
-            search_expr = pl.lit(logical.search)
-            pattern_expr = search_expr
-
-        if is_replace_column:
-            replacement_expr = self._convert_expr(logical.replacement)
-        else:
-            replacement_expr = pl.lit(logical.replacement)
-
-        if logical.replacement_count == -1:
-            result = physical_expr.str.replace_all(
-                pattern=pattern_expr,
-                value=replacement_expr,
+        if not is_search_column:
+            return physical_expr.str.replace_all(
+                pattern=physical_search_expr,
+                value=physical_replacement_expr,
                 literal=logical.literal,
             )
         else:
-            result = physical_expr.str.replace(
-                pattern=pattern_expr,
-                value=replacement_expr,
+            # https://github.com/pola-rs/polars/issues/14367
+            # Polars doesn't currently support replace with a expression, so we need to use replace_all and over as a workaround
+            return physical_expr.str.replace_all(
+                pattern=physical_search_expr.first(),
+                value=physical_replacement_expr,
                 literal=logical.literal,
-                n=logical.replacement_count,
-            )
-
-        if is_search_column:
-            return result.over(search_expr)
-        else:
-            return result
-
+            ).over(physical_search_expr)
 
     @_convert_expr.register(StrLengthExpr)
     def _convert_str_length_expr(self, logical: StrLengthExpr) -> pl.Expr:
@@ -1134,6 +1090,75 @@ class ExprConverter:
             return self._convert_expr(logical.expr).map_batches(
                 similarity_fn, return_dtype=pl.Float32
             )
+
+    @_convert_expr.register(FuzzyRatioExpr)
+    def _convert_fuzzy_similarity_expr(self, logical: FuzzyRatioExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.expr)
+        right_expr = self._convert_expr(logical.other)
+
+        return _convert_fuzzy_similarity_method_to_expr(left_expr, right_expr, logical.method)
+
+    @_convert_expr.register(FuzzyTokenSortRatioExpr)
+    def _convert_fuzzy_token_sort_ratio_expr(self, logical: FuzzyTokenSortRatioExpr) -> pl.Expr:
+        left_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.expr))
+        right_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.other))
+
+        left_expr = left_tokens.list.sort().list.join(" ")
+        right_expr = right_tokens.list.sort().list.join(" ")
+
+        return _convert_fuzzy_similarity_method_to_expr(left_expr, right_expr, logical.method)
+
+    @_convert_expr.register(FuzzyTokenSetRatioExpr)
+    def _convert_fuzzy_token_set_ratio_expr(self, logical: FuzzyTokenSetRatioExpr) -> pl.Expr:
+        # Tokenize and normalize
+        left_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.expr))
+        right_tokens = _tokenize_for_fuzzy_similarity(self._convert_expr(logical.other))
+
+        # Get unique tokens and sort
+        left_set = left_tokens.list.unique().list.sort()
+        right_set = right_tokens.list.unique().list.sort()
+
+        # Get intersection and differences
+        intersection = left_set.list.set_intersection(right_set)
+        diff_left = left_set.list.set_difference(right_set)
+        diff_right = right_set.list.set_difference(left_set)
+
+        # Create strings for comparison
+        intersection_str = intersection.list.sort().list.join(" ")
+        diff_left_str = diff_left.list.sort().list.join(" ")
+        diff_right_str = diff_right.list.sort().list.join(" ")
+        left_set_str = left_set.list.join(" ")  # Already sorted
+        right_set_str = right_set.list.join(" ")  # Already sorted
+
+        # Three comparisons matching canonical implementation:
+        # 1. diff_left vs diff_right
+        # 2. intersection vs left_set (intersection + diff_left)
+        # 3. intersection vs right_set (intersection + diff_right)
+        ratio1 = _convert_fuzzy_similarity_method_to_expr(diff_left_str, diff_right_str, logical.method)
+        ratio2 = _convert_fuzzy_similarity_method_to_expr(intersection_str, left_set_str, logical.method)
+        ratio3 = _convert_fuzzy_similarity_method_to_expr(intersection_str, right_set_str, logical.method)
+
+        # Return the maximum
+        return pl.max_horizontal([ratio1, ratio2, ratio3])
+
+def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
+    if method == "indel":
+        return expr.fuzz.normalized_indel_similarity(other)
+    if method == "levenshtein":
+        return expr.fuzz.normalized_levenshtein_similarity(other)
+    elif method == "damerau_levenshtein":
+        return expr.fuzz.normalized_damerau_levenshtein_similarity(other)
+    elif method == "jaro_winkler":
+        return expr.fuzz.normalized_jarowinkler_similarity(other)
+    elif method == "jaro":
+        return expr.fuzz.normalized_jaro_similarity(other)
+    elif method == "hamming":
+        return expr.fuzz.normalized_hamming_similarity(other)
+    else:
+        raise InternalError(f"Unknown fuzzy similarity method: {method}. Invalid state.")
+
+def _tokenize_for_fuzzy_similarity(expr: pl.Expr) -> pl.Expr:
+    return expr.str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ")
 
 def _calculate_similarity_numpy(
     embeddings: np.ndarray, query: np.ndarray, metric: str

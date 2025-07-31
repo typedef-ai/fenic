@@ -18,6 +18,7 @@ from fenic.core._logical_plan.plans.source import (
 )
 from fenic.core._logical_plan.plans.transform import (
     SQL,
+    CentroidInfo,
     DropDuplicates,
     Explode,
     Filter,
@@ -52,4 +53,5 @@ __all__ = [
     "Sort",
     "Union",
     "Unnest",
+    "CentroidInfo",
 ]

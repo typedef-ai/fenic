@@ -12,10 +12,10 @@ from fenic import (
     count,
     semantic,
 )
-from fenic.core.error import TypeMismatchError
+from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_semantic_cluster_with_centroids(local_session):
+def test_semantic_cluster_with_centroids(local_session, embedding_model_name):
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -28,20 +28,20 @@ def test_semantic_cluster_with_centroids(local_session):
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.with_cluster_labels(col("embeddings"), 2, centroid_column="cluster_centroid")
+        .semantic.with_cluster_labels(col("embeddings"), num_clusters=2, num_init=5, max_iter=100, centroid_column="cluster_centroid")
     )
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
         ColumnField("cluster_label", IntegerType),
-        ColumnField("cluster_centroid", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("cluster_centroid", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
     ]
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
         "embeddings": pl.Array(pl.Float32, 1536),
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "cluster_centroid": pl.Array(pl.Float32, 1536),
     }
 
@@ -56,7 +56,7 @@ def test_semantic_cluster_derived_column(local_session):
             ],
         }
     )
-    df = source.semantic.with_cluster_labels(semantic.embed(col("blurb")), 2)
+    df = source.semantic.with_cluster_labels(semantic.embed(col("blurb")), num_clusters=2)
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
@@ -65,7 +65,7 @@ def test_semantic_cluster_derived_column(local_session):
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
     }
 
 def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_session):
@@ -81,13 +81,13 @@ def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_sess
     )
     df = (
         source.with_column("embeddings", semantic.embed(col("blurb")))
-        .semantic.with_cluster_labels(col("embeddings"), 2)
+        .semantic.with_cluster_labels(col("embeddings"), num_clusters=2)
         .group_by(col("cluster_label"))
         .agg(collect_list(col("blurb")).alias("blurbs"))
     )
     result = df.to_polars()
     assert result.schema == {
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "blurbs": pl.List(pl.String),
     }
     assert set(result["cluster_label"].to_list()) == {0, 1, None}
@@ -131,13 +131,13 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     )
 
     assert result.schema == {
-        "cluster_label": pl.Int64,
+        "cluster_label": pl.Int32,
         "feedback_count": pl.UInt32,
         "theme_summary": pl.Utf8,
     }
 
 
-def test_semantic_clustering_on_persisted_embeddings_table(local_session):
+def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedding_model_name):
     """Test group_by() on a semantic cluster id with a saved embeddings table."""
     data = {
         "feedback": [
@@ -160,7 +160,7 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session):
         ColumnField("feedback", StringType),
         ColumnField("submission_date", StringType),
         ColumnField("user_id", IntegerType),
-        ColumnField("embeddings", EmbeddingType(embedding_model="openai/text-embedding-3-small", dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
     ]
     result = (
         df_embeddings.semantic.with_cluster_labels(col("embeddings"), 2)
@@ -174,3 +174,19 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session):
         .to_polars()
     )
     assert len(result) == 2
+
+def test_semantic_cluster_with_invalid_parameters(local_session):
+    source = local_session.create_dataframe(
+        {
+            "embeddings": [
+                [0.1, 0.5],
+                [0.2, 0.8],
+            ],
+        }
+    ).with_column("embeddings", col("embeddings").cast(EmbeddingType(embedding_model="dummy_model", dimensions=2)))
+    with pytest.raises(ValidationError, match="`num_clusters` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=0)
+    with pytest.raises(ValidationError, match="`max_iter` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=2, max_iter=0)
+    with pytest.raises(ValidationError, match="`num_init` must be a positive integer."):
+        source.semantic.with_cluster_labels(col("blurb"), num_clusters=2, num_init=0)

@@ -12,14 +12,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from fenic._inference.model_catalog import (
-    ANTHROPIC_AVAILABLE_LANGUAGE_MODELS,
-    GOOGLE_GLA_AVAILABLE_MODELS,
-    OPENAI_AVAILABLE_EMBEDDING_MODELS,
-    OPENAI_AVAILABLE_LANGUAGE_MODELS,
-)
+from fenic.core._inference.model_catalog import ModelProvider
 
-ReasoningEffort = Literal["none", "low", "medium", "high"]
+ReasoningEffort = Literal["low", "medium", "high"]
 
 # --- Enums ---
 
@@ -33,38 +28,69 @@ class CloudExecutorSize(str, Enum):
 # --- Model Configs ---
 
 @dataclass
+class ResolvedAnthropicModelProfile:
+    thinking_token_budget: Optional[int] = None
+
+@dataclass
+class ResolvedGoogleModelProfile:
+    thinking_token_budget: Optional[int] = None
+    embedding_dimensionality: Optional[int] = None
+    embedding_task_type: Optional[str] = None
+
+
+
+@dataclass
+class ResolvedOpenAIModelProfile:
+    reasoning_effort: Optional[ReasoningEffort] = None
+
+@dataclass
 class ResolvedOpenAIModelConfig:
-    model_name: Union[OPENAI_AVAILABLE_LANGUAGE_MODELS, OPENAI_AVAILABLE_EMBEDDING_MODELS]
+    model_name: str
     rpm: int
     tpm: int
+    model_provider: ModelProvider = ModelProvider.OPENAI
+    profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
+    default_profile: Optional[str] = None
 
 
 @dataclass
 class ResolvedAnthropicModelConfig:
-    model_name: ANTHROPIC_AVAILABLE_LANGUAGE_MODELS
+    model_name: str
     rpm: int
     input_tpm: int
     output_tpm: int
+    model_provider: ModelProvider = ModelProvider.ANTHROPIC
+    profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
+    default_profile: Optional[str] = None
 
 @dataclass
-class ResolvedGoogleGLAModelConfig:
-    model_name: GOOGLE_GLA_AVAILABLE_MODELS
+class ResolvedGoogleModelConfig:
+    model_name: str
+    model_provider: Literal[ModelProvider.GOOGLE_DEVELOPER, ModelProvider.GOOGLE_VERTEX]
     rpm: int
     tpm: int
-    reasoning_effort: Optional[ReasoningEffort]
+    profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None
+    default_profile: Optional[str] = None
 
-ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleGLAModelConfig]
+ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]
 
 
 # --- Semantic / Cloud / Session Configs ---
 
 @dataclass
 class ResolvedSemanticConfig:
-    language_models: dict[str, ResolvedModelConfig]
-    default_language_model: str
-    embedding_models: Optional[dict[str, ResolvedOpenAIModelConfig]] = None
-    default_embedding_model: Optional[str] = None
+    language_models: Optional[ResolvedLanguageModelConfig] = None
+    embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
 
+@dataclass
+class ResolvedLanguageModelConfig:
+    model_configs: dict[str, ResolvedModelConfig]
+    default_model: str
+
+@dataclass
+class ResolvedEmbeddingModelConfig:
+    model_configs: dict[str, ResolvedModelConfig]
+    default_model: str
 
 @dataclass
 class ResolvedCloudConfig:
@@ -73,7 +99,6 @@ class ResolvedCloudConfig:
 
 @dataclass
 class ResolvedSessionConfig:
-
     app_name: str
     db_path: Optional[Path]
     semantic: ResolvedSemanticConfig

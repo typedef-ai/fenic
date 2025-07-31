@@ -47,10 +47,10 @@ The analyzer processes various error types including:
 ## Troubleshooting
 
 **Issue**: Generic analysis results
-**Solution**: Add more descriptive fields to ExtractSchema
+**Solution**: Add more descriptive fields to Pydantic models
 
 **Issue**: Incorrect severity classification
 **Solution**: Adjust classification categories or provide examples
 
 **Issue**: Missing error patterns
-**Solution**: Modify ExtractSchemaField descriptions for better targeting
+**Solution**: Modify Pydantic model field descriptions for better targeting

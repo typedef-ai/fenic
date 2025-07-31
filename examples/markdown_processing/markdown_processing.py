@@ -37,7 +37,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="markdown_processing",
         semantic=fc.SemanticConfig(
             language_models= {
-                "mini": fc.OpenAIModelConfig(
+                "mini": fc.OpenAILanguageModel(
                     model_name="gpt-4o-mini",
                     rpm=500,
                     tpm=200_000

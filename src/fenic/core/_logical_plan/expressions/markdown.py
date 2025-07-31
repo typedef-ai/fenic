@@ -1,49 +1,41 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 
-if TYPE_CHECKING:
-    from fenic.core._logical_plan import LogicalPlan
-
-from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core.error import TypeMismatchError
-from fenic.core.types import (
-    ArrayType,
-    ColumnField,
-    IntegerType,
-    JsonType,
-    MarkdownType,
-    StringType,
-    StructField,
-    StructType,
-)
+from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 
 
-class MdToJsonExpr(LogicalExpr):
+class MdToJsonExpr(ValidatedSignature, LogicalExpr):
+    function_name = "markdown.to_json"
+
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
 
-    def __str__(self) -> str:
-        return f"md_to_json({self.expr})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != MarkdownType:
-            raise TypeMismatchError(MarkdownType, input_field.data_type, "markdown.to_json()")
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=JsonType)
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
 
-class MdGetCodeBlocksExpr(LogicalExpr):
+class MdGetCodeBlocksExpr(ValidatedSignature, LogicalExpr):
+    function_name = "markdown.get_code_blocks"
+
     def __init__(self, expr: LogicalExpr, language_filter: Optional[str] = None):
         self.expr = expr
         self.language_filter = language_filter
         self.jq_query = self._build_jq_query(language_filter)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, language_filter: Optional[str] = None) -> str:
         if language_filter:
@@ -62,27 +54,22 @@ class MdGetCodeBlocksExpr(LogicalExpr):
     }}]'''
         return query
 
-    def __str__(self) -> str:
-        return f"markdown.get_code_blocks({self.expr})"
 
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != MarkdownType:
-            raise TypeMismatchError(MarkdownType, input_field.data_type, "markdown.get_code_blocks()")
+class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
+    function_name = "markdown.generate_toc"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=ArrayType(StructType([StructField("language", StringType), StructField("code", StringType)])))
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
-
-class MdGenerateTocExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, max_level: Optional[int] = None):
         self.expr = expr
         self.max_level = max_level or 6
         self.jq_query = self._build_jq_query(self.max_level)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, max_level: int) -> str:
         # Wrap in a simple object to avoid JSON string encoding issues
@@ -92,27 +79,22 @@ class MdGenerateTocExpr(LogicalExpr):
     ] | join("\\n"))}}'''
         return query
 
-    def __str__(self) -> str:
-        return f"markdown.generate_toc({self.expr})"
 
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != MarkdownType:
-            raise TypeMismatchError(MarkdownType, input_field.data_type, "markdown.generate_toc()")
+class MdExtractHeaderChunks(ValidatedSignature, LogicalExpr):
+    function_name = "markdown.extract_header_chunks"
 
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(name=str(self), data_type=MarkdownType)
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
-
-class MdExtractHeaderChunks(LogicalExpr):
     def __init__(self, expr: LogicalExpr, header_level: int):
         self.expr = expr
         self.header_level = header_level
         self.jq_query = self._build_jq_query(header_level)
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
 
     def _build_jq_query(self, header_level: int) -> str:
         query = f'''
@@ -143,26 +125,3 @@ walk_headings(.; [])'''
 
     def __str__(self) -> str:
         return f"markdown.extract_header_chunks({self.expr}, header_level={self.header_level})"
-
-    def _validate_types(self, plan: LogicalPlan):
-        input_field = self.expr.to_column_field(plan)
-        if input_field.data_type != MarkdownType:
-            raise TypeMismatchError(MarkdownType, input_field.data_type, "markdown.extract_header_chunks()")
-
-    def to_column_field(self, plan: LogicalPlan) -> ColumnField:
-        self._validate_types(plan)
-        return ColumnField(
-            name=str(self),
-            data_type=ArrayType(
-                StructType([
-                    StructField("heading", StringType),
-                    StructField("level", IntegerType),
-                    StructField("content", StringType),
-                    StructField("parent_heading", StringType),
-                    StructField("full_path", StringType),
-                ])
-            )
-        )
-
-    def children(self) -> List[LogicalExpr]:
-        return [self.expr]

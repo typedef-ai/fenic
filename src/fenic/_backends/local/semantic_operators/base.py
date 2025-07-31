@@ -7,7 +7,7 @@ from fenic._inference.language_model import InferenceConfiguration, LanguageMode
 from fenic._inference.types import FewShotExample, LMRequestMessages
 from fenic.core.types.semantic_examples import BaseExampleCollection
 
-# Type variable for raw model output (e.g., completion text, completiont text with log probabilities, explanations, etc.)
+# Type variable for raw model output (e.g., completion text, completion text with log probabilities, explanations, etc.)
 ModelResponseType = TypeVar("ModelResponseType")
 
 # Type variable for the final output returned by the operator after post-processing
@@ -76,6 +76,7 @@ class CompletionOnlyRequestSender(RequestSender[str]):
             temperature=self.inference_config.temperature,
             response_format=self.inference_config.response_format,
             top_logprobs=self.inference_config.top_logprobs,
+            model_profile=self.inference_config.model_profile,
         )
 
         completions = [
@@ -96,6 +97,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 Component responsible for sending requests and retrieving model responses.
         """
         self.request_sender = request_sender
+
 
     def execute(self) -> pl.Series:
         """Run the full request building -> model -> postprocess pipeline.

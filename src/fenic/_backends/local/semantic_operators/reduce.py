@@ -1,6 +1,7 @@
 import logging
 import math
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
 import polars as pl
 
@@ -11,6 +12,7 @@ from fenic._backends.local.semantic_operators.utils import (
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.types import LMRequestMessages
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +77,14 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
+            model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.input = input
         self.user_instruction = uppercase_instruction_placeholder(user_instruction)
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.model_profile = model_alias.profile if model_alias else None
         self.prefix_tokens = (
             self.model.count_tokens([self.SYSTEM_MESSAGE])
             + PREFIX_TOKENS_PER_MESSAGE
@@ -123,6 +127,7 @@ class Reduce:
                 operation_name=operation_name,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                model_profile=self.model_profile,
             )
             reduced_docs = [response.completion for response in responses]
             docs = reduced_docs
@@ -166,9 +171,11 @@ class Reduce:
             self.model.count_tokens(user_template) + self.prefix_tokens
         )
         # Multiply by CONTEXT_WINDOW_REDUCTION_FACTOR to avoid sending one massive request that would be slow to retry on failure.
-        max_input_tokens = math.floor(
-            (self.model.max_context_window_length - self.model.model_parameters.max_output_tokens) * CONTEXT_WINDOW_REDUCTION_FACTOR
-        )
+        # The max_context_window_length could be very small if the user sets a low rate limit
+        theoretical_max_input_tokens = self.model.max_context_window_length - self.model.model_parameters.max_output_tokens
+        if theoretical_max_input_tokens <= 0:
+            theoretical_max_input_tokens = self.model.max_context_window_length
+        max_input_tokens = math.floor(theoretical_max_input_tokens * CONTEXT_WINDOW_REDUCTION_FACTOR)
 
         messages_batch: list[LMRequestMessages] = []
         request_docs: list[str] = []

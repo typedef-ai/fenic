@@ -1,6 +1,5 @@
 import json
 import logging
-from enum import Enum
 from typing import List, Optional
 
 import polars as pl
@@ -16,6 +15,7 @@ from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
 
 logger = logging.getLogger(__name__)
@@ -110,17 +110,7 @@ EXAMPLES.create_example(
     )
 )
 
-SENTIMENT_ANALYSIS_MODEL = create_classification_pydantic_model(
-    Enum(
-        "Sentiment",
-        [
-            ("POSITIVE", "positive"),
-            ("NEGATIVE", "negative"),
-            ("NEUTRAL", "neutral"),
-        ],
-    )
-)
-
+SENTIMENT_ANALYSIS_MODEL = create_classification_pydantic_model(["positive", "negative", "neutral"])
 
 class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
     SYSTEM_PROMPT = """You are a sentiment analysis expert.
@@ -139,6 +129,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
         input: pl.Series,
         model: LanguageModel,
         temperature: float,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         super().__init__(
             input,
@@ -148,7 +139,8 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
                     temperature=temperature,
-                    response_format=SENTIMENT_ANALYSIS_MODEL
+                    response_format=SENTIMENT_ANALYSIS_MODEL,
+                    model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
             EXAMPLES,
@@ -166,6 +158,11 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                 try:
                     data = json.loads(response)["output"]
                     predictions.append(data)
+                    if data not in ["positive", "negative", "neutral"]:
+                        logger.warning(
+                            f"Model returned invalid label '{data}'. Valid labels: positive, negative, neutral"
+                        )
+                        predictions.append(None)
                 except Exception as e:
                     logger.warning(
                         f"Invalid model output: {response} for semantic.analyze_sentiment: {e}"

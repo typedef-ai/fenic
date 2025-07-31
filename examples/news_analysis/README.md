@@ -159,7 +159,7 @@ The pipeline generates comprehensive analysis including:
 ### Option 1: Python Script
 
 1. **Setup**: Ensure you have fenic installed with Google Gemini API access
-2. **Environment**: Set your `GEMINI_API_KEY` environment variable.
+2. **Environment**: Set your `GOOGLE_API_KEY` environment variable.
    a. Alternatively, you can run the example with an OpenAI(`OPENAI_API_KEY`) model by uncommenting the provided additional model configurations.
    b. Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
 3. **Execute**: Run `python news_analysis.py`

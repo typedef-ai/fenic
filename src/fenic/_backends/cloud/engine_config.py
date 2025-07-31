@@ -6,9 +6,10 @@ import pickle  # nosec: B403
 
 from fenic import SessionConfig
 from fenic._constants import API_KEY_SUFFIX
-from fenic._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
+    ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
 )
@@ -31,38 +32,46 @@ class CloudSessionConfig:
         self.session_config = copy.deepcopy(session_config._to_resolved_config())
         self.unresolved_session_config.cloud = None
         self.session_config.cloud = None
+
         semantic_config = self.session_config.semantic
+        env_keys = dict(os.environ)
 
-        # Read keys from environment variables ending with _API_KEY
-        env_keys = {
-            key: value
-            for key, value in os.environ.items()
-            if key.endswith(API_KEY_SUFFIX)
-        }
-        language_model_providers: set[ModelProvider] = set([
-            get_model_provider_for_config(model_config) for model_config in semantic_config.language_models.values()
-        ])
-        for language_model_provider in language_model_providers:
-            completions_api_key = f"{language_model_provider.value.upper()}{API_KEY_SUFFIX}"
-            if completions_api_key not in env_keys.keys():
+        def get_and_store_key(env_var: str, provider: ModelProvider):
+            if env_var not in env_keys:
                 raise ConfigurationError(
-                    f"{completions_api_key} is not set. Please set it in your environment to use {language_model_provider} models."
+                    f"{env_var} is not set. Please set it in your environment to use {provider} models."
                 )
-            self.model_api_keys[completions_api_key] = env_keys[completions_api_key]
+            self.model_api_keys[env_var] = env_keys[env_var]
 
-        if self.session_config.semantic.embedding_models:
-            embedding_model_providers: set[ModelProvider] = set([
-                get_model_provider_for_config(model_config) for model_config in semantic_config.embedding_models.values()
-            ])
-            for embedding_model_provider in embedding_model_providers:
-                embeddings_api_key = (
-                f"{embedding_model_provider.value.upper()}{API_KEY_SUFFIX}"
-            )
-                if embeddings_api_key not in env_keys.keys():
+        providers: set[ModelProvider] = set()
+
+        if semantic_config.language_models:
+            for model_config in semantic_config.language_models.model_configs.values():
+                providers.add(get_model_provider_for_config(model_config))
+
+        if semantic_config.embedding_models:
+            for model_config in semantic_config.embedding_models.model_configs.values():
+                providers.add(get_model_provider_for_config(model_config))
+
+        for provider in providers:
+            if provider == ModelProvider.GOOGLE_DEVELOPER:
+                google_api_key = f"GOOGLE{API_KEY_SUFFIX}"
+                gemini_api_key = f"GEMINI{API_KEY_SUFFIX}"
+                if google_api_key in env_keys:
+                    self.model_api_keys[google_api_key] = env_keys[google_api_key]
+                elif gemini_api_key in env_keys:
+                    self.model_api_keys[google_api_key] = env_keys[gemini_api_key]
+                else:
                     raise ConfigurationError(
-                        f"{embeddings_api_key} is not set. Please set it in your environment to use {embedding_model_provider.value.upper()} models."
+                        f"{google_api_key} or {gemini_api_key} must be set to use {provider} models."
                     )
-                self.model_api_keys[embeddings_api_key] = env_keys[embeddings_api_key]
+            elif provider == ModelProvider.GOOGLE_VERTEX:
+                get_and_store_key("GOOGLE_CLOUD_PROJECT", provider)
+                get_and_store_key("GOOGLE_CLOUD_LOCATION", provider)
+            else:
+                key = f"{provider.value.upper()}{API_KEY_SUFFIX}"
+                get_and_store_key(key, provider)
+
 
     @staticmethod
     def deserialize(data: bytes) -> CloudSessionConfig:
@@ -77,5 +86,7 @@ def get_model_provider_for_config(model_config: ResolvedModelConfig) -> ModelPro
         return ModelProvider.OPENAI
     elif isinstance(model_config, ResolvedAnthropicModelConfig):
         return ModelProvider.ANTHROPIC
+    if isinstance(model_config, ResolvedGoogleModelConfig):
+        return model_config.model_provider
     else:
         raise InternalError(f"Unsupported model {model_config} in semantic config.")

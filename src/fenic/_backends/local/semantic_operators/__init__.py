@@ -9,6 +9,7 @@ from fenic._backends.local.semantic_operators.map import Map
 from fenic._backends.local.semantic_operators.predicate import Predicate
 from fenic._backends.local.semantic_operators.reduce import Reduce
 from fenic._backends.local.semantic_operators.sim_join import SimJoin
+from fenic._backends.local.semantic_operators.summarize import Summarize
 
 __all__ = [
     "Classify",
@@ -20,4 +21,5 @@ __all__ = [
     "AnalyzeSentiment",
     "SimJoin",
     "Reduce",
+    "Summarize",
 ]

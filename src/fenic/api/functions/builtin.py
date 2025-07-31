@@ -24,7 +24,9 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
+from fenic.core.error import ValidationError
 from fenic.core.types import DataType
+from fenic.core.types.datatypes import _is_logical_type
 
 """Built-in functions."""
 
@@ -302,6 +304,9 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
 
         return _udf_wrapper
 
+    if _is_logical_type(return_type):
+        raise NotImplementedError(f"return_type {return_type} is not supported for UDFs")
+
     if f is not None:
         return _create_udf(f)
     return _create_udf
@@ -546,7 +551,7 @@ def coalesce(*cols: ColumnOrName) -> Column:
         ```
     """
     if not cols:
-        raise ValueError("At least one column must be provided to coalesce method")
+        raise ValidationError("No columns were provided. Please specify at least one column to use with the coalesce method.")
 
     flattened_args = []
     for arg in cols:

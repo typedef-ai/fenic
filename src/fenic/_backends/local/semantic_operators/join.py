@@ -13,6 +13,7 @@ from fenic._constants import (
     EXAMPLE_RIGHT_KEY,
 )
 from fenic._inference.language_model import LanguageModel
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection, PredicateExampleCollection
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class Join:
         model: LanguageModel,
         temperature: float,
         examples: Optional[JoinExampleCollection] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.left_df = left_df.with_row_index("_left_id")
         self.right_df = right_df.with_row_index("_right_id")
@@ -39,6 +41,7 @@ class Join:
         self.examples = examples
         self.temperature = temperature
         self.model = model
+        self.model_alias = model_alias
 
     def execute(self) -> pl.DataFrame:
         join_inputs = self._build_join_pairs_df()
@@ -50,6 +53,7 @@ class Join:
             examples=self._convert_examples(),
             temperature=self.temperature,
             model=self.model,
+            model_alias=self.model_alias,
         )
         results = semantic_predicate.execute()
         return self._postprocess(join_inputs, results)

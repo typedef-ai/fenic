@@ -11,7 +11,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="log_enrichment",
         semantic=fc.SemanticConfig(
             language_models= {
-                "mini": fc.OpenAIModelConfig(model_name="gpt-4o-mini", rpm=500, tpm=200_000)
+                "mini": fc.OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)
             }
         )
     )
@@ -113,9 +113,9 @@ def main(config: Optional[fc.SessionConfig] = None):
     # Define the Pydantic model for semantic error extraction
     class ErrorAnalysis(BaseModel):
         """Pydantic model for semantic error extraction."""
-        error_category: str = Field(..., description="Main category of the error (e.g., database, network, authentication, resource)")
-        affected_component: str = Field(..., description="Specific component or resource affected")
-        potential_cause: str = Field(..., description="Most likely root cause of the issue")
+        error_category: str = Field(description="Main category of the error (e.g., database, network, authentication, resource)")
+        affected_component: str = Field(description="Specific component or resource affected")
+        potential_cause: str = Field(description="Most likely root cause of the issue")
     # Semantic extraction for error analysis using Pydantic model
     final_df = enriched_df.select(
         "timestamp",

@@ -15,6 +15,7 @@ from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic._backends.local.temp_df_db_client import TempDFDBClient
 from fenic._inference import EmbeddingModel, LanguageModel
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
@@ -30,9 +31,9 @@ class LocalSessionState(BaseSessionState):
     and indices.
     """
 
-    model_registry: SessionModelRegistry
     duckdb_conn: duckdb.DuckDBPyConnection
     s3_session: Optional[boto3.Session] = None
+    _model_registry: SessionModelRegistry
 
     def __init__(
             self,
@@ -45,7 +46,7 @@ class LocalSessionState(BaseSessionState):
         else:
             db_path = Path(f"{config.app_name}.duckdb")
         self.duckdb_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(db_path)
-        self.model_registry = self._configure_models(config.semantic)
+        self._model_registry = self._configure_models(config.semantic)
         self.intermediate_df_client = TempDFDBClient(self.app_name)
         self.s3_session = boto3.Session()
 
@@ -59,20 +60,24 @@ class LocalSessionState(BaseSessionState):
         """
         return SessionModelRegistry(semantic_config)
 
-    def get_language_model(self, alias: Optional[str] = None) -> LanguageModel:
-        return self.model_registry.get_language_model(alias)
+    def get_language_model(self, alias: Optional[ResolvedModelAlias] = None) -> LanguageModel:
+        return self._model_registry.get_language_model(alias)
 
     def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:
-        return self.model_registry.get_embedding_model(alias)
+        return self._model_registry.get_embedding_model(alias)
 
     def get_model_metrics(self) -> tuple[LMMetrics, RMMetrics]:
         """Get the language model and retriever model metrics."""
-        return self.model_registry.get_language_model_metrics(), self.model_registry.get_embedding_model_metrics()
+        return self._model_registry.get_language_model_metrics(), self._model_registry.get_embedding_model_metrics()
 
     def reset_model_metrics(self):
         """Reset the language model and retriever model metrics."""
-        self.model_registry.reset_language_model_metrics()
-        self.model_registry.reset_embedding_model_metrics()
+        self._model_registry.reset_language_model_metrics()
+        self._model_registry.reset_embedding_model_metrics()
+
+    def shutdown_models(self):
+        """Shutdown all registered language and embedding models."""
+        self._model_registry.shutdown_models()
 
     @property
     def execution(self) -> LocalExecution:
