@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -19,7 +19,6 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
-from fenic.core.types.datatypes import StringType
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -35,13 +34,20 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
-from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr, SortExpr
+from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
-from fenic.core.error import InvalidExampleCollectionError, ValidationError
+from fenic.core.error import (
+    InvalidExampleCollectionError,
+    TypeMismatchError,
+    ValidationError,
+)
 from fenic.core.types import (
+    BooleanType,
     DataType,
     EmbeddingType,
+    StringType,
 )
 from fenic.core.types.schema import ColumnField
 from fenic.core.types.semantic import ModelAlias
@@ -52,40 +58,26 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def __init__(
         self,
-        instruction: str,
+        jinja_template: str,
+        exprs: List[Union[ColumnExpr, AliasExpr]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         response_format: Optional[type[BaseModel]] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
+        self.template = jinja_template
+        self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
-        self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
-        if not self.exprs:
-            raise ValidationError(
-                "semantic.map instruction requires at least one templated column."
-            )
         self.examples = None
         if examples:
             self._validate_example_response_format(examples)
-            examples._validate_with_instruction(instruction)
             self.examples = examples
-
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
-
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
+        self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -93,26 +85,35 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
-        # Use mixin's implementation with dynamic return type
-        return super().to_column_field(plan, session_state)
+        data_types: Dict[str, DataType] = {}
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan, session_state).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+            data_types[expr.name] = data_type
+        if self.examples:
+            self.examples._validate_against_column_types(data_types)
+
+        return ColumnField(
+            name=str(self),
+            data_type=self.struct_type if self.struct_type else StringType,
+        )
 
     def _validate_example_response_format(self, example_collection: MapExampleCollection):
+        """Validate that all examples have outputs matching the expected response format."""
         for example in example_collection.examples:
-            if self.response_format is None and not isinstance(example.output, str):
-                raise InvalidExampleCollectionError("If a `schema` is not provided to `semantic.map`, "
-                                      "all examples are required to have outputs of type `str`.")
-            if self.response_format is not None and not isinstance(example.output, self.response_format):
-                raise InvalidExampleCollectionError("If a `schema` BaseModel is provided to `semantic.map`, "
-                                      "all examples are required to have outputs of the same BaseModel type.")
-
-
-    def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
-        """Infer the return type of the semantic.map expression."""
-        if self.struct_type is not None:
-            return self.struct_type
-        return StringType
+            if self.response_format is None:
+                if not isinstance(example.output, str):
+                    raise InvalidExampleCollectionError(
+                        "Expected `semantic.map` example output to be a string, but got "
+                        f"{type(example.output)} instead."
+                    )
+            else:
+                if not isinstance(example.output, self.response_format):
+                    raise InvalidExampleCollectionError(
+                        f"Expected `semantic.map` example output to be an instance of {self.response_format}, "
+                        f"but got {type(example.output)} instead."
+                )
 
     def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
         """Validate completion parameters."""
@@ -124,9 +125,12 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         )
 
     def __str__(self):
-        instruction_hash = utils.get_content_hash(self.instruction)
+        instruction_hash = utils.get_content_hash(self.template)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.map_{instruction_hash}({exprs_str})"
+
+    def _eq_specific(self, other: SemanticMapExpr) -> bool:
+        return self.max_tokens == other.max_tokens and self.temperature == other.temperature and self.model_alias == other.model_alias and self.response_format is other.response_format and self.examples == other.examples and self.template == other.template
 
 
 class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -180,10 +184,12 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         )
 
     def _infer_dynamic_return_type(
-        self, arg_types: List[DataType], plan: LogicalPlan
-    , session_state: BaseSessionState) -> DataType:
+        self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return StructType based on the schema."""
         return convert_pydantic_type_to_custom_struct_type(self.schema)
+
+    def _eq_specific(self, other: SemanticExtractExpr) -> bool:
+        return self.schema is other.schema and self.max_tokens == other.max_tokens and self.temperature == other.temperature and self.model_alias == other.model_alias
 
 
 class SemanticPredExpr(ValidatedSignature, SemanticExpr):
@@ -191,34 +197,18 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
 
     def __init__(
         self,
-        instruction: str,
+        jinja_template: str,
+        exprs: List[Union[ColumnExpr, AliasExpr]],
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
-        self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
-        if not self.exprs:
-            raise ValueError(
-                "semantic.predicate instruction requires at least one templated column."
-            )
-        self.examples = None
-        if examples:
-            examples._validate_with_instruction(instruction)
-            self.examples = examples
+        self.template = jinja_template
+        self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
+        self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
-
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
-
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -228,11 +218,21 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
-        # Use mixin's implementation
-        return super().to_column_field(plan, session_state)
+        data_types: Dict[str, DataType] = {}
+        for expr in self.exprs:
+            data_type = expr.to_column_field(plan, session_state).data_type
+            self.variable_tree.validate_jinja_variable(expr.name, data_type)
+            data_types[expr.name] = data_type
+        if self.examples:
+            self.examples._validate_against_column_types(data_types)
+
+        return ColumnField(
+            name=str(self),
+            data_type=BooleanType,
+        )
 
     def __str__(self):
-        instruction_hash = utils.get_content_hash(self.instruction)
+        instruction_hash = utils.get_content_hash(self.template)
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.predicate_{instruction_hash}({exprs_str})"
 
@@ -242,48 +242,77 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
             self.model_alias, session_state.session_config, self.temperature
         )
 
+    def _eq_specific(self, other: SemanticPredExpr) -> bool:
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.examples == other.examples and self.template == other.template
+
 
 class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
-    function_name = "semantic.reduce"
-
     def __init__(
         self,
         instruction: str,
+        input_expr: LogicalExpr,
         max_tokens: int,
         temperature: float,
+        group_context_exprs: List[Union[ColumnExpr, AliasExpr]],
         model_alias: Optional[ResolvedModelAlias] = None,
+        order_by_expr: Optional[LogicalExpr] = None,
     ):
+        # Store basic attributes first
         self.instruction = instruction
-        self.exprs = [
-            ColumnExpr(parsed_col)
-            for parsed_col in utils.parse_instruction(instruction)
-        ]
-        if not self.exprs:
-            raise ValueError(
-                "semantic.reduce instruction requires at least one templated column."
-            )
+        self.input_expr = input_expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
+        # Process group context
+        self.variable_tree = VariableTree.from_jinja_template(instruction)
+        self.group_context_exprs: Dict[str, LogicalExpr] = {
+            expr.name: expr if isinstance(expr, ColumnExpr) else expr.expr
+            for expr in self.variable_tree.filter_used_expressions(group_context_exprs)
+        }
 
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
+        # Process order by
+        self.order_by_expr = None
+        self.ascending = None
+
+        if order_by_expr:
+            if isinstance(order_by_expr, SortExpr):
+                self.order_by_expr = order_by_expr.expr
+                self.ascending = order_by_expr.ascending
+            else:
+                self.order_by_expr = order_by_expr
+                self.ascending = True
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
-        return self.exprs
+        res = [self.input_expr]
+        if self.group_context_exprs:
+            res.extend(self.group_context_exprs.values())
+        if self.order_by_expr:
+            res.append(self.order_by_expr)
+        return res
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
-        # Use mixin's implementation
-        return super().to_column_field(plan, session_state)
+        input_expr_field = self.input_expr.to_column_field(plan, session_state)
+        if input_expr_field.data_type != StringType:
+            raise TypeMismatchError(
+                expected=StringType,
+                actual=input_expr_field.data_type,
+                context="semantic.reduce `column` argument",
+            )
+        if self.group_context_exprs:
+            for name, expr in self.group_context_exprs.items():
+                data_type = expr.to_column_field(plan, session_state).data_type
+                self.variable_tree.validate_jinja_variable(name, data_type)
+        if self.order_by_expr:
+            self.order_by_expr.to_column_field(plan, session_state)
+
+        return ColumnField(
+            name=str(self),
+            data_type=StringType,
+        )
 
     def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
         """Validate completion parameters."""
@@ -296,8 +325,15 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
-        exprs_str = ", ".join(str(expr) for expr in self.exprs)
-        return f"semantic.reduce_{instruction_hash}({exprs_str})"
+        params = [str(self.input_expr)]
+        if self.group_context_exprs:
+            params.append(f"group_context={list(self.group_context_exprs.keys())}")
+        if self.order_by_expr:
+            params.append(f"order_by=({self.order_by_expr}, {self.ascending})")
+        return f"semantic.reduce_{instruction_hash}({', '.join(params)})"
+
+    def _eq_specific(self, other: SemanticReduceExpr) -> bool:
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.instruction == other.instruction and self.max_tokens == other.max_tokens
 
 
 class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
@@ -353,6 +389,9 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         # Use mixin's implementation
         return super().to_column_field(plan, session_state)
 
+    def _eq_specific(self, other: SemanticClassifyExpr) -> bool:
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.classes == other.classes and self.examples == other.examples
+
 
 class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.analyze_sentiment"
@@ -395,6 +434,8 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
             self.model_alias, session_state.session_config, self.temperature
         )
 
+    def _eq_specific(self, other: AnalyzeSentimentExpr) -> bool:
+        return self.temperature == other.temperature and self.model_alias == other.model_alias
 
 class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
     """Expression for generating embeddings for a string column.
@@ -433,8 +474,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
         return f"semantic.embed({self.expr}, {self.model_alias})"
 
     def _infer_dynamic_return_type(
-        self, arg_types: List[DataType], plan: LogicalPlan
-    , session_state: BaseSessionState) -> DataType:
+        self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return EmbeddingType with specific dimensions based on model."""
         return_type = self._get_embedding_type_from_config(plan, session_state)
         return return_type
@@ -492,6 +532,9 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
         """Embeddings don't use completion parameters."""
         pass
 
+    def _eq_specific(self, other: EmbeddingsExpr) -> bool:
+        return self.model_alias == other.model_alias
+
 
 class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.summarize"
@@ -535,3 +578,6 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
 
     def __str__(self) -> str:
         return f"semantic.summarize({self.expr})"
+
+    def _eq_specific(self, other: SemanticSummarizeExpr) -> bool:
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.format == other.format

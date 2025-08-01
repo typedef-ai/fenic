@@ -51,7 +51,7 @@ def sum(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def avg(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the average (mean) of all values in the specified column.
+    """Aggregate function: returns the average (mean) of all values in the specified column. Applies to numeric and embedding types.
 
     Args:
         column: Column or column name to compute the average of

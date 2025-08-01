@@ -6,10 +6,12 @@ from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     LogicalExpr,
+    SemanticReduceExpr,
     SortExpr,
 )
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
 
 
@@ -57,7 +59,22 @@ class Aggregate(LogicalPlan):
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         group_fields = [expr.to_column_field(self._input, session_state) for expr in self._group_exprs]
-        agg_fields = [expr.to_column_field(self._input, session_state) for expr in self._agg_exprs]
+        agg_fields = []
+
+        for expr in self._agg_exprs:
+            field = expr.to_column_field(self._input, session_state)
+            agg_fields.append(field)
+
+            agg_expr = expr.expr
+            if isinstance(agg_expr, SemanticReduceExpr) and agg_expr.group_context_exprs:
+                # Validate each context expression is in group by
+                for context_key, context_expr in agg_expr.group_context_exprs.items():
+                    if context_expr not in self._group_exprs:
+                        raise PlanError(
+                            f"semantic.reduce context expression '{context_key}' not found in group by. "
+                            f"Available group by expressions: {', '.join(str(e) for e in self._group_exprs)}."
+                        )
+
         return Schema(column_fields=group_fields + agg_fields)
 
     def _repr(self) -> str:
@@ -71,7 +88,7 @@ class Aggregate(LogicalPlan):
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
-            raise ValueError("Aggregate must have exactly one child")
+            raise InternalError("Aggregate must have exactly one child")
         result = Aggregate.from_session_state(children[0], self._group_exprs, self._agg_exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
@@ -84,7 +101,7 @@ def _validate_agg_expr(
     """Validate aggregation expressions."""
     if isinstance(expr, AggregateExpr):
         if in_agg_function:
-            raise ValueError(
+            raise PlanError(
                 f"Nested aggregation functions are not allowed. Found inner aggregation '{expr.children()[0]}' inside outer aggregation '{expr}'. "
                 f"Each column can only be aggregated once within a single aggregation operation. "
                 f"If you need to perform multiple levels of aggregation, please do so in separate operations."
@@ -99,11 +116,11 @@ def _validate_agg_expr(
 def _validate_groupby_expr(expr: LogicalExpr):
     """Validate groupby expressions."""
     if isinstance(expr, AggregateExpr):
-        raise ValueError(
+        raise PlanError(
             f"Aggregate function: {expr} cannot be used in the group by clause."
         )
     if isinstance(expr, SortExpr):
-        raise ValueError(
+        raise PlanError(
             f"Sort expression: {expr} cannot be used in the group by clause."
         )
     for child in expr.children():

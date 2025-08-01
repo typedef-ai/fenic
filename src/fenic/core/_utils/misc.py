@@ -1,27 +1,4 @@
-import re
 import uuid
-
-
-def parse_instruction(text: str) -> list[str]:
-    """Extract variable names from instruction text that are wrapped in single curly braces.
-
-    This function uses regex to find all variables in the format {variable_name} that are not
-    escaped by double braces (e.g., {{variable_name}}).
-
-    Args:
-        text: The instruction text containing variables in curly braces.
-
-    Returns:
-        A list of variable names found in the instruction text.
-
-    Example:
-        >>> parse_instruction("Classify the sentiment of {text} from {source}")
-        ['text', 'source']
-        >>> parse_instruction("Use {{escaped}} and {not_escaped}")
-        ['not_escaped']
-    """
-    pattern = r"(?<!\{)\{(?!\{)(.*?)(?<!\})\}(?!\})"
-    return re.findall(pattern, text)
 
 
 def get_content_hash(content: str) -> str:

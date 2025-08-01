@@ -22,6 +22,10 @@ from fenic._backends.local.semantic_operators import Map as SemanticMap
 from fenic._backends.local.semantic_operators import Predicate as SemanticPredicate
 from fenic._backends.local.semantic_operators import Reduce as SemanticReduce
 from fenic._backends.local.semantic_operators import Summarize as SemanticSummarize
+from fenic._backends.local.semantic_operators.reduce import (
+    DATA_COLUMN_NAME,
+    SORT_KEY_COLUMN_NAME,
+)
 from fenic._backends.local.template import TemplateFormatReader
 from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
@@ -249,7 +253,7 @@ class ExprConverter:
                 # NumPy's mean() is already multi-threaded via C bindings, so additional threading may
                 # not be faster. Test with realistic embedding sizes and group counts.
                 result = []
-
+                # to list may not be required!
                 for emb_list in series.to_list():
                     if not emb_list:
                         result.append(None)
@@ -269,7 +273,7 @@ class ExprConverter:
                 lambda batch: embedding_avg(batch, logical.input_type.dimensions),
                 return_dtype=pl.Array(pl.Float32, logical.input_type.dimensions),
                 agg_list=True,
-                returns_scalar=True
+                returns_scalar=False
             )
         else:
             return converted_expr.mean()
@@ -311,6 +315,14 @@ class ExprConverter:
                 return handler(logical)
 
         if isinstance(logical, SemanticReduceExpr):
+            group_context_names = list(logical.group_context_exprs.keys()) if logical.group_context_exprs else None
+            ascending = logical.ascending if logical.order_by_expr else None
+            polars_exprs = [self._convert_expr(logical.input_expr).alias(DATA_COLUMN_NAME)]
+            for name, expr in logical.group_context_exprs.items():
+                polars_exprs.append(self._convert_expr(expr).alias(name))
+            if logical.order_by_expr:
+                polars_exprs.append(self._convert_expr(logical.order_by_expr).alias(SORT_KEY_COLUMN_NAME))
+            struct = pl.struct(polars_exprs)
 
             def sem_reduce_fn(batch: pl.Series) -> str:
                 return SemanticReduce(
@@ -320,14 +332,9 @@ class ExprConverter:
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
                     model_alias=logical.model_alias,
+                    group_context_names=group_context_names,
+                    ascending=ascending,
                 ).execute()
-
-            struct = pl.struct(
-                [
-                    self._convert_expr(expr)
-                    for expr in logical.exprs
-                ]
-            )
             return struct.map_batches(
                 sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True
             )
@@ -421,13 +428,9 @@ class ExprConverter:
     @_convert_expr.register(SemanticMapExpr)
     def _convert_semantic_map_expr(self, logical: SemanticMapExpr) -> pl.Expr:
         def sem_map_fn(batch: pl.Series) -> pl.Series:
-            expanded_df = pl.DataFrame(
-                {field: batch.struct.field(field) for field in batch.struct.fields}
-            )
-
             return SemanticMap(
-                input=expanded_df,
-                user_instruction=logical.instruction,
+                input=batch,
+                jinja_template=logical.template,
                 model=self.session_state.get_language_model(logical.model_alias),
                 examples=logical.examples,
                 max_tokens=logical.max_tokens,
@@ -436,24 +439,21 @@ class ExprConverter:
                 model_alias=logical.model_alias,
             ).execute()
 
-        struct = pl.struct(
-            [
-                self._convert_expr(expr)
-                for expr in logical.exprs
-            ]
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        struct_expr = pl.struct(column_exprs)
+        jinja_expr = struct_expr.jinja.render(
+            template=logical.template,
         )
+
         if logical.struct_type:
-            return struct.map_batches(
+            return jinja_expr.map_batches(
                 sem_map_fn,
                 return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
             )
-        return struct.map_batches(
+        return jinja_expr.map_batches(
             sem_map_fn,
             return_dtype=pl.String
         )
-
-
-
 
     @_convert_expr.register(RecursiveTextChunkExpr)
     def _convert_text_chunk_expr(self, logical: RecursiveTextChunkExpr) -> pl.Expr:
@@ -547,27 +547,23 @@ class ExprConverter:
 
     @_convert_expr.register(SemanticPredExpr)
     def _convert_semantic_pred_expr(self, logical: SemanticPredExpr) -> pl.Expr:
-        def sem_predicate_fn(batch: pl.Series) -> pl.Series:
-            expanded_df = pl.DataFrame(
-                {field: batch.struct.field(field) for field in batch.struct.fields}
-            )
-
+        def sem_pred_fn(batch: pl.Series) -> pl.Series:
             return SemanticPredicate(
-                input=expanded_df,
-                user_instruction=logical.instruction,
+                input=batch,
+                jinja_template=logical.template,
                 model=self.session_state.get_language_model(logical.model_alias),
-                temperature=logical.temperature,
                 examples=logical.examples,
+                temperature=logical.temperature,
                 model_alias=logical.model_alias,
             ).execute()
 
-        struct = pl.struct(
-            [
-                self._convert_expr(expr)
-                for expr in logical.exprs
-            ]
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        struct_expr = pl.struct(column_exprs)
+        jinja_expr = struct_expr.jinja.render(
+            template=logical.template,
         )
-        return struct.map_batches(sem_predicate_fn, return_dtype=pl.Boolean)
+
+        return jinja_expr.map_batches(sem_pred_fn, return_dtype=pl.Boolean)
 
 
     @_convert_expr.register(SemanticClassifyExpr)

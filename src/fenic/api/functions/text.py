@@ -941,7 +941,7 @@ def byte_length(column: ColumnOrName) -> Column:
 def jinja(
     jinja_template: str,
     /,
-    **columns: ColumnOrName
+    **columns: Column
 ) -> Column:
     """Render a Jinja template using values from the specified columns.
 
@@ -1026,8 +1026,8 @@ def jinja(
     # Convert keyword arguments to column expressions with proper names
     column_exprs: List[LogicalExpr] = []
     for var_name, column in columns.items():
-        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
-            column_exprs.append(column.expr)
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
+            column_exprs.append(column._logical_expr)
         else:
             column_exprs.append(column.alias(var_name)._logical_expr)
 

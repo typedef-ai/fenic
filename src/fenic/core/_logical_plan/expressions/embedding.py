@@ -45,6 +45,9 @@ class EmbeddingNormalizeExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: EmbeddingNormalizeExpr) -> bool:
+        return True
+
 
 class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing similarity between embedding vectors."""
@@ -89,3 +92,20 @@ class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return self._children
+
+    def _eq_specific(self, other: EmbeddingSimilarityExpr) -> bool:
+        # Check metric (always needs to be compared)
+        if self.metric != other.metric:
+            return False
+
+        # Check the type of self.other vs other.other
+        if isinstance(self.other, LogicalExpr) != isinstance(other.other, LogicalExpr):
+            return False
+
+        # If both are numpy arrays, compare them
+        if isinstance(self.other, np.ndarray):
+            # Both are numpy arrays (we know from check above)
+            return np.array_equal(self.other, other.other)
+
+        # Both are LogicalExpr - will be compared via children
+        return True

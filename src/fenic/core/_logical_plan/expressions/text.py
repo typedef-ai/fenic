@@ -187,6 +187,9 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
         """Return StructType with fields based on parsed template."""
         return self.parsed_template.to_struct_schema()
 
+    def _eq_specific(self, other: TextractExpr) -> bool:
+        return self.template == other.template
+
 
 class ChunkLengthFunction(Enum):
     CHARACTER = "CHARACTER"
@@ -235,6 +238,9 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
     def __str__(self) -> str:
         return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
 
+    def _eq_specific(self, other: TextChunkExpr) -> bool:
+        return self.chunk_configuration == other.chunk_configuration
+
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
     chunking_character_set_custom_characters: Optional[list[str]] = None
@@ -272,6 +278,9 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
     def __str__(self) -> str:
         return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
+    def _eq_specific(self, other: RecursiveTextChunkExpr) -> bool:
+        return self.chunking_configuration == other.chunking_configuration
+
 
 class CountTokensExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.count_tokens"
@@ -287,6 +296,9 @@ class CountTokensExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
+    def _eq_specific(self, other: CountTokensExpr) -> bool:
+        return True
+
 class ConcatExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.concat"
 
@@ -301,6 +313,8 @@ class ConcatExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
+    def _eq_specific(self, other: ConcatExpr) -> bool:
+        return True
 
 class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.array_join"
@@ -319,6 +333,9 @@ class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.delimiter})"
+
+    def _eq_specific(self, other: ArrayJoinExpr) -> bool:
+        return self.delimiter == other.delimiter
 
 
 class ContainsExpr(ValidatedSignature, LogicalExpr):
@@ -351,6 +368,9 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.substr})"
+
+    def _eq_specific(self, other: ContainsExpr) -> bool:
+        return True
 
 
 class ContainsAnyExpr(ValidatedSignature, LogicalExpr):
@@ -387,6 +407,9 @@ class ContainsAnyExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {', '.join(self.substrs)}, case_insensitive={self.case_insensitive})"
+
+    def _eq_specific(self, other: ContainsAnyExpr) -> bool:
+        return self.substrs == other.substrs and self.case_insensitive == other.case_insensitive
 
 
 class RLikeExpr(ValidatedSignature, LogicalExpr):
@@ -427,6 +450,9 @@ class RLikeExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern})"
+
+    def _eq_specific(self, other: RLikeExpr) -> bool:
+        return self.pattern == other.pattern
 
 
 class LikeExpr(ValidatedSignature, LogicalExpr):
@@ -477,6 +503,9 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
+
+    def _eq_specific(self, other: LikeExpr) -> bool:
+        return self.raw_pattern == other.raw_pattern
 
 
 class ILikeExpr(ValidatedSignature, LogicalExpr):
@@ -529,6 +558,9 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         pattern = pattern.replace("%", ".*").replace("_", ".")
         return f"(?i){pattern}"
 
+    def _eq_specific(self, other: ILikeExpr) -> bool:
+        return self.raw_pattern == other.raw_pattern
+
 
 class TsParseExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.parse_transcript"
@@ -547,6 +579,9 @@ class TsParseExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.format})"
+
+    def _eq_specific(self, other: TsParseExpr) -> bool:
+        return self.format == other.format
 
 
 class StartsWithExpr(ValidatedSignature, LogicalExpr):
@@ -578,6 +613,9 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
 
+    def _eq_specific(self, other: StartsWithExpr) -> bool:
+        return True
+
 
 class EndsWithExpr(ValidatedSignature, LogicalExpr):
     """Expression for checking if a string column ends with a substring.
@@ -607,6 +645,9 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
+
+    def _eq_specific(self, other: EndsWithExpr) -> bool:
+        return True
 
 
 class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
@@ -644,7 +685,8 @@ class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern}, limit={self.limit})"
 
-
+    def _eq_specific(self, other: RegexpSplitExpr) -> bool:
+        return self.pattern == other.pattern and self.limit == other.limit
 
 class SplitPartExpr(ValidatedSignature, LogicalExpr):
     """Expression for splitting a string column and returning a specific part.
@@ -687,6 +729,9 @@ class SplitPartExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.delimiter, self.part_number]
 
+    def _eq_specific(self, other: SplitPartExpr) -> bool:
+        return True
+
 
 class StringCasingExpr(ValidatedSignature, LogicalExpr):
     """Expression for converting the case of a string column.
@@ -714,6 +759,9 @@ class StringCasingExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+    def _eq_specific(self, other: StringCasingExpr) -> bool:
+        return self.case == other.case
 
 
 class StripCharsExpr(ValidatedSignature, LogicalExpr):
@@ -757,6 +805,9 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.chars}, side={self.side})"
+
+    def _eq_specific(self, other: StripCharsExpr) -> bool:
+        return (self.chars is None) == (other.chars is None) and self.side == other.side
 
 class ReplaceExpr(ValidatedSignature, LogicalExpr):
     """Expression for replacing substrings in a string column.
@@ -803,6 +854,8 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.search}, {self.replacement})"
 
+    def _eq_specific(self, other: ReplaceExpr) -> bool:
+        return self.literal == other.literal
 
 class StrLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column.
@@ -830,6 +883,8 @@ class StrLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: StrLengthExpr) -> bool:
+        return True
 
 class ByteLengthExpr(ValidatedSignature, LogicalExpr):
     """Expression for calculating the length of a string column in bytes.
@@ -857,6 +912,9 @@ class ByteLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: ByteLengthExpr) -> bool:
+        return True
+
 class JinjaExpr(LogicalExpr):
     """Expression for evaluating a Jinja template.
 
@@ -868,34 +926,9 @@ class JinjaExpr(LogicalExpr):
     """
 
     def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
+        self.template = template
         self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
-        expr_names = {expr.name: expr for expr in exprs}
-        available_columns = sorted(expr_names.keys())
-
-        self.template: str = template
-        self.exprs: List[Union[ColumnExpr, AliasExpr]] = []
-
-        for variable_name in self.variable_tree.variables.keys():
-            if variable_name not in expr_names:
-                raise ValidationError(
-                    f"Template variable '{variable_name}' is not defined. "
-                    f"Available columns: {', '.join(available_columns)}. "
-                    f"Either provide a column expression for '{variable_name}' or "
-                    f"modify the template to use an available column."
-                )
-
-            expr = expr_names[variable_name]
-            self.exprs.append(expr)
-
-        # Warn about unused columns
-        used_variables = set(self.variable_tree.variables.keys())
-        for column_name in expr_names.keys():
-            if column_name not in used_variables:
-                logger.warning(
-                    f"Column '{column_name}' is defined but not referenced in the template. "
-                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
-                    f"To remove this warning, exclude unused columns from the expression list."
-                )
+        self.exprs = self.variable_tree.filter_used_expressions(exprs)
 
     def children(self) -> List[LogicalExpr]:
         return self.exprs
@@ -912,6 +945,9 @@ class JinjaExpr(LogicalExpr):
 
     def __str__(self) -> str:
         return f"text.jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
+
+    def _eq_specific(self, other: JinjaExpr) -> bool:
+        return self.template == other.template
 
 class FuzzyRatioExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing the similarity between two strings using a fuzzy matching algorithm.
@@ -939,6 +975,9 @@ class FuzzyRatioExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
 
+    def _eq_specific(self, other: FuzzyRatioExpr) -> bool:
+        return self.method == other.method
+
 class FuzzyTokenSortRatioExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing the fuzzy token sort ratio between two strings.
 
@@ -961,6 +1000,9 @@ class FuzzyTokenSortRatioExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
 
+    def _eq_specific(self, other: FuzzyTokenSortRatioExpr) -> bool:
+        return self.method == other.method
+
 class FuzzyTokenSetRatioExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing the fuzzy token set ratio between two strings.
 
@@ -982,3 +1024,6 @@ class FuzzyTokenSetRatioExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
+
+    def _eq_specific(self, other: FuzzyTokenSetRatioExpr) -> bool:
+        return self.method == other.method

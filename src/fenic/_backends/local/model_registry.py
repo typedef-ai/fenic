@@ -206,7 +206,7 @@ class SessionModelRegistry:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
 
         except Exception as e:
-            raise SessionError(f"Failed to create retrieval model client: {e}") from e
+            raise SessionError(f"Failed to create embedding model client: {e}") from e
 
         return EmbeddingModel(client=client)
 

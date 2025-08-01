@@ -125,12 +125,13 @@ def test_semantic_metrics(local_session):
     """Test that the semantic API works at all without using the fixture, given that the fixture sets lm."""
     df = local_session.create_dataframe(pl.DataFrame({"name": ["Alice", "Bob"]}))
     df = df.select(
-        semantic.map("What is a longer name for {name}?").alias("longer_name"),
+        semantic.map("What is a longer name for {{name}}?", name=col("name")).alias("longer_name"),
         semantic.embed(col("name")).alias("embedding"),
     )
     df = df.filter(
         semantic.predicate(
-            "This {longer_name} is used as a placeholder in discussions about cryptographic systems."
+            "This name: '{{longer_name}}' is used as a placeholder in discussions about cryptographic systems.",
+            longer_name=col("longer_name"),
         )
     )
     result = df.collect("polars")

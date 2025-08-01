@@ -124,7 +124,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
         .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
+            semantic.reduce("Summarize my app's product feedback", col("feedback")).alias(
                 "theme_summary"
             ),
         )
@@ -169,7 +169,7 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedd
         .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
+            semantic.reduce("Summarize my app's product feedback", col("feedback")).alias(
                 "grouped_feedback"
             ),
         )

@@ -87,10 +87,10 @@ def test_semantic_predicate_rewrite_basic(local_session):
         }
     )
     df = source.filter(
-        semantic.predicate("something that references {blurb1} and {blurb2}")
+        semantic.predicate("something that references {{blurb1}} and {{blurb2}}", blurb1=col("blurb1"), blurb2=col("blurb2"))
         & (col("a_boolean_column"))
         & (col("a_numeric_column") > 0)
-        & semantic.predicate("something that references {blurb2}")
+        & semantic.predicate("something that references {{blurb2}}", blurb2=col("blurb2"))
     )
     plan = (
         LogicalPlanOptimizer(df._session_state, [MergeFiltersRule(), SemanticFilterRewriteRule()])
@@ -99,8 +99,8 @@ def test_semantic_predicate_rewrite_basic(local_session):
     )
     golden_repr = dedent(
         """
-        Filter(predicate=semantic.predicate_b5897940(blurb2))
-          Filter(predicate=semantic.predicate_9cfbfb96(blurb1, blurb2))
+        Filter(predicate=semantic.predicate_76673fa8(blurb2))
+          Filter(predicate=semantic.predicate_a5cf4a2a(blurb1, blurb2))
             Filter(predicate=(a_boolean_column AND (a_numeric_column > lit(0))))
               InMemorySource(
                 Schema(
@@ -138,13 +138,13 @@ def test_semantic_predicate_rewrite_complex(local_session):
     )
     df = source.filter(
         (
-            semantic.predicate("something that references {blurb1}")
-            & semantic.predicate("something that references {blurb2}")
+            semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1"))
+            & semantic.predicate("something that references {{blurb2}}", blurb2=col("blurb2"))
         )
         & (
             (
-                semantic.predicate("something that references {blurb1} and {blurb2}")
-                | semantic.predicate("something that references {blurb2} and {blurb1}")
+                semantic.predicate("something that references {{blurb1}} and {{blurb2}}", blurb1=col("blurb1"), blurb2=col("blurb2"))
+                | semantic.predicate("something that references {{blurb2}} and {{blurb1}}", blurb2=col("blurb2"), blurb1=col("blurb1"))
             )
         )
     )
@@ -156,9 +156,9 @@ def test_semantic_predicate_rewrite_complex(local_session):
     )
     golden_repr = dedent(
         """
-        Filter(predicate=(semantic.predicate_9cfbfb96(blurb1, blurb2) OR semantic.predicate_c26d7053(blurb2, blurb1)))
-          Filter(predicate=semantic.predicate_b5897940(blurb2))
-            Filter(predicate=semantic.predicate_bbe57368(blurb1))
+        Filter(predicate=(semantic.predicate_a5cf4a2a(blurb1, blurb2) OR semantic.predicate_05bc7965(blurb2, blurb1)))
+          Filter(predicate=semantic.predicate_76673fa8(blurb2))
+            Filter(predicate=semantic.predicate_08ebd102(blurb1))
               InMemorySource(
                 Schema(
                   ColumnField(name='blurb1', data_type=StringType)
@@ -187,7 +187,7 @@ def test_semantic_predicate_rewrite_noop(local_session):
     )
     df = source.filter(
         (
-            semantic.predicate("something that references {blurb1}")
+            semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1"))
             | (col("a_numeric_column") > 0)
         )
     )
@@ -201,9 +201,9 @@ def test_semantic_predicate_rewrite_noop(local_session):
 
     df = source.filter(
         (
-            semantic.predicate("something that references {blurb1}")
+            semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1"))
             | (col("a_numeric_column") > 0)
-            & semantic.predicate("something else that references {blurb1}")
+            & semantic.predicate("something else that references {{blurb1}}", blurb1=col("blurb1"))
         )
     )
 
@@ -230,7 +230,7 @@ def test_semantic_predicate_preserves_cache(local_session):
     )
     df = source.filter(
         (
-            semantic.predicate("something that references {blurb1}")
+            semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1"))
             & (col("a_numeric_column") > 0)
         )
     ).cache()
@@ -243,7 +243,7 @@ def test_semantic_predicate_preserves_cache(local_session):
     golden_repr = dedent(
         """
         Projection(exprs=[blurb1])
-          Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
+          Filter(predicate=semantic.predicate_08ebd102(blurb1)) (cached=true)
             Filter(predicate=(a_numeric_column > lit(0)))
               InMemorySource(
                 Schema(
@@ -269,7 +269,7 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
             ],
         }
     )
-    df = source.filter(semantic.predicate("something that references {blurb1}"))
+    df = source.filter(semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1")))
     df = df.filter(col("a_numeric_column") > 0).cache()
     plan = (
         LogicalPlanOptimizer(df._session_state, [MergeFiltersRule(), SemanticFilterRewriteRule()])
@@ -278,7 +278,7 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
     )
     golden_repr = dedent(
         """
-        Filter(predicate=semantic.predicate_bbe57368(blurb1)) (cached=true)
+        Filter(predicate=semantic.predicate_08ebd102(blurb1)) (cached=true)
           Filter(predicate=(a_numeric_column > lit(0)))
             InMemorySource(
               Schema(
@@ -291,7 +291,7 @@ def test_combine_merge_filters_and_semantic_predicate_rewrite(local_session):
     assert str(plan).strip() == golden_repr.strip()
 
     # Ensure that rewrites cannot eliminate cached dataframes
-    df = source.filter(semantic.predicate("something that references {blurb1}")).cache()
+    df = source.filter(semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1"))).cache()
     df = df.filter(col("a_numeric_column") > 0)
     was_modified = (
         LogicalPlanOptimizer(df._session_state, [MergeFiltersRule(), SemanticFilterRewriteRule()])
@@ -315,11 +315,11 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
     df = source.filter(
         (
             text.concat(
-                lit("banana"), semantic.map("something that references {blurb1}")
+                lit("banana"), semantic.map("something that references {{blurb1}}", blurb1=col("blurb1"))
             )
             == "banana"
         )
-        & semantic.predicate("something else that references {blurb1}")
+        & semantic.predicate("something else that references {{blurb1}}", blurb1=col("blurb1"))
         & (semantic.analyze_sentiment(col("blurb1")) == "positive")
         & (semantic.classify(col("blurb1"), ["a", "b", "c"]) == "a")
         & (semantic.extract(col("blurb1"), TestModel).blurb == "blurb")
@@ -336,8 +336,8 @@ def test_semantic_predicate_rewrite_with_other_semantic_exprs(local_session):
         Filter(predicate=(semantic.extract_cc39f7ea(blurb1)[lit(blurb)] = lit(blurb)))
           Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = lit(a)))
             Filter(predicate=(semantic.analyze_sentiment(blurb1) = lit(positive)))
-              Filter(predicate=semantic.predicate_c22500eb(blurb1))
-                Filter(predicate=(text.concat(lit(banana), semantic.map_bbe57368(blurb1)) = lit(banana)))
+              Filter(predicate=semantic.predicate_f500ee5f(blurb1))
+                Filter(predicate=(text.concat(lit(banana), semantic.map_08ebd102(blurb1)) = lit(banana)))
                   Filter(predicate=((id > lit(100)) AND (status = lit(active))))
                     InMemorySource(
                       Schema(
@@ -366,7 +366,7 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
     df = source.filter(
         (
             (
-                semantic.predicate("something that references {blurb1}")
+                semantic.predicate("something that references {{blurb1}}", blurb1=col("blurb1") )
                 | col("a_boolean_column")
             )
             & (col("a_numeric_column") > 0)
@@ -382,7 +382,7 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
                         semantic.extract(col("blurb1"), TestModel).blurb
                         == semantic.extract(col("blurb2"), TestModel).blurb
                     )
-                    | semantic.predicate("something that references {blurb2}")
+                    | semantic.predicate("something that references {{blurb2}}", blurb2=col("blurb2")               )
                 )
             )
         )
@@ -394,9 +394,9 @@ def test_semantic_predicate_rewrite_complex_with_other_semantic_exprs(local_sess
     )
     golden_repr = dedent(
         """
-        Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[lit(blurb)] = semantic.extract_efa5a1cb(blurb2)[lit(blurb)]) OR semantic.predicate_b5897940(blurb2)))
+        Filter(predicate=((semantic.extract_efa5a1cb(blurb1)[lit(blurb)] = semantic.extract_efa5a1cb(blurb2)[lit(blurb)]) OR semantic.predicate_76673fa8(blurb2)))
           Filter(predicate=(semantic.classify(blurb1, ['a', 'b', 'c']) = semantic.classify(blurb2, ['a', 'b', 'c'])))
-            Filter(predicate=(semantic.predicate_bbe57368(blurb1) OR a_boolean_column))
+            Filter(predicate=(semantic.predicate_08ebd102(blurb1) OR a_boolean_column))
               Filter(predicate=(a_numeric_column > lit(0)))
                 InMemorySource(
                   Schema(
