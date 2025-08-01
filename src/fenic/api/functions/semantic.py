@@ -266,7 +266,7 @@ def predicate(
     exprs: List[Union[ColumnExpr, AliasExpr]] = []
     for var_name, column in columns.items():
         if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
-            exprs.append(column.expr)
+            exprs.append(column._logical_expr)
         else:
             exprs.append(column.alias(var_name)._logical_expr)
 

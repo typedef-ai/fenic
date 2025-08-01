@@ -3,6 +3,7 @@ Test FunctionSignature class and return type inference.
 
 This tests the complete function signature validation and return type strategies.
 """
+from __future__ import annotations
 
 import pytest
 
@@ -49,6 +50,9 @@ class MockColumn(LogicalExpr):
 
     def __str__(self):
         return f"col({self.name})"
+
+    def _eq_specific(self, other: MockColumn):
+        return True
 
 class MockSessionState(BaseSessionState):
     """Mock session state for testing."""
