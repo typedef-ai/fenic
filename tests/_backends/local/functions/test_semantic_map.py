@@ -38,11 +38,11 @@ class PersonInfo(BaseModel):
 
 def test_semantic_map(local_session):
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
-    state_prompt = "What state does {name} live in given that they live in {city}?"
+    state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
     df_select = source.select(
-        semantic.map(state_prompt).alias("state"),
+        semantic.map(state_prompt, name=col("name"), city=col("city")).alias("state"),
         col("name"),
-        semantic.map(instruction="What is the typical weather in {city} in summer?").alias("weather"),
+        semantic.map("What is the typical weather in {{city}} in summer?", city=col("city")).alias("weather"),
     )
     result = df_select.to_polars()
     assert result.schema == {
@@ -51,10 +51,10 @@ def test_semantic_map(local_session):
         "weather": pl.String,
     }
 
-    weather_prompt = "What is the typical weather in {city} in summer?"
+    weather_prompt = "What is the typical weather in {{city}} in summer?"
     df_with_column = source.with_column(
         "weather",
-        semantic.map(instruction=weather_prompt),
+        semantic.map(weather_prompt, city=col("city")),
     )
     result = df_with_column.to_polars()
     assert result.schema == {
@@ -66,7 +66,7 @@ def test_semantic_map(local_session):
 
 def test_semantic_map_with_examples(local_session):
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
-    weather_prompt = "What is the weather in {city}?"
+    weather_prompt = "What is the weather in {{city}}?"
     weather_collection = MapExampleCollection()
     weather_collection.create_example(
         MapExample(
@@ -82,7 +82,8 @@ def test_semantic_map_with_examples(local_session):
     df_with_column = source.with_column(
         "weather",
         semantic.map(
-            instruction=weather_prompt,
+            weather_prompt,
+            city=col("city"),
             examples=weather_collection,
         ),
     )
@@ -94,15 +95,15 @@ def test_semantic_map_with_examples(local_session):
     }
 
 
-def test_semantic_map_with_nulls(local_session):
+def test_semantic_map_with_nulls_ok(local_session):
     # have a data source with some nulls.
     source = local_session.create_dataframe(
         {"name": ["Alice", "Bob"], "city": ["New York", None]}
     )
-    state_prompt = "What state does {name} live in given that they live in {city}?"
+    state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
     df_select = source.select(
         col("name"),
-        semantic.map(state_prompt).alias("state"),
+        semantic.map(state_prompt, name=col("name"), city=col("city")).alias("state"),
     )
     result = df_select.to_polars()
     assert result.schema == {
@@ -111,8 +112,6 @@ def test_semantic_map_with_nulls(local_session):
     }
     result_list = result["state"].to_list()
     assert len(result_list) == 2
-    # Make sure that Bob's state is None.
-    assert result_list[1] is None
 
 
 def test_semantic_map_without_models():
@@ -125,8 +124,8 @@ def test_semantic_map_without_models():
         source = session.create_dataframe(
             {"name": ["Alice", "Bob"]}
         )
-        state_prompt = "What state does {name} live in?"
-        source.select(semantic.map(state_prompt).alias("map"))
+        state_prompt = "What state does {{name}} live in?"
+        source.select(semantic.map(state_prompt, name=col("name")).alias("map"))
     session.stop()
 
     session_config = SessionConfig(
@@ -140,17 +139,19 @@ def test_semantic_map_without_models():
         source = session.create_dataframe(
             {"name": ["Alice", "Bob"]}
         )
-        state_prompt = "What state does {name} live in?"
-        source.select(semantic.map(state_prompt).alias("map"))
+        state_prompt = "What state does {{name}} live in?"
+        source.select(semantic.map(state_prompt, name=col("name")).alias("map"))
     session.stop()
 
-def test_semantic_map_with_schema(local_session):
+def test_semantic_map_with_response_format(local_session):
     source = local_session.create_dataframe(
         {"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]}
     )
     result = source.select(
         semantic.map(
-            "Given product name {name} and details {details}, create a product summary.",
+            "Given product name: '{{name}}' and details: '{{details}}', create a product summary.",
+            name=col("name"),
+            details=col("details"),
             response_format=ProductSummary
         ).alias("summary")
     )
@@ -181,7 +182,9 @@ def test_semantic_map_schema_validation_with_basemodel_examples(local_session):
     # This should work - BaseModel example matches schema
     result = source.select(
         semantic.map(
-            "Given product name {name} and details {details}, create a product summary.",
+            "Given product name {{name}} and details {{details}}, create a product summary.",
+            name=col("name"),
+            details=col("details"),
             examples=examples,
             response_format=ProductSummary
         ).alias("summary")
@@ -210,10 +213,12 @@ def test_semantic_map_schema_validation_mismatch_error(local_session):
     ))
 
     # This should raise ValidationError - PersonInfo example doesn't match ProductSummary schema
-    with pytest.raises(ValidationError, match="all examples are required to have outputs of the same BaseModel type"):
+    with pytest.raises(ValidationError, match="Expected `semantic.map` example output to be an instance of"):
         source.select(
             semantic.map(
-                "Given name {name} and details {details}, create a product summary.",
+                "Given name {{name}} and details {{details}}, create a product summary.",
+                name=col("name"),
+                details=col("details"),
                 examples=examples,
                 response_format=ProductSummary  # Different type than example
             ).alias("summary")
@@ -234,10 +239,12 @@ def test_semantic_map_schema_validation_string_examples_with_schema(local_sessio
     ))
 
     # This should raise ValidationError - string examples don't match BaseModel schema
-    with pytest.raises(ValidationError, match="all examples are required to have outputs of the same BaseModel type"):
+    with pytest.raises(ValidationError, match="Expected `semantic.map` example output to be an instance of"):
         source.select(
             semantic.map(
-                "Given name {name} and details {details}, create a product summary.",
+                "Given name {{name}} and details {{details}}, create a product summary.",
+                name=col("name"),
+                details=col("details"),
                 examples=examples,
                 response_format=ProductSummary  # BaseModel schema but string example
             ).alias("summary")
@@ -263,10 +270,12 @@ def test_semantic_map_invalid_basemodel_examples_no_schema(local_session):
         output=product_example  # BaseModel output
     ))
 
-    with pytest.raises(ValidationError, match="all examples are required to have outputs of type `str`"):
+    with pytest.raises(ValidationError, match="Expected `semantic.map` example output to be a string, but got"):
         source.select(
             semantic.map(
-                "Given name {name} and details {details}, create a description.",
+                "Given name {{name}} and details {{details}}, create a description.",
+                name=col("name"),
+                details=col("details"),
                 examples=examples
                 # No schema parameter
             ).alias("description")

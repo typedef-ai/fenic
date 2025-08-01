@@ -3,7 +3,11 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-from fenic._backends.local.semantic_operators.reduce import Reduce
+from fenic._backends.local.semantic_operators.reduce import (
+    DATA_COLUMN_NAME,
+    SORT_KEY_COLUMN_NAME,
+    Reduce,
+)
 
 
 @pytest.fixture
@@ -29,7 +33,6 @@ def reduce_instance(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",  # Added required parameter
     )
     reduce_instance.prefix_tokens = 50
     return reduce_instance
@@ -213,10 +216,10 @@ def test_hierarchical_reduction_logic(mock_language_model):
     """Test that hierarchical reduction properly reduces through levels."""
     # Create structured data
     docs_data = [
-        {"content": "Doc 1"},
-        {"content": "Doc 2"},
-        {"content": "Doc 3"},
-        {"content": "Doc 4"},
+        {DATA_COLUMN_NAME: "Doc 1"},
+        {DATA_COLUMN_NAME: "Doc 2"},
+        {DATA_COLUMN_NAME: "Doc 3"},
+        {DATA_COLUMN_NAME: "Doc 4"},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -226,7 +229,6 @@ def test_hierarchical_reduction_logic(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
     )
     reduce_instance.prefix_tokens = 50
 
@@ -291,12 +293,12 @@ def test_group_context_injection(mock_language_model):
     """Test that group context variables are properly injected into instructions."""
     # Create groups with different contexts
     docs_data_sales = [
-        {"content": "Sales report Q1", "department": "Sales", "region": "North"},
-        {"content": "Sales report Q2", "department": "Sales", "region": "North"},
+        {DATA_COLUMN_NAME: "Sales report Q1", "department": "Sales", "region": "North"},
+        {DATA_COLUMN_NAME: "Sales report Q2", "department": "Sales", "region": "North"},
     ]
     docs_data_eng = [
-        {"content": "Engineering update", "department": "Engineering", "region": "West"},
-        {"content": "Tech roadmap", "department": "Engineering", "region": "West"},
+        {DATA_COLUMN_NAME: "Engineering update", "department": "Engineering", "region": "West"},
+        {DATA_COLUMN_NAME: "Tech roadmap", "department": "Engineering", "region": "West"},
     ]
 
     group_sales = pl.DataFrame(docs_data_sales).to_struct()
@@ -311,7 +313,6 @@ def test_group_context_injection(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
         group_context_names=["department", "region"],
     )
     reduce_instance.prefix_tokens = 50
@@ -340,9 +341,9 @@ def test_group_context_injection(mock_language_model):
 def test_sorting_ascending(mock_language_model):
     """Test that documents are sorted in ascending order when specified."""
     docs_data = [
-        {"content": "Doc from Feb", "date": "2024-02-01"},
-        {"content": "Doc from Jan", "date": "2024-01-01"},
-        {"content": "Doc from Mar", "date": "2024-03-01"},
+        {DATA_COLUMN_NAME: "Doc from Feb", SORT_KEY_COLUMN_NAME: "2024-02-01"},
+        {DATA_COLUMN_NAME: "Doc from Jan", SORT_KEY_COLUMN_NAME: "2024-01-01"},
+        {DATA_COLUMN_NAME: "Doc from Mar", SORT_KEY_COLUMN_NAME: "2024-03-01"},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -352,8 +353,7 @@ def test_sorting_ascending(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
-        order_by_info=("date", True),  # Sort by date ascending
+        ascending=True,  # Sort by date ascending
     )
     reduce_instance.prefix_tokens = 50
 
@@ -376,9 +376,9 @@ def test_sorting_ascending(mock_language_model):
 def test_sorting_descending(mock_language_model):
     """Test that documents are sorted in descending order when specified."""
     docs_data = [
-        {"content": "Priority 2", "priority": 2},
-        {"content": "Priority 1", "priority": 1},
-        {"content": "Priority 3", "priority": 3},
+        {DATA_COLUMN_NAME: "Priority 2", SORT_KEY_COLUMN_NAME: 2},
+        {DATA_COLUMN_NAME: "Priority 1", SORT_KEY_COLUMN_NAME: 1},
+        {DATA_COLUMN_NAME: "Priority 3", SORT_KEY_COLUMN_NAME: 3},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -388,8 +388,7 @@ def test_sorting_descending(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
-        order_by_info=("priority", False),  # Sort by priority descending
+        ascending=False,
     )
     reduce_instance.prefix_tokens = 50
 
@@ -412,9 +411,9 @@ def test_sorting_descending(mock_language_model):
 def test_no_sorting_preserves_order(mock_language_model):
     """Test that original order is preserved when no sorting is specified."""
     docs_data = [
-        {"content": "First doc", "seq": 1},
-        {"content": "Second doc", "seq": 2},
-        {"content": "Third doc", "seq": 3},
+        {DATA_COLUMN_NAME: "First doc", SORT_KEY_COLUMN_NAME: 1},
+        {DATA_COLUMN_NAME: "Second doc", SORT_KEY_COLUMN_NAME: 2},
+        {DATA_COLUMN_NAME: "Third doc", SORT_KEY_COLUMN_NAME: 3},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -424,8 +423,6 @@ def test_no_sorting_preserves_order(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
-        # No order_by_info provided
     )
     reduce_instance.prefix_tokens = 50
 
@@ -448,12 +445,12 @@ def test_sorting_with_group_context(mock_language_model):
     """Test that sorting and group context work together correctly."""
     # Create two groups with different contexts and sortable data
     docs_data_sales = [
-        {"content": "Sales Feb", "department": "Sales", "date": "2024-02-01"},
-        {"content": "Sales Jan", "department": "Sales", "date": "2024-01-01"},
+        {DATA_COLUMN_NAME: "Sales Feb", "department": "Sales", SORT_KEY_COLUMN_NAME: "2024-02-01"},
+        {DATA_COLUMN_NAME: "Sales Jan", "department": "Sales", SORT_KEY_COLUMN_NAME: "2024-01-01"},
     ]
     docs_data_eng = [
-        {"content": "Eng Mar", "department": "Engineering", "date": "2024-03-01"},
-        {"content": "Eng Feb", "department": "Engineering", "date": "2024-02-01"},
+        {DATA_COLUMN_NAME: "Eng Mar", "department": "Engineering", SORT_KEY_COLUMN_NAME: "2024-03-01"},
+        {DATA_COLUMN_NAME: "Eng Feb", "department": "Engineering", SORT_KEY_COLUMN_NAME: "2024-02-01"},
     ]
 
     group_sales = pl.DataFrame(docs_data_sales).to_struct()
@@ -465,9 +462,8 @@ def test_sorting_with_group_context(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
         group_context_names=["department"],
-        order_by_info=("date", True),  # Sort by date ascending
+        ascending=True,  # Sort by date ascending
     )
     reduce_instance.prefix_tokens = 50
 
@@ -494,7 +490,7 @@ def test_sorting_with_group_context(mock_language_model):
 def test_empty_group(mock_language_model):
     """Test handling of empty groups."""
     # Create an empty group
-    empty_group = pl.DataFrame({"content": [], "department": []}).to_struct()
+    empty_group = pl.DataFrame({DATA_COLUMN_NAME: []}).to_struct()
 
     reduce_instance = Reduce(
         input=pl.Series([empty_group]),
@@ -502,7 +498,6 @@ def test_empty_group(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
     )
 
     result = reduce_instance.execute()
@@ -512,9 +507,8 @@ def test_empty_group(mock_language_model):
 def test_all_empty_documents_in_group(mock_language_model):
     """Test when all documents in a group are empty strings."""
     docs_data = [
-        {"content": ""},
-        {"content": ""},
-        {"content": ""},
+        {DATA_COLUMN_NAME: ""},
+        {DATA_COLUMN_NAME: ""},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -524,7 +518,6 @@ def test_all_empty_documents_in_group(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        input_name="content",
     )
 
     # No get_completions should be called for empty documents

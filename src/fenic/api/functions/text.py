@@ -1027,7 +1027,7 @@ def jinja(
     column_exprs: List[LogicalExpr] = []
     for var_name, column in columns.items():
         if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
-            column_exprs.append(column.expr)
+            column_exprs.append(column._logical_expr)
         else:
             column_exprs.append(column.alias(var_name)._logical_expr)
 

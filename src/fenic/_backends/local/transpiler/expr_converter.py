@@ -22,6 +22,10 @@ from fenic._backends.local.semantic_operators import Map as SemanticMap
 from fenic._backends.local.semantic_operators import Predicate as SemanticPredicate
 from fenic._backends.local.semantic_operators import Reduce as SemanticReduce
 from fenic._backends.local.semantic_operators import Summarize as SemanticSummarize
+from fenic._backends.local.semantic_operators.reduce import (
+    DATA_COLUMN_NAME,
+    SORT_KEY_COLUMN_NAME,
+)
 from fenic._backends.local.template import TemplateFormatReader
 from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
@@ -312,14 +316,13 @@ class ExprConverter:
                 return handler(logical)
 
         if isinstance(logical, SemanticReduceExpr):
-            input_name = str(logical.input_expr)
             group_context_names = list(logical.group_context_exprs.keys()) if logical.group_context_exprs else None
-            order_by_info = (str(logical.order_by_expr), logical.ascending) if logical.order_by_expr else None
-            polars_exprs = [self._convert_expr(logical.input_expr)]
+            ascending = logical.ascending if logical.order_by_expr else None
+            polars_exprs = [self._convert_expr(logical.input_expr).alias(DATA_COLUMN_NAME)]
             for name, expr in logical.group_context_exprs.items():
                 polars_exprs.append(self._convert_expr(expr).alias(name))
             if logical.order_by_expr:
-                polars_exprs.append(self._convert_expr(logical.order_by_expr))
+                polars_exprs.append(self._convert_expr(logical.order_by_expr).alias(SORT_KEY_COLUMN_NAME))
             struct = pl.struct(polars_exprs)
 
             def sem_reduce_fn(batch: pl.Series) -> str:
@@ -329,10 +332,9 @@ class ExprConverter:
                     model=self.session_state.get_language_model(logical.model_alias),
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
-                    input_name=input_name,
                     model_alias=logical.model_alias,
                     group_context_names=group_context_names,
-                    order_by_info=order_by_info,
+                    ascending=ascending,
                 ).execute()
             return struct.map_batches(
                 sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True
@@ -444,7 +446,15 @@ class ExprConverter:
             template=logical.template,
         )
 
-        return jinja_expr.map_batches(sem_map_fn, return_dtype=pl.String)
+        if logical.struct_type:
+            return jinja_expr.map_batches(
+                sem_map_fn,
+                return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
+            )
+        return jinja_expr.map_batches(
+            sem_map_fn,
+            return_dtype=pl.String
+        )
 
     @_convert_expr.register(RecursiveTextChunkExpr)
     def _convert_text_chunk_expr(self, logical: RecursiveTextChunkExpr) -> pl.Expr:

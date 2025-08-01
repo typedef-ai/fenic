@@ -105,14 +105,14 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
             if self.response_format is None:
                 if not isinstance(example.output, str):
                     raise InvalidExampleCollectionError(
-                        "When no schema is provided to `semantic.map`, "
-                        "all example outputs must be strings."
+                        "Expected `semantic.map` example output to be a string, but got "
+                        f"{type(example.output)} instead."
                     )
             else:
                 if not isinstance(example.output, self.response_format):
                     raise InvalidExampleCollectionError(
-                        f"When a schema BaseModel is provided to `semantic.map`, "
-                        f"all example outputs must be instances of {self.response_format}."
+                        f"Expected `semantic.map` example output to be an instance of {self.response_format}, "
+                        f"but got {type(example.output)} instead."
                 )
 
     def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):

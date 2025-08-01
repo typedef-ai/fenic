@@ -15,6 +15,8 @@ from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 logger = logging.getLogger(__name__)
 
 CONTEXT_WINDOW_REDUCTION_FACTOR = 0.7
+DATA_COLUMN_NAME = "__data__"
+SORT_KEY_COLUMN_NAME = "__sort_key__"
 
 class Reduce:
     """Hierarchical document reduction for handling context window limitations.
@@ -63,10 +65,9 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
-            input_name: str,
             model_alias: Optional[ResolvedModelAlias] = None,
             group_context_names: List[str] = None,
-            order_by_info: Optional[Tuple[str, bool]] = None,
+            ascending: Optional[bool] = None,
     ):
         self.input = input
         self.user_instruction = user_instruction
@@ -78,9 +79,8 @@ class Reduce:
             self.model.count_tokens([self.SYSTEM_MESSAGE])
             + PREFIX_TOKENS_PER_MESSAGE
         )
-        self.input_name = input_name
         self.group_context_names = group_context_names
-        self.order_by_info = order_by_info
+        self.ascending = ascending
 
         # Cache the template if we need it
         self._user_instruction_template = None
@@ -156,12 +156,11 @@ class Reduce:
             group_context = {name: first_row[name] for name in self.group_context_names}
             user_instruction = self._user_instruction_template.render(**group_context)
 
-        if self.order_by_info:
-            order_by_name, ascending = self.order_by_info
-            order_by = group.struct.field(order_by_name).arg_sort(descending=not ascending)
-            series = group.struct.field(self.input_name).gather(order_by)
+        if self.ascending is not None:
+            order_by = group.struct.field(SORT_KEY_COLUMN_NAME).arg_sort(descending=not self.ascending)
+            series = group.struct.field(DATA_COLUMN_NAME).gather(order_by)
         else:
-            series = group.struct.field(self.input_name)
+            series = group.struct.field(DATA_COLUMN_NAME)
         return user_instruction, series
 
 

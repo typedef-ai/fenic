@@ -28,7 +28,7 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import PlanError, ValidationError
 
 
 def test_sum_aggregation(sample_df):
@@ -352,7 +352,7 @@ def test_groupby_nested_aggregation(local_session):
     }
     df = local_session.create_dataframe(data)
     with pytest.raises(
-        ValueError, match="Nested aggregation functions are not allowed"
+        PlanError, match="Nested aggregation functions are not allowed"
     ):
         df.group_by("age").agg(sum(sum("salary"))).to_polars()
 
