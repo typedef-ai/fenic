@@ -253,7 +253,6 @@ class ExprConverter:
                 # NumPy's mean() is already multi-threaded via C bindings, so additional threading may
                 # not be faster. Test with realistic embedding sizes and group counts.
                 result = []
-                # to list may not be required!
                 for emb_list in series.to_list():
                     if not emb_list:
                         result.append(None)
@@ -273,7 +272,7 @@ class ExprConverter:
                 lambda batch: embedding_avg(batch, logical.input_type.dimensions),
                 return_dtype=pl.Array(pl.Float32, logical.input_type.dimensions),
                 agg_list=True,
-                returns_scalar=False
+                returns_scalar=True
             )
         else:
             return converted_expr.mean()
