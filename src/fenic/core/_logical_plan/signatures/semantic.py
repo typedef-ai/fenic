@@ -21,13 +21,6 @@ def register_semantic_signatures():
         return_type=ReturnTypeStrategy.DYNAMIC  # Returns StructType based on schema
     ))
 
-    # Semantic reduce - instruction-based aggregation
-    FunctionRegistry.register("semantic.reduce", FunctionSignature(
-        function_name="semantic.reduce",
-        type_signature=Exact([StringType]),
-        return_type=StringType
-    ))
-
     # Semantic classify - classification into labels/enum
     FunctionRegistry.register("semantic.classify", FunctionSignature(
         function_name="semantic.classify",
