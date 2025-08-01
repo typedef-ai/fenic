@@ -76,7 +76,6 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self.examples = None
         if examples:
             self._validate_example_response_format(examples)
-            examples._validate_input_column_names([expr.name for expr in self.exprs])
             self.examples = examples
         self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
 
@@ -86,11 +85,14 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
+        data_types: Dict[str, DataType] = {}
         for expr in self.exprs:
             data_type = expr.to_column_field(plan, session_state).data_type
             self.variable_tree.validate_jinja_variable(expr.name, data_type)
+            data_types[expr.name] = data_type
+        if self.examples:
+            self.examples._validate_against_column_types(data_types)
 
         return ColumnField(
             name=str(self),
@@ -204,10 +206,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         self.template = jinja_template
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
-        self.examples = None
-        if examples:
-            examples._validate_input_column_names([expr.name for expr in self.exprs])
-            self.examples = examples
+        self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
 
@@ -219,9 +218,13 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
+        data_types: Dict[str, DataType] = {}
         for expr in self.exprs:
             data_type = expr.to_column_field(plan, session_state).data_type
             self.variable_tree.validate_jinja_variable(expr.name, data_type)
+            data_types[expr.name] = data_type
+        if self.examples:
+            self.examples._validate_against_column_types(data_types)
 
         return ColumnField(
             name=str(self),
@@ -269,6 +272,9 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         }
 
         # Process order by
+        self.order_by_expr = None
+        self.ascending = None
+
         if order_by_expr:
             if isinstance(order_by_expr, SortExpr):
                 self.order_by_expr = order_by_expr.expr
@@ -276,9 +282,6 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
             else:
                 self.order_by_expr = order_by_expr
                 self.ascending = True
-        else:
-            self.order_by_expr = None
-            self.ascending = None
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -322,7 +325,12 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
-        return f"semantic.reduce_{instruction_hash}({self.input_expr}, group_context={self.group_context_exprs}, order_by={self.order_by_expr})"
+        params = [str(self.input_expr)]
+        if self.group_context_exprs:
+            params.append(f"group_context={list(self.group_context_exprs.keys())}")
+        if self.order_by_expr:
+            params.append(f"order_by=({self.order_by_expr}, {self.ascending})")
+        return f"semantic.reduce_{instruction_hash}({', '.join(params)})"
 
     def _eq_specific(self, other: SemanticReduceExpr) -> bool:
         return self.temperature == other.temperature and self.model_alias == other.model_alias and self.instruction == other.instruction and self.max_tokens == other.max_tokens
@@ -466,8 +474,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
         return f"semantic.embed({self.expr}, {self.model_alias})"
 
     def _infer_dynamic_return_type(
-        self, arg_types: List[DataType], plan: LogicalPlan
-    , session_state: BaseSessionState) -> DataType:
+        self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return EmbeddingType with specific dimensions based on model."""
         return_type = self._get_embedding_type_from_config(plan, session_state)
         return return_type

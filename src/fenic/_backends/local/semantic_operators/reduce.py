@@ -82,6 +82,11 @@ class Reduce:
         self.group_context_names = group_context_names
         self.order_by_info = order_by_info
 
+        # Cache the template if we need it
+        self._user_instruction_template = None
+        if self.group_context_names:
+            self._user_instruction_template = jinja2.Template(self.user_instruction)
+
     def execute(self) -> pl.Series:
         """Execute parallel reduction across all groups."""
         with ThreadPoolExecutor(max_workers=min(10, len(self.input))) as executor:
@@ -106,6 +111,10 @@ class Reduce:
         Returns:
             The final synthesized output for the group.
         """
+        if len(group) == 0:
+            logger.warning(f"No documents in group {group_index}")
+            return None
+
         user_instruction, series = self._preprocess_group(group)
         operation_name = f"semantic.reduce(group={group_index})"
         docs = series.to_list()
@@ -143,10 +152,9 @@ class Reduce:
         if not self.group_context_names:
             user_instruction = self.user_instruction
         else:
-            jinja_template = jinja2.Template(self.user_instruction)
             first_row = group.first()
             group_context = {name: first_row[name] for name in self.group_context_names}
-            user_instruction = jinja_template.render(**group_context)
+            user_instruction = self._user_instruction_template.render(**group_context)
 
         if self.order_by_info:
             order_by_name, ascending = self.order_by_info
@@ -171,7 +179,7 @@ class Reduce:
         are likely to be summarized together.
 
         Args:
-            user_instruction: The user instruction to be used in the prompt.
+            user_instruction: The user instruction to be used in the user message of the prompt.
             docs: A list of documents (raw or synthesized) to be batched.
             tree_level: The current level of the aggregation tree (0 for leaf nodes).
 
@@ -254,6 +262,7 @@ class Reduce:
         """Builds a user message for the LLM.
 
         Args:
+            user_instruction: The user instruction to be used in the prompt.
             docs: A list of documents to include in the prompt.
 
         Returns:

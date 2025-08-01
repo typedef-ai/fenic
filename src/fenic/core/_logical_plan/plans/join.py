@@ -250,6 +250,8 @@ class SemanticJoin(BaseSemanticJoin):
             raise ValidationError(f"right_on must be one of the variables in the jinja_template. variables found: {list(variables.keys())}")
         left_on_dtype = self._left_on.to_column_field(self._left, session_state).data_type
         right_on_dtype = self._right_on.to_column_field(self._right, session_state).data_type
+        if self._examples:
+            self._examples._validate_against_join_types(left_on_dtype, right_on_dtype)
         variable_tree.validate_jinja_variable(LEFT_ON_KEY, left_on_dtype)
         variable_tree.validate_jinja_variable(RIGHT_ON_KEY, right_on_dtype)
 

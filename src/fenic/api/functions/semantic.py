@@ -49,23 +49,20 @@ def map(
     """Applies a generation prompt to one or more columns, enabling rich summarization and generation tasks.
 
     Args:
-        jinja_template: A Jinja2 template containing the generation prompt.
-            The template should reference column values using standard Jinja2 syntax: {{ column_name }}.
-            These placeholders will be replaced with actual column values during query execution.
-            Refer to text.jinja for more details on jinja template limitations.
-        examples: Optional collection of examples to guide the semantic mapping operation.
-            Each example should demonstrate the expected input and output for the mapping.
-        response_format: Optional Pydantic model type that defines the output structure with descriptions for each field.
-        model_alias: Optional alias for the language model to use for the mapping.
-        temperature: Temperature parameter for the language model.
-        max_output_tokens: Maximum number of tokens the model can generate.
-        **columns: Column expressions to be used in the template, where keys match the template variable names.
+        jinja_template: A Jinja2 template for the generation prompt. References column
+            values using {{ column_name }} syntax. Each placeholder is replaced with the
+            corresponding value from the current row during execution.
+        examples: Optional few-shot examples to guide the model's output format and style.
+        response_format: Optional Pydantic model to enforce structured output. Must include descriptions for each field.
+        model_alias: Optional language model alias. If None, uses the default model.
+        temperature: Language model temperature (default: 0.0).
+        max_output_tokens: Maximum tokens to generate (default: 512).
+        **columns: Named column arguments that correspond to template variables.
+            Keys must match the variable names used in the template.
 
     Returns:
         Column: A column expression representing the semantic mapping operation.
 
-    Raises:
-        ValueError: If the jinja_template is empty.
 
     Example: Mapping without examples
         ```python
@@ -204,37 +201,41 @@ def predicate(
         temperature: float = 0.0,
         **columns: Column,
 ) -> Column:
-    r"""Applies a boolean predicate to one or more columns, returning true/false for filtering.
+    r"""Applies a boolean predicate to one or more columns, typically used for filtering.
 
     Args:
-        jinja_template: A Jinja2 template containing a yes/no question or claim to evaluate.
-            The template should reference column values using standard Jinja2 syntax: {{ column_name }}.
-            These placeholders will be replaced with actual column values during query execution.
-        examples: Optional collection of examples to guide the predicate evaluation.
-            Each example should demonstrate the expected boolean output for different inputs.
-        model_alias: Optional alias for the language model to use.
-        temperature: Temperature parameter for the language model.
-        **columns: Column expressions to be used in the template, where keys match the template variable names.
+        jinja_template: A Jinja2 template containing a yes/no question or boolean claim.
+            Should reference column values using {{ column_name }} syntax. The model will
+            evaluate this condition for each row and return True or False.
+        examples: Optional few-shot examples showing how to evaluate the predicate.
+            Helps ensure consistent True/False decisions.
+        model_alias: Optional language model alias. If None, uses the default model.
+        temperature: Language model temperature (default: 0.0).
+        **columns: Named column arguments that correspond to template variables.
+            Keys must match the variable names used in the template.
 
     Returns:
-        Column: A boolean column expression for filtering rows.
-
-    Raises:
-        ValueError: If the jinja_template is empty.
+        Column: A boolean column expression.
 
     Example: Filtering product descriptions
         ```python
-        fc.semantic.predicate(
-            "Product: {{ description }}\n\nIs this product wireless?",
-            description=fc.col("product_description")
+        wireless_products = df.filter(
+            fc.semantic.predicate(
+                "Product: {{ description }}\\n\\nIs this product wireless or battery-powered?",
+                description=fc.col("product_description")
+            )
         )
         ```
 
     Example: Filtering support tickets
         ```python
-        fc.semantic.predicate(
-            "Ticket: {{ ticket }}\n\nIs this about billing?",
-            ticket=fc.col("ticket_text")
+        df = df.with_column(
+            "is_urgent",
+            fc.semantic.predicate(
+                "{{ subject }}\\n{{ body }}\\n\\nThis ticket indicates an urgent issue.",
+                subject=fc.col("ticket_subject"),
+                body=fc.col("ticket_body")
+            )
         )
         ```
 
@@ -250,7 +251,7 @@ def predicate(
             output=False
         ))
         fc.semantic.predicate(
-            "Ticket: {{ ticket }}\n\nIs this about billing?",
+            "Ticket: {{ ticket }}\n\nThis ticket is about billing.",
             ticket=fc.col("ticket_text"),
             examples=examples
         )
@@ -292,30 +293,59 @@ def reduce(
     temperature: float = 0,
     max_output_tokens: int = 512,
 ) -> Column:
-    """Aggregate function: reduces a set of strings across columns into a single string using a natural language instruction.
+    """Aggregate function: reduces a set of strings in a column to a single string using a natural language instruction.
 
     Args:
         instruction: A string containing the semantic.reduce prompt.
-            The instruction can include placeholders in curly braces that reference column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
-        max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
-            tokens, based on the model's context length and other operator-specific parameters.
+            The instruction can optionally include Jinja2 template variables (e.g., {{variable}}) that
+            reference columns from the group_context parameter. These will be replaced with
+            actual values from the first row of each group during execution.
+        column: The column containing documents/strings to reduce.
+        group_context: Optional dictionary mapping variable names to columns. These columns
+            provide context for each group and can be referenced in the instruction template.
+        order_by: Optional column to sort grouped documents by before reduction. Documents are
+            processed in ascending order by default if no sort function is provided. Use a sort function
+            (e.g., col("date").desc()/fc.desc("date")) for descending order. The order_by column helps
+            preserve the temporal/logical sequence of the documents (e.g chunks in a document, speaker turns in a meeting transcript)
+            for more coherent summaries.
+        model_alias: Optional alias for the language model to use. If None, uses the default model.
+        temperature: Temperature parameter for the language model (default: 0.0).
+        max_output_tokens: Maximum tokens the model can generate (default: 512).
 
     Returns:
         Column: A column expression representing the semantic reduction operation.
 
-    Raises:
-        ValueError: If the instruction is not a string.
-
-    Example: Summarizing documents using their titles and bodies
+    Example: Simple reduction
         ```python
-        semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
+        # Simple reduction
+        df.group_by("category").agg(
+            semantic.reduce("Summarize the documents", col("document_text"))
+        )
+        ```
 
-        df.group_by("category", "priority").agg(semantic.reduce(("Summarize the documents about {category} with priority: {priority}", {"category": col("category"), "priority": col("priority")}), col("document_text")))
-        df.group_by("category").agg(semantic.reduce("Summarize the documents", col("document_text")))
+    Example: With group context
+        ```python
+        df.group_by("department", "region").agg(
+            semantic.reduce(
+                "Summarize these {{department}} reports from {{region}}",
+                col("document_text"),
+                group_context={
+                    "department": col("department"),
+                    "region": col("region")
+                }
+            )
+        )
+        ```
+
+    Example: With sorting
+        ```python
+        df.group_by("category").agg(
+            semantic.reduce(
+                "Summarize the documents",
+                col("document_text"),
+                order_by=col("date")
+            )
+        )
         ```
     """
     group_context_exprs: List[Union[ColumnExpr, AliasExpr]] = []

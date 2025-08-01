@@ -148,43 +148,45 @@ class SemanticExtensions:
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
-        That evaluates to either true or false for each potential row pair.
+        This method evaluates a boolean predicate for each potential row pair between the two DataFrames,
+        including only those pairs where the predicate evaluates to True.
 
-        The join works by:
-        1. Evaluating the provided join_instruction as a boolean predicate for each possible pair of rows
-        2. Including ONLY the row pairs where the predicate evaluates to True in the result set
-        3. Excluding all row pairs where the predicate evaluates to False
+        The join process:
+        1. For each row in the left DataFrame, evaluates the predicate against each row in the right DataFrame
+        2. Includes row pairs where the predicate returns True
+        3. Excludes row pairs where the predicate returns False
+        4. Returns a new DataFrame containing all columns from both DataFrames for the matched pairs
 
-        The instruction must reference **exactly two columns**, one from each DataFrame,
-        using the `:left` and `:right` suffixes to indicate column origin.
-
-        This is useful when row pairing decisions require complex reasoning based on a custom predicate rather than simple equality or similarity matching.
+        The jinja_template must use exactly two column placeholders:
+        - One from the left DataFrame: `{{ left_on }}`
+        - One from the right DataFrame: `{{ right_on }}`
 
         Args:
             other: The DataFrame to join with.
-            join_instruction: A natural language description of how to match values.
-                - Must include one placeholder from the left DataFrame (e.g. `{left_on}`)
-                and one from the right (e.g. `{right_on}`).
-                - This instruction is evaluated as a boolean predicate - pairs where it's `True` are included,
-                pairs where it's `False` are excluded.
-            examples: Optional JoinExampleCollection containing labeled pairs (`left_on`, `right_on`, `output`)
-                to guide the semantic join behavior.
-            model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
+            jinja_template: A Jinja2 template containing the natural language predicate.
+                Must include placeholders for exactly one column from each DataFrame.
+                The template is evaluated as a boolean - True includes the pair, False excludes it.
+            left_on: The column from the left DataFrame (self) to use in the join predicate.
+            right_on: The column from the right DataFrame (other) to use in the join predicate.
+            examples: Optional JoinExampleCollection containing labeled examples to guide the join.
+                Each example should have:
+                - left: Sample value from the left column
+                - right: Sample value from the right column
+                - output: Boolean indicating whether this pair should be joined (True) or not (False)
+            model_alias: Optional alias for the language model to use. If None, uses the default model.
 
         Returns:
-            DataFrame: A new DataFrame containing only the row pairs where the join_instruction
-                      predicate evaluates to True.
-
-        Raises:
-            TypeError: If `other` is not a DataFrame or `join_instruction` is not a string.
-            ValueError: If the instruction format is invalid or references invalid columns.
+            DataFrame: A new DataFrame containing matched row pairs with all columns from both DataFrames.
 
         Example: Basic semantic join
             ```python
             # Match job listings with candidate resumes based on title/skills
             # Only includes pairs where the predicate evaluates to True
             df_jobs.semantic.join(df_resumes,
-                join_instruction="Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?"
+                jinja_template="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                left_on=col("job_description"),
+                right_on=col("work_experience"),
+                examples=examples
             )
             ```
 
@@ -200,9 +202,13 @@ class SemanticExtensions:
                 left="5 years experience with growth strategy, private equity due diligence, and M&A",
                 right="Product Manager - Hardware",
                 output=False))  # This pair will NOT be included in similar cases
-            df_jobs.semantic.join(df_resumes,
-                join_instruction="Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?",
-                examples=examples)
+            df_jobs.semantic.join(
+                other=df_resumes,
+                jinja_template="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                left_on=col("job_description"),
+                right_on=col("work_experience"),
+                examples=examples
+            )
             ```
         """
         from fenic.api.dataframe.dataframe import DataFrame

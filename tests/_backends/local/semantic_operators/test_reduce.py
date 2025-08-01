@@ -29,6 +29,7 @@ def reduce_instance(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        input_name="content",  # Added required parameter
     )
     reduce_instance.prefix_tokens = 50
     return reduce_instance
@@ -37,6 +38,7 @@ def reduce_instance(mock_language_model):
 def test_single_batch(reduce_instance, mock_language_model):
     """Test that documents fitting in context are batched together."""
     docs = ["Document one content", "Document two content"]
+    user_instruction = "Summarize the documents."
 
     # Token accounting:
     # - prefix_tokens = 50 (from fixture)
@@ -55,7 +57,7 @@ def test_single_batch(reduce_instance, mock_language_model):
 
     mock_language_model.count_tokens.side_effect = [10, 20, 25]
 
-    batches = reduce_instance._build_request_messages_batch(docs, 0)
+    batches = reduce_instance._build_request_messages_batch(user_instruction, docs, 0)
     assert len(batches) == 1
 
     # Verify the formatted message contains XML-formatted documents
@@ -70,6 +72,7 @@ def test_single_batch(reduce_instance, mock_language_model):
 def test_multiple_batches(reduce_instance, mock_language_model):
     """Test batching when documents require multiple batches."""
     docs = ["Summary 1", "Summary 2", "Summary 3"]
+    user_instruction = "Summarize the documents."
 
     # Adjust context window to force batching
     mock_language_model.max_context_window_length = 1000
@@ -93,7 +96,7 @@ def test_multiple_batches(reduce_instance, mock_language_model):
 
     mock_language_model.count_tokens.side_effect = [10, 250, 250, 250]
 
-    messages_batch = reduce_instance._build_request_messages_batch(docs, 1)
+    messages_batch = reduce_instance._build_request_messages_batch(user_instruction, docs, 1)
     assert len(messages_batch) == 2
 
     # First batch: docs 1 and 2
@@ -112,6 +115,7 @@ def test_multiple_batches(reduce_instance, mock_language_model):
 def test_single_document_exceeds_limit(reduce_instance, mock_language_model):
     """Test error when a single document exceeds the maximum token limit."""
     long_doc = "This is a very long document that exceeds limits"
+    user_instruction = "Summarize the documents."
 
     # Token accounting:
     # - max_input_tokens = floor((3000 - 100) * 0.7) = floor(2029.99) = 2029
@@ -126,7 +130,7 @@ def test_single_document_exceeds_limit(reduce_instance, mock_language_model):
     mock_language_model.count_tokens.side_effect = [10, 2500]
 
     with pytest.raises(ValueError) as exc_info:
-        reduce_instance._build_request_messages_batch([long_doc], 0)
+        reduce_instance._build_request_messages_batch(user_instruction, [long_doc], 0)
 
     error_msg = str(exc_info.value)
     assert "semantic.reduce document is too large" in error_msg
@@ -136,6 +140,8 @@ def test_single_document_exceeds_limit(reduce_instance, mock_language_model):
 
 def test_context_window_edge_case(reduce_instance, mock_language_model):
     """Test when max_output_tokens is very large relative to context window."""
+    user_instruction = "Summarize the documents."
+
     # Set up edge case where output tokens take up most of context
     mock_language_model.max_context_window_length = 1000
     mock_language_model.model_parameters.max_output_tokens = 640
@@ -149,22 +155,24 @@ def test_context_window_edge_case(reduce_instance, mock_language_model):
 
     # First doc fits
     mock_language_model.count_tokens.side_effect = [10, 150]
-    batches = reduce_instance._build_request_messages_batch(["Small doc"], 0)
+    batches = reduce_instance._build_request_messages_batch(user_instruction, ["Small doc"], 0)
     assert len(batches) == 1
 
     # Second doc exceeds limit
     mock_language_model.count_tokens.side_effect = [10, 200]
     with pytest.raises(ValueError) as exc_info:
-        reduce_instance._build_request_messages_batch(["Larger doc"], 0)
+        reduce_instance._build_request_messages_batch(user_instruction, ["Larger doc"], 0)
     assert "semantic.reduce document is too large" in str(exc_info.value)
 
 
 def test_empty_document_handling(reduce_instance, mock_language_model):
     """Test how empty documents are handled."""
+    user_instruction = "Summarize the documents."
     docs_with_empties = [
         "Document 1 content",
         "",  # Empty string should be skipped
         "Document 2 content",
+        None,
     ]
 
     # Token accounting:
@@ -175,10 +183,11 @@ def test_empty_document_handling(reduce_instance, mock_language_model):
     # 2. count_tokens("Document 1 content") -> 20
     # 3. Skip empty string
     # 4. count_tokens("Document 2 content") -> 25
+    # 5. Skip None
 
     mock_language_model.count_tokens.side_effect = [10, 20, 25]
 
-    batches = reduce_instance._build_request_messages_batch(docs_with_empties, 0)
+    batches = reduce_instance._build_request_messages_batch(user_instruction, docs_with_empties, 0)
     assert len(batches) == 1
 
     user_content = batches[0].user
@@ -189,20 +198,37 @@ def test_empty_document_handling(reduce_instance, mock_language_model):
 
 def test_empty_document_list(reduce_instance, mock_language_model):
     """Test handling of empty document list."""
+    user_instruction = "Summarize the documents."
+
     # No token counting should occur for empty list
-    batches = reduce_instance._build_request_messages_batch([], 0)
+    batches = reduce_instance._build_request_messages_batch(user_instruction, [], 0)
     assert batches is None
 
     # Also test list with only empty strings
-    batches = reduce_instance._build_request_messages_batch(["", "", ""], 0)
+    batches = reduce_instance._build_request_messages_batch(user_instruction, ["", "", ""], 0)
     assert batches is None
 
 
-def test_hierarchical_reduction_logic(reduce_instance, mock_language_model):
+def test_hierarchical_reduction_logic(mock_language_model):
     """Test that hierarchical reduction properly reduces through levels."""
-    # Create a group with 4 documents
-    group = pl.Series(["Doc 1", "Doc 2", "Doc 3", "Doc 4"])
-    reduce_instance.input = pl.Series([group])
+    # Create structured data
+    docs_data = [
+        {"content": "Doc 1"},
+        {"content": "Doc 2"},
+        {"content": "Doc 3"},
+        {"content": "Doc 4"},
+    ]
+    group = pl.DataFrame(docs_data).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+    )
+    reduce_instance.prefix_tokens = 50
 
     # Force batching: make only 2 docs fit per batch
     mock_language_model.max_context_window_length = 500
@@ -212,16 +238,6 @@ def test_hierarchical_reduction_logic(reduce_instance, mock_language_model):
     # - max_input_tokens = floor((500 - 100) * 0.7) = floor(280) = 280
     # - user_message_tokens = 10 + 50 = 60
     # - Available for docs = 280 - 60 = 220 tokens
-
-    # To force 2 docs per batch:
-    # - Need each doc small enough that 2 fit: 2 * doc_tokens <= 220
-    # - So each doc should be <= 110 tokens
-    # - But need 3 docs to NOT fit: 3 * doc_tokens > 220
-    # - So each doc should be > 73 tokens
-    # - Let's use 80 tokens per doc
-    # - Batch check: 60 + 80 = 140 (1 fits)
-    # - Batch check: 60 + 80 + 80 = 220 (2 fit exactly)
-    # - Batch check: 60 + 80 + 80 + 80 = 300 > 280 (3 don't fit)
 
     # Track all get_completions calls to verify hierarchy
     call_count = 0
@@ -269,4 +285,249 @@ def test_hierarchical_reduction_logic(reduce_instance, mock_language_model):
     result = reduce_instance.execute()
     assert result[0] == "Final summary"
     assert call_count == 2  # Verify we went through 2 levels
-    raise AssertionError()
+
+
+def test_group_context_injection(mock_language_model):
+    """Test that group context variables are properly injected into instructions."""
+    # Create groups with different contexts
+    docs_data_sales = [
+        {"content": "Sales report Q1", "department": "Sales", "region": "North"},
+        {"content": "Sales report Q2", "department": "Sales", "region": "North"},
+    ]
+    docs_data_eng = [
+        {"content": "Engineering update", "department": "Engineering", "region": "West"},
+        {"content": "Tech roadmap", "department": "Engineering", "region": "West"},
+    ]
+
+    group_sales = pl.DataFrame(docs_data_sales).to_struct()
+    group_eng = pl.DataFrame(docs_data_eng).to_struct()
+
+    # Template with context variables
+    user_instruction = "Summarize these {{department}} documents from the {{region}} region."
+
+    reduce_instance = Reduce(
+        input=pl.Series([group_sales, group_eng]),
+        user_instruction=user_instruction,
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+        group_context_names=["department", "region"],
+    )
+    reduce_instance.prefix_tokens = 50
+
+    # Mock simple responses
+    mock_language_model.count_tokens.return_value = 10
+    mock_language_model.get_completions.return_value = [
+        MagicMock(completion="Summary of group")
+    ]
+
+    # Execute and verify the correct templates were used
+    reduce_instance.execute()
+
+    # Check that get_completions was called with the right instructions
+    calls = mock_language_model.get_completions.call_args_list
+
+    # First group should have Sales/North in the instruction
+    first_call_messages = calls[0][1]['messages'][0]
+    assert "Sales documents from the North region" in first_call_messages.user
+
+    # Second group should have Engineering/West in the instruction
+    second_call_messages = calls[1][1]['messages'][0]
+    assert "Engineering documents from the West region" in second_call_messages.user
+
+
+def test_sorting_ascending(mock_language_model):
+    """Test that documents are sorted in ascending order when specified."""
+    docs_data = [
+        {"content": "Doc from Feb", "date": "2024-02-01"},
+        {"content": "Doc from Jan", "date": "2024-01-01"},
+        {"content": "Doc from Mar", "date": "2024-03-01"},
+    ]
+    group = pl.DataFrame(docs_data).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+        order_by_info=("date", True),  # Sort by date ascending
+    )
+    reduce_instance.prefix_tokens = 50
+
+    mock_language_model.count_tokens.return_value = 10
+    mock_language_model.get_completions.return_value = [
+        MagicMock(completion="Summary")
+    ]
+
+    reduce_instance.execute()
+
+    # Check that documents were processed in sorted order
+    calls = mock_language_model.get_completions.call_args_list
+    first_call_messages = calls[0][1]['messages'][0]
+
+    # Documents should appear in chronological order
+    assert first_call_messages.user.index("Doc from Jan") < first_call_messages.user.index("Doc from Feb")
+    assert first_call_messages.user.index("Doc from Feb") < first_call_messages.user.index("Doc from Mar")
+
+
+def test_sorting_descending(mock_language_model):
+    """Test that documents are sorted in descending order when specified."""
+    docs_data = [
+        {"content": "Priority 2", "priority": 2},
+        {"content": "Priority 1", "priority": 1},
+        {"content": "Priority 3", "priority": 3},
+    ]
+    group = pl.DataFrame(docs_data).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+        order_by_info=("priority", False),  # Sort by priority descending
+    )
+    reduce_instance.prefix_tokens = 50
+
+    mock_language_model.count_tokens.return_value = 10
+    mock_language_model.get_completions.return_value = [
+        MagicMock(completion="Summary")
+    ]
+
+    reduce_instance.execute()
+
+    # Check that documents were processed in reverse priority order
+    calls = mock_language_model.get_completions.call_args_list
+    first_call_messages = calls[0][1]['messages'][0]
+
+    # Documents should appear in descending priority order
+    assert first_call_messages.user.index("Priority 3") < first_call_messages.user.index("Priority 2")
+    assert first_call_messages.user.index("Priority 2") < first_call_messages.user.index("Priority 1")
+
+
+def test_no_sorting_preserves_order(mock_language_model):
+    """Test that original order is preserved when no sorting is specified."""
+    docs_data = [
+        {"content": "First doc", "seq": 1},
+        {"content": "Second doc", "seq": 2},
+        {"content": "Third doc", "seq": 3},
+    ]
+    group = pl.DataFrame(docs_data).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+        # No order_by_info provided
+    )
+    reduce_instance.prefix_tokens = 50
+
+    mock_language_model.count_tokens.return_value = 10
+    mock_language_model.get_completions.return_value = [
+        MagicMock(completion="Summary")
+    ]
+
+    reduce_instance.execute()
+
+    # Check that documents appear in original order
+    calls = mock_language_model.get_completions.call_args_list
+    first_call_messages = calls[0][1]['messages'][0]
+
+    assert first_call_messages.user.index("First doc") < first_call_messages.user.index("Second doc")
+    assert first_call_messages.user.index("Second doc") < first_call_messages.user.index("Third doc")
+
+
+def test_sorting_with_group_context(mock_language_model):
+    """Test that sorting and group context work together correctly."""
+    # Create two groups with different contexts and sortable data
+    docs_data_sales = [
+        {"content": "Sales Feb", "department": "Sales", "date": "2024-02-01"},
+        {"content": "Sales Jan", "department": "Sales", "date": "2024-01-01"},
+    ]
+    docs_data_eng = [
+        {"content": "Eng Mar", "department": "Engineering", "date": "2024-03-01"},
+        {"content": "Eng Feb", "department": "Engineering", "date": "2024-02-01"},
+    ]
+
+    group_sales = pl.DataFrame(docs_data_sales).to_struct()
+    group_eng = pl.DataFrame(docs_data_eng).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group_sales, group_eng]),
+        user_instruction="Summarize {{department}} documents in chronological order.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+        group_context_names=["department"],
+        order_by_info=("date", True),  # Sort by date ascending
+    )
+    reduce_instance.prefix_tokens = 50
+
+    mock_language_model.count_tokens.return_value = 10
+    mock_language_model.get_completions.return_value = [
+        MagicMock(completion="Summary")
+    ]
+
+    reduce_instance.execute()
+
+    calls = mock_language_model.get_completions.call_args_list
+
+    # First group (Sales) should have correct context and sorting
+    first_call_messages = calls[0][1]['messages'][0]
+    assert "Sales documents" in first_call_messages.user
+    assert first_call_messages.user.index("Sales Jan") < first_call_messages.user.index("Sales Feb")
+
+    # Second group (Engineering) should have correct context and sorting
+    second_call_messages = calls[1][1]['messages'][0]
+    assert "Engineering documents" in second_call_messages.user
+    assert second_call_messages.user.index("Eng Feb") < second_call_messages.user.index("Eng Mar")
+
+
+def test_empty_group(mock_language_model):
+    """Test handling of empty groups."""
+    # Create an empty group
+    empty_group = pl.DataFrame({"content": [], "department": []}).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([empty_group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+    )
+
+    result = reduce_instance.execute()
+    assert result[0] is None  # Empty group should return None
+
+
+def test_all_empty_documents_in_group(mock_language_model):
+    """Test when all documents in a group are empty strings."""
+    docs_data = [
+        {"content": ""},
+        {"content": ""},
+        {"content": ""},
+    ]
+    group = pl.DataFrame(docs_data).to_struct()
+
+    reduce_instance = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        input_name="content",
+    )
+
+    # No get_completions should be called for empty documents
+    result = reduce_instance.execute()
+    assert result[0] is None
+    mock_language_model.get_completions.assert_not_called()
