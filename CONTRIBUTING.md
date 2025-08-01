@@ -121,19 +121,41 @@ just test
 uv run pytest -m "not cloud" tests
 ```
 
-Run all tests against a different **model provider/model name**:
+Run all tests against a different **language model provider/model name**:
 
 - OpenAI/gpt-4.1-nano (Default)
 
 ```bash
-uv run pytest --model-provider=openai --model-name='gpt-4.1-nano'
+uv run pytest --language-model-provider=openai --language-model-name='gpt-4.1-nano'
 ```
 
 - Anthropic/claude-3-5-haiku-latest
 
 ```bash
 uv sync --extra=anthropic
-uv run pytest --model-provider=anthropic --model-name='claude-3-5-haiku-latest'
+uv run pytest --language-model-provider=anthropic --language-model-name='claude-3-5-haiku-latest'
+```
+
+- Google/2.0-flash-lite
+
+```bash
+uv sync --extra=google
+uv run pytest --embedding-model-provider=google-developer --language-model-name='gemini-2.0-flash-lite'
+```
+
+Run all tests against a different **embeddings model provider/model name**:
+
+- OpenAI/ (Default)
+
+```bash
+uv run pytest --embedding-model-provider=openai --embedding-model-name='text-embedding-3-small'
+```
+
+- Google/gemini-embedding-001
+
+```bash
+uv sync --extra=google
+uv run pytest --embedding-model-provider=google-developer --embedding-model-name='gemini-embedding-001'
 ```
 
 Run all tests for the **cloud backend**:

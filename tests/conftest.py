@@ -17,19 +17,18 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    EmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
+    LanguageModel,
     OpenAILanguageModel,
-    _get_model_provider_for_model_config,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
-MODEL_NAME_ARG = "--model-name"
-
-MODEL_PROVIDER_ARG = "--model-provider"
-
-AVAILABLE_MODEL_PROVIDERS = "--configure-model"
-
+LANGUAGE_MODEL_PROVIDER_ARG = "--language-model-provider"
+LANGUAGE_MODEL_NAME_ARG = "--language-model-name"
+EMBEDDING_MODEL_PROVIDER_ARG = "--embedding-model-provider"
+EMBEDDING_MODEL_NAME_ARG = "--embedding-model-name"
 
 class TestPath(Protocol):
     """Protocol for test paths that can be either local or S3."""
@@ -115,62 +114,53 @@ def pytest_addoption(parser):
         help="Path to use for test output files instead of temp_dir. Can be a local path or an s3 path (starts with s3://).",
     )
     parser.addoption(
-        MODEL_PROVIDER_ARG,
+        LANGUAGE_MODEL_PROVIDER_ARG,
         action="store",
         default="openai",
         help="Model Provider to run tests against",
     )
     parser.addoption(
-        MODEL_NAME_ARG,
+        LANGUAGE_MODEL_NAME_ARG,
         action="store",
         default="gpt-4.1-nano",
         help="Model Name to run tests against",
     )
+    parser.addoption(
+        EMBEDDING_MODEL_PROVIDER_ARG,
+        action="store",
+        default="openai",
+        help="Model Provider to run embeddings tests against",
+    )
+    parser.addoption(
+        EMBEDDING_MODEL_NAME_ARG,
+        action="store",
+        default="text-embedding-3-small",
+        help="Model Name to run embeddings tests against",
+    )
 
 @pytest.fixture
-def embedding_model_name(local_session_config) -> str:
-    embedding_model = local_session_config.semantic.embedding_models[
-        local_session_config.semantic.default_embedding_model
-    ]
-    model_provider = _get_model_provider_for_model_config(embedding_model)
-    return f"{model_provider.value}/{embedding_model.model_name}"
+def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:
+    """Returns the embedding model name and dimensions for the default embedding model."""
+    embedding_model = local_session._session_state.get_embedding_model()
+    embedding_model_name = f"{embedding_model.model_provider.value}/{embedding_model.model}"
+    embedding_dimensions = embedding_model.model_parameters.default_dimensions
+    return embedding_model_name, embedding_dimensions
 
 @pytest.fixture
-def examples_session_config(app_name) -> SessionConfig:
+def examples_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
-    embedding_model = GoogleDeveloperEmbeddingModel(
-        model_name="gemini-embedding-001",
-        rpm=3000,
-        tpm=1_000_000,
-        profiles={
-            "low": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=768),
-            "medium": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
-            "high": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=3072),
-            "high-classification": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="CLASSIFICATION"
-            ),
-            "high-clustering": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="CLUSTERING"
-            ),
-            "high-similarity": GoogleDeveloperEmbeddingModel.Profile(
-                output_dimensionality=3072, task_type="SEMANTIC_SIMILARITY"
-            ),
-        },
-        default_profile="high-similarity",
-    )
-    # limits are small so we can run the examples in parallel
-    flash_lite_model = GoogleDeveloperLanguageModel(
-        model_name="gemini-2.0-flash-lite",
-        rpm=500,
-        tpm=250_000,
-    )
+    language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
+    embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
+    language_model = configure_language_model(language_model_provider, request.config.getoption(LANGUAGE_MODEL_NAME_ARG))
+    embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
+
     return SessionConfig(
         app_name=app_name,
         semantic=SemanticConfig(
             language_models={
-                "flash-lite": flash_lite_model,
+                "default": language_model,
             },
-            embedding_models={"gemini": embedding_model},
+            embedding_models={"default": embedding_model},
         ),
     )
 
@@ -178,57 +168,56 @@ def examples_session_config(app_name) -> SessionConfig:
 @pytest.fixture
 def multi_model_local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
-    model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
+    language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
+    embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
+    embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
     nano = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=250, tpm=50_000)
-    # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
 
-    if model_provider == ModelProvider.OPENAI:
+    # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
+    if language_model_provider == ModelProvider.OPENAI:
         language_models = {
             "model_1": nano,
             "model_2": OpenAILanguageModel(
                 model_name="gpt-4.1-mini", rpm=250, tpm=50_000
             ),
         }
-    elif model_provider == ModelProvider.ANTHROPIC:
+    elif language_model_provider == ModelProvider.ANTHROPIC:
         language_models = {
             "model_1": nano,
             "model_2": AnthropicLanguageModel(
-                model_name=request.config.getoption(MODEL_NAME_ARG),
+                model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=500,
                 input_tpm=50_000,
                 output_tpm=20_000,
             ),
         }
-    elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
+    elif language_model_provider == ModelProvider.GOOGLE_DEVELOPER:
         language_models = {
             "model_1": nano,
             "model_2": GoogleDeveloperLanguageModel(
-                model_name=request.config.getoption(MODEL_NAME_ARG),
+                model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
             ),
         }
-    elif model_provider == ModelProvider.GOOGLE_VERTEX:
+    elif language_model_provider == ModelProvider.GOOGLE_VERTEX:
         language_models = {
             "model_1": nano,
             "model_2": GoogleVertexLanguageModel(
-                model_name=request.config.getoption(MODEL_NAME_ARG),
+                model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=1000,
                 tpm=500_000,
             ),
         }
     else:
-        raise ValueError(f"Unsupported model provider: {model_provider}")
-    embedding_model = OpenAIEmbeddingModel(
-        model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
-    )
+        raise ValueError(f"Unsupported language model provider: {language_model_provider}")
     return SessionConfig(
         app_name=app_name,
         semantic=SemanticConfig(
             language_models=language_models,
             default_language_model="model_1",
-            embedding_models={"oai-small": embedding_model},
-            default_embedding_model="oai-small",
+            embedding_models={"small": embedding_model},
+            default_embedding_model="small",
         ),
     )
 
@@ -247,8 +236,24 @@ def multi_model_local_session(multi_model_local_session_config, request):
 @pytest.fixture
 def local_session_config(app_name, request) -> SessionConfig:
     """Creates a test session config."""
-    model_provider = ModelProvider(request.config.getoption(MODEL_PROVIDER_ARG))
-    model_name = request.config.getoption(MODEL_NAME_ARG)
+    language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
+    embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
+    language_model = configure_language_model(language_model_provider, request.config.getoption(LANGUAGE_MODEL_NAME_ARG))
+    embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
+    return SessionConfig(
+        app_name=app_name,
+        semantic=SemanticConfig(
+            language_models={
+                "test_model": language_model,
+            },
+            default_language_model="test_model",
+            embedding_models={"embedding": embedding_model},
+            default_embedding_model="embedding",
+        ),
+    )
+
+
+def configure_language_model(model_provider: ModelProvider, model_name: str) -> LanguageModel:
     model_parameters = model_catalog.get_completion_model_parameters(
         model_provider, model_name
     )
@@ -337,28 +342,23 @@ def local_session_config(app_name, request) -> SessionConfig:
                 tpm=500_000,
             )
     else:
-        raise ValueError(f"Unsupported model provider: {model_provider}")
-    if model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
+        raise ValueError(f"Unsupported language model provider: {model_provider}")
+    return language_model
+
+def configure_embedding_model(model_provider: ModelProvider, model_name: str) -> EmbeddingModel:
+    if model_provider == ModelProvider.OPENAI:
+        embedding_model = OpenAIEmbeddingModel(
+            model_name=model_name, rpm=3000, tpm=1_000_000
+        )
+    elif model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
         embedding_model = GoogleDeveloperEmbeddingModel(
-            model_name="gemini-embedding-001", rpm=3000, tpm=1_000_000, profiles={
-                "default" : GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536),
+            model_name=model_name, rpm=3000, tpm=1_000_000, profiles={
+                "default": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536, task_type="SEMANTIC_SIMILARITY"),
             }
         )
     else:
-        embedding_model = OpenAIEmbeddingModel(
-            model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000
-        )
-    return SessionConfig(
-        app_name=app_name,
-        semantic=SemanticConfig(
-            language_models={
-                "test_model": language_model,
-            },
-            default_language_model="test_model",
-            embedding_models={"embedding": embedding_model},
-            default_embedding_model="embedding",
-        ),
-    )
+        raise ValueError(f"Unsupported embedding model provider: {model_provider}")
+    return embedding_model
 
 
 @pytest.fixture

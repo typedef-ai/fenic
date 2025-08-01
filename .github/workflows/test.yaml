@@ -93,4 +93,5 @@ jobs:
       - name: run ${{ matrix.test }} tests with ${{ matrix.dependency == 'true' && 'synced' || matrix.dependency }} dependencies
         shell: bash
         run: |
-          just sync="${{ matrix.dependency }}" test-${{ matrix.test }}
+          just sync="${{ matrix.dependency }}"
+          just test-${{ matrix.test }} openai gpt-4.1-nano openai text-embedding-3-small
