@@ -2,7 +2,7 @@ import logging
 import math
 from concurrent.futures import ThreadPoolExecutor
 from textwrap import dedent
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import jinja2
 import polars as pl
@@ -63,7 +63,10 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
+            input_name: str,
             model_alias: Optional[ResolvedModelAlias] = None,
+            group_context_names: List[str] = None,
+            order_by_info: Optional[Tuple[str, bool]] = None,
     ):
         self.input = input
         self.user_instruction = user_instruction
@@ -75,6 +78,9 @@ class Reduce:
             self.model.count_tokens([self.SYSTEM_MESSAGE])
             + PREFIX_TOKENS_PER_MESSAGE
         )
+        self.input_name = input_name
+        self.group_context_names = group_context_names
+        self.order_by_info = order_by_info
 
     def execute(self) -> pl.Series:
         """Execute parallel reduction across all groups."""
@@ -100,8 +106,9 @@ class Reduce:
         Returns:
             The final synthesized output for the group.
         """
+        user_instruction, series = self._preprocess_group(group)
         operation_name = f"semantic.reduce(group={group_index})"
-        docs = group.to_list()
+        docs = series.to_list()
         tree_level = 0
 
         # Continue until we have a single summary
@@ -111,7 +118,7 @@ class Reduce:
                 f"Tree level {tree_level}: processing {len(docs)} documents for group {group_index}"
             )
 
-            messages_batch = self._build_request_messages_batch(docs, tree_level)
+            messages_batch = self._build_request_messages_batch(user_instruction, docs, tree_level)
             if not messages_batch:
                 logger.warning(f"No valid documents to process in group {group_index}")
                 return None
@@ -131,8 +138,27 @@ class Reduce:
 
         return docs[0]
 
+    def _preprocess_group(self, group: pl.Series) -> Tuple[str, pl.Series]:
+        """Preprocess the group by adding the group context and order by columns."""
+        if not self.group_context_names:
+            user_instruction = self.user_instruction
+        else:
+            jinja_template = jinja2.Template(self.user_instruction)
+            first_row = group.first()
+            group_context = {name: first_row[name] for name in self.group_context_names}
+            user_instruction = jinja_template.render(**group_context)
+
+        if self.order_by_info:
+            order_by_name, ascending = self.order_by_info
+            order_by = group.struct.field(order_by_name).arg_sort(descending=not ascending)
+            series = group.struct.field(self.input_name).gather(order_by)
+        else:
+            series = group.struct.field(self.input_name)
+        return user_instruction, series
+
+
     def _build_request_messages_batch(
-        self, docs: list[str], tree_level: int
+        self, user_instruction: str, docs: list[str], tree_level: int
     ) -> list[LMRequestMessages] | None:
         """Creates batches of requests using greedy left-to-right packing.
 
@@ -145,6 +171,7 @@ class Reduce:
         are likely to be summarized together.
 
         Args:
+            user_instruction: The user instruction to be used in the prompt.
             docs: A list of documents (raw or synthesized) to be batched.
             tree_level: The current level of the aggregation tree (0 for leaf nodes).
 
@@ -153,7 +180,7 @@ class Reduce:
             packed greedily from left to right.
         """
         user_message_tokens = (
-            self.model.count_tokens(self.user_instruction) + self.prefix_tokens
+            self.model.count_tokens(user_instruction) + self.prefix_tokens
         )
 
         # Calculate available tokens for documents
@@ -196,7 +223,7 @@ class Reduce:
             if request_docs and (user_message_tokens + request_tokens + doc_tokens > max_input_tokens):
                 # Flush current batch and start new one
                 messages_batch.append(
-                    self._build_request_messages(request_docs)
+                    self._build_request_messages(user_instruction, request_docs)
                 )
                 logger.debug(
                     f"Tree level {tree_level}: created batch with {len(request_docs)} documents "
@@ -212,7 +239,7 @@ class Reduce:
         # Handle final batch
         if request_docs:
             messages_batch.append(
-                self._build_request_messages(request_docs)
+                self._build_request_messages(user_instruction, request_docs)
             )
             logger.debug(
                 f"Tree level {tree_level}: created final batch with {len(request_docs)} documents "
@@ -222,7 +249,7 @@ class Reduce:
         return messages_batch if messages_batch else None
 
     def _build_request_messages(
-        self, docs: list[str]
+        self, user_instruction: str, docs: list[str]
     ) -> LMRequestMessages:
         """Builds a user message for the LLM.
 
@@ -236,7 +263,7 @@ class Reduce:
             system=self.SYSTEM_PROMPT,
             user=self.USER_MESSAGE_TEMPLATE.render(
                 docs=docs,
-                user_instruction=self.user_instruction
+                user_instruction=user_instruction
             ),
             examples=[],
         )

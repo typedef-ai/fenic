@@ -85,3 +85,47 @@ df = df.group_by(["department", "fiscal_year"]).agg(
 )
 
 print(df['struct'].to_list())
+
+import polars as pl
+
+print("Polars version:", pl.__version__)
+
+# Group by struct column (should work)
+df_struct = pl.DataFrame({
+    "key": [{"a": 1, "b": 2}, {"a": 1, "b": 2}, {"a": 2, "b": 3}],
+    "val": [10, 20, 30]
+})
+
+print("\nGrouping by Struct column (should work):")
+try:
+    out = df_struct.group_by("key").agg(pl.col("val").sum())
+    print(out)
+except Exception as e:
+    print("Struct groupby error:", e)
+
+# Group by variable-length list (should fail)
+df_list = pl.DataFrame({
+    "key": [[1, 2, 3], [1, 2], [2, 1]],
+    "val": [10, 20, 30]
+})
+
+print("\nGrouping by List column (should fail):")
+try:
+    out = df_list.group_by("key").agg(pl.col("val").sum())
+    print(out)
+except Exception as e:
+    print("List groupby error:", e)
+
+# Group by fixed-size list (should fail)
+# Manually construct a FixedSizeList column
+df_fixed_size = pl.DataFrame({
+    "key": [[1, 2], [1, 2], [2, 1]],
+    "val": [10, 20, 30]
+})
+df_fixed_size = df_fixed_size.with_columns(pl.col("key").cast(pl.Array(pl.Int64, 2)))
+print("\nGrouping by FixedSizeList column (should fail):")
+try:
+    out = df_fixed_size.group_by("key").agg(pl.col("val").sum())
+    print(out)
+except Exception as e:
+    print("FixedSizeList groupby error:", e)

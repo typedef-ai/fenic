@@ -1,15 +1,15 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
 from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
+    AliasExpr,
     AnalyzeSentimentExpr,
     ColumnExpr,
     EmbeddingsExpr,
-    LogicalExpr,
     ResolvedClassDefinition,
     SemanticClassifyExpr,
     SemanticExtractExpr,
@@ -107,10 +107,10 @@ def map(
         except OutputFormatValidationError as e:
             raise ValidationError(f"Invalid response format: {str(e)}") from None
 
-    exprs: List[Union[ColumnExpr, LogicalExpr]] = []
+    exprs: List[Union[ColumnExpr, AliasExpr]] = []
     for var_name, column in columns.items():
-        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
-            exprs.append(column.expr)
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
+            exprs.append(column._logical_expr)
         else:
             exprs.append(column.alias(var_name)._logical_expr)
 
@@ -262,9 +262,9 @@ def predicate(
     if not columns:
         raise ValidationError("`semantic.predicate` requires at least one named column argument (e.g. `text=col('text')`).")
 
-    exprs: List[Union[ColumnExpr, LogicalExpr]] = []
+    exprs: List[Union[ColumnExpr, AliasExpr]] = []
     for var_name, column in columns.items():
-        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
             exprs.append(column.expr)
         else:
             exprs.append(column.alias(var_name)._logical_expr)
@@ -285,10 +285,12 @@ def predicate(
 def reduce(
     instruction: str,
     column: ColumnOrName,
+    *,
+    group_context: Optional[Dict[str, Column]] = None,
+    order_by: Optional[ColumnOrName] = None,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
-    # optional sort
 ) -> Column:
     """Aggregate function: reduces a set of strings across columns into a single string using a natural language instruction.
 
@@ -316,14 +318,24 @@ def reduce(
         df.group_by("category").agg(semantic.reduce("Summarize the documents", col("document_text")))
         ```
     """
+    group_context_exprs: List[Union[ColumnExpr, AliasExpr]] = []
+    if group_context:
+        for var_name, column in group_context.items():
+            if isinstance(column, ColumnExpr) and column.expr.name == var_name:
+                group_context_exprs.append(column._logical_expr)
+            else:
+                group_context_exprs.append(column.alias(var_name)._logical_expr)
+
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
             instruction,
-            expr=Column._from_col_or_name(column)._logical_expr,
+            input_expr=Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
-            model_alias=resolved_model_alias,
             temperature=temperature,
+            group_context_exprs=group_context_exprs,
+            model_alias=resolved_model_alias,
+            order_by_expr=Column._from_col_or_name(order_by)._logical_expr if order_by else None,
         )
     )
 

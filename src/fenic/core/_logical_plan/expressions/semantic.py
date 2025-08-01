@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -34,11 +34,15 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
-from fenic.core._logical_plan.expressions.basic import ColumnExpr
+from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr, SortExpr
 from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
-from fenic.core.error import InvalidExampleCollectionError, ValidationError
+from fenic.core.error import (
+    InvalidExampleCollectionError,
+    TypeMismatchError,
+    ValidationError,
+)
 from fenic.core.types import (
     BooleanType,
     DataType,
@@ -55,7 +59,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
     def __init__(
         self,
         jinja_template: str,
-        exprs: List[Union[ColumnExpr, LogicalExpr]],
+        exprs: List[Union[ColumnExpr, AliasExpr]],
         max_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
@@ -192,7 +196,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
     def __init__(
         self,
         jinja_template: str,
-        exprs: List[Union[ColumnExpr, LogicalExpr]],
+        exprs: List[Union[ColumnExpr, AliasExpr]],
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[PredicateExampleCollection] = None,
@@ -240,40 +244,72 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
 
 
 class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
-    function_name = "semantic.reduce"
-
     def __init__(
         self,
         instruction: str,
-        expr: LogicalExpr,
+        input_expr: LogicalExpr,
         max_tokens: int,
         temperature: float,
+        group_context_exprs: List[Union[ColumnExpr, AliasExpr]],
         model_alias: Optional[ResolvedModelAlias] = None,
+        order_by_expr: Optional[LogicalExpr] = None,
     ):
+        # Store basic attributes first
         self.instruction = instruction
-        self.expr = expr
+        self.input_expr = input_expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
 
-        # Initialize validator for composition-based type validation
-        self._validator = SignatureValidator(self.function_name)
+        # Process group context
+        self.variable_tree = VariableTree.from_jinja_template(instruction)
+        self.group_context_exprs: Dict[str, LogicalExpr] = {
+            expr.name: expr if isinstance(expr, ColumnExpr) else expr.expr
+            for expr in self.variable_tree.filter_used_expressions(group_context_exprs)
+        }
 
-    @property
-    def validator(self) -> SignatureValidator:
-        """Return the validator instance."""
-        return self._validator
+        # Process order by
+        if order_by_expr:
+            if isinstance(order_by_expr, SortExpr):
+                self.order_by_expr = order_by_expr.expr
+                self.ascending = order_by_expr.ascending
+            else:
+                self.order_by_expr = order_by_expr
+                self.ascending = True
+        else:
+            self.order_by_expr = None
+            self.ascending = None
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
-        return [self.expr]
+        res = [self.input_expr]
+        if self.group_context_exprs:
+            res.extend(self.group_context_exprs.values())
+        if self.order_by_expr:
+            res.append(self.order_by_expr)
+        return res
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        # Common validation for all semantic functions
         self._validate_completion_parameters(plan, session_state)
-        # Use mixin's implementation
-        return super().to_column_field(plan, session_state)
+        input_expr_field = self.input_expr.to_column_field(plan, session_state)
+        if input_expr_field.data_type != StringType:
+            raise TypeMismatchError(
+                expected=StringType,
+                actual=input_expr_field.data_type,
+                context="semantic.reduce `column` argument",
+            )
+        if self.group_context_exprs:
+            for name, expr in self.group_context_exprs.items():
+                data_type = expr.to_column_field(plan, session_state).data_type
+                self.variable_tree.validate_jinja_variable(name, data_type)
+        if self.order_by_expr:
+            self.order_by_expr.to_column_field(plan, session_state)
+
+        return ColumnField(
+            name=str(self),
+            data_type=StringType,
+        )
 
     def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
         """Validate completion parameters."""
@@ -286,7 +322,7 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
 
     def __str__(self):
         instruction_hash = utils.get_content_hash(self.instruction)
-        return f"semantic.reduce_{instruction_hash}({self.expr})"
+        return f"semantic.reduce_{instruction_hash}({self.input_expr}, group_context={self.group_context_exprs}, order_by={self.order_by_expr})"
 
     def _eq_specific(self, other: SemanticReduceExpr) -> bool:
         return self.temperature == other.temperature and self.model_alias == other.model_alias and self.instruction == other.instruction and self.max_tokens == other.max_tokens

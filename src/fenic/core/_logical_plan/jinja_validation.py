@@ -12,7 +12,7 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types import ArrayType, DataType, StructType
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan.expressions import ColumnExpr, LogicalExpr
+    from fenic.core._logical_plan.expressions import AliasExpr, ColumnExpr
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class VariableTree:
         # Build the final schema tree
         return cls._build_schema_tree(relevant_accesses)
 
-    def filter_used_expressions(self, exprs: List[Union[ColumnExpr, LogicalExpr]]) -> List[Union[ColumnExpr, LogicalExpr]]:
+    def filter_used_expressions(self, exprs: List[Union[ColumnExpr, AliasExpr]]) -> List[Union[ColumnExpr, AliasExpr]]:
         """Filters expressions to only those used in the template, validating all template variables are defined.
 
         Args:
@@ -212,15 +212,14 @@ class VariableTree:
             used_exprs.append(expr_names[variable_name])
 
         # Warn about unused expressions
-        if logger:
-            used_variables = set(self.variables.keys())
-            for column_name in expr_names.keys():
-                if column_name not in used_variables:
-                    logger.warning(
-                        f"Column '{column_name}' is defined but not referenced in the template. "
-                        f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
-                        f"To remove this warning, exclude unused columns from the expression list."
-                    )
+        used_variables = set(self.variables.keys())
+        for column_name in expr_names.keys():
+            if column_name not in used_variables:
+                logger.warning(
+                    f"Column '{column_name}' is defined but not referenced in the template. "
+                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
+                    f"To remove this warning, exclude unused columns from the expression list."
+                )
 
         return used_exprs
 

@@ -13,7 +13,7 @@ from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._logical_plan.utils import validate_completion_parameters
-from fenic.core.error import TypeMismatchError, ValidationError
+from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ColumnField,
     DoubleType,
@@ -267,7 +267,7 @@ class SemanticJoin(BaseSemanticJoin):
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 2:
-            raise ValueError(f"SemanticJoin expects 2 children, got {len(children)}")
+            raise InternalError(f"SemanticJoin expects 2 children, got {len(children)}")
 
         result = SemanticJoin.from_session_state(
             left=children[0],
@@ -386,7 +386,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 2:
-            raise ValueError(
+            raise InternalError(
                 f"SemanticSimilarityJoin expects 2 children, got {len(children)}"
             )
 

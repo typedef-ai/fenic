@@ -312,7 +312,16 @@ class ExprConverter:
                 return handler(logical)
 
         if isinstance(logical, SemanticReduceExpr):
-            # arg sort, gather
+            input_name = str(logical.input_expr)
+            group_context_names = list(logical.group_context_exprs.keys()) if logical.group_context_exprs else None
+            order_by_info = (str(logical.order_by_expr), logical.ascending) if logical.order_by_expr else None
+            polars_exprs = [self._convert_expr(logical.input_expr)]
+            for name, expr in logical.group_context_exprs.items():
+                polars_exprs.append(self._convert_expr(expr).alias(name))
+            if logical.order_by_expr:
+                polars_exprs.append(self._convert_expr(logical.order_by_expr))
+            struct = pl.struct(polars_exprs)
+
             def sem_reduce_fn(batch: pl.Series) -> str:
                 return SemanticReduce(
                     input=batch,
@@ -320,10 +329,12 @@ class ExprConverter:
                     model=self.session_state.get_language_model(logical.model_alias),
                     max_tokens=logical.max_tokens,
                     temperature=logical.temperature,
+                    input_name=input_name,
                     model_alias=logical.model_alias,
+                    group_context_names=group_context_names,
+                    order_by_info=order_by_info,
                 ).execute()
-
-            return self._convert_expr(logical.expr).map_batches(
+            return struct.map_batches(
                 sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True
             )
 
