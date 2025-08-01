@@ -109,7 +109,6 @@ class TestPredicate:
                 },
             ]
         ]
-        print(result)
         assert result == expected
 
     def test_predicate_without_examples(self, local_session):
@@ -146,5 +145,4 @@ class TestPredicate:
                 },
             ]
         ]
-        print(prompts)
         assert prompts == expected

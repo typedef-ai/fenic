@@ -383,7 +383,6 @@ def test_csv_merge_schemas_true_union_columns(local_session, temp_dir):
 
     # Verify schema contains all columns with correct types
     schema = df.schema
-    print(schema)
     assert schema.column_fields == [
         ColumnField("id1", IntegerType),
         # Type widening occurs: numeric + string -> string
@@ -1004,7 +1003,7 @@ David,33,Seattle"""
 
     df_view_union = local_session.view("df_view_union")
     assert df_view_union.columns == ["name", "age", "city"]
-    
+
     result_name = df_view_union.select(col("name")).collect("polars").data
     values_name = result_name["name"].to_list()
     assert values_name == ["John", "David", "Alice", "Carol"]
