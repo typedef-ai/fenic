@@ -214,20 +214,20 @@ class SemanticExtensions:
         from fenic.api.dataframe.dataframe import DataFrame
 
         if not isinstance(other, DataFrame):
-            raise TypeError(f"other argument must be a DataFrame, got {type(other)}")
+            raise ValidationError(f"other argument must be a DataFrame, got {type(other)}")
 
         if not isinstance(jinja_template, str):
-            raise TypeError(
-                f"jinja_template argument must be a string, got {type(jinja_template)}"
+            raise ValidationError(
+                f"The `jinja_template` argument to `semantic.join` must be a string, got {type(jinja_template)}"
             )
         if not isinstance(left_on, Column):
-            raise TypeError(f"`left_on` argument must be a Column, got {type(left_on)} instead.")
+            raise ValidationError(f"`left_on` argument must be a Column, got {type(left_on)} instead.")
         if not isinstance(right_on, Column):
-            raise TypeError(f"`right_on` argument must be a Column, got {type(right_on)} instead.")
+            raise ValidationError(f"`right_on` argument must be a Column, got {type(right_on)} instead.")
         if examples is not None and not isinstance(examples, JoinExampleCollection):
-            raise TypeError(f"`examples` argument must be a JoinExampleCollection, got {type(examples)} instead.")
+            raise ValidationError(f"`examples` argument must be a JoinExampleCollection, got {type(examples)} instead.")
         if model_alias is not None and not isinstance(model_alias, (str, ModelAlias)):
-            raise TypeError(f"`model_alias` argument must be a string or ModelAlias, got {type(model_alias)} instead.")
+            raise ValidationError(f"`model_alias` argument must be a string or ModelAlias, got {type(model_alias)} instead.")
 
         resolved_model_alias = _resolve_model_alias(model_alias)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])

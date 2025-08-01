@@ -11,7 +11,7 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core.error import InternalError, PlanError, ValidationError
+from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
 
 
@@ -70,10 +70,9 @@ class Aggregate(LogicalPlan):
                 # Validate each context expression is in group by
                 for context_key, context_expr in agg_expr.group_context_exprs.items():
                     if context_expr not in self._group_exprs:
-                        raise ValidationError(
+                        raise PlanError(
                             f"semantic.reduce context expression '{context_key}' not found in group by. "
-                            f"Context expression: {context_expr}\n"
-                            f"Group by expressions: {[str(e) for e in self._group_exprs]}"
+                            f"Available group by expressions: {', '.join(str(e) for e in self._group_exprs)}."
                         )
 
         return Schema(column_fields=group_fields + agg_fields)

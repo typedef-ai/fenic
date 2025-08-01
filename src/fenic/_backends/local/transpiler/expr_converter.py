@@ -249,7 +249,6 @@ class ExprConverter:
         # Check if we're averaging embeddings
         if isinstance(logical.input_type, EmbeddingType):
             def embedding_avg(series: pl.Series, embedding_dim: int) -> pl.Series:
-                print(series)
                 # TODO(rohitrastogi): Benchmark processing each group concurrently using a threadpool.
                 # NumPy's mean() is already multi-threaded via C bindings, so additional threading may
                 # not be faster. Test with realistic embedding sizes and group counts.

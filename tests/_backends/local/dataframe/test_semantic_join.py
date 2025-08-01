@@ -16,7 +16,7 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
-from fenic.core.error import PlanError, ValidationError
+from fenic.core.error import InvalidExampleCollectionError, PlanError, ValidationError
 
 
 def _create_semantic_join_dataframe(local_session):
@@ -219,6 +219,14 @@ def test_semantic_join_with_examples(local_session):
         "skill": pl.String,
         "other_col_right": pl.String,
     }
+    bad_examples = JoinExampleCollection()
+    bad_examples.create_example(JoinExample(
+        left_on=True,
+        right_on="Math",
+        output=True,
+    ))
+    with pytest.raises(InvalidExampleCollectionError, match="Field 'left_on' type mismatch: operator expects"):
+        left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"), examples=bad_examples)
 
 
 def test_semantic_join_empty_result(local_session):
@@ -286,3 +294,17 @@ def test_semantic_join_without_models():
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
     session.stop()
+
+def test_semantic_join_invalid_prompt(local_session):
+    left, right = _create_semantic_join_dataframe(local_session)
+    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{left_on}}", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{right_on}}", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{left_on}} {{right_on}} {{foo}}", left_on=col("course_name"), right_on=col("skill"))

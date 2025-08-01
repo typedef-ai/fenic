@@ -240,14 +240,12 @@ class SemanticJoin(BaseSemanticJoin):
     def _validate_columns(self, session_state: BaseSessionState) -> None:
         variable_tree = VariableTree.from_jinja_template(self._jinja_template)
         variables = variable_tree.variables
-        if len(variables) != 2:
+        if set(variables) != {"left_on", "right_on"}:
             raise ValidationError(
-                f"jinja_template must contain exactly two variables, got {len(variables)}"
+                "The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'. "
+                f"Got: {list(variables)}"
             )
-        if LEFT_ON_KEY not in variables:
-            raise ValidationError(f"left_on must be one of the variables in the jinja_template. variables found: {list(variables.keys())}")
-        if RIGHT_ON_KEY not in variables:
-            raise ValidationError(f"right_on must be one of the variables in the jinja_template. variables found: {list(variables.keys())}")
+
         left_on_dtype = self._left_on.to_column_field(self._left, session_state).data_type
         right_on_dtype = self._right_on.to_column_field(self._right, session_state).data_type
         if self._examples:

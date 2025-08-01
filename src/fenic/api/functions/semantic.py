@@ -258,7 +258,7 @@ def predicate(
         ```
     """
     if not jinja_template:
-        raise ValidationError("The `jinja_template` argument to `semantic.predicate` must be a non-empty string.")
+        raise ValidationError("The `jinja_template` argument to `semantic.predicate` cannot be empty.")
 
     if not columns:
         raise ValidationError("`semantic.predicate` requires at least one named column argument (e.g. `text=col('text')`).")
@@ -350,11 +350,11 @@ def reduce(
     """
     group_context_exprs: List[Union[ColumnExpr, AliasExpr]] = []
     if group_context:
-        for var_name, column in group_context.items():
-            if isinstance(column, ColumnExpr) and column.expr.name == var_name:
-                group_context_exprs.append(column._logical_expr)
+        for var_name, col in group_context.items():
+            if isinstance(col, ColumnExpr) and col.expr.name == var_name:
+                group_context_exprs.append(col._logical_expr)
             else:
-                group_context_exprs.append(column.alias(var_name)._logical_expr)
+                group_context_exprs.append(col.alias(var_name)._logical_expr)
 
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
@@ -365,7 +365,7 @@ def reduce(
             temperature=temperature,
             group_context_exprs=group_context_exprs,
             model_alias=resolved_model_alias,
-            order_by_expr=Column._from_col_or_name(order_by)._logical_expr if order_by else None,
+            order_by_expr=Column._from_col_or_name(order_by)._logical_expr if order_by is not None else None,
         )
     )
 

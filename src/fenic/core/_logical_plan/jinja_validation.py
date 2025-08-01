@@ -205,7 +205,7 @@ class VariableTree:
             if variable_name not in expr_names:
                 raise ValidationError(
                     f"Template variable '{variable_name}' is not defined. "
-                    f"Available columns: {', '.join(available_columns)}. "
+                    f"Available columns: {', '.join(available_columns) if available_columns else 'none'}. "
                     f"Either provide a column expression for '{variable_name}' or "
                     f"modify the template to use an available column."
                 )

@@ -121,7 +121,6 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 messages_batch.append(
                     self.build_request_messages(document)
                 )
-        print(messages_batch)
         return messages_batch
 
     def build_request_messages(self, input: str) -> LMRequestMessages:
