@@ -1,5 +1,6 @@
 import logging
 from enum import Enum
+from textwrap import dedent
 from typing import (
     Annotated,
     Any,
@@ -16,6 +17,24 @@ from typing import (
 import polars as pl
 from pydantic import BaseModel, create_model
 
+SIMPLE_INSTRUCTION_SYSTEM_PROMPT = dedent("""\
+    Follow the user's instruction exactly and generate only the requested output.
+
+    Requirements:
+    1. Follow the instruction exactly as written
+    2. Output only what is requested - no explanations, no prefixes, no metadata
+    3. Be concise and direct
+    4. Do not add formatting or structure unless explicitly requested""")
+
+# Shared schema explanation template for all structured operations
+SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT = (
+    "How to read the output schema:\n"
+    "- Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')\n"
+    "- Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of str)\n"
+    "- For lists: 'fieldname[item].subfield' means each item in the list has that subfield\n"
+    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n"
+    "- Fields marked (optional) can be omitted if not applicable"
+)
 
 def create_classification_pydantic_model(allowed_values: List[str]) -> type[BaseModel]:
     """Creates a Pydantic model from a list of allowed string values using a dynamic Enum.
@@ -54,16 +73,6 @@ def filter_invalid_embeddings_expr(embedding_column: str) -> pl.Expr:
 # =============================================================================
 # Schema-related utilities for structured semantic operations
 # =============================================================================
-
-# Shared schema explanation template for all structured operations
-SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT = (
-    "How to read the output schema:\n"
-    "- Nested fields are expressed using dot notation (e.g., 'organization.name' means 'name' is a subfield of 'organization')\n"
-    "- Lists are denoted using 'list of [type]' (e.g., 'employees' is a list of str)\n"
-    "- For lists: 'fieldname[item].subfield' means each item in the list has that subfield\n"
-    "- Type annotations are shown in parentheses (e.g., string, integer, boolean, date)\n"
-    "- Fields marked (optional) can be omitted if not applicable"
-)
 
 def convert_pydantic_model_to_key_descriptions(schema: Type[BaseModel]) -> str:
     """Extract keys, types, and descriptions from a Pydantic model, including nested models and lists.

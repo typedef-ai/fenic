@@ -11,6 +11,7 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+    SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
     convert_pydantic_model_to_key_descriptions,
     validate_structured_response,
 )
@@ -23,15 +24,6 @@ from fenic.core.types import (
 
 
 class Map(BaseMultiColumnInputOperator[str, str]):
-    STRING_OUTPUT_SYSTEM_PROMPT = dedent("""\
-        Follow the user's instruction exactly and generate only the requested output.
-
-        Requirements:
-        1. Follow the instruction exactly as written
-        2. Output only what is requested - no explanations, no prefixes, no metadata
-        3. Be concise and direct
-        4. Do not add formatting or structure unless explicitly requested""")
-
     RESPONSE_FORMAT_SYSTEM_PROMPT = jinja2.Template(
         dedent("""\
             Follow the user's instruction exactly and generate output according to the user's schema.
@@ -84,7 +76,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
                 schema_definition=convert_pydantic_model_to_key_descriptions(self.response_format),
             )
         else:
-            return self.STRING_OUTPUT_SYSTEM_PROMPT
+            return SIMPLE_INSTRUCTION_SYSTEM_PROMPT
 
     def postprocess(
         self, responses: List[Optional[str]]

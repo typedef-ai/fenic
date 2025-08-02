@@ -103,7 +103,7 @@ class SemanticJoinExec(PhysicalPlan):
         left: PhysicalPlan,
         right: PhysicalPlan,
         left_on: Union[str, pl.Expr],
-        right_on: Union[str, pl.Expr]   ,
+        right_on: Union[str, pl.Expr],
         jinja_template: str,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,

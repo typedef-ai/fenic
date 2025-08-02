@@ -26,7 +26,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
 
     Requirements:
     1. Output ONLY true or false - nothing else
-    2. Convert yes/no questions: yes → true, no → false
+    2. For yes/no questions, respond with "true" for yes and "false" for no
     3. If the answer is unclear or ambiguous, output false""")
 
     def __init__(

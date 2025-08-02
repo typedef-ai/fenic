@@ -91,8 +91,9 @@ def test_semantic_map_with_examples(local_session):
         ]
     })
     examples = MapExampleCollection()
+    # foo should be ignored
     examples.create_example(MapExample(
-        input={"user": {"preferences": {"formal": True}, "name": "Lisa"}, "tasks": [{"title": "Generate report", "priority": "High"}, {"title": "Review code", "priority": "Low"}, {"title": "Team meeting", "priority": "Medium"}]},
+        input={"user": {"preferences": {"formal": True}, "name": "Lisa"}, "tasks": [{"title": "Generate report", "priority": "High"}, {"title": "Review code", "priority": "Low"}, {"title": "Team meeting", "priority": "Medium"}], "another_column": 1},
         output="First, I will write a report on the tasks. Then, I will review the code. Finally, I will attend the team meeting."
     ))
     prompt = dedent("""\

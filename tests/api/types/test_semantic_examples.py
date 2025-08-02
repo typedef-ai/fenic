@@ -676,6 +676,7 @@ class TestJoinExampleCollection:
                 "left_on": ["apple", "apple", "carrot"],
                 "right_on": [True, False, True],
                 "output": [True, False, True],
+                "another_column": [1, 2, 3],
             }
         )
 

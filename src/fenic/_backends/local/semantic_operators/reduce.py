@@ -7,6 +7,9 @@ from typing import List, Optional, Tuple
 import jinja2
 import polars as pl
 
+from fenic._backends.local.semantic_operators.utils import (
+    SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
+)
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.types import LMRequestMessages
@@ -32,15 +35,6 @@ class Reduce:
     temporal summaries at each level.
     """
 
-    SYSTEM_PROMPT = dedent("""\
-        Follow the user's instruction exactly and generate only the requested output.
-
-        Requirements:
-        1. Follow the instruction exactly as written
-        2. Output only what is requested - no explanations, no prefixes, no metadata
-        3. Be concise and direct
-        4. Do not add formatting or structure unless explicitly requested""")
-
     USER_MESSAGE_TEMPLATE = jinja2.Template(dedent("""\
         {{user_instruction}}
 
@@ -55,7 +49,7 @@ class Reduce:
 
     SYSTEM_MESSAGE = {
         "role": "system",
-        "content": SYSTEM_PROMPT,
+        "content": SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
     }
 
     def __init__(
@@ -268,7 +262,7 @@ class Reduce:
             A LMRequestMessages ready to be sent to the LLM.
         """
         return LMRequestMessages(
-            system=self.SYSTEM_PROMPT,
+            system=SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
             user=self.USER_MESSAGE_TEMPLATE.render(
                 docs=docs,
                 user_instruction=user_instruction
