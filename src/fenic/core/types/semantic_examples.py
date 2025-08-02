@@ -187,6 +187,12 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
 
     def __eq__(self, other: BaseExampleCollection) -> bool:
         """Check if two example collections are equal."""
+        if not isinstance(other, BaseExampleCollection):
+            return False
+        if self.example_class != other.example_class:
+            return False
+        if len(self.examples) != len(other.examples):
+            return False
         return self.to_polars().equals(other.to_polars())
 
 class MapExampleCollection(BaseExampleCollection[MapExample]):

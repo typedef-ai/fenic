@@ -807,7 +807,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
         return f"{self.function_name}({self.expr}, {self.chars}, side={self.side})"
 
     def _eq_specific(self, other: StripCharsExpr) -> bool:
-        return (self.chars is None) == (other.chars is None) and self.side == other.side
+        return self.side == other.side
 
 class ReplaceExpr(ValidatedSignature, LogicalExpr):
     """Expression for replacing substrings in a string column.

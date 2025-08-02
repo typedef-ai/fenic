@@ -36,9 +36,7 @@ class WhenExpr(LogicalExpr):
         return children
 
     def _eq_specific(self, other: WhenExpr) -> bool:
-        # Only need to check if both have expr=None or both don't
-        # The actual expr comparison happens via children if present
-        return (self.expr is None) == (other.expr is None)
+        return True
 
 
 class OtherwiseExpr(LogicalExpr):
