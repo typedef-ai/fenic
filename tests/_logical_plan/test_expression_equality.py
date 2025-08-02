@@ -5,7 +5,6 @@ This test suite focuses on:
 2. Minimal tests for each expression's unique equality attributes
 """
 
-import pytest
 
 from fenic.core._logical_plan.expressions.aggregate import (
     AvgExpr,
@@ -27,8 +26,8 @@ from fenic.core._logical_plan.expressions.basic import (
     CastExpr,
     CoalesceExpr,
     ColumnExpr,
-    InExpr,
     IndexExpr,
+    InExpr,
     IsNullExpr,
     LiteralExpr,
     NotExpr,
@@ -41,7 +40,6 @@ from fenic.core._logical_plan.expressions.case import (
     WhenExpr,
 )
 from fenic.core._logical_plan.expressions.comparison import (
-    BooleanExpr,
     EqualityComparisonExpr,
     NumericComparisonExpr,
 )
@@ -60,9 +58,21 @@ from fenic.core._logical_plan.expressions.markdown import (
     MdGetCodeBlocksExpr,
     MdToJsonExpr,
 )
+from fenic.core._logical_plan.expressions.semantic import (
+    AnalyzeSentimentExpr,
+    EmbeddingsExpr,
+    SemanticClassifyExpr,
+    SemanticExtractExpr,
+    SemanticMapExpr,
+    SemanticPredExpr,
+    SemanticReduceExpr,
+    SemanticSummarizeExpr,
+)
 from fenic.core._logical_plan.expressions.text import (
     ArrayJoinExpr,
     ByteLengthExpr,
+    ChunkCharacterSet,
+    ChunkLengthFunction,
     ConcatExpr,
     ContainsAnyExpr,
     ContainsExpr,
@@ -80,26 +90,14 @@ from fenic.core._logical_plan.expressions.text import (
     RLikeExpr,
     SplitPartExpr,
     StartsWithExpr,
-    StrLengthExpr,
     StringCasingExpr,
     StripCharsExpr,
+    StrLengthExpr,
     TextChunkExpr,
     TextractExpr,
     TsParseExpr,
 )
-from fenic.core._logical_plan.expressions.semantic import (
-    AnalyzeSentimentExpr,
-    EmbeddingsExpr,
-    SemanticClassifyExpr,
-    SemanticExtractExpr,
-    SemanticMapExpr,
-    SemanticPredExpr,
-    SemanticReduceExpr,
-    SemanticSummarizeExpr,
-)
-from fenic.core.types.datatypes import IntegerType, StringType, BooleanType, FloatType
-from fenic.core.types import FuzzySimilarityMethod
-from fenic.core._logical_plan.expressions.text import ChunkLengthFunction, ChunkCharacterSet
+from fenic.core.types.datatypes import FloatType, IntegerType, StringType
 
 
 class TestRecursiveEquality:
@@ -137,7 +135,7 @@ class TestRecursiveEquality:
         # Test type checking
         assert col1 != lit1  # Different types
         assert col1 != "string"  # Non-LogicalExpr
-        assert col1 != None  # None
+        assert col1 is not None  # None
 
         # Test self equality
         assert outer_alias1 == outer_alias1
@@ -629,7 +627,7 @@ class TestEmbeddingExpressions:
     def test_embedding_similarity_expr(self):
         """Test EmbeddingSimilarityExpr compares metric and other type."""
         import numpy as np
-        from fenic.core.types import SemanticSimilarityMetric
+
 
         col1 = ColumnExpr("embedding1")
         col2 = ColumnExpr("embedding2")
@@ -1005,7 +1003,7 @@ class TestSemanticExpressions:
 
     def test_semantic_map_expr(self):
         """Test SemanticMapExpr compares all attributes including examples."""
-        from fenic.core.types import MapExampleCollection, MapExample
+        from fenic.core.types import MapExample, MapExampleCollection
 
         col1 = ColumnExpr("text1")
 
@@ -1077,7 +1075,7 @@ class TestSemanticExpressions:
 
     def test_semantic_pred_expr(self):
         """Test SemanticPredExpr compares template, temperature, model_alias, and examples."""
-        from fenic.core.types import PredicateExampleCollection, PredicateExample
+        from fenic.core.types import PredicateExample, PredicateExampleCollection
 
         col1 = ColumnExpr("text1")
 
@@ -1139,7 +1137,7 @@ class TestSemanticExpressions:
     def test_semantic_classify_expr(self):
         """Test SemanticClassifyExpr compares temperature, model_alias, classes, and examples."""
         from fenic.core._logical_plan.resolved_types import ResolvedClassDefinition
-        from fenic.core.types import ClassifyExampleCollection, ClassifyExample
+        from fenic.core.types import ClassifyExample, ClassifyExampleCollection
 
         col = ColumnExpr("text")
         classes1 = [ResolvedClassDefinition(label="positive", description="Positive sentiment"), ResolvedClassDefinition(label="negative", description="Negative sentiment")]
