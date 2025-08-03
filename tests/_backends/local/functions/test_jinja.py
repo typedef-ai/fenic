@@ -208,6 +208,17 @@ def test_jinja_shadowing_and_scoping(local_session):
     ]
     assert result["description"].to_list() == expected
 
+def test_multiple_chunks(local_session):
+    """Test multiple chunks in Jinja."""
+    data = {
+        "name": ["Alice", "Bob", "Charlie"],
+        "age": [25, 30, 35]
+    }
+    df = local_session.create_dataframe(data).union(local_session.create_dataframe(data)).union(local_session.create_dataframe(data))
+    result = df.select(text.jinja("{{ name }} {{ age }}", name=col("name"), age=col("age")).alias("result")).to_polars()
+    expected = ["Alice 25", "Bob 30", "Charlie 35", "Alice 25", "Bob 30", "Charlie 35", "Alice 25", "Bob 30", "Charlie 35"]
+    assert result["result"].to_list() == expected
+
 def test_invalid_jinja_template(local_session):
     """Test invalid Jinja template."""
     data = {

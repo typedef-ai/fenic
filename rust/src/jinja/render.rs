@@ -30,52 +30,61 @@ pub fn render(inputs: &[Series], template: &str, strict: bool) -> PolarsResult<S
     let mut builder = StringChunkedBuilder::new("jinja".into(), struct_series.len());
     let converter = ArrowScalarConverter;
 
-    // Process each row
-    for row_idx in 0..struct_series.len() {
-        // Build context for this row
-        let mut ctx = BTreeMap::new();
+    // Get number of chunks
+    let n_chunks = struct_series.chunks().len();
 
-        // Extract values for all fields
-        for field_name in &field_names {
-            match struct_array.field_by_name(field_name) {
-                Ok(field_series) => {
-                    // Handle multiple chunks if necessary
-                    let chunk_idx = 0; // For now, assuming single chunk
-                    match converter.to_jinja(field_series.chunks()[chunk_idx].as_ref(), row_idx) {
-                        Ok(value) => {
-                            ctx.insert(field_name.clone(), value);
-                        }
-                        Err(e) => {
-                            return Err(PolarsError::ComputeError(
-                                format!(
-                                    "Failed to convert field {} to JinjaValue: {}",
-                                    field_name, e
-                                )
-                                .into(),
-                            ));
+    // Process each chunk
+    for chunk_idx in 0..n_chunks {
+        let chunk_len = struct_series.chunks()[chunk_idx].len();
+
+        // Process each row in this chunk
+        for row_idx in 0..chunk_len {
+            // Build context for this row
+            let mut ctx = BTreeMap::new();
+
+            // Extract values for all fields
+            for field_name in &field_names {
+                match struct_array.field_by_name(field_name) {
+                    Ok(field_series) => {
+                        // Get the corresponding chunk for this field
+                        let field_chunk = field_series.chunks()[chunk_idx].as_ref();
+
+                        match converter.to_jinja(field_chunk, row_idx) {
+                            Ok(value) => {
+                                ctx.insert(field_name.clone(), value);
+                            }
+                            Err(e) => {
+                                return Err(PolarsError::ComputeError(
+                                    format!(
+                                        "Failed to convert field {} to JinjaValue: {}",
+                                        field_name, e
+                                    )
+                                    .into(),
+                                ));
+                            }
                         }
                     }
-                }
-                Err(e) => {
-                    return Err(PolarsError::ComputeError(
-                        format!("Field {} not found in struct: {}", field_name, e).into(),
-                    ));
+                    Err(e) => {
+                        return Err(PolarsError::ComputeError(
+                            format!("Field {} not found in struct: {}", field_name, e).into(),
+                        ));
+                    }
                 }
             }
-        }
 
-        // Check for None values in strict mode
-        if strict && ctx.values().any(|v| v.is_none()) {
-            builder.append_null();
-            continue;
-        }
+            // Check for None values in strict mode
+            if strict && ctx.values().any(|v| v.is_none()) {
+                builder.append_null();
+                continue;
+            }
 
-        match template.render(&ctx) {
-            Ok(rendered) => builder.append_value(&rendered),
-            Err(e) => {
-                return Err(PolarsError::ComputeError(
-                    format!("Template rendering failed: {}", e).into(),
-                ));
+            match template.render(&ctx) {
+                Ok(rendered) => builder.append_value(&rendered),
+                Err(e) => {
+                    return Err(PolarsError::ComputeError(
+                        format!("Template rendering failed: {}", e).into(),
+                    ));
+                }
             }
         }
     }
