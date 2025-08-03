@@ -85,7 +85,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         data_types: Dict[str, DataType] = {}
         for expr in self.exprs:
             data_type = expr.to_column_field(plan, session_state).data_type
@@ -115,7 +115,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
                         f"but got {type(example.output)} instead."
                 )
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
@@ -165,7 +165,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         # Use mixin's implementation with dynamic return type
         return super().to_column_field(plan, session_state)
 
@@ -174,7 +174,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
@@ -217,7 +217,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         data_types: Dict[str, DataType] = {}
         for expr in self.exprs:
             data_type = expr.to_column_field(plan, session_state).data_type
@@ -236,7 +236,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         exprs_str = ", ".join(str(expr) for expr in self.exprs)
         return f"semantic.predicate_{instruction_hash}({exprs_str})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for predicate)."""
         validate_completion_parameters(
             self.model_alias, session_state.session_config, self.temperature
@@ -290,7 +290,7 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         input_expr_field = self.input_expr.to_column_field(plan, session_state)
         if input_expr_field.data_type != StringType:
             raise TypeMismatchError(
@@ -310,7 +310,7 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
             data_type=StringType,
         )
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias,
@@ -372,7 +372,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         labels_str = ", ".join(f"'{class_def.label}'" for class_def in self.classes)
         return f"semantic.classify({self.expr}, [{labels_str}])"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (called after signature validation)."""
         validate_completion_parameters(
             self.model_alias, session_state.session_config, self.temperature
@@ -381,7 +381,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         # Use mixin's implementation
         return super().to_column_field(plan, session_state)
 
@@ -417,14 +417,14 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         # Use mixin's implementation
         return super().to_column_field(plan, session_state)
 
     def __str__(self):
         return f"semantic.analyze_sentiment({self.expr})"
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters (no max_tokens for analyze_sentiment)."""
         validate_completion_parameters(
             self.model_alias, session_state.session_config, self.temperature
@@ -462,7 +462,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         # Use mixin's implementation with dynamic return type
         return super().to_column_field(plan, session_state)
 
@@ -524,7 +524,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
             dimensions=self.dimensions,
         )
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Embeddings don't use completion parameters."""
         pass
 
@@ -562,11 +562,11 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
         # Common validation for all semantic functions
-        self._validate_completion_parameters(plan, session_state)
+        self._validate_completion_parameters(session_state)
         # Use mixin's implementation
         return super().to_column_field(plan, session_state)
 
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
         validate_completion_parameters(
             self.model_alias, session_state.session_config, self.temperature

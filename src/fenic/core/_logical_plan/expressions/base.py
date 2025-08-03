@@ -87,7 +87,7 @@ class SemanticExpr(LogicalExpr):
     """Marker class for semantic expressions that use LLM models."""
 
     @abstractmethod
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Common validation for semantic functions."""
         pass
 
