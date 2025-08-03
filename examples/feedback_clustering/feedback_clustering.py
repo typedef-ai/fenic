@@ -166,7 +166,11 @@ def main(config: Optional[fc.SessionConfig] = None):
         fc.avg("rating").alias("avg_rating"),
         fc.collect_list("customer_name").alias("customer_names"),
         fc.semantic.reduce(
-            "Analyze this cluster of customer feedback and provide a concise summary of the main theme, common issues, and sentiment. Feedback: {feedback}"
+            (
+                "Analyze this cluster of customer feedback and provide a concise summary of the main theme, "
+                "common issues, and sentiment."
+            ),
+            column=fc.col("feedback")
         ).alias("theme_summary")
     )
 

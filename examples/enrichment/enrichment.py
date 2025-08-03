@@ -134,7 +134,13 @@ def main(config: Optional[fc.SessionConfig] = None):
         ).alias("incident_severity"),
         # Generate remediation steps
         fc.semantic.map(
-            "Generate 2-3 specific remediation steps that the on-call team should take to resolve this issue: {message} | Service: {service} | Team: {team_owner}"
+            (
+                "Generate 2-3 specific remediation steps that the on-call team should take to resolve this issue: "
+                "{{message}} | Service: {{service}} | Team: {{team_owner}}"
+            ),
+            message=fc.col("message"),
+            service=fc.col("service"),
+            team_owner=fc.col("team_owner")
         ).alias("remediation_steps")
     )
 
