@@ -4,7 +4,11 @@ import json as json_lib
 from typing import List
 
 from fenic._polars_plugins import py_validate_jq_query  # noqa: F401
-from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    UnparameterizedExpr,
+    ValidatedSignature,
+)
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 
@@ -34,7 +38,7 @@ class JqExpr(ValidatedSignature, LogicalExpr):
     def _eq_specific(self, other: JqExpr) -> bool:
         return self.query == other.query
 
-class JsonTypeExpr(ValidatedSignature, LogicalExpr):
+class JsonTypeExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     function_name = "json.type"
 
     def __init__(self, expr: LogicalExpr):
@@ -49,8 +53,6 @@ class JsonTypeExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _eq_specific(self, other: JsonTypeExpr) -> bool:
-        return True
 
 class JsonContainsExpr(ValidatedSignature, LogicalExpr):
     function_name = "json.contains"

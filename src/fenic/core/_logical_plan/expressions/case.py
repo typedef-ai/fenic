@@ -6,11 +6,11 @@ if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
 from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core._logical_plan.expressions.base import LogicalExpr
+from fenic.core._logical_plan.expressions.base import LogicalExpr, UnparameterizedExpr
 from fenic.core.types import BooleanType, ColumnField
 
 
-class WhenExpr(LogicalExpr):
+class WhenExpr(UnparameterizedExpr, LogicalExpr):
     def __init__(self, expr: Optional[LogicalExpr], condition: LogicalExpr, value: LogicalExpr):
         self.expr = expr
         self.condition = condition
@@ -35,11 +35,8 @@ class WhenExpr(LogicalExpr):
         children.extend([self.condition, self.value])
         return children
 
-    def _eq_specific(self, other: WhenExpr) -> bool:
-        return True
 
-
-class OtherwiseExpr(LogicalExpr):
+class OtherwiseExpr(UnparameterizedExpr, LogicalExpr):
     def __init__(self, expr: LogicalExpr, value: LogicalExpr):
         self.expr = expr
         self.value = value
@@ -54,6 +51,3 @@ class OtherwiseExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.value]
-
-    def _eq_specific(self, other: OtherwiseExpr) -> bool:
-        return True

@@ -198,3 +198,8 @@ class BinaryExpr(LogicalExpr):
 
     def _eq_specific(self, other: BinaryExpr) -> bool:
         return self.op == other.op
+
+class UnparameterizedExpr:
+    """Mixin for expressions that are not parameterized that implements _eq_specific."""
+    def _eq_specific(self, other: UnparameterizedExpr) -> bool:
+        return True

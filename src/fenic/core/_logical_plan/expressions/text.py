@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
+    UnparameterizedExpr,
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
@@ -282,7 +283,7 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
         return self.chunking_configuration == other.chunking_configuration
 
 
-class CountTokensExpr(ValidatedSignature, LogicalExpr):
+class CountTokensExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     function_name = "text.count_tokens"
 
     def __init__(self, input_expr: LogicalExpr):
@@ -296,10 +297,8 @@ class CountTokensExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.input_expr]
 
-    def _eq_specific(self, other: CountTokensExpr) -> bool:
-        return True
 
-class ConcatExpr(ValidatedSignature, LogicalExpr):
+class ConcatExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     function_name = "text.concat"
 
     def __init__(self, exprs: List[LogicalExpr]):
@@ -313,8 +312,6 @@ class ConcatExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.exprs
 
-    def _eq_specific(self, other: ConcatExpr) -> bool:
-        return True
 
 class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.array_join"
@@ -338,7 +335,7 @@ class ArrayJoinExpr(ValidatedSignature, LogicalExpr):
         return self.delimiter == other.delimiter
 
 
-class ContainsExpr(ValidatedSignature, LogicalExpr):
+class ContainsExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for checking if a string column contains a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -368,9 +365,6 @@ class ContainsExpr(ValidatedSignature, LogicalExpr):
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.substr})"
-
-    def _eq_specific(self, other: ContainsExpr) -> bool:
-        return True
 
 
 class ContainsAnyExpr(ValidatedSignature, LogicalExpr):
@@ -584,7 +578,7 @@ class TsParseExpr(ValidatedSignature, LogicalExpr):
         return self.format == other.format
 
 
-class StartsWithExpr(ValidatedSignature, LogicalExpr):
+class StartsWithExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for checking if a string column starts with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -613,11 +607,8 @@ class StartsWithExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
 
-    def _eq_specific(self, other: StartsWithExpr) -> bool:
-        return True
 
-
-class EndsWithExpr(ValidatedSignature, LogicalExpr):
+class EndsWithExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for checking if a string column ends with a substring.
 
     This expression creates a boolean result indicating whether each value in the input
@@ -645,9 +636,6 @@ class EndsWithExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.substr]
-
-    def _eq_specific(self, other: EndsWithExpr) -> bool:
-        return True
 
 
 class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
@@ -688,7 +676,7 @@ class RegexpSplitExpr(ValidatedSignature, LogicalExpr):
     def _eq_specific(self, other: RegexpSplitExpr) -> bool:
         return self.pattern == other.pattern and self.limit == other.limit
 
-class SplitPartExpr(ValidatedSignature, LogicalExpr):
+class SplitPartExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for splitting a string column and returning a specific part.
 
     This expression splits each string by a delimiter and returns the specified part (1-based indexing).
@@ -728,9 +716,6 @@ class SplitPartExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.delimiter, self.part_number]
-
-    def _eq_specific(self, other: SplitPartExpr) -> bool:
-        return True
 
 
 class StringCasingExpr(ValidatedSignature, LogicalExpr):
@@ -857,7 +842,7 @@ class ReplaceExpr(ValidatedSignature, LogicalExpr):
     def _eq_specific(self, other: ReplaceExpr) -> bool:
         return self.literal == other.literal
 
-class StrLengthExpr(ValidatedSignature, LogicalExpr):
+class StrLengthExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for calculating the length of a string column.
 
     This expression creates a new integer column with the number of characters in each value
@@ -883,10 +868,8 @@ class StrLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _eq_specific(self, other: StrLengthExpr) -> bool:
-        return True
 
-class ByteLengthExpr(ValidatedSignature, LogicalExpr):
+class ByteLengthExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for calculating the length of a string column in bytes.
 
     This expression creates a new integer column with the number of bytes in each value
@@ -912,8 +895,6 @@ class ByteLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _eq_specific(self, other: ByteLengthExpr) -> bool:
-        return True
 
 class JinjaExpr(LogicalExpr):
     """Expression for evaluating a Jinja template.
