@@ -343,7 +343,6 @@ def main(config: Optional[fc.SessionConfig] = None):
     print(f"Neutral articles: {neutral_articles} ({neutral_articles/total_articles:.1%})")
     print(f"Biased articles: {biased_articles} ({biased_articles/total_articles:.1%})")
 
-    # Generate semantic summaries of language patterns for each source
     results_df = results_df.with_column("article_attributes", fc.text.jinja(
         (
             "Primary Topics: {{primary_topic}}\n"
@@ -360,14 +359,17 @@ def main(config: Optional[fc.SessionConfig] = None):
         emotional_language=fc.col("emotional_language"),
         journalistic_style=fc.col("journalistic_style")
     ))
+
+    # Generate semantic summaries of language patterns for each source
     source_language_profiles = results_df.group_by("source").agg(
         # Use semantic.reduce to produce a media profile for each source, without including the entire original articles.
         # By grounding the model in the extracted information, we can be more confident in the produced results, as they will
         # have built-in justification.
         fc.semantic.reduce(
             """
-               Create a concise (3-5 sentence) media profile for {{news_outlet}} based on the following information we have extracted from its articles:
-               Summarize the information provided without explicitly referencing it.
+            You are given a set of article analyses from {{news_outlet}}.
+            Create a concise (3-5 sentence) media profile for {{news_outlet}}.
+            Summarize the information provided without explicitly referencing it.
             """,
             column=fc.col("article_attributes"),
             group_context = {

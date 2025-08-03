@@ -132,7 +132,7 @@ class SemanticExtensions:
     def join(
         self,
         other: DataFrame,
-        jinja_template: str,
+        predicate: str,
         left_on: Column,
         right_on: Column,
         strict: bool = True,
@@ -145,18 +145,18 @@ class SemanticExtensions:
         including only those pairs where the predicate evaluates to True.
 
         The join process:
-        1. For each row in the left DataFrame, evaluates the predicate in the jinja_template against each row in the right DataFrame
+        1. For each row in the left DataFrame, evaluates the predicate in the jinja template against each row in the right DataFrame
         2. Includes row pairs where the predicate returns True
         3. Excludes row pairs where the predicate returns False
         4. Returns a new DataFrame containing all columns from both DataFrames for the matched pairs
 
-        The jinja_template must use exactly two column placeholders:
+        The jinja template must use exactly two column placeholders:
         - One from the left DataFrame: `{{ left_on }}`
         - One from the right DataFrame: `{{ right_on }}`
 
         Args:
             other: The DataFrame to join with.
-            jinja_template: A Jinja2 template containing the natural language predicate.
+            predicate: A Jinja2 template containing the natural language predicate.
                 Must include placeholders for exactly one column from each DataFrame.
                 The template is evaluated as a boolean - True includes the pair, False excludes it.
             left_on: The column from the left DataFrame (self) to use in the join predicate.
@@ -180,7 +180,7 @@ class SemanticExtensions:
             # Match job listings with candidate resumes based on title/skills
             # Only includes pairs where the predicate evaluates to True
             df_jobs.semantic.join(df_resumes,
-                jinja_template="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                predicate="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
                 left_on=col("job_description"),
                 right_on=col("work_experience"),
                 examples=examples
@@ -201,7 +201,7 @@ class SemanticExtensions:
                 output=False))  # This pair will NOT be included in similar cases
             df_jobs.semantic.join(
                 other=df_resumes,
-                jinja_template="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                predicate="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
                 left_on=col("job_description"),
                 right_on=col("work_experience"),
                 examples=examples
@@ -213,9 +213,9 @@ class SemanticExtensions:
         if not isinstance(other, DataFrame):
             raise ValidationError(f"other argument must be a DataFrame, got {type(other)}")
 
-        if not isinstance(jinja_template, str):
+        if not isinstance(predicate, str):
             raise ValidationError(
-                f"The `jinja_template` argument to `semantic.join` must be a string, got {type(jinja_template)}"
+                f"The `predicate` argument to `semantic.join` must be a string, got {type(predicate)}"
             )
         if not isinstance(left_on, Column):
             raise ValidationError(f"`left_on` argument must be a Column, got {type(left_on)} instead.")
@@ -235,7 +235,7 @@ class SemanticExtensions:
                 right=other._logical_plan,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
-                jinja_template=jinja_template,
+                jinja_template=predicate,
                 strict=strict,
                 model_alias=resolved_model_alias,
                 examples=examples,

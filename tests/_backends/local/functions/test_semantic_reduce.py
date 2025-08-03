@@ -166,3 +166,22 @@ def test_semantic_reduce_without_models():
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from the notes.", col("notes")).alias("summary"))
     session.stop()
+
+def test_semantic_reduce_invalid_prompt(local_session):
+    with pytest.raises(ValidationError, match="The `prompt` argument to `semantic.reduce` cannot be empty."):
+        local_session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("", col("notes")).alias("summary"))
+
+def test_semantic_reduce_agg_no_group_by(local_session):
+    data = {
+        "date": ["2024-01-01", "2024-01-01", "2024-01-02"],
+        "notes": [
+            "Q4 Sales Review Discussion: Revenue exceeded targets by 12%. John mentioned concerns about EMEA pipeline. Team agreed John will conduct deep-dive analysis by Friday. Alice suggested meeting with key clients to gather feedback.",
+            "Product Planning: Discussed upcoming features for Q1. Team debated prioritization of mobile vs desktop improvements. Bob noted sprint board needs restructuring. Agreed to have product roadmap ready for next board meeting.",
+            "Marketing Sync: Campaign performance trending well. Creative assets need final revisions before launch next week. Sarah raised concerns about Q1 budget - needs executive approval for additional spend.",
+        ],
+        "num_attendees": [10, 15, 20],
+    }
+    df = local_session.create_dataframe(data)
+    df.agg(semantic.reduce("Summarize the main action items from the notes.", col("notes")).alias("summary"))
+    with pytest.raises(PlanError, match="semantic.reduce context expression 'date' not found in group by. Available group by expressions: none."):
+        df.agg(semantic.reduce("Summarize the main action items from the notes on {{date}}.", col("notes"), group_context={"date": col("date")}).alias("summary"))

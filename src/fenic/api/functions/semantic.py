@@ -36,7 +36,7 @@ from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
-        jinja_template: str,
+        prompt: str,
         /,
         *,
         strict: bool = True,
@@ -50,7 +50,7 @@ def map(
     """Applies a generation prompt to one or more columns, enabling rich summarization and generation tasks.
 
     Args:
-        jinja_template: A Jinja2 template for the generation prompt. References column
+        prompt: A Jinja2 template for the generation prompt. References column
             values using {{ column_name }} syntax. Each placeholder is replaced with the
             corresponding value from the current row during execution.
         strict: If True, when any of the provided columns has a None value for a row,
@@ -97,8 +97,8 @@ def map(
         )
         ```
     """
-    if not jinja_template:
-        raise ValidationError("The `jinja_template` argument to `semantic.map` cannot be empty.")
+    if not prompt:
+        raise ValidationError("The `prompt` argument to `semantic.map` cannot be empty.")
 
     if not columns:
         raise ValidationError("`semantic.map` requires at least one named column argument (e.g. `text=col('text')`).")
@@ -119,7 +119,7 @@ def map(
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticMapExpr(
-            jinja_template,
+            prompt,
             strict=strict,
             exprs=exprs,
             max_tokens=max_output_tokens,
@@ -199,7 +199,7 @@ def extract(
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
-        jinja_template: str,
+        predicate: str,
         /,
         *,
         strict: bool = True,
@@ -211,7 +211,7 @@ def predicate(
     r"""Applies a boolean predicate to one or more columns, typically used for filtering.
 
     Args:
-        jinja_template: A Jinja2 template containing a yes/no question or boolean claim.
+        predicate: A Jinja2 template containing a yes/no question or boolean claim.
             Should reference column values using {{ column_name }} syntax. The model will
             evaluate this condition for each row and return True or False.
         strict: If True, when any of the provided columns has a None value for a row,
@@ -268,8 +268,8 @@ def predicate(
         )
         ```
     """
-    if not jinja_template:
-        raise ValidationError("The `jinja_template` argument to `semantic.predicate` cannot be empty.")
+    if not predicate:
+        raise ValidationError("The `predicate` argument to `semantic.predicate` cannot be empty.")
 
     if not columns:
         raise ValidationError("`semantic.predicate` requires at least one named column argument (e.g. `text=col('text')`).")
@@ -284,7 +284,7 @@ def predicate(
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticPredExpr(
-            jinja_template,
+            predicate,
             strict=strict,
             exprs=exprs,
             temperature=temperature,
@@ -296,7 +296,7 @@ def predicate(
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def reduce(
-    instruction: str,
+    prompt: str,
     column: ColumnOrName,
     *,
     group_context: Optional[Dict[str, Column]] = None,
@@ -308,7 +308,7 @@ def reduce(
     """Aggregate function: reduces a set of strings in a column to a single string using a natural language instruction.
 
     Args:
-        instruction: A string containing the semantic.reduce prompt.
+        prompt: A string containing the semantic.reduce prompt.
             The instruction can optionally include Jinja2 template variables (e.g., {{variable}}) that
             reference columns from the group_context parameter. These will be replaced with
             actual values from the first row of each group during execution.
@@ -360,6 +360,9 @@ def reduce(
         )
         ```
     """
+    if not prompt:
+        raise ValidationError("The `prompt` argument to `semantic.reduce` cannot be empty.")
+
     group_context_exprs: List[Union[ColumnExpr, AliasExpr]] = []
     if group_context:
         for var_name, col in group_context.items():
@@ -374,7 +377,7 @@ def reduce(
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
-            instruction,
+            prompt,
             input_expr=Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
             temperature=temperature,

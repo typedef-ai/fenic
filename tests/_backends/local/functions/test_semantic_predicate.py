@@ -351,7 +351,7 @@ def test_semantic_predicate_complex_jinja_template_with_examples(local_session):
 
 def test_semantic_predicate_invalid_jinja_template(local_session):
     source = local_session.create_dataframe({"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]})
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.predicate` cannot be empty."):
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.predicate` cannot be empty."):
         source.select(
             semantic.predicate("", name=col("name"), details=col("details")).alias("summary")
         )

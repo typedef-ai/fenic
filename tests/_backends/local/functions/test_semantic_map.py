@@ -332,7 +332,7 @@ def test_semantic_map_invalid_basemodel_examples_no_schema(local_session):
 
 def test_semantic_map_invalid_jinja_template(local_session):
     source = local_session.create_dataframe({"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]})
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.map` cannot be empty."):
+    with pytest.raises(ValidationError, match="The `prompt` argument to `semantic.map` cannot be empty."):
         source.select(
             semantic.map("", name=col("name"), details=col("details")).alias("summary")
         )

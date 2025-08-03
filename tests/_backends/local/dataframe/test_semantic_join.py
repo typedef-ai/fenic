@@ -297,14 +297,14 @@ def test_semantic_join_without_models():
 
 def test_semantic_join_invalid_prompt(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "", left_on=col("course_name"), right_on=col("skill"))
 
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "{{left_on}}", left_on=col("course_name"), right_on=col("skill"))
 
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "{{right_on}}", left_on=col("course_name"), right_on=col("skill"))
 
-    with pytest.raises(ValidationError, match="The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "{{left_on}} {{right_on}} {{foo}}", left_on=col("course_name"), right_on=col("skill"))

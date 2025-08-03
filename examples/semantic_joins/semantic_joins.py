@@ -100,7 +100,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     # Use semantic join to match users with articles based on their interests
     user_article_matches = users_df.semantic.join(
         articles_df,
-        jinja_template=(
+        predicate=(
             "A person with interests '{{left_on}}' would be interested in reading about '{{right_on}}'"
         ),
         left_on=fc.col("interests"),
@@ -203,7 +203,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     # Use semantic join for product recommendations
     recommendations = purchases_df.semantic.join(
         products_df,
-        jinja_template=(
+        predicate=(
             "A customer who bought '{{left_on}}' would also be interested in '{{right_on}}'"
         ),
         left_on=fc.col("purchased_product"),

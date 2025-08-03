@@ -71,7 +71,7 @@ class Aggregate(LogicalPlan):
                     if context_expr not in self._group_exprs:
                         raise PlanError(
                             f"semantic.reduce context expression '{context_key}' not found in group by. "
-                            f"Available group by expressions: {', '.join(str(e) for e in self._group_exprs)}."
+                            f"Available group by expressions: {', '.join(str(e) for e in self._group_exprs) if self._group_exprs else 'none'}."
                         )
 
         return Schema(column_fields=group_fields + agg_fields)

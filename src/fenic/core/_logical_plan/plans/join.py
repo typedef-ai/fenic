@@ -257,7 +257,7 @@ class SemanticJoin(BaseSemanticJoin):
         variables = variable_tree.variables
         if set(variables) != {"left_on", "right_on"}:
             raise ValidationError(
-                "The `jinja_template` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'. "
+                "The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'. "
                 f"Got: {list(variables)}"
             )
 
