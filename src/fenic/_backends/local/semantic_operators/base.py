@@ -135,7 +135,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         """Convert the stored example collection into prompt message pairs.
 
         Returns:
-            List of (UserMessage, AssistantMessage) tuples.
+            List of FewShotExample.
         """
         formatted_examples: List[FewShotExample] = []
 
@@ -162,7 +162,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
 
     @abstractmethod
     def build_example(self, example) -> FewShotExample:
-        """Convert the stored example collection into prompt message pairs.
+        """Build a few-shot example from a single input/output pair.
 
         Returns:
             FewShotExample.
@@ -208,10 +208,10 @@ class BaseSingleColumnInputOperator(
         super().__init__(input, request_sender, examples)
 
     def build_example(self, example) -> FewShotExample:
-        """Convert the stored example collection into prompt message pairs.
+        """Build a few-shot example from a single input/output pair.
 
         Returns:
-            List of (UserMessage, AssistantMessage) tuples.
+            FewShotExample.
         """
         return FewShotExample(
             user=self.build_user_message(example.input),
@@ -270,10 +270,10 @@ class BaseMultiColumnInputOperator(
         self.jinja_template = jinja_template
 
     def build_example(self, example) -> FewShotExample:
-        """Convert example input/output pairs to message format for in-context learning.
+        """Build a few-shot example from a single input/output pair.
 
         Returns:
-            List of (UserMessage, AssistantMessage) tuples.
+            FewShotExample.
         """
         return FewShotExample(
             user=self.build_example_user_message(example.input),

@@ -63,14 +63,6 @@ class SemanticExtensions:
             - `<label_column>`: integer cluster assignment (0 to num_clusters - 1)
             - `<centroid_column>`: cluster centroid embedding, if specified
 
-        Raises:
-            ValidationError: If num_clusters is not a positive integer
-            ValidationError: If max_iter is not a positive integer
-            ValidationError: If num_init is not a positive integer
-            ValidationError: If label_column is not a non-empty string
-            ValidationError: If centroid_column is not a non-empty string
-            TypeMismatchError: If the column is not an EmbeddingType
-
         Example: Basic clustering
             ```python
             # Cluster customer feedback and add cluster metadata
@@ -153,7 +145,7 @@ class SemanticExtensions:
         including only those pairs where the predicate evaluates to True.
 
         The join process:
-        1. For each row in the left DataFrame, evaluates the predicate against each row in the right DataFrame
+        1. For each row in the left DataFrame, evaluates the predicate in the jinja_template against each row in the right DataFrame
         2. Includes row pairs where the predicate returns True
         3. Excludes row pairs where the predicate returns False
         4. Returns a new DataFrame containing all columns from both DataFrames for the matched pairs

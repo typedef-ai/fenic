@@ -30,11 +30,11 @@ class TestJoin:
     SPIDER_MAN = "Spider-Man is a 2002 American superhero film based on the Marvel Comics character Spider-Man. Directed by Sam Raimi from a screenplay by David Koepp, it is the first installment in Raimi's Spider-Man trilogy."
 
     GOOD_WILL_HUNTING_RENDERED_TEMPLATE = jinja2.Template(TEMPLATE).render(
-        left_on="Good Will Hunting is a 1997 American drama film directed by Gus Van Sant and written by Ben Affleck and Matt Damon. It stars Robin Williams, Damon, Affleck, Stellan Skarsgård and Minnie Driver. The film tells the story of janitor Will Hunting, whose mathematical genius is discovered by a professor at MIT.",
+        left_on=GOOD_WILL_HUNTING,
         right_on="Drama",
     )
     SPIDER_MAN_RENDERED_TEMPLATE = jinja2.Template(TEMPLATE).render(
-        left_on="Spider-Man is a 2002 American superhero film based on the Marvel Comics character Spider-Man. Directed by Sam Raimi from a screenplay by David Koepp, it is the first installment in Raimi's Spider-Man trilogy.",
+        left_on=SPIDER_MAN,
         right_on="Action",
     )
 

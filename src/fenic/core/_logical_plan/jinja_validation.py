@@ -188,7 +188,6 @@ class VariableTree:
 
         Args:
             exprs: List of expression objects to filter
-            logger: Optional logger for warnings (if None, warnings are not logged)
 
         Returns:
             List of expressions that are actually used in the template, in order of appearance

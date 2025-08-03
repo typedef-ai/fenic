@@ -68,13 +68,13 @@ class LogicalExpr(ABC):
 
     @abstractmethod
     def _eq_specific(self, other: LogicalExpr) -> bool:
-        """Returns True if the expression is equal to the other expression.
+        """Returns True if the expression has equal non expression attributes to the other expression.
 
         Args:
             other: The other expression to compare to.
 
         Returns:
-            bool: True if the expression is equal to the other expression, False otherwise.
+            bool: True if the expression has equal non expression attributes to the other expression, False otherwise.
         """
         pass
 

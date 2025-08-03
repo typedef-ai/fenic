@@ -326,7 +326,7 @@ class ExprConverter:
                 nulls_last.append(order_by_expr.nulls_last)
             struct = pl.struct(polars_exprs)
 
-            def sem_reduce_fn(batch: pl.Series) -> str:
+            def sem_reduce_fn(batch: pl.Series) -> pl.Series:
                 return SemanticReduce(
                     input=batch,
                     user_instruction=logical.instruction,
