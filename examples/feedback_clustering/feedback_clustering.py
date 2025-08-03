@@ -24,7 +24,7 @@ def main(config: Optional[fc.SessionConfig] = None):
                 )
             },
             embedding_models={
-                "small": fc.OpenAILanguageModel(
+                "small": fc.OpenAIEmbeddingModel(
                     model_name="text-embedding-3-small",
                     rpm=3000,
                     tpm=1_000_000
