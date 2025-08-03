@@ -37,13 +37,11 @@ class Reduce:
 
     USER_MESSAGE_TEMPLATE = jinja2.Template(dedent("""\
         {{user_instruction}}
-
         {% for doc in docs %}
         <document{{loop.index}}>
         {{doc}}
         </document{{loop.index}}>
         {%- if not loop.last %}
-
         {% endif -%}
         {% endfor %}"""))
 
@@ -59,9 +57,10 @@ class Reduce:
             model: LanguageModel,
             max_tokens: int,
             temperature: float,
+            descending: List[bool],
+            nulls_last: List[bool],
             model_alias: Optional[ResolvedModelAlias] = None,
             group_context_names: List[str] = None,
-            ascending: Optional[bool] = None,
     ):
         self.input = input
         self.user_instruction = user_instruction
@@ -74,8 +73,8 @@ class Reduce:
             + PREFIX_TOKENS_PER_MESSAGE
         )
         self.group_context_names = group_context_names
-        self.ascending = ascending
-
+        self.descending = descending
+        self.nulls_last = nulls_last
         # Cache the template if we need it
         self._user_instruction_template = None
         if self.group_context_names:
@@ -142,21 +141,43 @@ class Reduce:
         return docs[0]
 
     def _preprocess_group(self, group: pl.Series) -> Tuple[str, pl.Series]:
-        """Preprocess the group by adding the group context and order by columns."""
-        if not self.group_context_names:
-            user_instruction = self.user_instruction
-        else:
-            first_row = group.first()
-            group_context = {name: first_row[name] for name in self.group_context_names}
+        """Preprocess group by adding context and ordering the data column."""
+        # Step 0: Build user instruction from group context if present
+        if self.group_context_names:
+            first_row_data = group.first()
+            group_context = {name: first_row_data[name] for name in self.group_context_names}
             user_instruction = self._user_instruction_template.render(**group_context)
-
-        if self.ascending is not None:
-            order_by = group.struct.field(SORT_KEY_COLUMN_NAME).arg_sort(descending=not self.ascending)
-            series = group.struct.field(DATA_COLUMN_NAME).gather(order_by)
         else:
-            series = group.struct.field(DATA_COLUMN_NAME)
-        return user_instruction, series
+            user_instruction = self.user_instruction
 
+        # Step 1-4: Handle sorting if needed
+        if self.descending:
+            sort_column_names = [f"{SORT_KEY_COLUMN_NAME}_{i}" for i in range(len(self.descending))]
+
+            # Build a dict of sort key name -> Series extracted from struct field
+            sort_key_columns = {
+                name: group.struct.field(name)
+                for name in sort_column_names
+            }
+
+            # Create a DataFrame from those sort keys (no copy)
+            sort_keys_df = pl.DataFrame(sort_key_columns)
+
+            # Compute sorted indices with arg_sort_by
+            sorted_idx = sort_keys_df.select(
+                pl.arg_sort_by(
+                    sort_column_names,
+                    descending=self.descending,
+                    nulls_last=self.nulls_last
+                )
+            ).to_series()
+
+            # Gather the data column in sorted order
+            sorted_data = group.struct.field(DATA_COLUMN_NAME).gather(sorted_idx)
+        else:
+            sorted_data = group.struct.field(DATA_COLUMN_NAME)
+
+        return user_instruction, sorted_data
 
     def _build_request_messages_batch(
         self, user_instruction: str, docs: list[str], tree_level: int

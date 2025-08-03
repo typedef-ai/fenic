@@ -254,8 +254,8 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         max_tokens: int,
         temperature: float,
         group_context_exprs: List[Union[ColumnExpr, AliasExpr]],
+        order_by_exprs: Optional[List[LogicalExpr]],
         model_alias: Optional[ResolvedModelAlias] = None,
-        order_by_expr: Optional[LogicalExpr] = None,
     ):
         # Store basic attributes first
         self.instruction = instruction
@@ -272,24 +272,20 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         }
 
         # Process order by
-        self.order_by_expr = None
-        self.ascending = None
+        self.order_by_exprs: List[SortExpr] = []
 
-        if order_by_expr:
-            if isinstance(order_by_expr, SortExpr):
-                self.order_by_expr = order_by_expr.expr
-                self.ascending = order_by_expr.ascending
+        for order_by_expr in order_by_exprs:
+            if not isinstance(order_by_expr, SortExpr):
+                self.order_by_exprs.append(SortExpr(order_by_expr, True))
             else:
-                self.order_by_expr = order_by_expr
-                self.ascending = True
+                self.order_by_exprs.append(order_by_expr)
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
         res = [self.input_expr]
         if self.group_context_exprs:
             res.extend(self.group_context_exprs.values())
-        if self.order_by_expr:
-            res.append(self.order_by_expr)
+        res.extend(self.order_by_exprs)
         return res
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
@@ -306,8 +302,8 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
             for name, expr in self.group_context_exprs.items():
                 data_type = expr.to_column_field(plan, session_state).data_type
                 self.variable_tree.validate_jinja_variable(name, data_type)
-        if self.order_by_expr:
-            self.order_by_expr.to_column_field(plan, session_state)
+        for order_by_expr in self.order_by_exprs:
+            order_by_expr.to_column_field(plan, session_state)
 
         return ColumnField(
             name=str(self),
@@ -328,8 +324,8 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         params = [str(self.input_expr)]
         if self.group_context_exprs:
             params.append(f"group_context={list(self.group_context_exprs.keys())}")
-        if self.order_by_expr:
-            params.append(f"order_by=({self.order_by_expr}, {self.ascending})")
+        if self.order_by_exprs:
+            params.append(f"order_by={', '.join(str(expr) for expr in self.order_by_exprs)}")
         return f"semantic.reduce_{instruction_hash}({', '.join(params)})"
 
     def _eq_specific(self, other: SemanticReduceExpr) -> bool:

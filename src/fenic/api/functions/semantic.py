@@ -288,7 +288,7 @@ def reduce(
     column: ColumnOrName,
     *,
     group_context: Optional[Dict[str, Column]] = None,
-    order_by: Optional[ColumnOrName] = None,
+    order_by: List[ColumnOrName] = None,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
@@ -303,9 +303,9 @@ def reduce(
         column: The column containing documents/strings to reduce.
         group_context: Optional dictionary mapping variable names to columns. These columns
             provide context for each group and can be referenced in the instruction template.
-        order_by: Optional column to sort grouped documents by before reduction. Documents are
+        order_by: Optional list of columns to sort grouped documents by before reduction. Documents are
             processed in ascending order by default if no sort function is provided. Use a sort function
-            (e.g., col("date").desc()/fc.desc("date")) for descending order. The order_by column helps
+            (e.g., col("date").desc()/fc.desc("date")) for descending order. The order_by columns help
             preserve the temporal/logical sequence of the documents (e.g chunks in a document, speaker turns in a meeting transcript)
             for more coherent summaries.
         model_alias: Optional alias for the language model to use. If None, uses the default model.
@@ -355,7 +355,10 @@ def reduce(
                 group_context_exprs.append(col._logical_expr)
             else:
                 group_context_exprs.append(col.alias(var_name)._logical_expr)
-
+    order_by_exprs = []
+    if order_by:
+        for col in order_by:
+            order_by_exprs.append(Column._from_col_or_name(col)._logical_expr)
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
@@ -365,7 +368,7 @@ def reduce(
             temperature=temperature,
             group_context_exprs=group_context_exprs,
             model_alias=resolved_model_alias,
-            order_by_expr=Column._from_col_or_name(order_by)._logical_expr if order_by is not None else None,
+            order_by_exprs=order_by_exprs,
         )
     )
 

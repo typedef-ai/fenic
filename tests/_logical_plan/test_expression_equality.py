@@ -1006,6 +1006,7 @@ class TestSemanticExpressions:
         from fenic.core.types import MapExample, MapExampleCollection
 
         col1 = ColumnExpr("text1")
+        col1_alias = AliasExpr(ColumnExpr("blah"), "text1")
 
         # Create example collections
         examples1 = MapExampleCollection(examples=[
@@ -1044,6 +1045,10 @@ class TestSemanticExpressions:
         # One with examples, one without
         assert map1 != map6
 
+        # Different expressions
+        map9 = SemanticMapExpr("Process {{text1}}", [col1_alias], 100, 0.5, examples=examples1)
+        assert map1 != map9
+
     def test_semantic_extract_expr(self):
         """Test SemanticExtractExpr compares schema, max_tokens, temperature, and model_alias."""
         from pydantic import BaseModel
@@ -1078,6 +1083,7 @@ class TestSemanticExpressions:
         from fenic.core.types import PredicateExample, PredicateExampleCollection
 
         col1 = ColumnExpr("text1")
+        col1_alias = AliasExpr(ColumnExpr("blah"), "text1")
 
         # Create example collections
         examples1 = PredicateExampleCollection(examples=[
@@ -1112,27 +1118,69 @@ class TestSemanticExpressions:
         # One with examples, one without
         assert pred1 != pred5
 
-    def test_semantic_reduce_expr(self):
-        """Test SemanticReduceExpr compares instruction, max_tokens, temperature, and model_alias."""
-        col1 = ColumnExpr("content")
-        col2 = ColumnExpr("category")
+        # Different expressions
+        pred8 = SemanticPredExpr("Is {{text1}} positive?", [col1_alias], 0.3, examples=examples1)
+        assert pred1 != pred8
 
-        # Same attributes
-        reduce1 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [col2])
-        reduce2 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [col2])
+    def test_semantic_reduce_expr(self):
+        """Test SemanticReduceExpr compares all attributes including group_context and order_by."""
+        col1 = ColumnExpr("content")
+        col1_alias = AliasExpr(ColumnExpr("blah"), "content")
+        col2 = ColumnExpr("category")
+        col3 = ColumnExpr("priority")
+        col4 = ColumnExpr("timestamp")
+
+        # Same attributes (no group context or order by)
+        reduce1 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [])
+        reduce2 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [])
         assert reduce1 == reduce2
 
         # Different instruction
-        reduce3 = SemanticReduceExpr("Extract key points", col1, 150, 0.4, [col2])
+        reduce3 = SemanticReduceExpr("Extract key points", col1, 150, 0.4, [], [])
         assert reduce1 != reduce3
 
         # Different max_tokens
-        reduce4 = SemanticReduceExpr("Summarize content", col1, 200, 0.4, [col2])
+        reduce4 = SemanticReduceExpr("Summarize content", col1, 200, 0.4, [], [])
         assert reduce1 != reduce4
 
         # Different temperature
-        reduce5 = SemanticReduceExpr("Summarize content", col1, 150, 0.6, [col2])
+        reduce5 = SemanticReduceExpr("Summarize content", col1, 150, 0.6, [], [])
         assert reduce1 != reduce5
+
+        # Same with group context
+        reduce6 = SemanticReduceExpr("Summarize {{category}} content", col1, 150, 0.4, [col2], [])
+        reduce7 = SemanticReduceExpr("Summarize {{category}} content", col1, 150, 0.4, [col2], [])
+        assert reduce6 == reduce7
+
+        # Different group context expressions
+        reduce8 = SemanticReduceExpr("Summarize {{priority}} content", col1, 150, 0.4, [col3], [])
+        assert reduce6 != reduce8
+
+        # One with group context, one without
+        assert reduce1 != reduce6
+
+        # Same with order by
+        reduce9 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [col4])
+        reduce10 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [col4])
+        assert reduce9 == reduce10
+
+        # Different order by expressions
+        reduce11 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [col2])
+        assert reduce9 != reduce11
+
+        # One with order by, one without
+        assert reduce1 != reduce9
+
+        # Different order by with SortExpr
+        sort_asc = SortExpr(col4, ascending=True)
+        sort_desc = SortExpr(col4, ascending=False)
+        reduce12 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [sort_asc])
+        reduce13 = SemanticReduceExpr("Summarize content", col1, 150, 0.4, [], [sort_desc])
+        assert reduce12 != reduce13
+
+        # Different expressions
+        reduce14 = SemanticReduceExpr("Summarize content", col1_alias, 150, 0.4, [], [sort_asc])
+        assert reduce1 != reduce14
 
     def test_semantic_classify_expr(self):
         """Test SemanticClassifyExpr compares temperature, model_alias, classes, and examples."""

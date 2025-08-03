@@ -78,7 +78,6 @@ class LogicalExpr(ABC):
         """
         pass
 
-
 class AggregateExpr(LogicalExpr):
     """Marker class for aggregate expressions used by optimizer and validation."""
     pass

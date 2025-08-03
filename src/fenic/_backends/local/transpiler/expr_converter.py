@@ -315,12 +315,15 @@ class ExprConverter:
 
         if isinstance(logical, SemanticReduceExpr):
             group_context_names = list(logical.group_context_exprs.keys()) if logical.group_context_exprs else None
-            ascending = logical.ascending if logical.order_by_expr else None
             polars_exprs = [self._convert_expr(logical.input_expr).alias(DATA_COLUMN_NAME)]
             for name, expr in logical.group_context_exprs.items():
                 polars_exprs.append(self._convert_expr(expr).alias(name))
-            if logical.order_by_expr:
-                polars_exprs.append(self._convert_expr(logical.order_by_expr).alias(SORT_KEY_COLUMN_NAME))
+            descending: List[bool] = []
+            nulls_last: List[bool] = []
+            for i, order_by_expr in enumerate(logical.order_by_exprs):
+                polars_exprs.append(self._convert_expr(order_by_expr.expr).alias(SORT_KEY_COLUMN_NAME + f"_{i}"))
+                descending.append(not order_by_expr.ascending)
+                nulls_last.append(order_by_expr.nulls_last)
             struct = pl.struct(polars_exprs)
 
             def sem_reduce_fn(batch: pl.Series) -> str:
@@ -332,7 +335,8 @@ class ExprConverter:
                     temperature=logical.temperature,
                     model_alias=logical.model_alias,
                     group_context_names=group_context_names,
-                    ascending=ascending,
+                    descending=descending,
+                    nulls_last=nulls_last,
                 ).execute()
             return struct.map_batches(
                 sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True

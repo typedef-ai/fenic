@@ -12,7 +12,10 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
-from fenic.core._logical_plan.utils import validate_completion_parameters
+from fenic.core._logical_plan.utils import (
+    validate_completion_parameters,
+    validate_scalar_expr,
+)
 from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ColumnField,
@@ -34,6 +37,10 @@ class Join(LogicalPlan):
             how: str,
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
+        for left_on_expr in left_on:
+            validate_scalar_expr(left_on_expr, "join")
+        for right_on_expr in right_on:
+            validate_scalar_expr(right_on_expr, "join")
         self._left = left
         self._right = right
         self._left_on = left_on
@@ -190,6 +197,8 @@ class SemanticJoin(BaseSemanticJoin):
         self._examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        validate_scalar_expr(left_on, "semantic.join")
+        validate_scalar_expr(right_on, "semantic.join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
         if session_state:
             validate_completion_parameters(model_alias, session_state.session_config, temperature)
@@ -300,6 +309,8 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         self._k = k
         self._similarity_metric = similarity_metric
         self._similarity_score_column = similarity_score_column
+        validate_scalar_expr(left_on, "semantic.sim_join")
+        validate_scalar_expr(right_on, "semantic.sim_join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
 
     @classmethod

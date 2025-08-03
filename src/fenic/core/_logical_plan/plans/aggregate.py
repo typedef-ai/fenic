@@ -28,8 +28,7 @@ class Aggregate(LogicalPlan):
         self._agg_exprs = agg_exprs
         for expr in agg_exprs:
             if not isinstance(expr.expr, AggregateExpr):
-                raise ValueError(f"Expression {expr} is not an aggregation")
-            _validate_agg_expr(expr.expr, group_exprs)
+                raise PlanError(f"Expression {expr} is not an aggregation")
         for expr in group_exprs:
             _validate_groupby_expr(expr)
         super().__init__(session_state, schema)
@@ -92,26 +91,6 @@ class Aggregate(LogicalPlan):
         result = Aggregate.from_session_state(children[0], self._group_exprs, self._agg_exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
-
-def _validate_agg_expr(
-    expr: LogicalExpr,
-    by_exprs: List[LogicalExpr],
-    in_agg_function: bool = False,
-):
-    """Validate aggregation expressions."""
-    if isinstance(expr, AggregateExpr):
-        if in_agg_function:
-            raise PlanError(
-                f"Nested aggregation functions are not allowed. Found inner aggregation '{expr.children()[0]}' inside outer aggregation '{expr}'. "
-                f"Each column can only be aggregated once within a single aggregation operation. "
-                f"If you need to perform multiple levels of aggregation, please do so in separate operations."
-            )
-        for child in expr.children():
-            _validate_agg_expr(child, by_exprs, in_agg_function=True)
-        return
-    for child in expr.children():
-        _validate_agg_expr(child, by_exprs, in_agg_function)
-
 
 def _validate_groupby_expr(expr: LogicalExpr):
     """Validate groupby expressions."""

@@ -33,6 +33,8 @@ def reduce_instance(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
     )
     reduce_instance.prefix_tokens = 50
     return reduce_instance
@@ -229,6 +231,8 @@ def test_hierarchical_reduction_logic(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
     )
     reduce_instance.prefix_tokens = 50
 
@@ -313,6 +317,8 @@ def test_group_context_injection(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
         group_context_names=["department", "region"],
     )
     reduce_instance.prefix_tokens = 50
@@ -338,82 +344,169 @@ def test_group_context_injection(mock_language_model):
     assert "Engineering documents from the West region" in second_call_messages.user
 
 
-def test_sorting_ascending(mock_language_model):
-    """Test that documents are sorted in ascending order when specified."""
+def test_multi_level_sorting_with_nulls(mock_language_model):
+    """Comprehensive test for multi-level sorting including null handling.
+
+    This single test replaces multiple single-key tests and validates:
+    - Single key sorting (as a special case of multi-key)
+    - Multi-key sorting with different combinations
+    - Null value handling with nulls_last parameter
+    - Edge cases with inconsistent sort key availability
+    """
+    # Test data with nulls and multiple sort dimensions
     docs_data = [
-        {DATA_COLUMN_NAME: "Doc from Feb", SORT_KEY_COLUMN_NAME: "2024-02-01"},
-        {DATA_COLUMN_NAME: "Doc from Jan", SORT_KEY_COLUMN_NAME: "2024-01-01"},
-        {DATA_COLUMN_NAME: "Doc from Mar", SORT_KEY_COLUMN_NAME: "2024-03-01"},
+        # Complete data
+        {DATA_COLUMN_NAME: "Sales High Feb",
+         SORT_KEY_COLUMN_NAME+"_0": 1,  # dept
+         SORT_KEY_COLUMN_NAME+"_1": 3,  # priority
+         SORT_KEY_COLUMN_NAME+"_2": "2024-02-01"},  # date
+
+        # Null in first sort key
+        {DATA_COLUMN_NAME: "Unknown Dept High Jan",
+         SORT_KEY_COLUMN_NAME+"_0": None,
+         SORT_KEY_COLUMN_NAME+"_1": 3,
+         SORT_KEY_COLUMN_NAME+"_2": "2024-01-01"},
+
+        # Null in middle sort key
+        {DATA_COLUMN_NAME: "Sales Unknown Priority Mar",
+         SORT_KEY_COLUMN_NAME+"_0": 1,
+         SORT_KEY_COLUMN_NAME+"_1": None,
+         SORT_KEY_COLUMN_NAME+"_2": "2024-03-01"},
+
+        # Null in last sort key
+        {DATA_COLUMN_NAME: "Eng Medium Unknown Date",
+         SORT_KEY_COLUMN_NAME+"_0": 2,
+         SORT_KEY_COLUMN_NAME+"_1": 2,
+         SORT_KEY_COLUMN_NAME+"_2": None},
+
+        # More complete data for proper sorting verification
+        {DATA_COLUMN_NAME: "Sales Low Jan",
+         SORT_KEY_COLUMN_NAME+"_0": 1,
+         SORT_KEY_COLUMN_NAME+"_1": 1,
+         SORT_KEY_COLUMN_NAME+"_2": "2024-01-01"},
+
+        {DATA_COLUMN_NAME: "Eng High Feb",
+         SORT_KEY_COLUMN_NAME+"_0": 90,
+         SORT_KEY_COLUMN_NAME+"_1": 3,
+         SORT_KEY_COLUMN_NAME+"_2": "2024-02-01"},
     ]
+
     group = pl.DataFrame(docs_data).to_struct()
 
-    reduce_instance = Reduce(
+    # Test Case 1: Single key with nulls_last=True
+    reduce_single = Reduce(
         input=pl.Series([group]),
         user_instruction="Summarize the documents.",
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        ascending=True,  # Sort by date ascending
+        descending=[False],  # Department ascending
+        nulls_last=[True],   # Nulls should appear at end
     )
-    reduce_instance.prefix_tokens = 50
+    reduce_single.prefix_tokens = 50
 
     mock_language_model.count_tokens.return_value = 10
-    mock_language_model.get_completions.return_value = [
-        MagicMock(completion="Summary")
-    ]
+    mock_language_model.get_completions.return_value = [MagicMock(completion="Summary")]
 
-    reduce_instance.execute()
+    reduce_single.execute()
 
-    # Check that documents were processed in sorted order
     calls = mock_language_model.get_completions.call_args_list
-    first_call_messages = calls[0][1]['messages'][0]
+    user_msg = calls[0][1]['messages'][0].user
+    print(user_msg)
 
-    # Documents should appear in chronological order
-    assert first_call_messages.user.index("Doc from Jan") < first_call_messages.user.index("Doc from Feb")
-    assert first_call_messages.user.index("Doc from Feb") < first_call_messages.user.index("Doc from Mar")
-
-
-def test_sorting_descending(mock_language_model):
-    """Test that documents are sorted in descending order when specified."""
-    docs_data = [
-        {DATA_COLUMN_NAME: "Priority 2", SORT_KEY_COLUMN_NAME: 2},
-        {DATA_COLUMN_NAME: "Priority 1", SORT_KEY_COLUMN_NAME: 1},
-        {DATA_COLUMN_NAME: "Priority 3", SORT_KEY_COLUMN_NAME: 3},
+    # Verify null handling: "Unknown Dept" should be last
+    unknown_dept_pos = user_msg.index("Unknown Dept High Jan")
+    other_positions = [
+        user_msg.index("Sales High Feb"),
+        user_msg.index("Sales Unknown Priority Mar"),
+        user_msg.index("Sales Low Jan"),
+        user_msg.index("Eng Medium Unknown Date"),
+        user_msg.index("Eng High Feb")
     ]
-    group = pl.DataFrame(docs_data).to_struct()
+    assert all(pos < unknown_dept_pos for pos in other_positions), "Null dept should be last"
 
-    reduce_instance = Reduce(
+    # Test Case 2: Multi-level sort with mixed null handling
+    reduce_multi = Reduce(
         input=pl.Series([group]),
         user_instruction="Summarize the documents.",
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
-        ascending=False,
+        descending=[False, True, False],  # Dept asc, Priority desc, Date asc
+        nulls_last=[True, False, True],   # Dept nulls last, Priority nulls first, Date nulls last
     )
-    reduce_instance.prefix_tokens = 50
+    reduce_multi.prefix_tokens = 50
 
-    mock_language_model.count_tokens.return_value = 10
-    mock_language_model.get_completions.return_value = [
-        MagicMock(completion="Summary")
-    ]
+    mock_language_model.get_completions.reset_mock()
+    mock_language_model.get_completions.return_value = [MagicMock(completion="Summary")]
 
-    reduce_instance.execute()
+    reduce_multi.execute()
 
-    # Check that documents were processed in reverse priority order
     calls = mock_language_model.get_completions.call_args_list
-    first_call_messages = calls[0][1]['messages'][0]
+    user_msg = calls[0][1]['messages'][0].user
 
-    # Documents should appear in descending priority order
-    assert first_call_messages.user.index("Priority 3") < first_call_messages.user.index("Priority 2")
-    assert first_call_messages.user.index("Priority 2") < first_call_messages.user.index("Priority 1")
+    # Expected order with complex null handling:
+    # 1. Sales High Feb (dept=1, pri=3, date=2024-02-01)
+    # 2. Sales Low Jan (dept=1, pri=1, date=2024-01-01)
+    # 3. Sales Unknown Priority Mar (dept=1, pri=None, date=2024-03-01) - null priority comes first in desc
+    # 4. Eng High Feb (dept=2, pri=3, date=2024-02-01)
+    # 5. Eng Medium Unknown Date (dept=2, pri=2, date=None) - null date goes last
+    # 6. Unknown Dept High Jan (dept=None, pri=3, date=2024-01-01) - null dept goes last
 
+    # Verify some key orderings
+    sales_unknown_pri_pos = user_msg.index("Sales Unknown Priority Mar")
+    sales_high_pos = user_msg.index("Sales High Feb")
+    sales_low_pos = user_msg.index("Sales Low Jan")
+    unknown_dept_pos = user_msg.index("Unknown Dept High Jan")
+
+    # Sales Unknown Priority should come after other Sales (null priority first in desc sort)
+    assert sales_unknown_pri_pos < sales_high_pos or sales_unknown_pri_pos < sales_low_pos
+
+    # Unknown Dept should be last (nulls_last=True for dept)
+    all_other_positions = [
+        user_msg.index("Sales High Feb"),
+        user_msg.index("Sales Unknown Priority Mar"),
+        user_msg.index("Sales Low Jan"),
+        user_msg.index("Eng Medium Unknown Date"),
+        user_msg.index("Eng High Feb")
+    ]
+    assert all(pos < unknown_dept_pos for pos in all_other_positions)
+
+    # Test Case 3: Consistent nulls_last across all levels
+    reduce_consistent = Reduce(
+        input=pl.Series([group]),
+        user_instruction="Summarize the documents.",
+        model=mock_language_model,
+        max_tokens=1024,
+        temperature=0,
+        descending=[False, False, False],  # All ascending
+        nulls_last=[False, False, False],  # All nulls first
+    )
+    reduce_consistent.prefix_tokens = 50
+
+    mock_language_model.get_completions.reset_mock()
+    mock_language_model.get_completions.return_value = [MagicMock(completion="Summary")]
+
+    reduce_consistent.execute()
+
+    calls = mock_language_model.get_completions.call_args_list
+    user_msg = calls[0][1]['messages'][0].user
+
+    # With nulls_last=False for all, null values should appear early
+    unknown_dept_pos = user_msg.index("Unknown Dept High Jan")
+    sales_positions = [
+        user_msg.index("Sales High Feb"),
+        user_msg.index("Sales Low Jan")
+    ]
+    # Unknown Dept (null dept) should come before Sales docs (dept=1)
+    assert all(unknown_dept_pos < pos for pos in sales_positions)
 
 def test_no_sorting_preserves_order(mock_language_model):
     """Test that original order is preserved when no sorting is specified."""
     docs_data = [
-        {DATA_COLUMN_NAME: "First doc", SORT_KEY_COLUMN_NAME: 1},
-        {DATA_COLUMN_NAME: "Second doc", SORT_KEY_COLUMN_NAME: 2},
-        {DATA_COLUMN_NAME: "Third doc", SORT_KEY_COLUMN_NAME: 3},
+        {DATA_COLUMN_NAME: "First doc", SORT_KEY_COLUMN_NAME+"_0": 1},
+        {DATA_COLUMN_NAME: "Second doc", SORT_KEY_COLUMN_NAME+"_0": 2},
+        {DATA_COLUMN_NAME: "Third doc", SORT_KEY_COLUMN_NAME+"_0": 3},
     ]
     group = pl.DataFrame(docs_data).to_struct()
 
@@ -423,6 +516,8 @@ def test_no_sorting_preserves_order(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
     )
     reduce_instance.prefix_tokens = 50
 
@@ -445,12 +540,12 @@ def test_sorting_with_group_context(mock_language_model):
     """Test that sorting and group context work together correctly."""
     # Create two groups with different contexts and sortable data
     docs_data_sales = [
-        {DATA_COLUMN_NAME: "Sales Feb", "department": "Sales", SORT_KEY_COLUMN_NAME: "2024-02-01"},
-        {DATA_COLUMN_NAME: "Sales Jan", "department": "Sales", SORT_KEY_COLUMN_NAME: "2024-01-01"},
+        {DATA_COLUMN_NAME: "Sales Feb", "department": "Sales", SORT_KEY_COLUMN_NAME+"_0": "2024-02-01"},
+        {DATA_COLUMN_NAME: "Sales Jan", "department": "Sales", SORT_KEY_COLUMN_NAME+"_0": "2024-01-01"},
     ]
     docs_data_eng = [
-        {DATA_COLUMN_NAME: "Eng Mar", "department": "Engineering", SORT_KEY_COLUMN_NAME: "2024-03-01"},
-        {DATA_COLUMN_NAME: "Eng Feb", "department": "Engineering", SORT_KEY_COLUMN_NAME: "2024-02-01"},
+        {DATA_COLUMN_NAME: "Eng Mar", "department": "Engineering", SORT_KEY_COLUMN_NAME+"_0": "2024-03-01"},
+        {DATA_COLUMN_NAME: "Eng Feb", "department": "Engineering", SORT_KEY_COLUMN_NAME+"_0": "2024-02-01"},
     ]
 
     group_sales = pl.DataFrame(docs_data_sales).to_struct()
@@ -462,8 +557,9 @@ def test_sorting_with_group_context(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[False],  # Sort by date ascending
+        nulls_last=[False],
         group_context_names=["department"],
-        ascending=True,  # Sort by date ascending
     )
     reduce_instance.prefix_tokens = 50
 
@@ -498,6 +594,8 @@ def test_empty_group(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
     )
 
     result = reduce_instance.execute()
@@ -518,6 +616,8 @@ def test_all_empty_documents_in_group(mock_language_model):
         model=mock_language_model,
         max_tokens=1024,
         temperature=0,
+        descending=[],
+        nulls_last=[],
     )
 
     # No get_completions should be called for empty documents

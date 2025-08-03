@@ -13,12 +13,12 @@ import sqlglot.expressions as sqlglot_exprs
 from fenic._constants import SQL_PLACEHOLDER_RE
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
-    AggregateExpr,
     ColumnExpr,
     LogicalExpr,
     SortExpr,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.utils import validate_scalar_expr
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
@@ -45,6 +45,8 @@ class Projection(LogicalPlan):
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
         self._input = input
+        for expr in exprs:
+            validate_scalar_expr(expr, "projection")
         self._exprs = exprs
         super().__init__(session_state, schema)
 
@@ -62,12 +64,6 @@ class Projection(LogicalPlan):
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         fields = []
         for expr in self._exprs:
-            if isinstance(expr, AggregateExpr):
-                raise ValueError(
-                    "Aggregate expressions are not allowed in projections. "
-                    "Please use the agg() method instead."
-                )
-
             fields.append(expr.to_column_field(self._input, session_state))
         return Schema(fields)
 
@@ -95,23 +91,14 @@ class Filter(LogicalPlan):
         self._input = input
         actual_type = predicate.to_column_field(input, session_state).data_type
         if actual_type != BooleanType:
-            raise ValueError(
+            raise PlanError(
                 f"Filter predicate must return a boolean value, but got {actual_type}. "
                 "Examples of valid filters:\n"
                 "- df.filter(col('age') > 18)\n"
                 "- df.filter(col('status') == 'active')\n"
                 "- df.filter(col('is_valid'))"
             )
-        if isinstance(predicate, AggregateExpr):
-            raise ValueError(
-                "Aggregate expressions are not allowed in projections. "
-                "Please use the agg() method instead."
-            )
-        if isinstance(predicate, SortExpr):
-            raise ValueError(
-                "Sort expressions are not allowed in projections. "
-                "Please use the sort() method instead."
-            )
+        validate_scalar_expr(predicate, "filter")
         self._predicate = predicate
         super().__init__(session_state, schema)
 
@@ -238,6 +225,7 @@ class Explode(LogicalPlan):
             expr: LogicalExpr,
             session_state:Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
+        validate_scalar_expr(expr, "explode")
         self._input = input
         self._expr = expr
         super().__init__(session_state, schema)
@@ -540,6 +528,7 @@ class SemanticCluster(LogicalPlan):
             centroid_column: Optional[str],
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
+        validate_scalar_expr(by_expr, "semantic.with_cluster_labels")
         self._input = input
         self._by_expr = by_expr
         self._num_clusters = num_clusters

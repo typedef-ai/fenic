@@ -314,102 +314,78 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order.
+    """Mark this column for ascending sort order with nulls first.
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
-        A Column expression representing the column and the ascending sort order.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with ascending order and nulls first.
     """
     return Column._from_col_or_name(column).asc()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc_nulls_first(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order with nulls first.
+    """Alias for asc().
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
-        A Column expression representing the column and the ascending sort order with nulls first.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with ascending order and nulls first.
     """
     return Column._from_col_or_name(column).asc_nulls_first()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc_nulls_last(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order with nulls last.
+    """Mark this column for ascending sort order with nulls last.
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
         A Column expression representing the column and the ascending sort order with nulls last.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
     """
     return Column._from_col_or_name(column).asc_nulls_last()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order.
+    """Mark this column for descending sort order with nulls first.
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls first.
     """
     return Column._from_col_or_name(column).desc()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc_nulls_first(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order with nulls first.
+    """Alias for desc().
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order with nulls first.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls first.
     """
     return Column._from_col_or_name(column).desc_nulls_first()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc_nulls_last(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order with nulls last.
+    """Mark this column for descending sort order with nulls last.
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order with nulls last.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls last.
     """
     return Column._from_col_or_name(column).desc_nulls_last()
 

@@ -280,7 +280,7 @@ def test_groupby_nested_aggregation(local_session):
     }
     df = local_session.create_dataframe(data)
     with pytest.raises(
-        PlanError, match="Nested aggregation functions are not allowed"
+        PlanError, match="Invalid use of aggregate expressions"
     ):
         df.group_by("age").agg(sum(sum("salary"))).to_polars()
 
