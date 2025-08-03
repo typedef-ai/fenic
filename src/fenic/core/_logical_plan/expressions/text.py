@@ -925,8 +925,9 @@ class JinjaExpr(LogicalExpr):
         template: The Jinja template to evaluate
     """
 
-    def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str):
+    def __init__(self, exprs: List[Union[ColumnExpr, AliasExpr]], template: str, strict: bool):
         self.template = template
+        self.strict = strict
         self.variable_tree: VariableTree = VariableTree.from_jinja_template(template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
 
@@ -947,7 +948,7 @@ class JinjaExpr(LogicalExpr):
         return f"text.jinja({self.template}, {', '.join(str(expr) for expr in self.exprs)})"
 
     def _eq_specific(self, other: JinjaExpr) -> bool:
-        return self.template == other.template
+        return self.template == other.template and self.strict == other.strict
 
 class FuzzyRatioExpr(ValidatedSignature, LogicalExpr):
     """Expression for computing the similarity between two strings using a fuzzy matching algorithm.

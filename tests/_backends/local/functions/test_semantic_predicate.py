@@ -63,6 +63,30 @@ def test_single_semantic_filter(local_session):
         "sentiment": pl.Boolean,
     }
 
+def test_semantic_filter_with_nulls(local_session):
+    source = local_session.create_dataframe(
+        {
+            "blurb": [
+                "Apache Spark is the worst piece of software I've ever used. It's so slow and inefficient and I hate the JVM.",
+                None,
+            ],
+        }
+    )
+    template = "Review: {{review}}. The review has positive sentiment about apache spark."
+    df = source.select(semantic.predicate(template, review=col("blurb")).alias("sentiment"))
+    result = df.to_polars()
+    assert result.schema == {
+        "sentiment": pl.Boolean,
+    }
+    result_list = result["sentiment"].to_list()
+    assert len(result_list) == 2
+    assert result_list[1] is None
+
+    df = source.select(semantic.predicate(template, strict=False, review=col("blurb")).alias("sentiment"))
+    result = df.to_polars()
+    result_list = result["sentiment"].to_list()
+    assert len(result_list) == 2
+    assert result_list[1] is not None
 
 def test_semantic_filter_with_examples(local_session):
     claim = (

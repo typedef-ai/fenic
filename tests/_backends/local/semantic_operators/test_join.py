@@ -55,10 +55,11 @@ class TestJoin:
         }
     )
 
-    def test_build_join_pairs(self, local_session):
+    def test_build_join_pairs_strict(self, local_session):
         sem_join = Join(
             left_df=self.left_df,
             right_df=self.right_df,
+            strict=True,
             jinja_template=self.TEMPLATE,
             model=local_session._session_state.get_language_model(),
             temperature=0,
@@ -75,6 +76,32 @@ class TestJoin:
             jinja2.Template(self.TEMPLATE).render(left_on=self.SPIDER_MAN, right_on="Action"),
         ]
 
+    def test_build_join_pairs_non_strict(self, local_session):
+        sem_join = Join(
+            left_df=self.left_df,
+            right_df=self.right_df,
+            strict=False,
+            jinja_template=self.TEMPLATE,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+        )
+        df = sem_join._build_join_pairs_df().select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
+        assert df[LEFT_ID_KEY].to_list() == [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
+        assert df[RIGHT_ID_KEY].to_list() == [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]
+        assert df[RENDERED_INSTRUCTION_KEY].to_list() == [
+            jinja2.Template(self.TEMPLATE).render(left_on=self.GOOD_WILL_HUNTING, right_on="Drama"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.GOOD_WILL_HUNTING, right_on="Horror"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.GOOD_WILL_HUNTING, right_on="Action"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.GOOD_WILL_HUNTING, right_on="none"), # we use "none" instead of None here because Rust jinja2 renders None as "none" instead of "None"
+            jinja2.Template(self.TEMPLATE).render(left_on="none", right_on="Drama"),
+            jinja2.Template(self.TEMPLATE).render(left_on="none", right_on="Horror"),
+            jinja2.Template(self.TEMPLATE).render(left_on="none", right_on="Action"),
+            jinja2.Template(self.TEMPLATE).render(left_on="none", right_on="none"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.SPIDER_MAN, right_on="Drama"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.SPIDER_MAN, right_on="Horror"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.SPIDER_MAN, right_on="Action"),
+            jinja2.Template(self.TEMPLATE).render(left_on=self.SPIDER_MAN, right_on="none"),
+        ]
 
     def test_convert_examples(self, local_session):
         join_examples = JoinExampleCollection(
@@ -90,6 +117,7 @@ class TestJoin:
             left_df=self.left_df,
             right_df=self.right_df,
             jinja_template=self.TEMPLATE,
+            strict=True,
             model=local_session._session_state.get_language_model(),
             examples=join_examples,
             temperature=0,

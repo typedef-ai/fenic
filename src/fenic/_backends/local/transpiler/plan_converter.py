@@ -228,6 +228,7 @@ class PlanConverter:
                     )
                 ),
                 logical.jinja_template(),
+                logical.strict(),
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
                 examples=logical.examples(),

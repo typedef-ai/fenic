@@ -39,6 +39,7 @@ def map(
         jinja_template: str,
         /,
         *,
+        strict: bool = True,
         examples: Optional[MapExampleCollection] = None,
         response_format: Optional[type[BaseModel]] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None,
@@ -52,6 +53,10 @@ def map(
         jinja_template: A Jinja2 template for the generation prompt. References column
             values using {{ column_name }} syntax. Each placeholder is replaced with the
             corresponding value from the current row during execution.
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
         examples: Optional few-shot examples to guide the model's output format and style.
         response_format: Optional Pydantic model to enforce structured output. Must include descriptions for each field.
         model_alias: Optional language model alias. If None, uses the default model.
@@ -115,12 +120,13 @@ def map(
     return Column._from_logical_expr(
         SemanticMapExpr(
             jinja_template,
+            strict=strict,
             exprs=exprs,
-            examples=examples,
             max_tokens=max_output_tokens,
-            model_alias=resolved_model_alias,
             temperature=temperature,
+            model_alias=resolved_model_alias,
             response_format=response_format,
+            examples=examples,
         )
     )
 
@@ -196,6 +202,7 @@ def predicate(
         jinja_template: str,
         /,
         *,
+        strict: bool = True,
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None,
         temperature: float = 0.0,
@@ -207,6 +214,10 @@ def predicate(
         jinja_template: A Jinja2 template containing a yes/no question or boolean claim.
             Should reference column values using {{ column_name }} syntax. The model will
             evaluate this condition for each row and return True or False.
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
         examples: Optional few-shot examples showing how to evaluate the predicate.
             Helps ensure consistent True/False decisions.
         model_alias: Optional language model alias. If None, uses the default model.
@@ -274,10 +285,11 @@ def predicate(
     return Column._from_logical_expr(
         SemanticPredExpr(
             jinja_template,
+            strict=strict,
             exprs=exprs,
-            examples=examples,
-            model_alias=resolved_model_alias,
             temperature=temperature,
+            model_alias=resolved_model_alias,
+            examples=examples,
         )
     )
 

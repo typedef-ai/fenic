@@ -27,6 +27,7 @@ class Join:
         left_df: pl.DataFrame,
         right_df: pl.DataFrame,
         jinja_template: str,
+        strict: bool,
         model: LanguageModel,
         temperature: float,
         examples: Optional[JoinExampleCollection] = None,
@@ -35,6 +36,7 @@ class Join:
         self.left_df = left_df.with_row_index(LEFT_ID_KEY)
         self.right_df = right_df.with_row_index(RIGHT_ID_KEY)
         self.jinja_template = jinja_template
+        self.strict = strict
         self.examples = examples
         self.temperature = temperature
         self.model = model
@@ -58,17 +60,20 @@ class Join:
     def _build_join_pairs_df(self) -> pl.DataFrame | None:
         if self.left_df.is_empty() or self.right_df.is_empty():
             return None
-
-        left_documents = self.left_df.select([LEFT_ON_KEY, LEFT_ID_KEY]).filter(
-            pl.col(LEFT_ON_KEY).is_not_null()
-        )
-        right_documents = self.right_df.select([RIGHT_ON_KEY, RIGHT_ID_KEY]).filter(
-            pl.col(RIGHT_ON_KEY).is_not_null()
-        )
+        left_documents = self.left_df.select([LEFT_ON_KEY, LEFT_ID_KEY])
+        right_documents = self.right_df.select([RIGHT_ON_KEY, RIGHT_ID_KEY])
+        if self.strict:
+            left_documents = left_documents.filter(
+                pl.col(LEFT_ON_KEY).is_not_null()
+            )
+            right_documents = right_documents.filter(
+                pl.col(RIGHT_ON_KEY).is_not_null()
+            )
 
         joined_df = left_documents.join(right_documents, how="cross")
         render_expr = pl.struct([pl.col(LEFT_ON_KEY), pl.col(RIGHT_ON_KEY)]).jinja.render(
-            template=self.jinja_template
+            template=self.jinja_template,
+            strict=self.strict,
         )
         return joined_df.with_columns(render_expr.alias(RENDERED_INSTRUCTION_KEY)).drop([LEFT_ON_KEY, RIGHT_ON_KEY])
 

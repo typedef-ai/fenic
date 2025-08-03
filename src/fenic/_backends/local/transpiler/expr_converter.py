@@ -426,6 +426,7 @@ class ExprConverter:
         # Call the Jinja plugin
         return struct_expr.jinja.render(
             template=logical.template,
+            strict=logical.strict,
         )
 
     @_convert_expr.register(SemanticMapExpr)
@@ -446,6 +447,7 @@ class ExprConverter:
         struct_expr = pl.struct(column_exprs)
         jinja_expr = struct_expr.jinja.render(
             template=logical.template,
+            strict=logical.strict,
         )
 
         if logical.struct_type:
@@ -564,6 +566,7 @@ class ExprConverter:
         struct_expr = pl.struct(column_exprs)
         jinja_expr = struct_expr.jinja.render(
             template=logical.template,
+            strict=logical.strict,
         )
 
         return jinja_expr.map_batches(sem_pred_fn, return_dtype=pl.Boolean)

@@ -87,9 +87,9 @@ def _create_semantic_join_dataframe_with_right_none(local_session):
     )
     right = local_session.create_dataframe(
         {
-            "skill_id": [1, 2, 3],
-            "skill": ["Math", "Computer Science", None],
-            "other_col_right": ["h", "i", "j"],
+            "skill_id": [1, 2],
+            "skill": ["Math", None],
+            "other_col_right": ["h", "i"],
         }
     )
     return left, right

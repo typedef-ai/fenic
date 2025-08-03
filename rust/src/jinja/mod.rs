@@ -8,6 +8,7 @@ use crate::jinja::render::render;
 #[derive(Deserialize)]
 struct JinjaKwargs {
     template: String,
+    strict: bool,
 }
 
 fn jinja_output(_: &[Field]) -> PolarsResult<Field> {
@@ -45,5 +46,5 @@ fn jinja_output(_: &[Field]) -> PolarsResult<Field> {
 #[polars_expr(output_type_func=jinja_output)]
 fn jinja_render(inputs: &[Series], kwargs: JinjaKwargs) -> PolarsResult<Series> {
     let template = kwargs.template;
-    render(inputs, &template)
+    render(inputs, &template, kwargs.strict)
 }

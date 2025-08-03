@@ -143,6 +143,7 @@ class SemanticExtensions:
         jinja_template: str,
         left_on: Column,
         right_on: Column,
+        strict: bool = True,
         examples: Optional[JoinExampleCollection] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None
     ) -> DataFrame:
@@ -168,6 +169,10 @@ class SemanticExtensions:
                 The template is evaluated as a boolean - True includes the pair, False excludes it.
             left_on: The column from the left DataFrame (self) to use in the join predicate.
             right_on: The column from the right DataFrame (other) to use in the join predicate.
+            strict: If True, when either the left_on or right_on column has a None value for a row pair,
+                    that pair is automatically excluded from the join (predicate is not evaluated).
+                    If False, None values are rendered according to Jinja2's null rendering behavior.
+                    Default is True.
             examples: Optional JoinExampleCollection containing labeled examples to guide the join.
                 Each example should have:
                 - left: Sample value from the left column
@@ -239,6 +244,7 @@ class SemanticExtensions:
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
                 jinja_template=jinja_template,
+                strict=strict,
                 model_alias=resolved_model_alias,
                 examples=examples,
                 session_state=self._df._session_state,

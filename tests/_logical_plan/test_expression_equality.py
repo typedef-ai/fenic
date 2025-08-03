@@ -217,6 +217,11 @@ class TestBasicExpressions:
         index3 = IndexExpr(arr, "field2")
         assert index1 != index3
 
+        # Different index
+        index = ColumnExpr("blah")
+        index4 = IndexExpr(arr, index)
+        assert index1 != index4
+
     def test_array_expr(self):
         """Test ArrayExpr has no specific attributes."""
         col1 = ColumnExpr("x")
@@ -947,13 +952,17 @@ class TestTextExpressions:
         col2 = ColumnExpr("age")
 
         # Same template
-        jinja1 = JinjaExpr([col1, col2], "Hello {{name}}, age {{age}}")
-        jinja2 = JinjaExpr([col1, col2], "Hello {{name}}, age {{age}}")
+        jinja1 = JinjaExpr([col1, col2], "Hello {{name}}, age {{age}}", True)
+        jinja2 = JinjaExpr([col1, col2], "Hello {{name}}, age {{age}}", True)
         assert jinja1 == jinja2
 
         # Different template
-        jinja3 = JinjaExpr([col1, col2], "Hi {{name}}, you are {{age}}")
+        jinja3 = JinjaExpr([col1, col2], "Hi {{name}}, you are {{age}}", True)
         assert jinja1 != jinja3
+
+        # Different strict
+        jinja4 = JinjaExpr([col1, col2], "Hello {{name}}, age {{age}}", False)
+        assert jinja1 != jinja4
 
     def test_fuzzy_ratio_expr(self):
         """Test FuzzyRatioExpr compares method."""
@@ -1017,37 +1026,41 @@ class TestSemanticExpressions:
         ])
 
         # Same attributes
-        map1 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.5)
-        map2 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.5)
+        map1 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.5)
+        map2 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.5)
         assert map1 == map2
 
         # Different template
-        map3 = SemanticMapExpr("Analyze {{text1}}", [col1], 100, 0.5)
+        map3 = SemanticMapExpr("Analyze {{text1}}", True, [col1], 100, 0.5)
         assert map1 != map3
 
         # Different max_tokens
-        map4 = SemanticMapExpr("Process {{text1}}", [col1], 200, 0.5)
+        map4 = SemanticMapExpr("Process {{text1}}", True, [col1], 200, 0.5)
         assert map1 != map4
 
         # Different temperature
-        map5 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.7)
+        map5 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.7)
         assert map1 != map5
 
         # Same examples
-        map6 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.5, examples=examples1)
-        map7 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.5, examples=examples1)
+        map6 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.5, examples=examples1)
+        map7 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.5, examples=examples1)
         assert map6 == map7
 
         # Different examples
-        map8 = SemanticMapExpr("Process {{text1}}", [col1], 100, 0.5, examples=examples2)
+        map8 = SemanticMapExpr("Process {{text1}}", True, [col1], 100, 0.5, examples=examples2)
         assert map6 != map8
 
         # One with examples, one without
         assert map1 != map6
 
         # Different expressions
-        map9 = SemanticMapExpr("Process {{text1}}", [col1_alias], 100, 0.5, examples=examples1)
+        map9 = SemanticMapExpr("Process {{text1}}", True, [col1_alias], 100, 0.5, examples=examples1)
         assert map1 != map9
+
+        # Different strict
+        map10 = SemanticMapExpr("Process {{text1}}", False, [col1], 100, 0.5, examples=examples1)
+        assert map1 != map10
 
     def test_semantic_extract_expr(self):
         """Test SemanticExtractExpr compares schema, max_tokens, temperature, and model_alias."""
@@ -1094,33 +1107,37 @@ class TestSemanticExpressions:
         ])
 
         # Same attributes
-        pred1 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.3)
-        pred2 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.3)
+        pred1 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.3)
+        pred2 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.3)
         assert pred1 == pred2
 
         # Different template
-        pred3 = SemanticPredExpr("Is {{text1}} negative?", [col1], 0.3)
+        pred3 = SemanticPredExpr("Is {{text1}} negative?", True, [col1], 0.3)
         assert pred1 != pred3
 
         # Different temperature
-        pred4 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.5)
+        pred4 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.5)
         assert pred1 != pred4
 
         # Same examples
-        pred5 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.3, examples=examples1)
-        pred6 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.3, examples=examples1)
+        pred5 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.3, examples=examples1)
+        pred6 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.3, examples=examples1)
         assert pred5 == pred6
 
         # Different examples
-        pred7 = SemanticPredExpr("Is {{text1}} positive?", [col1], 0.3, examples=examples2)
+        pred7 = SemanticPredExpr("Is {{text1}} positive?", True, [col1], 0.3, examples=examples2)
         assert pred5 != pred7
 
         # One with examples, one without
         assert pred1 != pred5
 
         # Different expressions
-        pred8 = SemanticPredExpr("Is {{text1}} positive?", [col1_alias], 0.3, examples=examples1)
+        pred8 = SemanticPredExpr("Is {{text1}} positive?", True, [col1_alias], 0.3, examples=examples1)
         assert pred1 != pred8
+
+        # Different strict
+        pred9 = SemanticPredExpr("Is {{text1}} positive?", False, [col1], 0.3, examples=examples1)
+        assert pred1 != pred9
 
     def test_semantic_reduce_expr(self):
         """Test SemanticReduceExpr compares all attributes including group_context and order_by."""

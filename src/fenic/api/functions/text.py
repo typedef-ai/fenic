@@ -941,6 +941,7 @@ def byte_length(column: ColumnOrName) -> Column:
 def jinja(
     jinja_template: str,
     /,
+    strict: bool = True,
     **columns: Column
 ) -> Column:
     """Render a Jinja template using values from the specified columns.
@@ -950,7 +951,11 @@ def jinja(
 
     Args:
         jinja_template: A Jinja2 template string to render for each row.
-                       Variables are referenced using double braces: {{ variable_name }}
+                        Variables are referenced using double braces: {{ variable_name }}
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
         **columns: Keyword arguments mapping variable names to columns.
                   Each keyword becomes a variable in the template context.
 
@@ -1032,7 +1037,7 @@ def jinja(
             column_exprs.append(column.alias(var_name)._logical_expr)
 
     return Column._from_logical_expr(
-        JinjaExpr(column_exprs, jinja_template)
+        JinjaExpr(column_exprs, jinja_template, strict)
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

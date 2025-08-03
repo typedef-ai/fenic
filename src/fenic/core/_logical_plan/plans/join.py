@@ -187,6 +187,7 @@ class SemanticJoin(BaseSemanticJoin):
         left_on: LogicalExpr,
         right_on: LogicalExpr,
         jinja_template: str,
+        strict: bool,
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
@@ -194,6 +195,7 @@ class SemanticJoin(BaseSemanticJoin):
         schema: Optional[Schema] = None,
     ):
         self._jinja_template = jinja_template
+        self._strict = strict
         self._examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
@@ -210,6 +212,7 @@ class SemanticJoin(BaseSemanticJoin):
         left_on: LogicalExpr,
         right_on: LogicalExpr,
         jinja_template: str,
+        strict: bool,
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
@@ -219,6 +222,7 @@ class SemanticJoin(BaseSemanticJoin):
                 left_on,
                 right_on,
                 jinja_template,
+                strict,
                 temperature,
                 model_alias,
                 examples,
@@ -231,6 +235,7 @@ class SemanticJoin(BaseSemanticJoin):
         left_on: LogicalExpr,
         right_on: LogicalExpr,
         jinja_template: str,
+        strict: bool,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
@@ -240,6 +245,7 @@ class SemanticJoin(BaseSemanticJoin):
                 left_on,
                 right_on,
                 jinja_template,
+                strict,
                 temperature,
                 model_alias,
                 examples,
@@ -265,6 +271,9 @@ class SemanticJoin(BaseSemanticJoin):
     def jinja_template(self) -> str:
         return self._jinja_template
 
+    def strict(self) -> bool:
+        return self._strict
+
     def examples(self) -> Optional[JoinExampleCollection]:
         return self._examples
 
@@ -284,6 +293,7 @@ class SemanticJoin(BaseSemanticJoin):
             left_on=self._left_on,
             right_on=self._right_on,
             jinja_template=self._jinja_template,
+            strict=self._strict,
             examples=self._examples,
             temperature=self.temperature,
             model_alias=self.model_alias,

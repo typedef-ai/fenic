@@ -135,7 +135,7 @@ def test_semantic_map_with_examples(local_session):
         source.select(semantic.map(prompt, user=col("user"), tasks=col("tasks"), examples=bad_examples).alias("plan"))
 
 
-def test_semantic_map_with_nulls_ok(local_session):
+def test_semantic_map_with_nulls(local_session):
     # have a data source with some nulls.
     source = local_session.create_dataframe(
         {"name": ["Alice", "Bob"], "city": ["New York", None]}
@@ -152,6 +152,15 @@ def test_semantic_map_with_nulls_ok(local_session):
     }
     result_list = result["state"].to_list()
     assert len(result_list) == 2
+    assert result_list[1] is None
+
+    df_select = source.select(
+        semantic.map(state_prompt, strict=False, name=col("name"), city=col("city")).alias("state"),
+    )
+    result = df_select.to_polars()
+    result_list = result["state"].to_list()
+    assert len(result_list) == 2
+    assert result_list[1] is not None
 
 
 def test_semantic_map_without_models():

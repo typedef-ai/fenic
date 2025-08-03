@@ -105,6 +105,7 @@ class SemanticJoinExec(PhysicalPlan):
         left_on: Union[str, pl.Expr],
         right_on: Union[str, pl.Expr],
         jinja_template: str,
+        strict: bool,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
         model_alias: Optional[ResolvedModelAlias] = None,
@@ -116,6 +117,7 @@ class SemanticJoinExec(PhysicalPlan):
         )
         self.examples = examples
         self.jinja_template = jinja_template
+        self.strict = strict
         self.left_on = left_on
         self.right_on = right_on
         self.temperature = temperature
@@ -139,6 +141,7 @@ class SemanticJoinExec(PhysicalPlan):
             left_df,
             right_df,
             self.jinja_template,
+            self.strict,
             self.session_state.get_language_model(self.model_alias),
             examples=self.examples,
             temperature=self.temperature,

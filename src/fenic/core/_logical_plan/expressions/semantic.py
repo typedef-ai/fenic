@@ -59,6 +59,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
     def __init__(
         self,
         jinja_template: str,
+        strict: bool,
         exprs: List[Union[ColumnExpr, AliasExpr]],
         max_tokens: int,
         temperature: float,
@@ -67,6 +68,7 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         examples: Optional[MapExampleCollection] = None,
     ):
         self.template = jinja_template
+        self.strict = strict
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.max_tokens = max_tokens
@@ -130,7 +132,15 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         return f"semantic.map_{instruction_hash}({exprs_str})"
 
     def _eq_specific(self, other: SemanticMapExpr) -> bool:
-        return self.max_tokens == other.max_tokens and self.temperature == other.temperature and self.model_alias == other.model_alias and self.response_format is other.response_format and self.examples == other.examples and self.template == other.template
+        return (
+            self.max_tokens == other.max_tokens
+            and self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+            and self.response_format is other.response_format
+            and self.examples == other.examples
+            and self.template == other.template
+            and self.strict == other.strict
+        )
 
 
 class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
@@ -189,7 +199,12 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         return convert_pydantic_type_to_custom_struct_type(self.schema)
 
     def _eq_specific(self, other: SemanticExtractExpr) -> bool:
-        return self.schema is other.schema and self.max_tokens == other.max_tokens and self.temperature == other.temperature and self.model_alias == other.model_alias
+        return (
+            self.schema is other.schema
+            and self.max_tokens == other.max_tokens
+            and self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+        )
 
 
 class SemanticPredExpr(ValidatedSignature, SemanticExpr):
@@ -198,12 +213,14 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
     def __init__(
         self,
         jinja_template: str,
+        strict: bool,
         exprs: List[Union[ColumnExpr, AliasExpr]],
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[PredicateExampleCollection] = None,
     ):
         self.template = jinja_template
+        self.strict = strict
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.examples = examples
@@ -243,7 +260,13 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         )
 
     def _eq_specific(self, other: SemanticPredExpr) -> bool:
-        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.examples == other.examples and self.template == other.template
+        return (
+            self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+            and self.examples == other.examples
+            and self.template == other.template
+            and self.strict == other.strict
+        )
 
 
 class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
@@ -329,7 +352,12 @@ class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
         return f"semantic.reduce_{instruction_hash}({', '.join(params)})"
 
     def _eq_specific(self, other: SemanticReduceExpr) -> bool:
-        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.instruction == other.instruction and self.max_tokens == other.max_tokens
+        return (
+            self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+            and self.instruction == other.instruction
+            and self.max_tokens == other.max_tokens
+        )
 
 
 class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
@@ -386,7 +414,12 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         return super().to_column_field(plan, session_state)
 
     def _eq_specific(self, other: SemanticClassifyExpr) -> bool:
-        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.classes == other.classes and self.examples == other.examples
+        return (
+            self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+            and self.classes == other.classes
+            and self.examples == other.examples
+        )
 
 
 class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):

@@ -627,7 +627,7 @@ class JoinExampleCollection(BaseExampleCollection[JoinExample]):
         return rows
 
 class _ExampleTypeValidator:
-    """Validates types across examples with simple first-example rules."""
+    """Validates types across examples with no None values allowed."""
 
     def __init__(self):
         self.field_types: Dict[str, DataType] = {}
@@ -635,18 +635,21 @@ class _ExampleTypeValidator:
 
     def process_example(self, example_dict: Dict[str, Any], example_num: int) -> None:
         """Process an example dict, establishing or validating types."""
+        # Check for None values in any example
+        for key, value in example_dict.items():
+            if value is None:
+                raise InvalidExampleCollectionError(
+                    f"Example #{example_num}: None values are not allowed. "
+                    f"Field '{key}' is None."
+                )
+
         if self.is_first_example:
-            # First example: no Nones allowed, establishes the schema
+            # First example: establishes the schema
             for key, value in example_dict.items():
-                if value is None:
-                    raise InvalidExampleCollectionError(
-                        f"First example cannot have None values. "
-                        f"Field '{key}' is None. Please provide a complete first example."
-                    )
                 self.field_types[key] = infer_dtype_from_pyobj(value, path=key)
             self.is_first_example = False
         else:
-            # Subsequent examples: must have same keys, can have Nones
+            # Subsequent examples: must have same keys and matching types
             expected_keys = set(self.field_types.keys())
             actual_keys = set(example_dict.keys())
 
@@ -656,15 +659,14 @@ class _ExampleTypeValidator:
                     f"Expected: {sorted(expected_keys)}, Got: {sorted(actual_keys)}"
                 )
 
-            # Validate non-None values match established types
+            # Validate types match established schema
             for key, value in example_dict.items():
-                if value is not None:
-                    inferred_type = infer_dtype_from_pyobj(value, path=key)
-                    if self.field_types[key] != inferred_type:
-                        raise InvalidExampleCollectionError(
-                            f"Example #{example_num}: Field '{key}' type mismatch. "
-                            f"Expected {self.field_types[key]}, got {inferred_type}"
-                        )
+                inferred_type = infer_dtype_from_pyobj(value, path=key)
+                if self.field_types[key] != inferred_type:
+                    raise InvalidExampleCollectionError(
+                        f"Example #{example_num}: Field '{key}' type mismatch. "
+                        f"Expected {self.field_types[key]}, got {inferred_type}"
+                    )
 
     def validate_against_column_types(self, column_types: Dict[str, DataType]) -> None:
         """Validate that column types are a subset of example field types.

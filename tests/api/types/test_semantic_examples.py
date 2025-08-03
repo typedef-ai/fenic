@@ -56,10 +56,10 @@ class TestMapExampleCollection:
         collection = MapExampleCollection()
 
         example = MapExample(input={"text": "Hello", "count": None}, output="greeting")
-        with pytest.raises(InvalidExampleCollectionError, match="First example cannot have None values"):
+        with pytest.raises(InvalidExampleCollectionError, match="Example #1: None values are not allowed."):
             collection.create_example(example)
 
-    def test_subsequent_examples_can_have_none(self):
+    def test_subsequent_examples_cannot_have_none(self):
         """Test that subsequent examples can have None values."""
         collection = MapExampleCollection()
 
@@ -67,12 +67,10 @@ class TestMapExampleCollection:
         example1 = MapExample(input={"text": "Hello", "count": 5}, output="greeting")
         collection.create_example(example1)
 
-        # Second example can have None
+        # Second example cannot have None
         example2 = MapExample(input={"text": "Hi", "count": None}, output="greeting")
-        collection.create_example(example2)
-
-        assert len(collection.examples) == 2
-        assert collection.examples[1].input["count"] is None
+        with pytest.raises(InvalidExampleCollectionError, match="Example #2: None values are not allowed."):
+            collection.create_example(example2)
 
     def test_type_consistency_enforcement(self):
         """Test that field types must be consistent across examples."""
