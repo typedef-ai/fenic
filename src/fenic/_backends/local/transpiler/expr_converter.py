@@ -326,6 +326,9 @@ class ExprConverter:
                 nulls_last.append(order_by_expr.nulls_last)
             struct = pl.struct(polars_exprs)
 
+            # sem_reduce_fn takes a Series of Series (each inner Series is a group of values)
+            # and returns a Series of strings, one per group.
+            # The Series of Series is created by the map_batches call below.
             def sem_reduce_fn(batch: pl.Series) -> pl.Series:
                 return SemanticReduce(
                     input=batch,

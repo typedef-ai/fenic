@@ -10,12 +10,12 @@ from fenic._backends.local.semantic_operators.utils import (
 from fenic._constants import VECTOR_INDEX_DIR
 from fenic.core.types.enums import SemanticSimilarityMetric
 
-# TODO(rohitrastogi): Make these guids so they don't collide with any column names in a user dataframe.
 # LanceDB column names
 DISTANCE_COL_NAME = "_distance"
 # IMPORTANT: Lance expects a column named "vector" in the table.
 VECTOR_COL_NAME = "vector"
 
+# TODO(rohitrastogi): Make these guids so they don't collide with any column names in a user dataframe.
 LEFT_ON_COL_NAME = "__left_on__"
 RIGHT_ON_COL_NAME = "__right_on__"
 LEFT_ID_COL_NAME = "__left_id__"
