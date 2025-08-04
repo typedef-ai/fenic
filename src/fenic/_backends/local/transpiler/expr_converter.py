@@ -57,6 +57,7 @@ from fenic.core._logical_plan.expressions import (
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
+    GreatestExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -65,6 +66,7 @@ from fenic.core._logical_plan.expressions import (
     JqExpr,
     JsonContainsExpr,
     JsonTypeExpr,
+    LeastExpr,
     LikeExpr,
     ListExpr,
     LiteralExpr,
@@ -1145,6 +1147,14 @@ class ExprConverter:
 
         # Return the maximum
         return pl.max_horizontal([ratio1, ratio2, ratio3])
+
+    @_convert_expr.register(GreatestExpr)
+    def _convert_greatest_expr(self, logical: GreatestExpr) -> pl.Expr:
+        return pl.max_horizontal([self._convert_expr(expr) for expr in logical.exprs])
+
+    @_convert_expr.register(LeastExpr)
+    def _convert_least_expr(self, logical: LeastExpr) -> pl.Expr:
+        return pl.min_horizontal([self._convert_expr(expr) for expr in logical.exprs])
 
 def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
     if method == "indel":

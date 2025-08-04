@@ -39,7 +39,9 @@ from fenic.api import (
     desc_nulls_last,
     embedding,
     first,
+    greatest,
     json,
+    least,
     lit,
     markdown,
     max,
@@ -186,6 +188,8 @@ __all__ = [
     "when",
     "col",
     "lit",
+    "greatest",
+    "least",
     # Lineage
     "Lineage",
     # Metrics

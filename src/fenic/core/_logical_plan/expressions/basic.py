@@ -396,6 +396,56 @@ class InExpr(UnparameterizedExpr, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
 
+class GreatestExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
+    """Expression representing the greatest value of a list of expressions."""
+
+    function_name = "greatest"
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        column_field = super().to_column_field(plan, session_state)
+        first_expr_type = self.exprs[0].to_column_field(plan, session_state).data_type
+        if not isinstance(first_expr_type, _PrimitiveType):
+            raise TypeMismatchError.from_message(
+                f"fc.greatest() only supports primitive types (StringType, BooleanType, "
+                f"FloatType, IntegerType, etc). Got: {first_expr_type} instead. "
+            )
+        return column_field
+
+class LeastExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
+    """Expression representing the least value of a list of expressions."""
+
+    function_name = "least"
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        column_field = super().to_column_field(plan, session_state)
+        first_expr_type = self.exprs[0].to_column_field(plan, session_state).data_type
+        if not isinstance(first_expr_type, _PrimitiveType):
+            raise TypeMismatchError.from_message(
+                f"fc.least() only supports primitive types (StringType, BooleanType, "
+                f"FloatType, IntegerType, etc). Got: {first_expr_type} instead. "
+            )
+
+        return column_field
 
 UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
 def _can_cast(src: DataType, dst: DataType) -> bool:

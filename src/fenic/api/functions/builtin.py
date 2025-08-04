@@ -15,6 +15,8 @@ from fenic.core._logical_plan.expressions import (
     CoalesceExpr,
     CountExpr,
     FirstExpr,
+    GreatestExpr,
+    LeastExpr,
     ListExpr,
     MaxExpr,
     MinExpr,
@@ -505,25 +507,18 @@ def coalesce(*cols: ColumnOrName) -> Column:
     in order and returns the first non-null value encountered. If all values are null, returns null.
 
     Args:
-        *cols: Column expressions or column names to evaluate. Can be:
-
-            - Individual arguments
-            - Lists of columns/column names
-            - Tuples of columns/column names
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
 
     Returns:
         A Column expression containing the first non-null value from the input columns.
 
     Raises:
-        ValueError: If no columns are provided.
+        ValidationError: If no columns are provided.
 
-    Example: Basic coalesce usage
+    Example: coalesce usage
         ```python
-        # Basic usage
         df.select(coalesce("col1", "col2", "col3"))
-
-        # With nested collections
-        df.select(coalesce(["col1", "col2"], "col3"))
         ```
     """
     if not cols:
@@ -540,3 +535,78 @@ def coalesce(*cols: ColumnOrName) -> Column:
         Column._from_col_or_name(c)._logical_expr for c in flattened_args
     ]
     return Column._from_logical_expr(CoalesceExpr(flattened_exprs))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def greatest(*cols: ColumnOrName) -> Column:
+    """Returns the greatest value from the given columns for each row.
+
+    This function mimics the behavior of SQL's GREATEST function. It evaluates the input columns
+    in order and returns the greatest value encountered. If all values are null, returns null.
+
+    Args:
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
+
+    Returns:
+        A Column expression containing the greatest value from the input columns.
+
+    Raises:
+        ValidationError: If fewer than two columns are provided.
+
+    Example: greatest usage
+        ```python
+        df.select(fc.greatest("col1", "col2", "col3"))
+        ```
+    """
+    if len(cols) < 2:
+        raise ValidationError(f"greatest() requires at least 2 columns, got {len(cols)}")
+
+    flattened_args = []
+    for arg in cols:
+        if isinstance(arg, (list, tuple)):
+            flattened_args.extend(arg)
+        else:
+            flattened_args.append(arg)
+
+    flattened_exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    ]
+    return Column._from_logical_expr(GreatestExpr(flattened_exprs))
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def least(*cols: ColumnOrName) -> Column:
+    """Returns the least value from the given columns for each row.
+
+    This function mimics the behavior of SQL's LEAST function. It evaluates the input columns
+    in order and returns the least value encountered. If all values are null, returns null.
+
+    Args:
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
+
+    Returns:
+        A Column expression containing the least value from the input columns.
+
+    Raises:
+        ValidationError: If fewer than two columns are provided.
+
+    Example: least usage
+        ```python
+        df.select(fc.least("col1", "col2", "col3"))
+        ```
+    """
+    if len(cols) < 2:
+        raise ValidationError(f"least() requires at least 2 columns, got {len(cols)}")
+
+    flattened_args = []
+    for arg in cols:
+        if isinstance(arg, (list, tuple)):
+            flattened_args.extend(arg)
+        else:
+            flattened_args.append(arg)
+
+    flattened_exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    ]
+    return Column._from_logical_expr(LeastExpr(flattened_exprs))

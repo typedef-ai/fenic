@@ -17,6 +17,8 @@ from fenic.api.functions.builtin import (
     desc_nulls_first,
     desc_nulls_last,
     first,
+    greatest,
+    least,
     max,
     mean,
     min,
@@ -65,4 +67,6 @@ __all__ = [
     "when",
     "first",
     "stddev",
+    "greatest",
+    "least",
 ]

@@ -44,4 +44,14 @@ def register_basic_signatures():
                                                                   type_signature=ArrayWithMatchingElement(),
                                                                   return_type=BooleanType))
 
+    # Greatest - all arguments must be same type as first
+    FunctionRegistry.register("greatest", FunctionSignature(function_name="greatest",
+                                                            type_signature=VariadicUniform(expected_min_args=2),
+                                                            return_type=ReturnTypeStrategy.SAME_AS_INPUT))
+
+    # Least - all arguments must be same type as first
+    FunctionRegistry.register("least", FunctionSignature(function_name="least",
+                                                            type_signature=VariadicUniform(expected_min_args=2),
+                                                            return_type=ReturnTypeStrategy.SAME_AS_INPUT))
+
 register_basic_signatures()

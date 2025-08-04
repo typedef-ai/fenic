@@ -27,9 +27,11 @@ from fenic.core._logical_plan.expressions.basic import (
 from fenic.core._logical_plan.expressions.basic import CastExpr as CastExpr
 from fenic.core._logical_plan.expressions.basic import CoalesceExpr as CoalesceExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr as ColumnExpr
+from fenic.core._logical_plan.expressions.basic import GreatestExpr as GreatestExpr
 from fenic.core._logical_plan.expressions.basic import IndexExpr as IndexExpr
 from fenic.core._logical_plan.expressions.basic import InExpr as InExpr
 from fenic.core._logical_plan.expressions.basic import IsNullExpr as IsNullExpr
+from fenic.core._logical_plan.expressions.basic import LeastExpr as LeastExpr
 from fenic.core._logical_plan.expressions.basic import LiteralExpr as LiteralExpr
 from fenic.core._logical_plan.expressions.basic import NotExpr as NotExpr
 from fenic.core._logical_plan.expressions.basic import SortExpr as SortExpr

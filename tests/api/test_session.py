@@ -20,9 +20,11 @@ from fenic import (
     StringType,
     col,
 )
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
 from fenic.core.error import ValidationError as FenicValidationError
+from tests.conftest import EMBEDDING_MODEL_PROVIDER_ARG
 
 
 def test_session_with_db_path(temp_dir, local_session_config):
@@ -217,7 +219,7 @@ def test_inmemory_source(local_session):
 
 def test_session_config_with_unsupported_embedding_profile_dimensionality():
     """Test that session configuration validation rejects embedding profiles with unsupported dimensionality.
-    
+
     Google's gemini-embedding-001 model supports dimensions: [768, 1536, 3072].
     This tests the validate_models logic, not just Pydantic validation.
     """
@@ -349,7 +351,7 @@ def test_cohere_embedding_profile_rejects_arbitrary_args():
             another_field=123,  # This should also cause an error
             yet_another_field={"nested": "data"}  # This should also cause an error
         )
-    
+
     # Valid profile should still work
     profile = CohereEmbeddingModel.Profile(
         output_dimensionality=1024,
@@ -370,7 +372,7 @@ def test_google_embeddings_profile_rejects_arbitrary_args():
             another_field=123,  # This should also cause an error
             yet_another_field={"nested": "data"}  # This should also cause an error
         )
-    
+
     # Valid profile should still work
     profile = GoogleVertexEmbeddingModel.Profile(
         output_dimensionality=1536,
@@ -401,7 +403,7 @@ def test_session_config_with_valid_embedding_profile_dimensions():
             }
         )
     )
-    
+
     # Verify the configuration was created successfully
     assert config.semantic.embedding_models["google_embed"].profiles["small"].output_dimensionality == 768
     assert config.semantic.embedding_models["google_embed"].profiles["medium"].output_dimensionality == 1536
@@ -427,14 +429,18 @@ def test_embedding_profile_with_none_dimensionality():
             }
         )
     )
-    
+
     # Verify None is preserved (will use model's default)
     assert config.semantic.embedding_models["google_embed"].profiles["default"].output_dimensionality is None
 
 
-def test_embedding_with_no_profile():
+def test_embedding_with_no_profile(request):
     """Test that embedding profiles with no profile (when one is possible) are accepted."""
     # This should succeed as None means use the model's default dimensionality
+    embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
+    if embedding_model_provider != ModelProvider.GOOGLE_VERTEX:
+        pytest.skip("This test only runs for Google Vertex embedding models")
+
     config = SessionConfig(
         app_name="test_app",
         semantic=SemanticConfig(
