@@ -466,12 +466,12 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
         embedding_params = model_catalog.get_embedding_model_parameters(
             model_provider, model_name
         )
-        if isinstance(model_config, ResolvedGoogleModelConfig):
+        if isinstance(model_config, ResolvedGoogleModelConfig) and model_config.profiles:
             profile_name = model_alias.profile if model_alias.profile else model_config.default_profile
             if profile_name not in model_config.profiles:
                 raise ValidationError(
                     f"Embedding model preset '{model_alias.profile}' not found in SessionConfig."
-                    f" Available presets for {model_alias.name}: {', '.join(model_config.profiles)}"
+                    f"Available profiles for {model_alias.name}: {', '.join(model_config.profiles)}"
                 )
             profile = model_config.profiles[profile_name]
 

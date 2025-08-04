@@ -5,8 +5,10 @@ import pyarrow as pa
 from fenic._inference.model_client import ModelClient
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import model_catalog
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+)
 from fenic.core.metrics import RMMetrics
-from fenic.core.types.semantic import ModelAlias
 
 
 class EmbeddingModel:
@@ -19,13 +21,13 @@ class EmbeddingModel:
     def get_embeddings(
         self,
         docs: list[str],
-        model_alias: Optional[ModelAlias] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
     ) -> pa.ListArray:
-        model_preset = model_alias.preset if model_alias else None
+        model_profile = model_alias.profile if model_alias else None
         requests = []
         for doc in docs:
             if doc:
-                requests.append(FenicEmbeddingsRequest(doc, model_preset))
+                requests.append(FenicEmbeddingsRequest(doc, model_profile))
             else:
                 requests.append(None)
         results = self.client.make_batch_requests(requests, operation_name="semantic.embed")
