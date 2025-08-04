@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.3.0](https://github.com/typedef-ai/fenic/compare/v0.2.1...v0.3.0) (2025-08-04)
+
+
+### Features
+
+* Add basic support for WebVTT format to transcript parser ([97162af](https://github.com/typedef-ai/fenic/commit/97162afc50e6c56cc3add7efdb65907bb766d8ab)), closes [#71](https://github.com/typedef-ai/fenic/issues/71)
+* Add full support for complex Pydantic models in `semantic.extract`; deprecate custom `ExtractSchema` ([#66](https://github.com/typedef-ai/fenic/issues/66)) ([b69baff](https://github.com/typedef-ai/fenic/commit/b69baffd6a991a769158f34945eca093457f9c96))
+* add implementation for text.jinja() column function ([#98](https://github.com/typedef-ai/fenic/issues/98)) ([b784181](https://github.com/typedef-ai/fenic/commit/b78418155f5831133b7b28e338f41d48d83e97c5))
+* add jinja expr and validate jinja template against input exprs ([#96](https://github.com/typedef-ai/fenic/issues/96)) ([4e71293](https://github.com/typedef-ai/fenic/commit/4e71293552a544854338dcca3bd4a504b119f984))
+* Add jinja template validation and variable extraction to be used in jinja rendering column function and more ([#87](https://github.com/typedef-ai/fenic/issues/87)) ([fdd87e5](https://github.com/typedef-ai/fenic/commit/fdd87e548d16a23a109d630683c8576f23e9c886))
+* add Jinja templating support to semantic operations ([9bcccff](https://github.com/typedef-ai/fenic/commit/9bcccff0a32372ba2a0a34a4443f4fdc3857a0ec))
+* add pretty printed string representation for schema ([616f541](https://github.com/typedef-ai/fenic/commit/616f54104d897f0968939223071065b328e80495))
+* add rust utility to convert arrow array values into minijinja contexts ([#97](https://github.com/typedef-ai/fenic/issues/97)) ([9901253](https://github.com/typedef-ai/fenic/commit/99012535f5d61d7ed4cce2d5d875b208c4aaf9ee))
+* add support for basic fuzzy string ratio column functions ([791e662](https://github.com/typedef-ai/fenic/commit/791e662c7f96cb0445a71f52fd6ec0c84d4272eb))
+* Add support for Cohere embeddings ([#116](https://github.com/typedef-ai/fenic/issues/116)) ([bf004df](https://github.com/typedef-ai/fenic/commit/bf004dfd3d193fcc9b3586dd3a52c5a41b7e6313))
+* add support for greatest/least column functions ([0aa0636](https://github.com/typedef-ai/fenic/commit/0aa06365cba31c531fcdfed913cb422789f0baa3))
+* Add support for webvtt transcript format ([#105](https://github.com/typedef-ai/fenic/issues/105)) ([97162af](https://github.com/typedef-ai/fenic/commit/97162afc50e6c56cc3add7efdb65907bb766d8ab))
+* convert json/markdown functions to ScalarFunction ([#55](https://github.com/typedef-ai/fenic/issues/55)) ([1d5be25](https://github.com/typedef-ai/fenic/commit/1d5be2535e98dbd9b9c6f2e583b305caf5544c26))
+* convert semantic/embedding exprs to ScalarFunction ([#56](https://github.com/typedef-ai/fenic/issues/56)) ([ea7f6ca](https://github.com/typedef-ai/fenic/commit/ea7f6ca778674f959a058eacbf54558d52581c23))
+* function registry for signature validation ([#53](https://github.com/typedef-ai/fenic/issues/53)) ([a33747f](https://github.com/typedef-ai/fenic/commit/a33747f5c9527eb79b12e28ce6355bf73ed9fcd6))
+* Implemented embeddings client for gemini with preset support for variable output dimensionality ([#111](https://github.com/typedef-ai/fenic/issues/111)) ([2104bfe](https://github.com/typedef-ai/fenic/commit/2104bfea3b66a9e71eedfbae95c3275218759710))
+* make SemanticConfig optional to support OLAP-only and partial semantic operations ([#100](https://github.com/typedef-ai/fenic/issues/100)) ([5f8e3cb](https://github.com/typedef-ai/fenic/commit/5f8e3cb45af83ce62a4b99aa64dbffe323d0223a))
+* register/convert text functions using ScalarFunction ([#54](https://github.com/typedef-ai/fenic/issues/54)) ([15a8c26](https://github.com/typedef-ai/fenic/commit/15a8c2647ba31adc743248719e7d48cb130a9705))
+* replace pylance kmeans implementation with scikit-learn and expose num_init and max_iter params in api ([#104](https://github.com/typedef-ai/fenic/issues/104)) ([fdea6af](https://github.com/typedef-ai/fenic/commit/fdea6afc358935f6886c58c18095198a0f390a50))
+* semantic map can now generate content with pydantic schema ([#78](https://github.com/typedef-ai/fenic/issues/78)) ([0148c81](https://github.com/typedef-ai/fenic/commit/0148c8155631ba52dcaf1f02e7ab9b3aee76ae34))
+* summarization function ([#37](https://github.com/typedef-ai/fenic/issues/37)) ([2e83645](https://github.com/typedef-ai/fenic/commit/2e8364547910439544c7f37b16f70fc0311d0e57))
+* support descriptions of class labels in semantic.classify ([baf3897](https://github.com/typedef-ai/fenic/commit/baf38971415844a919b674a97d4e6050b52ca831))
+* support dynamic array index via expr arg in column.get_item() ([7795497](https://github.com/typedef-ai/fenic/commit/779549733c9c130cf3d7c1e3b5eeebe3a72c1640))
+* Support for persistent views ([#41](https://github.com/typedef-ai/fenic/issues/41)) ([63747c0](https://github.com/typedef-ai/fenic/commit/63747c0cbfb0906248f20d6954a57cccc297b089))
+* support model profiles with different thinking/reasoning configurations ([#82](https://github.com/typedef-ai/fenic/issues/82)) ([4a05c1a](https://github.com/typedef-ai/fenic/commit/4a05c1a4248781df3326949437f9cc260347e90c))
+* use composition instead of inheritance for signature validation ([#63](https://github.com/typedef-ai/fenic/issues/63)) ([1b8983e](https://github.com/typedef-ai/fenic/commit/1b8983eb1bbfea515c63beb5aaf556400aadc153))
+
+
+### Bug Fixes
+
+* embedding profile assumptions ([#125](https://github.com/typedef-ai/fenic/issues/125)) ([131db13](https://github.com/typedef-ai/fenic/commit/131db13df6c69e8143994b972bd2e70e239db894))
+* ensure total_output_tokens is populated even if the api response does not include it ([#62](https://github.com/typedef-ai/fenic/issues/62)) ([496c5fd](https://github.com/typedef-ai/fenic/commit/496c5fd1d17f9fd84ceb74bd863ac61d095b9eea))
+* fix broken typesignature/functionsignature imports ([#84](https://github.com/typedef-ai/fenic/issues/84)) ([2a3460b](https://github.com/typedef-ai/fenic/commit/2a3460ba66cc93f785745265833a930f72409d31))
+* fix bugs in text.extract related to delimiter sequence parsing and also disallow empty column names in templates ([#75](https://github.com/typedef-ai/fenic/issues/75)) ([fb96b13](https://github.com/typedef-ai/fenic/commit/fb96b13fcb7cf99d4625f9a6a5b481d179bb2d6e))
+* grpc should use fenic's asyncio event loop ([#85](https://github.com/typedef-ai/fenic/issues/85)) ([356086a](https://github.com/typedef-ai/fenic/commit/356086ac0ac40d344833b5227afb190efae8e146))
+* make catalog use sc method to implement does_table_exist ([#90](https://github.com/typedef-ai/fenic/issues/90)) ([513da9a](https://github.com/typedef-ai/fenic/commit/513da9a4f6f7fae58873df5bc233bd09319432f9))
+* One language model param for test suites, with separate embeddings param ([#122](https://github.com/typedef-ai/fenic/issues/122)) ([7b3a297](https://github.com/typedef-ai/fenic/commit/7b3a2976d60bb9f3645590c7e7dcb2e3c020b300))
+* rogue replacement of `name` with `model_name` ([#124](https://github.com/typedef-ai/fenic/issues/124)) ([efb5fba](https://github.com/typedef-ai/fenic/commit/efb5fba65b2e7f3a6e698327042a63b60190ed86))
+* split plan creation from validation ([#115](https://github.com/typedef-ai/fenic/issues/115)) ([1d7c388](https://github.com/typedef-ai/fenic/commit/1d7c388005bbe097bf510b8169c855c83a5a865e))
+* suppress noisy gemini logs ([#76](https://github.com/typedef-ai/fenic/issues/76)) ([89ce84c](https://github.com/typedef-ai/fenic/commit/89ce84c4d8fd8b57ec792b72b071feac405bce6e))
+* Validate udf does not return LogicalType ([#117](https://github.com/typedef-ai/fenic/issues/117)) ([c1854ba](https://github.com/typedef-ai/fenic/commit/c1854ba991053bc77ec12bb2771f7dd20de9affd))
+
+
+### Documentation
+
+* fix expired discord link in contributing.md ([#73](https://github.com/typedef-ai/fenic/issues/73)) ([fe6fd3d](https://github.com/typedef-ai/fenic/commit/fe6fd3d6621a05814848d7b9cca54536e0336139))
+* notebook version of the example ([#60](https://github.com/typedef-ai/fenic/issues/60)) ([6f2ad91](https://github.com/typedef-ai/fenic/commit/6f2ad91af9c82aa3085c901cc064b657ceb42cd7))
+
 ## [0.2.1](https://github.com/typedef-ai/fenic/compare/v0.2.0...v0.2.1) (2025-07-04)
 
 
