@@ -8,9 +8,6 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
-from fenic._inference.google.gemini_batch_embeddings_client import (
-    GoogleBatchEmbeddingsClient,
-)
 from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
@@ -194,6 +191,14 @@ class SessionModelRegistry:
                     model=model_config.model_name,
                 )
             elif isinstance(model_config, ResolvedGoogleModelConfig):
+                try:
+                    from fenic._inference.google.gemini_batch_embeddings_client import (
+                        GoogleBatchEmbeddingsClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use Google models, please install the required dependencies by running: pip install fenic[google]"
+                    ) from err
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
                 client = GoogleBatchEmbeddingsClient(
                     rate_limit_strategy=rate_limit_strategy,
