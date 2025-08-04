@@ -536,6 +536,9 @@ def greatest(*cols: ColumnOrName) -> Column:
     This function mimics the behavior of SQL's GREATEST function. It evaluates the input columns
     in order and returns the greatest value encountered. If all values are null, returns null.
 
+    Each argument should have the same type and be of a primitive type (StringType, BooleanType,
+    FloatType, IntegerType, etc).
+
     Args:
         *cols: Column expressions or column names to evaluate. Each argument should be a single
             column expression or column name string.
@@ -566,6 +569,8 @@ def least(*cols: ColumnOrName) -> Column:
 
     This function mimics the behavior of SQL's LEAST function. It evaluates the input columns
     in order and returns the least value encountered. If all values are null, returns null.
+
+    All arguments must be of the same primitive type (e.g., StringType, BooleanType, FloatType, IntegerType, etc).
 
     Args:
         *cols: Column expressions or column names to evaluate. Each argument should be a single
