@@ -336,3 +336,24 @@ def test_embedding_profile_with_none_dimensionality():
     assert config.semantic.embedding_models["google_embed"].profiles["default"].output_dimensionality is None
 
 
+def test_embedding_with_no_profile():
+    """Test that embedding profiles with no profile (when one is possible) are accepted."""
+    # This should succeed as None means use the model's default dimensionality
+    config = SessionConfig(
+        app_name="test_app",
+        semantic=SemanticConfig(
+            embedding_models={
+                "google_embed": GoogleVertexEmbeddingModel(
+                    model_name="gemini-embedding-001",
+                    rpm=100,
+                    tpm=1000,
+                )
+            }
+        )
+    )
+    Session.get_or_create(config)
+
+    # Verify None is preserved (will use model's default)
+    assert config.semantic.embedding_models["google_embed"].profiles is None
+
+

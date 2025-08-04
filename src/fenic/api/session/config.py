@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field, model_validator
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
     EmbeddingModelParameters,
+    GoogleDeveloperEmbeddingModelName,
     GoogleDeveloperLanguageModelName,
+    GoogleVertexEmbeddingModelName,
     GoogleVertexLanguageModelName,
     ModelProvider,
     OpenAIEmbeddingModelName,
@@ -94,7 +96,7 @@ class GoogleDeveloperEmbeddingModel(BaseModel):
         )
         ```
     """
-    model_name: str
+    model_name: GoogleDeveloperEmbeddingModelName
     model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_DEVELOPER)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
@@ -253,7 +255,7 @@ class GoogleVertexEmbeddingModel(BaseModel):
         )
         ```
     """
-    model_name: str
+    model_name: GoogleVertexEmbeddingModelName
     model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_VERTEX)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
@@ -948,7 +950,7 @@ class SessionConfig(BaseModel):
                 profiles = {
                     profile: ResolvedOpenAIModelProfile(reasoning_effort=profile_config.reasoning_effort) for
                     profile, profile_config in model.profiles.items()
-                } if hasattr(model, "profiles") and model.profiles else None
+                } if model.profiles else None
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
                     rpm=model.rpm,
@@ -976,7 +978,7 @@ class SessionConfig(BaseModel):
                         embedding_task_type=profile.task_type,
                     ) for
                     profile_name, profile in model.profiles.items()
-                }
+                } if model.profiles else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
                     model_provider=model.model_provider,
