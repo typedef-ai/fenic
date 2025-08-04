@@ -91,7 +91,7 @@ fenic brings the reliability of traditional data pipelines to AI workloads.
 - `semantic.analyze_sentiment` - Built-in sentiment analysis
 - `semantic.classify` - Categorize text with few-shot examples
 - `semantic.extract` - Transform unstructured text into structured data with schemas
-- `semantic.group_by` - Group data by semantic similarity
+- `semantic.with_cluster_labels` - Cluster each row by embedding column
 - `semantic.join` - Join DataFrames on meaning, not just values
 - `semantic.map` - Apply natural language transformations
 - `semantic.predicate` - Create predicates using natural language to filter rows
@@ -102,7 +102,7 @@ fenic brings the reliability of traditional data pipelines to AI workloads.
 Goes beyond typical multimodal data types (audio, images) by creating specialized types for text-heavy workloads:
 
 - Markdown parsing and extraction as a first-class data type
-- Transcript processing (SRT, generic formats) with speaker and timestamp awareness
+- Transcript processing (SRT, WebVTT, generic formats) with speaker and timestamp awareness
 - JSON manipulation with JQ expressions for nested data
 - Automatic text chunking with configurable overlap for long documents
 
@@ -136,7 +136,7 @@ fenic creates a clear separation between heavy inference tasks and real-time age
 
 DataFrames aren't just for data practitioners. The fluent, composable API design makes it accessible to any engineer:
 
-- Chain operations naturally: `df.filter(...).semantic.group_by(...)`
+- Chain operations naturally: `df.filter(...).semantic.with_cluster_labels(...)`
 - Mix imperative and declarative styles seamlessly
 - Get started quickly with familiar patterns from pandas/PySpark or SQL
 
