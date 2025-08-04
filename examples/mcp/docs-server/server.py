@@ -5,9 +5,10 @@ It is used to search the Fenic codebase and provide documentation for the Fenic 
 import datetime
 import logging
 import os
+import re
 import threading
 import uuid
-from typing import List, Literal
+from typing import Callable, List, Literal
 
 from fastmcp import FastMCP
 from utils.schemas import get_learnings_schema
@@ -105,6 +106,139 @@ class FenicSession:
             tpm=tpm
         )
 
+class FenicAPIDocQuerySearch:
+    """Search for queries to the Fenic API.
+    Supports both keyword and regex search.
+    """
+    @classmethod
+    def _is_regex(cls, query: str) -> bool:
+        """Heuristic check to see if the query is a regex."""
+        return bool(re.search(r'[.*+?^${}()[\]\\|]', query))
+
+    @classmethod
+    def _search_api_docs_regex(cls, df: fc.DataFrame, query: str) -> fc.DataFrame:
+        """Search API documentation using regex."""
+        return df.filter(
+            fc.col("name").rlike(f"(?i){query}") |
+            fc.col("qualified_name").rlike(f"(?i){query}") |
+            (fc.col("docstring").is_not_null() & fc.col("docstring").rlike(f"(?i){query}")) |
+            (fc.col("annotation").is_not_null() & fc.col("annotation").rlike(f"(?i){query}")) |
+            (fc.col("returns").is_not_null() & fc.col("returns").rlike(f"(?i){query}"))
+        )
+
+    @classmethod
+    def _search_api_docs_keyword(cls, df: fc.DataFrame, term: str) -> fc.DataFrame:
+        """Search API documentation using keyword."""
+        return df.filter(
+            fc.col("name").contains(term) |
+            fc.col("qualified_name").contains(term) |
+            (fc.col("docstring").is_not_null() & fc.col("docstring").contains(term)) |
+            (fc.col("annotation").is_not_null() & fc.col("annotation").contains(term)) |
+            (fc.col("returns").is_not_null() & fc.col("returns").contains(term))
+        )
+
+    @classmethod
+    def _search_learnings_regex(cls, df: fc.DataFrame, query: str) -> fc.DataFrame:
+        """Search learnings using regex."""
+        return df.filter(
+            fc.col("question").rlike(f"(?i){query}") |
+            fc.col("answer").rlike(f"(?i){query}") |
+            fc.array_contains(fc.col("keywords"), query)
+        )
+
+    @classmethod
+    def _search_learnings_keyword(cls, df: fc.DataFrame, term: str) -> fc.DataFrame:
+        """Search learnings using keyword."""
+        return df.filter(
+            fc.col("question").contains(term) |
+            fc.col("answer").contains(term) |
+            fc.array_contains(fc.col("keywords"), term)
+        )
+
+    @classmethod
+    def _search_terms(cls, df: fc.DataFrame, query: str, search_func: Callable[[fc.DataFrame, str], fc.DataFrame]) -> fc.DataFrame:
+        """Search using multiple terms."""
+        terms = query.lower().split()
+        terms_data_frames = []
+        for term in terms:
+            terms_data_frames.append(search_func(df, term))
+        result_df = terms_data_frames[0]
+        for df in terms_data_frames[1:]:
+            result_df = result_df.union(df)
+        return result_df
+
+    @classmethod
+    def search_learnings(cls, session: fc.Session, query: str) -> fc.DataFrame:
+        """Search learnings using keyword."""
+        if session.catalog.does_table_exist("learnings"):
+            try:
+                learnings_df = session.table("learnings")
+
+                if cls._is_regex(query):
+                    logger.debug(f"Searching learnings with regex: {query}")
+                    learnings_search = cls._search_terms(learnings_df, query, cls._search_learnings_regex)
+                else:
+                    logger.debug(f"Searching learnings with keyword: {query}")
+                    learnings_search = cls._search_terms(learnings_df, query, cls._search_learnings_keyword)
+
+                # Add relevance scoring for learnings
+                learnings_scored = learnings_search.select(
+                    "question", "answer", "learning_type", "keywords", "related_functions",
+                    fc.when(fc.col("question").rlike(f"(?i){query}"), fc.lit(10)).otherwise(fc.lit(0)).alias("question_score"),
+                    fc.when(fc.col("answer").rlike(f"(?i){query}"), fc.lit(5)).otherwise(fc.lit(0)).alias("answer_score"),
+                    fc.when(fc.array_contains(fc.col("keywords"), query), fc.lit(3)).otherwise(fc.lit(0)).alias("keywords_score")
+                )
+
+                # Calculate total score with correction boost
+                learnings_scored = learnings_scored.select(
+                    "*",
+                    (fc.col("question_score") + fc.col("answer_score") + fc.col("keywords_score")).alias("base_score")
+                ).select(
+                    "*",
+                    fc.when(fc.col("learning_type") == "correction",
+                            fc.col("base_score") * 1.5).otherwise(fc.col("base_score")).alias("score")
+                )
+
+                # Sort and limit learnings (max 7 results)
+                return learnings_scored.order_by(fc.col("score").desc()).limit(7)
+            except Exception as e:
+                logger.error(f"Warning: Learnings search failed: {e}")
+                return None
+
+    @classmethod
+    def search_api_docs(cls, session: fc.Session, query: str) -> fc.DataFrame:
+        # Search API documentation
+        df = session.table("api_df")
+
+        # Filter only public API elements
+        df = df.filter(
+            (fc.col("is_public")) &
+            (~fc.col("qualified_name").contains("._"))
+        )
+
+        if cls._is_regex(query):
+            logger.debug(f"Searching API docs with regex: {query}")
+            search_df = cls._search_api_docs_regex(df, query)
+        else:
+            logger.debug(f"Searching API docs with keyword: {query}")
+            search_df = cls._search_terms(df, query, cls._search_api_docs_keyword)
+
+        # Add relevance scoring
+        search_df = search_df.select(
+            "type", "name", "qualified_name", "docstring",
+            fc.when(fc.col("name").rlike(f"(?i){query}"), fc.lit(10)).otherwise(fc.lit(0)).alias("name_score"),
+            fc.when(fc.col("qualified_name").rlike(f"(?i){query}"), fc.lit(5)).otherwise(fc.lit(0)).alias("path_score")
+        )
+
+        # Calculate total score and sort
+        search_df = search_df.select(
+            "*",
+            (fc.col("name_score") + fc.col("path_score")).alias("score")
+        )
+
+        return search_df
+
+
 
 def initialize_learnings_table(include_embeddings: bool = True) -> bool:
     """Initialize the learnings table if it doesn't exist.
@@ -123,7 +257,7 @@ def initialize_learnings_table(include_embeddings: bool = True) -> bool:
     # Check if table already exists
     if session.catalog.does_table_exist(table_name):
         return False
-    
+
     # Get schema from utility module
     learnings_schema = get_learnings_schema(include_embeddings)
     
@@ -135,161 +269,97 @@ mcp = FastMCP("Fenic Documentation")
 
 @mcp.tool()
 def search(query: str, max_results: int = 30) -> str:
-      """Search the Fenic codebase for functions, classes, methods, and other code elements.
+    """Search the Fenic codebase for functions, classes, methods, and other code elements.
 
-      This tool is used to search the Fenic codebase for functions, classes, methods, and other code elements.
-      It also searches through stored learnings from previous interactions.
+    This tool is used to search the Fenic codebase for functions, classes, methods, and other code elements.
+    It also searches through stored learnings from previous interactions.
 
-      Also searches through stored learnings from previous interactions.
+    Also searches through stored learnings from previous interactions.
 
-      Args:
-          query: Search term or regex pattern to find in code names, documentation, and signatures
-          max_results: Maximum number of results to return (default: 30)
+    Args:
+        query: Search term or regex pattern to find in code names, documentation, and signatures
+        max_results: Maximum number of results to return (default: 30)
 
-      Returns:
-          Search results with type, name, qualified path, and brief description
+    Returns:
+        Search results with type, name, qualified path, and brief description
 
-      Examples:
-          - Simple search: "join"
-          - Regex search: "semantic.*extract"
-          - Search for specific terms: "DataFrame"
-      """
-      try:
-          session = FenicSession.get_session()
-          
-          # Search learnings first
-          learnings_results = None
-          learnings_count = 0
-          if session.catalog.does_table_exist("learnings"):
-              try:
-                  learnings_df = session.table("learnings")
-                  
-                  # Search across question, answer, and keywords using regex
-                  learnings_search = learnings_df.filter(
-                      fc.col("question").rlike(f"(?i){query}") |
-                      fc.col("answer").rlike(f"(?i){query}") |
-                      fc.array_contains(fc.col("keywords"), query)
-                  )
-                  
-                  # Add relevance scoring for learnings
-                  learnings_scored = learnings_search.select(
-                      "question", "answer", "learning_type", "keywords", "related_functions",
-                      fc.when(fc.col("question").rlike(f"(?i){query}"), fc.lit(10)).otherwise(fc.lit(0)).alias("question_score"),
-                      fc.when(fc.col("answer").rlike(f"(?i){query}"), fc.lit(5)).otherwise(fc.lit(0)).alias("answer_score"),
-                      fc.when(fc.array_contains(fc.col("keywords"), query), fc.lit(3)).otherwise(fc.lit(0)).alias("keywords_score")
-                  )
-                  
-                  # Calculate total score with correction boost
-                  learnings_scored = learnings_scored.select(
-                      "*",
-                      (fc.col("question_score") + fc.col("answer_score") + fc.col("keywords_score")).alias("base_score")
-                  ).select(
-                      "*",
-                      fc.when(fc.col("learning_type") == "correction", 
-                             fc.col("base_score") * 1.5).otherwise(fc.col("base_score")).alias("score")
-                  )
-                  
-                  # Sort and limit learnings (max 7 results)
-                  learnings_sorted = learnings_scored.order_by(fc.col("score").desc()).limit(7)
-                  learnings_results = learnings_sorted.to_pydict()
-                  learnings_count = len(learnings_results.get('question', []))
-                  
-              except Exception as e:
-                  # If learnings search fails, continue with API search
-                  import sys
-                  print(f"Warning: Learnings search failed: {e}", file=sys.stderr)
-          
-          # Search API documentation
-          df = session.table("api_df")
+    Examples:
+        - Simple search: "join"
+        - Regex search: "semantic.*extract"
+        - Search for specific terms: "DataFrame"
+    """
+    try:
+        session = FenicSession().get_session()
+        api_doc_query_search = FenicAPIDocQuerySearch()
+        learnings_df = api_doc_query_search.search_learnings(session, query)
 
-          # Filter only public API elements
-          df = df.filter(
-              (fc.col("is_public")) &
-              (~fc.col("qualified_name").contains("._"))
-          )
+        learnings_count = 0
+        learnings_results = None
+        if learnings_results is not None:
+            learnings_results = learnings_df.to_pydict()
+            learnings_count = len(learnings_df.get('question', []))
 
-          # Search across all text fields
-          search_df = df.filter(
-              fc.col("name").rlike(f"(?i){query}") |
-              fc.col("qualified_name").rlike(f"(?i){query}") |
-              (fc.col("docstring").is_not_null() & fc.col("docstring").rlike(f"(?i){query}")) |
-              (fc.col("annotation").is_not_null() & fc.col("annotation").rlike(f"(?i){query}")) |
-              (fc.col("returns").is_not_null() & fc.col("returns").rlike(f"(?i){query}"))
-          )
+        # Adjust API results limit based on learnings found
+        api_limit = max(10, max_results - learnings_count)
 
-          # Add relevance scoring
-          search_df = search_df.select(
-              "type", "name", "qualified_name", "docstring",
-              fc.when(fc.col("name").rlike(f"(?i){query}"), fc.lit(10)).otherwise(fc.lit(0)).alias("name_score"),
-              fc.when(fc.col("qualified_name").rlike(f"(?i){query}"), fc.lit(5)).otherwise(fc.lit(0)).alias("path_score")
-          )
+        search_df = api_doc_query_search.search_api_docs(session, query)
+        search_df = search_df.order_by([fc.col("score").desc(), fc.col("type"), fc.col("name")]).limit(api_limit)
 
-          # Calculate total score and sort
-          search_df = search_df.select(
-              "*",
-              (fc.col("name_score") + fc.col("path_score")).alias("score")
-          )
-          
-          # Adjust API results limit based on learnings found
-          api_limit = max(10, max_results - learnings_count)
-          search_df = search_df.order_by([fc.col("score").desc(), fc.col("type"), fc.col("name")]).limit(api_limit)
+        # Collect API results
+        api_results = search_df.to_pydict()
 
-          # Collect API results
-          api_results = search_df.to_pydict()
+        # Format output
+        total_results = learnings_count + len(api_results.get('name', []))
+        output = f"# Search Results for: `{query}`\n\n"
+        output += f"Found {total_results} matches\n\n"
 
-          # Format output
-          total_results = learnings_count + len(api_results.get('name', []))
-          output = f"# Search Results for: `{query}`\n\n"
-          output += f"Found {total_results} matches\n\n"
+        if total_results == 0:
+            output += "No results found. Try:\n"
+            output += "- Different keywords (e.g., 'extract', 'semantic', 'DataFrame')\n"
+            output += "- Regex patterns (e.g., 'join.*semantic')\n"
+            return output
 
-          if total_results == 0:
-              output += "No results found. Try:\n"
-              output += "- Different keywords (e.g., 'extract', 'semantic', 'DataFrame')\n"
-              output += "- Regex patterns (e.g., 'join.*semantic')\n"
-              return output
+        # Show learnings first if any
+        if learnings_results and learnings_count > 0:
+            output += "## 📚 Learned Solutions\n\n"
 
-          # Show learnings first if any
-          if learnings_results and learnings_count > 0:
-              output += "## 📚 Learned Solutions\n\n"
-              
-              for i in range(learnings_count):
-                  learning_type = learnings_results['learning_type'][i]
-                  if learning_type == "correction":
-                      output += f"### ⚠️ Correction: {learnings_results['question'][i]}\n"
-                  else:
-                      output += f"### 💡 {learnings_results['question'][i]}\n"
-                  
-                  output += f"{learnings_results['answer'][i]}\n"
-                  
-                  # Add metadata if available
-                  if learnings_results.get('keywords') and learnings_results['keywords'][i] and len(learnings_results['keywords'][i]) > 0:
-                      output += f"\n**Keywords**: {', '.join(learnings_results['keywords'][i])}\n"
-                  if learnings_results.get('related_functions') and learnings_results['related_functions'][i] and len(learnings_results['related_functions'][i]) > 0:
-                      output += f"**Related Functions**: {', '.join(learnings_results['related_functions'][i])}\n"
-                  output += "\n---\n\n"
+            for i in range(learnings_count):
+                learning_type = learnings_results['learning_type'][i]
+                if learning_type == "correction":
+                    output += f"### ⚠️ Correction: {learnings_results['question'][i]}\n"
+                else:
+                    output += f"### 💡 {learnings_results['question'][i]}\n"
 
-          # Show API results if any
-          if len(api_results.get('name', [])) > 0:
-              output += "## 📖 API Documentation\n"
+                output += f"{learnings_results['answer'][i]}\n"
 
-              # Group by type for clarity
-              current_type = None
-              for i in range(len(api_results['name'])):
-                  if api_results['type'][i] != current_type:
-                      current_type = api_results['type'][i]
-                      output += f"\n### {current_type.capitalize()}s\n"
+                # Add metadata if available
+                if learnings_results.get('keywords') and learnings_results['keywords'][i] and len(learnings_results['keywords'][i]) > 0:
+                    output += f"\n**Keywords**: {', '.join(learnings_results['keywords'][i])}\n"
+                if learnings_results.get('related_functions') and learnings_results['related_functions'][i] and len(learnings_results['related_functions'][i]) > 0:
+                    output += f"**Related Functions**: {', '.join(learnings_results['related_functions'][i])}\n"
+                output += "\n---\n\n"
 
-                  # Format each result concisely
-                  output += f"\n**`{api_results['name'][i]}`** - `{api_results['qualified_name'][i]}`\n"
+        # Show API results if any
+        if len(api_results.get('name', [])) > 0:
+            output += "## 📖 API Documentation\n"
 
-                  # Add docstring if available
-                  if api_results.get('docstring') and api_results['docstring'][i]:
-                      output += f"  {api_results['docstring'][i]}\n"
+            # Group by type for clarity
+            current_type = None
+            for i in range(len(api_results['name'])):
+                if api_results['type'][i] != current_type:
+                    current_type = api_results['type'][i]
+                    output += f"\n### {current_type.capitalize()}s\n"
 
-          return output
+                # Format each result concisely
+                output += f"\n**`{api_results['name'][i]}`** - `{api_results['qualified_name'][i]}`\n"
 
-      except Exception as e:
-          return f"Search error: {str(e)}"
+                # Add docstring if available
+                if api_results.get('docstring') and api_results['docstring'][i]:
+                    output += f"  {api_results['docstring'][i]}\n"
+
+        return output
+    except Exception as e:
+        return f"Search error: {str(e)}"
 
 @mcp.tool()
 def get_project_overview() -> str:
@@ -303,8 +373,7 @@ def get_project_overview() -> str:
 
 @mcp.tool()
 def get_started() -> str:
-    """How to get started with Fenic."""
-    #session = FenicSession().get_session()
+    """Get a guide on How to get started with Fenic."""
     getting_started_guide_path = os.path.join(os.path.dirname(__file__), 'fenic_getting_started_guide.md')
     with open(getting_started_guide_path, 'r') as f:
         start_guide = f.read()
