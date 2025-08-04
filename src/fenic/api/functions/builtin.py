@@ -524,17 +524,10 @@ def coalesce(*cols: ColumnOrName) -> Column:
     if not cols:
         raise ValidationError("No columns were provided. Please specify at least one column to use with the coalesce method.")
 
-    flattened_args = []
-    for arg in cols:
-        if isinstance(arg, (list, tuple)):
-            flattened_args.extend(arg)
-        else:
-            flattened_args.append(arg)
-
-    flattened_exprs = [
-        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
     ]
-    return Column._from_logical_expr(CoalesceExpr(flattened_exprs))
+    return Column._from_logical_expr(CoalesceExpr(exprs))
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def greatest(*cols: ColumnOrName) -> Column:
@@ -561,17 +554,10 @@ def greatest(*cols: ColumnOrName) -> Column:
     if len(cols) < 2:
         raise ValidationError(f"greatest() requires at least 2 columns, got {len(cols)}")
 
-    flattened_args = []
-    for arg in cols:
-        if isinstance(arg, (list, tuple)):
-            flattened_args.extend(arg)
-        else:
-            flattened_args.append(arg)
-
-    flattened_exprs = [
-        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
     ]
-    return Column._from_logical_expr(GreatestExpr(flattened_exprs))
+    return Column._from_logical_expr(GreatestExpr(exprs))
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
@@ -599,14 +585,7 @@ def least(*cols: ColumnOrName) -> Column:
     if len(cols) < 2:
         raise ValidationError(f"least() requires at least 2 columns, got {len(cols)}")
 
-    flattened_args = []
-    for arg in cols:
-        if isinstance(arg, (list, tuple)):
-            flattened_args.extend(arg)
-        else:
-            flattened_args.append(arg)
-
-    flattened_exprs = [
-        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
     ]
-    return Column._from_logical_expr(LeastExpr(flattened_exprs))
+    return Column._from_logical_expr(LeastExpr(exprs))
