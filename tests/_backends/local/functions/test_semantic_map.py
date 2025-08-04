@@ -336,6 +336,10 @@ def test_semantic_map_invalid_jinja_template(local_session):
         source.select(
             semantic.map("", name=col("name"), details=col("details")).alias("summary")
         )
+    with pytest.raises(ValidationError, match="`semantic.map` prompt requires at least one template variable."):
+        source.select(
+            semantic.map("hello", name=col("name")).alias("summary")
+        )
 
 def test_semantic_map_missing_column_arguments(local_session):
     source = local_session.create_dataframe({"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]})

@@ -572,15 +572,30 @@ def test_sorting_with_group_context(mock_language_model):
 
     calls = mock_language_model.get_completions.call_args_list
 
-    # First group (Sales) should have correct context and sorting
-    first_call_messages = calls[0][1]['messages'][0]
-    assert "Sales documents" in first_call_messages.user
-    assert first_call_messages.user.index("Sales Jan") < first_call_messages.user.index("Sales Feb")
+    # Should have exactly 2 calls (one per group)
+    assert len(calls) == 2
 
-    # Second group (Engineering) should have correct context and sorting
-    second_call_messages = calls[1][1]['messages'][0]
-    assert "Engineering documents" in second_call_messages.user
-    assert second_call_messages.user.index("Eng Feb") < second_call_messages.user.index("Eng Mar")
+    # Check that both groups were processed correctly, regardless of order
+    sales_found = False
+    engineering_found = False
+
+    for call in calls:
+        messages = call[1]['messages'][0]
+        user_content = messages.user
+
+        if "Sales documents" in user_content:
+            sales_found = True
+            # Check Sales documents are in correct chronological order
+            assert user_content.index("Sales Jan") < user_content.index("Sales Feb")
+
+        elif "Engineering documents" in user_content:
+            engineering_found = True
+            # Check Engineering documents are in correct chronological order
+            assert user_content.index("Eng Feb") < user_content.index("Eng Mar")
+
+    # Ensure both groups were processed
+    assert sales_found, "Sales group was not processed"
+    assert engineering_found, "Engineering group was not processed"
 
 
 def test_empty_group(mock_language_model):

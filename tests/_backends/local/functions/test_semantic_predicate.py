@@ -355,6 +355,10 @@ def test_semantic_predicate_invalid_jinja_template(local_session):
         source.select(
             semantic.predicate("", name=col("name"), details=col("details")).alias("summary")
         )
+    with pytest.raises(ValidationError, match="`semantic.predicate` prompt requires at least one template variable."):
+        source.select(
+            semantic.predicate("hello", name=col("name")).alias("summary")
+        )
 
 def test_semantic_predicate_missing_column_names(local_session):
     source = local_session.create_dataframe({"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]})

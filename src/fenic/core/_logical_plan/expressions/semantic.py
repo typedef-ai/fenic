@@ -70,6 +70,8 @@ class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
         self.template = jinja_template
         self.strict = strict
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        if len(self.variable_tree.variables) < 1:
+            raise ValidationError("`semantic.map` prompt requires at least one template variable.")
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.max_tokens = max_tokens
         self.temperature = temperature
@@ -222,6 +224,8 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         self.template = jinja_template
         self.strict = strict
         self.variable_tree = VariableTree.from_jinja_template(jinja_template)
+        if len(self.variable_tree.variables) < 1:
+            raise ValidationError("`semantic.predicate` prompt requires at least one template variable.")
         self.exprs = self.variable_tree.filter_used_expressions(exprs)
         self.examples = examples
         self.temperature = temperature

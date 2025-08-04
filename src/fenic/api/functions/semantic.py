@@ -232,7 +232,9 @@ def predicate(
         ```python
         wireless_products = df.filter(
             fc.semantic.predicate(
-                "Product: {{ description }}\\n\\nIs this product wireless or battery-powered?",
+                dedent('''\
+                    Product: {{ description }}
+                    Is this product wireless or battery-powered?'''),
                 description=fc.col("product_description")
             )
         )
@@ -243,7 +245,10 @@ def predicate(
         df = df.with_column(
             "is_urgent",
             fc.semantic.predicate(
-                "{{ subject }}\\n{{ body }}\\n\\nThis ticket indicates an urgent issue.",
+                dedent('''\
+                    Subject: {{ subject }}
+                    Body: {{ body }}
+                    This ticket indicates an urgent issue.'''),
                 subject=fc.col("ticket_subject"),
                 body=fc.col("ticket_body")
             )
@@ -262,7 +267,9 @@ def predicate(
             output=False
         ))
         fc.semantic.predicate(
-            "Ticket: {{ ticket }}\n\nThis ticket is about billing.",
+            dedent('''\
+                Ticket: {{ ticket }}
+                This ticket is about billing.'''),
             ticket=fc.col("ticket_text"),
             examples=examples
         )

@@ -1026,7 +1026,7 @@ def jinja(
         - Complex operations can use column expressions
         - Arrays can only be iterated with {% for %} or accessed with literal indices
         - Structs can only use literal field names
-        - Null values will be rendered as empty strings
+        - Null values are rendered according to Jinja2's null rendering behavior
     """
     # Convert keyword arguments to column expressions with proper names
     column_exprs: List[LogicalExpr] = []

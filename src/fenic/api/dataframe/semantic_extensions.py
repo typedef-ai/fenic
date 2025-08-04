@@ -180,7 +180,10 @@ class SemanticExtensions:
             # Match job listings with candidate resumes based on title/skills
             # Only includes pairs where the predicate evaluates to True
             df_jobs.semantic.join(df_resumes,
-                predicate="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                predicate=dedent('''\
+                    Job Description: {{left_on}}
+                    Candidate Background: {{right_on}}
+                    The candidate is qualified for the job.'''),
                 left_on=col("job_description"),
                 right_on=col("work_experience"),
                 examples=examples
@@ -201,7 +204,10 @@ class SemanticExtensions:
                 output=False))  # This pair will NOT be included in similar cases
             df_jobs.semantic.join(
                 other=df_resumes,
-                predicate="Job Description: {{left_on}}. Candidate Background: {{right_on}}. The candidate is qualified for the job.",
+                predicate=dedent('''\
+                    Job Description: {{left_on}}
+                    Candidate Background: {{right_on}}
+                    The candidate is qualified for the job.'''),
                 left_on=col("job_description"),
                 right_on=col("work_experience"),
                 examples=examples
