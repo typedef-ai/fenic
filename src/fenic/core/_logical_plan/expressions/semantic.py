@@ -53,7 +53,7 @@ from fenic.core.types.schema import ColumnField
 from fenic.core.types.semantic import ModelAlias
 
 
-class SemanticMapExpr(ValidatedDynamicSignature, SemanticExpr):
+class SemanticMapExpr(SemanticExpr):
     function_name = "semantic.map"
 
     def __init__(
@@ -209,7 +209,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         )
 
 
-class SemanticPredExpr(ValidatedSignature, SemanticExpr):
+class SemanticPredExpr(SemanticExpr):
     function_name = "semantic.predicate"
 
     def __init__(
@@ -273,7 +273,7 @@ class SemanticPredExpr(ValidatedSignature, SemanticExpr):
         )
 
 
-class SemanticReduceExpr(ValidatedSignature, SemanticExpr, AggregateExpr):
+class SemanticReduceExpr(SemanticExpr, AggregateExpr):
     def __init__(
         self,
         instruction: str,
