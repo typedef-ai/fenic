@@ -89,15 +89,6 @@ class Filter(LogicalPlan):
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
         self._input = input
-        actual_type = predicate.to_column_field(input, session_state).data_type
-        if actual_type != BooleanType:
-            raise PlanError(
-                f"Filter predicate must return a boolean value, but got {actual_type}. "
-                "Examples of valid filters:\n"
-                "- df.filter(col('age') > 18)\n"
-                "- df.filter(col('status') == 'active')\n"
-                "- df.filter(col('is_valid'))"
-            )
         validate_scalar_expr(predicate, "filter")
         self._predicate = predicate
         super().__init__(session_state, schema)
@@ -114,6 +105,15 @@ class Filter(LogicalPlan):
         return [self._input]
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        actual_type = self._predicate.to_column_field(self._input, session_state).data_type
+        if actual_type != BooleanType:
+            raise PlanError(
+                f"Filter predicate must return a boolean value, but got {actual_type}. "
+                "Examples of valid filters:\n"
+                "- df.filter(col('age') > 18)\n"
+                "- df.filter(col('status') == 'active')\n"
+                "- df.filter(col('is_valid'))"
+            )
         return self._input.schema()
 
     def predicate(self) -> LogicalExpr:
