@@ -2,6 +2,7 @@ from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types
 from fenic.gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
 from fenic.gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
@@ -536,11 +537,19 @@ class ILikeExpr(_message.Message):
 
 class TsParseExpr(_message.Message):
     __slots__ = ("expr", "format")
+    class TranscriptFormatType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        SRT: _ClassVar[TsParseExpr.TranscriptFormatType]
+        GENERIC: _ClassVar[TsParseExpr.TranscriptFormatType]
+        WEBVTT: _ClassVar[TsParseExpr.TranscriptFormatType]
+    SRT: TsParseExpr.TranscriptFormatType
+    GENERIC: TsParseExpr.TranscriptFormatType
+    WEBVTT: TsParseExpr.TranscriptFormatType
     EXPR_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    format: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., format: _Optional[str] = ...) -> None: ...
+    format: TsParseExpr.TranscriptFormatType
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., format: _Optional[_Union[TsParseExpr.TranscriptFormatType, str]] = ...) -> None: ...
 
 class StartsWithExpr(_message.Message):
     __slots__ = ("expr", "substr")
@@ -580,21 +589,37 @@ class SplitPartExpr(_message.Message):
 
 class StringCasingExpr(_message.Message):
     __slots__ = ("expr", "case")
+    class StringCasingType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        LOWER: _ClassVar[StringCasingExpr.StringCasingType]
+        UPPER: _ClassVar[StringCasingExpr.StringCasingType]
+        TITLE: _ClassVar[StringCasingExpr.StringCasingType]
+    LOWER: StringCasingExpr.StringCasingType
+    UPPER: StringCasingExpr.StringCasingType
+    TITLE: StringCasingExpr.StringCasingType
     EXPR_FIELD_NUMBER: _ClassVar[int]
     CASE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    case: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., case: _Optional[str] = ...) -> None: ...
+    case: StringCasingExpr.StringCasingType
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., case: _Optional[_Union[StringCasingExpr.StringCasingType, str]] = ...) -> None: ...
 
 class StripCharsExpr(_message.Message):
     __slots__ = ("expr", "chars", "side")
+    class StripCharsSide(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        LEFT: _ClassVar[StripCharsExpr.StripCharsSide]
+        RIGHT: _ClassVar[StripCharsExpr.StripCharsSide]
+        BOTH: _ClassVar[StripCharsExpr.StripCharsSide]
+    LEFT: StripCharsExpr.StripCharsSide
+    RIGHT: StripCharsExpr.StripCharsSide
+    BOTH: StripCharsExpr.StripCharsSide
     EXPR_FIELD_NUMBER: _ClassVar[int]
     CHARS_FIELD_NUMBER: _ClassVar[int]
     SIDE_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     chars: LogicalExpr
-    side: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chars: _Optional[_Union[LogicalExpr, _Mapping]] = ..., side: _Optional[str] = ...) -> None: ...
+    side: StripCharsExpr.StripCharsSide
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., chars: _Optional[_Union[LogicalExpr, _Mapping]] = ..., side: _Optional[_Union[StripCharsExpr.StripCharsSide, str]] = ...) -> None: ...
 
 class ReplaceExpr(_message.Message):
     __slots__ = ("expr", "search", "replacement", "literal")
@@ -637,8 +662,8 @@ class FuzzyRatioExpr(_message.Message):
     METHOD_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     other: LogicalExpr
-    method: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[str] = ...) -> None: ...
+    method: _enums_pb2.FuzzySimilarityMethod
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[_Union[_enums_pb2.FuzzySimilarityMethod, str]] = ...) -> None: ...
 
 class FuzzyTokenSortRatioExpr(_message.Message):
     __slots__ = ("expr", "other", "method")
@@ -647,8 +672,8 @@ class FuzzyTokenSortRatioExpr(_message.Message):
     METHOD_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     other: LogicalExpr
-    method: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[str] = ...) -> None: ...
+    method: _enums_pb2.FuzzySimilarityMethod
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[_Union[_enums_pb2.FuzzySimilarityMethod, str]] = ...) -> None: ...
 
 class FuzzyTokenSetRatioExpr(_message.Message):
     __slots__ = ("expr", "other", "method")
@@ -657,8 +682,8 @@ class FuzzyTokenSetRatioExpr(_message.Message):
     METHOD_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     other: LogicalExpr
-    method: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[str] = ...) -> None: ...
+    method: _enums_pb2.FuzzySimilarityMethod
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ..., method: _Optional[_Union[_enums_pb2.FuzzySimilarityMethod, str]] = ...) -> None: ...
 
 class JqExpr(_message.Message):
     __slots__ = ("expr", "query")

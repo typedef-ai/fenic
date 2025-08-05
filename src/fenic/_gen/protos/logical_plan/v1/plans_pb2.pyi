@@ -3,6 +3,7 @@ from fenic.gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
 from fenic.gen.protos.logical_plan.v1 import expressions_pb2 as _expressions_pb2
 from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
@@ -153,6 +154,14 @@ class SemanticJoin(_message.Message):
 
 class SemanticSimilarityJoin(_message.Message):
     __slots__ = ("left", "right", "left_on", "right_on", "k", "similarity_metric", "similarity_score_column", "schema")
+    class SemanticSimilarityMetric(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        COSINE: _ClassVar[SemanticSimilarityJoin.SemanticSimilarityMetric]
+        L2: _ClassVar[SemanticSimilarityJoin.SemanticSimilarityMetric]
+        DOT: _ClassVar[SemanticSimilarityJoin.SemanticSimilarityMetric]
+    COSINE: SemanticSimilarityJoin.SemanticSimilarityMetric
+    L2: SemanticSimilarityJoin.SemanticSimilarityMetric
+    DOT: SemanticSimilarityJoin.SemanticSimilarityMetric
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
     LEFT_ON_FIELD_NUMBER: _ClassVar[int]
@@ -166,10 +175,10 @@ class SemanticSimilarityJoin(_message.Message):
     left_on: _expressions_pb2.LogicalExpr
     right_on: _expressions_pb2.LogicalExpr
     k: int
-    similarity_metric: str
+    similarity_metric: SemanticSimilarityJoin.SemanticSimilarityMetric
     similarity_score_column: str
     schema: FenicSchema
-    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., k: _Optional[int] = ..., similarity_metric: _Optional[str] = ..., similarity_score_column: _Optional[str] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ...) -> None: ...
+    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., k: _Optional[int] = ..., similarity_metric: _Optional[_Union[SemanticSimilarityJoin.SemanticSimilarityMetric, str]] = ..., similarity_score_column: _Optional[str] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ...) -> None: ...
 
 class Aggregate(_message.Message):
     __slots__ = ("input", "group_exprs", "agg_exprs", "schema")
