@@ -1,3 +1,4 @@
+from textwrap import dedent
 from typing import Any, Dict, List, Optional, Union
 
 import jinja2
@@ -10,55 +11,39 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+    SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
     convert_pydantic_model_to_key_descriptions,
-    convert_row_to_instruction_context,
-    uppercase_instruction_placeholder,
     validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
-from fenic.core._utils.misc import parse_instruction
 from fenic.core.types import (
     MapExample,
     MapExampleCollection,
 )
 
 
-class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
+class Map(BaseMultiColumnInputOperator[str, str]):
+    RESPONSE_FORMAT_SYSTEM_PROMPT = jinja2.Template(
+        dedent("""\
+            Follow the user's instruction exactly and generate output according to the user's schema.
 
-    STRUCTURED_SYSTEM_PROMPT_PREFIX = (
-        "You are an AI assistant designed to follow instructions. "
-        "{% if is_structured_response %}"
-        "Your task is to generate structured responses using the provided schema, based on instructions that reference one or more context fields. "
-        "{% else %}"
-        "Your task is to generate responses based on instructions that reference one or more context fields. "
-        "{% endif %}"
-        "Each input message will have two sections:\n"
-        "1. An instruction labeled with the prefix: ###Instruction\n"
-        "2. One or more context fields labeled with the prefix: ###Context\n"
-        "The instruction will reference the context fields using square brackets [LIKE_THIS]. "
-        "Each context field will be labeled with its name in square brackets, matching the references in the instruction. "
-        "Your response should fulfill the instruction by appropriately integrating each of the referenced context fields without using any external information. "
-        "Your response should not include unnecessary preamble or explanation.\n"
-        "{% if is_structured_response %}"
-        "Output Guidelines:\n"
-        "1. Generate output that matches the field descriptions exactly.\n"
-        "2. For list fields, include all relevant items that match the field description.\n"
-        "3. Ensure all field names in your structured output exactly match the field schema.\n"
-        "4. Use the field descriptions as guidance for what content to generate for each field.\n\n"
-        "{{ schema_explanation }}\n"
-        "Field Schema:\n"
-        "{{ schema_details }}"
-        "{% endif %}"
+            Output Schema:
+            {{ schema_definition }}
+
+            {{ schema_explanation }}
+
+            Requirements:
+            1. Follow the instruction exactly as written
+            2. Generate output that matches the provided schema exactly
+            3. Include all required fields - no extra fields, no missing fields
+            4. Each field's content must match its description precisely""").strip()
     )
-
-    # Pre-compiled template as class variable
-    _TEMPLATE = jinja2.Template(STRUCTURED_SYSTEM_PROMPT_PREFIX)
 
     def __init__(
         self,
-        input: pl.DataFrame,
-        user_instruction: str,
+        input: pl.Series,
+        jinja_template: str,
         model: LanguageModel,
         max_tokens: int,
         temperature: float,
@@ -68,7 +53,7 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
     ):
         super().__init__(
             input,
-            CompletionOnlyRequestSender(
+            request_sender=CompletionOnlyRequestSender(
                 model=model,
                 operator_name="semantic.map",
                 inference_config=InferenceConfiguration(
@@ -78,30 +63,20 @@ class Map(BaseMultiColumnInputOperator[str, Union[str, dict[str, Any]]]):
                     model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
-            examples,
+            jinja_template=jinja2.Template(jinja_template),
+            examples=examples,
         )
-        self.referenced_cols = parse_instruction(user_instruction)
-        self.user_instruction = uppercase_instruction_placeholder(user_instruction)
         self.response_format = response_format
 
     def build_system_message(self) -> str:
         is_structured_response = self.response_format is not None
-        schema_details = convert_pydantic_model_to_key_descriptions(self.response_format) if is_structured_response else None
-        return self._TEMPLATE.render(
-            is_structured_response=is_structured_response,
-            schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-            schema_details=schema_details
-        )
-
-    def build_user_message(self, input: dict[str, str]) -> str:
-        prompt = (
-            "### Instruction\n"
-            f"{self.user_instruction}\n\n"
-            "### Context\n"
-            f"{convert_row_to_instruction_context(input)}"
-        )
-
-        return prompt
+        if is_structured_response:
+            return self.RESPONSE_FORMAT_SYSTEM_PROMPT.render(
+                schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
+                schema_definition=convert_pydantic_model_to_key_descriptions(self.response_format),
+            )
+        else:
+            return SIMPLE_INSTRUCTION_SYSTEM_PROMPT
 
     def postprocess(
         self, responses: List[Optional[str]]

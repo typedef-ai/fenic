@@ -5,9 +5,10 @@ use std::collections::BTreeMap;
 use crate::arrow_scalar_extractor::ArrowScalarConverter;
 
 /// Core implementation of Jinja template rendering
-pub fn render(inputs: &[Series], template: &str) -> PolarsResult<Series> {
+pub fn render(inputs: &[Series], template: &str, strict: bool) -> PolarsResult<Series> {
     // Create minijinja environment and compile template
     let env = Environment::new();
+
     let template = env.template_from_str(template).map_err(|e| {
         PolarsError::ComputeError(format!("Template compilation failed: {}", e).into())
     })?;
@@ -29,47 +30,61 @@ pub fn render(inputs: &[Series], template: &str) -> PolarsResult<Series> {
     let mut builder = StringChunkedBuilder::new("jinja".into(), struct_series.len());
     let converter = ArrowScalarConverter;
 
-    // Process each row
-    for row_idx in 0..struct_series.len() {
-        // Build context for this row
-        let mut ctx = BTreeMap::new();
+    // Get number of chunks
+    let n_chunks = struct_series.chunks().len();
 
-        // Extract values for all fields
-        for field_name in &field_names {
-            match struct_array.field_by_name(field_name) {
-                Ok(field_series) => {
-                    // Handle multiple chunks if necessary
-                    let chunk_idx = 0; // For now, assuming single chunk
-                    match converter.to_jinja(field_series.chunks()[chunk_idx].as_ref(), row_idx) {
-                        Ok(value) => {
-                            ctx.insert(field_name.clone(), value);
-                        }
-                        Err(e) => {
-                            return Err(PolarsError::ComputeError(
-                                format!(
-                                    "Failed to convert field {} to JinjaValue: {}",
-                                    field_name, e
-                                )
-                                .into(),
-                            ));
+    // Process each chunk
+    for chunk_idx in 0..n_chunks {
+        let chunk_len = struct_series.chunks()[chunk_idx].len();
+
+        // Process each row in this chunk
+        for row_idx in 0..chunk_len {
+            // Build context for this row
+            let mut ctx = BTreeMap::new();
+
+            // Extract values for all fields
+            for field_name in &field_names {
+                match struct_array.field_by_name(field_name) {
+                    Ok(field_series) => {
+                        // Get the corresponding chunk for this field
+                        let field_chunk = field_series.chunks()[chunk_idx].as_ref();
+
+                        match converter.to_jinja(field_chunk, row_idx) {
+                            Ok(value) => {
+                                ctx.insert(field_name.clone(), value);
+                            }
+                            Err(e) => {
+                                return Err(PolarsError::ComputeError(
+                                    format!(
+                                        "Failed to convert field {} to JinjaValue: {}",
+                                        field_name, e
+                                    )
+                                    .into(),
+                                ));
+                            }
                         }
                     }
-                }
-                Err(e) => {
-                    return Err(PolarsError::ComputeError(
-                        format!("Field {} not found in struct: {}", field_name, e).into(),
-                    ));
+                    Err(e) => {
+                        return Err(PolarsError::ComputeError(
+                            format!("Field {} not found in struct: {}", field_name, e).into(),
+                        ));
+                    }
                 }
             }
-        }
 
-        // Render template with context
-        match template.render(&ctx) {
-            Ok(rendered) => builder.append_value(&rendered),
-            Err(e) => {
-                return Err(PolarsError::ComputeError(
-                    format!("Template rendering failed: {}", e).into(),
-                ));
+            // Check for None values in strict mode
+            if strict && ctx.values().any(|v| v.is_none()) {
+                builder.append_null();
+                continue;
+            }
+
+            match template.render(&ctx) {
+                Ok(rendered) => builder.append_value(&rendered),
+                Err(e) => {
+                    return Err(PolarsError::ComputeError(
+                        format!("Template rendering failed: {}", e).into(),
+                    ));
+                }
             }
         }
     }
@@ -95,8 +110,32 @@ mod tests {
 
         let template = "{{ unclosed";
 
-        let result = render(&inputs, template);
+        let result = render(&inputs, template, false);
         assert!(result.is_err()); // Should fail due to invalid template
+    }
+
+    #[test]
+    fn test_jinja_render_strict_mode() {
+        let name_series = Series::new(
+            "name".into(),
+            vec![Some("Alice"), None, Some("Charlie"), None],
+        );
+        let age_series = Series::new("age".into(), vec![Some(25i32), Some(30i32), None, None]);
+
+        let struct_series =
+            StructChunked::from_series("test_struct".into(), 4, [name_series, age_series].iter())
+                .unwrap()
+                .into_series();
+
+        let template = "{{ name }} is {{ age }} years old";
+
+        let result = render(&[struct_series], template, true).unwrap();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+
+        assert_eq!(result_values[0], Some("Alice is 25 years old"));
+        assert_eq!(result_values[1], None);
+        assert_eq!(result_values[2], None);
+        assert_eq!(result_values[3], None);
     }
 
     #[test]
@@ -112,12 +151,12 @@ mod tests {
 
         let template = "Hello {{ name }}!";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(result_values[0], Some("Hello Alice!"));
         assert_eq!(result_values[1], Some("Hello Bob!"));
-        assert_eq!(result_values[2], Some("Hello !")); // Null name renders as empty
+        assert_eq!(result_values[2], Some("Hello none!"));
     }
 
     #[test]
@@ -133,12 +172,12 @@ mod tests {
 
         let template = "{{ name }} is {{ age }} years old";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(result_values[0], Some("Alice is 25 years old"));
         assert_eq!(result_values[1], Some("Bob is 30 years old"));
-        assert_eq!(result_values[2], Some(" is 35 years old")); // null name renders as empty
+        assert_eq!(result_values[2], Some("none is 35 years old"));
     }
 
     #[test]
@@ -207,7 +246,7 @@ mod tests {
         let template = "Hello {{ name }}{% if premium %} (Premium) {% endif %}!";
 
         // Check string-based truthiness
-        let result_str = render(&[struct_str], template).unwrap();
+        let result_str = render(&[struct_str], template, false).unwrap();
         let values_str: Vec<_> = result_str.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -223,7 +262,7 @@ mod tests {
         );
 
         // Check boolean-based truthiness
-        let result_bool = render(&[struct_bool], template).unwrap();
+        let result_bool = render(&[struct_bool], template, false).unwrap();
         let values_bool: Vec<_> = result_bool.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -239,7 +278,7 @@ mod tests {
         );
 
         // Check numeric-based truthiness
-        let result_zero = render(&[struct_zero], template).unwrap();
+        let result_zero = render(&[struct_zero], template, false).unwrap();
         let values_zero: Vec<_> = result_zero.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -284,7 +323,7 @@ mod tests {
         let template =
             "{{ title }}:{% for name in names %} {{ loop.index }}: {{ name }}{% endfor %}";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(result_values[0], Some("Team A: 1: Alice 2: Bob 3: Charlie"));
@@ -327,7 +366,7 @@ mod tests {
         // Test hardcoded array index access
         let template = "First color: {{ colors[0] }}, Second number: {{ numbers[1] }}, Fifth number: {{ numbers[5] }}";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -344,7 +383,7 @@ mod tests {
         );
         assert_eq!(
             result_values[3],
-            Some("First color: , Second number: , Fifth number: ")
+            Some("First color: , Second number: , Fifth number: "),
         );
     }
 
@@ -370,13 +409,13 @@ mod tests {
 
         let template = "Name: {{ user.name }}, Age: {{ user['age'] }}";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(result_values[0], Some("Name: Alice, Age: 25"));
-        assert_eq!(result_values[1], Some("Name: , Age: 30"));
-        assert_eq!(result_values[2], Some("Name: Charlie, Age: "));
-        assert_eq!(result_values[3], Some("Name: , Age: "));
+        assert_eq!(result_values[1], Some("Name: none, Age: 30"));
+        assert_eq!(result_values[2], Some("Name: Charlie, Age: none"));
+        assert_eq!(result_values[3], Some("Name: none, Age: none"));
     }
 
     #[test]
@@ -419,7 +458,7 @@ mod tests {
                 {%- endif -%}
                 "#};
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -467,7 +506,7 @@ mod tests {
         // This template tries to access index that might not exist
         let template = "Item 0: {{ items[0] }}, Item 1: {% if items[1] %}{{ items[1] }}{% else %}N/A{% endif %}";
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(result_values[0], Some("Item 0: first, Item 1: second"));
@@ -506,7 +545,7 @@ mod tests {
                 Address struct: {{ address }}
             "};
 
-        let result = render(&inputs, template).unwrap();
+        let result = render(&inputs, template, false).unwrap();
         let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
 
         assert_eq!(
@@ -517,7 +556,7 @@ mod tests {
         assert_eq!(
             result_values[1],
             Some(
-                "Colors list: [\"yellow\"]\nAddress struct: {\"city\": \"London\", \"zip\": \"\"}"
+                "Colors list: [\"yellow\"]\nAddress struct: {\"city\": \"London\", \"zip\": none}"
             )
         );
     }

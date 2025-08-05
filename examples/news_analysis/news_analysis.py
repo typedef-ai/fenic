@@ -19,7 +19,6 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 import fenic as fc
-from fenic import col, lit
 
 
 def main(config: Optional[fc.SessionConfig] = None):
@@ -248,24 +247,24 @@ def main(config: Optional[fc.SessionConfig] = None):
         ).alias("analysis_metadata"),
     ).unnest("analysis_metadata")
 
-    combined_extracts = fc.text.concat(
-        lit("Primary Topic: "),
-        fc.col("primary_topic"),
-        lit("\nPolitical Bias Indicators: "),
-        fc.col("bias_indicators"),
-        lit("||||||||||||"),
-        lit("\nEmotional Language Summary: "),
-        fc.col("emotional_language"),
-        lit("||||||||||||"),
-        lit("\nOpinion Markers: "),
-        fc.col("opinion_markers")
+    combined_extracts = fc.text.jinja(
+        (
+            "Primary Topic: {{primary_topic}}\n"
+            "Political Bias Indicators: {{bias_indicators}}\n"
+            "Emotional Language Summary: {{emotional_language}}\n"
+            "Opinion Markers: {{opinion_markers}}"
+        ),
+        primary_topic=fc.col("primary_topic"),
+        bias_indicators=fc.col("bias_indicators"),
+        emotional_language=fc.col("emotional_language"),
+        opinion_markers=fc.col("opinion_markers")
     )
     enriched_df = enriched_df.with_column("combined_extracts", combined_extracts)
     print("Then, we classify the political bias of the article based on our extracts.\n")
     results_df = enriched_df.select(
         "*",
-        fc.semantic.classify(col("combined_extracts"), ["far_left", "left_leaning", "neutral", "right_leaning", "far_right"]).alias("content_bias"),
-        fc.semantic.classify(col("combined_extracts"), ["sensationalist", "informational"]).alias("journalistic_style")
+        fc.semantic.classify(fc.col("combined_extracts"), ["far_left", "left_leaning", "neutral", "right_leaning", "far_right"]).alias("content_bias"),
+        fc.semantic.classify(fc.col("combined_extracts"), ["sensationalist", "informational"]).alias("journalistic_style")
     ).cache()
 
     print("\n📊 Complete Bias Detection Results:")
@@ -303,7 +302,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     print("\n🔍 Topic vs Bias Analysis:")
     results_df.group_by("primary_topic", "content_bias").agg(
         fc.count("*").alias("count")
-    ).order_by(cols=[col("primary_topic"), fc.desc("count")]).show()
+    ).order_by(cols=[fc.col("primary_topic"), fc.desc("count")]).show()
 
     # Bias Indicators Analysis
     bias_indicators_df = results_df.select(
@@ -344,6 +343,23 @@ def main(config: Optional[fc.SessionConfig] = None):
     print(f"Neutral articles: {neutral_articles} ({neutral_articles/total_articles:.1%})")
     print(f"Biased articles: {biased_articles} ({biased_articles/total_articles:.1%})")
 
+    results_df = results_df.with_column("article_attributes", fc.text.jinja(
+        (
+            "Primary Topics: {{primary_topic}}\n"
+            "Detected Political Bias: {{content_bias}}\n"
+            "Detected Bias Indicators: {{bias_indicators}}\n"
+            "Opinion Indicators: {{opinion_markers}}\n"
+            "Emotional Language: {{emotional_language}}\n"
+            "Journalistic Style: {{journalistic_style}}"
+        ),
+        primary_topic=fc.col("primary_topic"),
+        content_bias=fc.col("content_bias"),
+        bias_indicators=fc.col("bias_indicators"),
+        opinion_markers=fc.col("opinion_markers"),
+        emotional_language=fc.col("emotional_language"),
+        journalistic_style=fc.col("journalistic_style")
+    ))
+
     # Generate semantic summaries of language patterns for each source
     source_language_profiles = results_df.group_by("source").agg(
         # Use semantic.reduce to produce a media profile for each source, without including the entire original articles.
@@ -351,19 +367,17 @@ def main(config: Optional[fc.SessionConfig] = None):
         # have built-in justification.
         fc.semantic.reduce(
             """
-               Create a concise (3-5 sentence) media profile for {source} based on the following information we have extracted from its articles:
-               Primary Topics: {primary_topic}
-               Detected Political Bias: {content_bias}
-               Detected Bias Indicators: {bias_indicators}
-               Opinion Indicators: {opinion_markers}
-               Emotional Language: {emotional_language}
-               Journalistic Style: {journalistic_style}
-
-               Summarize the information provided without explicitly referencing it.
+            You are given a set of article analyses from {{news_outlet}}.
+            Create a concise (3-5 sentence) media profile for {{news_outlet}}.
+            Summarize the information provided without explicitly referencing it.
             """,
+            column=fc.col("article_attributes"),
+            group_context = {
+                "news_outlet": fc.col("source"),
+            },
             max_output_tokens=512,
         ).alias("source_profile"),
-    ).select(col("source"), col("source_profile")).cache()
+    ).select(fc.col("source"), fc.col("source_profile")).cache()
 
     print("\n🏢 AI-Generated Media Profiles:")
     print("-" * 50)

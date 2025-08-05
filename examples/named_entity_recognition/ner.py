@@ -88,7 +88,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         "source",
         "title",
         fc.semantic.extract("content", BasicNERSchema).alias("basic_entities")
-    )
+    ).cache()
 
     # Display sample results
     print("Sample basic extraction results:")
@@ -159,7 +159,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         "title",
         "content",
         fc.semantic.extract("processed_content", EnhancedNERSchema).alias("entities")
-    )
+    ).cache()
 
     print("Enhanced extraction with security-specific entities:")
     enhanced_readable = enhanced_df.select(
@@ -205,7 +205,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         "report_id",
         "chunk",
         fc.semantic.extract("chunk", EnhancedNERSchema).alias("chunk_entities")
-    )
+    ).cache()
 
     # Aggregate entities across chunks
     aggregated_entities = chunk_entities_df.group_by("report_id").agg(

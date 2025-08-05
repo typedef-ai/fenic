@@ -15,7 +15,8 @@ from fenic import (
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_semantic_cluster_with_centroids(local_session, embedding_model_name):
+def test_semantic_cluster_with_centroids(local_session, embedding_model_name_and_dimensions):
+    embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -33,9 +34,9 @@ def test_semantic_cluster_with_centroids(local_session, embedding_model_name):
 
     assert df.schema.column_fields == [
         ColumnField("blurb", StringType),
-        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=embedding_dimensions)),
         ColumnField("cluster_label", IntegerType),
-        ColumnField("cluster_centroid", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
+        ColumnField("cluster_centroid", EmbeddingType(embedding_model=embedding_model_name, dimensions=embedding_dimensions)),
     ]
     polars_df = df.to_polars()
     assert polars_df.schema == {
@@ -123,7 +124,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
         .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
+            semantic.reduce("Summarize my app's product feedback", col("feedback")).alias(
                 "theme_summary"
             ),
         )
@@ -137,8 +138,9 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     }
 
 
-def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedding_model_name):
+def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedding_model_name_and_dimensions):
     """Test group_by() on a semantic cluster id with a saved embeddings table."""
+    embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     data = {
         "feedback": [
             "The mobile app crashes frequently when uploading photos. Very frustrating experience.",
@@ -160,14 +162,14 @@ def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedd
         ColumnField("feedback", StringType),
         ColumnField("submission_date", StringType),
         ColumnField("user_id", IntegerType),
-        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=1536)),
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=embedding_dimensions)),
     ]
     result = (
         df_embeddings.semantic.with_cluster_labels(col("embeddings"), 2)
         .group_by(col("cluster_label"))
         .agg(
             count(col("user_id")).alias("feedback_count"),
-            semantic.reduce("Summarize my app's product feedback: {feedback}?").alias(
+            semantic.reduce("Summarize my app's product feedback", col("feedback")).alias(
                 "grouped_feedback"
             ),
         )

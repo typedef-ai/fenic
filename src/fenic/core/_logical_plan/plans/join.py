@@ -3,26 +3,28 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from fenic._constants import LEFT_ON_KEY, RIGHT_ON_KEY
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     ColumnExpr,
     LogicalExpr,
 )
+from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
-from fenic.core._logical_plan.utils import validate_completion_parameters
-from fenic.core.error import TypeMismatchError
+from fenic.core._logical_plan.utils import (
+    validate_completion_parameters,
+    validate_scalar_expr,
+)
+from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types import (
     ColumnField,
     DoubleType,
     EmbeddingType,
     JoinExampleCollection,
     Schema,
-    StringType,
 )
 from fenic.core.types.enums import SemanticSimilarityMetric
-
-SIMILARITY_SCORE_COL_NAME = "_similarity_score"
 
 
 class Join(LogicalPlan):
@@ -35,6 +37,10 @@ class Join(LogicalPlan):
             how: str,
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
+        for left_on_expr in left_on:
+            validate_scalar_expr(left_on_expr, "join")
+        for right_on_expr in right_on:
+            validate_scalar_expr(right_on_expr, "join")
         self._left = left
         self._right = right
         self._left_on = left_on
@@ -50,7 +56,7 @@ class Join(LogicalPlan):
         right_on: List[LogicalExpr],
         how: str,
         session_state: BaseSessionState) -> Join:
-        return Join(left, right, left_on, right_on, how, session_state, None)
+        return Join(left, right, left_on, right_on, how, session_state)
 
     @classmethod
     def from_schema(cls,
@@ -60,7 +66,7 @@ class Join(LogicalPlan):
         right_on: List[LogicalExpr],
         how: str,
         schema: Schema) -> Join:
-        return Join(left, right, left_on, right_on, how, None, schema)
+        return Join(left, right, left_on, right_on, how, schema=schema)
 
     def children(self) -> List[LogicalPlan]:
         return [self._left, self._right]
@@ -150,11 +156,11 @@ class BaseSemanticJoin(LogicalPlan, ABC):
         super().__init__(session_state, schema)
 
     @abstractmethod
-    def _validate_columns(self) -> None:
+    def _validate_columns(self, session_state: BaseSessionState) -> None:
         pass
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
-        self._validate_columns()
+        self._validate_columns(session_state)
         return Schema(
             self._left.schema().column_fields + self._right.schema().column_fields
         )
@@ -178,19 +184,23 @@ class SemanticJoin(BaseSemanticJoin):
         self,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: ColumnExpr,
-        right_on: ColumnExpr,
-        join_instruction: str,
+        left_on: LogicalExpr,
+        right_on: LogicalExpr,
+        jinja_template: str,
+        strict: bool,
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None,
     ):
-        self._join_instruction = join_instruction
+        self._jinja_template = jinja_template
+        self._strict = strict
         self._examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        validate_scalar_expr(left_on, "semantic.join")
+        validate_scalar_expr(right_on, "semantic.join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
         if session_state:
             validate_completion_parameters(model_alias, session_state.session_config, temperature)
@@ -199,9 +209,10 @@ class SemanticJoin(BaseSemanticJoin):
     def from_session_state(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: ColumnExpr,
-        right_on: ColumnExpr,
-        join_instruction: str,
+        left_on: LogicalExpr,
+        right_on: LogicalExpr,
+        jinja_template: str,
+        strict: bool,
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
@@ -210,87 +221,79 @@ class SemanticJoin(BaseSemanticJoin):
                 right,
                 left_on,
                 right_on,
-                join_instruction,
+                jinja_template,
+                strict,
                 temperature,
                 model_alias,
                 examples,
-                session_state,
-                None)
+                session_state)
 
     @classmethod
     def from_schema(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: ColumnExpr,
-        right_on: ColumnExpr,
-        join_instruction: str,
+        left_on: LogicalExpr,
+        right_on: LogicalExpr,
+        jinja_template: str,
+        strict: bool,
         temperature: float,
-        model_alias: Optional[str] = None,
+        model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
         schema: Optional[Schema] = None) -> SemanticJoin:
         return SemanticJoin(left,
                 right,
                 left_on,
                 right_on,
-                join_instruction,
+                jinja_template,
+                strict,
                 temperature,
                 model_alias,
                 examples,
-                None,
-                schema)
+                schema=schema)
 
 
-    def _validate_columns(self) -> None:
-        left_schema = self._left.schema()
-        right_schema = self._right.schema()
-        left_columns = {field.name: field for field in left_schema.column_fields}
-        right_columns = {field.name: field for field in right_schema.column_fields}
-
-        if self._left_on.name not in left_columns:
-            raise ValueError(
-                f"Column '{self._left_on.name}' not found in left DataFrame. "
-                f"Available columns: {', '.join(sorted(left_columns.keys()))}"
-            )
-        if self._right_on.name not in right_columns:
-            raise ValueError(
-                f"Column '{self._right_on.name}' not found in right DataFrame. "
-                f"Available columns: {', '.join(sorted(right_columns.keys()))}"
-            )
-        if left_columns[self._left_on.name].data_type != StringType:
-            raise TypeMismatchError(
-                left_columns[self._left_on.name].data_type,
-                StringType,
-                f"Cannot apply semantic.join on non-string column '{self._left_on.name}' (left side)",
-            )
-        if right_columns[self._right_on.name].data_type != StringType:
-            raise TypeMismatchError(
-                right_columns[self._right_on.name].data_type,
-                StringType,
-                f"Cannot apply semantic.join on non-string column '{self._right_on.name}' (right side)",
+    def _validate_columns(self, session_state: BaseSessionState) -> None:
+        variable_tree = VariableTree.from_jinja_template(self._jinja_template)
+        variables = variable_tree.variables
+        if set(variables) != {"left_on", "right_on"}:
+            raise ValidationError(
+                "The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'. "
+                f"Got: {list(variables)}"
             )
 
-    def join_instruction(self) -> str:
-        return self._join_instruction
+        left_on_dtype = self._left_on.to_column_field(self._left, session_state).data_type
+        right_on_dtype = self._right_on.to_column_field(self._right, session_state).data_type
+        if self._examples:
+            self._examples._validate_against_join_types(left_on_dtype, right_on_dtype)
+        variable_tree.validate_jinja_variable(LEFT_ON_KEY, left_on_dtype)
+        variable_tree.validate_jinja_variable(RIGHT_ON_KEY, right_on_dtype)
+
+    def jinja_template(self) -> str:
+        return self._jinja_template
+
+    def strict(self) -> bool:
+        return self._strict
 
     def examples(self) -> Optional[JoinExampleCollection]:
         return self._examples
 
     def _repr(self) -> str:
         return (
-            f"SemanticJoin(left_on={self._left_on.name}, "
-            f"right_on={self._right_on.name}, join_instruction={self._join_instruction})"
+            f"SemanticJoin(left_on={self._left_on}, "
+            f"right_on={self._right_on}, jinja_template={self._jinja_template})"
         )
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 2:
-            raise ValueError(f"SemanticJoin expects 2 children, got {len(children)}")
+            raise InternalError(f"SemanticJoin expects 2 children, got {len(children)}")
 
         result = SemanticJoin.from_session_state(
             left=children[0],
             right=children[1],
             left_on=self._left_on,
             right_on=self._right_on,
-            join_instruction=self._join_instruction,
+            jinja_template=self._jinja_template,
+            strict=self._strict,
             examples=self._examples,
             temperature=self.temperature,
             model_alias=self.model_alias,
@@ -316,18 +319,20 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         self._k = k
         self._similarity_metric = similarity_metric
         self._similarity_score_column = similarity_score_column
+        validate_scalar_expr(left_on, "semantic.sim_join")
+        validate_scalar_expr(right_on, "semantic.sim_join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
 
     @classmethod
     def from_session_state(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: List[LogicalExpr],
-        right_on: List[LogicalExpr],
+        left_on: LogicalExpr,
+        right_on: LogicalExpr,
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
-        session_state: BaseSessionState = None) -> Join:
+        session_state: BaseSessionState = None) -> SemanticSimilarityJoin:
         return SemanticSimilarityJoin(left,
                 right,
                 left_on,
@@ -335,19 +340,18 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
                 k,
                 similarity_metric,
                 similarity_score_column,
-                session_state,
-                None)
+                session_state)
 
     @classmethod
     def from_schema(cls,
         left: LogicalPlan,
         right: LogicalPlan,
-        left_on: List[LogicalExpr],
-        right_on: List[LogicalExpr],
+        left_on: LogicalExpr,
+        right_on: LogicalExpr,
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
-        schema: Optional[Schema] = None) -> Join:
+        schema: Optional[Schema] = None) -> SemanticSimilarityJoin:
         return SemanticSimilarityJoin(left,
                 right,
                 left_on,
@@ -355,8 +359,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
                 k,
                 similarity_metric,
                 similarity_score_column,
-                None,
-                schema)
+                schema=schema)
 
     def _validate_columns(self, session_state: BaseSessionState) -> None:
         left_dtype = self._left_on.to_column_field(self._left, session_state).data_type
@@ -404,7 +407,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 2:
-            raise ValueError(
+            raise InternalError(
                 f"SemanticSimilarityJoin expects 2 children, got {len(children)}"
             )
 

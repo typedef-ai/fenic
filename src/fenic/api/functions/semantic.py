@@ -1,22 +1,22 @@
 """Semantic functions for Fenic DataFrames - LLM-based operations."""
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
 from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
+    AliasExpr,
     AnalyzeSentimentExpr,
+    ColumnExpr,
     EmbeddingsExpr,
+    ResolvedClassDefinition,
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
-)
-from fenic.core._logical_plan.resolved_types import (
-    ResolvedClassDefinition,
 )
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
@@ -36,39 +36,46 @@ from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def map(
-    instruction: str,
-    examples: Optional[MapExampleCollection] = None,
-    schema: Optional[type[BaseModel]] = None,
+        prompt: str,
+        /,
+        *,
+        strict: bool = True,
+        examples: Optional[MapExampleCollection] = None,
+        response_format: Optional[type[BaseModel]] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None,
-    temperature: float = 0,
-    max_output_tokens: int = 512,
+        temperature: float = 0.0,
+        max_output_tokens: int = 512,
+        **columns: Column,
 ) -> Column:
-    """Applies a natural language instruction to one or more text columns, enabling rich summarization and generation tasks.
+    """Applies a generation prompt to one or more columns, enabling rich summarization and generation tasks.
 
     Args:
-        instruction: A string containing the semantic.map prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
-        examples: Optional collection of examples to guide the semantic mapping operation.
-            Each example should demonstrate the expected input and output for the mapping.
-            The examples should be created using MapExampleCollection.create_example(),
-            providing instruction variables and their expected answers.
-        schema: Optional Pydantic model that defines the output structure with descriptions for each field.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
-        max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
-            tokens, based on the model's context length and other operator-specific parameters.
+        prompt: A Jinja2 template for the generation prompt. References column
+            values using {{ column_name }} syntax. Each placeholder is replaced with the
+            corresponding value from the current row during execution.
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
+        examples: Optional few-shot examples to guide the model's output format and style.
+        response_format: Optional Pydantic model to enforce structured output. Must include descriptions for each field.
+        model_alias: Optional language model alias. If None, uses the default model.
+        temperature: Language model temperature (default: 0.0).
+        max_output_tokens: Maximum tokens to generate (default: 512).
+        **columns: Named column arguments that correspond to template variables.
+            Keys must match the variable names used in the template.
 
     Returns:
         Column: A column expression representing the semantic mapping operation.
 
-    Raises:
-        ValueError: If the instruction is not a string.
 
     Example: Mapping without examples
         ```python
-        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
+        fc.semantic.map(
+            "Write a compelling one-line description for {{ name }}: {{ details }}",
+            name=fc.col("name"),
+            details=fc.col("details")
+        )
         ```
 
     Example: Mapping with few-shot examples
@@ -82,35 +89,55 @@ def map(
             input={"name": "AquaPure", "details": "A compact water filter that attaches to your faucet, removes over 99% of contaminants, and improves taste instantly."},
             output="Clean, great-tasting water straight from your tap."
         ))
-        semantic.map("Given the product name: {name} and its description: {details}, generate a compelling one-line description suitable for a product catalog.", examples)
+        fc.semantic.map(
+            "Write a compelling one-line description for {{ name }}: {{ details }}",
+            name=fc.col("name"),
+            details=fc.col("details"),
+            examples=examples
+        )
         ```
     """
-    if schema:
+    if not prompt:
+        raise ValidationError("The `prompt` argument to `semantic.map` cannot be empty.")
+
+    if not columns:
+        raise ValidationError("`semantic.map` requires at least one named column argument (e.g. `text=col('text')`).")
+
+    if response_format:
         try:
-            validate_output_format(schema)
+            validate_output_format(response_format)
         except OutputFormatValidationError as e:
-            raise ValidationError("Invalid response schema") from e
+            raise ValidationError(f"Invalid response format: {str(e)}") from None
+
+    exprs: List[Union[ColumnExpr, AliasExpr]] = []
+    for var_name, column in columns.items():
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
+            exprs.append(column._logical_expr)
+        else:
+            exprs.append(column.alias(var_name)._logical_expr)
 
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticMapExpr(
-            instruction,
-            examples=examples,
+            prompt,
+            strict=strict,
+            exprs=exprs,
             max_tokens=max_output_tokens,
-            model_alias=resolved_model_alias,
             temperature=temperature,
-            response_format=schema,
+            model_alias=resolved_model_alias,
+            response_format=response_format,
+            examples=examples,
         )
     )
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def extract(
-    column: ColumnOrName,
-    schema: type[BaseModel],
-    max_output_tokens: int = 1024,
-    temperature: float = 0,
-    model_alias: Optional[Union[str, ModelAlias]] = None,
+        column: ColumnOrName,
+        response_format: type[BaseModel],
+        max_output_tokens: int = 1024,
+        temperature: float = 0.0,
+        model_alias: Optional[Union[str, ModelAlias]] = None,
 ) -> Column:
     """Extracts structured information from unstructured text using a provided Pydantic model schema.
 
@@ -130,7 +157,7 @@ def extract(
 
     Args:
         column: Column containing text to extract from.
-        schema: A Pydantic model type that defines the output structure with descriptions for each field.
+        response_format: A Pydantic model type that defines the output structure with descriptions for each field.
         model_alias: Optional alias for the language model to use for the extraction. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
@@ -154,9 +181,9 @@ def extract(
         ```
     """
     try:
-        validate_output_format(schema)
+        validate_output_format(response_format)
     except OutputFormatValidationError as e:
-        raise ValidationError("Invalid extraction schema") from e
+        raise ValidationError(f"Invalid response format: {str(e)}") from None
 
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
@@ -164,111 +191,206 @@ def extract(
             Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
             temperature=temperature,
+            schema=response_format,
             model_alias=resolved_model_alias,
-            schema=schema,
         )
     )
 
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def predicate(
-    instruction: str,
-    examples: Optional[PredicateExampleCollection] = None,
-    model_alias: Optional[Union[str, ModelAlias]] = None,
-    temperature: float = 0,
+        predicate: str,
+        /,
+        *,
+        strict: bool = True,
+        examples: Optional[PredicateExampleCollection] = None,
+        model_alias: Optional[Union[str, ModelAlias]] = None,
+        temperature: float = 0.0,
+        **columns: Column,
 ) -> Column:
-    """Applies a natural language predicate to one or more string columns, returning a boolean result.
-
-    This is useful for filtering rows based on user-defined criteria expressed in natural language.
+    r"""Applies a boolean predicate to one or more columns, typically used for filtering.
 
     Args:
-        instruction: A string containing the semantic.predicate prompt.
-            The instruction must include placeholders in curly braces that reference one or more column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
-        examples: Optional collection of examples to guide the semantic predicate operation.
-            Each example should demonstrate the expected boolean output for different inputs.
-            The examples should be created using PredicateExampleCollection.create_example(),
-            providing instruction variables and their expected boolean answers.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
+        predicate: A Jinja2 template containing a yes/no question or boolean claim.
+            Should reference column values using {{ column_name }} syntax. The model will
+            evaluate this condition for each row and return True or False.
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
+        examples: Optional few-shot examples showing how to evaluate the predicate.
+            Helps ensure consistent True/False decisions.
+        model_alias: Optional language model alias. If None, uses the default model.
+        temperature: Language model temperature (default: 0.0).
+        **columns: Named column arguments that correspond to template variables.
+            Keys must match the variable names used in the template.
 
     Returns:
-        Column: A column expression that returns a boolean value after applying the natural language predicate.
+        Column: A boolean column expression.
 
-    Raises:
-        ValueError: If the instruction is not a string.
-
-    Example: Identifying product descriptions that mention wireless capability
+    Example: Filtering product descriptions
         ```python
-        semantic.predicate("Does the product description: {product_description} mention that the item is wireless?")
+        wireless_products = df.filter(
+            fc.semantic.predicate(
+                dedent('''\
+                    Product: {{ description }}
+                    Is this product wireless or battery-powered?'''),
+                description=fc.col("product_description")
+            )
+        )
         ```
 
-    Example: Filtering support tickets that describe a billing issue
+    Example: Filtering support tickets
         ```python
-        semantic.predicate("Does this support message: {ticket_text} describe a billing issue?")
+        df = df.with_column(
+            "is_urgent",
+            fc.semantic.predicate(
+                dedent('''\
+                    Subject: {{ subject }}
+                    Body: {{ body }}
+                    This ticket indicates an urgent issue.'''),
+                subject=fc.col("ticket_subject"),
+                body=fc.col("ticket_body")
+            )
+        )
         ```
 
-    Example: Filtering support tickets that describe a billing issue with examples
+    Example: Filtering with examples
         ```python
         examples = PredicateExampleCollection()
         examples.create_example(PredicateExample(
-            input={"ticket_text": "I was charged twice for my subscription and need help."},
-            output=True))
+            input={"ticket": "I was charged twice for my subscription and need help."},
+            output=True
+        ))
         examples.create_example(PredicateExample(
-            input={"ticket_text": "How do I reset my password?"},
-            output=False))
-        semantic.predicate("Does this support ticket describe a billing issue? {ticket_text}", examples)
+            input={"ticket": "How do I reset my password?"},
+            output=False
+        ))
+        fc.semantic.predicate(
+            dedent('''\
+                Ticket: {{ ticket }}
+                This ticket is about billing.'''),
+            ticket=fc.col("ticket_text"),
+            examples=examples
+        )
         ```
     """
+    if not predicate:
+        raise ValidationError("The `predicate` argument to `semantic.predicate` cannot be empty.")
+
+    if not columns:
+        raise ValidationError("`semantic.predicate` requires at least one named column argument (e.g. `text=col('text')`).")
+
+    exprs: List[Union[ColumnExpr, AliasExpr]] = []
+    for var_name, column in columns.items():
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
+            exprs.append(column._logical_expr)
+        else:
+            exprs.append(column.alias(var_name)._logical_expr)
+
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticPredExpr(
-            instruction,
-            examples=examples,
-            model_alias=resolved_model_alias,
+            predicate,
+            strict=strict,
+            exprs=exprs,
             temperature=temperature,
+            model_alias=resolved_model_alias,
+            examples=examples,
         )
     )
 
 
-@validate_call(config=ConfigDict(strict=True))
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def reduce(
-    instruction: str,
+    prompt: str,
+    column: ColumnOrName,
+    *,
+    group_context: Optional[Dict[str, Column]] = None,
+    order_by: List[ColumnOrName] = None,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
 ) -> Column:
-    """Aggregate function: reduces a set of strings across columns into a single string using a natural language instruction.
+    """Aggregate function: reduces a set of strings in a column to a single string using a natural language instruction.
 
     Args:
-        instruction: A string containing the semantic.reduce prompt.
-            The instruction can include placeholders in curly braces that reference column names.
-            These placeholders will be replaced with actual column values during prompt construction during
-            query execution.
-        model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
-        temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
-        max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
-            tokens, based on the model's context length and other operator-specific parameters.
+        prompt: A string containing the semantic.reduce prompt.
+            The instruction can optionally include Jinja2 template variables (e.g., {{variable}}) that
+            reference columns from the group_context parameter. These will be replaced with
+            actual values from the first row of each group during execution.
+        column: The column containing documents/strings to reduce.
+        group_context: Optional dictionary mapping variable names to columns. These columns
+            provide context for each group and can be referenced in the instruction template.
+        order_by: Optional list of columns to sort grouped documents by before reduction. Documents are
+            processed in ascending order by default if no sort function is provided. Use a sort function
+            (e.g., col("date").desc()/fc.desc("date")) for descending order. The order_by columns help
+            preserve the temporal/logical sequence of the documents (e.g chunks in a document, speaker turns in a meeting transcript)
+            for more coherent summaries.
+        model_alias: Optional alias for the language model to use. If None, uses the default model.
+        temperature: Temperature parameter for the language model (default: 0.0).
+        max_output_tokens: Maximum tokens the model can generate (default: 512).
 
     Returns:
         Column: A column expression representing the semantic reduction operation.
 
-    Raises:
-        ValueError: If the instruction is not a string.
-
-    Example: Summarizing documents using their titles and bodies
+    Example: Simple reduction
         ```python
-        semantic.reduce("Summarize these documents using each document's title: {title} and body: {body}.")
+        # Simple reduction
+        df.group_by("category").agg(
+            semantic.reduce("Summarize the documents", col("document_text"))
+        )
+        ```
+
+    Example: With group context
+        ```python
+        df.group_by("department", "region").agg(
+            semantic.reduce(
+                "Summarize these {{department}} reports from {{region}}",
+                col("document_text"),
+                group_context={
+                    "department": col("department"),
+                    "region": col("region")
+                }
+            )
+        )
+        ```
+
+    Example: With sorting
+        ```python
+        df.group_by("category").agg(
+            semantic.reduce(
+                "Summarize the documents",
+                col("document_text"),
+                order_by=col("date")
+            )
+        )
         ```
     """
+    if not prompt:
+        raise ValidationError("The `prompt` argument to `semantic.reduce` cannot be empty.")
+
+    group_context_exprs: List[Union[ColumnExpr, AliasExpr]] = []
+    if group_context:
+        for var_name, col in group_context.items():
+            if isinstance(col, ColumnExpr) and col.expr.name == var_name:
+                group_context_exprs.append(col._logical_expr)
+            else:
+                group_context_exprs.append(col.alias(var_name)._logical_expr)
+    order_by_exprs = []
+    if order_by:
+        for col in order_by:
+            order_by_exprs.append(Column._from_col_or_name(col)._logical_expr)
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticReduceExpr(
-            instruction,
+            prompt,
+            input_expr=Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
-            model_alias=resolved_model_alias,
             temperature=temperature,
+            group_context_exprs=group_context_exprs,
+            model_alias=resolved_model_alias,
+            order_by_exprs=order_by_exprs,
         )
     )
 

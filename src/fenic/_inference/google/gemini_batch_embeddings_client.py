@@ -30,7 +30,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
         model_provider: ModelProvider,
-        model: str = "gemini-2.0-flash-lite",
+        model: str,
         queue_size: int = 100,
         max_backoffs: int = 10,
         profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
@@ -104,7 +104,23 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
                 return FatalException(e)
 
     def get_request_key(self, request: FenicEmbeddingsRequest) -> str:
-        return hashlib.sha256(request.doc.encode()).hexdigest()[:10]
+        """Generate a unique key for request deduplication.
+        
+        Args:
+            request: The request to generate a key for
+            
+        Returns:
+            A unique key for the request
+        """
+        # Include profile information in the key for proper deduplication
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        key_components = [
+            request.doc,
+            str(profile_config.additional_embedding_config.get("output_dimensionality", "default")),
+            profile_config.additional_embedding_config.get("task_type", "default"),
+        ]
+        combined_key = "|".join(key_components)
+        return hashlib.sha256(combined_key.encode()).hexdigest()[:10]
 
     def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
         return TokenEstimate(

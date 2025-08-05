@@ -50,6 +50,33 @@ class LogicalExpr(ABC):
         """Returns the children of the expression. Returns an empty list if the expression has no children."""
         pass
 
+    def __eq__(self, other: LogicalExpr) -> bool:
+        if not isinstance(other, LogicalExpr):
+            return False
+        if type(self) is not type(other):
+            return False
+        if not self._eq_specific(other):
+            return False
+        self_chldren = self.children()
+        other_children = other.children()
+        if len(self_chldren) != len(other_children):
+            return False
+        return all(
+            child1 == child2
+            for child1, child2 in zip(self_chldren, other_children, strict=False)
+        )
+
+    @abstractmethod
+    def _eq_specific(self, other: LogicalExpr) -> bool:
+        """Returns True if the expression has equal non expression attributes to the other expression.
+
+        Args:
+            other: The other expression to compare to.
+
+        Returns:
+            bool: True if the expression has equal non expression attributes to the other expression, False otherwise.
+        """
+        pass
 
 class AggregateExpr(LogicalExpr):
     """Marker class for aggregate expressions used by optimizer and validation."""
@@ -58,30 +85,30 @@ class AggregateExpr(LogicalExpr):
 
 class SemanticExpr(LogicalExpr):
     """Marker class for semantic expressions that use LLM models."""
-    
+
     @abstractmethod
-    def _validate_completion_parameters(self, plan: LogicalPlan, session_state: BaseSessionState):
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Common validation for semantic functions."""
         pass
 
 
 class ValidatedSignature:
     """Mixin for expressions with simple signature validation.
-    
+
     This mixin provides standard to_column_field() implementation
     for expressions that use SignatureValidator for type validation without
     dynamic return type inference.
-    
+
     Expressions using this mixin must implement the validator property and children() method.
     """
-    
+
     function_name: str  # Type hint to indicate this must be provided by subclass
-    
+
     @property
     @abstractmethod
     def validator(self) -> SignatureValidator:
         """Must be implemented by subclass to provide validator instance.
-        
+
         Returns:
             SignatureValidator: The validator instance for this expression
         """
@@ -90,7 +117,7 @@ class ValidatedSignature:
     @abstractmethod
     def children(self) -> List[LogicalExpr]:
         pass
-    
+
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Default implementation using validator property."""
         return_type = self.validator.validate_and_infer_type(self.children(), plan, session_state)
@@ -104,21 +131,21 @@ class ValidatedSignature:
 
 class ValidatedDynamicSignature:
     """Mixin for expressions requiring dynamic return type inference.
-    
+
     This mixin provides standard to_column_field() implementation
     for expressions that use SignatureValidator with custom return type logic.
-    
+
     Expressions using this mixin must implement the validator property,
     children() method, and _infer_dynamic_return_type method.
     """
-    
+
     function_name: str  # Type hint to indicate this must be provided by subclass
-    
+
     @property
     @abstractmethod
     def validator(self) -> SignatureValidator:
         """Must be implemented by subclass to provide validator instance.
-        
+
         Returns:
             SignatureValidator: The validator instance for this expression
         """
@@ -131,17 +158,17 @@ class ValidatedDynamicSignature:
     @abstractmethod
     def _infer_dynamic_return_type(self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Must be implemented by subclass for dynamic return type inference.
-        
+
         Args:
             arg_types: List of argument data types after validation
             plan: LogicalPlan for schema context
             session_state: BaseSessionState for session context
-            
+
         Returns:
             DataType: The dynamically inferred return type
         """
         pass
-    
+
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Default implementation using validator property with dynamic return type."""
         return_type = self.validator.validate_and_infer_type(
@@ -168,3 +195,11 @@ class BinaryExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.left, self.right]
+
+    def _eq_specific(self, other: BinaryExpr) -> bool:
+        return self.op == other.op
+
+class UnparameterizedExpr:
+    """Mixin for expressions that are not parameterized that implements _eq_specific."""
+    def _eq_specific(self, other: UnparameterizedExpr) -> bool:
+        return True

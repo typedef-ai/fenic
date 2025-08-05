@@ -8,9 +8,6 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
-from fenic._inference.google.gemini_batch_embeddings_client import (
-    GoogleBatchEmbeddingsClient,
-)
 from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
@@ -18,6 +15,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
+    ResolvedCohereModelConfig,
     ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
@@ -194,6 +192,14 @@ class SessionModelRegistry:
                     model=model_config.model_name,
                 )
             elif isinstance(model_config, ResolvedGoogleModelConfig):
+                try:
+                    from fenic._inference.google.gemini_batch_embeddings_client import (
+                        GoogleBatchEmbeddingsClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use Google models, please install the required dependencies by running: pip install fenic[google]"
+                    ) from err
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
                 client = GoogleBatchEmbeddingsClient(
                     rate_limit_strategy=rate_limit_strategy,
@@ -202,11 +208,27 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile
                 )
+            elif isinstance(model_config, ResolvedCohereModelConfig):
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
+                try:
+                    from fenic._inference.cohere.cohere_batch_embeddings_client import (
+                        CohereBatchEmbeddingsClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use Cohere models, please install the required dependencies by running: pip install fenic[cohere]"
+                    ) from err
+                client = CohereBatchEmbeddingsClient(
+                    rate_limit_strategy=rate_limit_strategy,
+                    model=model_config.model_name,
+                    profile_configurations=model_config.profiles,
+                    default_profile_name=model_config.default_profile
+                )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
 
         except Exception as e:
-            raise SessionError(f"Failed to create retrieval model client: {e}") from e
+            raise SessionError(f"Failed to create embedding model client: {e}") from e
 
         return EmbeddingModel(client=client)
 

@@ -4,6 +4,7 @@ from fenic.api.session.config import (
     AnthropicLanguageModel,
     CloudConfig,
     CloudExecutorSize,
+    CohereEmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
@@ -30,4 +31,5 @@ __all__ = [
     "ModelConfig",
     "CloudConfig",
     "CloudExecutorSize",
+    "CohereEmbeddingModel",
 ]

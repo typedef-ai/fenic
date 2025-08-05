@@ -34,8 +34,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
+        model: str,
         queue_size: int = 100,
-        model: str = "gpt-4.1-nano",
         max_backoffs: int = 10,
         profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
         default_profile_name: Optional[str] = None,

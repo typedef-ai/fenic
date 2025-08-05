@@ -49,7 +49,7 @@ def infer_dtype_from_pyobj(value: Any, path="") -> DataType:
 
     elif isinstance(value, dict):
         fields = []
-        for k in sorted(value.keys()):
+        for k in value.keys():
             current_path = f"{path}.{k}" if path else k
             dt = infer_dtype_from_pyobj(value[k], path=current_path)
             fields.append(StructField(name=k, data_type=dt))

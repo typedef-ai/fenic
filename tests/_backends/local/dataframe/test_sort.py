@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from fenic.api.functions import (
@@ -9,6 +11,7 @@ from fenic.api.functions import (
     desc_nulls_last,
     text,
 )
+from fenic.core.error import PlanError
 
 
 def test_sort_basic(sample_df_dups_and_nulls):
@@ -103,12 +106,12 @@ def test_sort_invalid_inputs(sample_df_dups_and_nulls):
         ).to_polars()
     # Test error cases when using asc/desc expressions in non-sort operations.
     with pytest.raises(
-        ValueError, match="expressions can only be used in sort or order_by operations."
+        PlanError, match="Sort expressions are not allowed in `projection`"
     ):
         sample_df_dups_and_nulls.select(col("age").asc()).to_polars()
 
     with pytest.raises(
-        ValueError, match="expressions can only be used in sort or order_by operations."
+        PlanError, match=re.escape("Invalid use of `.asc()`, `.desc()`, or related sort functions")
     ):
         sample_df_dups_and_nulls.select(
             text.concat(desc_nulls_last(col("age")), col("name"))

@@ -5,6 +5,7 @@ import pytest
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
+    CohereEmbeddingModelName,
     CompletionModelParameters,
     EmbeddingModelParameters,
     GoogleDeveloperEmbeddingModelName,
@@ -45,6 +46,7 @@ def test_all_language_models_have_valid_parameters(models: Enum, provider: Model
     (OpenAIEmbeddingModelName, ModelProvider.OPENAI),
     (GoogleDeveloperEmbeddingModelName, ModelProvider.GOOGLE_DEVELOPER),
     (GoogleVertexEmbeddingModelName, ModelProvider.GOOGLE_VERTEX),
+    (CohereEmbeddingModelName, ModelProvider.COHERE),
 ])
 def test_all_embedding_models_have_valid_parameters(models: Enum, provider: ModelProvider):
     """Test that all fetched embedding model parameters have the required fields."""

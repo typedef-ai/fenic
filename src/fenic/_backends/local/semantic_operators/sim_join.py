@@ -15,9 +15,12 @@ DISTANCE_COL_NAME = "_distance"
 # IMPORTANT: Lance expects a column named "vector" in the table.
 VECTOR_COL_NAME = "vector"
 
-LEFT_ON_COL_NAME = "_left_on"
-RIGHT_ON_COL_NAME = "_right_on"
-
+# TODO(rohitrastogi): Make these guids so they don't collide with any column names in a user dataframe.
+LEFT_ON_COL_NAME = "__left_on__"
+RIGHT_ON_COL_NAME = "__right_on__"
+LEFT_ID_COL_NAME = "__left_id__"
+RIGHT_ID_COL_NAME = "__right_id__"
+MATCH_RESULT_COL_NAME = "__match_result__"
 
 class SimJoin:
     def __init__(
@@ -27,8 +30,8 @@ class SimJoin:
         k: int,
         similarity_metric: SemanticSimilarityMetric,
     ):
-        self.left = left.with_row_index("_left_id")
-        self.right = right.with_row_index("_right_id")
+        self.left = left.with_row_index(LEFT_ID_COL_NAME)
+        self.right = right.with_row_index(RIGHT_ID_COL_NAME)
         self.k = k
         self.similarity_metric = similarity_metric
 
@@ -49,9 +52,9 @@ class SimJoin:
         matches_df = self._batch_similarity_search(left, right)
 
         result = (
-            matches_df.join(left, on="_left_id", how="inner")
-            .join(right, on="_right_id", how="inner")
-            .drop(["_left_id", "_right_id"])
+            matches_df.join(left, on=LEFT_ID_COL_NAME, how="inner")
+            .join(right, on=RIGHT_ID_COL_NAME, how="inner")
+            .drop([LEFT_ID_COL_NAME, RIGHT_ID_COL_NAME])
         )
         # Reorder columns to have similarity score last
         cols = [col for col in result.columns if col != DISTANCE_COL_NAME]
@@ -67,7 +70,7 @@ class SimJoin:
         db: DBConnection = lancedb.connect(lance_table_dir)
         tbl: Table = db.create_table(
             guid,
-            right.select(RIGHT_ON_COL_NAME, "_right_id").rename(
+            right.select(RIGHT_ON_COL_NAME, RIGHT_ID_COL_NAME).rename(
                 {RIGHT_ON_COL_NAME: VECTOR_COL_NAME}
             ),
         )
@@ -83,8 +86,8 @@ class SimJoin:
             for result in results:
                 matches.append(
                     {
-                        "_left_id": left_id,
-                        "_right_id": result["_right_id"],
+                        LEFT_ID_COL_NAME: left_id,
+                        RIGHT_ID_COL_NAME: result[RIGHT_ID_COL_NAME],
                         DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
                     }
                 )
@@ -97,23 +100,23 @@ class SimJoin:
         # actually search in parallel.
         return (
             left.select(
-                pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col("_left_id")])
+                pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col(LEFT_ID_COL_NAME)])
                 .map_elements(
-                    lambda x: search_vectors(x[LEFT_ON_COL_NAME], x["_left_id"]),
+                    lambda x: search_vectors(x[LEFT_ON_COL_NAME], x[LEFT_ID_COL_NAME]),
                     return_dtype=pl.List(
                         pl.Struct(
                             {
-                                "_left_id": pl.Int32,
-                                "_right_id": pl.Int32,
+                                LEFT_ID_COL_NAME: pl.Int32,
+                                RIGHT_ID_COL_NAME: pl.Int32,
                                 DISTANCE_COL_NAME: pl.Float64,
                             }
                         )
                     ),
                 )
-                .alias("_matches")
+                .alias(MATCH_RESULT_COL_NAME)
             )
-            .explode("_matches")
-            .unnest("_matches")
+            .explode(MATCH_RESULT_COL_NAME)
+            .unnest(MATCH_RESULT_COL_NAME)
         )
 
     def _empty_result_with_schema(
@@ -125,10 +128,10 @@ class SimJoin:
 
         # Drop the ID columns after join
         left_schema = [
-            (name, dtype) for name, dtype in left.schema.items() if name != "_left_id"
+            (name, dtype) for name, dtype in left.schema.items() if name != LEFT_ID_COL_NAME
         ]
         right_schema = [
-            (name, dtype) for name, dtype in right.schema.items() if name != "_right_id"
+            (name, dtype) for name, dtype in right.schema.items() if name != RIGHT_ID_COL_NAME
         ]
 
         schema = left_schema + right_schema + extra_cols

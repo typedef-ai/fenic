@@ -1454,7 +1454,7 @@ class DataFrame:
         self,
         cols: Union[ColumnOrName, List[ColumnOrName], None] = None,
         ascending: Optional[Union[bool, List[bool]]] = None,
-    ) -> "DataFrame":
+    ) -> DataFrame:
         """Sort the DataFrame by the specified columns. Alias for sort().
 
         Returns:

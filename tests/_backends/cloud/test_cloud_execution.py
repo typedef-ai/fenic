@@ -8,7 +8,7 @@ from unittest.mock import patch
 import polars as pl
 import pytest
 
-from fenic.api.session.config import OpenAILanguageModel
+from fenic.api.session.config import OpenAIEmbeddingModel, OpenAILanguageModel
 
 pytest.importorskip("grpc")
 pytest.importorskip("fenic_cloud.hasura_client")
@@ -196,7 +196,7 @@ def cloud_session_config(cloud_app_name):
         app_name=cloud_app_name,
         semantic=SemanticConfig(
             language_models={"nano" : OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=500, tpm=200_000)},
-            embedding_models={"oai-small": OpenAILanguageModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}
+            embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}
         ),
         cloud=CloudConfig(
             size=CloudExecutorSize.SMALL,

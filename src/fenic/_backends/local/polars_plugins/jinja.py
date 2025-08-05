@@ -22,6 +22,7 @@ class Jinja:
     def render(
         self,
         template: str,
+        strict: bool,
     ) -> pl.Expr:
         """Render a Jinja template using values from the struct expression.
 
@@ -54,6 +55,7 @@ class Jinja:
         """
         kwargs = {
             "template": template,
+            "strict": strict,
         }
         return register_plugin_function(
             plugin_path=PLUGIN_PATH,

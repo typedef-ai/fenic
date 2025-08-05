@@ -3,8 +3,8 @@ import re
 # Example constants
 EXAMPLE_INPUT_KEY = "input"
 EXAMPLE_OUTPUT_KEY = "output"
-EXAMPLE_LEFT_KEY = "left"
-EXAMPLE_RIGHT_KEY = "right"
+LEFT_ON_KEY = "left_on"
+RIGHT_ON_KEY = "right_on"
 
 # Indexing constants
 INDEX_DIR = "indexes"

@@ -1,13 +1,22 @@
 import polars as pl
 import pytest
 
-from fenic import JoinExample, JoinExampleCollection, OpenAIEmbeddingModel, col
+from fenic import (
+    ColumnField,
+    IntegerType,
+    JoinExample,
+    JoinExampleCollection,
+    OpenAIEmbeddingModel,
+    StringType,
+    col,
+    text,
+)
 from fenic.api.session import (
     SemanticConfig,
     Session,
     SessionConfig,
 )
-from fenic.core.error import PlanError, ValidationError
+from fenic.core.error import InvalidExampleCollectionError, PlanError, ValidationError
 
 
 def _create_semantic_join_dataframe(local_session):
@@ -78,9 +87,9 @@ def _create_semantic_join_dataframe_with_right_none(local_session):
     )
     right = local_session.create_dataframe(
         {
-            "skill_id": [1, 2, 3],
-            "skill": ["Math", "Computer Science", None],
-            "other_col_right": ["h", "i", "j"],
+            "skill_id": [1, 2],
+            "skill": ["Math", None],
+            "other_col_right": ["h", "i"],
         }
     )
     return left, right
@@ -88,8 +97,16 @@ def _create_semantic_join_dataframe_with_right_none(local_session):
 
 def test_semantic_join(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
-    result = left.semantic.join(right, join_instruction)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
+    assert result.schema.column_fields == [
+        ColumnField(name="course_id", data_type=IntegerType),
+        ColumnField(name="course_name", data_type=StringType),
+        ColumnField(name="other_col_left", data_type=StringType),
+        ColumnField(name="skill_id", data_type=IntegerType),
+        ColumnField(name="skill", data_type=StringType),
+        ColumnField(name="other_col_right", data_type=StringType),
+    ]
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -108,8 +125,16 @@ def test_semantic_join_with_none(local_session):
           not match anything and shouldn't be sent to the LLM for processing.
     """
     left, right = _create_semantic_join_dataframe_with_none(local_session)
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
-    result = left.semantic.join(right, join_instruction)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
+    assert result.schema.column_fields == [
+        ColumnField(name="course_id", data_type=IntegerType),
+        ColumnField(name="course_name", data_type=StringType),
+        ColumnField(name="other_col_left", data_type=StringType),
+        ColumnField(name="skill_id", data_type=IntegerType),
+        ColumnField(name="skill", data_type=StringType),
+        ColumnField(name="other_col_right", data_type=StringType),
+    ]
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -127,8 +152,8 @@ def test_semantic_join_with_right_none(local_session):
     used for the join.
     """
     left, right = _create_semantic_join_dataframe_with_right_none(local_session)
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
-    result = left.semantic.join(right, join_instruction)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -162,9 +187,9 @@ def test_semantic_join_duplicate_columns(local_session):
             "other_col_right": ["g", "h"],
         }
     )
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
     with pytest.raises(PlanError, match="Duplicate column names"):
-        left.semantic.join(right, join_instruction)
+        left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
 
 
 def test_semantic_join_with_examples(local_session):
@@ -172,19 +197,19 @@ def test_semantic_join_with_examples(local_session):
     collection = JoinExampleCollection()
     collection.create_example(
         JoinExample(
-            left="Linear Algebra",
-            right="Math",
+            left_on="Linear Algebra",
+            right_on="Math",
             output=True,
         ),
     ).create_example(
         JoinExample(
-            left="Intensive Study of a Culture: Pirates",
-            right="Computer Science",
+            left_on="Intensive Study of a Culture: Pirates",
+            right_on="Computer Science",
             output=False,
         ),
     )
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
-    result = left.semantic.join(right, join_instruction, examples=collection)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"), examples=collection)
     result = result.to_polars()
     assert result.schema == {
         "course_id": pl.Int64,
@@ -194,13 +219,21 @@ def test_semantic_join_with_examples(local_session):
         "skill": pl.String,
         "other_col_right": pl.String,
     }
+    bad_examples = JoinExampleCollection()
+    bad_examples.create_example(JoinExample(
+        left_on=True,
+        right_on="Math",
+        output=True,
+    ))
+    with pytest.raises(InvalidExampleCollectionError, match="Field 'left_on' type mismatch: operator expects"):
+        left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"), examples=bad_examples)
 
 
 def test_semantic_join_empty_result(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
     empty_left = left.filter(col("course_name").is_null())
-    join_instruction = "Taking {course_name:left} will help me learn {skill:right}"
-    result = empty_left.semantic.join(right, join_instruction)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = empty_left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
     result = result.to_polars()
     assert result.is_empty()
     assert result.schema == {
@@ -213,7 +246,7 @@ def test_semantic_join_empty_result(local_session):
     }
 
     empty_right = right.filter(col("skill").is_null())
-    result = left.semantic.join(empty_right, join_instruction)
+    result = left.semantic.join(empty_right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
     result = result.to_polars()
     assert result.is_empty()
     assert result.schema == {
@@ -225,6 +258,23 @@ def test_semantic_join_empty_result(local_session):
         "other_col_right": pl.String,
     }
 
+def test_semantic_join_with_derived_columns(local_session):
+    left, right = _create_semantic_join_dataframe(local_session)
+    join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
+    result = left.semantic.join(right, join_instruction, left_on=text.upper(col("course_name")), right_on=text.upper(col("skill")).alias("skill"))
+    assert result.schema.column_fields == [
+        ColumnField(name="course_id", data_type=IntegerType),
+        ColumnField(name="course_name", data_type=StringType),
+        ColumnField(name="other_col_left", data_type=StringType),
+        ColumnField(name="skill_id", data_type=IntegerType),
+        ColumnField(name="skill", data_type=StringType),
+        ColumnField(name="other_col_right", data_type=StringType),
+    ]
+    for skill in right.to_polars()["skill"]:
+        skill_not_all_upper = not all(char.isupper() for char in skill)
+        assert skill_not_all_upper
+
+
 def test_semantic_join_without_models():
     """Test semantic.join() method without models."""
     session_config = SessionConfig(
@@ -232,7 +282,7 @@ def test_semantic_join_without_models():
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
-        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {notes1:left} will help me learn {notes2:right}")
+        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
     session.stop()
     session_config = SessionConfig(
         app_name="semantic_join_with_models",
@@ -242,5 +292,19 @@ def test_semantic_join_without_models():
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
-        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {notes1:left} will help me learn {notes2:right}")
+        session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
     session.stop()
+
+def test_semantic_join_invalid_prompt(local_session):
+    left, right = _create_semantic_join_dataframe(local_session)
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{left_on}}", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{right_on}}", left_on=col("course_name"), right_on=col("skill"))
+
+    with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
+        left.semantic.join(right, "{{left_on}} {{right_on}} {{foo}}", left_on=col("course_name"), right_on=col("skill"))

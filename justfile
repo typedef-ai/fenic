@@ -77,14 +77,14 @@ syncMinMaxFlag := if sync == "min" {
 # sync project dependencies - set sync=false to skip in other target deps
 sync:
   [ "{{ sync }}" != "false" ] && \
-  uv sync --extra=google --extra=anthropic {{ syncMinMaxFlag }} || true
+  uv sync --extra=google --extra=anthropic --extra=cohere {{ syncMinMaxFlag }} || true
 
 alias sync-local := sync
 
 # sync project dependencies related to fenic cloud
 sync-cloud:
   [ "{{ sync }}" != "false" ] && \
-  uv sync --extra=cloud {{ syncMinMaxFlag }} || true
+  uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere {{ syncMinMaxFlag }} || true
 
 # sync rust changes (via maturin)
 sync-rust:
@@ -95,14 +95,16 @@ test: test-local
   true
 
 # run local tests
-test-local: sync
-  uv run pytest -m "not cloud" tests
+test-local modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small" : sync
+  POLARS_VERBOSE=1 uv run pytest -m "not cloud" --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
+  --embedding-model-provider {{ embeddingModelProvider }} --embedding-model-name {{ embeddingModelName }} tests
 
 alias test-not-cloud := test-local
 
 # run fenic cloud related tests
-test-cloud: sync-cloud
-  uv run pytest -m cloud tests
+test-cloud modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small": sync-cloud
+  uv run pytest -m cloud --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
+  --embedding-model-provider {{ embeddingModelProvider }} --embedding-model-name {{ embeddingModelName }} tests
 
 # preview generated docs
 preview-docs:

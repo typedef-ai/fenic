@@ -1,7 +1,9 @@
 import json
 import logging
+from textwrap import dedent
 from typing import List, Optional
 
+import jinja2
 import polars as pl
 
 from fenic._backends.local.semantic_operators.base import (
@@ -11,10 +13,6 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.semantic_operators.types import (
     SimpleBooleanOutputModelResponse,
 )
-from fenic._backends.local.semantic_operators.utils import (
-    convert_row_to_instruction_context,
-    uppercase_instruction_placeholder,
-)
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
@@ -22,28 +20,19 @@ from fenic.core.types import PredicateExample, PredicateExampleCollection
 
 logger = logging.getLogger(__name__)
 
-
-
-
 class Predicate(BaseMultiColumnInputOperator[str, bool]):
-    SYSTEM_PROMPT = (
-        "You are an AI assistant designed evaluate boolean claims. "
-        "Your task is to determine whether a claim is supported by the provided context fields. "
-        "Each input message will have two sections:\n"
-        "1. A claim labeled with the prefix: ###Claim\n"
-        "2. One or more context fields labeled with the prefix: ###Context\n"
-        "Claims reference context fields using square brackets [LIKE_THIS]. "
-        "Each context field will be labeled with its name in square brackets, matching the references in the claim. "
-        "A claim is True if and only if it is supported by information in the context. "
-        "A claim is False if it contradicts the context OR if the context doesn't provide enough information to verify it. "
-        "Respond with either True or False."
-        "Your response should evaluate the claim based on the context fields provided without using any external information."
-    )
+    SYSTEM_PROMPT = dedent("""\
+    Evaluate the user's question or claim and respond with either true or false.
+
+    Requirements:
+    1. Output ONLY true or false - nothing else
+    2. For yes/no questions, respond with "true" for yes and "false" for no
+    3. If the answer is unclear or ambiguous, output false""")
 
     def __init__(
         self,
-        input: pl.DataFrame,
-        user_instruction: str,
+        input: pl.Series,
+        jinja_template: str,
         model: LanguageModel,
         temperature: float,
         examples: Optional[PredicateExampleCollection] = None,
@@ -61,21 +50,12 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                 ),
                 model=model,
             ),
-            examples,
+            jinja_template=jinja2.Template(jinja_template),
+            examples=examples,
         )
-        self.user_instruction = uppercase_instruction_placeholder(user_instruction)
 
     def build_system_message(self) -> str:
         return self.SYSTEM_PROMPT
-
-    def build_user_message(self, context_fields: dict[str, str]) -> str:
-        prompt = (
-            "### Claim\n"
-            f"{self.user_instruction}\n\n"
-            "### Context\n"
-            f"{convert_row_to_instruction_context(context_fields)}"
-        )
-        return prompt
 
     def postprocess(self, responses: List[Optional[str]]) -> List[Optional[bool]]:
         predictions = []

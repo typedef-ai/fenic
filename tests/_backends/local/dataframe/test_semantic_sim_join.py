@@ -155,7 +155,8 @@ def _create_semantic_sim_join_supplement(local_session):
     return df_supplement
 
 @pytest.mark.parametrize("metric", ["dot", "cosine", "l2"])
-def test_semantic_sim_join(local_session, metric, embedding_model_name):
+def test_semantic_sim_join(local_session, metric, embedding_model_name_and_dimensions):
+    embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     left, right = _create_semantic_join_dataframe(local_session)
     df = (
         left.with_column("course_embeddings", semantic.embed(col("course_name")))
@@ -171,11 +172,11 @@ def test_semantic_sim_join(local_session, metric, embedding_model_name):
         ColumnField("course_id", IntegerType),
         ColumnField("course_name", StringType),
         ColumnField("other_col_left", StringType),
-        ColumnField("course_embeddings", EmbeddingType(dimensions=1536, embedding_model=embedding_model_name)),
+        ColumnField("course_embeddings", EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name)),
         ColumnField("skill_id", IntegerType),
         ColumnField("skill", StringType),
         ColumnField("other_col_right", StringType),
-        ColumnField("skill_embeddings", EmbeddingType(dimensions=1536, embedding_model=embedding_model_name)),
+        ColumnField("skill_embeddings", EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name)),
     ]
     result = df.to_polars()
     assert result.schema == pl.Schema(

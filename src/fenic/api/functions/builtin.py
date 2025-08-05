@@ -15,6 +15,8 @@ from fenic.core._logical_plan.expressions import (
     CoalesceExpr,
     CountExpr,
     FirstExpr,
+    GreatestExpr,
+    LeastExpr,
     ListExpr,
     MaxExpr,
     MinExpr,
@@ -51,7 +53,7 @@ def sum(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def avg(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the average (mean) of all values in the specified column.
+    """Aggregate function: returns the average (mean) of all values in the specified column. Applies to numeric and embedding types.
 
     Args:
         column: Column or column name to compute the average of
@@ -314,102 +316,78 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order.
+    """Mark this column for ascending sort order with nulls first.
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
-        A Column expression representing the column and the ascending sort order.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with ascending order and nulls first.
     """
     return Column._from_col_or_name(column).asc()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc_nulls_first(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order with nulls first.
+    """Alias for asc().
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
-        A Column expression representing the column and the ascending sort order with nulls first.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with ascending order and nulls first.
     """
     return Column._from_col_or_name(column).asc_nulls_first()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def asc_nulls_last(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing an ascending sort order with nulls last.
+    """Mark this column for ascending sort order with nulls last.
 
     Args:
         column: The column to apply the ascending ordering to.
 
     Returns:
         A Column expression representing the column and the ascending sort order with nulls last.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
     """
     return Column._from_col_or_name(column).asc_nulls_last()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order.
+    """Mark this column for descending sort order with nulls first.
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls first.
     """
     return Column._from_col_or_name(column).desc()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc_nulls_first(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order with nulls first.
+    """Alias for desc().
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order with nulls first.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls first.
     """
     return Column._from_col_or_name(column).desc_nulls_first()
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def desc_nulls_last(column: ColumnOrName) -> Column:
-    """Creates a Column expression representing a descending sort order with nulls last.
+    """Mark this column for descending sort order with nulls last.
 
     Args:
         column: The column to apply the descending ordering to.
 
     Returns:
-        A Column expression representing the column and the descending sort order with nulls last.
-
-    Raises:
-        ValueError: If the type of the column cannot be inferred.
-        Error: If this expression is passed to a dataframe operation besides sort() and order_by().
+        A sort expression with descending order and nulls last.
     """
     return Column._from_col_or_name(column).desc_nulls_last()
 
@@ -529,38 +507,89 @@ def coalesce(*cols: ColumnOrName) -> Column:
     in order and returns the first non-null value encountered. If all values are null, returns null.
 
     Args:
-        *cols: Column expressions or column names to evaluate. Can be:
-
-            - Individual arguments
-            - Lists of columns/column names
-            - Tuples of columns/column names
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
 
     Returns:
         A Column expression containing the first non-null value from the input columns.
 
     Raises:
-        ValueError: If no columns are provided.
+        ValidationError: If no columns are provided.
 
-    Example: Basic coalesce usage
+    Example: coalesce usage
         ```python
-        # Basic usage
         df.select(coalesce("col1", "col2", "col3"))
-
-        # With nested collections
-        df.select(coalesce(["col1", "col2"], "col3"))
         ```
     """
     if not cols:
         raise ValidationError("No columns were provided. Please specify at least one column to use with the coalesce method.")
 
-    flattened_args = []
-    for arg in cols:
-        if isinstance(arg, (list, tuple)):
-            flattened_args.extend(arg)
-        else:
-            flattened_args.append(arg)
-
-    flattened_exprs = [
-        Column._from_col_or_name(c)._logical_expr for c in flattened_args
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
     ]
-    return Column._from_logical_expr(CoalesceExpr(flattened_exprs))
+    return Column._from_logical_expr(CoalesceExpr(exprs))
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def greatest(*cols: ColumnOrName) -> Column:
+    """Returns the greatest value from the given columns for each row.
+
+    This function mimics the behavior of SQL's GREATEST function. It evaluates the input columns
+    in order and returns the greatest value encountered. If all values are null, returns null.
+
+    All arguments must be of the same primitive type (e.g., StringType, BooleanType, FloatType, IntegerType, etc).
+
+    Args:
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
+
+    Returns:
+        A Column expression containing the greatest value from the input columns.
+
+    Raises:
+        ValidationError: If fewer than two columns are provided.
+
+    Example: greatest usage
+        ```python
+        df.select(fc.greatest("col1", "col2", "col3"))
+        ```
+    """
+    if len(cols) < 2:
+        raise ValidationError(f"greatest() requires at least 2 columns, got {len(cols)}")
+
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
+    ]
+    return Column._from_logical_expr(GreatestExpr(exprs))
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def least(*cols: ColumnOrName) -> Column:
+    """Returns the least value from the given columns for each row.
+
+    This function mimics the behavior of SQL's LEAST function. It evaluates the input columns
+    in order and returns the least value encountered. If all values are null, returns null.
+
+    All arguments must be of the same primitive type (e.g., StringType, BooleanType, FloatType, IntegerType, etc).
+
+    Args:
+        *cols: Column expressions or column names to evaluate. Each argument should be a single
+            column expression or column name string.
+
+    Returns:
+        A Column expression containing the least value from the input columns.
+
+    Raises:
+        ValidationError: If fewer than two columns are provided.
+
+    Example: least usage
+        ```python
+        df.select(fc.least("col1", "col2", "col3"))
+        ```
+    """
+    if len(cols) < 2:
+        raise ValidationError(f"least() requires at least 2 columns, got {len(cols)}")
+
+    exprs = [
+        Column._from_col_or_name(c)._logical_expr for c in cols
+    ]
+    return Column._from_logical_expr(LeastExpr(exprs))

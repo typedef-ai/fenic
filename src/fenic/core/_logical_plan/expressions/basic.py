@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
+    UnparameterizedExpr,
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
@@ -59,6 +60,9 @@ class ColumnExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return []
 
+    def _eq_specific(self, other: ColumnExpr) -> bool:
+        return self.name == other.name
+
 
 class LiteralExpr(LogicalExpr):
     """Expression representing a literal value."""
@@ -75,6 +79,9 @@ class LiteralExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return []
+
+    def _eq_specific(self, other: LiteralExpr) -> bool:
+        return self.literal == other.literal and self.data_type == other.data_type
 
 
 class AliasExpr(LogicalExpr):
@@ -93,6 +100,8 @@ class AliasExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: AliasExpr) -> bool:
+        return self.name == other.name
 
 class SortExpr(LogicalExpr):
     """Expression representing a column sorted in ascending or descending order."""
@@ -115,8 +124,10 @@ class SortExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: SortExpr) -> bool:
+        return self.ascending == other.ascending and self.nulls_last == other.nulls_last
 
-class IndexExpr(LogicalExpr):
+class IndexExpr(UnparameterizedExpr, LogicalExpr):
     """Expression representing an index or field access operation."""
 
     def __init__(self, expr: LogicalExpr, index: LogicalExpr):
@@ -164,12 +175,11 @@ class IndexExpr(LogicalExpr):
                 f"get_item cannot be applied to type {expr_type}. Supported types: ArrayType, StructType."
             )
 
-
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.index]
 
 
-class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
+class ArrayExpr(ValidatedDynamicSignature, UnparameterizedExpr, LogicalExpr):
     """Expression representing array creation from multiple columns."""
 
     function_name = "array"
@@ -191,7 +201,7 @@ class ArrayExpr(ValidatedDynamicSignature, LogicalExpr):
         return ArrayType(arg_types[0])
 
 
-class StructExpr(ValidatedDynamicSignature, LogicalExpr):
+class StructExpr(ValidatedDynamicSignature, UnparameterizedExpr, LogicalExpr):
     """Expression representing struct creation from multiple columns."""
 
     function_name = "struct"
@@ -240,6 +250,10 @@ class UDFExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return self.args
 
+    def _eq_specific(self, other: UDFExpr) -> bool:
+        # For dynamic UDFs, we can only check identity since its tricky to compare Callables
+        return self.func is other.func and self.return_type == other.return_type
+
 
 class IsNullExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, is_null: bool):
@@ -255,8 +269,11 @@ class IsNullExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: IsNullExpr) -> bool:
+        return self.is_null == other.is_null
 
-class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
+
+class ArrayLengthExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression representing array length calculation."""
 
     function_name = "array_size"
@@ -272,7 +289,8 @@ class ArrayLengthExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-class ArrayContainsExpr(ValidatedSignature, LogicalExpr):
+
+class ArrayContainsExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression representing array contains check."""
 
     function_name = "array_contains"
@@ -310,8 +328,11 @@ class CastExpr(LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
+    def _eq_specific(self, other: CastExpr) -> bool:
+        return self.dest_type == other.dest_type
 
-class NotExpr(LogicalExpr):
+
+class NotExpr(UnparameterizedExpr, LogicalExpr):
     def __init__(self, expr: LogicalExpr):
         self.expr = expr
 
@@ -331,7 +352,7 @@ class NotExpr(LogicalExpr):
         return [self.expr]
 
 
-class CoalesceExpr(ValidatedSignature, LogicalExpr):
+class CoalesceExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression representing coalesce operation (first non-null value)."""
 
     function_name = "coalesce"
@@ -348,7 +369,7 @@ class CoalesceExpr(ValidatedSignature, LogicalExpr):
         return self.exprs
 
 
-class InExpr(LogicalExpr):
+class InExpr(UnparameterizedExpr, LogicalExpr):
     def __init__(self, expr: LogicalExpr, other: LogicalExpr):
         self.expr = expr
         self.other = other
@@ -374,6 +395,57 @@ class InExpr(LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr, self.other]
+
+class GreatestExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
+    """Expression representing the greatest value of a list of expressions."""
+
+    function_name = "greatest"
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        column_field = super().to_column_field(plan, session_state)
+        first_expr_type = self.exprs[0].to_column_field(plan, session_state).data_type
+        if not isinstance(first_expr_type, _PrimitiveType):
+            raise TypeMismatchError.from_message(
+                f"fc.greatest() only supports primitive types (StringType, BooleanType, "
+                f"FloatType, IntegerType, etc). Got: {first_expr_type} instead. "
+            )
+        return column_field
+
+class LeastExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
+    """Expression representing the least value of a list of expressions."""
+
+    function_name = "least"
+    def __init__(self, exprs: List[LogicalExpr]):
+        self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return self.exprs
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        column_field = super().to_column_field(plan, session_state)
+        first_expr_type = self.exprs[0].to_column_field(plan, session_state).data_type
+        if not isinstance(first_expr_type, _PrimitiveType):
+            raise TypeMismatchError.from_message(
+                f"fc.least() only supports primitive types (StringType, BooleanType, "
+                f"FloatType, IntegerType, etc). Got: {first_expr_type} instead. "
+            )
+
+        return column_field
 
 UNIMPLEMENTED_TYPES = (_HtmlType, TranscriptType, DocumentPathType)
 def _can_cast(src: DataType, dst: DataType) -> bool:

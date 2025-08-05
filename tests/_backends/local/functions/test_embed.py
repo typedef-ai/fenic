@@ -25,10 +25,11 @@ from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
-def test_embeddings(extract_data_df, embedding_model_name):
+def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
+    embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     df = extract_data_df.select(semantic.embed(col("review")).alias("embeddings"))
     assert df.schema.column_fields == [
-        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model=embedding_model_name))
+        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name))
     ]
 
     result = df.to_polars()
@@ -43,12 +44,13 @@ def test_embeddings(extract_data_df, embedding_model_name):
         ).alias("embeddings")
     )
     assert df.schema.column_fields == [
-        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=1536, embedding_model=embedding_model_name))
+        ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name))
     ]
     result = df.to_polars()
     assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
 
-def test_embedding_very_long_string(local_session, embedding_model_name):
+def test_embedding_very_long_string(local_session, embedding_model_name_and_dimensions):
+    embedding_model_name, _ = embedding_model_name_and_dimensions
     if ModelProvider.OPENAI.value in embedding_model_name:
         string_val = "".join((" " if i%5 == 0 else choice(ascii_lowercase)) for i in range(32768))
         data = {

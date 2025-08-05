@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    UnparameterizedExpr,
+    ValidatedSignature,
+)
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 
 
-class MdToJsonExpr(ValidatedSignature, LogicalExpr):
+class MdToJsonExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     function_name = "markdown.to_json"
 
     def __init__(self, expr: LogicalExpr):
@@ -54,6 +58,9 @@ class MdGetCodeBlocksExpr(ValidatedSignature, LogicalExpr):
     }}]'''
         return query
 
+    def _eq_specific(self, other: MdGetCodeBlocksExpr) -> bool:
+        return self.language_filter == other.language_filter
+
 
 class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
     function_name = "markdown.generate_toc"
@@ -78,6 +85,9 @@ class MdGenerateTocExpr(ValidatedSignature, LogicalExpr):
     ("#" * .level) + " " + (.content | map(select(.type? == "text") | .text) | join(""))
     ] | join("\\n"))}}'''
         return query
+
+    def _eq_specific(self, other: MdGenerateTocExpr) -> bool:
+        return self.max_level == other.max_level
 
 
 class MdExtractHeaderChunks(ValidatedSignature, LogicalExpr):
@@ -125,3 +135,6 @@ walk_headings(.; [])'''
 
     def __str__(self) -> str:
         return f"markdown.extract_header_chunks({self.expr}, header_level={self.header_level})"
+
+    def _eq_specific(self, other: MdExtractHeaderChunks) -> bool:
+        return self.header_level == other.header_level

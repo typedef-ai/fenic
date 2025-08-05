@@ -77,7 +77,9 @@ fc.text.array_join(fc.col("speech_segments"), " ")
 ```python
 # Semantic mapping with placeholders
 fc.semantic.map(
-    "Analyze this guest's contributions... Guest: {guest_name}. Speech: {full_speech}"
+    "Analyze this guest's contributions... Guest: {{guest}}. Speech: {{speech}}",
+    guest=fc.col("guest_name"),
+    speech=fc.col("full_speech")
 )
 ```
 

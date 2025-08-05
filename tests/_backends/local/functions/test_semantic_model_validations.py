@@ -7,12 +7,13 @@ from fenic.core.types.semantic import ModelAlias
 
 def test_invalid_temperature(local_session):
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
-    state_prompt = "What state does {name} live in given that they live in {city}?"
+    state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
     with pytest.raises(ValidationError):
         df_select = source.select(
             semantic.map(state_prompt).alias("state"),
             col("name"),
-            semantic.map(instruction="What is the typical weather in {city} in summer?", temperature=4).alias("weather"),
+            # high temperature is invalid
+            semantic.map("What is the typical weather in {{city}} in summer?", city=col("city"), temperature=4).alias("weather"),
         )
         df_select.to_polars()
 
@@ -23,7 +24,7 @@ def test_invalid_alias(local_session):
         df_select = source.select(
             semantic.map(state_prompt).alias("state"),
             col("name"),
-            semantic.map(instruction="What is the typical weather in {city} in summer?", model_alias=ModelAlias(name="not_in_configuration", profile="unknown")).alias("weather"),
+            semantic.map("What is the typical weather in {{city}} in summer?", city=col("city"), model_alias=ModelAlias(name="not_in_configuration", profile="unknown")).alias("weather"),
         )
         df_select.to_polars()
 
@@ -34,6 +35,7 @@ def test_invalid_max_tokens(local_session):
         df_select = source.select(
             semantic.map(state_prompt).alias("state"),
             col("name"),
-            semantic.map(instruction="What is the typical weather in {city} in summer?", max_output_tokens=250_000).alias("weather"),
+            # high max output tokens is invalid
+            semantic.map("What is the typical weather in {{city}} in summer?", city=col("city"), max_output_tokens=250_000).alias("weather"),
         )
         df_select.to_polars()

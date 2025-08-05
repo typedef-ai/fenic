@@ -349,7 +349,12 @@ def main(config: Optional[fc.SessionConfig] = None):
     chunk_summaries_df = chunked_df.select(
         "*",
         fc.semantic.map(
-            "Summarize this portion of a Lex Fridman podcast with the Cursor team. Focus on key technical insights, product decisions, and important discussion points. Keep the summary concise but capture the main ideas. Chunk: {chunk_text}"
+            (
+                "Summarize this portion of a Lex Fridman podcast with the Cursor team. "
+                "Focus on key technical insights, product decisions, and important discussion points. "
+                "Keep the summary concise but capture the main ideas. Chunk: {{chunk}}"
+            ),
+            chunk=fc.col("chunk_text")
         ).alias("chunk_summary")
     )
 
@@ -370,9 +375,17 @@ def main(config: Optional[fc.SessionConfig] = None):
     final_summary_df = combined_summaries_df.select(
         "*",
         fc.semantic.map(
-            "Create a comprehensive summary of this Lex Fridman podcast episode with the Cursor team (Michael Truell, Arvid Lunnemark, Aman Sanger, Sualeh Asif). Synthesize the key themes, technical insights, product vision, and important discussion points from these chunk summaries. Structure it as a cohesive narrative that captures the essence of the conversation. Combined summaries: {combined_summaries}"
+            (
+                "Create a comprehensive summary of this Lex Fridman podcast episode "
+                "with the Cursor team (Michael Truell, Arvid Lunnemark, Aman Sanger, Sualeh Asif). "
+                "Synthesize the key themes, technical insights, product vision, and important discussion "
+                "points from these chunk summaries. Structure it as a cohesive narrative that captures "
+                "the essence of the conversation. Combined summaries: {{summaries}}"
+            ),
+            summaries=fc.col("combined_summaries")
         ).alias("final_summary")
     )
+
 
     print("\n📋 Final Podcast Summary:")
     print("=" * 80)
@@ -407,7 +420,19 @@ def main(config: Optional[fc.SessionConfig] = None):
     host_summary_df = host_speech_df.select(
         "*",
         fc.semantic.map(
-            "Analyze Lex Fridman's role as host in this podcast conversation with the Cursor team. Focus on: 1) His most thought-provoking and insightful questions that drove meaningful discussion, 2) Personal insights, experiences, and expertise he shared, 3) How he guided the conversation toward deeper philosophical or technical topics, 4) Broader connections he made between ideas, technology, and humanity, 5) His unique perspective on AI, programming, and the future. Ignore basic facilitation, simple acknowledgments, and routine transitions. Capture his intellectual contributions and interviewing mastery. Host speech: {host_full_speech}"
+            (
+                "Analyze Lex Fridman's role as host in this podcast conversation with the Cursor team. "
+                "Focus on: "
+                "1) His most thought-provoking and insightful questions that drove meaningful discussion, "
+                "2) Personal insights, experiences, and expertise he shared, "
+                "3) How he guided the conversation toward deeper philosophical or technical topics, "
+                "4) Broader connections he made between ideas, technology, and humanity, "
+                "5) His unique perspective on AI, programming, and the future. "
+                "Ignore basic facilitation, simple acknowledgments, and routine transitions. "
+                "Capture his intellectual contributions and interviewing mastery. "
+                "Host speech: {{speech}}"
+            ),
+            speech=fc.col("host_full_speech")
         ).alias("host_analysis")
     )
 
@@ -465,7 +490,20 @@ def main(config: Optional[fc.SessionConfig] = None):
     guest_summaries_df = guest_with_names_df.select(
         "*",
         fc.semantic.map(
-            "Analyze this guest's contributions to the Lex Fridman podcast about Cursor. Focus on: 1) Their specific technical expertise and insights shared, 2) Product vision and development perspectives they brought, 3) Unique experiences and stories they told, 4) Their role and contributions to the Cursor team/company, 5) Technical innovations or solutions they discussed, 6) Their perspective on AI-assisted programming and the future of coding. Capture their individual voice and expertise. Guest: {guest_name}. Speech: {full_speech}"
+            (
+                "Analyze this guest's contributions to the Lex Fridman podcast about Cursor. "
+                "Focus on: "
+                "1) Their specific technical expertise and insights shared, "
+                "2) Product vision and development perspectives they brought, "
+                "3) Unique experiences and stories they told, "
+                "4) Their role and contributions to the Cursor team/company, "
+                "5) Technical innovations or solutions they discussed, "
+                "6) Their perspective on AI-assisted programming and the future of coding. "
+                "Capture their individual voice and expertise. "
+                "Guest: {{guest}}. Speech: {{speech}}"
+            ),
+            guest=fc.col("guest_name"),
+            speech=fc.col("full_speech")
         ).alias("guest_analysis")
     )
 

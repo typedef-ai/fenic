@@ -941,7 +941,8 @@ def byte_length(column: ColumnOrName) -> Column:
 def jinja(
     jinja_template: str,
     /,
-    **columns: ColumnOrName
+    strict: bool = True,
+    **columns: Column
 ) -> Column:
     """Render a Jinja template using values from the specified columns.
 
@@ -950,7 +951,11 @@ def jinja(
 
     Args:
         jinja_template: A Jinja2 template string to render for each row.
-                       Variables are referenced using double braces: {{ variable_name }}
+                        Variables are referenced using double braces: {{ variable_name }}
+        strict: If True, when any of the provided columns has a None value for a row,
+                the entire row's output will be None (template is not rendered).
+                If False, None values are handled using Jinja2's null rendering behavior.
+                Default is True.
         **columns: Keyword arguments mapping variable names to columns.
                   Each keyword becomes a variable in the template context.
 
@@ -1021,18 +1026,18 @@ def jinja(
         - Complex operations can use column expressions
         - Arrays can only be iterated with {% for %} or accessed with literal indices
         - Structs can only use literal field names
-        - Null values will be rendered as empty strings
+        - Null values are rendered according to Jinja2's null rendering behavior
     """
     # Convert keyword arguments to column expressions with proper names
     column_exprs: List[LogicalExpr] = []
     for var_name, column in columns.items():
-        if isinstance(column.expr, ColumnExpr) and column.expr.name == var_name:
-            column_exprs.append(column.expr)
+        if isinstance(column._logical_expr, ColumnExpr) and column._logical_expr.name == var_name:
+            column_exprs.append(column._logical_expr)
         else:
             column_exprs.append(column.alias(var_name)._logical_expr)
 
     return Column._from_logical_expr(
-        JinjaExpr(column_exprs, jinja_template)
+        JinjaExpr(column_exprs, jinja_template, strict)
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

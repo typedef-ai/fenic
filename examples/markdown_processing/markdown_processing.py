@@ -32,18 +32,8 @@ def main(config: Optional[fc.SessionConfig] = None):
 
     The example uses the "Attention Is All You Need" paper to show real-world document processing.
     """
-    # Configure session with semantic capabilities (not used in this example but shows proper setup)
     config = config or fc.SessionConfig(
         app_name="markdown_processing",
-        semantic=fc.SemanticConfig(
-            language_models= {
-                "mini": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
-                    rpm=500,
-                    tpm=200_000
-                )
-            }
-        )
     )
 
     # Initialize fenic session

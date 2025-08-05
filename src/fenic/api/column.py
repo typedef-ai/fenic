@@ -26,18 +26,19 @@ from fenic.core._logical_plan.expressions import (
     WhenExpr,
 )
 from fenic.core._logical_plan.expressions.arithmetic import ArithmeticExpr
-from fenic.core._logical_plan.expressions.base import Operator
+from fenic.core._logical_plan.expressions.base import AggregateExpr, Operator
 from fenic.core._logical_plan.expressions.basic import ColumnExpr, NotExpr
 from fenic.core._logical_plan.expressions.comparison import (
     BooleanExpr,
     EqualityComparisonExpr,
     NumericComparisonExpr,
 )
+from fenic.core._logical_plan.expressions.semantic import SemanticReduceExpr
 from fenic.core._utils.type_inference import (
     TypeInferenceError,
     infer_dtype_from_pyobj,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import PlanError, ValidationError
 from fenic.core.types.datatypes import (
     DataType,
     IntegerType,
@@ -245,66 +246,43 @@ class Column:
         return Column._from_logical_expr(CastExpr(self._logical_expr, data_type))
 
     def desc(self) -> Column:
-        """Apply descending order to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function.
+        """Mark this column for descending sort order.
 
         Returns:
-            Column: A Column expression that provides a column and sort order to the sort function
+            Column: A sort expression with descending order.
 
         Example: Sort by age in descending order
             ```python
             # Sort a dataframe by age in descending order
             df.sort(col("age").desc()).show()
             ```
-
-        Example: Sort using column reference
-            ```python
-            # Sort using column reference with descending order
-            df.sort(col("age").desc()).show()
-            ```
         """
-        return Column._from_logical_expr(SortExpr(self._logical_expr, ascending=False))
+        return Column._from_logical_expr(
+            SortExpr(self._logical_expr, ascending=False)
+        )
 
     def desc_nulls_first(self) -> Column:
-        """Apply descending order putting nulls first to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function
+        """Alias for desc().
 
         Returns:
-            Column: A Column expression that provides a column and sort order to the sort function
+            Column: A sort expression with descending order and nulls first.
 
         Example: Sort by age in descending order with nulls first
             ```python
             df.sort(col("age").desc_nulls_first()).show()
             ```
-
-        Example: Sort using column reference
-            ```python
-            df.sort(col("age").desc_nulls_first()).show()
-            ```
         """
-        return Column._from_logical_expr(
-            SortExpr(self._logical_expr, ascending=False, nulls_last=False)
-        )
+        return self.desc()
 
     def desc_nulls_last(self) -> Column:
-        """Apply descending order putting nulls last to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function.
+        """Mark this column for descending sort order with nulls last.
 
         Returns:
-            Column: A Column expression that provides a column and sort order to the sort function
+            Column: A sort expression with descending order and nulls last.
 
         Example: Sort by age in descending order with nulls last
             ```python
             # Sort a dataframe by age in descending order, with nulls appearing last
-            df.sort(col("age").desc_nulls_last()).show()
-            ```
-
-        Example: Sort using column reference
-            ```python
-            # Sort using column reference with descending order and nulls last
             df.sort(col("age").desc_nulls_last()).show()
             ```
         """
@@ -313,68 +291,36 @@ class Column:
         )
 
     def asc(self) -> Column:
-        """Apply ascending order to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function.
+        """Mark this column for ascending sort order.
 
         Returns:
-            Column: A Column expression that provides a column and sort order to the sort function
+            Column: A sort expression with ascending order and nulls first.
 
         Example: Sort by age in ascending order
             ```python
             # Sort a dataframe by age in ascending order
             df.sort(col("age").asc()).show()
             ```
-
-        Example: Sort using column reference
-            ```python
-            # Sort using column reference with ascending order
-            df.sort(col("age").asc()).show()
-            ```
         """
         return Column._from_logical_expr(SortExpr(self._logical_expr, ascending=True))
 
     def asc_nulls_first(self) -> Column:
-        """Apply ascending order putting nulls first to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function.
+        """Alias for asc().
 
         Returns:
             Column: A Column expression that provides a column and sort order to the sort function
-
-        Example: Sort by age in ascending order with nulls first
-            ```python
-            # Sort a dataframe by age in ascending order, with nulls appearing first
-            df.sort(col("age").asc_nulls_first()).show()
-            ```
-
-        Example: Sort using column reference
-            ```python
-            # Sort using column reference with ascending order and nulls first
-            df.sort(col("age").asc_nulls_first()).show()
-            ```
         """
-        return Column._from_logical_expr(
-            SortExpr(self._logical_expr, ascending=True, nulls_last=False)
-        )
+        return self.asc()
 
     def asc_nulls_last(self) -> Column:
-        """Apply ascending order putting nulls last to this column during a dataframe sort or order_by.
-
-        This method creates an expression that provides a column and sort order to the sort function.
+        """Mark this column for ascending sort order with nulls last.
 
         Returns:
-            Column: A Column expression that provides a column and sort order to the sort function
+            Column: A sort expression with ascending order and nulls last.
 
         Example: Sort by age in ascending order with nulls last
             ```python
             # Sort a dataframe by age in ascending order, with nulls appearing last
-            df.sort(col("age").asc_nulls_last()).show()
-            ```
-
-        Example: Sort using column reference
-            ```python
-            # Sort using column reference with ascending order and nulls last
             df.sort(col("age").asc_nulls_last()).show()
             ```
         """
@@ -752,8 +698,32 @@ class Column:
 
     @classmethod
     def _from_logical_expr(cls, logical_expr: LogicalExpr) -> Column:
+        """Create a Column from a LogicalExpr.
+
+        Enforces that SortExpr and AggregateExpr do not appear nested inside
+        the expression by checking immediate children, ensuring these expressions
+        only appear at the root of the tree.
+        """
         if not isinstance(logical_expr, LogicalExpr):
             raise TypeError(f"Expected LogicalExpr, got {type(logical_expr)}")
+
+        is_sort_allowed = isinstance(logical_expr, SemanticReduceExpr)
+        is_alias = isinstance(logical_expr, AliasExpr)
+
+        for child in logical_expr.children():
+            if isinstance(child, SortExpr) and not is_sort_allowed:
+                raise PlanError(
+                    "Invalid use of `.asc()`, `.desc()`, or related sort functions: "
+                    "sort order expressions must be applied only at the root of an expression tree "
+                    "and cannot be nested inside other column expressions."
+                )
+            if not is_alias and isinstance(child, AggregateExpr):
+                raise PlanError(
+                    "Invalid use of aggregate expressions (e.g. `sum(), count(), etc.`): "
+                    "aggregate expressions must be applied only at the root of an expression tree "
+                    "and cannot be nested inside other column expressions."
+                )
+
         column = super().__new__(cls)
         column._logical_expr = logical_expr
         return column

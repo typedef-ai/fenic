@@ -44,6 +44,11 @@ class ResolvedOpenAIModelProfile:
     reasoning_effort: Optional[ReasoningEffort] = None
 
 @dataclass
+class ResolvedCohereModelProfile:
+    embedding_dimensionality: Optional[int] = None
+    embedding_task_type: Optional[str] = None
+
+@dataclass
 class ResolvedOpenAIModelConfig:
     model_name: str
     rpm: int
@@ -72,7 +77,16 @@ class ResolvedGoogleModelConfig:
     profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None
     default_profile: Optional[str] = None
 
-ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig]
+@dataclass
+class ResolvedCohereModelConfig:
+    model_name: str
+    rpm: int
+    tpm: int
+    model_provider: ModelProvider = ModelProvider.COHERE
+    profiles: Optional[dict[str, ResolvedCohereModelProfile]] = None
+    default_profile: Optional[str] = None
+
+ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig, ResolvedCohereModelConfig]
 
 
 # --- Semantic / Cloud / Session Configs ---

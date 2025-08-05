@@ -13,9 +13,7 @@ from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
 
-import fenic.core._utils.misc as utils
 from fenic.api.column import Column, ColumnOrName
-from fenic.api.functions import col
 from fenic.core._logical_plan.expressions import LiteralExpr
 from fenic.core._logical_plan.plans import (
     SemanticCluster,
@@ -64,14 +62,6 @@ class SemanticExtensions:
             A DataFrame with all original columns plus:
             - `<label_column>`: integer cluster assignment (0 to num_clusters - 1)
             - `<centroid_column>`: cluster centroid embedding, if specified
-
-        Raises:
-            ValidationError: If num_clusters is not a positive integer
-            ValidationError: If max_iter is not a positive integer
-            ValidationError: If num_init is not a positive integer
-            ValidationError: If label_column is not a non-empty string
-            ValidationError: If centroid_column is not a non-empty string
-            TypeMismatchError: If the column is not an EmbeddingType
 
         Example: Basic clustering
             ```python
@@ -142,50 +132,61 @@ class SemanticExtensions:
     def join(
         self,
         other: DataFrame,
-        join_instruction: str,
+        predicate: str,
+        left_on: Column,
+        right_on: Column,
+        strict: bool = True,
         examples: Optional[JoinExampleCollection] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
-        That evaluates to either true or false for each potential row pair.
+        This method evaluates a boolean predicate for each potential row pair between the two DataFrames,
+        including only those pairs where the predicate evaluates to True.
 
-        The join works by:
-        1. Evaluating the provided join_instruction as a boolean predicate for each possible pair of rows
-        2. Including ONLY the row pairs where the predicate evaluates to True in the result set
-        3. Excluding all row pairs where the predicate evaluates to False
+        The join process:
+        1. For each row in the left DataFrame, evaluates the predicate in the jinja template against each row in the right DataFrame
+        2. Includes row pairs where the predicate returns True
+        3. Excludes row pairs where the predicate returns False
+        4. Returns a new DataFrame containing all columns from both DataFrames for the matched pairs
 
-        The instruction must reference **exactly two columns**, one from each DataFrame,
-        using the `:left` and `:right` suffixes to indicate column origin.
-
-        This is useful when row pairing decisions require complex reasoning based on a custom predicate rather than simple equality or similarity matching.
+        The jinja template must use exactly two column placeholders:
+        - One from the left DataFrame: `{{ left_on }}`
+        - One from the right DataFrame: `{{ right_on }}`
 
         Args:
             other: The DataFrame to join with.
-            join_instruction: A natural language description of how to match values.
-
-                - Must include one placeholder from the left DataFrame (e.g. `{resume_summary:left}`)
-                and one from the right (e.g. `{job_description:right}`).
-                - This instruction is evaluated as a boolean predicate - pairs where it's `True` are included,
-                pairs where it's `False` are excluded.
-            examples: Optional JoinExampleCollection containing labeled pairs (`left`, `right`, `output`)
-                to guide the semantic join behavior.
-            model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
+            predicate: A Jinja2 template containing the natural language predicate.
+                Must include placeholders for exactly one column from each DataFrame.
+                The template is evaluated as a boolean - True includes the pair, False excludes it.
+            left_on: The column from the left DataFrame (self) to use in the join predicate.
+            right_on: The column from the right DataFrame (other) to use in the join predicate.
+            strict: If True, when either the left_on or right_on column has a None value for a row pair,
+                    that pair is automatically excluded from the join (predicate is not evaluated).
+                    If False, None values are rendered according to Jinja2's null rendering behavior.
+                    Default is True.
+            examples: Optional JoinExampleCollection containing labeled examples to guide the join.
+                Each example should have:
+                - left: Sample value from the left column
+                - right: Sample value from the right column
+                - output: Boolean indicating whether this pair should be joined (True) or not (False)
+            model_alias: Optional alias for the language model to use. If None, uses the default model.
 
         Returns:
-            DataFrame: A new DataFrame containing only the row pairs where the join_instruction
-                      predicate evaluates to True.
-
-        Raises:
-            TypeError: If `other` is not a DataFrame or `join_instruction` is not a string.
-            ValueError: If the instruction format is invalid or references invalid columns.
+            DataFrame: A new DataFrame containing matched row pairs with all columns from both DataFrames.
 
         Example: Basic semantic join
             ```python
             # Match job listings with candidate resumes based on title/skills
             # Only includes pairs where the predicate evaluates to True
             df_jobs.semantic.join(df_resumes,
-                join_instruction="Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?"
+                predicate=dedent('''\
+                    Job Description: {{left_on}}
+                    Candidate Background: {{right_on}}
+                    The candidate is qualified for the job.'''),
+                left_on=col("job_description"),
+                right_on=col("work_experience"),
+                examples=examples
             )
             ```
 
@@ -201,58 +202,47 @@ class SemanticExtensions:
                 left="5 years experience with growth strategy, private equity due diligence, and M&A",
                 right="Product Manager - Hardware",
                 output=False))  # This pair will NOT be included in similar cases
-            df_jobs.semantic.join(df_resumes,
-                join_instruction="Given a candidate's resume_summary: {resume_summary:left} and a job description: {job_description:right}, does the candidate have the appropriate skills for the job?",
-                examples=examples)
+            df_jobs.semantic.join(
+                other=df_resumes,
+                predicate=dedent('''\
+                    Job Description: {{left_on}}
+                    Candidate Background: {{right_on}}
+                    The candidate is qualified for the job.'''),
+                left_on=col("job_description"),
+                right_on=col("work_experience"),
+                examples=examples
+            )
             ```
         """
         from fenic.api.dataframe.dataframe import DataFrame
 
         if not isinstance(other, DataFrame):
-            raise TypeError(f"other argument must be a DataFrame, got {type(other)}")
+            raise ValidationError(f"other argument must be a DataFrame, got {type(other)}")
 
-        if not isinstance(join_instruction, str):
-            raise TypeError(
-                f"join_instruction argument must be a string, got {type(join_instruction)}"
+        if not isinstance(predicate, str):
+            raise ValidationError(
+                f"The `predicate` argument to `semantic.join` must be a string, got {type(predicate)}"
             )
-        join_columns = utils.parse_instruction(join_instruction)
-        if len(join_columns) != 2:
-            raise ValueError(
-                f"join_instruction must contain exactly two columns, got {len(join_columns)}"
-            )
-        left_on = None
-        right_on = None
-        for join_col in join_columns:
-            if join_col.endswith(":left"):
-                if left_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :left columns"
-                    )
-                left_on = col(join_col.split(":")[0])
-            elif join_col.endswith(":right"):
-                if right_on is not None:
-                    raise ValueError(
-                        "join_instruction cannot contain multiple :right columns"
-                    )
-                right_on = col(join_col.split(":")[0])
-            else:
-                raise ValueError(
-                    f"Column '{join_col}' must end with either :left or :right"
-                )
+        if not isinstance(left_on, Column):
+            raise ValidationError(f"`left_on` argument must be a Column, got {type(left_on)} instead.")
+        if not isinstance(right_on, Column):
+            raise ValidationError(f"`right_on` argument must be a Column, got {type(right_on)} instead.")
+        if examples is not None and not isinstance(examples, JoinExampleCollection):
+            raise ValidationError(f"`examples` argument must be a JoinExampleCollection, got {type(examples)} instead.")
+        if model_alias is not None and not isinstance(model_alias, (str, ModelAlias)):
+            raise ValidationError(f"`model_alias` argument must be a string or ModelAlias, got {type(model_alias)} instead.")
 
-        if left_on is None or right_on is None:
-            raise ValueError(
-                "join_instruction must contain exactly one :left and one :right column"
-            )
         resolved_model_alias = _resolve_model_alias(model_alias)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
+
         return self._df._from_logical_plan(
             SemanticJoin.from_session_state(
                 left=self._df._logical_plan,
                 right=other._logical_plan,
                 left_on=left_on._logical_expr,
                 right_on=right_on._logical_expr,
-                join_instruction=join_instruction,
+                jinja_template=predicate,
+                strict=strict,
                 model_alias=resolved_model_alias,
                 examples=examples,
                 session_state=self._df._session_state,

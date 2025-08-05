@@ -71,8 +71,8 @@ class AnthropicBatchCompletionsClient(
     def __init__(
         self,
         rate_limit_strategy: SeparatedTokenRateLimitStrategy,
+        model: str,
         queue_size: int = 100,
-        model: str = "claude-3-5-haiku-latest",
         max_backoffs: int = 10,
         profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None,
         default_profile_name: Optional[str] = None,

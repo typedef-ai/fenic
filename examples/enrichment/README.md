@@ -84,8 +84,14 @@ final = enriched.select(
       text.concat(col("message"), lit(" (criticality: "), col("criticality"), lit(")")),
       ["low", "medium", "high", "critical"]
    ).alias("incident_severity"),
-   semantic.map(
-      "Generate remediation steps for: {message} | Service: {service} | Team: {team_owner}"
+   fc.semantic.map(
+      (
+         "Generate 2-3 specific remediation steps that the on-call team should take to resolve this issue: "
+         "{{message}} | Service: {{service}} | Team: {{team_owner}}"
+      ),
+      message=fc.col("message"),
+      service=fc.col("service"),
+      team_owner=fc.col("team_owner")
    ).alias("remediation_steps")
 )
 ```

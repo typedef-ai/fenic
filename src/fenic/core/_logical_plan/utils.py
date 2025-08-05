@@ -5,13 +5,14 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.expressions import AggregateExpr, LogicalExpr, SortExpr
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedSessionConfig,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import PlanError, ValidationError
 
 
 def parse_model_alias(model_alias: str) -> Tuple[str, Optional[str]]:
@@ -83,3 +84,15 @@ def validate_completion_parameters(
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
+
+def validate_scalar_expr(expr: LogicalExpr, function_name: str):
+    if isinstance(expr, SortExpr):
+        raise PlanError(
+            f"Sort expressions are not allowed in `{function_name}`. "
+            "Please use the sort() method instead."
+        )
+    if isinstance(expr, AggregateExpr):
+        raise PlanError(
+            f"Aggregate expressions are not allowed in {function_name}. "
+            "Please use the agg() method instead."
+        )

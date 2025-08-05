@@ -8,38 +8,17 @@ from fenic.core._logical_plan.signatures.function_signature import (
     ReturnTypeStrategy,
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.type_signature import Exact, VariadicUniform
-from fenic.core.types.datatypes import BooleanType, StringType
+from fenic.core._logical_plan.signatures.type_signature import Exact
+from fenic.core.types.datatypes import StringType
 
 
 def register_semantic_signatures():
     """Register all semantic function signatures."""
-    # Semantic map - instruction-based text transformation
-    FunctionRegistry.register("semantic.map", FunctionSignature(
-        function_name="semantic.map",
-        type_signature=VariadicUniform(expected_min_args=1, required_type=StringType),  # Variable string inputs based on instruction
-        return_type=ReturnTypeStrategy.DYNAMIC
-    ))
-
     # Semantic extract - schema-based information extraction
     FunctionRegistry.register("semantic.extract", FunctionSignature(
         function_name="semantic.extract",
         type_signature=Exact([StringType]),  # String input (schema/template are parameters)
         return_type=ReturnTypeStrategy.DYNAMIC  # Returns StructType based on schema
-    ))
-
-    # Semantic predicate - instruction-based boolean predicate
-    FunctionRegistry.register("semantic.predicate", FunctionSignature(
-        function_name="semantic.predicate",
-        type_signature=VariadicUniform(expected_min_args=1, required_type=StringType),  # Variable string inputs based on instruction
-        return_type=BooleanType
-    ))
-
-    # Semantic reduce - instruction-based aggregation
-    FunctionRegistry.register("semantic.reduce", FunctionSignature(
-        function_name="semantic.reduce",
-        type_signature=VariadicUniform(expected_min_args=1, required_type=StringType),  # Variable string inputs based on instruction
-        return_type=StringType
     ))
 
     # Semantic classify - classification into labels/enum

@@ -27,14 +27,15 @@ This example showcases two practical use cases:
 ```python
 left_df.semantic.join(
     right_df,
-    join_instruction="Natural language predicate with {column:left} and {column:right}"
+    predicate="Natural language predicate with {{left_on}} and {{right_on}}",
+    left_on=col("left"),
+    right_on=col("right")
 )
 ```
 
-### Join Instruction Format
+### Join Jinja Predicate Format
 
-- Must reference exactly **two columns**: one from each DataFrame
-- Use `:left` and `:right` suffixes to indicate which DataFrame each column comes from
+- Jinja template variables must be `left_on` (join key on the left dataframe) and `right_on`(join key on the right dataframe)
 - Written as a boolean predicate that the LLM evaluates as True/False
 - Should be clear and unambiguous for consistent results
 
@@ -61,7 +62,11 @@ left_df.semantic.join(
 ```python
 users_df.semantic.join(
     articles_df,
-    join_instruction="A person with interests '{interests:left}' would be interested in reading about '{description:right}'"
+    predicate=(
+        "A person with interests '{{left_on}}' would be interested in reading about '{{right_on}}'"
+    ),
+    left_on=fc.col("interests"),
+    right_on=fc.col("description")
 )
 ```
 
@@ -95,7 +100,11 @@ users_df.semantic.join(
 ```python
 purchases_df.semantic.join(
     products_df,
-    join_instruction="A customer who bought '{purchased_product:left}' would also be interested in '{product_name:right}'"
+    predicate=(
+        "A customer who bought '{{left_on}}' would also be interested in '{{right_on}}'"
+    ),
+    left_on=fc.col("purchased_product"),
+    right_on=fc.col("product_name")
 )
 ```
 

@@ -4,21 +4,27 @@ from urllib.parse import urlparse
 import pandas as pd
 import polars as pl
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from fenic import (
+    CohereEmbeddingModel,
     ColumnField,
+    GoogleDeveloperEmbeddingModel,
+    GoogleVertexEmbeddingModel,
     IntegerType,
     OpenAIEmbeddingModel,
+    OpenAILanguageModel,
     SemanticConfig,
     Session,
     SessionConfig,
     StringType,
     col,
 )
-from fenic.api.session.config import OpenAILanguageModel
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
 from fenic.core.error import ValidationError as FenicValidationError
+from tests.conftest import EMBEDDING_MODEL_PROVIDER_ARG
 
 
 def test_session_with_db_path(temp_dir, local_session_config):
@@ -209,3 +215,247 @@ def test_inmemory_source(local_session):
     assert (
         actual_columns == expected_columns
     ), f"Expected columns {expected_columns}, got {actual_columns}"
+
+
+def test_session_config_with_unsupported_embedding_profile_dimensionality():
+    """Test that session configuration validation rejects embedding profiles with unsupported dimensionality.
+
+    Google's gemini-embedding-001 model supports dimensions: [768, 1536, 3072].
+    This tests the validate_models logic, not just Pydantic validation.
+    """
+    # Test unsupported dimension (1024 is not in [768, 1536, 3072])
+    with pytest.raises(ConfigurationError, match="The dimensionality of the Embeddings model profile.*is invalid"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "google_embed": GoogleVertexEmbeddingModel(
+                        model_name="gemini-embedding-001",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": GoogleVertexEmbeddingModel.Profile(output_dimensionality=1024)
+                        }
+                    )
+                }
+            )
+        )
+
+
+def test_session_config_with_multiple_invalid_embedding_profiles():
+    """Test that session configuration validation catches all invalid profile dimensions."""
+    # Test with multiple profiles, some valid and some invalid
+    with pytest.raises(ConfigurationError, match="The dimensionality of the Embeddings model profile.*is invalid"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "google_embed": GoogleVertexEmbeddingModel(
+                        model_name="gemini-embedding-001",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "valid": GoogleVertexEmbeddingModel.Profile(output_dimensionality=768),
+                            "invalid": GoogleVertexEmbeddingModel.Profile(output_dimensionality=1000),  # Not in [768, 1536, 3072]
+                            "also_valid": GoogleVertexEmbeddingModel.Profile(output_dimensionality=3072)
+                        },
+                        default_profile="valid"  # Need to specify default when multiple profiles exist
+                    )
+                }
+            )
+        )
+
+
+def test_google_developer_embedding_unsupported_dimensionality():
+    """Test Google Developer embedding model with unsupported dimensionality."""
+    with pytest.raises(ConfigurationError, match="The dimensionality of the Embeddings model profile.*is invalid"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "google_embed": GoogleDeveloperEmbeddingModel(
+                        model_name="gemini-embedding-001",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=2048)  # Not in [768, 1536, 3072]
+                        }
+                    )
+                }
+            )
+        )
+
+def test_cohere_embedding_unsupported_dimensionality():
+    """Test Cohere embedding model with unsupported dimensionality."""
+    with pytest.raises(PydanticValidationError, match="Input should be less than or equal to 1536"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(output_dimensionality=2048)  # higher than 1536
+                        }
+                    )
+                }
+            )
+        )
+    with pytest.raises(ConfigurationError, match="The dimensionality of the Embeddings model profile invalid is invalid."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+                        tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(output_dimensionality=768)  # not in [256, 512, 1024, 1536]
+                        }
+                    )
+                }
+            )
+        )
+
+def test_cohere_embedding_unsupported_input_type():
+    """Test Cohere embedding model with unsupported input type."""
+    with pytest.raises(PydanticValidationError, match="Input should be 'search_document', 'search_query', 'classification' or 'clustering'"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={
+                    "cohere_embed": CohereEmbeddingModel(
+                        model_name="embed-v4.0",
+                        rpm=100,
+            tpm=1000,
+                        profiles={
+                            "invalid": CohereEmbeddingModel.Profile(input_type="hallucinate")  # Not in [search_query, search_document, classification, clustering]
+                        }
+                    )
+                }
+            )
+        )
+
+
+def test_cohere_embedding_profile_rejects_arbitrary_args():
+    """Test that CohereEmbeddingModel.Profile rejects arbitrary arguments."""
+    # This should raise an error now that we've added extra='forbid'
+    with pytest.raises(PydanticValidationError, match="Extra inputs are not permitted"):
+        CohereEmbeddingModel.Profile(
+            output_dimensionality=1024,
+            input_type="classification",
+            arbitrary_field="should_not_be_accepted",  # This should cause an error
+            another_field=123,  # This should also cause an error
+            yet_another_field={"nested": "data"}  # This should also cause an error
+        )
+
+    # Valid profile should still work
+    profile = CohereEmbeddingModel.Profile(
+        output_dimensionality=1024,
+        input_type="classification"
+    )
+    assert profile.output_dimensionality == 1024
+    assert profile.input_type == "classification"
+
+
+def test_google_embeddings_profile_rejects_arbitrary_args():
+    """Test that GoogleVertexEmbeddingModel.Profile rejects arbitrary arguments."""
+    # This should raise an error now that we've added extra='forbid'
+    with pytest.raises(PydanticValidationError, match="Extra inputs are not permitted"):
+        GoogleVertexEmbeddingModel.Profile(
+            output_dimensionality=1536,
+            task_type="SEMANTIC_SIMILARITY",
+            arbitrary_field="should_not_be_accepted",  # This should cause an error
+            another_field=123,  # This should also cause an error
+            yet_another_field={"nested": "data"}  # This should also cause an error
+        )
+
+    # Valid profile should still work
+    profile = GoogleVertexEmbeddingModel.Profile(
+        output_dimensionality=1536,
+        task_type="SEMANTIC_SIMILARITY"
+    )
+    assert profile.output_dimensionality == 1536
+    assert profile.task_type == "SEMANTIC_SIMILARITY"
+
+
+def test_session_config_with_valid_embedding_profile_dimensions():
+    """Test that session configuration accepts all valid embedding profile dimensions."""
+    # This should succeed as all dimensions are valid for gemini-embedding-001
+    config = SessionConfig(
+        app_name="test_app",
+        semantic=SemanticConfig(
+            embedding_models={
+                "google_embed": GoogleVertexEmbeddingModel(
+                    model_name="gemini-embedding-001",
+                    rpm=100,
+                    tpm=1000,
+                    profiles={
+                        "small": GoogleVertexEmbeddingModel.Profile(output_dimensionality=768),
+                        "medium": GoogleVertexEmbeddingModel.Profile(output_dimensionality=1536),
+                        "large": GoogleVertexEmbeddingModel.Profile(output_dimensionality=3072)
+                    },
+                    default_profile="medium"
+                )
+            }
+        )
+    )
+
+    # Verify the configuration was created successfully
+    assert config.semantic.embedding_models["google_embed"].profiles["small"].output_dimensionality == 768
+    assert config.semantic.embedding_models["google_embed"].profiles["medium"].output_dimensionality == 1536
+    assert config.semantic.embedding_models["google_embed"].profiles["large"].output_dimensionality == 3072
+    assert config.semantic.embedding_models["google_embed"].default_profile == "medium"
+
+
+def test_embedding_profile_with_none_dimensionality():
+    """Test that embedding profiles with None dimensionality (default) are accepted."""
+    # This should succeed as None means use the model's default dimensionality
+    config = SessionConfig(
+        app_name="test_app",
+        semantic=SemanticConfig(
+            embedding_models={
+                "google_embed": GoogleVertexEmbeddingModel(
+                    model_name="gemini-embedding-001",
+                    rpm=100,
+                    tpm=1000,
+                    profiles={
+                        "default": GoogleVertexEmbeddingModel.Profile()  # output_dimensionality=None
+                    }
+                )
+            }
+        )
+    )
+
+    # Verify None is preserved (will use model's default)
+    assert config.semantic.embedding_models["google_embed"].profiles["default"].output_dimensionality is None
+
+
+def test_embedding_with_no_profile(request):
+    """Test that embedding profiles with no profile (when one is possible) are accepted."""
+    # This should succeed as None means use the model's default dimensionality
+    embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
+    if embedding_model_provider != ModelProvider.GOOGLE_VERTEX:
+        pytest.skip("This test only runs for Google Vertex embedding models")
+
+    config = SessionConfig(
+        app_name="test_app",
+        semantic=SemanticConfig(
+            embedding_models={
+                "google_embed": GoogleVertexEmbeddingModel(
+                    model_name="gemini-embedding-001",
+                    rpm=100,
+                    tpm=1000,
+                )
+            }
+        )
+    )
+    Session.get_or_create(config)
+
+    # Verify None is preserved (will use model's default)
+    assert config.semantic.embedding_models["google_embed"].profiles is None
+
+

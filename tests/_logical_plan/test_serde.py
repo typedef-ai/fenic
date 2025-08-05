@@ -134,7 +134,7 @@ def test_join_plans(local_session):
     right = right.select(col("id").alias("right_id"), col("value")).order_by("right_id")
     # Test SemanticJoin
     semantic_join = left.semantic.join(
-        right, "match {name:left} to {value:right}"
+        right, "match {{left_on}} to {{right_on}}", left_on=col("name"), right_on=col("value")
     ).order_by("id")
     deserialized_df = _test_plan_serialization(semantic_join._logical_plan, local_session._session_state)
     result = deserialized_df.to_polars()
@@ -343,17 +343,17 @@ def test_semantic_plans(local_session, extract_data_df):
 
     # semantic map
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
-    state_prompt = "What state does {name} live in given that they live in {city}?"
+    state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
     df_select = source.select(
-        semantic.map(state_prompt).alias("state"),
+        semantic.map(state_prompt, name=col("name"), city=col("city")).alias("state"),
         col("name"),
-        semantic.map(instruction="What is the typical weather in {city} in summer?").alias("weather"),
+        semantic.map("What is the typical weather in {{city}} in summer?", city=col("city")).alias("weather"),
     )
     deserialized_df = _test_df_serialization(df_select, local_session._session_state)
     assert deserialized_df
 
     # semantic predicate
-    instruction = "This {blurb} has positive sentiment about apache spark."
+    instruction = "Review: '{{blurb}}'. The review speaks positively about apache spark."
     source = local_session.create_dataframe(
         {
             "blurb": [
@@ -362,6 +362,7 @@ def test_semantic_plans(local_session, extract_data_df):
         }
     )
     df = source.filter(
-        semantic.predicate(instruction))
+        semantic.predicate(instruction, blurb=col("blurb"))
+    )
     deserialized_df = _test_df_serialization(df, local_session._session_state)
     assert deserialized_df

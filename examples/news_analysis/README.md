@@ -83,11 +83,17 @@ enriched_df = df.select(
 
 ```python
 # Combine extracted information for context-aware classification
-combined_extracts = fc.text.concat(
-    fc.lit("Primary Topic: "), fc.col("primary_topic"),
-    fc.lit("Political Bias Indicators: "), fc.col("bias_indicators"),
-    fc.lit("Emotional Language: "), fc.col("emotional_language"),
-    fc.lit("Opinion Markers: "), fc.col("opinion_markers")
+combined_extracts = fc.text.jinja(
+    (
+        "Primary Topic: {{primary_topic}}\n"
+        "Political Bias Indicators: {{bias_indicators}}\n"
+        "Emotional Language Summary: {{emotional_language}}\n"
+        "Opinion Markers: {{opinion_markers}}"
+    ),
+    primary_topic=fc.col("primary_topic"),
+    bias_indicators=fc.col("bias_indicators"),
+    emotional_language=fc.col("emotional_language"),
+    opinion_markers=fc.col("opinion_markers")
 )
 
 # Classify bias using extracted context
@@ -109,15 +115,18 @@ results_df = enriched_df.select(
 ```python
 # Generate comprehensive source profiles using semantic.reduce
 source_profiles = results_df.group_by("source").agg(
-    fc.semantic.reduce("""
-        Create a concise media profile for {source} based on:
-        Detected Political Bias: {content_bias}
-        Bias Indicators: {bias_indicators}
-        Opinion Indicators: {opinion_markers}
-        Emotional Language: {emotional_language}
-        Journalistic Style: {journalistic_style}
-    """).alias("source_profile")
-)
+    fc.semantic.reduce(
+        """
+        You are given a set of article analyses from {{news_outlet}}.
+        Create a concise (3-5 sentence) media profile for {{news_outlet}}.
+        Summarize the information provided without explicitly referencing it.
+        """,
+        column=fc.col("article_attributes"),
+        group_context = {
+            "news_outlet": fc.col("source"),
+        },
+    ).alias("source_profile"),
+).select(fc.col("source"), fc.col("source_profile"))
 ```
 
 ## Output Analysis

@@ -10,7 +10,11 @@ if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
 
 from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core._logical_plan.expressions.base import LogicalExpr, ValidatedSignature
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    UnparameterizedExpr,
+    ValidatedSignature,
+)
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -19,7 +23,7 @@ from fenic.core.types import (
 )
 
 
-class EmbeddingNormalizeExpr(ValidatedSignature, LogicalExpr):
+class EmbeddingNormalizeExpr(ValidatedSignature, UnparameterizedExpr, LogicalExpr):
     """Expression for normalizing embedding vectors to unit length."""
 
     function_name = "embedding.normalize"
@@ -89,3 +93,20 @@ class EmbeddingSimilarityExpr(ValidatedSignature, LogicalExpr):
 
     def children(self) -> List[LogicalExpr]:
         return self._children
+
+    def _eq_specific(self, other: EmbeddingSimilarityExpr) -> bool:
+        # Check metric (always needs to be compared)
+        if self.metric != other.metric:
+            return False
+
+        # Check the type of self.other vs other.other
+        if isinstance(self.other, LogicalExpr) != isinstance(other.other, LogicalExpr):
+            return False
+
+        # If both are numpy arrays, compare them
+        if isinstance(self.other, np.ndarray):
+            # Both are numpy arrays (we know from check above)
+            return np.array_equal(self.other, other.other)
+
+        # Both are LogicalExpr - will be compared via children
+        return True

@@ -11,6 +11,7 @@ class ModelProvider(Enum):
     ANTHROPIC = "anthropic"
     GOOGLE_DEVELOPER = "google-developer"
     GOOGLE_VERTEX = "google-vertex"
+    COHERE = "cohere"
 
 class TieredTokenCost:
     def __init__(
@@ -176,6 +177,15 @@ AnthropicLanguageModelName = Literal[
     "claude-3-haiku-20240307",
 ]
 
+CohereEmbeddingModelName = Literal[
+    "embed-v4.0",
+    "embed-english-v3.0",
+    "embed-english-light-v3.0",
+    "embed-multilingual-v3.0",
+    "embed-multilingual-light-v3.0",
+]
+
+
 GoogleDeveloperLanguageModelName = Literal[
     "gemini-2.5-pro",
     "gemini-2.5-flash",
@@ -258,6 +268,7 @@ class ModelCatalog:
         self._initialize_openai_models()
         self._initialize_google_gla_models()
         self._initialize_google_vertex_models()
+        self._initialize_cohere_models()
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
@@ -767,7 +778,64 @@ class ModelCatalog:
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
                 allowed_output_dimensions=768,
                 max_input_size=2048,
-                default_dimensionality=768,
+            ),
+        )
+
+    def _initialize_cohere_models(self):
+        """Initialize Cohere models in the catalog."""
+        # embed-v4.0 - Latest multimodal model with variable dimensions
+        self._add_model_to_catalog(
+            ModelProvider.COHERE,
+            "embed-v4.0",
+            EmbeddingModelParameters(
+                input_token_cost=0.12 / 1_000_000,  # $0.12 per 1M tokens
+                allowed_output_dimensions=[256, 512, 1024, 1536],
+                max_input_size=128_000,  # 128k context length
+                default_dimensionality=1536,
+            ),
+        )
+
+        # embed-english-v3.0 - English-only model
+        self._add_model_to_catalog(
+            ModelProvider.COHERE,
+            "embed-english-v3.0",
+            EmbeddingModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                allowed_output_dimensions=1024,  # Fixed dimensions
+                max_input_size=512,
+            ),
+        )
+
+        # embed-english-light-v3.0 - Smaller, faster English-only model
+        self._add_model_to_catalog(
+            ModelProvider.COHERE,
+            "embed-english-light-v3.0",
+            EmbeddingModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                allowed_output_dimensions=384,  # Fixed dimensions
+                max_input_size=512,
+            ),
+        )
+
+        # embed-multilingual-v3.0 - Multi-language support
+        self._add_model_to_catalog(
+            ModelProvider.COHERE,
+            "embed-multilingual-v3.0",
+            EmbeddingModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                allowed_output_dimensions=1024,  # Fixed dimensions
+                max_input_size=512,
+            ),
+        )
+
+        # embed-multilingual-light-v3.0 - Smaller, faster multilingual model
+        self._add_model_to_catalog(
+            ModelProvider.COHERE,
+            "embed-multilingual-light-v3.0",
+            EmbeddingModelParameters(
+                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                allowed_output_dimensions=384,  # Fixed dimensions
+                max_input_size=512,
             ),
         )
 

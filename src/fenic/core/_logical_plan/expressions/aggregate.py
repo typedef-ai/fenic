@@ -9,6 +9,7 @@ from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     AggregateExpr,
     LogicalExpr,
+    UnparameterizedExpr,
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
@@ -23,7 +24,7 @@ from fenic.core.types import (
 )
 
 
-class SumExpr(ValidatedSignature, AggregateExpr):
+class SumExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "sum"
 
     def __init__(self, expr: LogicalExpr):
@@ -38,7 +39,7 @@ class SumExpr(ValidatedSignature, AggregateExpr):
         return [self.expr]
 
 
-class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
+class AvgExpr(ValidatedDynamicSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "avg"
 
     def __init__(self, expr: LogicalExpr):
@@ -69,9 +70,7 @@ class AvgExpr(ValidatedDynamicSignature, AggregateExpr):
         else:
             return DoubleType
 
-
-
-class MinExpr(ValidatedSignature, AggregateExpr):
+class MinExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "min"
 
     def __init__(self, expr: LogicalExpr):
@@ -85,8 +84,7 @@ class MinExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-
-class MaxExpr(ValidatedSignature, AggregateExpr):
+class MaxExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "max"
 
     def __init__(self, expr: LogicalExpr):
@@ -100,8 +98,7 @@ class MaxExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-
-class CountExpr(ValidatedSignature, AggregateExpr):
+class CountExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "count"
 
     def __init__(self, expr: LogicalExpr):
@@ -115,8 +112,7 @@ class CountExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-
-class ListExpr(ValidatedDynamicSignature, AggregateExpr):
+class ListExpr(ValidatedDynamicSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "collect_list"
 
     def __init__(self, expr: LogicalExpr):
@@ -140,7 +136,7 @@ class ListExpr(ValidatedDynamicSignature, AggregateExpr):
         """Return ArrayType with element type matching the input type."""
         return ArrayType(arg_types[0])
 
-class FirstExpr(ValidatedSignature, AggregateExpr):
+class FirstExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "first"
 
     def __init__(self, expr: LogicalExpr):
@@ -154,7 +150,7 @@ class FirstExpr(ValidatedSignature, AggregateExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-class StdDevExpr(ValidatedSignature, AggregateExpr):
+class StdDevExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
     function_name = "stddev"
 
     def __init__(self, expr: LogicalExpr):

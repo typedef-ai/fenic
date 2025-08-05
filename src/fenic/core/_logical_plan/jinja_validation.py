@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from jinja2 import Environment, nodes
 from jinja2.exceptions import TemplateSyntaxError
 
 from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types import ArrayType, DataType, StructType
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.expressions import AliasExpr, ColumnExpr
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # CONSTANTS & CONFIGURATION
@@ -176,6 +182,45 @@ class VariableTree:
 
         # Build the final schema tree
         return cls._build_schema_tree(relevant_accesses)
+
+    def filter_used_expressions(self, exprs: List[Union[ColumnExpr, AliasExpr]]) -> List[Union[ColumnExpr, AliasExpr]]:
+        """Filters expressions to only those used in the template, validating all template variables are defined.
+
+        Args:
+            exprs: List of expression objects to filter
+
+        Returns:
+            List of expressions that are actually used in the template, in order of appearance
+
+        Raises:
+            ValidationError: If a template variable doesn't have a corresponding expression
+        """
+        expr_names = {expr.name: expr for expr in exprs}
+        available_columns = sorted(expr_names.keys())
+        used_exprs = []
+
+        # Validate that all template variables have expressions
+        for variable_name in self.variables.keys():
+            if variable_name not in expr_names:
+                raise ValidationError(
+                    f"Template variable '{variable_name}' is not defined. "
+                    f"Available columns: {', '.join(available_columns) if available_columns else 'none'}. "
+                    f"Either provide a column expression for '{variable_name}' or "
+                    f"modify the template to use an available column."
+                )
+            used_exprs.append(expr_names[variable_name])
+
+        # Warn about unused expressions
+        used_variables = set(self.variables.keys())
+        for column_name in expr_names.keys():
+            if column_name not in used_variables:
+                logger.warning(
+                    f"Column '{column_name}' is defined but not referenced in the template. "
+                    f"To use this column, reference it in the template as {{{{ {column_name} }}}}. "
+                    f"To remove this warning, exclude unused columns from the expression list."
+                )
+
+        return used_exprs
 
     def validate_jinja_variable(
         self,

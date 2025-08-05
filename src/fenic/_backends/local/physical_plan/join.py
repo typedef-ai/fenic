@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import polars as pl
 
@@ -13,6 +13,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
     LEFT_ON_COL_NAME,
     RIGHT_ON_COL_NAME,
 )
+from fenic._constants import LEFT_ON_KEY, RIGHT_ON_KEY
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection
@@ -24,6 +25,10 @@ if TYPE_CHECKING:
 from fenic._backends.local.physical_plan.base import (
     PhysicalPlan,
     _with_lineage_uuid,
+)
+from fenic._backends.local.physical_plan.utils import (
+    normalize_column_before_join,
+    restore_column_after_join,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,9 +102,10 @@ class SemanticJoinExec(PhysicalPlan):
         self,
         left: PhysicalPlan,
         right: PhysicalPlan,
-        left_on_name: str,
-        right_on_name: str,
-        join_instruction: str,
+        left_on: Union[str, pl.Expr],
+        right_on: Union[str, pl.Expr],
+        jinja_template: str,
+        strict: bool,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
         model_alias: Optional[ResolvedModelAlias] = None,
@@ -110,9 +116,10 @@ class SemanticJoinExec(PhysicalPlan):
             [left, right], cache_info=cache_info, session_state=session_state
         )
         self.examples = examples
-        self.join_instruction = join_instruction
-        self.left_on_name = left_on_name
-        self.right_on_name = right_on_name
+        self.jinja_template = jinja_template
+        self.strict = strict
+        self.left_on = left_on
+        self.right_on = right_on
         self.temperature = temperature
         self.model_alias = model_alias
 
@@ -120,19 +127,36 @@ class SemanticJoinExec(PhysicalPlan):
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: SemanticJoinExec expects 2 children")
 
-        left_df = child_dfs[0]
-        right_df = child_dfs[1]
-        return SemanticJoin(
+        left_df, right_df = child_dfs
+
+        # Normalize both join sides to standard column names
+        left_df, maybe_left_name = normalize_column_before_join(
+            left_df, self.left_on, LEFT_ON_KEY
+        )
+        right_df, maybe_right_name = normalize_column_before_join(
+            right_df, self.right_on, RIGHT_ON_KEY
+        )
+
+        result = SemanticJoin(
             left_df,
             right_df,
-            self.left_on_name,
-            self.right_on_name,
-            self.join_instruction,
+            self.jinja_template,
+            self.strict,
             self.session_state.get_language_model(self.model_alias),
             examples=self.examples,
             temperature=self.temperature,
             model_alias=self.model_alias,
         ).execute()
+
+        # Restore original column names or drop temporary columns
+        result = restore_column_after_join(
+            result, maybe_left_name, LEFT_ON_KEY
+        )
+        result = restore_column_after_join(
+            result, maybe_right_name, RIGHT_ON_KEY
+        )
+
+        return result
 
     def _build_lineage(
         self,
@@ -169,8 +193,8 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         self,
         left: PhysicalPlan,
         right: PhysicalPlan,
-        left_on: str | pl.Expr,
-        right_on: str | pl.Expr,
+        left_on: Union[str, pl.Expr],
+        right_on: Union[str, pl.Expr],
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         cache_info: Optional[CacheInfo],
@@ -195,10 +219,10 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         left_df, right_df = child_dfs
 
         # Normalize both join sides to standard column names
-        left_df, left_was_expr, left_orig_name = self._normalize_column(
+        left_df, maybe_left_name = normalize_column_before_join(
             left_df, self.left_on, LEFT_ON_COL_NAME
         )
-        right_df, right_was_expr, right_orig_name = self._normalize_column(
+        right_df, maybe_right_name = normalize_column_before_join(
             right_df, self.right_on, RIGHT_ON_COL_NAME
         )
 
@@ -211,11 +235,11 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
             result = result.drop(DISTANCE_COL_NAME)
 
         # Restore original column names or drop temporary columns
-        result = self._restore_column(
-            result, left_was_expr, left_orig_name, LEFT_ON_COL_NAME
+        result = restore_column_after_join(
+            result, maybe_left_name, LEFT_ON_COL_NAME
         )
-        result = self._restore_column(
-            result, right_was_expr, right_orig_name, RIGHT_ON_COL_NAME
+        result = restore_column_after_join(
+            result, maybe_right_name, RIGHT_ON_COL_NAME
         )
 
         return result
@@ -247,36 +271,3 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
             right_child=(right_operator, backwards_df_right),
         )
         return operator, materialize_df
-
-    @staticmethod
-    def _normalize_column(
-        df: pl.DataFrame, col: str | pl.Expr, alias: str
-    ) -> tuple[pl.DataFrame, bool, str]:
-        """Normalize a column (by expression or name) to a given alias.
-
-        Returns:
-            - New DataFrame
-            - Whether it was an expression (i.e., needs to be dropped later)
-            - Original name if it was a string
-        """
-        if isinstance(col, pl.Expr):
-            return df.with_columns(col.alias(alias)), True, None
-        else:
-            return df.rename({col: alias}), False, col
-
-    @staticmethod
-    def _restore_column(
-        df: pl.DataFrame, was_expr: bool, original_name: Optional[str], alias: str
-    ) -> pl.DataFrame:
-        """Restore a column to its original name or drop a temporary column.
-
-        Args:
-            df: DataFrame to restore
-            was_expr: Whether the column was an expression (i.e., needs to be dropped)
-            original_name: Original name of the column if it was a string
-            alias: Alias of the column
-        """
-        if was_expr:
-            return df.drop(alias)
-        else:
-            return df.rename({alias: original_name})

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Generic, List, Optional, TypeVar
 
 import polars as pl
+from jinja2 import Template
 
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import FewShotExample, LMRequestMessages
@@ -89,7 +90,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
 
     request_sender: RequestSender[ModelResponseType]
 
-    def __init__(self, request_sender: RequestSender[ModelResponseType]):
+    def __init__(self, input: pl.Series, request_sender: RequestSender[ModelResponseType], examples: Optional[BaseExampleCollection]):
         """Initializes the component with a request sender.
 
         Args:
@@ -97,6 +98,8 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 Component responsible for sending requests and retrieving model responses.
         """
         self.request_sender = request_sender
+        self.input = input
+        self.examples = examples
 
 
     def execute(self) -> pl.Series:
@@ -109,12 +112,60 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         responses = self.request_sender.send_requests(prompts)
         return pl.Series(self.postprocess(responses))
 
-    @abstractmethod
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
-        """Construct the LLM prompts from the operator's input.
+        messages_batch = []
+        for document in self.input:
+            if not document:
+                messages_batch.append(None)
+            else:
+                messages_batch.append(
+                    self.build_request_messages(document)
+                )
+        return messages_batch
+
+    def build_request_messages(self, input: str) -> LMRequestMessages:
+        """Construct a prompt from a single input and optional in-context examples."""
+        return LMRequestMessages(
+            system=self.build_system_message(),
+            user=self.build_user_message(input),
+            examples=self.build_examples() if self.examples else [],
+        )
+
+    def build_examples(self) -> List[FewShotExample]:
+        """Convert the stored example collection into prompt message pairs.
 
         Returns:
-            A list of Prompts or None entries, one per row.
+            List of FewShotExample.
+        """
+        formatted_examples: List[FewShotExample] = []
+
+        for example in self.examples.examples:
+            formatted_examples.append(
+                self.build_example(example)
+            )
+
+        return formatted_examples
+
+    @abstractmethod
+    def build_system_message(self) -> str:
+        """Construct the system message for the prompt.
+        This typically includes task instructions or context.
+        """
+        pass
+
+    @abstractmethod
+    def build_user_message(self, input: str) -> str:
+        """Construct the user message for the prompt.
+        This typically includes the input text or a rendered version of the input.
+        """
+        pass
+
+    @abstractmethod
+    def build_example(self, example) -> FewShotExample:
+        """Build a few-shot example from a single input/output pair.
+
+        Returns:
+            FewShotExample.
         """
         pass
 
@@ -154,50 +205,18 @@ class BaseSingleColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include in the prompt for few-shot learning.
         """
-        super().__init__(request_sender)
-        self.input = input
-        self.examples = examples
+        super().__init__(input, request_sender, examples)
 
-    def build_request_messages_batch(self) -> List[LMRequestMessages | None]:
-        messages_batch = []
-        for document in self.input:
-            if not document:
-                messages_batch.append(None)
-            else:
-                messages_batch.append(
-                    self.build_request_messages(
-                        document, self.build_examples() if self.examples else []
-                    )
-                )
-        return messages_batch
-
-    def build_request_messages(
-        self, input: str, examples: List[FewShotExample]
-    ) -> LMRequestMessages:
-        """Construct a prompt from a single input and optional in-context examples."""
-        return LMRequestMessages(
-            system=self.build_system_message(),
-            user=self.build_user_message(input),
-            examples=examples,
-        )
-
-    def build_examples(self) -> List[FewShotExample]:
-        """Convert the stored example collection into prompt message pairs.
+    def build_example(self, example) -> FewShotExample:
+        """Build a few-shot example from a single input/output pair.
 
         Returns:
-            List of (UserMessage, AssistantMessage) tuples.
+            FewShotExample.
         """
-        formatted_examples: List[FewShotExample] = []
-
-        for example in self.examples.examples:
-            formatted_examples.append(
-                FewShotExample(
-                    user=self.build_user_message(example.input),
-                    assistant=self.convert_example_to_assistant_message(example),
-                )
-            )
-
-        return formatted_examples
+        return FewShotExample(
+            user=self.build_user_message(example.input),
+            assistant=self.convert_example_to_assistant_message(example),
+        )
 
     def convert_example_to_assistant_message(self, example) -> str:
         """Extract the assistant message text from a labeled example."""
@@ -234,6 +253,7 @@ class BaseMultiColumnInputOperator(
         self,
         input: pl.DataFrame,
         request_sender: RequestSender[ModelResponseType],
+        jinja_template: Template,
         examples: Optional[BaseExampleCollection],
     ):
         """Initializes the request component with input data, a request sender, and optional examples.
@@ -246,51 +266,19 @@ class BaseMultiColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include for few-shot prompting.
         """
-        super().__init__(request_sender)
-        self.input = input
-        self.examples = examples
+        super().__init__(input, request_sender, examples)
+        self.jinja_template = jinja_template
 
-    def build_request_messages_batch(self) -> List[LMRequestMessages | None]:
-        messages_batch = []
-        for input in self.input.iter_rows(named=True):
-            if not input or not all(input.values()):
-                messages_batch.append(None)
-            else:
-                messages_batch.append(
-                    self.build_request_messages(
-                        input, self.build_examples() if self.examples else []
-                    )
-                )
-        return messages_batch
-
-    def build_request_messages(
-        self,
-        input: dict[str, str],
-        formatted_examples: List[FewShotExample],
-    ) -> LMRequestMessages:
-        """Construct a prompt from a dict of column values and in-context examples."""
-        return LMRequestMessages(
-            system=self.build_system_message(),
-            user=self.build_user_message(input),
-            examples=formatted_examples,
-        )
-
-    def build_examples(self) -> List[FewShotExample]:
-        """Convert example input/output pairs to message format for in-context learning.
+    def build_example(self, example) -> FewShotExample:
+        """Build a few-shot example from a single input/output pair.
 
         Returns:
-            List of (UserMessage, AssistantMessage) tuples.
+            FewShotExample.
         """
-        formatted_examples = []
-        for example in self.examples.examples:
-            formatted_examples.append(
-                FewShotExample(
-                    user=self.build_user_message(example.input),
-                    assistant=self.convert_example_to_assistant_message(example),
-                )
-            )
-
-        return formatted_examples
+        return FewShotExample(
+            user=self.build_example_user_message(example.input),
+            assistant=self.convert_example_to_assistant_message(example),
+        )
 
     def convert_example_to_assistant_message(self, example):
         """Extract assistant message text from a labeled example."""
@@ -305,8 +293,7 @@ class BaseMultiColumnInputOperator(
         """
         pass
 
-    @abstractmethod
-    def build_user_message(self, input: dict[str, str]) -> str:
+    def build_example_user_message(self, input: dict[str, str]) -> str:
         """Construct the user message from a row of named input values.
 
         Args:
@@ -315,4 +302,8 @@ class BaseMultiColumnInputOperator(
         Returns:
             A string containing the user message content.
         """
-        pass
+        return self.jinja_template.render(input)
+
+    def build_user_message(self, rendered_input: str) -> str:
+        """Construct the user message from a rendered input string."""
+        return rendered_input

@@ -213,9 +213,22 @@ class PlanConverter:
             return SemanticJoinExec(
                 left_physical,
                 right_physical,
-                logical.left_on().name,
-                logical.right_on().name,
-                logical.join_instruction(),
+                (
+                    logical.left_on().name
+                    if isinstance(logical.left_on(), ColumnExpr)
+                    else self.expr_converter.convert(
+                        logical.left_on()
+                    )
+                ),
+                (
+                    logical.right_on().name
+                    if isinstance(logical.right_on(), ColumnExpr)
+                    else self.expr_converter.convert(
+                        logical.right_on()
+                    )
+                ),
+                logical.jinja_template(),
+                logical.strict(),
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
                 examples=logical.examples(),
