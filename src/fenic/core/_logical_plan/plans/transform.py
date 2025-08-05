@@ -153,23 +153,62 @@ class Union(LogicalPlan):
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         schemas = [input_plan.schema() for input_plan in self._inputs]
 
-        # Check that all schemas have the same columns and types
+        # Check that all schemas have the same columns and types (order doesn't matter)
         first_schema = schemas[0]
         first_schema_fields = {f.name: f.data_type for f in first_schema.column_fields}
 
-        for schema in schemas[1:]:
+        for i, schema in enumerate(schemas[1:], start=1):
             schema_fields = {f.name: f.data_type for f in schema.column_fields}
-            if set(schema_fields.keys()) != set(first_schema_fields.keys()):
-                raise ValueError(
-                    "Cannot union DataFrames with different columns. "
-                    "All DataFrames must have exactly the same column names."
-                )
-            for name, type_ in schema_fields.items():
-                if type_ != first_schema_fields[name]:
-                    raise ValueError(
-                        f"Cannot union DataFrames: column '{name}' must be type {first_schema_fields[name]} "
-                        "across all DataFrames. Consider casting columns to matching types before union."
+
+            if schema_fields != first_schema_fields:
+                # Provide detailed diagnostics
+                first_names = set(first_schema_fields.keys())
+                current_names = set(schema_fields.keys())
+
+                if first_names != current_names:
+                    missing = sorted(first_names - current_names)
+                    extra = sorted(current_names - first_names)
+
+                    error_parts = [
+                        f"Cannot union DataFrames: DataFrame #{i} has different columns than DataFrame #0."
+                    ]
+
+                    if missing:
+                        error_parts.append(f"Missing columns: {missing}")
+                    if extra:
+                        error_parts.append(f"Extra columns: {extra}")
+
+                    error_parts.extend([
+                        "",
+                        f"DataFrame #0 schema:\n{first_schema}",
+                        "",
+                        f"DataFrame #{i} schema:\n{schema}",
+                        "",
+                        "All DataFrames in a union must have exactly the same columns. "
+                        "Consider using .select() to ensure matching columns before the union operation. "
+                    ])
+
+                    raise PlanError("\n".join(error_parts))
+
+                # Same columns but different types
+                type_mismatches = []
+                for name in sorted(first_names):
+                    if first_schema_fields[name] != schema_fields[name]:
+                        type_mismatches.append(
+                            f"  - Column '{name}': DataFrame #0 has {first_schema_fields[name]}, "
+                            f"DataFrame #{i} has {schema_fields[name]}"
+                        )
+
+                if type_mismatches:
+                    error_message = (
+                        f"Cannot union DataFrames: DataFrame #{i} has incompatible column types.\n\n"
+                        f"Type mismatches:\n" + "\n".join(type_mismatches) + "\n\n"
+                        f"DataFrame #0 schema:\n{first_schema}\n\n"
+                        f"DataFrame #{i} schema:\n{schema}\n\n"
+                        f"All DataFrames in a union must have matching column types. "
+                        f"Consider using .cast() to align column types before the union operation."
                     )
+                    raise PlanError(error_message)
 
         return schemas[0]
 
