@@ -20,22 +20,22 @@ runtimes:
 lint:
   enabled:
     - gitleaks@8.28.0
-    - trufflehog-git@3.90.1
+    - trufflehog-git@3.90.3
     - actionlint@1.7.7
-    - renovate@41.42.2
+    - renovate@41.52.3
     - shellcheck@0.10.0
     - shfmt@3.6.0
     - rustfmt@1.87.0
     - clippy@1.87.0
-    - ruff@0.12.4
+    - ruff@0.12.7
     - taplo@0.9.3
-    - checkov@3.2.451
+    - checkov@3.2.457
     - git-diff-check
     - markdownlint@0.45.0
     - osv-scanner@2.0.3
     - prettier@3.6.2
     - trivy@0.64.1
-    - trufflehog@3.90.1
+    - trufflehog@3.90.3
     - yamllint@1.37.1
     - bandit@1.8.6
   definitions:
