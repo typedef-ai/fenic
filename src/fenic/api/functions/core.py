@@ -40,6 +40,37 @@ def lit(value: Any, dtype: Optional[DataType] = None) -> Column:
     Returns:
         A Column expression representing the literal value
 
+    Example: Create a literal with a struct
+        ```python
+        # Create a literal with a struct
+        df.select(
+            lit({"a": 1, "b": 2}).alias("struct")
+        )
+        ```
+
+    Example: Create a literal with a list
+        ```python
+        # Create a literal with a list
+        df.select(
+            lit([1, 2, 3]).alias("list")
+        )
+        ```
+
+    Example: Create a literal with a None
+        ```python
+        # Create a literal with a None
+        df.select(
+            lit(None, dtype=IntegerType).alias("none")
+        )
+        ```
+
+    Example: Create a literal with an empty list
+        ```python
+        # Create a literal with an empty list
+        df.select(
+            lit([], dtype=ArrayType(IntegerType)).alias("empty_list")
+        )
+        ```
     Raises:
         ValidationError: If the type of the value cannot be inferred and no dtype is provided
     """
