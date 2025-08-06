@@ -72,23 +72,6 @@ class ColumnField:
         data_type_str = indent_datatype(self.data_type, indent)
         return f"{spaces}ColumnField(name='{self.name}', data_type={data_type_str})"
 
-    def __eq__(self, other: "ColumnField") -> bool:
-        """Returns True if the column field has equal non column field attributes to the other column field.
-
-        Args:
-            other: The other column field to compare to.
-
-        Returns:
-            bool: True if the column field has equal non column field attributes to the other column field, False otherwise.
-        """
-        if not isinstance(other, ColumnField):
-            return False
-        if self.name != other.name:
-            return False
-        if self.data_type != other.data_type:
-            return False
-        return True
-
 
 @dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class Schema:
@@ -137,18 +120,3 @@ class Schema:
             A list of strings containing the names of all columns in the schema.
         """
         return [field.name for field in self.column_fields]
-
-    def __eq__(self, other: "Schema") -> bool:
-        """Returns True if the schema has equal non schema attributes to the other schema.
-
-        Args:
-            other: The other schema to compare to.
-
-        Returns:
-            bool: True if the schema has equal non schema attributes to the other schema, False otherwise.
-        """
-        if not isinstance(other, Schema):
-            return False
-        if len(self.column_fields) != len(other.column_fields):
-            return False
-        return all(field1 == field2 for field1, field2 in zip(self.column_fields, other.column_fields, strict=False))
