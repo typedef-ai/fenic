@@ -1,6 +1,6 @@
-from fenic.gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
-from fenic.gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
-from fenic.gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
+from fenic._gen.protos.logical_plan.v1 import complex_types_pb2 as _complex_types_pb2
+from fenic._gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
+from fenic._gen.protos.logical_plan.v1 import enums_pb2 as _enums_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -10,7 +10,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class LogicalExpr(_message.Message):
-    __slots__ = ("column", "literal", "alias", "sort", "index", "array", "struct", "cast", "not_expr", "coalesce", "in_expr", "is_null", "array_length", "array_contains", "arithmetic", "boolean", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "byte_length", "jinja", "fuzzy_ratio", "fuzzy_token_sort_ratio", "fuzzy_token_set_ratio", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise", "sum", "avg", "count", "max", "min", "first", "list", "std_dev")
+    __slots__ = ("column", "literal", "alias", "sort", "index", "array", "struct", "cast", "not_expr", "coalesce", "in_expr", "is_null", "array_length", "array_contains", "greatest", "least", "arithmetic", "boolean", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "byte_length", "jinja", "fuzzy_ratio", "fuzzy_token_sort_ratio", "fuzzy_token_set_ratio", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise", "sum", "avg", "count", "max", "min", "first", "list", "std_dev")
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     ALIAS_FIELD_NUMBER: _ClassVar[int]
@@ -25,6 +25,8 @@ class LogicalExpr(_message.Message):
     IS_NULL_FIELD_NUMBER: _ClassVar[int]
     ARRAY_LENGTH_FIELD_NUMBER: _ClassVar[int]
     ARRAY_CONTAINS_FIELD_NUMBER: _ClassVar[int]
+    GREATEST_FIELD_NUMBER: _ClassVar[int]
+    LEAST_FIELD_NUMBER: _ClassVar[int]
     ARITHMETIC_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     EQUALITY_COMPARISON_FIELD_NUMBER: _ClassVar[int]
@@ -95,6 +97,8 @@ class LogicalExpr(_message.Message):
     is_null: IsNullExpr
     array_length: ArrayLengthExpr
     array_contains: ArrayContainsExpr
+    greatest: GreatestExpr
+    least: LeastExpr
     arithmetic: ArithmeticExpr
     boolean: BooleanExpr
     equality_comparison: EqualityComparisonExpr
@@ -151,7 +155,7 @@ class LogicalExpr(_message.Message):
     first: FirstExpr
     list: ListExpr
     std_dev: StdDevExpr
-    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., not_expr: _Optional[_Union[NotExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., in_expr: _Optional[_Union[InExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[ArithmeticExpr, _Mapping]] = ..., boolean: _Optional[_Union[BooleanExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[EqualityComparisonExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[NumericComparisonExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., byte_length: _Optional[_Union[ByteLengthExpr, _Mapping]] = ..., jinja: _Optional[_Union[JinjaExpr, _Mapping]] = ..., fuzzy_ratio: _Optional[_Union[FuzzyRatioExpr, _Mapping]] = ..., fuzzy_token_sort_ratio: _Optional[_Union[FuzzyTokenSortRatioExpr, _Mapping]] = ..., fuzzy_token_set_ratio: _Optional[_Union[FuzzyTokenSetRatioExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., sum: _Optional[_Union[SumExpr, _Mapping]] = ..., avg: _Optional[_Union[AvgExpr, _Mapping]] = ..., count: _Optional[_Union[CountExpr, _Mapping]] = ..., max: _Optional[_Union[MaxExpr, _Mapping]] = ..., min: _Optional[_Union[MinExpr, _Mapping]] = ..., first: _Optional[_Union[FirstExpr, _Mapping]] = ..., list: _Optional[_Union[ListExpr, _Mapping]] = ..., std_dev: _Optional[_Union[StdDevExpr, _Mapping]] = ...) -> None: ...
+    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., not_expr: _Optional[_Union[NotExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., in_expr: _Optional[_Union[InExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., greatest: _Optional[_Union[GreatestExpr, _Mapping]] = ..., least: _Optional[_Union[LeastExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[ArithmeticExpr, _Mapping]] = ..., boolean: _Optional[_Union[BooleanExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[EqualityComparisonExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[NumericComparisonExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., byte_length: _Optional[_Union[ByteLengthExpr, _Mapping]] = ..., jinja: _Optional[_Union[JinjaExpr, _Mapping]] = ..., fuzzy_ratio: _Optional[_Union[FuzzyRatioExpr, _Mapping]] = ..., fuzzy_token_sort_ratio: _Optional[_Union[FuzzyTokenSortRatioExpr, _Mapping]] = ..., fuzzy_token_set_ratio: _Optional[_Union[FuzzyTokenSetRatioExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., sum: _Optional[_Union[SumExpr, _Mapping]] = ..., avg: _Optional[_Union[AvgExpr, _Mapping]] = ..., count: _Optional[_Union[CountExpr, _Mapping]] = ..., max: _Optional[_Union[MaxExpr, _Mapping]] = ..., min: _Optional[_Union[MinExpr, _Mapping]] = ..., first: _Optional[_Union[FirstExpr, _Mapping]] = ..., list: _Optional[_Union[ListExpr, _Mapping]] = ..., std_dev: _Optional[_Union[StdDevExpr, _Mapping]] = ...) -> None: ...
 
 class ColumnExpr(_message.Message):
     __slots__ = ("name",)
@@ -425,16 +429,6 @@ class EmbeddingSimilarityExpr(_message.Message):
     metric: str
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., query_vector: _Optional[_Union[_complex_types_pb2.NumpyArray, _Mapping]] = ..., metric: _Optional[str] = ...) -> None: ...
 
-class TextChunkExprConfiguration(_message.Message):
-    __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name")
-    DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
-    desired_chunk_size: int
-    chunk_overlap_percentage: int
-    chunk_length_function_name: _enums_pb2.ChunkLengthFunction
-    def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ...) -> None: ...
-
 class TextractExpr(_message.Message):
     __slots__ = ("input_expr", "template")
     INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
@@ -445,33 +439,41 @@ class TextractExpr(_message.Message):
 
 class TextChunkExpr(_message.Message):
     __slots__ = ("expr", "configuration")
+    class TextChunkExprConfiguration(_message.Message):
+        __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name")
+        DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
+        CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
+        CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
+        desired_chunk_size: int
+        chunk_overlap_percentage: int
+        chunk_length_function_name: _enums_pb2.ChunkLengthFunction
+        def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ...) -> None: ...
     EXPR_FIELD_NUMBER: _ClassVar[int]
     CONFIGURATION_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    configuration: TextChunkExprConfiguration
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[TextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
-
-class RecursiveTextChunkExprConfiguration(_message.Message):
-    __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name", "chunking_character_set_name", "chunking_character_set_custom_characters")
-    DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
-    CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
-    CHUNKING_CHARACTER_SET_NAME_FIELD_NUMBER: _ClassVar[int]
-    CHUNKING_CHARACTER_SET_CUSTOM_CHARACTERS_FIELD_NUMBER: _ClassVar[int]
-    desired_chunk_size: int
-    chunk_overlap_percentage: int
-    chunk_length_function_name: _enums_pb2.ChunkLengthFunction
-    chunking_character_set_name: _enums_pb2.ChunkCharacterSet
-    chunking_character_set_custom_characters: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ..., chunking_character_set_name: _Optional[_Union[_enums_pb2.ChunkCharacterSet, str]] = ..., chunking_character_set_custom_characters: _Optional[_Iterable[str]] = ...) -> None: ...
+    configuration: TextChunkExpr.TextChunkExprConfiguration
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[TextChunkExpr.TextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
 
 class RecursiveTextChunkExpr(_message.Message):
     __slots__ = ("input_expr", "configuration")
+    class RecursiveTextChunkExprConfiguration(_message.Message):
+        __slots__ = ("desired_chunk_size", "chunk_overlap_percentage", "chunk_length_function_name", "chunking_character_set_name", "chunking_character_set_custom_characters")
+        DESIRED_CHUNK_SIZE_FIELD_NUMBER: _ClassVar[int]
+        CHUNK_OVERLAP_PERCENTAGE_FIELD_NUMBER: _ClassVar[int]
+        CHUNK_LENGTH_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
+        CHUNKING_CHARACTER_SET_NAME_FIELD_NUMBER: _ClassVar[int]
+        CHUNKING_CHARACTER_SET_CUSTOM_CHARACTERS_FIELD_NUMBER: _ClassVar[int]
+        desired_chunk_size: int
+        chunk_overlap_percentage: int
+        chunk_length_function_name: _enums_pb2.ChunkLengthFunction
+        chunking_character_set_name: _enums_pb2.ChunkCharacterSet
+        chunking_character_set_custom_characters: _containers.RepeatedScalarFieldContainer[str]
+        def __init__(self, desired_chunk_size: _Optional[int] = ..., chunk_overlap_percentage: _Optional[int] = ..., chunk_length_function_name: _Optional[_Union[_enums_pb2.ChunkLengthFunction, str]] = ..., chunking_character_set_name: _Optional[_Union[_enums_pb2.ChunkCharacterSet, str]] = ..., chunking_character_set_custom_characters: _Optional[_Iterable[str]] = ...) -> None: ...
     INPUT_EXPR_FIELD_NUMBER: _ClassVar[int]
     CONFIGURATION_FIELD_NUMBER: _ClassVar[int]
     input_expr: LogicalExpr
-    configuration: RecursiveTextChunkExprConfiguration
-    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[RecursiveTextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
+    configuration: RecursiveTextChunkExpr.RecursiveTextChunkExprConfiguration
+    def __init__(self, input_expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., configuration: _Optional[_Union[RecursiveTextChunkExpr.RecursiveTextChunkExprConfiguration, _Mapping]] = ...) -> None: ...
 
 class CountTokensExpr(_message.Message):
     __slots__ = ("input_expr",)
@@ -802,3 +804,15 @@ class StdDevExpr(_message.Message):
     EXPR_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class GreatestExpr(_message.Message):
+    __slots__ = ("exprs",)
+    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...
+
+class LeastExpr(_message.Message):
+    __slots__ = ("exprs",)
+    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...

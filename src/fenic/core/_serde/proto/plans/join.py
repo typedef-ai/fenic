@@ -20,6 +20,7 @@ from fenic.core._serde.proto.types import (
     SemanticJoinProto,
     SemanticSimilarityJoinProto,
 )
+from fenic.core.types.enums import SemanticSimilarityMetric
 from fenic.core.types.semantic_examples import JoinExample, JoinExampleCollection
 
 # =============================================================================
@@ -140,7 +141,11 @@ def _serialize_semantic_similarity_join(
         left_on=context.serialize_logical_expr("left_on", semantic_similarity_join._left_on),
         right_on=context.serialize_logical_expr("right_on", semantic_similarity_join._right_on),
         k=semantic_similarity_join.k(),
-        similarity_metric=semantic_similarity_join.similarity_metric(),
+        similarity_metric=context.serialize_python_literal(
+            "similarity_metric",
+            semantic_similarity_join.similarity_metric(),
+            SemanticSimilarityJoinProto.SemanticSimilarityMetric,
+        ),
         similarity_score_column=semantic_similarity_join.similarity_score_column(),
         schema=context.serialize_fenic_schema(semantic_similarity_join.schema()),
     )
@@ -159,7 +164,12 @@ def _deserialize_semantic_similarity_join(
         left_on=context.deserialize_logical_expr("left_on", semantic_similarity_join.left_on),
         right_on=context.deserialize_logical_expr("right_on", semantic_similarity_join.right_on),
         k=semantic_similarity_join.k,
-        similarity_metric=semantic_similarity_join.similarity_metric,
+        similarity_metric=context.deserialize_python_literal(
+            "similarity_metric",
+            semantic_similarity_join.similarity_metric,
+            SemanticSimilarityMetric,
+            SemanticSimilarityJoinProto.SemanticSimilarityMetric,
+        ),
         similarity_score_column=semantic_similarity_join.similarity_score_column if semantic_similarity_join.similarity_score_column else None,
         schema=context.deserialize_fenic_schema(semantic_similarity_join.schema),
     )

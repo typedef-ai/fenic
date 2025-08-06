@@ -24,6 +24,8 @@ message LogicalExpr {
     IsNullExpr is_null = 12;
     ArrayLengthExpr array_length = 13;
     ArrayContainsExpr array_contains = 14;
+    GreatestExpr greatest = 15;
+    LeastExpr least = 16;
 
     // Binary expressions
     ArithmeticExpr arithmetic = 20;
@@ -271,12 +273,6 @@ message EmbeddingSimilarityExpr {
   string metric = 4;
 }
 
-message TextChunkExprConfiguration {
-  int32 desired_chunk_size = 2;
-  int32 chunk_overlap_percentage = 3;
-  ChunkLengthFunction chunk_length_function_name = 4;
-}
-
 // Text expressions
 message TextractExpr {
   LogicalExpr input_expr = 1;
@@ -285,19 +281,23 @@ message TextractExpr {
 
 message TextChunkExpr {
   LogicalExpr expr = 1;
+  message TextChunkExprConfiguration {
+    int32 desired_chunk_size = 2;
+    int32 chunk_overlap_percentage = 3;
+    ChunkLengthFunction chunk_length_function_name = 4;
+  }
   TextChunkExprConfiguration configuration = 2;
-}
-
-message RecursiveTextChunkExprConfiguration {
-  int32 desired_chunk_size = 2;
-  int32 chunk_overlap_percentage = 3;
-  ChunkLengthFunction chunk_length_function_name = 4;
-  ChunkCharacterSet chunking_character_set_name = 5;
-  repeated string chunking_character_set_custom_characters = 6;
 }
 
 message RecursiveTextChunkExpr {
   LogicalExpr input_expr = 1;
+  message RecursiveTextChunkExprConfiguration {
+    int32 desired_chunk_size = 2;
+    int32 chunk_overlap_percentage = 3;
+    ChunkLengthFunction chunk_length_function_name = 4;
+    ChunkCharacterSet chunking_character_set_name = 5;
+    repeated string chunking_character_set_custom_characters = 6;
+  }
   RecursiveTextChunkExprConfiguration configuration = 2;
 }
 
@@ -341,8 +341,13 @@ message ILikeExpr {
 }
 
 message TsParseExpr {
+  enum TranscriptFormatType {
+    SRT = 0;
+    GENERIC = 1;
+    WEBVTT = 2;
+  }
   LogicalExpr expr = 1;
-  string format = 2;
+  TranscriptFormatType format = 2;
 }
 
 message StartsWithExpr {
@@ -369,13 +374,23 @@ message SplitPartExpr {
 
 message StringCasingExpr {
   LogicalExpr expr = 1;
-  string case = 2;  // "upper", "lower", "title", etc.
+  enum StringCasingType {
+    LOWER = 0;
+    UPPER = 1;
+    TITLE = 2;
+  }
+  StringCasingType case = 2;
 }
 
 message StripCharsExpr {
   LogicalExpr expr = 1;
   optional LogicalExpr chars = 2;
-  string side = 3;  // "left", "right", "both"
+  enum StripCharsSide {
+    LEFT = 0;
+    RIGHT = 1;
+    BOTH = 2;
+  }
+  StripCharsSide side = 3;
 }
 
 message ReplaceExpr {
@@ -402,19 +417,19 @@ message JinjaExpr {
 message FuzzyRatioExpr {
   LogicalExpr expr = 1;
   LogicalExpr other = 2;
-  string method = 3;
+  FuzzySimilarityMethod method = 3;
 }
 
 message FuzzyTokenSortRatioExpr {
   LogicalExpr expr = 1;
   LogicalExpr other = 2;
-  string method = 3;
+  FuzzySimilarityMethod method = 3;
 }
 
 message FuzzyTokenSetRatioExpr {
   LogicalExpr expr = 1;
   LogicalExpr other = 2;
-  string method = 3;
+  FuzzySimilarityMethod method = 3;
 }
 
 // JSON expressions
@@ -495,4 +510,12 @@ message ListExpr {
 
 message StdDevExpr {
   LogicalExpr expr = 1;
+}
+
+message GreatestExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message LeastExpr {
+  repeated LogicalExpr exprs = 1;
 }

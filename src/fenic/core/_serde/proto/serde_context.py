@@ -5,22 +5,26 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Iterable, List, Optional, Type, TypeVar
+from typing import (
+    Any,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+)
 
 import numpy as np
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 from jambo import SchemaConverter
 from pydantic import BaseModel
 
-from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalExpr
 from fenic.core._logical_plan.expressions.semantic import ResolvedClassDefinition
-from fenic.core._logical_plan.expressions.text import (
-    ChunkCharacterSet,
-    ChunkLengthFunction,
-    RecursiveTextChunkExprConfiguration,
-    TextChunkExprConfiguration,
-)
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._serde.proto.errors import (
@@ -29,8 +33,6 @@ from fenic.core._serde.proto.errors import (
     SerializationError,
 )
 from fenic.core._serde.proto.types import (
-    ChunkCharacterSetProto,
-    ChunkLengthFunctionProto,
     ColumnFieldProto,
     DataTypeProto,
     FenicSchemaProto,
@@ -38,21 +40,18 @@ from fenic.core._serde.proto.types import (
     LogicalPlanProto,
     NumpyArrayProto,
     PydanticModelTypeProto,
-    RecursiveTextChunkExprConfigurationProto,
     ResolvedClassDefinitionProto,
     ResolvedModelAliasProto,
     ScalarArrayProto,
     ScalarStructFieldProto,
     ScalarStructProto,
     ScalarValueProto,
-    TextChunkExprConfigurationProto,
 )
+from fenic.core.error import InternalError
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
-# Used for type hinting support in serialize_enum_value and deserialize_enum_value
 EnumType = TypeVar("EnumType", bound=Enum)
-
 
 class SerdeContext:
     """Context for managing serialization/deserialization state and path tracking.
@@ -234,8 +233,99 @@ class SerdeContext:
                         self._handle_serde_error(e)
         return result
 
+    def serialize_python_literal(
+        self, field_name: str, value: str, target_proto: EnumTypeWrapper
+    ) -> int:
+        """Serialize a python literal with field path tracking.
+
+        Args:
+            field_name: The name of the field being serialized.
+            value: The string value from the Python Literal type.
+            target_proto: The protobuf enum type wrapper to convert to.
+
+        Returns:
+            The protobuf enum integer value.
+
+        Raises:
+            SerializationError: If the value cannot be safely serialized.
+        """
+        with self.path_context(field_name):
+            try:
+                value_upper = value.upper()
+                if value_upper in target_proto.keys():
+                    return target_proto.Value(value_upper)
+                else:
+                    raise SerializationError(
+                        f"Could not serialize python literal '{value}/{value_upper}' to protobuf enum {target_proto.DESCRIPTOR.name}. "
+                        f"Value '{value}/{value_upper}' is not available in the protobuf enum. "
+                        f"Available protobuf enum values are: {list(target_proto.keys())}. "
+                        f"This suggests a mismatch between the Python Literal type and the protobuf enum definition."
+                    )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def deserialize_python_literal(
+        self,
+        field_name: str,
+        value: int,
+        target_type: type,
+        proto_enum: EnumTypeWrapper,
+    ) -> Any:
+        """Deserialize a python literal with field path tracking.
+
+        Args:
+            field_name: The name of the field being deserialized.
+            value: The protobuf enum integer value.
+            target_type: The target Python Literal type.
+            proto_enum: The protobuf enum type wrapper to convert int to string.
+
+        Returns:
+            The string value from the literal type.
+
+        Raises:
+            DeserializationError: If the value cannot be safely deserialized.
+        """
+        with self.path_context(field_name):
+            try:
+                # First, validate that target_type is actually a Literal type
+                if get_origin(target_type) is not Literal:
+                    raise InternalError(
+                        f"target_type {target_type} is not a typing.Literal type. "
+                        f"Expected typing.Literal[...] but got {target_type} with origin {get_origin(target_type)}."
+                    )
+
+                literal_values = get_args(target_type)
+                if not literal_values:
+                    raise DeserializationError(
+                        f"target_type {target_type} is not a valid Literal type. "
+                        f"Expected a typing.Literal[...] type with literal values, but get_args() returned empty tuple."
+                    )
+
+
+                # Validate the protobuf enum value is valid
+                if value not in proto_enum.values():
+                    raise DeserializationError(
+                        f"Protobuf enum value {value} is not valid for {proto_enum}. "
+                        f"Valid values are: {list(proto_enum.values())}"
+                    )
+
+                # Convert protobuf int to string name
+                enum_name = proto_enum.Name(value).lower()
+
+                # Check if the enum name is in the target literal type
+                if enum_name not in literal_values:
+                    raise DeserializationError(
+                        f"Protobuf enum name '{enum_name}' is not available in the python literal type {target_type}. "
+                        f"Available literal values are: {literal_values}. "
+                        f"This suggests a mismatch between the protobuf enum definition and the Python Literal type."
+                    )
+
+                return cast(target_type, enum_name)
+            except Exception as e:
+                self._handle_serde_error(e)
+
     def serialize_enum_value(
-        self, field_name: str, enum_value: EnumType, target_proto: EnumTypeWrapper
+        self, field_name: str, enum_value: type[Enum], target_proto: EnumTypeWrapper
     ) -> int:
         """Serialize an enum value with field path tracking.
 
@@ -254,6 +344,7 @@ class SerdeContext:
                 return serialize_enum_value(enum_value, target_proto, self)
             except Exception as e:
                 self._handle_serde_error(e)
+
 
     def deserialize_enum_value(
         self,
@@ -329,7 +420,6 @@ class SerdeContext:
         self,
         field_name: str,
         plan_proto: LogicalPlanProto,
-        session_state: Optional[BaseSessionState] = None,
     ) -> LogicalPlan:
         """Deserialize a logical plan with field path tracking.
 
@@ -353,7 +443,6 @@ class SerdeContext:
         self,
         field_name: str,
         plan_proto_list: List[LogicalPlanProto],
-        session_state: Optional[BaseSessionState] = None,
     ) -> List[LogicalPlan]:
         """Deserialize a list of logical plans with field path tracking.
 
@@ -370,11 +459,7 @@ class SerdeContext:
             for i, plan_proto in enumerate(plan_proto_list):
                 with self.path_context(f"[{i}]"):
                     try:
-                        result.append(
-                            self.deserialize_logical_plan(
-                                "plan", plan_proto, session_state
-                            )
-                        )
+                        result.append(self.deserialize_logical_plan("plan", plan_proto))
                     except Exception as e:
                         self._handle_serde_error(e)
         return result
@@ -501,7 +586,9 @@ class SerdeContext:
             try:
                 return ResolvedClassDefinition(
                     label=class_definition_proto.label,
-                    description=class_definition_proto.description,
+                    description=class_definition_proto.description
+                    if class_definition_proto.description
+                    else None,
                 )
             except Exception as e:
                 self._handle_serde_error(e)
@@ -605,136 +692,6 @@ class SerdeContext:
             except Exception as e:
                 self._handle_serde_error(e)
 
-    # =============================================================================
-    # Text Chunking Configuration Serde Functions
-    # =============================================================================
-
-    def serialize_recursive_text_chunk_expr_configuration(
-        self,
-        field_name: str,
-        config: RecursiveTextChunkExprConfiguration,
-    ) -> RecursiveTextChunkExprConfigurationProto:
-        """Serialize a recursive text chunk expression configuration.
-
-        Args:
-            field_name: The name of the field being serialized.
-            config: The recursive text chunk configuration to serialize.
-
-        Returns:
-            The serialized protobuf representation of the configuration.
-        """
-        with self.path_context(field_name):
-            try:
-                return RecursiveTextChunkExprConfigurationProto(
-                    desired_chunk_size=config.desired_chunk_size,
-                    chunk_overlap_percentage=config.chunk_overlap_percentage,
-                    chunk_length_function_name=self.serialize_enum_value(
-                        "chunk_length_function_name",
-                        config.chunk_length_function_name,
-                        ChunkLengthFunctionProto,
-                    ),
-                    chunking_character_set_name=self.serialize_enum_value(
-                        "chunking_character_set_name",
-                        config.chunking_character_set_name,
-                        ChunkCharacterSetProto,
-                    ),
-                    chunking_character_set_custom_characters=config.chunking_character_set_custom_characters,
-                )
-            except Exception as e:
-                self._handle_serde_error(e)
-
-    def deserialize_recursive_text_chunk_expr_configuration(
-        self,
-        field_name: str,
-        config: RecursiveTextChunkExprConfigurationProto,
-    ) -> RecursiveTextChunkExprConfiguration:
-        """Deserialize a recursive text chunk expression configuration.
-
-        Args:
-            field_name: The name of the field being deserialized.
-            config: The protobuf representation to deserialize.
-
-        Returns:
-            The deserialized recursive text chunk configuration.
-        """
-        with self.path_context(field_name):
-            try:
-                return RecursiveTextChunkExprConfiguration(
-                    desired_chunk_size=config.desired_chunk_size,
-                    chunk_overlap_percentage=config.chunk_overlap_percentage,
-                    chunk_length_function_name=self.deserialize_enum_value(
-                        "chunk_length_function_name",
-                        ChunkLengthFunction,
-                        ChunkLengthFunctionProto,
-                        config.chunk_length_function_name,
-                    ),
-                    chunking_character_set_name=self.deserialize_enum_value(
-                        "chunking_character_set_name",
-                        ChunkCharacterSet,
-                        ChunkCharacterSetProto,
-                        config.chunking_character_set_name,
-                    ),
-                    chunking_character_set_custom_characters=config.chunking_character_set_custom_characters,
-                )
-            except Exception as e:
-                self._handle_serde_error(e)
-
-    def serialize_text_chunk_expr_configuration(
-        self,
-        field_name: str,
-        config: TextChunkExprConfiguration,
-    ) -> TextChunkExprConfigurationProto:
-        """Serialize a text chunk expression configuration.
-
-        Args:
-            field_name: The name of the field being serialized.
-            config: The text chunk configuration to serialize.
-
-        Returns:
-            The serialized protobuf representation of the configuration.
-        """
-        with self.path_context(field_name):
-            try:
-                return TextChunkExprConfigurationProto(
-                    desired_chunk_size=config.desired_chunk_size,
-                    chunk_overlap_percentage=config.chunk_overlap_percentage,
-                    chunk_length_function_name=self.serialize_enum_value(
-                        "chunk_length_function_name",
-                        config.chunk_length_function_name,
-                        ChunkLengthFunctionProto,
-                    ),
-                )
-            except Exception as e:
-                self._handle_serde_error(e)
-
-    def deserialize_text_chunk_expr_configuration(
-        self,
-        field_name: str,
-        config: TextChunkExprConfigurationProto,
-    ) -> TextChunkExprConfiguration:
-        """Deserialize a text chunk expression configuration.
-
-        Args:
-            field_name: The name of the field being deserialized.
-            config: The protobuf representation to deserialize.
-
-        Returns:
-            The deserialized text chunk configuration.
-        """
-        with self.path_context(field_name):
-            try:
-                return TextChunkExprConfiguration(
-                    desired_chunk_size=config.desired_chunk_size,
-                    chunk_overlap_percentage=config.chunk_overlap_percentage,
-                    chunk_length_function_name=self.deserialize_enum_value(
-                        "chunk_length_function_name",
-                        ChunkLengthFunction,
-                        ChunkLengthFunctionProto,
-                        config.chunk_length_function_name,
-                    ),
-                )
-            except Exception as e:
-                self._handle_serde_error(e)
 
     def serialize_scalar_value(self, field_name: str, value: Any) -> ScalarValueProto:
         """Serialize a Python value to ScalarValue oneof.
@@ -831,14 +788,16 @@ class SerdeContext:
                 elif which_oneof == "array_value":
                     # Deserialize arrays recursively
                     return [
-                        self.deserialize_scalar_value(element)
+                        self.deserialize_scalar_value("element", element)
                         for element in scalar_value.array_value.elements
                     ]
                 elif which_oneof == "struct_value":
                     # Deserialize structs recursively
-                    result = {}
+                    result: dict[str, Any] = {}
                     for field in scalar_value.struct_value.fields:
-                        result[field.name] = self.deserialize_scalar_value(field.value)
+                        result[field.name] = self.deserialize_scalar_value(
+                            field.name, field.value
+                        )
                     return result
                 else:
                     raise self.create_serde_error(
@@ -849,7 +808,9 @@ class SerdeContext:
                 self._handle_serde_error(e)
 
     def serialize_fenic_schema(
-        self, schema: Schema, field_name: str = "schema",
+        self,
+        schema: Schema,
+        field_name: str = "schema",
     ) -> FenicSchemaProto:
         """Serialize a Fenic schema.
 

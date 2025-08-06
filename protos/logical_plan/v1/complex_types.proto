@@ -30,7 +30,7 @@ message ScalarStructField {
 
 message ResolvedClassDefinition {
   string label = 1;
-  string description = 2;
+  optional string description = 2;
 }
 
 message ResolvedModelAlias {
@@ -50,8 +50,6 @@ message PydanticModelType {
   string json_schema = 1;
 }
 
-// Pydantic model instances - direct protobuf messages for each type
-
 // KeyPoints format for summarization
 message KeyPoints {
   int32 max_points = 1;
@@ -63,7 +61,6 @@ message Paragraph {
 }
 
 // Union type for summarization formats
-// TODO(brandon): figure out how to handle this.
 message SummarizationFormat {
   oneof format_type {
     KeyPoints key_points = 1;
@@ -72,7 +69,6 @@ message SummarizationFormat {
 }
 
 // Semantic example types
-// TODO(brandon): figure out how this is going to work with structured format map examples
 message MapExample {
   map<string, ScalarValue> input = 1;
   string output = 2;

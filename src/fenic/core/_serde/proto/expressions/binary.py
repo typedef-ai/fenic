@@ -1,5 +1,6 @@
 """Binary expression serialization/deserialization."""
 
+from fenic._gen.protos.logical_plan.v1.enums_pb2 import Operator as OperatorProto
 from fenic.core._logical_plan.expressions.arithmetic import ArithmeticExpr
 from fenic.core._logical_plan.expressions.base import Operator
 from fenic.core._logical_plan.expressions.comparison import (
@@ -19,7 +20,6 @@ from fenic.core._serde.proto.types import (
     LogicalExprProto,
     NumericComparisonExprProto,
 )
-from fenic.gen.protos.logical_plan.v1.enums_pb2 import Operator as OperatorProto
 
 # =============================================================================
 # ArithmeticExpr

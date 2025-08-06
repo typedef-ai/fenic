@@ -8,9 +8,11 @@ from fenic.core._logical_plan.expressions.basic import (
     CastExpr,
     CoalesceExpr,
     ColumnExpr,
+    GreatestExpr,
     IndexExpr,
     InExpr,
     IsNullExpr,
+    LeastExpr,
     LiteralExpr,
     NotExpr,
     SortExpr,
@@ -29,9 +31,11 @@ from fenic.core._serde.proto.types import (
     CastExprProto,
     CoalesceExprProto,
     ColumnExprProto,
+    GreatestExprProto,
     IndexExprProto,
     InExprProto,
     IsNullExprProto,
+    LeastExprProto,
     LiteralExprProto,
     LogicalExprProto,
     NotExprProto,
@@ -388,4 +392,47 @@ def _deserialize_array_contains_expr(
     return ArrayContainsExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         other=context.deserialize_logical_expr(SerdeContext.OTHER, logical_proto.other),
+    )
+
+# =============================================================================
+# GreatestExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_greatest_expr(logical: GreatestExpr, context: SerdeContext) -> LogicalExprProto:
+    return LogicalExprProto(
+        greatest=GreatestExprProto(
+            exprs=context.serialize_logical_expr_list(SerdeContext.EXPRS, logical.exprs)
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_greatest_expr(
+    logical_proto: GreatestExprProto, context: SerdeContext
+) -> GreatestExpr:
+    return GreatestExpr(
+        exprs=context.deserialize_logical_expr_list(SerdeContext.EXPRS, logical_proto.exprs)
+    )
+
+# =============================================================================
+# LeastExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_least_expr(logical: LeastExpr, context: SerdeContext) -> LogicalExprProto:
+    return LogicalExprProto(
+        least=LeastExprProto(
+            exprs=context.serialize_logical_expr_list(SerdeContext.EXPRS, logical.exprs)
+        )
+    )
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_least_expr(
+    logical_proto: LeastExprProto, context: SerdeContext
+) -> LeastExpr:
+    return LeastExpr(
+        exprs=context.deserialize_logical_expr_list(SerdeContext.EXPRS, logical_proto.exprs)
     )

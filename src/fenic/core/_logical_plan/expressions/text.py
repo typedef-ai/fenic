@@ -3,10 +3,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from fenic.core._logical_plan.jinja_validation import (
     VariableTree,
+)
+from fenic.core.types.enums import (
+    StringCasingType,
+    StripCharsSide,
+    TranscriptFormatType,
 )
 
 if TYPE_CHECKING:
@@ -545,7 +550,7 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
 class TsParseExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.parse_transcript"
 
-    def __init__(self, expr: LogicalExpr, format: str):
+    def __init__(self, expr: LogicalExpr, format: TranscriptFormatType):
         self.expr = expr
         self.format = format
         self._validator = SignatureValidator(self.function_name)
@@ -719,7 +724,7 @@ class StringCasingExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.string_casing"
 
-    def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
+    def __init__(self, expr: LogicalExpr, case: StringCasingType):
         self.expr = expr
         self.case = case
         self._validator = SignatureValidator(self.function_name)
@@ -757,7 +762,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
         self,
         expr: LogicalExpr,
         chars: Optional[LogicalExpr],
-        side: Literal["left", "right", "both"] = "both",
+        side: StripCharsSide = "both",
     ):
         self.expr = expr
         self.chars = chars

@@ -5,7 +5,6 @@ from typing import Literal, Type, get_origin
 import pytest
 from pydantic import BaseModel, Field
 
-from fenic import col
 from fenic.core._logical_plan.expressions import (
     # Basic expressions
     AliasExpr,
@@ -90,14 +89,19 @@ from fenic.core._logical_plan.expressions import (
     UDFExpr,
     WhenExpr,
 )
-from fenic.core._logical_plan.expressions.base import LogicalExpr, Operator, UnparameterizedExpr
+from fenic.core._logical_plan.expressions.base import (
+    LogicalExpr,
+    Operator,
+    UnparameterizedExpr,
+)
+from fenic.core._logical_plan.expressions.basic import GreatestExpr, LeastExpr
 from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
     RecursiveTextChunkExprConfiguration,
     TextChunkExprConfiguration,
 )
-from fenic.core._serde.proto.errors import DeserializationError, SerializationError
+from fenic.core._serde.proto.errors import SerializationError, UnsupportedTypeError
 from fenic.core._serde.proto.expression_serde import (
     deserialize_logical_expr,
     serialize_logical_expr,
@@ -109,6 +113,12 @@ from fenic.core.types import (
     IntegerType,
     JsonType,
     StringType,
+)
+from fenic.core.types.semantic_examples import (
+    MapExample,
+    MapExampleCollection,
+    PredicateExample,
+    PredicateExampleCollection,
 )
 from fenic.core.types.summarize import Paragraph
 
@@ -122,7 +132,9 @@ class BasicResponseFormat(BaseModel):
     state: Literal["active", "inactive"]
 
 # Define examples for each expression type
-# Each type has a list of examples to test different scenarios
+# Each type has a list of examples to test different scenarios. In general when adding new expressions:
+# 1. Add a new entry to the expression_examples dictionary with the expression class as the key and a list of examples as the value.
+# 2. If the expression has optional parameters, ensure that examples exist for all permutations of optional parameters provided/not provided.
 expression_examples = {
     # Basic expressions
     ColumnExpr: [
@@ -301,9 +313,11 @@ expression_examples = {
     ],
     MdGenerateTocExpr: [
         MdGenerateTocExpr(ColumnExpr("md_col")),
+        MdGenerateTocExpr(ColumnExpr("md_col"), max_level=2),
     ],
     MdGetCodeBlocksExpr: [
         MdGetCodeBlocksExpr(ColumnExpr("md_col")),
+        MdGetCodeBlocksExpr(ColumnExpr("md_col"), language_filter="python"),
     ],
     MdToJsonExpr: [
         MdToJsonExpr(ColumnExpr("md_col")),
@@ -311,6 +325,18 @@ expression_examples = {
     # Semantic expressions
     SemanticMapExpr: [
         SemanticMapExpr(jinja_template="Process {{text_col}}", strict=True, max_tokens=100, temperature=0.1,  exprs=[ColumnExpr("text_col")]),
+        SemanticMapExpr(jinja_template="Process {{text_col}}", strict=False, temperature=0, max_tokens=100, examples=MapExampleCollection(
+            [
+                MapExample(input={"text_col": "text1"}, output="A result"),
+                MapExample(input={"text_col": "text2"}, output="Another result"),
+            ]
+        ), exprs=[ColumnExpr("text_col")]),
+        SemanticMapExpr(jinja_template="Process {{struct_col}}", strict=False, temperature=0, max_tokens=100, examples=MapExampleCollection(
+            [
+                MapExample(input={"struct_col": {"name": "John", "age": 30}}, output="A result"),
+                MapExample(input={"struct_col": {"name": "Jane", "age": 25}}, output="Another result"),
+            ]
+        ), exprs=[ColumnExpr("struct_col")]),
     ],
     SemanticExtractExpr: [
         SemanticExtractExpr(ColumnExpr("text_col"), schema=BasicResponseFormat, max_tokens=100, temperature=0.1),
@@ -318,9 +344,21 @@ expression_examples = {
     SemanticPredExpr: [
         SemanticPredExpr(jinja_template="{{name}} Is this positive?", strict=True, exprs=[ColumnExpr("name")],  temperature=0.1),
         SemanticPredExpr(jinja_template="{{name}} Contains important information?", strict=True, exprs=[ColumnExpr("name")], temperature=0),
+        SemanticPredExpr(jinja_template="{{name}} Is traditionally male?", strict=True, exprs=[ColumnExpr("name")], temperature=0, examples=PredicateExampleCollection(
+            [
+                PredicateExample(input={"name": "John"}, output=True),
+                PredicateExample(input={"name": "Jane"}, output=False),
+            ]
+        )),
+        SemanticPredExpr(jinja_template="{{struct_col}} Are the two names the same?", strict=True, exprs=[ColumnExpr("struct_col")], temperature=0, examples=PredicateExampleCollection(
+            [
+                PredicateExample(input={"struct_col": {"name": "John", "name_copy": "John"}}, output=True),
+                PredicateExample(input={"struct_col": {"name": "Jane", "name_copy": "John"}}, output=False),
+            ]
+        )),
     ],
     SemanticReduceExpr: [
-        SemanticReduceExpr(instruction="Summarize all documents in group", group_context_exprs=[ColumnExpr("date")], order_by_exprs=[], input_expr=ColumnExpr("document"), max_tokens=100, temperature=0.1),
+        SemanticReduceExpr(instruction="Summarize all documents in group", group_context_exprs=[], order_by_exprs=[], input_expr=ColumnExpr("document"), max_tokens=100, temperature=0.1),
         SemanticReduceExpr(instruction="Summarize all documents in group in {{date}}", group_context_exprs=[ColumnExpr("date")], order_by_exprs=[ColumnExpr("doc_index")], input_expr=ColumnExpr("document"), max_tokens=100, temperature=0.1),
 
     ],
@@ -330,6 +368,14 @@ expression_examples = {
             [
                 ResolvedClassDefinition("positive"),
                 ResolvedClassDefinition("negative"),
+            ],
+            0.1,
+        ),
+        SemanticClassifyExpr(
+            ColumnExpr("text_col"),
+            [
+                ResolvedClassDefinition("positive", description="A positive class"),
+                ResolvedClassDefinition("negative", description="A negative class"),
             ],
             0.1,
         ),
@@ -363,13 +409,13 @@ expression_examples = {
         RecursiveTextChunkExpr(
             ColumnExpr("text_col"), RecursiveTextChunkExprConfiguration(
                 desired_chunk_size=100, chunk_overlap_percentage=10, chunk_length_function_name=ChunkLengthFunction.TOKEN, 
-                chunking_character_set_name=ChunkCharacterSet.ASCII, chunking_character_set_custom_characters=["a", "b", "c"])
+                chunking_character_set_name=ChunkCharacterSet.ASCII)
         ),
         RecursiveTextChunkExpr(
             ColumnExpr("text_col"),
             RecursiveTextChunkExprConfiguration(
                 desired_chunk_size=200, chunk_overlap_percentage=0, chunk_length_function_name=ChunkLengthFunction.WORD,
-                chunking_character_set_name=ChunkCharacterSet.ASCII, chunking_character_set_custom_characters=["a", "b", "c"])
+                chunking_character_set_name=ChunkCharacterSet.CUSTOM, chunking_character_set_custom_characters=["a", "b", "c"])
         ),
     ],
     CountTokensExpr: [
@@ -486,6 +532,12 @@ expression_examples = {
             "jaro_winkler",
         ),
     ],
+    GreatestExpr: [
+        GreatestExpr([ColumnExpr("a"), ColumnExpr("b"), LiteralExpr(1, IntegerType)]),
+    ],
+    LeastExpr: [
+        LeastExpr([ColumnExpr("a"), ColumnExpr("b"), LiteralExpr(1, IntegerType)]),
+    ],
 }
 
 class TestExpressionSerde:
@@ -515,7 +567,8 @@ class TestExpressionSerde:
                     assert field_info.description == deserialized_field_info.description, f"Field {name} description mismatch"
                     # Known issue that jambo will turn lists into optional fields in the model_json_schema
                     # assert field_info.is_required() == deserialized_field_info.is_required(), f"Field {name} required mismatch"
-                    return
+                    # This is a hack -- we validate the schema here, but if we leave the original deserialized schema, they will not be strictly equal to each other.
+                    deserialized.schema = original.schema
             else:
                 raise ValueError(f"Unsupported schema type: {type(original.schema)}")
         
@@ -528,11 +581,10 @@ class TestExpressionSerde:
 
         # Test each expression type with its examples
         for i, example in enumerate(expression_examples[expr_class]):
-            # Skip UDFExpr as it cannot be serialized
+            # Expect serialization errors for UDFExpr
             if expr_class == UDFExpr:
-                with pytest.raises(SerializationError) as exc_info:
+                with pytest.raises(UnsupportedTypeError, match="UDFExpr cannot be serialized"):
                     serialized = serialize_logical_expr(example, self.context)
-                assert "Serialization not implemented for" in str(exc_info.value)
                 continue
 
             try:
@@ -558,7 +610,7 @@ class TestExpressionSerde:
 
                 
 
-            except (SerializationError, DeserializationError) as e:
+            except Exception as e:
                 pytest.fail(
                     f"Serde failed for {expr_class.__name__} example {i}: {e}"
                 )
@@ -630,3 +682,59 @@ class TestExpressionSerde:
         array_expr = cast_expr.expr
         assert isinstance(array_expr, ArrayExpr)
         assert len(array_expr.exprs) == 3
+        assert nested_expr == deserialized
+
+    def test_all_logical_expr_subclasses_covered(self):
+        """Test that all concrete LogicalExpr subclasses are covered in the test file."""
+        import importlib
+        import inspect
+
+        from fenic.core._logical_plan.expressions.base import LogicalExpr
+        # Import all expression modules
+        expression_modules = [
+            "fenic.core._logical_plan.expressions.basic",
+            "fenic.core._logical_plan.expressions.aggregate",
+            "fenic.core._logical_plan.expressions.arithmetic",
+            "fenic.core._logical_plan.expressions.comparison",
+            "fenic.core._logical_plan.expressions.case",
+            "fenic.core._logical_plan.expressions.embedding",
+            "fenic.core._logical_plan.expressions.json",
+            "fenic.core._logical_plan.expressions.markdown",
+            "fenic.core._logical_plan.expressions.semantic",
+            "fenic.core._logical_plan.expressions.text",
+        ]
+
+        # Find all concrete LogicalExpr subclasses
+        concrete_subclasses = set()
+        for module_name in expression_modules:
+            try:
+                module = importlib.import_module(module_name)
+                for _name, obj in inspect.getmembers(module):
+                    if (inspect.isclass(obj) and
+                        issubclass(obj, LogicalExpr) and
+                        obj != LogicalExpr and
+                        not inspect.isabstract(obj)):
+                        concrete_subclasses.add(obj.__name__)
+            except ImportError:
+                continue
+
+        # Get all tested expression classes from the expression_examples dictionary
+        tested_classes = set(cls.__name__ for cls in expression_examples.keys())
+
+        # Find missing classes
+        missing = concrete_subclasses - tested_classes
+
+        if missing:
+            pytest.fail(
+                f"Missing {len(missing)} concrete LogicalExpr subclasses from tests: {sorted(missing)}. "
+                f"Add them to the expression_examples dictionary in this test file."
+            )
+
+        # Optional: Check for extra classes (not LogicalExpr subclasses)
+        extra = tested_classes - concrete_subclasses
+        if extra:
+            print(f"Warning: {len(extra)} tested classes are not concrete LogicalExpr subclasses: {sorted(extra)}")
+
+        # Verify coverage
+        coverage = len(concrete_subclasses - missing) / len(concrete_subclasses) * 100
+        assert coverage == 100.0, f"Expression coverage is {coverage:.1f}%, expected 100%"

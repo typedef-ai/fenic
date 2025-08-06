@@ -62,7 +62,7 @@ lint:
         - tests
     - linters: [bandit, ruff]
       paths:
-        - src/fenic/gen/protos/**
+        - src/fenic/_gen/protos/**
     - linters: [markdownlint, prettier]
       paths:
         - CHANGELOG.md # let release-please be release-please

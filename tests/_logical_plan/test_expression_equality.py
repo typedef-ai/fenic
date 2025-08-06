@@ -85,6 +85,7 @@ from fenic.core._logical_plan.expressions.text import (
     JinjaExpr,
     LikeExpr,
     RecursiveTextChunkExpr,
+    RecursiveTextChunkExprConfiguration,
     RegexpSplitExpr,
     ReplaceExpr,
     RLikeExpr,
@@ -94,6 +95,7 @@ from fenic.core._logical_plan.expressions.text import (
     StripCharsExpr,
     StrLengthExpr,
     TextChunkExpr,
+    TextChunkExprConfiguration,
     TextractExpr,
     TsParseExpr,
 )
@@ -683,20 +685,40 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same configuration
-        chunk1 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN)
-        chunk2 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN)
+        chunk1 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
+        chunk2 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 == chunk2
 
         # Different desired_chunk_size
-        chunk3 = TextChunkExpr(col, 200, 10, ChunkLengthFunction.TOKEN)
+        chunk3 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=200,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 != chunk3
 
         # Different chunk_overlap_percentage
-        chunk4 = TextChunkExpr(col, 100, 20, ChunkLengthFunction.TOKEN)
+        chunk4 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=20,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 != chunk4
 
         # Different chunk_length_function_name
-        chunk5 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.WORD)
+        chunk5 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
+        ))
         assert chunk1 != chunk5
 
     def test_recursive_text_chunk_expr(self):
@@ -704,13 +726,46 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same configuration
-        chunk1 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.ASCII)
-        chunk2 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.ASCII)
+        chunk1 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.ASCII,
+        ))
+        chunk2 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.ASCII,
+        ))
         assert chunk1 == chunk2
 
         # Different chunking_character_set_name
-        chunk3 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.UNICODE)
+        chunk3 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.UNICODE,
+        ))
         assert chunk1 != chunk3
+
+        # Different chunk_character_set_custom_characters
+        chunk4 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.CUSTOM,
+            chunking_character_set_custom_characters=["a", "b", "c"],
+        ))
+
+        chunk5 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.CUSTOM,
+            chunking_character_set_custom_characters=["a", "b", "c", "d"],
+        ))
+        assert chunk4 != chunk5
 
     def test_count_tokens_expr(self):
         """Test CountTokensExpr has no specific attributes."""

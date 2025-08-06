@@ -33,9 +33,12 @@ from fenic.core.types.datatypes import (
     DocumentPathType,
     DoubleType,
     EmbeddingType,
+    FloatType,
     HtmlType,
+    IntegerType,
     JsonType,
     MarkdownType,
+    StringType,
     StructField,
     StructType,
     TranscriptType,
@@ -100,7 +103,7 @@ def deserialize_data_type(
     """
     which_oneof = data_type_proto.WhichOneof("data_type")
     if which_oneof is None:
-        return None
+        return None # Indicates a None DataType was passed in for serialization, which is allowed in certain cases.
     underlying_proto = getattr(data_type_proto, which_oneof)
     return _deserialize_data_type_helper(underlying_proto, context)
 
@@ -146,8 +149,6 @@ def _serialize_string_type(_: _StringType, context: SerdeContext) -> DataTypePro
 @_deserialize_data_type_helper.register
 def _deserialize_string_type(_: StringTypeProto, context: SerdeContext) -> DataType:
     """Deserialize a string type."""
-    from fenic.core.types.datatypes import StringType
-
     return StringType
 
 
@@ -165,8 +166,6 @@ def _serialize_integer_type(_: _IntegerType, context: SerdeContext) -> DataTypeP
 @_deserialize_data_type_helper.register
 def _deserialize_integer_type(_: IntegerTypeProto, context: SerdeContext) -> DataType:
     """Deserialize an integer type."""
-    from fenic.core.types.datatypes import IntegerType
-
     return IntegerType
 
 
@@ -184,8 +183,6 @@ def _serialize_float_type(_: _FloatType, context: SerdeContext) -> DataTypeProto
 @_deserialize_data_type_helper.register
 def _deserialize_float_type(_: FloatTypeProto, context: SerdeContext) -> DataType:
     """Deserialize a float type."""
-    from fenic.core.types.datatypes import FloatType
-
     return FloatType
 
 

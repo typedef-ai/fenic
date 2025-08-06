@@ -1,5 +1,7 @@
 """Semantic/LLM expression serialization/deserialization."""
 
+from pydantic import BaseModel
+
 from fenic.core._logical_plan.expressions.semantic import (
     AnalyzeSentimentExpr,
     EmbeddingsExpr,
@@ -59,10 +61,12 @@ def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext
             key: context.serialize_scalar_value(key, value)
             for key, value in example.input.items()
         }
-        # TODO deal with output type potentially being BaseModel
+        # If the output is a BaseModel, serialize it to JSON. This does not preserve the schema, but this is what we'd be
+        # doing anyway when transforming the MapExample into a FewShotExample, so nothing should be lost.
+        serialized_output = example.output.model_dump_json() if isinstance(example.output, BaseModel) else example.output
         return MapExampleProto(
             input=input_proto,
-            output=example.output,
+            output=serialized_output,
         )
 
     examples_proto = (
@@ -243,6 +247,8 @@ def _serialize_semantic_reduce_expr(logical: SemanticReduceExpr, context: SerdeC
         semantic_reduce=SemanticReduceExprProto(
             instruction=logical.instruction,
             input_expr=context.serialize_logical_expr("input_expr", logical.input_expr),
+            group_context_exprs=context.serialize_logical_expr_list("group_context_exprs", list(logical.group_context_exprs.values())),
+            order_by_exprs=context.serialize_logical_expr_list("order_by_exprs", logical.order_by_exprs),
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
             model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
@@ -256,12 +262,11 @@ def _deserialize_semantic_reduce_expr(
     context: SerdeContext,
 ) -> SemanticReduceExpr:
     """Deserialize a semantic reduce expression."""
-    order_by_exprs = context.deserialize_logical_expr_list("order_by_exprs", logical_proto.order_by_exprs)
     return SemanticReduceExpr(
         instruction=logical_proto.instruction,
         input_expr=context.deserialize_logical_expr("input_expr", logical_proto.input_expr),
         group_context_exprs=context.deserialize_logical_expr_list("group_context_exprs", logical_proto.group_context_exprs),
-        order_by_exprs=order_by_exprs,
+        order_by_exprs=context.deserialize_logical_expr_list("order_by_exprs", logical_proto.order_by_exprs),
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
         model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,

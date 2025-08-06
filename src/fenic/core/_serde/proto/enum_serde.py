@@ -7,7 +7,7 @@ from typing import Optional, Type
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 
 from fenic.core._serde.proto.errors import DeserializationError, SerializationError
-from fenic.core._serde.proto.serde_context import EnumType, SerdeContext
+from fenic.core._serde.proto.serde_context import SerdeContext
 
 
 @singledispatch
@@ -45,11 +45,11 @@ def serialize_enum_value(
 
 @singledispatch
 def deserialize_enum_value(
-    target_type: Type[EnumType],
+    target_type: Type[Enum],
     proto_enum_type: EnumTypeWrapper,
     _serialized_value: int,
     context: SerdeContext,
-) -> Optional[EnumType]:
+) -> Optional[Enum]:
     """Deserialize an enum value from its protobuf int representation.
 
     This function uses singledispatch to handle different enum types. If the enum names

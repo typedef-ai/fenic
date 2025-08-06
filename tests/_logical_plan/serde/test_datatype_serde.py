@@ -290,11 +290,10 @@ class TestDataTypeSerde:
         assert "Deserialization not implemented for" in str(exc_info.value)
 
     def test_deserialize_empty_proto(self):
-        """Test deserialization of an empty DataTypeProto raises error."""
+        """Test deserialization of an empty DataTypeProto returns None."""
         empty_proto = DataTypeProto()
-        with pytest.raises(DeserializationError) as exc_info:
-            deserialize_data_type(empty_proto, self.context)
-        assert "Empty DataTypeProto - no data_type field is set" in str(exc_info.value)
+        result = deserialize_data_type(empty_proto, self.context)
+        assert result is None
 
     def test_nested_array_serialization(self):
         """Test serialization of nested array types."""

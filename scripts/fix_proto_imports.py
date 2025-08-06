@@ -4,12 +4,12 @@
 This script updates import statements in generated protobuf files from:
     from logical_plan.v1 import ...
 to:
-    from fenic.gen.protos.logical_plan.v1 import ...
+    from fenic._gen.protos.logical_plan.v1 import ...
 
 Usage:
     python scripts/fix_proto_imports.py [proto_dir]
 
-If no directory is specified, defaults to src/fenic/gen/protos/logical_plan/v1/
+If no directory is specified, defaults to src/fenic/_gen/protos/logical_plan/v1/
 """
 
 import re
@@ -28,7 +28,7 @@ def fix_imports_in_file(file_path: Path) -> bool:
         
         # Pattern to match imports like "from logical_plan.v1 import ..."
         pattern = r'from logical_plan\.v1 import'
-        replacement = 'from fenic.gen.protos.logical_plan.v1 import'
+        replacement = 'from fenic._gen.protos.logical_plan.v1 import'
         
         new_content = re.sub(pattern, replacement, content)
         
@@ -78,7 +78,7 @@ def main():
         sys.exit(1)
     
     # Default directory
-    default_dir = Path("src/fenic/gen/protos/logical_plan/v1")
+    default_dir = Path("src/fenic/_gen/protos/logical_plan/v1")
     
     if len(sys.argv) == 2:
         proto_dir = Path(sys.argv[1])

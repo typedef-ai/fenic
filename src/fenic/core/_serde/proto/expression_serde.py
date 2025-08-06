@@ -99,4 +99,5 @@ from fenic.core._serde.proto.expressions import (  # noqa: F401, E402
     markdown,
     semantic,
     text,
+    unserializable,
 )

@@ -99,12 +99,18 @@ message SemanticJoin {
 }
 
 message SemanticSimilarityJoin {
+  // Python `Literal` Enums
+  enum SemanticSimilarityMetric {
+    COSINE = 0;
+    L2 = 1;
+    DOT = 2;
+  }
   LogicalPlan left = 1;
   LogicalPlan right = 2;
   LogicalExpr left_on = 3;
   LogicalExpr right_on = 4;
   int32 k = 6;
-  string similarity_metric = 7;
+  SemanticSimilarityMetric similarity_metric = 7;
   optional string similarity_score_column = 8;
   FenicSchema schema = 9;
 }
