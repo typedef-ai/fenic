@@ -142,7 +142,6 @@ class LogicalPlan(ABC):
         if len(self_children) != len(other_children):
             return False
         return all(
-            # The order of the children matter, so we do not use set equality
             child1 == child2
             for child1, child2 in zip(self_children, other_children, strict=False)
         )

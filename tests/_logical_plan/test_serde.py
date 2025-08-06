@@ -42,13 +42,8 @@ def _test_plan_serialization(
 
     # Test equivalence
     assert isinstance(deserialized, type(plan))
-    assert plan._repr() == deserialized._repr()
-    assert str(plan._build_schema(session_state)) == str(deserialized._build_schema(session_state))
-
-    # Test children if any
-    assert len(plan.children()) == len(deserialized.children())
-    for orig_child, deser_child in zip(plan.children(), deserialized.children(), strict=False):
-        assert orig_child._repr() == deser_child._repr()
+    assert plan == deserialized
+    assert plan._build_schema(session_state) == deserialized._build_schema(session_state)
 
     return deserialized_df
 
