@@ -168,6 +168,8 @@ class ExprConverter:
 
             if isinstance(data_type, ArrayType):
                 elems = [_literal_to_polars_expr(v, data_type.element_type) for v in value]
+                if not elems:
+                    return pl.lit([], dtype=convert_custom_dtype_to_polars(data_type))
                 return pl.concat_list(elems)
 
             if isinstance(data_type, StructType):
