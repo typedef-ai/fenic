@@ -1,6 +1,7 @@
 """Main API for logical plan and expression serialization/deserialization."""
 
-from fenic.core._interfaces.session_state import BaseSessionState
+import zstandard as zstd
+
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde.proto.serde_context import create_serde_context
 from fenic.core._serde.proto.types import LogicalPlanProto
@@ -15,8 +16,11 @@ class ProtoSerde(SupportsLogicalPlanSerde):
     objects and their binary protobuf representation.
     """
 
-    @staticmethod
-    def serialize(logical_plan: LogicalPlan) -> bytes:
+    _zstd_compressor = zstd.ZstdCompressor()
+    _zstd_decompressor = zstd.ZstdDecompressor()
+
+    @classmethod
+    def serialize(cls, logical_plan: LogicalPlan) -> bytes:
         """Serialize a logical plan to binary protobuf format.
 
         Args:
@@ -27,11 +31,12 @@ class ProtoSerde(SupportsLogicalPlanSerde):
         """
         context = create_serde_context()
         logical_plan_proto = context.serialize_logical_plan("root", logical_plan)
-        return logical_plan_proto.SerializeToString()
+        return cls._zstd_compressor.compress(logical_plan_proto.SerializeToString())
 
-    @staticmethod
+    @classmethod
     def deserialize(
-        data: bytes
+        cls,
+        data: bytes,
     ) -> LogicalPlan:
         """Deserialize a logical plan from binary protobuf format.
 
@@ -42,21 +47,6 @@ class ProtoSerde(SupportsLogicalPlanSerde):
             The deserialized logical plan.
         """
         context = create_serde_context()
-        logical_plan_proto = LogicalPlanProto.FromString(data)
+        logical_plan_proto = LogicalPlanProto.FromString(cls._zstd_decompressor.decompress(data))
         logical_plan = context.deserialize_logical_plan("root", logical_plan_proto)
         return logical_plan
-
-    @staticmethod
-    def build_logical_plan_with_session_state(
-        plan: LogicalPlan, session: BaseSessionState
-    ) -> LogicalPlan:
-        """Deserialize bytes back into a LogicalPlan.
-
-        Args:
-            session: Session to add into the plan
-            plan: LogicalPlan to add session state to.
-
-        Returns:
-            The deserialized plan
-        """
-        return plan  # no-op for proto serde, which builds the session state into the plan as it is deserialized

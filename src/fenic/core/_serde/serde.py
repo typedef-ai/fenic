@@ -3,15 +3,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from fenic.core._interfaces.session_state import BaseSessionState
-from fenic.core._serde import CloudPickleSerde
+from fenic.core._serde import ProtoSerde
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
 
 
-_default_serde_type = CloudPickleSerde
+_default_serde_type = ProtoSerde
 
 # temporary facade-lite until we have the additional serde backends implemented.
 class LogicalPlanSerde(SupportsLogicalPlanSerde):
@@ -31,13 +30,3 @@ class LogicalPlanSerde(SupportsLogicalPlanSerde):
     ) -> LogicalPlan:
         """Deserialize a LogicalPlan from bytes."""
         return cls._serde.deserialize(serialized_plan)
-
-
-    @classmethod
-    def build_logical_plan_with_session_state(
-        cls,
-        plan: LogicalPlan,
-        session: BaseSessionState
-    ) -> LogicalPlan:
-        """Deserialize a LogicalPlan from bytes."""
-        return cls._serde.build_logical_plan_with_session_state(plan, session)

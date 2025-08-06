@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from fenic.core._interfaces.session_state import BaseSessionState
-
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
 
@@ -33,21 +31,6 @@ class SupportsLogicalPlanSerde(Protocol):
 
         Args:
             data: The serialized plan data
-
-        Returns:
-            The deserialized plan
-        """
-        ...
-
-    @staticmethod
-    def build_logical_plan_with_session_state(
-        plan: LogicalPlan, session: BaseSessionState
-    ) -> LogicalPlan:
-        """Deserialize bytes back into a LogicalPlan.
-
-        Args:
-            session: Session to add into the plan
-            plan: LogicalPlan to add session state to.
 
         Returns:
             The deserialized plan

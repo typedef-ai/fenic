@@ -6,6 +6,7 @@ import json
 from contextlib import contextmanager
 from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
     Iterable,
     List,
@@ -426,7 +427,6 @@ class SerdeContext:
         Args:
             field_name: The name of the field being deserialized.
             plan_proto: The protobuf representation to deserialize.
-            session_state: Optional session state to include in the plan.
 
         Returns:
             The deserialized logical plan.
@@ -449,7 +449,6 @@ class SerdeContext:
         Args:
             field_name: The name of the field being deserialized.
             plan_proto_list: The list of protobuf representations to deserialize.
-            session_state: Optional session state to include in the plans.
 
         Returns:
             A list of deserialized logical plans.
