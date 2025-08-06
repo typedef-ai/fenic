@@ -81,6 +81,12 @@ class Projection(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Projection) -> bool:
+        return (
+            len(self._exprs) == len(other._exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=False))
+        )
+
 class Filter(LogicalPlan):
     def __init__(
             self,
@@ -129,6 +135,9 @@ class Filter(LogicalPlan):
         result = self.from_session_state(children[0], self._predicate, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Filter) -> bool:
+        return self._predicate == other._predicate
 
 class Union(LogicalPlan):
     def __init__(
@@ -220,6 +229,9 @@ class Union(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Union) -> bool:
+        return True  # Union has no specific attributes beyond children
+
 
 class Limit(LogicalPlan):
     def __init__(
@@ -255,6 +267,9 @@ class Limit(LogicalPlan):
         result = self.from_session_state(children[0], self.n, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Limit) -> bool:
+        return self.n == other.n
 
 
 class Explode(LogicalPlan):
@@ -319,6 +334,9 @@ class Explode(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Explode) -> bool:
+        return self._expr == other._expr
+
 
 class DropDuplicates(LogicalPlan):
     def __init__(
@@ -354,6 +372,12 @@ class DropDuplicates(LogicalPlan):
         result = DropDuplicates.from_session_state(children[0], self.subset, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: DropDuplicates) -> bool:
+        return (
+            len(self.subset) == len(other.subset)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self.subset, other.subset, strict=False))
+        )
 
     def _subset(self) -> List[str]:
         subset: List[str] = []
@@ -400,6 +424,11 @@ class Sort(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Sort) -> bool:
+        return (
+            len(self._sort_exprs) == len(other._sort_exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._sort_exprs, other._sort_exprs, strict=False))
+        )
 
 class Unnest(LogicalPlan):
     def __init__(
@@ -453,6 +482,13 @@ class Unnest(LogicalPlan):
         result = Unnest.from_session_state(children[0], self._exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Unnest) -> bool:
+        return (
+            len(self._exprs) == len(other._exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=False))
+        )
+
 
 class SQL(LogicalPlan):
     def __init__(
@@ -550,6 +586,12 @@ class SQL(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SQL) -> bool:
+        return (
+            self._template_names == other._template_names
+            and self._templated_query == other._templated_query
+        )
+
 @dataclass
 class CentroidInfo:
     centroid_column: str
@@ -579,12 +621,52 @@ class SemanticCluster(LogicalPlan):
         super().__init__(session_state, schema)
 
     @classmethod
-    def from_schema(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], schema: Schema) -> SemanticCluster:
-        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, None, schema)
+    def from_schema(
+        cls,
+        input: LogicalPlan,
+        by_expr: LogicalExpr,
+        num_clusters: int,
+        max_iter: int,
+        num_init: int,
+        label_column: str,
+        centroid_column: Optional[str],
+        schema: Schema,
+    ) -> SemanticCluster:
+        return SemanticCluster(
+            input,
+            by_expr,
+            num_clusters,
+            max_iter,
+            num_init,
+            label_column,
+            centroid_column,
+            None,
+            schema,
+        )
 
     @classmethod
-    def from_session_state(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], session_state: BaseSessionState) -> SemanticCluster:
-        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, session_state, None)
+    def from_session_state(
+        cls,
+        input: LogicalPlan,
+        by_expr: LogicalExpr,
+        num_clusters: int,
+        max_iter: int,
+        num_init: int,
+        label_column: str,
+        centroid_column: Optional[str],
+        session_state: BaseSessionState,
+    ) -> SemanticCluster:
+        return SemanticCluster(
+            input,
+            by_expr,
+            num_clusters,
+            max_iter,
+            num_init,
+            label_column,
+            centroid_column,
+            session_state,
+            None,
+        )
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
@@ -641,6 +723,15 @@ class SemanticCluster(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SemanticCluster) -> bool:
+        return (
+            self._by_expr == other._by_expr
+            and self._num_clusters == other._num_clusters
+            and self._max_iter == other._max_iter
+            and self._num_init == other._num_init
+            and self._label_column == other._label_column
+            and self._centroid_column == other._centroid_column
+        )
 
 DDL_DML_NODES = (
     sqlglot_exprs.Insert,

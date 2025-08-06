@@ -103,6 +103,12 @@ class FileSink(LogicalPlan):
             session_state=session_state,
         )
 
+    def _eq_specific(self, other: FileSink) -> bool:
+        return (
+            self.sink_type == other.sink_type
+            and self.path == other.path
+            and self.mode == other.mode
+        )
 
 class TableSink(LogicalPlan):
     """Logical plan node that represents a table writing operation."""
@@ -190,4 +196,10 @@ class TableSink(LogicalPlan):
             table_name=self.table_name,
             mode=self.mode,
             session_state=session_state,
+        )
+
+    def _eq_specific(self, other: TableSink) -> bool:
+        return (
+            self.table_name == other.table_name
+            and self.mode == other.mode
         )

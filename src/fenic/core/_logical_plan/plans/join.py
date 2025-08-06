@@ -139,6 +139,13 @@ class Join(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Join) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._how == other._how
+        )
+
 
 class BaseSemanticJoin(LogicalPlan, ABC):
     def __init__(
@@ -302,6 +309,17 @@ class SemanticJoin(BaseSemanticJoin):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SemanticJoin) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._jinja_template == other._jinja_template
+            and self._strict == other._strict
+            and self._examples == other._examples
+            and self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+        )
+
 
 class SemanticSimilarityJoin(BaseSemanticJoin):
     def __init__(
@@ -423,3 +441,12 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         )
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: SemanticSimilarityJoin) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._k == other._k
+            and self._similarity_metric == other._similarity_metric
+            and self._similarity_score_column == other._similarity_score_column
+        )
