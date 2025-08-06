@@ -40,35 +40,41 @@ def lit(value: Any, dtype: Optional[DataType] = None) -> Column:
     Returns:
         A Column expression representing the literal value
 
+    Example: Create a literal with primitive values
+        ```python
+        # Creating a struct from a populated dict
+        df.select(lit(1), lit("a"), lit(1.5))
+        ```
+
     Example: Create a literal with a struct
         ```python
-        # Create a literal with a struct
+        # Creating a struct from a populated dict
         df.select(
             lit({"a": 1, "b": 2}).alias("struct")
         )
+
+        # Creating a struct from an empty dict. This will populate all fields of the struct with None
+        df.select(
+            lit({}, dtype=StructType([StructField(name='a', data_type=IntegerType)])).alias("struct")
+        )
         ```
+
 
     Example: Create a literal with a list
         ```python
-        # Create a literal with a list
         df.select(
             lit([1, 2, 3]).alias("list")
+        )
+        # You can also create a literal with an empty list, if the dtype is specified.
+        df.select(
+            lit([], dtype=ArrayType(IntegerType)).alias("empty_list")
         )
         ```
 
     Example: Create a literal with a None
         ```python
-        # Create a literal with a None
         df.select(
             lit(None, dtype=IntegerType).alias("none")
-        )
-        ```
-
-    Example: Create a literal with an empty list
-        ```python
-        # Create a literal with an empty list
-        df.select(
-            lit([], dtype=ArrayType(IntegerType)).alias("empty_list")
         )
         ```
     Raises:
