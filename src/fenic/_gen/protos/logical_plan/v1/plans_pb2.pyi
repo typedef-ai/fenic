@@ -75,14 +75,18 @@ class InMemorySource(_message.Message):
     def __init__(self, source: _Optional[bytes] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ...) -> None: ...
 
 class FileSource(_message.Message):
-    __slots__ = ("paths", "file_format", "schema")
+    __slots__ = ("paths", "file_format", "schema", "options_merge_schema", "options_schema")
     PATHS_FIELD_NUMBER: _ClassVar[int]
     FILE_FORMAT_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    OPTIONS_MERGE_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    OPTIONS_SCHEMA_FIELD_NUMBER: _ClassVar[int]
     paths: _containers.RepeatedScalarFieldContainer[str]
     file_format: str
     schema: FenicSchema
-    def __init__(self, paths: _Optional[_Iterable[str]] = ..., file_format: _Optional[str] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ...) -> None: ...
+    options_merge_schema: bool
+    options_schema: FenicSchema
+    def __init__(self, paths: _Optional[_Iterable[str]] = ..., file_format: _Optional[str] = ..., schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., options_merge_schema: bool = ..., options_schema: _Optional[_Union[FenicSchema, _Mapping]] = ...) -> None: ...
 
 class TableSource(_message.Message):
     __slots__ = ("table_name", "schema")

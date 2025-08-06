@@ -1,6 +1,6 @@
 """Tests for logical expression serialization and deserialization."""
 
-from typing import Literal, Type, get_origin
+from typing import Literal, Type
 
 import pytest
 from pydantic import BaseModel, Field
@@ -551,24 +551,62 @@ class TestExpressionSerde:
         """Compare key attributes of original and deserialized expressions."""
         if hasattr(original, 'schema') and hasattr(deserialized, 'schema') and issubclass(original.schema, BaseModel) and issubclass(deserialized.schema, BaseModel):
             if issubclass(original.schema, BasicResponseFormat):
-                # check that all the fields in the original schema are present in the deserialized schema            
-                original_fields = original.schema.model_fields
-                deserialized_fields = deserialized.schema.model_fields
-                for name, field_info in original_fields.items():
-                    assert name in deserialized_fields, f"Field {name} not found in deserialized schema"
-                    deserialized_field_info = deserialized_fields[name]
-                    if field_info.annotation != deserialized_field_info.annotation:
-                        # Known issue that jambo will turn literals into enums, which shouldn't be an issue since,
-                        # at the end of the day, the serialized form for the literal/enum in the json response will be
-                        # a string.
-                        if get_origin(field_info.annotation) is not Literal:
-                            raise ValueError(f"Field {name} type mismatch: {field_info.annotation} != {deserialized_field_info.annotation}")
-                    assert field_info.default == deserialized_field_info.default, f"Field {name} default value mismatch"
-                    assert field_info.description == deserialized_field_info.description, f"Field {name} description mismatch"
-                    # Known issue that jambo will turn lists into optional fields in the model_json_schema
-                    # assert field_info.is_required() == deserialized_field_info.is_required(), f"Field {name} required mismatch"
-                    # This is a hack -- we validate the schema here, but if we leave the original deserialized schema, they will not be strictly equal to each other.
-                    deserialized.schema = original.schema
+                # Compare schemas based on their JSON schema representation rather than exact type equality
+                original_schema_json = original.schema.model_json_schema()
+                deserialized_schema_json = deserialized.schema.model_json_schema()
+
+                # Normalize JSON schemas for comparison (handle jambo differences)
+                def normalize_schema(schema):
+                    """Normalize schema to handle jambo reconstruction differences."""
+                    # Remove $defs section as it's jambo-specific
+                    if '$defs' in schema:
+                        del schema['$defs']
+
+                    # Normalize enum references back to inline enums
+                    for prop_name, prop_value in schema.get('properties', {}).items():
+                        if isinstance(prop_value, dict) and '$ref' in prop_value:
+                            # This is a jambo-generated enum reference, we'll skip detailed comparison
+                            # since the functional behavior is the same
+                            pass
+
+                    return schema
+
+                original_normalized = normalize_schema(original_schema_json.copy())
+                deserialized_normalized = normalize_schema(deserialized_schema_json.copy())
+
+                # Compare normalized schemas
+                # Note: We skip detailed comparison of required fields since jambo may omit some
+                # The functional behavior (validation) should be the same
+
+                # For enum fields, jambo creates $ref references instead of inline enums
+                # We'll skip detailed comparison of enum fields since the functional behavior is the same
+                original_props = original_normalized['properties']
+                deserialized_props = deserialized_normalized['properties']
+
+                # Check that all properties exist in both schemas
+                assert set(original_props.keys()) == set(deserialized_props.keys()), (
+                    f"Schema property keys mismatch for {expr_class_name} example {example_index}. "
+                    f"Original keys: {set(original_props.keys())}, Deserialized keys: {set(deserialized_props.keys())}"
+                )
+
+                # Compare non-enum properties
+                for prop_name in original_props:
+                    orig_prop = original_props[prop_name]
+                    deser_prop = deserialized_props[prop_name]
+
+                    # Skip enum properties that jambo converts to $ref
+                    if 'enum' in orig_prop and '$ref' in deser_prop:
+                        continue
+
+                    # For other properties, compare normally
+                    assert orig_prop == deser_prop, (
+                        f"Schema property '{prop_name}' mismatch for {expr_class_name} example {example_index}. "
+                        f"Original: {orig_prop}, Deserialized: {deser_prop}"
+                    )
+
+                # For equality comparison, we need to use the same schema instance
+                # This is a known limitation of jambo reconstruction
+                deserialized.schema = original.schema
             else:
                 raise ValueError(f"Unsupported schema type: {type(original.schema)}")
         

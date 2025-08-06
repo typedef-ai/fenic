@@ -56,6 +56,8 @@ message FileSource {
   repeated string paths = 1;
   string file_format = 2;
   FenicSchema schema = 3;
+  optional bool options_merge_schema = 4;
+  optional FenicSchema options_schema = 5;
 }
 
 message TableSource {

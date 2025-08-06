@@ -393,7 +393,9 @@ def test_semantic_map(local_session, serde_implementation: SupportsLogicalPlanSe
     deserialized_df = _test_df_serialization(df_select, local_session._session_state, serde_implementation)
     assert deserialized_df
 
-    # semantic map with examples
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_semantic_map_with_examples(local_session, serde_implementation: SupportsLogicalPlanSerde):
+# semantic map with examples
     source = local_session.create_dataframe({"name": ["Alice"], "city": ["New York"]})
     state_prompt = "What state does {{name}} live in given that they live in {{city}}?"
     df_select = source.select(
@@ -411,7 +413,7 @@ def test_semantic_map(local_session, serde_implementation: SupportsLogicalPlanSe
         semantic.map(
             "What is the typical weather in {{city}} in summer?",
             examples=MapExampleCollection([MapExample(input={"city": "New York"}, output="hot"),
-                                           MapExample(input={"city": "Chicago"}, output="cool")]),
+                                            MapExample(input={"city": "Chicago"}, output="cool")]),
             city=col("city")
         ).alias("weather"),
     )

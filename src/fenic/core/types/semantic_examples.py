@@ -38,6 +38,25 @@ class MapExample(BaseModel):
     input: Mapping[str, Any]
     output: Union[str, BaseModel]
 
+    def __eq__(self, other: MapExample) -> bool:
+        """Compare MapExample instances, handling dictionary key order differences."""
+        if not isinstance(other, MapExample):
+            return False
+
+        # Compare outputs
+        if self.output != other.output:
+            return False
+
+        # Compare inputs, handling dictionary key order differences
+        if len(self.input) != len(other.input):
+            return False
+
+        # Convert to sorted items for comparison
+        self_items = sorted(self.input.items())
+        other_items = sorted(other.input.items())
+
+        return self_items == other_items
+
 
 class ClassifyExample(BaseModel):
     """A single semantic example for classification operations.
@@ -59,6 +78,25 @@ class PredicateExample(BaseModel):
 
     input: Mapping[str, Any]
     output: bool
+
+    def __eq__(self, other: PredicateExample) -> bool:
+        """Compare PredicateExample instances, handling dictionary key order differences."""
+        if not isinstance(other, PredicateExample):
+            return False
+
+        # Compare outputs
+        if self.output != other.output:
+            return False
+
+        # Compare inputs, handling dictionary key order differences
+        if len(self.input) != len(other.input):
+            return False
+
+        # Convert to sorted items for comparison
+        self_items = sorted(self.input.items())
+        other_items = sorted(other.input.items())
+
+        return self_items == other_items
 
 
 class JoinExample(BaseModel):
@@ -193,6 +231,17 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
             return False
         if len(self.examples) != len(other.examples):
             return False
+
+        # For MapExampleCollection and PredicateExampleCollection, compare examples directly since their __eq__ methods now handle key order differences
+        if isinstance(self, MapExampleCollection) and isinstance(other, MapExampleCollection):
+            # Compare examples directly since MapExample.__eq__ now handles key order differences
+            return all(example1 == example2 for example1, example2 in zip(self.examples, other.examples, strict=True))
+
+        if isinstance(self, PredicateExampleCollection) and isinstance(other, PredicateExampleCollection):
+            # Compare examples directly since PredicateExample.__eq__ now handles key order differences
+            return all(example1 == example2 for example1, example2 in zip(self.examples, other.examples, strict=True))
+
+        # For other collection types, use the DataFrame comparison
         return self.to_polars().equals(other.to_polars())
 
 class MapExampleCollection(BaseExampleCollection[MapExample]):

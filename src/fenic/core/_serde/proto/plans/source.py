@@ -61,10 +61,21 @@ def _serialize_file_source(
     file_source: FileSource, context: SerdeContext
 ) -> LogicalPlanProto:
     """Serialize a file source."""
+    if file_source._options:
+        options_merge_schema = file_source._options.get("merge_schemas", None)
+        options_schema = (
+            context.serialize_fenic_schema(file_source._options.get("schema"))
+            if file_source._options.get("schema", None) else None
+        )
+    else:
+        options_merge_schema = None
+        options_schema = None
     proto = FileSourceProto(
         paths=file_source._paths,
         file_format=file_source._file_format,
         schema=context.serialize_fenic_schema(file_source.schema()),
+        options_merge_schema=options_merge_schema,
+        options_schema=options_schema,
     )
     return LogicalPlanProto(file_source=proto)
 
@@ -74,9 +85,15 @@ def _deserialize_file_source(
     file_source: FileSourceProto, context: SerdeContext
 ) -> FileSource:
     """Deserialize a FileSource LogicalPlan Node."""
+    options = {}
+    if file_source.HasField("options_merge_schema"):
+        options["merge_schemas"] = file_source.options_merge_schema
+    if file_source.HasField("options_schema"):
+        options["schema"] = context.deserialize_fenic_schema(file_source.options_schema)
     return FileSource.from_schema(
         paths=list(file_source.paths),
         file_format=file_source.file_format,
+        options=options,
         schema=context.deserialize_fenic_schema(file_source.schema),
     )
 

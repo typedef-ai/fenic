@@ -107,9 +107,10 @@ class DataFrameReader:
                         f"Example: Schema([ColumnField(name='id', data_type=IntegerType), ColumnField(name='name', data_type=StringType)])"
                     )
         options = {
-            "schema": schema,
             "merge_schemas": merge_schemas,
         }
+        if schema:
+            options["schema"] = schema
         return self._read_file(
             paths, file_format="csv", file_extension=".csv", **options
         )
