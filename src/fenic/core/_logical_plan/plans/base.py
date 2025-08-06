@@ -143,5 +143,5 @@ class LogicalPlan(ABC):
             return False
         return all(
             child1 == child2
-            for child1, child2 in zip(self_children, other_children, strict=False)
+            for child1, child2 in zip(self_children, other_children, strict=True)
         )

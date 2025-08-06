@@ -84,7 +84,7 @@ class Projection(LogicalPlan):
     def _eq_specific(self, other: Projection) -> bool:
         return (
             len(self._exprs) == len(other._exprs)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=True))
         )
 
 class Filter(LogicalPlan):
@@ -376,7 +376,7 @@ class DropDuplicates(LogicalPlan):
     def _eq_specific(self, other: DropDuplicates) -> bool:
         return (
             len(self.subset) == len(other.subset)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self.subset, other.subset, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self.subset, other.subset, strict=True))
         )
 
     def _subset(self) -> List[str]:
@@ -427,7 +427,7 @@ class Sort(LogicalPlan):
     def _eq_specific(self, other: Sort) -> bool:
         return (
             len(self._sort_exprs) == len(other._sort_exprs)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self._sort_exprs, other._sort_exprs, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._sort_exprs, other._sort_exprs, strict=True))
         )
 
 class Unnest(LogicalPlan):
@@ -486,7 +486,7 @@ class Unnest(LogicalPlan):
     def _eq_specific(self, other: Unnest) -> bool:
         return (
             len(self._exprs) == len(other._exprs)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=True))
         )
 
 
@@ -640,8 +640,7 @@ class SemanticCluster(LogicalPlan):
             num_init,
             label_column,
             centroid_column,
-            None,
-            schema,
+            schema=schema,
         )
 
     @classmethod
@@ -664,8 +663,7 @@ class SemanticCluster(LogicalPlan):
             num_init,
             label_column,
             centroid_column,
-            session_state,
-            None,
+            session_state=session_state,
         )
 
     def children(self) -> List[LogicalPlan]:

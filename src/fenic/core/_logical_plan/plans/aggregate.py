@@ -96,10 +96,10 @@ class Aggregate(LogicalPlan):
         return (
             # Compare group expressions
             len(self._group_exprs) == len(other._group_exprs)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self._group_exprs, other._group_exprs, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._group_exprs, other._group_exprs, strict=True))
             # Compare aggregate expressions
             and len(self._agg_exprs) == len(other._agg_exprs)
-            and all(expr1 == expr2 for expr1, expr2 in zip(self._agg_exprs, other._agg_exprs, strict=False))
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._agg_exprs, other._agg_exprs, strict=True))
         )
 
 def _validate_groupby_expr(expr: LogicalExpr):
