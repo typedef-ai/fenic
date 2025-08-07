@@ -66,9 +66,11 @@ def null(data_type: DataType) -> Column:
 def empty(data_type: DataType) -> Column:
     """Creates a Column expression representing an empty value of the given type.
 
-    - If the data type is an array or struct, the empty value will be an empty array or struct.
-    - Otherwise, the empty value will be `None`, as if you had called `none()` on the data type.
-      This is useful for creating columns with empty values of a specific type.
+    - If the data type is `ArrayType(...)`, the empty value will be an empty array.
+    - If the data type is `StructType(...)`, the empty value will be an instance of the struct type with all fields set to `None`.
+    - For all other data types, the empty value will be `None`, as if you had called `null(data_type)`.
+
+    This is useful for creating columns with empty values of a specific type.
 
     Args:
         data_type: The data type of the empty value
@@ -113,10 +115,10 @@ def lit(value: Any) -> Column:
     Returns:
         A Column expression representing the literal value
     Raises:
-        ValidationError: If the type of the value cannot be inferred and no dtype is provided
+        ValidationError: If the type of the value cannot be inferred
     """
     if value is None:
-        raise ValidationError("Cannot create a literal with value `None`. Use `null()` instead.")
+        raise ValidationError("Cannot create a literal with value `None`. Use `null(...)` instead.")
     elif value == []:
         raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty(ArrayType(...))` instead.")
     elif value == {}:

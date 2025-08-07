@@ -219,7 +219,7 @@ def test_null_struct_type(local_session):
     result = df.to_polars()
     assert result["a"][0] == 1
     assert result["b"][0] is None
-    # Ensuring that when the empty struct is unnested, the fields are all None
+    # Ensuring that when the null struct is unnested, the fields are all None
     result = result.unnest("b")
     assert result["c"][0] is None
     assert result["d"][0] is None
@@ -258,9 +258,31 @@ def test_empty_embedding_type(local_session):
     assert result["b"][0] is None
 
 
+def test_null_embedding_type(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    df = df.select(col("a"), null(EmbeddingType(dimensions=10, embedding_model="test")).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=EmbeddingType(dimensions=10, embedding_model="test")),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None
+
 def test_empty_string_backed_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
     df = df.select(col("a"), empty(JsonType).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=JsonType),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None
+
+def test_null_string_backed_type(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    df = df.select(col("a"), null(JsonType).alias("b"))
     assert df.schema == Schema([
         ColumnField(name="a", data_type=IntegerType),
         ColumnField(name="b", data_type=JsonType),
