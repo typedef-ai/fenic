@@ -27,7 +27,7 @@ dependencies = [
   "polars>=1.20.0,<=1.30.0",
   "tiktoken>=0.9.0",
   "lancedb>=0.22.0",
-  "openai>=1.82.0",
+  "openai>=1.101.0",
   "sqlglot>=26.25.3",
   "pandas>=2.2.2",
   "cloudpickle>=3.1.1",

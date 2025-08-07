@@ -554,6 +554,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         except Exception as e:
             logger.error(f"Error in worker for model {self.model}: {e}", exc_info=True)
 
+
     async def _process_single_request(self, queue_item: QueueItem[RequestT]):
         """Process a single request from the queues.
 

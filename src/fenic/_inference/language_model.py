@@ -54,7 +54,7 @@ class LanguageModel:
 
         # Check model specific requirements for request params.
         temperature_param = temperature if self.model_parameters.supports_custom_temperature else None
-        if not temperature_param:
+        if temperature and not temperature_param:
             logger.warning(f"Model {self.model} does not support custom temperature.  Ignoring temperature parameter.")
 
         for message_list in messages:
