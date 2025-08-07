@@ -1,6 +1,6 @@
 """Core functions for Fenic DataFrames."""
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import ConfigDict, validate_call
 
@@ -11,7 +11,7 @@ from fenic.core._utils.type_inference import (
     infer_dtype_from_pyobj,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.datatypes import DataType
+from fenic.core.types.datatypes import ArrayType, DataType, StructType
 
 
 @validate_call(config=ConfigDict(strict=True))
@@ -29,80 +29,100 @@ def col(col_name: str) -> Column:
     """
     return Column._from_column_name(col_name)
 
+def none(data_type: DataType) -> Column:
+    """Creates a Column expression representing a null value of the given type.
 
-def lit(value: Any, dtype: Optional[DataType] = None) -> Column:
+    No matter the data type, the value that will be populated in the column will be `None`.
+    This is useful for creating columns with null values of a specific type.
+
+    Args:
+        data_type: The data type of the null value
+
+    Returns:
+        A Column expression representing the null value
+
+    Raises:
+        ValidationError: If the data type is not a valid data type
+
+    Example: Creating a column with a null value of a primitive type
+        ```python
+        # The newly created `b` column will have a value of `None` for all rows
+        df.select(fc.col("a"), fc.none(fc.IntegerType).alias("b"))
+        ```
+
+    Example: Creating a column with a null value of an array/struct type
+        ```python
+        # The newly created `b` and `c` columns will have a value of `None` for all rows
+        df.select(
+            fc.col("a"),
+            fc.none(fc.ArrayType(fc.IntegerType)).alias("b"),
+            fc.none(fc.StructType([fc.StructField("b", fc.IntegerType)])).alias("c"),
+        )
+        ```
+
+    """
+    return Column._from_logical_expr(LiteralExpr(None, data_type))
+
+def empty(data_type: DataType) -> Column:
+    """Creates a Column expression representing an empty value of the given type.
+
+    - If the data type is an array or struct, the empty value will be an empty array or struct.
+    - Otherwise, the empty value will be `None`, as if you had called `none()` on the data type.
+      This is useful for creating columns with empty values of a specific type.
+
+    Args:
+        data_type: The data type of the empty value
+
+    Returns:
+        A Column expression representing the empty value
+
+    Raises:
+        ValidationError: If the data type is not a valid data type
+
+    Example: Creating a column with an empty array type
+        ```python
+        # The newly created `b` column will have a value of `[]` for all rows
+        df.select(fc.col("a"), fc.empty(fc.ArrayType(fc.IntegerType)).alias("b"))
+        ```
+
+    Example: Creating a column with an empty struct type
+        ```python
+        # The newly created `b` column will have a value of `{b: None}` for all rows
+        df.select(fc.col("a"), fc.empty(fc.StructType([fc.StructField("b", fc.IntegerType)])).alias("b"))
+        ```
+
+    Example: Creating a column with an empty primitive type
+        ```python
+        # The newly created `b` column will have a value of `None` for all rows
+        df.select(fc.col("a"), fc.empty(fc.IntegerType).alias("b"))
+        ```
+    """
+    if isinstance(data_type, ArrayType):
+        return Column._from_logical_expr(LiteralExpr([], data_type))
+    elif isinstance(data_type, StructType):
+        return Column._from_logical_expr(LiteralExpr({}, data_type))
+    return none(data_type)
+
+def lit(value: Any) -> Column:
     """Creates a Column expression representing a literal value.
 
     Args:
         value: The literal value to create a column for
-        dtype: The data type of the literal value (only required if the type cannot be inferred, like `None` or an empty list/dict)
+
 
     Returns:
         A Column expression representing the literal value
-
-    Example: Create a literal with primitive values
-        ```python
-        # Creating a struct from a populated dict
-        df.select(lit(1), lit("a"), lit(1.5))
-        ```
-
-    Example: Create a literal with a struct
-        ```python
-        # Creating a struct from a populated dict
-        df.select(
-            lit({"a": 1, "b": 2}).alias("struct")
-        )
-
-        # Creating a struct from an empty dict. This will populate all fields of the struct with None
-        df.select(
-            lit({}, dtype=StructType([StructField(name='a', data_type=IntegerType)])).alias("struct")
-        )
-        ```
-
-
-    Example: Create a literal with a list
-        ```python
-        df.select(
-            lit([1, 2, 3]).alias("list")
-        )
-        # You can also create a literal with an empty list, if the dtype is specified.
-        df.select(
-            lit([], dtype=ArrayType(IntegerType)).alias("empty_list")
-        )
-        ```
-
-    Example: Create a literal with a None
-        ```python
-        df.select(
-            lit(None, dtype=IntegerType).alias("none")
-        )
-        ```
     Raises:
         ValidationError: If the type of the value cannot be inferred and no dtype is provided
     """
-    # Handle special cases with helpful error messages
-    if value == {} and dtype is None:
-        raise ValidationError("`lit` failed to infer type for value `{}`. "
-                              "If you are trying to create a literal with an empty struct, "
-                              "you must specify the dtype explicitly. "
-                              "For example, `lit({}, dtype=StructType([StructField(name='c', data_type=IntegerType)]))`.")
-
-    # Attempt type inference
+    if not value:
+        if value is None:
+            raise ValidationError("Cannot create a literal with value `None`. Use `none()` instead.")
+        else:
+            raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty()` instead.")
     try:
         inferred_type = infer_dtype_from_pyobj(value)
     except TypeInferenceError as e:
-        if dtype is None:
-            raise ValidationError(f"`lit` failed to infer type for value `{value}`. "
-                                  f"If you are trying to create a literal with `None` or an empty list, "
-                                  f"you must specify the dtype explicitly.") from e
-        inferred_type = dtype
-    else:
-        # Handle dtype override/validation
-        if dtype is not None:
-            if value == {}:  # Empty dict: allow dtype override
-                inferred_type = dtype
-            elif inferred_type != dtype:  # Type mismatch: error
-                raise ValidationError(f"User provided dtype {dtype} does not match inferred type {inferred_type} for value `{value}` "
-                                      "If value is not None or an empty list, you need not specify a dtype.")
-
-    return Column._from_logical_expr(LiteralExpr(value, inferred_type))
+        raise ValidationError(f"`lit` failed to infer type for value `{value}`") from e
+    literal_expr = LiteralExpr(value, inferred_type)
+    return Column._from_logical_expr(literal_expr)

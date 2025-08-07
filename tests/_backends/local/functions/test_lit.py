@@ -13,7 +13,9 @@ from fenic import (
     col,
     lit,
 )
+from fenic.api.functions.core import empty, none
 from fenic.core.error import ValidationError
+from fenic.core.types.datatypes import EmbeddingType, JsonType
 
 
 def test_lit_primitive(local_session):
@@ -134,9 +136,25 @@ def test_lit_struct_with_list(local_session):
     assert result["a"][0] == 1
     assert result["b"][0] == {"c": [1, 2, 3], "d": 2}
 
-def test_lit_none_with_dtype(local_session):
+
+def test_lit_none_should_raise(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    df = df.select(col("a"), lit(None, dtype=IntegerType).alias("b"))
+    with pytest.raises(ValidationError, match="Cannot create a literal with value `None`. Use `none\\(\\)` instead."):
+        df = df.select(col("a"), lit(None).alias("b"))
+
+def test_lit_empty_array_should_raise(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `\\[\\]` Use `empty\\(\\)` instead."):
+        df = df.select(col("a"), lit([]).alias("b"))
+
+def test_lit_empty_struct_should_raise(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `{}` Use `empty\\(\\)` instead."):
+        df = df.select(col("a"), lit({}).alias("b"))
+
+def test_empty_primitive_type(local_session):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    df = df.select(col("a"), empty(IntegerType).alias("b"))
     expected_schema = Schema(
         [
             ColumnField(name="a", data_type=IntegerType),
@@ -148,14 +166,23 @@ def test_lit_none_with_dtype(local_session):
     assert result["a"][0] == 1
     assert result["b"][0] is None
 
-def test_lit_none_without_dtype(local_session):
+def test_none_primitive_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="`lit` failed to infer type for value `None`"):
-        df = df.select(col("a"), lit(None).alias("b"))
+    df = df.select(col("a"), none(IntegerType).alias("b"))
+    expected_schema = Schema(
+        [
+            ColumnField(name="a", data_type=IntegerType),
+            ColumnField(name="b", data_type=IntegerType),
+        ]
+    )
+    assert df.schema == expected_schema
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None
 
-def test_lit_empty_list_with_dtype(local_session):
+def test_empty_array_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    df = df.select(col("a"), lit([], dtype=ArrayType(IntegerType)).alias("b"))
+    df = df.select(col("a"), empty(ArrayType(IntegerType)).alias("b"))
     assert df.schema == Schema([
         ColumnField(name="a", data_type=IntegerType),
         ColumnField(name="b", data_type=ArrayType(IntegerType)),
@@ -164,44 +191,80 @@ def test_lit_empty_list_with_dtype(local_session):
     assert result["a"][0] == 1
     assert result["b"][0].to_list() == []
 
-def test_lit_empty_struct_with_dtype(local_session):
+def test_none_array_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    df = df.select(col("a"), lit({}, dtype=StructType([StructField(name="c", data_type=IntegerType)])).alias("b"))
+    df = df.select(col("a"), none(ArrayType(IntegerType)).alias("b"))
     assert df.schema == Schema([
         ColumnField(name="a", data_type=IntegerType),
-        ColumnField(name="b", data_type=StructType([StructField(name="c", data_type=IntegerType)])),
+        ColumnField(name="b", data_type=ArrayType(IntegerType)),
     ])
     result = df.to_polars()
     assert result["a"][0] == 1
-    assert result["b"][0] == {"c": None}
+    assert result["b"][0] is None
 
-def test_lit_struct_not_matching_dtype(local_session):
+def test_none_struct_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match=("User provided dtype StructType\\(struct_fields=\\[StructField\\(name=c, data_type=FloatType\\)\\]\\) "
-                                               "does not match inferred type StructType\\(struct_fields=\\[StructField\\(name=c, data_type=IntegerType\\)\\]\\) "
-                                               "for value `\\{'c': 1\\}` If value is not None or an empty list, you need not specify a dtype.")):
-        df = df.select(col("a"), lit({"c": 1}, dtype=StructType([StructField(name="c", data_type=FloatType)])).alias("b"))
+    nested_struct_type = StructType([
+            StructField(name="c", data_type=IntegerType),
+            StructField(name="d", data_type=StructType([
+                StructField(name="e", data_type=IntegerType),
+                StructField(name="f", data_type=IntegerType),
+            ])),
+    ])
+    df = df.select(col("a"), none(nested_struct_type).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=nested_struct_type),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None
+    # Ensuring that when the empty struct is unnested, the fields are all None
+    result = result.unnest("b")
+    assert result["c"][0] is None
+    assert result["d"][0] is None
 
-def test_lit_empty_struct_without_dtype(local_session):
+def test_empty_struct_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="`lit` failed to infer type for value `{}`. If you are trying to create a "
-                                              "literal with an empty struct, you must specify the dtype explicitly. "
-                                              "For example, `lit\\(\\{\\}, dtype=StructType\\(\\[StructField\\(name='c', data_type=IntegerType\\)\\]\\)\\)`."):
-        df = df.select(col("a"), lit({}).alias("b"))
+    nested_struct_type = StructType([
+            StructField(name="c", data_type=IntegerType),
+            StructField(name="d", data_type=StructType([
+                StructField(name="e", data_type=IntegerType),
+                StructField(name="f", data_type=IntegerType),
+            ])),
+    ])
+    df = df.select(col("a"), empty(nested_struct_type).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=nested_struct_type),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] == {"c": None, "d": None}
+    # Ensuring that when the empty struct is unnested, the fields are all None
+    result = result.unnest("b")
+    assert result["c"][0] is None
+    assert result["d"][0] is None
 
-
-def test_lit_empty_list_without_dtype(local_session):
+def test_empty_embedding_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="`lit` failed to infer type for value"):
-        df = df.select(col("a"), lit([]).alias("b"))
+    df = df.select(col("a"), empty(EmbeddingType(dimensions=10, embedding_model="test")).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=EmbeddingType(dimensions=10, embedding_model="test")),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None
 
-def test_lit_dtype_inferred_type_mismatch(local_session):
-    df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="User provided dtype IntegerType does not match inferred type FloatType for value `1.0`"):
-        df = df.select(col("a"), lit(1.0, dtype=IntegerType).alias("b"))
 
-def test_lit_dtype_inferred_type_mismatch_with_list(local_session):
+def test_empty_string_backed_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="User provided dtype ArrayType\\(element_type=IntegerType\\) does not match "
-                                              "inferred type ArrayType\\(element_type=FloatType\\) for value `\\[1.0\\]`"):
-        df = df.select(col("a"), lit([1.0], dtype=ArrayType(IntegerType)).alias("b"))
+    df = df.select(col("a"), empty(JsonType).alias("b"))
+    assert df.schema == Schema([
+        ColumnField(name="a", data_type=IntegerType),
+        ColumnField(name="b", data_type=JsonType),
+    ])
+    result = df.to_polars()
+    assert result["a"][0] == 1
+    assert result["b"][0] is None

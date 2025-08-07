@@ -38,6 +38,7 @@ from fenic.api import (
     desc_nulls_first,
     desc_nulls_last,
     embedding,
+    empty,
     first,
     greatest,
     json,
@@ -47,6 +48,7 @@ from fenic.api import (
     max,
     mean,
     min,
+    none,
     semantic,
     stddev,
     struct,
@@ -190,6 +192,8 @@ __all__ = [
     "lit",
     "greatest",
     "least",
+    "empty",
+    "none",
     # Lineage
     "Lineage",
     # Metrics

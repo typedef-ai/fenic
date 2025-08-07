@@ -28,7 +28,7 @@ from fenic.api.functions.builtin import (
     udf,
     when,
 )
-from fenic.api.functions.core import col, lit
+from fenic.api.functions.core import col, empty, lit, none
 
 __all__ = [
     "semantic",
@@ -69,4 +69,6 @@ __all__ = [
     "stddev",
     "greatest",
     "least",
+    "empty",
+    "none",
 ]
