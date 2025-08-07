@@ -48,7 +48,7 @@ class FenicCompletionsRequest:
     max_completion_tokens: int
     top_logprobs: Optional[int]
     structured_output: Optional[type[BaseModel]]
-    temperature: float
+    temperature: Optional[float]
     model_profile: Optional[str] = None
 
 @dataclass

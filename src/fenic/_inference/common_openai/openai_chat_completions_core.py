@@ -90,9 +90,6 @@ class OpenAIChatCompletionsCore:
                 "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
-            if not profile_configuration or not profile_configuration.reasoning_effort:
-                # OpenAI does not allow temperature to be modified for o-series reasoning models.
-                common_params["temperature"] = request.temperature
 
             # Determine if we need logprobs
             if request.top_logprobs:

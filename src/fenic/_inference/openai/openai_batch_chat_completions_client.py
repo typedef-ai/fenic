@@ -83,7 +83,6 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         Returns:
             The response from the API or an exception
         """
-        # Get profile-specific parameters
         return await self._core.make_single_request(request, self._profile_manager.get_profile_by_name(request.model_profile))
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:

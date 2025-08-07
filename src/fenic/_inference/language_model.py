@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,6 +19,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class InferenceConfiguration:
@@ -50,18 +52,23 @@ class LanguageModel:
     ) -> list[Optional[FenicCompletionsResponse]]:
         # Create batch requests
         requests = []
+
+        # Check model specific requirements for request params.
+        temperature_param = temperature if self.model_parameters.supports_custom_temperature else None
+        if not temperature_param:
+            logger.warning(f"Model {self.model} does not support custom temperature.  Ignoring temperature parameter.")
+
         for message_list in messages:
             # if there are no messages, set the request as None, so it can be skipped.
             if not message_list:
                 requests.append(None)
                 continue
-
             request = FenicCompletionsRequest(
                 messages=message_list,
                 max_completion_tokens=max_tokens,
                 top_logprobs=top_logprobs,
                 structured_output=response_format,
-                temperature=temperature,
+                temperature=temperature_param,
                 model_profile=model_profile,
             )
             requests.append(request)

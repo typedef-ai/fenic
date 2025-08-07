@@ -37,6 +37,9 @@ class CompletionModelParameters:
         output_token_cost: Cost per output token in USD
         context_window_length: Maximum number of tokens in the context window
         max_output_tokens: Maximum number of tokens the model can generate in a single request.
+        max_temperature: Maximum temperature for the model.
+        supports_reasoning: Whether the model supports reasoning parameter.
+        supports_custom_temperature: Whether the model supports custom temperature.
     """
 
     def __init__(
@@ -50,6 +53,7 @@ class CompletionModelParameters:
         cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
         supports_reasoning = False,
+        supports_custom_temperature = True,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -61,6 +65,7 @@ class CompletionModelParameters:
         self.max_output_tokens = max_output_tokens
         self.max_temperature = max_temperature
         self.supports_reasoning = supports_reasoning
+        self.supports_custom_temperature = supports_custom_temperature
 
 
 class EmbeddingModelParameters:
@@ -117,6 +122,12 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5",
+    "gpt-5-2025-08-07",
+    "gpt-5-mini",
+    "gpt-5-mini-2025-08-07",
+    "gpt-5-nano",
+    "gpt-5-nano-2025-08-07",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -483,6 +494,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -496,6 +508,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=65_536,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -510,6 +523,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -524,6 +538,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -539,6 +554,51 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens (90% discount)
+                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_custom_temperature=False,
+            ),
+            snapshots=["gpt-5-2025-08-07"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5-mini",
+            CompletionModelParameters(
+                input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
+                cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
+                output_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_custom_temperature=False,
+            ),
+            snapshots=["gpt-5-mini-2025-08-07"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5-nano",
+            CompletionModelParameters(
+                input_token_cost=0.05 / 1_000_000,  # $0.05 per 1M tokens
+                cached_input_token_read_cost=0.005 / 1_000_000,  # $0.005 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_custom_temperature=False,
+            ),
+            snapshots=["gpt-5-nano-2025-08-07"],
         )
 
         # OpenAI Embedding Models
