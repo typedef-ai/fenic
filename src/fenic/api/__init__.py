@@ -30,7 +30,7 @@ from fenic.api.functions import (
     max,
     mean,
     min,
-    none,
+    null,
     semantic,
     stddev,
     struct,
@@ -114,7 +114,7 @@ __all__ = [
     "col",
     "lit",
     "empty",
-    "none",
+    "null",
     "greatest",
     "least",
     # Lineage

@@ -29,7 +29,7 @@ def col(col_name: str) -> Column:
     """
     return Column._from_column_name(col_name)
 
-def none(data_type: DataType) -> Column:
+def null(data_type: DataType) -> Column:
     """Creates a Column expression representing a null value of the given type.
 
     No matter the data type, the value that will be populated in the column will be `None`.
@@ -47,7 +47,7 @@ def none(data_type: DataType) -> Column:
     Example: Creating a column with a null value of a primitive type
         ```python
         # The newly created `b` column will have a value of `None` for all rows
-        df.select(fc.col("a"), fc.none(fc.IntegerType).alias("b"))
+        df.select(fc.col("a"), fc.null(fc.IntegerType).alias("b"))
         ```
 
     Example: Creating a column with a null value of an array/struct type
@@ -55,8 +55,8 @@ def none(data_type: DataType) -> Column:
         # The newly created `b` and `c` columns will have a value of `None` for all rows
         df.select(
             fc.col("a"),
-            fc.none(fc.ArrayType(fc.IntegerType)).alias("b"),
-            fc.none(fc.StructType([fc.StructField("b", fc.IntegerType)])).alias("c"),
+            fc.null(fc.ArrayType(fc.IntegerType)).alias("b"),
+            fc.null(fc.StructType([fc.StructField("b", fc.IntegerType)])).alias("c"),
         )
         ```
 
@@ -101,7 +101,7 @@ def empty(data_type: DataType) -> Column:
         return Column._from_logical_expr(LiteralExpr([], data_type))
     elif isinstance(data_type, StructType):
         return Column._from_logical_expr(LiteralExpr({}, data_type))
-    return none(data_type)
+    return null(data_type)
 
 def lit(value: Any) -> Column:
     """Creates a Column expression representing a literal value.
@@ -117,7 +117,7 @@ def lit(value: Any) -> Column:
     """
     if not value:
         if value is None:
-            raise ValidationError("Cannot create a literal with value `None`. Use `none()` instead.")
+            raise ValidationError("Cannot create a literal with value `None`. Use `null()` instead.")
         else:
             raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty()` instead.")
     try:

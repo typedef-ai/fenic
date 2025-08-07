@@ -13,7 +13,7 @@ from fenic import (
     col,
     lit,
 )
-from fenic.api.functions.core import empty, none
+from fenic.api.functions.core import empty, null
 from fenic.core.error import ValidationError
 from fenic.core.types.datatypes import EmbeddingType, JsonType
 
@@ -139,7 +139,7 @@ def test_lit_struct_with_list(local_session):
 
 def test_lit_none_should_raise(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="Cannot create a literal with value `None`. Use `none\\(\\)` instead."):
+    with pytest.raises(ValidationError, match="Cannot create a literal with value `None`. Use `null\\(\\)` instead."):
         df = df.select(col("a"), lit(None).alias("b"))
 
 def test_lit_empty_array_should_raise(local_session):
@@ -166,9 +166,9 @@ def test_empty_primitive_type(local_session):
     assert result["a"][0] == 1
     assert result["b"][0] is None
 
-def test_none_primitive_type(local_session):
+def test_null_primitive_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    df = df.select(col("a"), none(IntegerType).alias("b"))
+    df = df.select(col("a"), null(IntegerType).alias("b"))
     expected_schema = Schema(
         [
             ColumnField(name="a", data_type=IntegerType),
@@ -191,9 +191,9 @@ def test_empty_array_type(local_session):
     assert result["a"][0] == 1
     assert result["b"][0].to_list() == []
 
-def test_none_array_type(local_session):
+def test_null_array_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    df = df.select(col("a"), none(ArrayType(IntegerType)).alias("b"))
+    df = df.select(col("a"), null(ArrayType(IntegerType)).alias("b"))
     assert df.schema == Schema([
         ColumnField(name="a", data_type=IntegerType),
         ColumnField(name="b", data_type=ArrayType(IntegerType)),
@@ -202,7 +202,7 @@ def test_none_array_type(local_session):
     assert result["a"][0] == 1
     assert result["b"][0] is None
 
-def test_none_struct_type(local_session):
+def test_null_struct_type(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
     nested_struct_type = StructType([
             StructField(name="c", data_type=IntegerType),
@@ -211,7 +211,7 @@ def test_none_struct_type(local_session):
                 StructField(name="f", data_type=IntegerType),
             ])),
     ])
-    df = df.select(col("a"), none(nested_struct_type).alias("b"))
+    df = df.select(col("a"), null(nested_struct_type).alias("b"))
     assert df.schema == Schema([
         ColumnField(name="a", data_type=IntegerType),
         ColumnField(name="b", data_type=nested_struct_type),

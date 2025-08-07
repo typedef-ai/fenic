@@ -48,7 +48,7 @@ from fenic.api import (
     max,
     mean,
     min,
-    none,
+    null,
     semantic,
     stddev,
     struct,
@@ -193,7 +193,7 @@ __all__ = [
     "greatest",
     "least",
     "empty",
-    "none",
+    "null",
     # Lineage
     "Lineage",
     # Metrics
