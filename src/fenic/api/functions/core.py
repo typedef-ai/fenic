@@ -115,11 +115,12 @@ def lit(value: Any) -> Column:
     Raises:
         ValidationError: If the type of the value cannot be inferred and no dtype is provided
     """
-    if not value:
-        if value is None:
-            raise ValidationError("Cannot create a literal with value `None`. Use `null()` instead.")
-        else:
-            raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty()` instead.")
+    if value is None:
+        raise ValidationError("Cannot create a literal with value `None`. Use `null()` instead.")
+    elif value == []:
+        raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty(ArrayType(...))` instead.")
+    elif value == {}:
+        raise ValidationError(f"Cannot create a literal with empty value `{value}` Use `empty(StructType(...))` instead.")
     try:
         inferred_type = infer_dtype_from_pyobj(value)
     except TypeInferenceError as e:

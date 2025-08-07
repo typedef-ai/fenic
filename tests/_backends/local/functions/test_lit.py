@@ -144,12 +144,12 @@ def test_lit_none_should_raise(local_session):
 
 def test_lit_empty_array_should_raise(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `\\[\\]` Use `empty\\(\\)` instead."):
+    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `\\[\\]` Use `empty\\(ArrayType\\(...\\)\\)` instead."):
         df = df.select(col("a"), lit([]).alias("b"))
 
 def test_lit_empty_struct_should_raise(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `{}` Use `empty\\(\\)` instead."):
+    with pytest.raises(ValidationError, match="Cannot create a literal with empty value `{}` Use `empty\\(StructType\\(...\\)\\)` instead."):
         df = df.select(col("a"), lit({}).alias("b"))
 
 def test_empty_primitive_type(local_session):
