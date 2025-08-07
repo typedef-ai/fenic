@@ -104,7 +104,8 @@ class OpenAIChatCompletionsCore:
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
-                common_params["response_format"] = request.structured_output
+                # Use canonicalized strict schema only for OpenAI parse
+                common_params["response_format"] = request.structured_output.to_openai_response_format()
                 response = await self._client.beta.chat.completions.parse(
                     **common_params
                 )

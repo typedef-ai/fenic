@@ -109,7 +109,6 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
-    convert_pydantic_type_to_custom_struct_type,
 )
 from fenic.core.error import InternalError
 from fenic.core.types.datatypes import (
@@ -457,10 +456,10 @@ class ExprConverter:
             strict=logical.strict,
         )
 
-        if logical.struct_type:
+        if logical.response_format:
             return jinja_expr.map_batches(
                 sem_map_fn,
-                return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
+                return_dtype=convert_custom_dtype_to_polars(logical.response_format.struct_type),
             )
         return jinja_expr.map_batches(
             sem_map_fn,
@@ -542,7 +541,7 @@ class ExprConverter:
         def sem_ext_fn(batch: pl.Series) -> pl.Series:
             return SemanticExtract(
                 input=batch,
-                schema=logical.schema,
+                response_format=logical.response_format,
                 model=self.session_state.get_language_model(logical.model_alias),
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
@@ -552,7 +551,7 @@ class ExprConverter:
         return self._convert_expr(logical.expr).map_batches(
             sem_ext_fn,
             return_dtype=convert_custom_dtype_to_polars(
-                convert_pydantic_type_to_custom_struct_type(logical.schema)
+                logical.response_format.struct_type
             ),
         )
 

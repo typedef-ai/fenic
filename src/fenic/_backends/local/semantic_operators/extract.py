@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 import jinja2
 import polars as pl
-from pydantic import BaseModel
 
 from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
@@ -12,11 +11,16 @@ from fenic._backends.local.semantic_operators.base import (
 )
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-    convert_pydantic_model_to_key_descriptions,
-    validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+    ResolvedResponseFormat,
+)
+from fenic.core._utils.structured_outputs import (
+    convert_resolved_response_format_to_key_descriptions,
+    validate_structured_response_with_resolved_format,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +47,13 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
     def __init__(
         self,
         input: pl.Series,
-        schema: type[BaseModel],
+        response_format: ResolvedResponseFormat,
         model: LanguageModel,
         max_output_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
     ):
-        self.output_model = schema
+        self.resolved_format = response_format
         super().__init__(
             input,
             CompletionOnlyRequestSender(
@@ -57,7 +61,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=max_output_tokens,
                     temperature=temperature,
-                    response_format=self.output_model,
+                    response_format=response_format,
                     model_profile=model_alias.profile if model_alias else None,
                 ),
                 model=model,
@@ -66,7 +70,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
         )
 
     def build_system_message(self) -> str:
-        schema_definition = convert_pydantic_model_to_key_descriptions(self.output_model)
+        schema_definition = convert_resolved_response_format_to_key_descriptions(self.resolved_format)
         return self.EXTRACT_SYSTEM_PROMPT.render(
             schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
             schema_definition=schema_definition
@@ -76,8 +80,8 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
         self, responses: List[Optional[str]]
     ) -> List[Optional[Dict[str, Any]]]:
         return [
-            validate_structured_response(
-                json_resp, self.output_model, "semantic.extract"
+            validate_structured_response_with_resolved_format(
+                json_resp, self.resolved_format, "semantic.extract"
             )
             for json_resp in responses
         ]

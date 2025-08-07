@@ -12,11 +12,16 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
-    convert_pydantic_model_to_key_descriptions,
-    validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+    ResolvedResponseFormat,
+)
+from fenic.core._utils.structured_outputs import (
+    convert_resolved_response_format_to_key_descriptions,
+    validate_structured_response_with_resolved_format,
+)
 from fenic.core.types import (
     MapExample,
     MapExampleCollection,
@@ -48,7 +53,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         max_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
-        response_format: Optional[type[BaseModel]] = None,
+        response_format: Optional[ResolvedResponseFormat] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
         super().__init__(
@@ -73,7 +78,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         if is_structured_response:
             return self.RESPONSE_FORMAT_SYSTEM_PROMPT.render(
                 schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-                schema_definition=convert_pydantic_model_to_key_descriptions(self.response_format),
+                schema_definition=convert_resolved_response_format_to_key_descriptions(self.response_format),
             )
         else:
             return SIMPLE_INSTRUCTION_SYSTEM_PROMPT
@@ -84,7 +89,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         if self.response_format is None:
             return responses
         return [
-            validate_structured_response(
+            validate_structured_response_with_resolved_format(
                 json_resp, self.response_format, "semantic.map"
             )
             for json_resp in responses

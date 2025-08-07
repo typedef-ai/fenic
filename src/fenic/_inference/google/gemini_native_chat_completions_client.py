@@ -11,7 +11,6 @@ from google.genai.types import (
     GenerateContentConfigDict,
     GenerateContentResponse,
 )
-from pydantic import BaseModel
 
 from fenic._inference.google.google_profile_manager import (
     GoogleCompletionsProfileManager,
@@ -37,6 +36,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
@@ -173,7 +173,7 @@ class GeminiNativeChatCompletionsClient(
         # Re-expose for mypy – same implementation as parent.
         return super().count_tokens(messages)
 
-    def _estimate_structured_output_overhead(self, response_format) -> int:
+    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
         """Use Google-specific response schema token estimation.
 
         Args:
@@ -204,7 +204,7 @@ class GeminiNativeChatCompletionsClient(
         )
 
     @cache  # noqa: B019 – builtin cache OK here.
-    def _estimate_response_schema_tokens(self, response_format: type[BaseModel]) -> int:
+    def _estimate_response_schema_tokens(self, response_format: ResolvedResponseFormat) -> int:
         """Estimate token count for a response format schema.
 
         Uses Google's tokenizer to count tokens in a JSON schema representation
@@ -217,7 +217,7 @@ class GeminiNativeChatCompletionsClient(
             Estimated token count for the response format
         """
         schema_str = json.dumps(
-            response_format.model_json_schema(), separators=(",", ":")
+            response_format.schema, separators=(",", ":")
         )
         return self._token_counter.count_tokens(schema_str)
 
@@ -287,7 +287,7 @@ class GeminiNativeChatCompletionsClient(
         if request.structured_output is not None:
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=request.structured_output.model_json_schema(),
+                response_schema=request.structured_output.schema,
             )
 
         # Build generation parameters

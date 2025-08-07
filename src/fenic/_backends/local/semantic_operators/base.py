@@ -110,7 +110,8 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         """
         prompts = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
-        return pl.Series(self.postprocess(responses))
+        postprocessed_responses = self.postprocess(responses)
+        return pl.Series(postprocessed_responses)
 
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
         messages_batch = []

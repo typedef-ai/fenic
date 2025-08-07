@@ -159,6 +159,7 @@ def test_extract_nested_objects_with_optional_fields(local_session):
             "graduation_year": pl.Int64,
         }),
     })})
+    assert result["resume"][0] is not None
 
 def test_pydantic_model_with_literal_types(local_session):
     """Test extraction with Pydantic models containing Literal types."""
