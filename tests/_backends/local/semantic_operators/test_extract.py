@@ -5,6 +5,7 @@ import polars as pl
 from pydantic import BaseModel, Field
 
 from fenic._backends.local.semantic_operators.extract import Extract
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 
 
 class WorkExperience(BaseModel):
@@ -46,7 +47,7 @@ class TestExtract:
 
         extract = Extract(
             input=input,
-            schema=Resume,
+            response_format=ResolvedResponseFormat.from_pydantic_model(Resume),
             model=local_session._session_state.get_language_model(),
             max_output_tokens=1024,
             temperature=0,

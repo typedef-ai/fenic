@@ -17,10 +17,7 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
-from fenic.core._utils.structured_outputs import (
-    convert_resolved_response_format_to_key_descriptions,
-    validate_structured_response_with_resolved_format,
-)
+from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
 
@@ -70,18 +67,19 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
         )
 
     def build_system_message(self) -> str:
-        schema_definition = convert_resolved_response_format_to_key_descriptions(self.resolved_format)
+        if not self.resolved_format.prompt_schema_definition:
+            raise InternalError("Missing prompt_schema_definition for structured response format in semantic.extract")
         return self.EXTRACT_SYSTEM_PROMPT.render(
             schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-            schema_definition=schema_definition
+            schema_definition=self.resolved_format.prompt_schema_definition
         )
 
     def postprocess(
         self, responses: List[Optional[str]]
     ) -> List[Optional[Dict[str, Any]]]:
         return [
-            validate_structured_response_with_resolved_format(
-                json_resp, self.resolved_format, "semantic.extract"
+            self.resolved_format.parse_structured_response(
+                json_resp, "semantic.extract"
             )
             for json_resp in responses
         ]

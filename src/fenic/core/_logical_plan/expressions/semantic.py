@@ -13,9 +13,6 @@ from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
 )
-from fenic.core._utils.structured_outputs import (
-    validate_parsed_json_with_resolved_format,
-)
 from fenic.core.types import (
     ClassifyExampleCollection,
     KeyPoints,
@@ -118,7 +115,7 @@ class SemanticMapExpr(SemanticExpr):
                 if isinstance(example.output, BaseModel):
                     example_json = example.output.model_dump()
                     try:
-                        validate_parsed_json_with_resolved_format(example_json, self.response_format)
+                        self.response_format.validate_structured_response(example_json)
                     except Exception as e:
                         raise InvalidExampleCollectionError("Expected `semantic.map` example output type to be the same as the `response_format` type") from e
                 elif isinstance(example.output, str):

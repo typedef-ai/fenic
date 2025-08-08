@@ -142,7 +142,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
                     temperature=temperature,
-                    response_format=ResolvedResponseFormat.from_pydantic_model(SENTIMENT_ANALYSIS_MODEL),
+                    response_format=ResolvedResponseFormat.from_pydantic_model(SENTIMENT_ANALYSIS_MODEL, generate_struct_type=False),
                     model_profile=model_alias.profile if model_alias else None,
                 ),
             ),

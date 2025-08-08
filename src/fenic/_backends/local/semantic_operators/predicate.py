@@ -47,7 +47,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                 operator_name="semantic.predicate",
                 inference_config=InferenceConfiguration(
                   max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
-                  response_format=ResolvedResponseFormat.from_pydantic_model_with_descriptions(SimpleBooleanOutputModelResponse),
+                  response_format=ResolvedResponseFormat.from_pydantic_model(SimpleBooleanOutputModelResponse, generate_struct_type=False),
                   temperature=temperature,
                   model_profile=model_alias.profile if model_alias else None,
                 ),

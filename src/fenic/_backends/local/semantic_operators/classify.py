@@ -57,7 +57,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
-                    response_format=ResolvedResponseFormat.from_pydantic_model(self.output_model),
+                    response_format=ResolvedResponseFormat.from_pydantic_model(self.output_model, generate_struct_type=False),
                     model_profile=model_alias.profile if model_alias else None,
                 ),
             ),

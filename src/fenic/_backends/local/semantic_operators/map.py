@@ -18,10 +18,7 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
-from fenic.core._utils.structured_outputs import (
-    convert_resolved_response_format_to_key_descriptions,
-    validate_structured_response_with_resolved_format,
-)
+from fenic.core.error import InternalError
 from fenic.core.types import (
     MapExample,
     MapExampleCollection,
@@ -74,11 +71,12 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         self.response_format = response_format
 
     def build_system_message(self) -> str:
-        is_structured_response = self.response_format is not None
-        if is_structured_response:
+        if self.response_format is not None:
+            if not self.response_format.prompt_schema_definition:
+                raise InternalError("Missing prompt_schema_definition for structured response format in semantic.map")
             return self.RESPONSE_FORMAT_SYSTEM_PROMPT.render(
                 schema_explanation=SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
-                schema_definition=convert_resolved_response_format_to_key_descriptions(self.response_format),
+                schema_definition=self.response_format.prompt_schema_definition,
             )
         else:
             return SIMPLE_INSTRUCTION_SYSTEM_PROMPT
@@ -89,8 +87,8 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         if self.response_format is None:
             return responses
         return [
-            validate_structured_response_with_resolved_format(
-                json_resp, self.response_format, "semantic.map"
+            self.response_format.parse_structured_response(
+                json_resp, "semantic.map"
             )
             for json_resp in responses
         ]
