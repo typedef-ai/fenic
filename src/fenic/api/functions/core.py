@@ -30,10 +30,10 @@ def col(col_name: str) -> Column:
     return Column._from_column_name(col_name)
 
 def null(data_type: DataType) -> Column:
-    """Creates a Column expression representing a null value of the given type.
+    """Creates a Column expression representing a null value of the specified data type.
 
-    No matter the data type, the value that will be populated in the column will be `None`.
-    This is useful for creating columns with null values of a specific type.
+    Regardless of the data type, the column will contain a null (None) value.
+    This function is useful for creating columns with null values of a particular type.
 
     Args:
         data_type: The data type of the null value
@@ -68,9 +68,9 @@ def empty(data_type: DataType) -> Column:
 
     - If the data type is `ArrayType(...)`, the empty value will be an empty array.
     - If the data type is `StructType(...)`, the empty value will be an instance of the struct type with all fields set to `None`.
-    - For all other data types, the empty value will be `None`, as if you had called `null(data_type)`.
+    - For all other data types, the empty value is None (equivalent to calling `null(data_type)`)
 
-    This is useful for creating columns with empty values of a specific type.
+    This function is useful for creating columns with empty values of a particular type.
 
     Args:
         data_type: The data type of the empty value
