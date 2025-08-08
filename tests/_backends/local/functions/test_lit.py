@@ -139,7 +139,7 @@ def test_lit_struct_with_list(local_session):
 
 def test_lit_none_should_raise(local_session):
     df = local_session.create_dataframe({"a": [1, 2, 3]})
-    with pytest.raises(ValidationError, match="Cannot create a literal with value `None`. Use `null\\(\\)` instead."):
+    with pytest.raises(ValidationError, match="Cannot create a literal with value `None`. Use `null\\(...\\)` instead."):
         df = df.select(col("a"), lit(None).alias("b"))
 
 def test_lit_empty_array_should_raise(local_session):
