@@ -35,7 +35,6 @@ dependencies = [
   "scikit-learn>=1.7.1",
   "protobuf==5.29.4",
   "types-protobuf==5.29.1.20250403",
-  "jambo>=0.1.1",
   "zstandard>=0.23.0",
   "jsonschema>=4.0.0",
 ]

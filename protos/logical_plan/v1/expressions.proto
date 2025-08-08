@@ -202,13 +202,13 @@ message SemanticMapExpr {
   int32 max_tokens = 4;
   double temperature = 5;
   optional ResolvedModelAlias model_alias = 6;
-  optional PydanticModelType response_format = 7;
+  optional ResolvedResponseFormat response_format = 7;
   optional MapExampleCollection examples = 8;
 }
 
 message SemanticExtractExpr {
   LogicalExpr expr = 1;
-  PydanticModelType schema = 2;
+  ResolvedResponseFormat response_format = 2;
   int32 max_tokens = 3;
   double temperature = 4;
   optional ResolvedModelAlias model_alias = 5;

@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package logical_plan.v1;
 
+import "logical_plan/v1/datatypes.proto";
+
 message ScalarValue {
   oneof value_type {
     string string_value = 1;
@@ -38,16 +40,17 @@ message ResolvedModelAlias {
   optional string profile = 2;
 }
 
+message ResolvedResponseFormat {
+  string schema = 1;
+  optional DataType struct_type = 2;
+  optional string prompt_schema_definition = 3;
+}
+
 // NumPy array serialization
 message NumpyArray {
   bytes data = 1;
   repeated int32 shape = 2;
   string dtype = 3;
-}
-
-// Pydantic model type serialization (for response_format)
-message PydanticModelType {
-  string json_schema = 1;
 }
 
 // KeyPoints format for summarization

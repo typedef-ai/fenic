@@ -6,7 +6,6 @@ import json
 from contextlib import contextmanager
 from enum import Enum
 from typing import (
-    TYPE_CHECKING,
     Any,
     Iterable,
     List,
@@ -21,13 +20,14 @@ from typing import (
 
 import numpy as np
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
-from jambo import SchemaConverter
-from pydantic import BaseModel
 
 from fenic.core._logical_plan import LogicalExpr
 from fenic.core._logical_plan.expressions.semantic import ResolvedClassDefinition
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+    ResolvedResponseFormat,
+)
 from fenic.core._serde.proto.errors import (
     DeserializationError,
     SerdeError,
@@ -40,9 +40,9 @@ from fenic.core._serde.proto.types import (
     LogicalExprProto,
     LogicalPlanProto,
     NumpyArrayProto,
-    PydanticModelTypeProto,
     ResolvedClassDefinitionProto,
     ResolvedModelAliasProto,
+    ResolvedResponseFormatProto,
     ScalarArrayProto,
     ScalarStructFieldProto,
     ScalarStructProto,
@@ -592,59 +592,55 @@ class SerdeContext:
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def serialize_pydantic_model_type(
+    def serialize_resolved_response_format(
         self,
         field_name: str,
-        pydantic_model: Type[BaseModel],
-    ) -> PydanticModelTypeProto:
-        """Serialize a Pydantic model to a protobuf model by dumping its json schema.
+        resolved_response_format: ResolvedResponseFormat,
+    ) -> ResolvedResponseFormatProto:
+        """Serialize a ResolvedResponseFormat to a protobuf model.
 
         Args:
             field_name: The name of the field being serialized.
-            pydantic_model: The Pydantic model type to serialize.
+            resolved_response_format: The ResolvedResponseFormat to serialize.
 
         Returns:
             The serialized protobuf representation containing the JSON schema.
         """
         with self.path_context(field_name):
             try:
-                json_schema = pydantic_model.model_json_schema()
-                serialized_json_schema = json.dumps(json_schema)
-                return PydanticModelTypeProto(json_schema=serialized_json_schema)
+                return ResolvedResponseFormatProto(
+                    schema=json.dumps(resolved_response_format.schema),
+                    struct_type=self.serialize_data_type(
+                        "struct_type", resolved_response_format.struct_type
+                    ),
+                    prompt_schema_definition=resolved_response_format.prompt_schema_definition,
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 
-    def deserialize_pydantic_model_type(
+    def deserialize_resolved_response_format(
         self,
         field_name: str,
-        pydantic_proto: PydanticModelTypeProto,
-    ) -> Optional[Type[BaseModel]]:
-        """Deserialize a Pydantic model from a protobuf model by loading its json schema.
-
-        While ideally, we would like to work directly with the json schema, we need the actual pydantic model type
-        so that we can use it to validate structured examples. For now, we can use `jambo` to deserialize the json schema.
-        The limitations below detail the known issues with this approach, but they should not impact the functionality of the system,
-        as long as the json that is generated from instances of the two are always the same.
-
-        Known Limitations:
-        - If a type is defined as a `Literal` in the original pydantic model, it will be deserialized as a dynamic enum type.
-        - If a type is defined as a `list` in the original pydantic model, in the deserialized pydantic model, the list will be omitted from pydantic's `required` fields.
+        resolved_response_format_proto: ResolvedResponseFormatProto,
+    ) -> Optional[ResolvedResponseFormat]:
+        """Deserialize a ResolvedResponseFormat from a protobuf model.
 
         Args:
             field_name: The name of the field being deserialized.
-            pydantic_proto: The protobuf representation to deserialize.
+            resolved_response_format_proto: The protobuf representation to deserialize.
 
         Returns:
             The deserialized Pydantic model type, or None if empty.
         """
         with self.path_context(field_name):
             try:
-                if (
-                    not pydantic_proto.json_schema
-                ):  # Optional field is not populated in parent message (proto3)
-                    return None
-                json_schema = json.loads(pydantic_proto.json_schema)
-                return SchemaConverter.build(json_schema)
+                return ResolvedResponseFormat(
+                    schema=json.loads(resolved_response_format_proto.schema),
+                    struct_type=self.deserialize_data_type(
+                        "struct_type", resolved_response_format_proto.struct_type
+                    ),
+                    prompt_schema_definition=resolved_response_format_proto.prompt_schema_definition,
+                )
             except Exception as e:
                 self._handle_serde_error(e)
 

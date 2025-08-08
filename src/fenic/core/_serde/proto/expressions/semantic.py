@@ -81,7 +81,7 @@ def _serialize_semantic_map_expr(logical: SemanticMapExpr, context: SerdeContext
     )
 
     output_schema_proto = (
-        context.serialize_pydantic_model_type("response_format", logical.response_format)
+        context.serialize_resolved_response_format("response_format", logical.response_format)
         if logical.response_format
         else None
     )
@@ -127,7 +127,7 @@ def _deserialize_semantic_map_expr(
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
         model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
-        response_format=context.deserialize_pydantic_model_type("response_format", logical_proto.response_format) if logical_proto.response_format else None,
+        response_format=context.deserialize_resolved_response_format("response_format", logical_proto.response_format) if logical_proto.HasField("response_format") else None,
         examples=examples,
     )
 
@@ -139,14 +139,10 @@ def _deserialize_semantic_map_expr(
 @serialize_logical_expr.register
 def _serialize_semantic_extract_expr(logical: SemanticExtractExpr, context: SerdeContext) -> LogicalExprProto:
     """Serialize a semantic extract expression."""
-    schema_proto = (
-        context.serialize_pydantic_model_type("schema", logical.schema) if logical.schema else None
-    )
-
     return LogicalExprProto(
         semantic_extract=SemanticExtractExprProto(
             expr=context.serialize_logical_expr("expr", logical.expr),
-            schema=schema_proto,
+            response_format=context.serialize_resolved_response_format("response_format", logical.response_format),
             max_tokens=logical.max_tokens,
             temperature=logical.temperature,
             model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias)
@@ -162,7 +158,7 @@ def _deserialize_semantic_extract_expr(
     """Deserialize a semantic extract expression."""
     return SemanticExtractExpr(
         expr=context.deserialize_logical_expr("expr", logical_proto.expr),
-        schema=context.deserialize_pydantic_model_type("schema", logical_proto.schema),
+        response_format=context.deserialize_resolved_response_format("response_format", logical_proto.response_format),
         max_tokens=logical_proto.max_tokens,
         temperature=logical_proto.temperature,
         model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,

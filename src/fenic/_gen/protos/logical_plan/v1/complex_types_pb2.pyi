@@ -1,3 +1,4 @@
+from fenic._gen.protos.logical_plan.v1 import datatypes_pb2 as _datatypes_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -59,6 +60,16 @@ class ResolvedModelAlias(_message.Message):
     profile: str
     def __init__(self, name: _Optional[str] = ..., profile: _Optional[str] = ...) -> None: ...
 
+class ResolvedResponseFormat(_message.Message):
+    __slots__ = ("schema", "struct_type", "prompt_schema_definition")
+    SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    STRUCT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PROMPT_SCHEMA_DEFINITION_FIELD_NUMBER: _ClassVar[int]
+    schema: str
+    struct_type: _datatypes_pb2.DataType
+    prompt_schema_definition: str
+    def __init__(self, schema: _Optional[str] = ..., struct_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ..., prompt_schema_definition: _Optional[str] = ...) -> None: ...
+
 class NumpyArray(_message.Message):
     __slots__ = ("data", "shape", "dtype")
     DATA_FIELD_NUMBER: _ClassVar[int]
@@ -68,12 +79,6 @@ class NumpyArray(_message.Message):
     shape: _containers.RepeatedScalarFieldContainer[int]
     dtype: str
     def __init__(self, data: _Optional[bytes] = ..., shape: _Optional[_Iterable[int]] = ..., dtype: _Optional[str] = ...) -> None: ...
-
-class PydanticModelType(_message.Message):
-    __slots__ = ("json_schema",)
-    JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
-    json_schema: str
-    def __init__(self, json_schema: _Optional[str] = ...) -> None: ...
 
 class KeyPoints(_message.Message):
     __slots__ = ("max_points",)

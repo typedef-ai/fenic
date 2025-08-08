@@ -42,13 +42,13 @@ from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
     PredicateExampleCollection as PredicateExampleCollectionProto,
 )
 from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
-    PydanticModelType as PydanticModelTypeProto,
-)
-from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
     ResolvedClassDefinition as ResolvedClassDefinitionProto,
 )
 from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
     ResolvedModelAlias as ResolvedModelAliasProto,
+)
+from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
+    ResolvedResponseFormat as ResolvedResponseFormatProto,
 )
 from fenic._gen.protos.logical_plan.v1.complex_types_pb2 import (
     ScalarArray as ScalarArrayProto,
@@ -449,7 +449,6 @@ __all__ = [
     "ChunkCharacterSetProto",
     # Complex type classes
     "NumpyArrayProto",
-    "PydanticModelTypeProto",
     "KeyPointsProto",
     "ParagraphProto",
     "SummarizationFormatProto",
@@ -463,6 +462,7 @@ __all__ = [
     "JoinExampleCollectionProto",
     "ResolvedClassDefinitionProto",
     "ResolvedModelAliasProto",
+    "ResolvedResponseFormatProto",
     # Expression classes
     "LogicalExprProto",
     "ColumnExprProto",

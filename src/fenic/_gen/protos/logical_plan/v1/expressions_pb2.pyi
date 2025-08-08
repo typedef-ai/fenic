@@ -315,23 +315,23 @@ class SemanticMapExpr(_message.Message):
     max_tokens: int
     temperature: float
     model_alias: _complex_types_pb2.ResolvedModelAlias
-    response_format: _complex_types_pb2.PydanticModelType
+    response_format: _complex_types_pb2.ResolvedResponseFormat
     examples: _complex_types_pb2.MapExampleCollection
-    def __init__(self, template: _Optional[str] = ..., strict: bool = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., response_format: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.MapExampleCollection, _Mapping]] = ...) -> None: ...
+    def __init__(self, template: _Optional[str] = ..., strict: bool = ..., exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., response_format: _Optional[_Union[_complex_types_pb2.ResolvedResponseFormat, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.MapExampleCollection, _Mapping]] = ...) -> None: ...
 
 class SemanticExtractExpr(_message.Message):
-    __slots__ = ("expr", "schema", "max_tokens", "temperature", "model_alias")
+    __slots__ = ("expr", "response_format", "max_tokens", "temperature", "model_alias")
     EXPR_FIELD_NUMBER: _ClassVar[int]
-    SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_FORMAT_FIELD_NUMBER: _ClassVar[int]
     MAX_TOKENS_FIELD_NUMBER: _ClassVar[int]
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    schema: _complex_types_pb2.PydanticModelType
+    response_format: _complex_types_pb2.ResolvedResponseFormat
     max_tokens: int
     temperature: float
     model_alias: _complex_types_pb2.ResolvedModelAlias
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., schema: _Optional[_Union[_complex_types_pb2.PydanticModelType, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., response_format: _Optional[_Union[_complex_types_pb2.ResolvedResponseFormat, _Mapping]] = ..., max_tokens: _Optional[int] = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ...) -> None: ...
 
 class SemanticPredExpr(_message.Message):
     __slots__ = ("template", "strict", "exprs", "temperature", "model_alias", "examples")

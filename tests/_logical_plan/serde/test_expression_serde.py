@@ -101,6 +101,7 @@ from fenic.core._logical_plan.expressions.text import (
     RecursiveTextChunkExprConfiguration,
     TextChunkExprConfiguration,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._serde.proto.errors import SerializationError, UnsupportedTypeError
 from fenic.core._serde.proto.expression_serde import (
     deserialize_logical_expr,
@@ -337,9 +338,10 @@ expression_examples = {
                 MapExample(input={"struct_col": {"name": "Jane", "age": 25}}, output="Another result"),
             ]
         ), exprs=[ColumnExpr("struct_col")]),
+        SemanticMapExpr(jinja_template="Process {{text_col}}", strict=False, temperature=0, max_tokens=100, response_format=ResolvedResponseFormat.from_pydantic_model(BasicResponseFormat), exprs=[ColumnExpr("text_col")]),
     ],
     SemanticExtractExpr: [
-        SemanticExtractExpr(ColumnExpr("text_col"), schema=BasicResponseFormat, max_tokens=100, temperature=0.1),
+        SemanticExtractExpr(ColumnExpr("text_col"), response_format=ResolvedResponseFormat.from_pydantic_model(BasicResponseFormat), max_tokens=100, temperature=0.1),
     ],
     SemanticPredExpr: [
         SemanticPredExpr(jinja_template="{{name}} Is this positive?", strict=True, exprs=[ColumnExpr("name")],  temperature=0.1),
@@ -549,67 +551,6 @@ class TestExpressionSerde:
 
     def _compare_expressions(self, original: LogicalExpr, deserialized: LogicalExpr, expr_class_name: str, example_index: int):
         """Compare key attributes of original and deserialized expressions."""
-        if hasattr(original, 'schema') and hasattr(deserialized, 'schema') and issubclass(original.schema, BaseModel) and issubclass(deserialized.schema, BaseModel):
-            if issubclass(original.schema, BasicResponseFormat):
-                # Compare schemas based on their JSON schema representation rather than exact type equality
-                original_schema_json = original.schema.model_json_schema()
-                deserialized_schema_json = deserialized.schema.model_json_schema()
-
-                # Normalize JSON schemas for comparison (handle jambo differences)
-                def normalize_schema(schema):
-                    """Normalize schema to handle jambo reconstruction differences."""
-                    # Remove $defs section as it's jambo-specific
-                    if '$defs' in schema:
-                        del schema['$defs']
-
-                    # Normalize enum references back to inline enums
-                    for prop_name, prop_value in schema.get('properties', {}).items():
-                        if isinstance(prop_value, dict) and '$ref' in prop_value:
-                            # This is a jambo-generated enum reference, we'll skip detailed comparison
-                            # since the functional behavior is the same
-                            pass
-
-                    return schema
-
-                original_normalized = normalize_schema(original_schema_json.copy())
-                deserialized_normalized = normalize_schema(deserialized_schema_json.copy())
-
-                # Compare normalized schemas
-                # Note: We skip detailed comparison of required fields since jambo may omit some
-                # The functional behavior (validation) should be the same
-
-                # For enum fields, jambo creates $ref references instead of inline enums
-                # We'll skip detailed comparison of enum fields since the functional behavior is the same
-                original_props = original_normalized['properties']
-                deserialized_props = deserialized_normalized['properties']
-
-                # Check that all properties exist in both schemas
-                assert set(original_props.keys()) == set(deserialized_props.keys()), (
-                    f"Schema property keys mismatch for {expr_class_name} example {example_index}. "
-                    f"Original keys: {set(original_props.keys())}, Deserialized keys: {set(deserialized_props.keys())}"
-                )
-
-                # Compare non-enum properties
-                for prop_name in original_props:
-                    orig_prop = original_props[prop_name]
-                    deser_prop = deserialized_props[prop_name]
-
-                    # Skip enum properties that jambo converts to $ref
-                    if 'enum' in orig_prop and '$ref' in deser_prop:
-                        continue
-
-                    # For other properties, compare normally
-                    assert orig_prop == deser_prop, (
-                        f"Schema property '{prop_name}' mismatch for {expr_class_name} example {example_index}. "
-                        f"Original: {orig_prop}, Deserialized: {deser_prop}"
-                    )
-
-                # For equality comparison, we need to use the same schema instance
-                # This is a known limitation of jambo reconstruction
-                deserialized.schema = original.schema
-            else:
-                raise ValueError(f"Unsupported schema type: {type(original.schema)}")
-        
         if not original == deserialized:
             raise ValueError(f"Original {original} does not match deserialized {deserialized}. Class Name: {expr_class_name}, Example Index: {example_index}")
 
