@@ -180,6 +180,8 @@ AnthropicLanguageModelName = Literal[
     "claude-3-5-sonnet-latest",
     "claude-3-5-sonnet-20241022",
     "claude-3-5-sonnet-20240620",
+    "claude-opus-4.1",
+    "claude-opus-4-1-20250805",
     "claude-opus-4-0",
     "claude-opus-4-20250514",
     "claude-4-opus-20250514",
@@ -283,6 +285,21 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-1",
+            CompletionModelParameters(
+                input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
+                cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
+                cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=32_000,
+                supports_reasoning=True,
+            ),
+            snapshots=["claude-opus-4-1-20250805"],
+        )
+
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-opus-4-0",

@@ -158,28 +158,30 @@ class AnthropicBatchCompletionsClient(
                 return FenicCompletionsResponse(completion="", logprobs=None)
             if usage_data:
                 # Extract usage metrics
+                num_cache_tokens_written = usage_data.cache_creation_input_tokens
                 num_pre_cached_tokens = usage_data.cache_read_input_tokens
-                total_input_tokens = usage_data.input_tokens + usage_data.cache_read_input_tokens
+                num_uncached_input_tokens = usage_data.input_tokens
+                prompt_tokens = num_pre_cached_tokens + num_uncached_input_tokens + num_cache_tokens_written
                 output_tokens = usage_data.output_tokens
 
                 # Create ResponseUsage object
                 usage = ResponseUsage(
-                    prompt_tokens=total_input_tokens,
+                    prompt_tokens=prompt_tokens,
                     completion_tokens=output_tokens,  # For Anthropic, all output tokens are completion tokens
-                    total_tokens=total_input_tokens + output_tokens,
+                    total_tokens=prompt_tokens + output_tokens,
                     cached_tokens=num_pre_cached_tokens,
                     thinking_tokens=0  # Anthropic doesn't separate thinking tokens yet
                 )
 
                 # Update metrics (existing logic)
                 self._metrics.num_cached_input_tokens += num_pre_cached_tokens
-                self._metrics.num_uncached_input_tokens += total_input_tokens
+                self._metrics.num_uncached_input_tokens += num_uncached_input_tokens
                 self._metrics.num_output_tokens += output_tokens
                 self._metrics.num_requests += 1
                 self._metrics.cost += model_catalog.calculate_completion_model_cost(
                     model_provider=ModelProvider.ANTHROPIC,
                     model_name=self.model,
-                    uncached_input_tokens=total_input_tokens,
+                    uncached_input_tokens=num_uncached_input_tokens,
                     cached_input_tokens_read=num_pre_cached_tokens,
                     cached_input_tokens_written=usage_data.cache_creation_input_tokens,
                     output_tokens=output_tokens,
@@ -391,5 +393,10 @@ class AnthropicBatchCompletionsClient(
         for example in messages.examples:
             message_params.append(MessageParam(content=example.user, role="user"))
             message_params.append(MessageParam(content=example.assistant, role="assistant"))
-        message_params.append(MessageParam(content=messages.user, role="user"))
+        user_prompt = TextBlockParam(
+            text=messages.user,
+            type="text",
+            cache_control=EPHEMERAL_CACHE_CONTROL
+        )
+        message_params.append(MessageParam(content=[user_prompt], role="user"))
         return system_prompt, message_params

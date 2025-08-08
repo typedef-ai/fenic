@@ -37,13 +37,13 @@ def main(config: Optional[fc.SessionConfig] = None):
                     rpm=500,
                     tpm=200_000
                 ),
-                # "gemini": fc.GoogleDeveloperModelConfig(
+                # "gemini": fc.GoogleDeveloperLanguageModel(
                 #     model_name="gemini-2.0-flash",
                 #     rpm=500,
                 #     tpm=1_000_000
                 # ),
-                # "anthropic": fc.AnthropicModelConfig(
-                #     model_name="claude-sonnet-4-0",
+                # "anthropic": fc.AnthropicLanguageModel(
+                #     model_name="claude-3-5-haiku-latest",
                 #     rpm=500,
                 #     input_tpm=80_000,
                 #     output_tpm=32_000,
@@ -266,7 +266,6 @@ def main(config: Optional[fc.SessionConfig] = None):
         fc.semantic.classify(fc.col("combined_extracts"), ["far_left", "left_leaning", "neutral", "right_leaning", "far_right"]).alias("content_bias"),
         fc.semantic.classify(fc.col("combined_extracts"), ["sensationalist", "informational"]).alias("journalistic_style")
     ).cache()
-
     print("\n📊 Complete Bias Detection Results:")
     print("=" * 70)
     results_df.show()
