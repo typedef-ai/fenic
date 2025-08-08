@@ -167,7 +167,7 @@ uv sync --extra=cloud
 uv run pytest -m cloud tests
 ```
 
-> ⚠️ Note: All tests require a valid OpenAI/Anthropic API key set in the environment variables.
+> ⚠️ Note: All tests require a valid OpenAI API key set in the environment variables.
 
 ---
 
@@ -193,6 +193,46 @@ To run the demo notebooks:
    - Go to Extensions → Python → **Python: Venv Folders**
 3. Open a notebook and select the correct Python kernel from the virtual environment.
 4. Restart the kernel if you make changes to the `fenic` source code.
+
+---
+
+## Adding model support
+
+### Adding support for a provider
+
+- update the `ModelProvider` enum
+- create an instance of the ModelProviderClass (see `OpenAIModelProvider`)
+- create an instance of ModelClient for LLM and/or Embedding clients (see `OpenAIBatchChatCompletionsClient` and `OpenAIBatchEmbeddingsClient`)
+- create a provider specific instance of `ProfileManager`, if models from this provider will support configuration changes
+
+### Adding a Language or Embedding Models
+
+- Update `model_catalog.py`
+- Add your model to the provider’s options
+  - for e.g., add to `OpenAILanguageModelName` or `OpenAIEmbeddingModelName`
+- Add the model to the catalog object with `_add_model_to_catalog()` with the appropriate `CompletionModelParameters` or `EmbeddingModelParameters`
+
+### Adding provider-specific params using the model Profile
+
+Profile level parameters allow the user to configure their model. You can add fields specific to a provider and subset of models by updating that provider’s profile class.
+
+- A provider `Profile` is defined in the provider's model configuration class (see `OpenAILanguageModel`)
+- Add provider specific the model’s `Profile` with the new `Field`
+  - for e.g. look at [`config.py`](http://config.py) and see `reasoning_effort` defined in `OpenAILanguageModel.Profile`
+- Update the resolved model profile in [`_resolved_session_config.py`](https://github.com/typedef-ai/fenic/pull/135/files#diff-454f845e61c21cebcf1003bf35368aead665489a72376d2ae0b031f3c26293c4)
+  - for e.g.: `ResolvedOpenAIModelProfile`
+
+### Adding model-specific support for params
+
+Some params may not be supported or have strict requirements on the input values depending on the model. To add model-specific logic:
+
+- Add a flag to global `CompletionModelParameters` in `model_catalog.py`, then set the flag for each appropriate model added to the catalog (see `_add_model_to_catalog()` calls).
+  - this allows models to pass specific flags to the model and profile registry codepaths (for e.g.: `supports_reasoning`)
+  - models can be configured to not accept Profiles at all (`supports_profiles`)
+
+- To change or enforce values for a model profile param values based on the model params (for e.g.: to ignore the field for unsupported models), update that model’s `ProfileManager` class
+  - use the model_parameters to set the parameters passed to the model client
+  - for openai, look at `OpenAICompletionsProfileManager` in `openai_profile_manager.py`
 
 ---
 
