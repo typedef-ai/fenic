@@ -283,11 +283,13 @@ class GeminiNativeChatCompletionsClient(
             "system_instruction": request.messages.system,
         }
         generation_config.update(profile_config.additional_generation_config)
-
+        stripped_schema = request.structured_output.strict_schema
+        if stripped_schema.get("additionalProperties") is not None:
+            del stripped_schema["additionalProperties"]
         if request.structured_output is not None:
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=request.structured_output.canonical_schema,
+                response_schema=stripped_schema,
             )
 
         # Build generation parameters

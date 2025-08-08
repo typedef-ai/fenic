@@ -122,14 +122,15 @@ def main(config: Optional[fc.SessionConfig] = None):
         app_name="meeting_transcript_processing",
         semantic=fc.SemanticConfig(
             language_models={
-                "mini" : fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
+                "nano" : fc.OpenAILanguageModel(
+                    model_name="gpt-4.1-nano",
                     rpm=500,
                     tpm=200_000,
                 )
             }
         ),
     )
+    fc.configure_logging()
 
     # Create session
     session = fc.Session.get_or_create(config)

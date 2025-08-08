@@ -8,9 +8,16 @@ from typing import Any, Dict, Optional, Union
 
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
-from pydantic import BaseModel
+from openai.lib._pydantic import to_strict_json_schema
+from pydantic import BaseModel, create_model
 
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
+from fenic.core._utils.json_schema_utils import (
+    deep_copy_json,
+    make_nullable as util_make_nullable,
+    unwrap_optional_union as util_unwrap_optional_union,
+    strip_schema_metadata,
+)
 from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
 )
@@ -54,7 +61,7 @@ class ResolvedResponseFormat:
 
     """
     schema: Dict[str, Any]
-    canonical_schema: Dict[str, Any]
+    strict_schema: Dict[str, Any]
     prompt_schema_definition: str
     struct_type: Optional[StructType] = None
 
@@ -65,14 +72,13 @@ class ResolvedResponseFormat:
         generate_struct_type: bool = True,
     ) -> "ResolvedResponseFormat":
         """Create a ResolvedResponseFormat from a Pydantic model."""
-
         schema = model.model_json_schema()
-        canonicalized_schema = ResolvedResponseFormat.canonicalize_schema(schema)
+        strict_schema = to_strict_json_schema(model)
         prompt_schema_definition = convert_pydantic_model_to_key_descriptions(model)
         struct_type = convert_pydantic_type_to_custom_struct_type(model) if generate_struct_type else None
         return cls(
             schema=schema,
-            canonical_schema=canonicalized_schema,
+            strict_schema=strict_schema,
             prompt_schema_definition=prompt_schema_definition,
             struct_type=struct_type,
         )
@@ -87,95 +93,17 @@ class ResolvedResponseFormat:
         return hash(self.schema_fingerprint)
 
     # === Helpers for schema normalization and provider payloads ===
-    @classmethod
-    def canonicalize_schema(cls, schema: dict[str, Any]) -> Dict[str, Any]:
-        """Return a deep-copied, canonical JSON Schema used for fingerprinting and OpenAI.
-
-        - Strips volatile metadata keys (title, $id, $schema)
-        - Ensures additionalProperties: false on every object
-        - Sets required to all property keys
-        - Makes originally-optional properties nullable (allow null)
-        - Traverses arrays, composition keywords, and $defs/definitions
-        """
-        def deep_copy(obj: Any) -> Any:
-            return json.loads(json.dumps(obj))
-
-        def strip_metadata(s: Dict[str, Any]) -> None:
-            for k in ("title", "$id", "$schema"):
-                if k in s:
-                    del s[k]
-
-        def make_nullable(schema_node: Dict[str, Any]) -> Dict[str, Any]:
-            t = schema_node.get("type")
-            if isinstance(t, list):
-                if "null" in t:
-                    return schema_node
-                schema_node = {**schema_node, "type": t + ["null"]}
-                return schema_node
-            if isinstance(t, str):
-                if t == "null":
-                    return schema_node
-                new_node = deep_copy(schema_node)
-                new_node["type"] = [t, "null"]
-                return new_node
-            if "anyOf" in schema_node and isinstance(schema_node["anyOf"], list):
-                anyof = schema_node["anyOf"]
-                if any(isinstance(s, dict) and s.get("type") == "null" for s in anyof):
-                    return schema_node
-                return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
-            if "$ref" in schema_node:
-                return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
-            return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
-
-        def canonicalize(node: Any) -> Any:
-            if not isinstance(node, dict):
-                return node
-            strip_metadata(node)
-            t = node.get("type")
-            if t == "object":
-                node.setdefault("additionalProperties", False)
-                props = node.get("properties", {})
-                if isinstance(props, dict):
-                    original_required = set(node.get("required", []))
-                    for k, v in list(props.items()):
-                        props[k] = canonicalize(v)
-                    keys = list(props.keys())
-                    node["required"] = keys
-                    for k in keys:
-                        if k not in original_required:
-                            props[k] = make_nullable(props[k])
-            elif t == "array":
-                items = node.get("items")
-                if isinstance(items, dict):
-                    node["items"] = canonicalize(items)
-            for key in ("allOf", "anyOf", "oneOf"):
-                if key in node and isinstance(node[key], list):
-                    node[key] = [canonicalize(s) for s in node[key]]
-            for defs_key in ("$defs", "definitions"):
-                defs = node.get(defs_key)
-                if isinstance(defs, dict):
-                    for dk, dv in list(defs.items()):
-                        defs[dk] = canonicalize(dv)
-            return node
-
-        base = deep_copy(schema)
-        return canonicalize(base)
+    @cached_property
+    def canonical_schema(self) -> Dict[str, Any]:
+        """Return a minimal canonical JSON Schema for fingerprinting (no $id/$schema)."""
+        return strip_schema_metadata(self.schema)
 
     @cached_property
     def schema_fingerprint(self) -> str:
         """Stable string fingerprint for equality and hashing."""
         return json.dumps(self.canonical_schema, sort_keys=True, separators=(",", ":"))
 
-    def to_openai_response_format(self, name: str = "fenic_response") -> Dict[str, Any]:
-        """Build OpenAI parse API response_format payload from the canonical schema."""
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": name,
-                "schema": self.canonical_schema,
-                "strict": True,
-            },
-        }
+    # Access canonical schema via the `canonical_schema` property
 
     def validate_structured_response(
         self,
@@ -207,6 +135,7 @@ class ResolvedResponseFormat:
 
         try:
             self.validate_structured_response(json_resp)
+            # Apply defaults from schema to ensure missing optionals become nulls and shapes are consistent
             return json_resp
         except json.JSONDecodeError as e:
             logger.warning(
@@ -226,3 +155,89 @@ class ResolvedResponseFormat:
                 exc_info=True,
             )
             return None
+
+    # === Utilities ===
+    @staticmethod
+    def _add_null_defaults_to_optionals(schema: dict[str, Any]) -> dict[str, Any]:
+        """Ensure all optional properties are nullable throughout the schema (recursively)."""
+
+        def make_nullable(node: dict[str, Any]) -> dict[str, Any]:
+            return util_make_nullable(node)
+
+        def unwrap_optional(node: dict[str, Any]) -> dict[str, Any]:
+            return util_unwrap_optional_union(node)
+
+        def walk(node: Any) -> Any:
+            if not isinstance(node, dict):
+                return node
+            t = node.get("type")
+            if t == "object":
+                props = node.get("properties", {})
+                required = set(node.get("required", []))
+                for key, prop_schema in list(props.items()):
+                    # Determine if optional by required list
+                    is_optional = key not in required
+                    # Unwrap optional branch for traversal (if any)
+                    base_schema = unwrap_optional(prop_schema)
+                    # Recurse into the non-null branch
+                    walked_base = walk(base_schema)
+                    if is_optional:
+                        # Re-wrap to allow null for local validation
+                        props[key] = make_nullable(walked_base)
+                    else:
+                        props[key] = walked_base
+                # Recurse into definitions and compositions too
+            elif t == "array":
+                items = node.get("items")
+                if isinstance(items, dict):
+                    node["items"] = walk(items)
+            for k in ("allOf", "anyOf", "oneOf"):
+                if isinstance(node.get(k), list):
+                    node[k] = [walk(s) for s in node[k]]
+            for defs_key in ("$defs", "definitions"):
+                defs = node.get(defs_key)
+                if isinstance(defs, dict):
+                    for dk, dv in list(defs.items()):
+                        defs[dk] = walk(dv)
+            return node
+
+        # One deep copy at the top, then mutate in place during traversal
+        cp = deep_copy_json(schema)
+        return walk(cp)
+
+    @staticmethod
+    def _apply_defaults(
+        schema: dict[str, Any], data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Apply default values from schema into data recursively (for objects and arrays)."""
+        def walk(obj_schema: Any, obj: Any) -> Any:
+            if not isinstance(obj_schema, dict):
+                return obj
+            schema_type = obj_schema.get("type")
+            if schema_type == "object":
+                props = obj_schema.get("properties", {})
+                required = set(obj_schema.get("required", []))
+                result = {} if not isinstance(obj, dict) else dict(obj)
+                for key, subschema in props.items():
+                    subschema = util_unwrap_optional_union(subschema)
+                    if key in result:
+                        result[key] = walk(subschema, result[key])
+                    else:
+                        # If default present, set it; else if optional, set None
+                        if "default" in subschema:
+                            result[key] = subschema.get("default")
+                        elif key not in required:
+                            result[key] = None
+                return result
+            if schema_type == "array":
+                items_schema = obj_schema.get("items")
+                if isinstance(obj, list) and isinstance(items_schema, dict):
+                    return [walk(items_schema, it) for it in obj]
+                return obj
+            # For union via anyOf/oneOf at non-object levels, leave as-is
+            return obj
+
+        # Start from the non-optional root subschema for objects
+        # Avoid extra copies; unwrap on the provided schema directly
+        root_schema = util_unwrap_optional_union(schema)
+        return walk(root_schema, data)
