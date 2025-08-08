@@ -52,6 +52,9 @@ class InMemorySource(LogicalPlan):
             )
         return self.from_schema(self._source, self._schema)
 
+    def _eq_specific(self, other: InMemorySource) -> bool:
+        return self._source.equals(other._source)
+
 
 class FileSource(LogicalPlan):
     def __init__(
@@ -129,6 +132,13 @@ class FileSource(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: FileSource) -> bool:
+        return (
+            self._paths == other._paths
+            and self._file_format == other._file_format
+            and self._options == other._options
+        )
+
 class TableSource(LogicalPlan):
     def __init__(
             self,
@@ -167,3 +177,6 @@ class TableSource(LogicalPlan):
         result = TableSource.from_schema(self._table_name, self._schema)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: TableSource) -> bool:
+        return self._table_name == other._table_name

@@ -81,6 +81,12 @@ class Projection(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Projection) -> bool:
+        return (
+            len(self._exprs) == len(other._exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=True))
+        )
+
 class Filter(LogicalPlan):
     def __init__(
             self,
@@ -130,6 +136,9 @@ class Filter(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Filter) -> bool:
+        return self._predicate == other._predicate
+
 class Union(LogicalPlan):
     def __init__(
             self,
@@ -153,23 +162,62 @@ class Union(LogicalPlan):
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         schemas = [input_plan.schema() for input_plan in self._inputs]
 
-        # Check that all schemas have the same columns and types
+        # Check that all schemas have the same columns and types (order doesn't matter)
         first_schema = schemas[0]
         first_schema_fields = {f.name: f.data_type for f in first_schema.column_fields}
 
-        for schema in schemas[1:]:
+        for i, schema in enumerate(schemas[1:], start=1):
             schema_fields = {f.name: f.data_type for f in schema.column_fields}
-            if set(schema_fields.keys()) != set(first_schema_fields.keys()):
-                raise ValueError(
-                    "Cannot union DataFrames with different columns. "
-                    "All DataFrames must have exactly the same column names."
-                )
-            for name, type_ in schema_fields.items():
-                if type_ != first_schema_fields[name]:
-                    raise ValueError(
-                        f"Cannot union DataFrames: column '{name}' must be type {first_schema_fields[name]} "
-                        "across all DataFrames. Consider casting columns to matching types before union."
+
+            if schema_fields != first_schema_fields:
+                # Provide detailed diagnostics
+                first_names = set(first_schema_fields.keys())
+                current_names = set(schema_fields.keys())
+
+                if first_names != current_names:
+                    missing = sorted(first_names - current_names)
+                    extra = sorted(current_names - first_names)
+
+                    error_parts = [
+                        f"Cannot union DataFrames: DataFrame #{i} has different columns than DataFrame #0."
+                    ]
+
+                    if missing:
+                        error_parts.append(f"Missing columns: {missing}")
+                    if extra:
+                        error_parts.append(f"Extra columns: {extra}")
+
+                    error_parts.extend([
+                        "",
+                        f"DataFrame #0 schema:\n{first_schema}",
+                        "",
+                        f"DataFrame #{i} schema:\n{schema}",
+                        "",
+                        "All DataFrames in a union must have exactly the same columns. "
+                        "Consider using .select() to ensure matching columns before the union operation. "
+                    ])
+
+                    raise PlanError("\n".join(error_parts))
+
+                # Same columns but different types
+                type_mismatches = []
+                for name in sorted(first_names):
+                    if first_schema_fields[name] != schema_fields[name]:
+                        type_mismatches.append(
+                            f"  - Column '{name}': DataFrame #0 has {first_schema_fields[name]}, "
+                            f"DataFrame #{i} has {schema_fields[name]}"
+                        )
+
+                if type_mismatches:
+                    error_message = (
+                        f"Cannot union DataFrames: DataFrame #{i} has incompatible column types.\n\n"
+                        f"Type mismatches:\n" + "\n".join(type_mismatches) + "\n\n"
+                        f"DataFrame #0 schema:\n{first_schema}\n\n"
+                        f"DataFrame #{i} schema:\n{schema}\n\n"
+                        f"All DataFrames in a union must have matching column types. "
+                        f"Consider using .cast() to align column types before the union operation."
                     )
+                    raise PlanError(error_message)
 
         return schemas[0]
 
@@ -180,6 +228,9 @@ class Union(LogicalPlan):
         result = Union.from_session_state(children, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Union) -> bool:
+        return True  # Union has no specific attributes beyond children
 
 
 class Limit(LogicalPlan):
@@ -216,6 +267,9 @@ class Limit(LogicalPlan):
         result = self.from_session_state(children[0], self.n, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Limit) -> bool:
+        return self.n == other.n
 
 
 class Explode(LogicalPlan):
@@ -280,6 +334,9 @@ class Explode(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Explode) -> bool:
+        return self._expr == other._expr
+
 
 class DropDuplicates(LogicalPlan):
     def __init__(
@@ -315,6 +372,12 @@ class DropDuplicates(LogicalPlan):
         result = DropDuplicates.from_session_state(children[0], self.subset, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: DropDuplicates) -> bool:
+        return (
+            len(self.subset) == len(other.subset)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self.subset, other.subset, strict=True))
+        )
 
     def _subset(self) -> List[str]:
         subset: List[str] = []
@@ -361,6 +424,11 @@ class Sort(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Sort) -> bool:
+        return (
+            len(self._sort_exprs) == len(other._sort_exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._sort_exprs, other._sort_exprs, strict=True))
+        )
 
 class Unnest(LogicalPlan):
     def __init__(
@@ -414,6 +482,13 @@ class Unnest(LogicalPlan):
         result = Unnest.from_session_state(children[0], self._exprs, session_state)
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: Unnest) -> bool:
+        return (
+            len(self._exprs) == len(other._exprs)
+            and all(expr1 == expr2 for expr1, expr2 in zip(self._exprs, other._exprs, strict=True))
+        )
+
 
 class SQL(LogicalPlan):
     def __init__(
@@ -511,6 +586,12 @@ class SQL(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SQL) -> bool:
+        return (
+            self._template_names == other._template_names
+            and self._templated_query == other._templated_query
+        )
+
 @dataclass
 class CentroidInfo:
     centroid_column: str
@@ -540,12 +621,50 @@ class SemanticCluster(LogicalPlan):
         super().__init__(session_state, schema)
 
     @classmethod
-    def from_schema(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], schema: Schema) -> SemanticCluster:
-        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, None, schema)
+    def from_schema(
+        cls,
+        input: LogicalPlan,
+        by_expr: LogicalExpr,
+        num_clusters: int,
+        max_iter: int,
+        num_init: int,
+        label_column: str,
+        centroid_column: Optional[str],
+        schema: Schema,
+    ) -> SemanticCluster:
+        return SemanticCluster(
+            input,
+            by_expr,
+            num_clusters,
+            max_iter,
+            num_init,
+            label_column,
+            centroid_column,
+            schema=schema,
+        )
 
     @classmethod
-    def from_session_state(cls, input: LogicalPlan, by_expr: LogicalExpr, num_clusters: int, max_iter: int, num_init: int, label_column: str, centroid_column: Optional[str], session_state: BaseSessionState) -> SemanticCluster:
-        return SemanticCluster(input, by_expr, num_clusters, max_iter, num_init, label_column, centroid_column, session_state, None)
+    def from_session_state(
+        cls,
+        input: LogicalPlan,
+        by_expr: LogicalExpr,
+        num_clusters: int,
+        max_iter: int,
+        num_init: int,
+        label_column: str,
+        centroid_column: Optional[str],
+        session_state: BaseSessionState,
+    ) -> SemanticCluster:
+        return SemanticCluster(
+            input,
+            by_expr,
+            num_clusters,
+            max_iter,
+            num_init,
+            label_column,
+            centroid_column,
+            session_state=session_state,
+        )
 
     def children(self) -> List[LogicalPlan]:
         return [self._input]
@@ -602,6 +721,15 @@ class SemanticCluster(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SemanticCluster) -> bool:
+        return (
+            self._by_expr == other._by_expr
+            and self._num_clusters == other._num_clusters
+            and self._max_iter == other._max_iter
+            and self._num_init == other._num_init
+            and self._label_column == other._label_column
+            and self._centroid_column == other._centroid_column
+        )
 
 DDL_DML_NODES = (
     sqlglot_exprs.Insert,

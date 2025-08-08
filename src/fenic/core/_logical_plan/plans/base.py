@@ -118,3 +118,30 @@ class LogicalPlan(ABC):
             A new logical plan instance of the same type with updated children
         """
         pass
+
+    @abstractmethod
+    def _eq_specific(self, other: LogicalPlan) -> bool:
+        """Returns True if the plan has equal non plan attributes to the other plan.
+
+        Args:
+            other: The other plan to compare to.
+        """
+        pass
+
+    def __eq__(self, other: LogicalPlan) -> bool:
+        if not isinstance(other, LogicalPlan):
+            return False
+        if type(self) is not type(other):
+            return False
+        if self.schema() != other.schema():
+            return False
+        if not self._eq_specific(other):
+            return False
+        self_children = self.children()
+        other_children = other.children()
+        if len(self_children) != len(other_children):
+            return False
+        return all(
+            child1 == child2
+            for child1, child2 in zip(self_children, other_children, strict=True)
+        )

@@ -57,13 +57,13 @@ class LogicalExpr(ABC):
             return False
         if not self._eq_specific(other):
             return False
-        self_chldren = self.children()
+        self_children = self.children()
         other_children = other.children()
-        if len(self_chldren) != len(other_children):
+        if len(self_children) != len(other_children):
             return False
         return all(
             child1 == child2
-            for child1, child2 in zip(self_chldren, other_children, strict=False)
+            for child1, child2 in zip(self_children, other_children, strict=True)
         )
 
     @abstractmethod
