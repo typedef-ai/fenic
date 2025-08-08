@@ -287,7 +287,7 @@ class GeminiNativeChatCompletionsClient(
         if request.structured_output is not None:
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=request.structured_output.schema,
+                response_schema=request.structured_output.canonical_schema,
             )
 
         # Build generation parameters

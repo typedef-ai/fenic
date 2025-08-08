@@ -263,7 +263,7 @@ def main(config: Optional[fc.SessionConfig] = None):
     )
 
     print("Applied semantic extraction to all segments")
-
+    enriched_polars = enriched_df.to_polars()
     # Step 5: Extract and structure insights
     print("\n=== Step 5: Extract Structured Insights ===")
     insights_df = (

@@ -54,8 +54,9 @@ class ResolvedResponseFormat:
 
     """
     schema: Dict[str, Any]
+    canonical_schema: Dict[str, Any]
+    prompt_schema_definition: str
     struct_type: Optional[StructType] = None
-    prompt_schema_definition: Optional[str] = None
 
     @classmethod
     def from_pydantic_model(
@@ -64,10 +65,16 @@ class ResolvedResponseFormat:
         generate_struct_type: bool = True,
     ) -> "ResolvedResponseFormat":
         """Create a ResolvedResponseFormat from a Pydantic model."""
+
+        schema = model.model_json_schema()
+        canonicalized_schema = ResolvedResponseFormat.canonicalize_schema(schema)
+        prompt_schema_definition = convert_pydantic_model_to_key_descriptions(model)
+        struct_type = convert_pydantic_type_to_custom_struct_type(model) if generate_struct_type else None
         return cls(
-            schema=model.model_json_schema(),
-            struct_type=convert_pydantic_type_to_custom_struct_type(model) if generate_struct_type else None,
-            prompt_schema_definition=convert_pydantic_model_to_key_descriptions(model) if generate_struct_type else None,
+            schema=schema,
+            canonical_schema=canonicalized_schema,
+            prompt_schema_definition=prompt_schema_definition,
+            struct_type=struct_type,
         )
 
 
@@ -80,11 +87,15 @@ class ResolvedResponseFormat:
         return hash(self.schema_fingerprint)
 
     # === Helpers for schema normalization and provider payloads ===
-    def _normalized_schema(self) -> Dict[str, Any]:
-        """Return a deep-copied, normalized JSON Schema suitable for provider APIs.
+    @classmethod
+    def canonicalize_schema(cls, schema: dict[str, Any]) -> Dict[str, Any]:
+        """Return a deep-copied, canonical JSON Schema used for fingerprinting and OpenAI.
 
-        - Ensures additionalProperties: false on every object (incl. nested, $defs, items)
-        - Strips volatile metadata keys (title, $id, $schema) for stable comparison
+        - Strips volatile metadata keys (title, $id, $schema)
+        - Ensures additionalProperties: false on every object
+        - Sets required to all property keys
+        - Makes originally-optional properties nullable (allow null)
+        - Traverses arrays, composition keywords, and $defs/definitions
         """
         def deep_copy(obj: Any) -> Any:
             return json.loads(json.dumps(obj))
@@ -94,82 +105,19 @@ class ResolvedResponseFormat:
                 if k in s:
                     del s[k]
 
-        def ensure_no_additional_props(s: Dict[str, Any]) -> None:
-            t = s.get("type")
-            if t == "object":
-                # enforce additionalProperties: false
-                s.setdefault("additionalProperties", False)
-                props = s.get("properties", {})
-                if isinstance(props, dict):
-                    for prop_schema in props.values():
-                        if isinstance(prop_schema, dict):
-                            ensure_no_additional_props(prop_schema)
-            if t == "array":
-                items = s.get("items")
-                if isinstance(items, dict):
-                    ensure_no_additional_props(items)
-            # Traverse composition and defs
-            for key in ("allOf", "anyOf", "oneOf"):
-                if key in s and isinstance(s[key], list):
-                    for sub in s[key]:
-                        if isinstance(sub, dict):
-                            ensure_no_additional_props(sub)
-            for defs_key in ("$defs", "definitions"):
-                defs = s.get(defs_key)
-                if isinstance(defs, dict):
-                    for sub in defs.values():
-                        if isinstance(sub, dict):
-                            ensure_no_additional_props(sub)
-
-        normalized = deep_copy(self.schema)
-        if isinstance(normalized, dict):
-            strip_metadata(normalized)
-            ensure_no_additional_props(normalized)
-        return normalized
-
-    @cached_property
-    def schema_fingerprint(self) -> str:
-        """Stable string fingerprint for equality and hashing."""
-        return json.dumps(self._normalized_schema(), sort_keys=True, separators=(",", ":"))
-
-    def to_openai_response_format(self, name: str = "fenic_response") -> Dict[str, Any]:
-        """Build OpenAI parse API response_format payload from the normalized schema."""
-        return {
-            "type": "json_schema",
-            "json_schema": {
-                "name": name,
-                "schema": self._normalized_schema_for_openai(),
-                "strict": True,
-            },
-        }
-
-    # Internal: stricter normalization for OpenAI parse API. This is required -- previously
-    # we were passing the pydantic model directly to the SDK, where all of this was handled internally.
-    # Now we are passing the schema directly to the SDK, so we need to normalize it to the OpenAI parse API expectations.
-    def _normalized_schema_for_openai(self) -> Dict[str, Any]:
-        """Return normalized schema with OpenAI parse expectations.
-
-        - additionalProperties: false for all objects
-        - required lists include every property key
-        - properties not originally required are made nullable (allow null)
-        """
-        def deep_copy(obj: Any) -> Any:
-            return json.loads(json.dumps(obj))
-
         def make_nullable(schema_node: Dict[str, Any]) -> Dict[str, Any]:
-            # If already allows null, return as-is
-            if "type" in schema_node:
-                t = schema_node["type"]
-                if isinstance(t, list):
-                    if "null" in t:
-                        return schema_node
-                    return {**schema_node, "type": t + ["null"]}
-                elif isinstance(t, str):
-                    if t == "null":
-                        return schema_node
-                    new_node = deep_copy(schema_node)
-                    new_node["type"] = [t, "null"]
-                    return new_node
+            t = schema_node.get("type")
+            if isinstance(t, list):
+                if "null" in t:
+                    return schema_node
+                schema_node = {**schema_node, "type": t + ["null"]}
+                return schema_node
+            if isinstance(t, str):
+                if t == "null":
+                    return schema_node
+                new_node = deep_copy(schema_node)
+                new_node["type"] = [t, "null"]
+                return new_node
             if "anyOf" in schema_node and isinstance(schema_node["anyOf"], list):
                 anyof = schema_node["anyOf"]
                 if any(isinstance(s, dict) and s.get("type") == "null" for s in anyof):
@@ -177,49 +125,57 @@ class ResolvedResponseFormat:
                 return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
             if "$ref" in schema_node:
                 return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
-            # Fallback: wrap
             return {"anyOf": [deep_copy(schema_node), {"type": "null"}]}
 
-        def ensure_openai_strict(node: Any) -> Any:
+        def canonicalize(node: Any) -> Any:
             if not isinstance(node, dict):
                 return node
+            strip_metadata(node)
             t = node.get("type")
-            # Enforce object rules
             if t == "object":
                 node.setdefault("additionalProperties", False)
                 props = node.get("properties", {})
                 if isinstance(props, dict):
-                    # Record original required
                     original_required = set(node.get("required", []))
-                    # Recurse into properties
                     for k, v in list(props.items()):
-                        props[k] = ensure_openai_strict(v)
-                    all_prop_keys = list(props.keys())
-                    # Set required to all keys
-                    node["required"] = all_prop_keys
-                    # Make previously optional properties nullable
-                    for k in all_prop_keys:
+                        props[k] = canonicalize(v)
+                    keys = list(props.keys())
+                    node["required"] = keys
+                    for k in keys:
                         if k not in original_required:
                             props[k] = make_nullable(props[k])
-
             elif t == "array":
                 items = node.get("items")
                 if isinstance(items, dict):
-                    node["items"] = ensure_openai_strict(items)
-
-            # Traverse composition and defs
+                    node["items"] = canonicalize(items)
             for key in ("allOf", "anyOf", "oneOf"):
                 if key in node and isinstance(node[key], list):
-                    node[key] = [ensure_openai_strict(s) for s in node[key]]
+                    node[key] = [canonicalize(s) for s in node[key]]
             for defs_key in ("$defs", "definitions"):
                 defs = node.get(defs_key)
                 if isinstance(defs, dict):
                     for dk, dv in list(defs.items()):
-                        defs[dk] = ensure_openai_strict(dv)
+                        defs[dk] = canonicalize(dv)
             return node
 
-        base = self._normalized_schema()
-        return ensure_openai_strict(base)
+        base = deep_copy(schema)
+        return canonicalize(base)
+
+    @cached_property
+    def schema_fingerprint(self) -> str:
+        """Stable string fingerprint for equality and hashing."""
+        return json.dumps(self.canonical_schema, sort_keys=True, separators=(",", ":"))
+
+    def to_openai_response_format(self, name: str = "fenic_response") -> Dict[str, Any]:
+        """Build OpenAI parse API response_format payload from the canonical schema."""
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": name,
+                "schema": self.canonical_schema,
+                "strict": True,
+            },
+        }
 
     def validate_structured_response(
         self,
