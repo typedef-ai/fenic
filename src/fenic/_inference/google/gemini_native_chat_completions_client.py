@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from functools import cache
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from google import genai
 from google.genai.errors import ClientError, ServerError
@@ -283,13 +283,11 @@ class GeminiNativeChatCompletionsClient(
             "system_instruction": request.messages.system,
         }
         generation_config.update(profile_config.additional_generation_config)
-        stripped_schema = request.structured_output.strict_schema
-        if stripped_schema.get("additionalProperties") is not None:
-            del stripped_schema["additionalProperties"]
         if request.structured_output is not None:
+            response_schema = self._prepare_schema(request.structured_output)
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=stripped_schema,
+                response_schema=response_schema,
             )
 
         # Build generation parameters
@@ -398,3 +396,9 @@ class GeminiNativeChatCompletionsClient(
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
             return TransientException(e)
+
+    def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
+        stripped_schema = response_format.strict_schema
+        if stripped_schema.get("additionalProperties") is not None:
+            del stripped_schema["additionalProperties"]
+        return stripped_schema

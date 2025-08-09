@@ -31,12 +31,6 @@ from fenic.core._inference.model_catalog import (
     model_catalog,
 )
 from fenic.core.metrics import LMMetrics
-from fenic.core._utils.json_schema_utils import (
-    deep_copy_json,
-    strip_defaults_in_place,
-    strip_schema_metadata_in_place,
-    make_nullable as util_make_nullable,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -75,53 +69,6 @@ class OpenAIChatCompletionsCore:
     def get_metrics(self) -> LMMetrics:
         """Get the metrics."""
         return self._metrics
-
-    @staticmethod
-    def _strictify_schema_for_openai(schema: dict[str, Any]) -> dict[str, Any]:
-        """Produce a strict OpenAI-compatible schema:
-        - additionalProperties: false on all objects
-        - required = all property keys
-        - optional properties allow null
-        """
-        def make_nullable(node: dict[str, Any]) -> dict[str, Any]:
-            return util_make_nullable(node)
-
-        def walk(node: Any) -> Any:
-            if not isinstance(node, dict):
-                return node
-            t = node.get("type")
-            if t == "object":
-                node.setdefault("additionalProperties", False)
-                props = node.get("properties", {})
-                if isinstance(props, dict):
-                    original_required = set(node.get("required", []))
-                    for k, v in list(props.items()):
-                        props[k] = walk(v)
-                    keys = list(props.keys())
-                    node["required"] = keys
-                    for k in keys:
-                        if k not in original_required:
-                            props[k] = make_nullable(props[k])
-            elif t == "array":
-                items = node.get("items")
-                if isinstance(items, dict):
-                    node["items"] = walk(items)
-            for key in ("allOf", "anyOf", "oneOf"):
-                if key in node and isinstance(node[key], list):
-                    node[key] = [walk(s) for s in node[key]]
-            for defs_key in ("$defs", "definitions"):
-                defs = node.get(defs_key)
-                if isinstance(defs, dict):
-                    for dk, dv in list(defs.items()):
-                        defs[dk] = walk(dv)
-            return node
-
-        # Start from a deep copy once, then mutate in place
-        base = deep_copy_json(schema)
-        strip_schema_metadata_in_place(base)
-        base = walk(base)
-        strip_defaults_in_place(base)
-        return base
 
     async def make_single_request(
         self,

@@ -8,131 +8,115 @@ def deep_copy_json(obj: Any) -> Any:
     """Deep copy using JSON round-trip to avoid shared references in nested dicts/lists."""
     return json.loads(json.dumps(obj))
 
-
-def make_nullable(node: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a schema node that allows null in addition to its existing type.
-
-    - If node["type"] is a string, convert to [type, "null"]
-    - If node["type"] is a list, append "null" if not present
-    - If node has anyOf/oneOf without null, wrap with an additional null alternative
-    - If node is a $ref or lacks type/combiners, wrap in anyOf with null
-    """
-    t = node.get("type")
-    if isinstance(t, list):
-        if "null" in t:
-            return node
-        node["type"] = t + ["null"]
-        return node
-    if isinstance(t, str):
-        if t == "null":
-            return node
-        node["type"] = [t, "null"]
-        return node
-    for key in ("anyOf", "oneOf"):
-        alts = node.get(key)
-        if isinstance(alts, list):
-            if any(isinstance(s, dict) and s.get("type") == "null" for s in alts):
-                return node
-            wrapped = {key: [node, {"type": "null"}]}
-            # Preserve top-level descriptive metadata on wrapper
-            for meta_key in ("description", "title", "examples"):
-                if meta_key in node:
-                    wrapped[meta_key] = node[meta_key]
-            return wrapped
-    if "$ref" in node:
-        wrapped = {"anyOf": [node, {"type": "null"}]}
-        for meta_key in ("description", "title", "examples"):
-            if meta_key in node:
-                wrapped[meta_key] = node[meta_key]
-        return wrapped
-    wrapped = {"anyOf": [node, {"type": "null"}]}
-    for meta_key in ("description", "title", "examples"):
-        if meta_key in node:
-            wrapped[meta_key] = node[meta_key]
-    return wrapped
-
-
 def unwrap_optional_union(node: Dict[str, Any]) -> Dict[str, Any]:
-    """If node is an anyOf/oneOf with a null branch, return a copy of the non-null branch
-    while preserving top-level descriptive metadata (description/title/examples) from the wrapper.
+    """If node is an anyOf/oneOf with a null branch, return the first non-null branch.
+
     Otherwise return node unchanged.
     """
     for key in ("anyOf", "oneOf"):
         alts = node.get(key)
         if isinstance(alts, list):
-            non_null = next((s for s in alts if not (isinstance(s, dict) and s.get("type") == "null")), None)
-            if isinstance(non_null, dict):
-                # Preserve wrapper metadata on the non-null branch if not present
-                for meta_key in ("description", "title", "examples"):
-                    if meta_key in node and meta_key not in non_null:
-                        non_null[meta_key] = node[meta_key]
-                return non_null
+            for alt in alts:
+                if isinstance(alt, dict) and alt.get("type") != "null":
+                    return alt
     return node
 
+def to_strict_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a strict JSON Schema suitable for OpenAI/Google.
 
-def strip_defaults_in_place(schema: Dict[str, Any]) -> None:
-    """Remove all default keys recursively in-place."""
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
+    Rules (adapted from OpenAI's internal logic):
+    - Set additionalProperties: false for all objects (when not present)
+    - Set required to all keys in properties
+    - Recurse into properties, items, anyOf, allOf (flatten allOf of length 1)
+    - Strip default when it's None
+    - If a node has $ref alongside other keys, inline the ref target and re-ensure strictness
+
+    This function deep-copies the input once and then mutates the copy in-place.
+    """
+    root = deep_copy_json(schema)
+
+    def has_more_than_n_keys(obj: Dict[str, Any], n: int) -> bool:
+        count = 0
+        for _ in obj.keys():
+            count += 1
+            if count > n:
+                return True
+        return False
+
+    def resolve_ref(root_schema: Dict[str, Any], ref: str) -> Any:
+        if not isinstance(ref, str) or not ref.startswith("#/"):
+            raise ValueError(f"Unexpected $ref format {ref!r}; Does not start with #/")
+        path = ref[2:].split("/")
+        resolved: Any = root_schema
+        for key in path:
+            resolved = resolved[key]
+            if not isinstance(resolved, dict):
+                raise ValueError(f"Encountered non-dict while resolving {ref}: {resolved}")
+        return resolved
+
+    def ensure(node: Any, path: tuple[str, ...]) -> Dict[str, Any]:
+        if not isinstance(node, dict):
+            raise TypeError(f"Expected dict at path={path}, got {type(node)}")
+
+        # Recurse into $defs/definitions first
+        defs = node.get("$defs")
+        if isinstance(defs, dict):
+            for k, v in list(defs.items()):
+                defs[k] = ensure(v, (*path, "$defs", k))
+
+        definitions = node.get("definitions")
+        if isinstance(definitions, dict):
+            for k, v in list(definitions.items()):
+                definitions[k] = ensure(v, (*path, "definitions", k))
+
+        # Objects: apply additionalProperties and required
+        typ = node.get("type")
+        if typ == "object" and "additionalProperties" not in node:
+            node["additionalProperties"] = False
+
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            node["required"] = [k for k in properties.keys()]
+            for k, v in list(properties.items()):
+                properties[k] = ensure(v, (*path, "properties", k))
+
+        # Arrays: recurse into items
+        items = node.get("items")
+        if isinstance(items, dict):
+            node["items"] = ensure(items, (*path, "items"))
+
+        # anyOf/oneOf/allOf
+        any_of = node.get("anyOf")
+        if isinstance(any_of, list):
+            node["anyOf"] = [ensure(v, (*path, "anyOf", str(i))) for i, v in enumerate(any_of)]
+
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            if len(all_of) == 1:
+                # Flatten single-entry allOf
+                strict_child = ensure(all_of[0], (*path, "allOf", "0"))
+                node.pop("allOf", None)
+                # Merge strict_child into node
+                for k, v in strict_child.items():
+                    node[k] = v
+            else:
+                node["allOf"] = [ensure(v, (*path, "allOf", str(i))) for i, v in enumerate(all_of)]
+
+        # Remove default if it's explicitly None
+        if node.get("default", object()) is None:
             node.pop("default", None)
-            for v in node.values():
-                if isinstance(v, (dict, list)):
-                    walk(v)
-        elif isinstance(node, list):
-            for x in node:
-                if isinstance(x, (dict, list)):
-                    walk(x)
-    walk(schema)
 
+        # Inline $ref when combined with other keys
+        ref = node.get("$ref")
+        if isinstance(ref, str) and has_more_than_n_keys(node, 1):
+            resolved = resolve_ref(root, ref)
+            if not isinstance(resolved, dict):
+                raise ValueError(f"$ref {ref} did not resolve to a dict: {resolved}")
+            node.update({**resolved, **node})
+            node.pop("$ref", None)
+            # Re-ensure after expansion
+            return ensure(node, path)
 
-def strip_schema_metadata_in_place(schema: Dict[str, Any]) -> None:
-    """Remove non-semantic metadata like $id and $schema recursively in-place."""
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
-            node.pop("$id", None)
-            node.pop("$schema", None)
-            for v in node.values():
-                if isinstance(v, (dict, list)):
-                    walk(v)
-        elif isinstance(node, list):
-            for x in node:
-                if isinstance(x, (dict, list)):
-                    walk(x)
-    walk(schema)
-
-
-def strip_defaults(schema: Dict[str, Any]) -> Dict[str, Any]:
-    """Deep-copy and remove all default keys recursively."""
-    def walk(node: Any) -> Any:
-        if isinstance(node, dict):
-            node = dict(node)
-            node.pop("default", None)
-            for k, v in list(node.items()):
-                if isinstance(v, (dict, list)):
-                    node[k] = walk(v)
-            return node
-        if isinstance(node, list):
-            return [walk(x) for x in node]
         return node
 
-    return walk(deep_copy_json(schema))
-
-
-def strip_schema_metadata(schema: Dict[str, Any]) -> Dict[str, Any]:
-    """Remove non-semantic metadata like $id and $schema recursively (deep copy)."""
-    def walk(node: Any) -> Any:
-        if isinstance(node, dict):
-            node = dict(node)
-            node.pop("$id", None)
-            node.pop("$schema", None)
-            for k, v in list(node.items()):
-                if isinstance(v, (dict, list)):
-                    node[k] = walk(v)
-            return node
-        if isinstance(node, list):
-            return [walk(x) for x in node]
-        return node
-
-    return walk(deep_copy_json(schema))
-
-
+    return ensure(root, ())
