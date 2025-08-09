@@ -1,6 +1,6 @@
 """Tests for logical expression serialization and deserialization."""
 
-from typing import Literal, Type
+from typing import Literal, Type, List, Optional
 
 import pytest
 from pydantic import BaseModel, Field
@@ -123,6 +123,9 @@ from fenic.core.types.semantic_examples import (
 )
 from fenic.core.types.summarize import Paragraph
 
+class NestedResponseFormat(BaseModel):
+    string: str
+    inner_list: List[str]
 
 class BasicResponseFormat(BaseModel):
     name: str
@@ -131,6 +134,8 @@ class BasicResponseFormat(BaseModel):
     nicknames: list[str] = Field(...)
     valid: bool
     state: Literal["active", "inactive"]
+    explanation: Optional[str] = None
+    nested: NestedResponseFormat
 
 # Define examples for each expression type
 # Each type has a list of examples to test different scenarios. In general when adding new expressions:

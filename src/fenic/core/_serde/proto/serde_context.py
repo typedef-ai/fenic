@@ -609,10 +609,10 @@ class SerdeContext:
         with self.path_context(field_name):
             try:
                 return ResolvedResponseFormatProto(
-                    schema=json.dumps(resolved_response_format.schema),
+                    schema=json.dumps(resolved_response_format.raw_schema),
                     struct_type=self.serialize_data_type(
                         "struct_type", resolved_response_format.struct_type
-                    ),
+                    ) if resolved_response_format.struct_type is not None else None,
                     prompt_schema_definition=resolved_response_format.prompt_schema_definition,
                 )
             except Exception as e:
@@ -634,8 +634,8 @@ class SerdeContext:
         """
         with self.path_context(field_name):
             try:
-                return ResolvedResponseFormat(
-                    schema=json.loads(resolved_response_format_proto.schema),
+                return ResolvedResponseFormat.from_json_schema(
+                    raw_schema=json.loads(resolved_response_format_proto.schema),
                     struct_type=self.deserialize_data_type(
                         "struct_type", resolved_response_format_proto.struct_type
                     ),
