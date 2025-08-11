@@ -16,8 +16,9 @@ from utils.tree_operations import build_tree, tree_to_string
 
 import fenic as fc
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class FenicSession:
@@ -52,59 +53,9 @@ class FenicSession:
 
         # Set DuckDB temp directory
         os.environ["DUCKDB_TMPDIR"] = work_dir
-            
-        # Check if required API keys are available
-        config = cls._get_config()
 
-        return fc.Session.get_or_create(config)
-    
-    @classmethod
-    def _get_config(cls) -> fc.SessionConfig:
-        if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
-            logger.warning("No API keys found. Set OPENAI_API_KEY and/or GEMINI_API_KEY environment variables.")
-            # Create minimal config for now
-            config = fc.SessionConfig(app_name="docs")
-        else:
-            config = fc.SessionConfig(
-                app_name="docs",
-                semantic=fc.SemanticConfig(
-                    language_models={
-                        "flash": cls._get_google_config("gemini-2.0-flash"),
-                        "flash-lite": cls._get_google_config("gemini-2.0-flash-lite"),
-                        "mini": cls._get_openai_config("gpt-4.1-mini"),
-                        "nano": cls._get_openai_config("gpt-4.1-nano"),
-                    },
-                    default_language_model="flash",
-                    embedding_models={
-                        "large": cls._get_openai_config("text-embedding-3-large", 3_000, 1_000_000)
-                    }
-                ),
-            )
-        return config
+        return fc.Session.get_or_create(fc.SessionConfig(app_name="docs"))
 
-    @classmethod
-    def _get_google_config(
-            cls,
-            model_name: str,
-            rpm: int = 2_000,
-            tpm: int = 4_000_000) -> fc.GoogleGLAModelConfig:
-        return fc.GoogleGLAModelConfig(
-            model_name=model_name,
-            rpm=rpm,
-            tpm=tpm
-        )
-
-    @classmethod
-    def _get_openai_config(
-            cls,
-            model_name: str,
-            rpm: int = 500,
-            tpm: int = 200_000) -> fc.OpenAIModelConfig:
-        return fc.OpenAIModelConfig(
-            model_name=model_name,
-            rpm=rpm,
-            tpm=tpm
-        )
 
 class FenicAPIDocQuerySearch:
     """Search for queries to the Fenic API.
@@ -239,7 +190,6 @@ class FenicAPIDocQuerySearch:
         return search_df
 
 
-
 def initialize_learnings_table(include_embeddings: bool = True) -> bool:
     """Initialize the learnings table if it doesn't exist.
     
@@ -287,6 +237,7 @@ def search(query: str, max_results: int = 30) -> str:
         - Simple search: "join"
         - Regex search: "semantic.*extract"
         - Search for specific terms: "DataFrame"
+        - Search for a list of terms: "DataFrame semantic extract"
     """
     try:
         session = FenicSession().get_session()
@@ -490,11 +441,23 @@ def main():
             if not session.catalog.does_table_exist(table):
                 missing_tables.append(table)
         
+        should_exit = False
         if missing_tables:
             logger.error(
                 f"Missing required tables: {missing_tables}\n"
                 "Please run 'python populate_tables.py' to set up the documentation database.\n"
                 "This will extract and index the Fenic API documentation.")
+            should_exit = True
+
+        getting_started_guide_path = os.path.join(os.path.dirname(__file__), 'fenic_getting_started_guide.md')
+        if not os.path.exists(getting_started_guide_path):
+            logger.error(
+                f"Getting started guide not found at {getting_started_guide_path}\n"
+                "Please run 'python populate_tables.py' to set up the documentation database.\n"
+                "This will extract and index the Fenic API documentation.")
+            should_exit = True
+
+        if should_exit:
             import sys
             sys.exit(1)
 

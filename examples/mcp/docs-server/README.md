@@ -4,6 +4,7 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
 
 ## Features
 
+- **Fenic Starting Guide** - Guide on how to get started with Fenic
 - **Search Fenic API** - Search for functions, classes, methods across the codebase
 - **Project Overview** - Get high-level understanding of Fenic's architecture
 - **API Tree Navigation** - Explore the hierarchical structure of the public API
@@ -11,11 +12,9 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
 
 ## Setup
 
-1. **Set environment variables:**
+1. **(Optional) Set environment variables:**
 
    ```bash
-   export OPENAI_API_KEY="your-openai-api-key"
-   export GEMINI_API_KEY="your-gemini-api-key"
    # Optional: Set custom data directory (defaults to ~/.fenic)
    export FENIC_WORK_DIR="/path/to/custom/directory"
    ```
@@ -34,11 +33,7 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
      "mcpServers": {
        "fenic-docs": {
          "command": "/path/to/fenic/.venv/bin/python",
-         "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"],
-         "env": {
-           "OPENAI_API_KEY": "your-openai-api-key",
-           "GEMINI_API_KEY": "your-gemini-api-key"
-         }
+         "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"]
        }
      }
    }
@@ -63,6 +58,10 @@ Get the hierarchical tree structure of Fenic's public API.
 ### store_learning(question, answer, ...)
 
 Store Q&A pairs from interactions for future search retrieval.
+
+### get_started()
+
+Get a starting guide on how to use Fenic
 
 ## Database Location
 

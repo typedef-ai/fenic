@@ -17,23 +17,28 @@ from fenic.core.error import ValidationError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 def _setup_session() -> fc.Session:
     # Use the same directory setup as the MCP server
     logger.info("Setting up session...")
+
+    if not os.environ.get("GEMINI_API_KEY"):
+        logger.error("GEMINI_API_KEY is not set")
+        raise ValueError("A Gemini API key is required to populate the Fenic summary tables.")
+
     work_dir = os.environ.get("FENIC_WORK_DIR", os.path.expanduser("~/.fenic"))
     os.makedirs(work_dir, exist_ok=True)
     os.chdir(work_dir)
     logger.info(f"Creating documentation tables in: {work_dir}")
 
-    # Configure fenic session (same as MCP server)
+    # Configure fenic session - In this case we need a Gemini API key
+    # as we will use the semantic functions to create the project summary.
     config = fc.SessionConfig(
         app_name="docs",
         semantic=fc.SemanticConfig(
             language_models={
-                "flash": fc.GoogleGLAModelConfig(
+                "flash": fc.GoogleDeveloperLanguageModel(
                     model_name="gemini-2.0-flash",
-                    rpm=2000,
+                    rpm=2_000,
                     tpm=4_000_000,
                 ),
             },
@@ -187,17 +192,27 @@ def _populate_fenic_summary(api_df: DataFrame) -> DataFrame:
     # Create module summaries based on docstrings
     module_summaries = public_modules.select(
         fc.col("name").alias("module"),
-        fc.coalesce(fc.col("docstring"), fc.lit("No description available")).alias("summary")
+        fc.coalesce(fc.col("docstring"), fc.lit("No description available")).alias("description")
     )
+
+    module_summaries = module_summaries.with_column(
+        "module_summary",
+        fc.text.jinja(
+        (
+            "Module: {{module}} Description: {{description}}"
+        ),
+        module=fc.col("module"),
+        description=fc.col("description")))
 
     # Create a project summary by aggregating module information
     logger.info("Creating project summary...")
     project_summary_df = module_summaries.agg(
         fc.semantic.reduce(
-            "Create a comprehensive summary of the Fenic project based on these module descriptions: "
-            "Module: {module}, Description: {summary}. "
-            "The summary should explain what Fenic is, its main features, and key capabilities.",
-            model_alias="flash"
+            """Create a comprehensive summary of the Fenic project based on the modules and their descriptions.
+            The summary should explain what Fenic is, list its main features,
+            and have a brief explanation of its key capabilities.""",
+            model_alias="flash",
+            column=fc.col("module_summary"),
         ).alias("project_summary")
     )
 
@@ -206,6 +221,59 @@ def _populate_fenic_summary(api_df: DataFrame) -> DataFrame:
     project_summary_df.write.save_as_table("fenic_summary", mode="overwrite")
     return project_summary_df
 
+def _populate_getting_started_guide(current_dir: str, api_df: DataFrame) -> None:
+    """Populate the getting_started_guide table."""
+
+    # Filter to public functions only
+    public_functions_df = api_df.filter(
+        (fc.col("type") == "function") &
+        (fc.col("is_public")) &
+        (~fc.col("name").starts_with("_"))
+    )
+
+    # Create getting_started_guide DataFrame
+    public_functions_df = public_functions_df.select(
+        fc.col("name"),
+        fc.coalesce(fc.col("docstring"), fc.lit("No description available")).alias("description"),
+    )
+
+    public_functions_df = public_functions_df.with_column(
+        "function_summary",
+        fc.text.jinja(
+        (
+            "Function: {{name}} Description: {{description}}"
+        ),
+        name=fc.col("name"),
+        description=fc.col("description")))
+
+    # Create a getting started guide.
+    logger.info("Creating getting started guide")
+    start_guide_df = public_functions_df.agg(
+        fc.semantic.reduce(
+            """You are a developer evangelist for Fenic.
+            You are given a list of public functions and their descriptions.
+            Create a getting started guide for Fenic.
+            The guide should be a markdown file that explains:
+            - What Fenic is
+            - Installation instructions
+            - Setting the API keys to an LLM provider in your environment variables
+            - Creating your first Fenic DataFrame using the session.create_dataframe() without using a polars DataFrame
+            - Reading Data from csv and parquet using the read module
+            - Have a section on traditional DataFrame operations such as filter, select, with_column and group_by
+            - Have a section for Semantic Operations, powered by LLMs for: sentiment analysis, semantic similarity, clustering, semantic join, semantic extract""",
+            model_alias="flash",
+            column=fc.col("function_summary"),
+            # The guide can be be a bit longer than the 512 max token default.
+            max_output_tokens=3_000,
+        ).alias("getting_started_guide")
+    )
+
+    if start_guide_df.count() != 1:
+        raise ValueError("Expected only 1 row in start_guide_df, got {start_guide_df.count()}")
+
+    guide = start_guide_df.to_pydict()["getting_started_guide"][0]
+    with open(os.path.join(current_dir, "fenic_getting_started_guide.md"), "w") as f:
+        f.write(guide)
 
 def _verify_tables(session: fc.Session):
     """Verify that the tables were created successfully."""
@@ -222,11 +290,14 @@ def _verify_tables(session: fc.Session):
 
 def main():
     """Main function to populate the tables."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
     session = _setup_session()
     fenic_api = _load_fenic_api()
     api_df = _populate_api_df(session, fenic_api)
     _ = _populate_hierarchy_df(api_df)
     _ = _populate_fenic_summary(api_df)
+    _populate_getting_started_guide(current_dir, api_df)
     _verify_tables(session)
 
     logger.info("\nSuccessfully created all required tables:")
