@@ -1,4 +1,4 @@
-import json
+import copy
 import logging
 import os
 from functools import cache
@@ -216,9 +216,7 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Estimated token count for the response format
         """
-        schema_str = json.dumps(
-            response_format.schema, separators=(",", ":")
-        )
+        schema_str = response_format.schema_fingerprint
         return self._token_counter.count_tokens(schema_str)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
@@ -398,7 +396,34 @@ class GeminiNativeChatCompletionsClient(
             return TransientException(e)
 
     def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
-        stripped_schema = response_format.strict_schema
-        if stripped_schema.get("additionalProperties") is not None:
-            del stripped_schema["additionalProperties"]
-        return stripped_schema
+        def remove_additional_properties(result: Any) -> Any:
+            if not isinstance(result, dict):
+                return result
+
+            # Make a copy and remove additionalProperties from this level
+
+            if "additionalProperties" in result:
+                del result["additionalProperties"]
+
+            # Recursively process nested objects
+            if result.get("type") == "object" and "properties" in result:
+                for key, prop_schema in result["properties"].items():
+                    result["properties"][key] = remove_additional_properties(prop_schema)
+
+            # Recursively process array items
+            if result.get("type") == "array" and "items" in result:
+                result["items"] = remove_additional_properties(result["items"])
+
+            # Recursively process anyOf/oneOf branches
+            for union_key in ["anyOf", "oneOf"]:
+                if union_key in result:
+                    result[union_key] = [remove_additional_properties(branch) for branch in result[union_key]]
+
+            # Recursively process $defs
+            if "$defs" in result:
+                for def_name, def_schema in result["$defs"].items():
+                    result["$defs"][def_name] = remove_additional_properties(def_schema)
+
+            return result
+
+        return remove_additional_properties(copy.deepcopy(response_format.strict_schema))

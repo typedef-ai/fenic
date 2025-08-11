@@ -26,7 +26,10 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
+from fenic._inference.rate_limit_strategy import (
+    SeparatedTokenRateLimitStrategy,
+    TokenEstimate,
+)
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import (
@@ -324,8 +327,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             TokenEstimate: The estimated token usage
         """
-        from fenic._inference.rate_limit_strategy import TokenEstimate
-        
+
         # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
@@ -364,7 +366,7 @@ class AnthropicBatchCompletionsClient(
         """
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=response_format.schema,
+            input_schema=response_format.strict_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL
         )

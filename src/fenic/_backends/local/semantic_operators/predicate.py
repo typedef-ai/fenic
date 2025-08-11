@@ -23,6 +23,12 @@ from fenic.core.types import PredicateExample, PredicateExampleCollection
 
 logger = logging.getLogger(__name__)
 
+PREDICATE_FORMAT = ResolvedResponseFormat.from_pydantic_model(
+    SimpleBooleanOutputModelResponse,
+    generate_struct_type=False,
+)
+
+
 class Predicate(BaseMultiColumnInputOperator[str, bool]):
     SYSTEM_PROMPT = dedent("""\
     Evaluate the user's question or claim and respond with either true or false.
@@ -47,7 +53,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                 operator_name="semantic.predicate",
                 inference_config=InferenceConfiguration(
                   max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
-                  response_format=ResolvedResponseFormat.from_pydantic_model(SimpleBooleanOutputModelResponse, generate_struct_type=False),
+                  response_format=PREDICATE_FORMAT,
                   temperature=temperature,
                   model_profile=model_alias.profile if model_alias else None,
                 ),

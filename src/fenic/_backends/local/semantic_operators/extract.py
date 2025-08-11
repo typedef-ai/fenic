@@ -27,6 +27,10 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
         dedent("""\
         Extract information from the document according to the output schema.
 
+        Output Schema:
+        {{ schema_definition }}
+
+        {{ schema_explanation }}
 
         Requirements:
         1. Extract only information explicitly stated in the document

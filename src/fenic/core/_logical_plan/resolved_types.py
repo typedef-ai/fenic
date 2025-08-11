@@ -51,18 +51,37 @@ class ResolvedResponseFormat:
     the original Pydantic model type.
 
     Attributes:
-        schema: The JSON schema dictionary.
+        raw_schema: The raw JSON schema dictionary from the pydantic model.
+        strict_schema: The strict JSON schema dictionary derived from the raw schema.
         struct_type: The StructType of the model.
             Only generated as required. This is only needed if the Operator returns the struct type itself (e.g. semantic.map, semantic.extract).
             In cases like semantic.classify, the struct type is not returned, only the class labels.
         prompt_schema_definition: The description of the schema that will be used in the prompt. Only generated if struct_type is generated.
 
     """
-    schema: Dict[str, Any]
-    schema_validator: Validator
+    raw_schema: Dict[str, Any]
     strict_schema: Dict[str, Any]
+    schema_validator: Validator
     prompt_schema_definition: str
     struct_type: Optional[StructType] = None
+
+    @classmethod
+    def from_json_schema(
+        cls,
+        raw_schema: Dict[str, Any],
+        prompt_schema_definition: Optional[str] = None,
+        struct_type: Optional[StructType] = None,
+    ) -> "ResolvedResponseFormat":
+        """Create a ResolvedResponseFormat from a Pydantic model."""
+        strict_schema = to_strict_json_schema(raw_schema)
+        validator = cls._create_validator(strict_schema)
+        return cls(
+            raw_schema=raw_schema,
+            strict_schema=strict_schema,
+            schema_validator=validator,
+            prompt_schema_definition=prompt_schema_definition,
+            struct_type=struct_type,
+        )
 
     @classmethod
     def from_pydantic_model(
@@ -71,13 +90,13 @@ class ResolvedResponseFormat:
         generate_struct_type: bool = True,
     ) -> "ResolvedResponseFormat":
         """Create a ResolvedResponseFormat from a Pydantic model."""
-        schema = model.model_json_schema()
-        strict_schema = to_strict_json_schema(schema)
-        validator = cls._create_validator(schema)
+        raw_schema = model.model_json_schema()
+        strict_schema = to_strict_json_schema(raw_schema)
+        validator = cls._create_validator(strict_schema)
         prompt_schema_definition = convert_pydantic_model_to_key_descriptions(model)
         struct_type = convert_pydantic_type_to_custom_struct_type(model) if generate_struct_type else None
         return cls(
-            schema=schema,
+            raw_schema=raw_schema,
             strict_schema=strict_schema,
             schema_validator=validator,
             prompt_schema_definition=prompt_schema_definition,
@@ -96,12 +115,19 @@ class ResolvedResponseFormat:
         return self.schema_fingerprint == other.schema_fingerprint
 
     def __hash__(self) -> int:
+        return self.schema_fingerprint_hash
+
+    @cached_property
+    def schema_fingerprint_hash(self) -> int:
         return hash(self.schema_fingerprint)
 
     @cached_property
     def schema_fingerprint(self) -> str:
         """Stable string fingerprint for equality and hashing."""
-        return json.dumps(self.schema, sort_keys=True, separators=(",", ":"))
+        return json.dumps(self.strict_schema, sort_keys=True, separators=(",", ":"))
+
+    def validate_structured_response(self, response: Dict[str, Any]) -> None:
+        self.schema_validator.validate(response)
 
     def parse_structured_response(
         self,
@@ -122,9 +148,12 @@ class ResolvedResponseFormat:
                 return None
             if isinstance(json_resp, str):
                 json_resp = json.loads(json_resp)
-            self.schema_validator.validate(json_resp)
-            # Apply defaults from schema to ensure missing optionals become nulls and shapes are consistent
-            return self._apply_defaults(self.schema, json_resp)
+            self.validate_structured_response(json_resp)
+            # Apply defaults from schema to ensure missing optionals become nulls and shapes are consistent.
+            # Required for openai/google -- if for some reason, NONE of the responses have the optional field filled,
+            # despite the fact that we are telling polars the struct type, it will infer that we don't need the StructField
+            # for the field that never appears in the column, which causes issues when `unnesting` later.
+            return self._apply_defaults(self.raw_schema, json_resp)
         except json.JSONDecodeError as e:
             logger.warning(
                 f"Invalid JSON in model output: {json_resp} for {operator_name}: {e}",

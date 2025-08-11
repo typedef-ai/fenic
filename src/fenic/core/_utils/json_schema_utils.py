@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
+import copy
 from typing import Any, Dict
 
-
-def deep_copy_json(obj: Any) -> Any:
-    """Deep copy using JSON round-trip to avoid shared references in nested dicts/lists."""
-    return json.loads(json.dumps(obj))
 
 def unwrap_optional_union(node: Dict[str, Any]) -> Dict[str, Any]:
     """If node is an anyOf/oneOf with a null branch, return the first non-null branch.
@@ -31,10 +27,11 @@ def to_strict_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     - Strip default when it's None
     - If a node has $ref alongside other keys, inline the ref target and re-ensure strictness
 
-    This function deep-copies the input once and then mutates the copy in-place.
+    This function deep-copies the input once and then mutates the copy in-place. This performs
+    all the operations that would have been performed if a Pydantic Model were to be passed to the
+    LLM Model Provider.
     """
-    root = deep_copy_json(schema)
-
+    root = copy.deepcopy(schema)
     def has_more_than_n_keys(obj: Dict[str, Any], n: int) -> bool:
         count = 0
         for _ in obj.keys():
