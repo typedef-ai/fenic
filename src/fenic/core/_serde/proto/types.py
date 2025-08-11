@@ -360,6 +360,9 @@ from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     Aggregate as AggregateProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
+    CacheInfo as CacheInfoProto,
+)
+from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     ColumnField as ColumnFieldProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
@@ -554,6 +557,7 @@ __all__ = [
     "LogicalPlanProto",
     "FenicSchemaProto",
     "ColumnFieldProto",
+    "CacheInfoProto",
     # Source plan classes
     "InMemorySourceProto",
     "FileSourceProto",

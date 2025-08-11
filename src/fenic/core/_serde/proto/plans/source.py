@@ -11,7 +11,7 @@ from fenic.core._logical_plan.plans.source import (
 )
 from fenic.core._serde.proto.plan_serde import (
     _deserialize_logical_plan_helper,
-    serialize_logical_plan,
+    _serialize_logical_plan_helper,
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import (
@@ -20,34 +20,35 @@ from fenic.core._serde.proto.types import (
     LogicalPlanProto,
     TableSourceProto,
 )
+from fenic.core.types.schema import Schema
 
 # =============================================================================
 # InMemorySource
 # =============================================================================
 
 
-@serialize_logical_plan.register
+@_serialize_logical_plan_helper.register
 def _serialize_in_memory_source(
     in_memory_source: InMemorySource, context: SerdeContext
 ) -> LogicalPlanProto:
-    """Serialize a logical plan in memory."""
-    proto = InMemorySourceProto(
-        source=in_memory_source._source.serialize(format="binary"),
-        schema=context.serialize_fenic_schema(in_memory_source.schema()),
+    """Serialize a logical plan in memory (wrapper)."""
+    return LogicalPlanProto(
+        in_memory_source=InMemorySourceProto(
+            source=in_memory_source._source.serialize(format="binary"),
+        )
     )
-    return LogicalPlanProto(in_memory_source=proto)
 
 
 @_deserialize_logical_plan_helper.register
 def _deserialize_in_memory_source(
-    in_memory_source: InMemorySourceProto, context: SerdeContext
+    in_memory_source: InMemorySourceProto, context: SerdeContext, schema: Schema
 ):
     """Deserialize an InMemorySource LogicalPlan Node."""
     buffered_bytes = BytesIO(in_memory_source.source)
     deserialized_dataframe: pl.DataFrame = pl.DataFrame.deserialize(buffered_bytes, format="binary")
     return InMemorySource.from_schema(
         source=deserialized_dataframe,
-        schema=context.deserialize_fenic_schema(in_memory_source.schema),
+        schema=schema,
     )
 
 
@@ -56,11 +57,11 @@ def _deserialize_in_memory_source(
 # =============================================================================
 
 
-@serialize_logical_plan.register
+@_serialize_logical_plan_helper.register
 def _serialize_file_source(
     file_source: FileSource, context: SerdeContext
 ) -> LogicalPlanProto:
-    """Serialize a file source."""
+    """Serialize a file source (wrapper)."""
     if file_source._options:
         options_merge_schema = file_source._options.get("merge_schemas", None)
         options_schema = (
@@ -70,19 +71,19 @@ def _serialize_file_source(
     else:
         options_merge_schema = None
         options_schema = None
-    proto = FileSourceProto(
-        paths=file_source._paths,
-        file_format=file_source._file_format,
-        schema=context.serialize_fenic_schema(file_source.schema()),
-        options_merge_schema=options_merge_schema,
-        options_schema=options_schema,
+    return LogicalPlanProto(
+        file_source=FileSourceProto(
+            paths=file_source._paths,
+            file_format=file_source._file_format,
+            options_merge_schema=options_merge_schema,
+            options_schema=options_schema,
+        )
     )
-    return LogicalPlanProto(file_source=proto)
 
 
 @_deserialize_logical_plan_helper.register
 def _deserialize_file_source(
-    file_source: FileSourceProto, context: SerdeContext
+    file_source: FileSourceProto, context: SerdeContext, schema: Schema
 ) -> FileSource:
     """Deserialize a FileSource LogicalPlan Node."""
     options = {}
@@ -94,7 +95,7 @@ def _deserialize_file_source(
         paths=list(file_source.paths),
         file_format=file_source.file_format,
         options=options,
-        schema=context.deserialize_fenic_schema(file_source.schema),
+        schema=schema,
     )
 
 
@@ -103,24 +104,24 @@ def _deserialize_file_source(
 # =============================================================================
 
 
-@serialize_logical_plan.register
+@_serialize_logical_plan_helper.register
 def _serialize_table_source(
     table_source: TableSource, context: SerdeContext
 ) -> LogicalPlanProto:
-    """Serialize a table source."""
-    proto = TableSourceProto(
-        table_name=table_source._table_name,
-        schema=context.serialize_fenic_schema(table_source.schema()),
+    """Serialize a table source (wrapper)."""
+    return LogicalPlanProto(
+        table_source=TableSourceProto(
+            table_name=table_source._table_name,
+        )
     )
-    return LogicalPlanProto(table_source=proto)
 
 
 @_deserialize_logical_plan_helper.register
 def _deserialize_table_source(
-    table_source: TableSourceProto, context: SerdeContext
+    table_source: TableSourceProto, context: SerdeContext, schema: Schema
 ) -> TableSource:
     """Deserialize a TableSource LogicalPlan Node."""
     return TableSource.from_schema(
         table_name=table_source.table_name,
-        schema=context.deserialize_fenic_schema(table_source.schema),
+        schema=schema,
     )

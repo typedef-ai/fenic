@@ -1,6 +1,6 @@
 """Tests for logical expression serialization and deserialization."""
 
-from typing import Literal, Type, List, Optional
+from typing import List, Literal, Optional, Type
 
 import pytest
 from pydantic import BaseModel, Field
@@ -122,6 +122,7 @@ from fenic.core.types.semantic_examples import (
     PredicateExampleCollection,
 )
 from fenic.core.types.summarize import Paragraph
+
 
 class NestedResponseFormat(BaseModel):
     string: str

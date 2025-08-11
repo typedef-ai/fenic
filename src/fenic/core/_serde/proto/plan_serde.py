@@ -19,30 +19,44 @@ from fenic.core._serde.proto.types import LogicalPlanProto
 
 
 @singledispatch
-def serialize_logical_plan(
+def _serialize_logical_plan_helper(
     logical_plan: LogicalPlan, context: SerdeContext
 ) -> LogicalPlanProto:
-    """Serialize a logical plan to protobuf format.
+    """Serialize a logical plan to a wrapper LogicalPlanProto (plan oneof set).
 
-    This function uses singledispatch to handle different logical plan types.
-    Each plan type should have a corresponding register function that implements
-    the specific serialization logic.
-
-    Args:
-        logical_plan: The logical plan to serialize.
-        context: The serde context for error reporting and path tracking.
-
-    Returns:
-        LogicalPlanProto: The serialized protobuf representation.
-
-    Raises:
-        SerializationError: If the plan type is not registered or serialization fails.
+    Plan-specific modules register implementations for this helper to return the
+    LogicalPlanProto with the appropriate oneof field set. Common fields (schema/cache_info)
+    are added by serialize_logical_plan().
     """
     raise context.create_serde_error(
         SerializationError,
         f"Serialization not implemented for {type(logical_plan)}",
         type(logical_plan),
     )
+
+
+def serialize_logical_plan(
+    logical_plan: LogicalPlan, context: SerdeContext
+) -> LogicalPlanProto:
+    """Serialize a logical plan to the wrapper LogicalPlanProto.
+
+    This calls the helper to get a wrapper with the correct oneof set, then adds
+    common fields like schema and cache_info.
+    """
+    wrapper: LogicalPlanProto = _serialize_logical_plan_helper(logical_plan, context)
+
+    # Add/overwrite schema
+    wrapper.schema.CopyFrom(context.serialize_fenic_schema(logical_plan.schema()))
+
+    # Add cache_info if present
+    if logical_plan.cache_info is not None:
+        from fenic.core._serde.proto.types import CacheInfoProto
+        cache_info_proto = CacheInfoProto()
+        if logical_plan.cache_info.duckdb_table_name is not None:
+            cache_info_proto.duckdb_table_name = logical_plan.cache_info.duckdb_table_name
+        wrapper.cache_info.CopyFrom(cache_info_proto)
+
+    return wrapper
 
 
 def deserialize_logical_plan(
@@ -57,7 +71,6 @@ def deserialize_logical_plan(
     Args:
         logical_plan_proto: The protobuf representation to deserialize.
         context: The serde context for error reporting and path tracking.
-        session_state: Optional session state to include in the plan.
 
     Returns:
         LogicalPlan: The deserialized logical plan, or None if empty.
@@ -69,13 +82,30 @@ def deserialize_logical_plan(
     if not which_oneof:  # Optional LogicalPlan arg
         return None
     underlying_proto = getattr(logical_plan_proto, which_oneof)
-    return _deserialize_logical_plan_helper(underlying_proto, context)
+
+    # Deserialize the specific plan type with schema from base level
+    plan = _deserialize_logical_plan_helper(
+        underlying_proto,
+        context,
+        context.deserialize_fenic_schema(logical_plan_proto.schema)
+    )
+
+    # Set cache_info if present
+    if logical_plan_proto.HasField("cache_info"):
+        from fenic.core._logical_plan.plans.base import CacheInfo
+        cache_info = CacheInfo(
+            duckdb_table_name=logical_plan_proto.cache_info.duckdb_table_name if logical_plan_proto.cache_info.HasField("duckdb_table_name") else None
+        )
+        plan.set_cache_info(cache_info)
+
+    return plan
 
 
 @singledispatch
 def _deserialize_logical_plan_helper(
     underlying_proto: Message,
     context: SerdeContext,
+    schema,
 ) -> Optional[LogicalPlan]:
     """Deserialize a logical plan."""
     raise context.create_serde_error(

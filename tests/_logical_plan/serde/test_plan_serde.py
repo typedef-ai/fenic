@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from fenic import DataFrame, col, lit, semantic, text
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
+from fenic.core._logical_plan.plans import FileSink, TableSink
 from fenic.core._serde.cloudpickle_serde import CloudPickleSerde
 from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
@@ -437,3 +438,50 @@ def test_semantic_predicate(local_session, serde_implementation: SupportsLogical
     )
     deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
     assert deserialized_df
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_transform_explode_and_drop_duplicates(local_session, serde_implementation: SupportsLogicalPlanSerde):
+    df = local_session.create_dataframe({"a": [1, 2], "arr": [[1, 2], [3, 4]]})
+    exploded = df.explode("arr")
+    deserialized_df = _test_plan_serialization(exploded._logical_plan, local_session._session_state, serde_implementation)
+    assert deserialized_df.to_polars().equals(exploded.to_polars())
+
+    df2 = local_session.create_dataframe({"c1": [1, 1, 2], "c2": [1, 2, 2]})
+    dd = df2.drop_duplicates(["c1", "c2"])  # ordering may differ
+    deserialized_df = _test_plan_serialization(dd._logical_plan, local_session._session_state, serde_implementation)
+    # Compare ignoring row order
+    result = deserialized_df.to_polars().sort(["c1", "c2"])
+    expected = dd.to_polars().sort(["c1", "c2"])
+    assert result.equals(expected)
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_sql_plan(local_session, serde_implementation: SupportsLogicalPlanSerde):
+    left = local_session.create_dataframe({"id": [1, 2, 3], "name1": ["a", "b", "c"]})
+    right = local_session.create_dataframe({"id": [1, 2, 3], "name2": ["d", "e", "f"]})
+    df = local_session.sql("SELECT {df1}.id, {df1}.name1, {df2}.name2 FROM {df1} JOIN {df2} USING (id)", df1=left, df2=right)
+    deserialized_df = _test_df_serialization(df, local_session._session_state, serde_implementation)
+    assert deserialized_df.to_polars().equals(df.to_polars())
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_sink_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+
+    file_sink_plan = FileSink.from_session_state(
+        child=df._logical_plan,
+        sink_type="csv",
+        path="/tmp/dummy.csv",
+        mode="overwrite",
+        session_state=local_session._session_state,
+    )
+    _ = _test_plan_serialization(file_sink_plan, local_session._session_state, serde_implementation)
+
+    table_sink_plan = TableSink.from_session_state(
+        child=df._logical_plan,
+        table_name="tmp_table",
+        mode="overwrite",
+        session_state=local_session._session_state,
+    )
+    _ = _test_plan_serialization(table_sink_plan, local_session._session_state, serde_implementation)
