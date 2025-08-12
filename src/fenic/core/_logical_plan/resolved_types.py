@@ -150,9 +150,11 @@ class ResolvedResponseFormat:
                 json_resp = json.loads(json_resp)
             self.validate_structured_response(json_resp)
             # Apply defaults from schema to ensure missing optionals become nulls and shapes are consistent.
-            # Required for openai/google -- if for some reason, NONE of the responses have the optional field filled,
-            # despite the fact that we are telling polars the struct type, it will infer that we don't need the StructField
-            # for the field that never appears in the column, which causes issues when `unnesting` later.
+            # Required because we are removing the default values from the json schema -- if for some reason, NONE of the
+            # responses have the optional field filled, despite the fact that we are telling polars the struct type, it
+            # will attempt to be helpful, and infer that we don't need the StructField
+            # for the field that never appears in the column. This results in very confusing Column Not Found errors if
+            # the user attempts to `unnest` the struct.
             return self._apply_defaults(self.raw_schema, json_resp)
         except json.JSONDecodeError as e:
             logger.warning(
