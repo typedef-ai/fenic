@@ -15,6 +15,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic._backends.local.session_state import LocalSessionState
 from fenic.api.session import (
     OpenAILanguageModel,
     SemanticConfig,
@@ -22,6 +23,7 @@ from fenic.api.session import (
     SessionConfig,
 )
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
@@ -332,3 +334,8 @@ def test_cosine_similarity_special_cases(local_session):
     similarities = result["cosine_sim"].to_list()
 
     assert all(np.isnan(sim) for sim in similarities)
+
+def test_fetch_embedding_model_by_alias(local_session):
+    session_state: LocalSessionState = local_session._session_state
+    embedding_model = session_state.get_embedding_model(alias=ResolvedModelAlias(name="embedding"))
+    assert embedding_model

@@ -63,7 +63,7 @@ class LocalSessionState(BaseSessionState):
     def get_language_model(self, alias: Optional[ResolvedModelAlias] = None) -> LanguageModel:
         return self._model_registry.get_language_model(alias)
 
-    def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:
+    def get_embedding_model(self, alias: Optional[ResolvedModelAlias] = None) -> EmbeddingModel:
         return self._model_registry.get_embedding_model(alias)
 
     def get_model_metrics(self) -> tuple[LMMetrics, RMMetrics]:
