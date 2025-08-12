@@ -221,7 +221,7 @@ def _populate_fenic_summary(api_df: DataFrame) -> DataFrame:
     project_summary_df.write.save_as_table("fenic_summary", mode="overwrite")
     return project_summary_df
 
-def _populate_getting_started_guide(current_dir: str, api_df: DataFrame) -> None:
+def _populate_getting_started_guide(api_df: DataFrame) -> None:
     """Populate the getting_started_guide table."""
 
     # Filter to public functions only
@@ -248,7 +248,7 @@ def _populate_getting_started_guide(current_dir: str, api_df: DataFrame) -> None
 
     # Create a getting started guide.
     logger.info("Creating getting started guide")
-    start_guide_df = public_functions_df.agg(
+    start_guide_df_non_semantic = public_functions_df.agg(
         fc.semantic.reduce(
             """You are a developer evangelist for Fenic.
             You are given a list of public functions and their descriptions.
@@ -257,10 +257,11 @@ def _populate_getting_started_guide(current_dir: str, api_df: DataFrame) -> None
             - What Fenic is
             - Installation instructions
             - Setting the API keys to an LLM provider in your environment variables
+            - Create a session using Session.get_or_create using the SessionConfig class for an app called "test"
             - Creating your first Fenic DataFrame using the session.create_dataframe() without using a polars DataFrame
-            - Reading Data from csv and parquet using the read module
+            - Reading Data from csv and parquet files using session.read.csv() and session.read.parquet() respectively
             - Have a section on traditional DataFrame operations such as filter, select, with_column and group_by
-            - Have a section for Semantic Operations, powered by LLMs for: sentiment analysis, semantic similarity, clustering, semantic join, semantic extract""",
+            - Leave a place holder for semantic operations as @@SEMANTIC_OPERATIONS_PLACEHOLDER@@ that can be replaced with the semantic operations guide""",
             model_alias="flash",
             column=fc.col("function_summary"),
             # The guide can be be a bit longer than the 512 max token default.
@@ -268,18 +269,56 @@ def _populate_getting_started_guide(current_dir: str, api_df: DataFrame) -> None
         ).alias("getting_started_guide")
     )
 
-    if start_guide_df.count() != 1:
-        raise ValueError("Expected only 1 row in start_guide_df, got {start_guide_df.count()}")
+    start_guide_df_semantic = public_functions_df.agg(
+        fc.semantic.reduce(
+            """You are a developer evangelist for Fenic.
+            You are given a list of public functions and their descriptions.
+            Create a getting started guide for Fenic for the semantic operations using as a base the
+            examples provided in the function description.
+            The guide should be a section that can be added to the getting started guide markdown
+            file illustrating code examples for:
+            - Create a session using Session.get_or_create using the SessionConfig class,
+              set the app_name attribute to "test", and for the semantic attribute of the
+              SessionConfig object use a SemanticConfig object.
+              setting the language_models attribute as a dictionary with key "flash" and a GoogleDeveloperLanguageModel (gemini-2.0-flash).
+              "flash" should be the default model as specified in the SemanticConfig object by the
+              default_language_model attribute.
+              Set the tpm and rpm attributes of the GoogleDeveloperLanguageModel object to 4000000 and 2000 respectively.
+            - To use the semantic functions, do import fenic as fc and use the semantic module as fc.semantic
+            - For the examples:
+                - Extract sentiment of a text using the fc.semantic.analyze_sentiment function
+                - Use as a semantic function to extract the key phrases from a text using fc.semantic.map
+                - Use as a semantic function to extract the entities from a text using fc.semantic.extract""",
+            model_alias="flash",
+            column=fc.col("function_summary"),
+            max_output_tokens=3_000,
+            ).alias("getting_started_guide_semantic"))
 
-    guide = start_guide_df.to_pydict()["getting_started_guide"][0]
-    with open(os.path.join(current_dir, "fenic_getting_started_guide.md"), "w") as f:
-        f.write(guide)
+    if start_guide_df_non_semantic.count() != 1:
+        raise ValueError("Expected only 1 row in start_guide_df_non_semantic, got {start_guide_df_non_semantic.count()}")
+
+    if start_guide_df_semantic.count() != 1:
+        raise ValueError("Expected only 1 row in start_guide_df_semantic, got {start_guide_df_semantic.count()}")
+
+    # Replace the markdown code block with the semantic guide
+    start_guide_df_non_semantic = start_guide_df_non_semantic.with_column(
+        "getting_started_guide",
+        fc.text.replace(fc.col("getting_started_guide"), "```markdown", ""),
+    )
+
+    semantic_functions = start_guide_df_semantic.to_pydict()["getting_started_guide_semantic"][0]
+    start_guide_df_non_semantic = start_guide_df_non_semantic.with_column(
+        "getting_started_guide",
+        fc.text.replace(fc.col("getting_started_guide"), "@@SEMANTIC_OPERATIONS_PLACEHOLDER@@", semantic_functions)
+    )
+    start_guide_df_non_semantic.write.save_as_table("fenic_start_guide", mode="overwrite")
+    return start_guide_df_non_semantic
 
 def _verify_tables(session: fc.Session):
     """Verify that the tables were created successfully."""
     # Verify tables were created
     logger.info("\nVerifying tables...")
-    for table_name in ["api_df", "hierarchy_df", "fenic_summary"]:
+    for table_name in ["api_df", "hierarchy_df", "fenic_summary", "getting_started_guide"]:
         if session.catalog.does_table_exist(table_name):
             count = session.table(table_name).count()
             logger.info(f"✓ {table_name}: {count} rows")
@@ -290,14 +329,12 @@ def _verify_tables(session: fc.Session):
 
 def main():
     """Main function to populate the tables."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-
     session = _setup_session()
     fenic_api = _load_fenic_api()
     api_df = _populate_api_df(session, fenic_api)
     _ = _populate_hierarchy_df(api_df)
     _ = _populate_fenic_summary(api_df)
-    _populate_getting_started_guide(current_dir, api_df)
+    _ = _populate_getting_started_guide(api_df)
     _verify_tables(session)
 
     logger.info("\nSuccessfully created all required tables:")

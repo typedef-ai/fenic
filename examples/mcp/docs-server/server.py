@@ -324,11 +324,12 @@ def get_project_overview() -> str:
 
 @mcp.tool()
 def get_started() -> str:
-    """Get a guide on How to get started with Fenic."""
-    getting_started_guide_path = os.path.join(os.path.dirname(__file__), 'fenic_getting_started_guide.md')
-    with open(getting_started_guide_path, 'r') as f:
-        start_guide = f.read()
-    result = f"## Fenic Get Started\n\n{start_guide}"
+    """Get a guide on How to get started with Fenic.
+    This provides a quick start guide to the Fenic API.
+    The result of this call is a complete markdown file with examples on getting started with Fenic."""
+    session = FenicSession().get_session()
+    start_guide = session.table("fenic_start_guide").select("getting_started_guide").to_pydict()["getting_started_guide"]
+    result = f"{start_guide}"
     return result
 
 @mcp.tool()
@@ -435,29 +436,17 @@ def main():
     try:
         session = FenicSession().get_session()
         # Check if required tables exist
-        required_tables = ["api_df", "hierarchy_df", "fenic_summary"]
+        required_tables = ["api_df", "hierarchy_df", "fenic_summary", "fenic_start_guide"]
         missing_tables = []
         for table in required_tables:
             if not session.catalog.does_table_exist(table):
                 missing_tables.append(table)
         
-        should_exit = False
         if missing_tables:
             logger.error(
                 f"Missing required tables: {missing_tables}\n"
                 "Please run 'python populate_tables.py' to set up the documentation database.\n"
                 "This will extract and index the Fenic API documentation.")
-            should_exit = True
-
-        getting_started_guide_path = os.path.join(os.path.dirname(__file__), 'fenic_getting_started_guide.md')
-        if not os.path.exists(getting_started_guide_path):
-            logger.error(
-                f"Getting started guide not found at {getting_started_guide_path}\n"
-                "Please run 'python populate_tables.py' to set up the documentation database.\n"
-                "This will extract and index the Fenic API documentation.")
-            should_exit = True
-
-        if should_exit:
             import sys
             sys.exit(1)
 
