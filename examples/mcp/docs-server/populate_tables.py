@@ -37,7 +37,7 @@ def _setup_session() -> fc.Session:
         semantic=fc.SemanticConfig(
             language_models={
                 "flash": fc.GoogleDeveloperLanguageModel(
-                    model_name="gemini-2.0-flash",
+                    model_name="gemini-2.0-flash-lite",
                     rpm=2_000,
                     tpm=4_000_000,
                 ),
@@ -305,8 +305,16 @@ def _populate_getting_started_guide(api_df: DataFrame) -> None:
         "getting_started_guide",
         fc.text.replace(fc.col("getting_started_guide"), "```markdown", ""),
     )
+    start_guide_df_non_semantic = start_guide_df_non_semantic.with_column(
+        "getting_started_guide",
+        fc.text.replace(fc.col("getting_started_guide"), "```\n```", ""),
+    )
 
     semantic_functions = start_guide_df_semantic.to_pydict()["getting_started_guide_semantic"][0]
+    semantic_functions = (semantic_functions
+        .replace("```markdown", "")
+        .replace("```\n```", "")
+        .replace("## Getting Started with Semantic Operations", ""))
     start_guide_df_non_semantic = start_guide_df_non_semantic.with_column(
         "getting_started_guide",
         fc.text.replace(fc.col("getting_started_guide"), "@@SEMANTIC_OPERATIONS_PLACEHOLDER@@", semantic_functions)
@@ -318,7 +326,7 @@ def _verify_tables(session: fc.Session):
     """Verify that the tables were created successfully."""
     # Verify tables were created
     logger.info("\nVerifying tables...")
-    for table_name in ["api_df", "hierarchy_df", "fenic_summary", "getting_started_guide"]:
+    for table_name in ["api_df", "hierarchy_df", "fenic_summary", "fenic_start_guide"]:
         if session.catalog.does_table_exist(table_name):
             count = session.table(table_name).count()
             logger.info(f"✓ {table_name}: {count} rows")
