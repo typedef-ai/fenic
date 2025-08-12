@@ -136,7 +136,7 @@ class SessionModelRegistry:
             raise InternalError(f"Language Model with alias '{alias.name}' not found in configured models: {sorted(list(self.language_model_registry.models.keys()))}")
         return language_model_for_alias
 
-    def get_embedding_model(self, alias: Optional[str] = None) -> EmbeddingModel:
+    def get_embedding_model(self, alias: Optional[ResolvedModelAlias] = None) -> EmbeddingModel:
         """Get an embedding model by alias or return the default model.
 
         Args:
@@ -152,9 +152,9 @@ class SessionModelRegistry:
             raise InternalError("Requested embedding model, but no embedding models are configured.")
         if alias is None:
             return self.embedding_model_registry.default_model
-        embedding_model_for_model_alias = self.embedding_model_registry.models.get(alias)
+        embedding_model_for_model_alias = self.embedding_model_registry.models.get(alias.name)
         if embedding_model_for_model_alias is None:
-            raise InternalError(f"Embedding Model with model name '{alias}' not found in configured models: {sorted(list(self.embedding_model_registry.models.keys()))}")
+            raise InternalError(f"Embedding Model with model name '{alias.name}' not found in configured models: {sorted(list(self.embedding_model_registry.models.keys()))}")
         return embedding_model_for_model_alias
 
     def shutdown_models(self):
