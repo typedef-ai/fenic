@@ -322,15 +322,6 @@ def get_project_overview() -> str:
     result = f"## Fenic Project Overview\n\n{overview}\n\n## Fenic API Tree\n\n{tree}"
     return result
 
-@mcp.tool()
-def get_started() -> str:
-    """Get a guide on How to get started with Fenic.
-    This provides a quick start guide to the Fenic API.
-    The result of this call is a complete markdown file with examples on getting started with Fenic."""
-    session = FenicSession().get_session()
-    start_guide = session.table("fenic_start_guide").select("getting_started_guide").to_pydict()["getting_started_guide"]
-    result = f"{start_guide}"
-    return result
 
 @mcp.tool()
 def get_api_tree() -> str:
@@ -436,7 +427,7 @@ def main():
     try:
         session = FenicSession().get_session()
         # Check if required tables exist
-        required_tables = ["api_df", "hierarchy_df", "fenic_summary", "fenic_start_guide"]
+        required_tables = ["api_df", "hierarchy_df", "fenic_summary"]
         missing_tables = []
         for table in required_tables:
             if not session.catalog.does_table_exist(table):

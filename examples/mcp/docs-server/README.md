@@ -4,7 +4,6 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
 
 ## Features
 
-- **Fenic Starting Guide** - Guide on how to get started with Fenic
 - **Search Fenic API** - Search for functions, classes, methods across the codebase
 - **Project Overview** - Get high-level understanding of Fenic's architecture
 - **API Tree Navigation** - Explore the hierarchical structure of the public API
@@ -32,7 +31,7 @@ An MCP (Model Context Protocol) server that provides AI assistants with tools to
    {
      "mcpServers": {
        "fenic-docs": {
-         "command": "/path/to/fenic/.venv/bin/python",
+         "command": "/path/to/fenic/examples/mcp/docs-server/.venv/bin/python",
          "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"]
        }
      }
@@ -58,10 +57,6 @@ Get the hierarchical tree structure of Fenic's public API.
 ### store_learning(question, answer, ...)
 
 Store Q&A pairs from interactions for future search retrieval.
-
-### get_started()
-
-Get a starting guide on how to use Fenic
 
 ## Database Location
 
