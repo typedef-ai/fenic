@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import polars as pl
 
@@ -36,7 +36,7 @@ class PhysicalPlan:
         short_uuid = str(uuid.uuid4().hex)[:8]
         self.operator_id = f"{self.__class__.__name__}_{short_uuid}"
 
-    def execute(self) -> Tuple[pl.DataFrame, QueryMetrics]:
+    def execute(self, trace_callback: Optional[Callable[[...], Any]] = None) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute the physical plan and return the result DataFrame along with execution metrics.
 
         This method handles:
@@ -75,7 +75,7 @@ class PhysicalPlan:
                 curr_operator_metrics.execution_time_ms = (
                     time.time() - start_time
                 ) * 1000
-                return df, QueryMetrics(
+                query_metrics = QueryMetrics(
                     execution_time_ms=curr_operator_metrics.execution_time_ms,
                     num_output_rows=curr_operator_metrics.num_output_rows,
                     total_lm_metrics=total_lm_metrics,
@@ -83,12 +83,15 @@ class PhysicalPlan:
                     _plan_repr=plan_repr,
                     _operator_metrics=all_operator_metrics,
                 )
+                if trace_callback:
+                    trace_callback(query_metrics)
+                return df, query_metrics
 
         # Step 3: Execute child operators and collect their metrics
         child_dfs = []
         child_execution_time = 0
         for child in self.children:
-            child_df, child_metrics = child.execute()
+            child_df, child_metrics = child.execute(trace_callback)
             child_dfs.append(child_df)
             plan_repr.children.append(child_metrics._plan_repr)
             all_operator_metrics.update(child_metrics._operator_metrics)
@@ -126,6 +129,10 @@ class PhysicalPlan:
             _plan_repr=plan_repr,
             _operator_metrics=all_operator_metrics,
         )
+
+        if trace_callback:
+            trace_callback(query_metrics)
+
         return result_df, query_metrics
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:

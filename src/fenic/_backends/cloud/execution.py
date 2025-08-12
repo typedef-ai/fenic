@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Tuple
 from urllib.parse import urlparse
 
 import grpc
@@ -74,7 +74,7 @@ class CloudExecution(BaseExecution):
         )
 
     def collect(
-        self, plan: LogicalPlan, n: Optional[int] = None
+        self, plan: LogicalPlan, n: Optional[int] = None, trace_callback: Optional[Callable[[...], Any]] = None
     ) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute a logical plan and return a Polars DataFrame and query metrics."""
         request = StartExecutionRequest(
@@ -94,7 +94,7 @@ class CloudExecution(BaseExecution):
 
         return df, self._get_query_execution_metrics(execution_id)
 
-    def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
+    def show(self, plan: LogicalPlan, n: int = 10, trace_callback: Optional[Callable[[...], Any]] = None) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows."""
         logger.debug(f"Sending show request: {plan}")
         request = StartExecutionRequest(
@@ -122,7 +122,7 @@ class CloudExecution(BaseExecution):
 
         return result_response.show_result, self._get_query_execution_metrics(execution_id)
 
-    def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
+    def count(self, plan: LogicalPlan, trace_callback: Optional[Callable[[...], Any]] = None) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows."""
         request = StartExecutionRequest(
             count=CountExecutionRequest(
@@ -161,6 +161,7 @@ class CloudExecution(BaseExecution):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table."""
         logger.debug(f"Saving plan {logical_plan} as table: {table_name}")
@@ -197,6 +198,7 @@ class CloudExecution(BaseExecution):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> None:
         """Save the dataframe as a view."""
         # TODO: Implement saving dataframe view
@@ -207,6 +209,7 @@ class CloudExecution(BaseExecution):
         logical_plan: LogicalPlan,
         file_path: str,
         mode: Literal["error", "overwrite", "ignore"] = "error",
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a CSV or parquet file."""
         if urlparse(file_path).scheme not in CLOUD_SUPPORTED_SCHEMES:

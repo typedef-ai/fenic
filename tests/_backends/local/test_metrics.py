@@ -49,29 +49,48 @@ def customer_data():
         "segment": ["Premium", "Standard", "Premium", "Standard", "Premium"],
     }
 
-def test_simple_metrics(local_session, sales_data, product_data, customer_data):
-    sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
-    product_df = local_session.create_dataframe(pl.DataFrame(product_data))
-    customer_df = local_session.create_dataframe(pl.DataFrame(customer_data))
+@pytest.fixture(params=["simple_dataframe", "semantic_dataframe"])
+def dataframe(request, local_session, sales_data, product_data, customer_data):
+    if request.param == "simple_dataframe":
+        sales_df = local_session.create_dataframe(pl.DataFrame(sales_data))
+        product_df = local_session.create_dataframe(pl.DataFrame(product_data))
+        customer_df = local_session.create_dataframe(pl.DataFrame(customer_data))
 
-    # First query - premium electronics sales
-    premium_electronics = (
-        sales_df.join(product_df, "product_id")
-        .join(customer_df, "customer_id")
-        .filter((col("segment") == "Premium") & (col("category") == "Electronics"))
-        .select("product_name", "customer_name", "amount", "quantity")
-        .group_by("product_name")
-        .agg(
-            sum("amount").alias("total_sales"),
-            avg("amount").alias("avg_sale"),
-            count("customer_name").alias("num_transactions"),
+        # First query - premium electronics sales
+        premium_electronics = (
+            sales_df.join(product_df, "product_id")
+            .join(customer_df, "customer_id")
+            .filter((col("segment") == "Premium") & (col("category") == "Electronics"))
+            .select("product_name", "customer_name", "amount", "quantity")
+            .group_by("product_name")
+            .agg(
+                sum("amount").alias("total_sales"),
+                avg("amount").alias("avg_sale"),
+                count("customer_name").alias("num_transactions"),
+            )
+        ).cache()
+        # Union the queries and limit results
+        final_result = premium_electronics.union(premium_electronics).limit(5)
+        return final_result
+    elif request.param == "semantic_dataframe":
+        df = local_session.create_dataframe(pl.DataFrame({"name": ["Alice", "Bob"]}))
+        df = df.select(
+            semantic.map("What is a longer name for {{name}}?", name=col("name")).alias("longer_name"),
+            semantic.embed(col("name")).alias("embedding"),
         )
-    ).cache()
-    # Union the queries and limit results
-    final_result = premium_electronics.union(premium_electronics).limit(5)
+        df = df.filter(
+            semantic.predicate(
+                "This name: '{{longer_name}}' is used as a placeholder in discussions about cryptographic systems.",
+                longer_name=col("longer_name"),
+            )
+        )
+        return df
 
+
+@pytest.mark.parametrize("dataframe", ["simple_dataframe"], indirect=True)
+def test_simple_metrics(dataframe):
     # Execute and collect metrics
-    result = final_result.collect("polars")
+    result = dataframe.collect("polars")
     metrics = result.metrics
 
     # Verify basic metrics
@@ -120,21 +139,10 @@ def test_simple_metrics(local_session, sales_data, product_data, customer_data):
     assert limit_op.num_output_rows == metrics.num_output_rows
     assert limit_op.execution_time_ms > 0
 
-
-def test_semantic_metrics(local_session):
+@pytest.mark.parametrize("dataframe", ["semantic_dataframe"], indirect=True)
+def test_semantic_metrics(dataframe):
     """Test that the semantic API works at all without using the fixture, given that the fixture sets lm."""
-    df = local_session.create_dataframe(pl.DataFrame({"name": ["Alice", "Bob"]}))
-    df = df.select(
-        semantic.map("What is a longer name for {{name}}?", name=col("name")).alias("longer_name"),
-        semantic.embed(col("name")).alias("embedding"),
-    )
-    df = df.filter(
-        semantic.predicate(
-            "This name: '{{longer_name}}' is used as a placeholder in discussions about cryptographic systems.",
-            longer_name=col("longer_name"),
-        )
-    )
-    result = df.collect("polars")
+    result = dataframe.collect("polars")
     metrics = result.metrics
     assert metrics.total_lm_metrics.num_uncached_input_tokens > 0
     assert metrics.total_lm_metrics.num_output_tokens > 0
@@ -156,6 +164,50 @@ def test_semantic_metrics(local_session):
             assert operator_metrics.lm_metrics.cost > 0
             assert operator_metrics.rm_metrics.num_input_tokens == 0
             assert operator_metrics.rm_metrics.cost == 0
+
+
+@pytest.mark.parametrize("dataframe", ["simple_dataframe", "semantic_dataframe"], indirect=True)
+def test_metrics_trace_callback(dataframe):
+    # Choose dataframe to test
+    test_plan = dataframe._logical_plan
+
+    # Define our callback
+    cur_callback_count = 0
+    final_callback_metrics = None
+
+    # Make sure the callback is called each step of the way
+    def trace_callback(query_metrics):
+        nonlocal cur_callback_count, final_callback_metrics
+        cur_callback_count += 1
+        final_callback_metrics = query_metrics
+
+    # Execute and collect metrics
+    _, metrics = dataframe._session_state.execution.collect(test_plan, trace_callback=trace_callback)
+    assert cur_callback_count == len(metrics._operator_metrics)
+
+    # Verify the callback received the correct metrics
+    assert metrics == final_callback_metrics
+
+    # Verify callback metrics for each type of execution
+    cur_callback_count = 0
+    _, metrics = dataframe._session_state.execution.show(test_plan, trace_callback=trace_callback)
+    assert cur_callback_count == len(metrics._operator_metrics)
+    assert metrics == final_callback_metrics
+
+    cur_callback_count = 0
+    _, metrics = dataframe._session_state.execution.count(test_plan, trace_callback=trace_callback)
+    assert cur_callback_count == len(metrics._operator_metrics)
+    assert metrics == final_callback_metrics
+
+    cur_callback_count = 0
+    metrics = dataframe._session_state.execution.save_as_table(test_plan, "test_metrics_table", mode="overwrite", trace_callback=trace_callback)
+    assert cur_callback_count == len(metrics._operator_metrics)
+    assert metrics == final_callback_metrics
+
+    cur_callback_count = 0
+    metrics = dataframe._session_state.execution.save_to_file(test_plan, "test_metrics_file", mode="overwrite", trace_callback=trace_callback)
+    assert cur_callback_count == len(metrics._operator_metrics)
+    assert metrics == final_callback_metrics
 
 
 def test_metrics_from_view(local_session, sales_data, product_data, customer_data):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Tuple
 
 import polars as pl
 
@@ -15,18 +15,22 @@ if TYPE_CHECKING:
 class BaseExecution(ABC):
     @abstractmethod
     def collect(
-        self, plan: LogicalPlan, n: Optional[int] = None
+        self, plan: LogicalPlan, n: Optional[int] = None, trace_callback: Optional[Callable[[...], Any]] = None
     ) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute a logical plan and return a Polars DataFrame and query metrics."""
         pass
 
     @abstractmethod
-    def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
+    def show(
+        self, plan: LogicalPlan, n: int = 10, trace_callback: Optional[Callable[[...], Any]] = None
+    ) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows of the DataFrame and query metrics."""
         pass
 
     @abstractmethod
-    def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
+    def count(
+        self, plan: LogicalPlan, trace_callback: Optional[Callable[[...], Any]] = None
+    ) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows in the DataFrame and query metrics."""
         pass
 
@@ -41,6 +45,7 @@ class BaseExecution(ABC):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
         pass
@@ -50,6 +55,7 @@ class BaseExecution(ABC):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> None:
         """Save the dataframe as a view in the current database."""
         pass
@@ -60,6 +66,7 @@ class BaseExecution(ABC):
         logical_plan: LogicalPlan,
         file_path: str,
         mode: Literal["error", "overwrite", "ignore"] = "error",
+        trace_callback: Optional[Callable[[...], Any]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result to a file."""
         pass

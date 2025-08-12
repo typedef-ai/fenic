@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Tuple
 
 import polars as pl
 
@@ -43,25 +43,25 @@ class LocalExecution(BaseExecution):
         self.transpiler = LocalTranspiler(session_state)
 
     def collect(
-        self, plan: LogicalPlan, n: Optional[int] = None
+        self, plan: LogicalPlan, n: Optional[int] = None, trace_callback: Optional[Callable[[QueryMetrics], None]] = None
     ) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute a logical plan and return a Polars DataFrame and query metrics."""
         self.session_state._check_active()
         physical_plan = self.transpiler.transpile(plan)
         try:
-            df, metrics = physical_plan.execute()
+            df, metrics = physical_plan.execute(trace_callback)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         if n is not None:
             df = df.limit(n)
         return df, metrics
 
-    def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
+    def show(self, plan: LogicalPlan, n: int = 10, trace_callback: Optional[Callable[[QueryMetrics], None]] = None) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows of the DataFrame and query metrics."""
         self.session_state._check_active()
         physical_plan = self.transpiler.transpile(plan)
         try:
-            df, metrics = physical_plan.execute()
+            df, metrics = physical_plan.execute(trace_callback)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         with pl.Config(
@@ -73,12 +73,12 @@ class LocalExecution(BaseExecution):
             output = str(df)
         return output, metrics
 
-    def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
+    def count(self, plan: LogicalPlan, trace_callback: Optional[Callable[[QueryMetrics], None]] = None) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows in the DataFrame and query metrics."""
         self.session_state._check_active()
         physical_plan = self.transpiler.transpile(plan)
         try:
-            df, metrics = physical_plan.execute()
+            df, metrics = physical_plan.execute(trace_callback)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         return df.shape[0], metrics
@@ -98,6 +98,7 @@ class LocalExecution(BaseExecution):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        trace_callback: Optional[Callable[[QueryMetrics], None]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
         self.session_state._check_active()
@@ -132,7 +133,7 @@ class LocalExecution(BaseExecution):
                     )
         physical_plan = self.transpiler.transpile(logical_plan)
         try:
-            _, metrics = physical_plan.execute()
+            _, metrics = physical_plan.execute(trace_callback)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         return metrics
@@ -141,6 +142,7 @@ class LocalExecution(BaseExecution):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        trace_callback: Optional[Callable[[QueryMetrics], None]] = None,
     ) -> None:
         """Save the table as a view in the current database."""
         self.session_state._check_active()
@@ -156,6 +158,7 @@ class LocalExecution(BaseExecution):
         logical_plan: LogicalPlan,
         file_path: str,
         mode: Literal["error", "overwrite", "ignore"] = "error",
+        trace_callback: Optional[Callable[[QueryMetrics], None]] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result to a file."""
         self.session_state._check_active()
@@ -175,7 +178,7 @@ class LocalExecution(BaseExecution):
 
         physical_plan = self.transpiler.transpile(logical_plan)
         try:
-            _, metrics = physical_plan.execute()
+            _, metrics = physical_plan.execute(trace_callback)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         return metrics
