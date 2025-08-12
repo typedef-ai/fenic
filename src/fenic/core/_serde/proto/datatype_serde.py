@@ -77,7 +77,7 @@ def serialize_data_type(data_type: DataType, context: SerdeContext) -> DataTypeP
     """
     raise context.create_serde_error(
         SerializationError,
-        f"Serialization not implemented for {type(data_type)}",
+        f"Serialization not implemented for DataType: {type(data_type)}",
         type(data_type),
     )
 
@@ -130,7 +130,7 @@ def _deserialize_data_type_helper(
     """
     raise context.create_serde_error(
         DeserializationError,
-        f"Deserialization not implemented for {type(underlying_proto)}",
+        f"Deserialization not implemented for Data Type: {type(underlying_proto)}",
         type(underlying_proto),
     )
 

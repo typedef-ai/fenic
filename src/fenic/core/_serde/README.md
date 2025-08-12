@@ -174,6 +174,12 @@ The context system provides automatic error handling with precise field paths:
 
 ## Adding New Expressions
 
+### Step 0: Determine if expression is serializable
+
+Some expressions, like UDFExpr are not currently safely serializable to protobuf spec, as they involve serde of untrusted
+user provided code. These should be added to `unserializable.py` -- so that when plans that include these expressions are serialized,
+they fail with an error that explains exactly why the expression is not serializable.
+
 ### Step 1: Update Protocol Buffer Schema
 
 Add your expression to `protos/logical_plan/v1/expressions.proto`:

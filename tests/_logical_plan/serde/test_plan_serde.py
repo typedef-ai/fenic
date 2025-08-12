@@ -1,16 +1,20 @@
 import os
 from enum import Enum
+from typing import List, Optional
 
 import polars as pl
 import pytest
 from pydantic import BaseModel, Field
 
-from fenic import DataFrame, col, lit, semantic, text
+from fenic import ColumnField, DataFrame, IntegerType, Schema, col, lit, semantic, text
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
 from fenic.core._logical_plan.plans import FileSink, TableSink
 from fenic.core._serde.cloudpickle_serde import CloudPickleSerde
+from fenic.core._serde.proto.errors import SerializationError
+from fenic.core._serde.proto.plan_serde import serialize_logical_plan
 from fenic.core._serde.proto.proto_serde import ProtoSerde
+from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 from fenic.core.types import ClassDefinition
 from fenic.core.types.semantic_examples import MapExample, MapExampleCollection
@@ -485,3 +489,37 @@ def test_sink_plans(local_session, serde_implementation: SupportsLogicalPlanSerd
         session_state=local_session._session_state,
     )
     _ = _test_plan_serialization(table_sink_plan, local_session._session_state, serde_implementation)
+
+def test_serialize_unregistered_plan_type():
+    """Test that serializing an unregistered expression type raises an error."""
+
+    # Create a mock expression that's not registered
+    class MockLogicalPlan(LogicalPlan):
+        def __init__(self, schema: Schema):
+            super().__init__(schema=schema)
+
+        def __str__(self):
+            return "mock_expr"
+
+        def _eq_specific(self, other: LogicalPlan) -> bool:
+            return True
+
+        def _build_schema(self, session_state: BaseSessionState) -> Schema:
+            raise NotImplementedError()
+
+        def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
+            raise NotImplementedError()
+
+        def _repr(self) -> str:
+            return "mock_expr"
+
+        def to_column_field(self, plan):
+            return None
+
+        def children(self):
+            return []
+
+    mock_expr = MockLogicalPlan(Schema([ColumnField("a", IntegerType)]))
+    context = SerdeContext()
+    with pytest.raises(SerializationError, match="Serialization not implemented for Logical Plan"):
+        serialize_logical_plan(mock_expr, context)

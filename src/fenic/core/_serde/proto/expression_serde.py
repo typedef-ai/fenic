@@ -42,7 +42,7 @@ def serialize_logical_expr(
         return LogicalExprProto()
     raise context.create_serde_error(
         SerializationError,
-        f"Serialization not implemented for {type(logical)}",
+        f"Serialization not implemented for LogicalExpr: {type(logical)}",
         type(logical),
     )
 
@@ -83,7 +83,7 @@ def _deserialize_logical_expr_helper(
     """
     raise context.create_serde_error(
         DeserializationError,
-        f"Deserialization not implemented for {type(logical_proto)}",
+        f"Deserialization not implemented for LogicalExpr: {type(logical_proto)}",
     )
 
 

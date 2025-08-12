@@ -30,7 +30,7 @@ def _serialize_logical_plan_helper(
     """
     raise context.create_serde_error(
         SerializationError,
-        f"Serialization not implemented for {type(logical_plan)}",
+        f"Serialization not implemented for Logical Plan: {type(logical_plan)}",
         type(logical_plan),
     )
 
@@ -110,7 +110,7 @@ def _deserialize_logical_plan_helper(
     """Deserialize a logical plan."""
     raise context.create_serde_error(
         DeserializationError,
-        f"Deserialization not implemented for {type(underlying_proto)}",
+        f"Deserialization not implemented for Logical Plan: {type(underlying_proto)}",
         type(underlying_proto),
     )
 
