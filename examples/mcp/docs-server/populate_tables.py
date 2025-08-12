@@ -37,7 +37,7 @@ def _setup_session() -> fc.Session:
         semantic=fc.SemanticConfig(
             language_models={
                 "flash": fc.GoogleDeveloperLanguageModel(
-                    model_name="gemini-2.0-flash-lite",
+                    model_name="gemini-2.0-flash",
                     rpm=2_000,
                     tpm=4_000_000,
                 ),
