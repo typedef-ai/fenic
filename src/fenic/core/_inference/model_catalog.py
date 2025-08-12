@@ -332,9 +332,17 @@ class ModelCatalog:
                 cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
                 cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                context_window_length=200_000,
+                context_window_length=1_000_000,
                 max_output_tokens=64_000,
                 supports_reasoning=True,
+                tiered_token_costs={
+                    200_000: TieredTokenCost(
+                        input_token_cost=6 / 1_000_000,  # $6 per 1M tokens
+                        cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
+                        cached_input_token_read_cost=0.30 / 1_000_000, # $0.30 per 1M tokens
+                        output_token_cost=22.50 / 1_000_000,  # $22.50 per 1M tokens
+                    )
+                },
             ),
             snapshots=["claude-sonnet-4-20250514", "claude-4-sonnet-20250514"],
         )
