@@ -1,6 +1,10 @@
 # Hello World
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/hello_world/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/hello_world/hello_world.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 An error log analyzer using Fenic's semantic extraction capabilities to parse and analyze application errors without regex patterns.
 
