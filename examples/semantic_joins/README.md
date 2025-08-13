@@ -1,6 +1,10 @@
 # Semantic Joins with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/semantic_joins/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/semantic_joins/semantic_joins.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 This example demonstrates how to use Fenic's semantic joins to perform LLM-powered data matching based on natural language reasoning rather than exact equality or similarity scores.
 
