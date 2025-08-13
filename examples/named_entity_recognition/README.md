@@ -1,6 +1,10 @@
 # Named Entity Recognition for Security Intelligence
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/named_entity_recognition/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/named_entity_recognition/ner.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 A security-focused NER pipeline using Fenic's semantic extraction capabilities to identify and analyze threats, vulnerabilities, and indicators of compromise from unstructured security reports.
 
