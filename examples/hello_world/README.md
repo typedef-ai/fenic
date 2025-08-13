@@ -1,6 +1,7 @@
 # Hello World
 
 <p>
+   Run it in Colab:&nbsp;
   <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/hello_world/hello_world.ipynb">
     <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
   </a>
