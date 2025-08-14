@@ -8,14 +8,13 @@ This MCP server lets AI assistants explore fenic’s API docs and source like a 
 
 Here, the assistant gets a curated, queryable view of the repo and evolves a private memory as you work. Because fenic blends batch semantic processing with cheap non-semantic tools (regex, AST, indexes), you get better answers with fewer tokens and lower latency.
 
-### Why this exists
+## Why this exists
 
 General models are great at Typescript and Python, not your private APIs. This server gives them a grounded, evolving knowledge base of fenic, so they answer with the right symbols, types, and patterns, instead of guessing. It turns “where do I start?” into “jump to fc.text.recursive_word_chunk and show usage.”
 
-### How it works
+## How it works
 
-    1. Ingest fenic docs + source
-
+1. Ingest fenic docs + source
 2. Build a fenic knowledge store with fenic pipelines (batch semantic where needed, non-semantic everywhere else)
 3. Expose tools via MCP (search, get_api_tree, etc.)
 4. Your assistant queries, learns, and stores Q&A for next time.
@@ -31,19 +30,19 @@ General models are great at Typescript and Python, not your private APIs. This s
 
 1. **(Optional) Set environment variables:**
 
-   ```bash
-   # Optional: Set custom data directory (defaults to ~/.fenic)
-   export FENIC_WORK_DIR="/path/to/custom/directory"
-   ```
+```bash
+  # Optional: Set custom data directory (defaults to ~/.fenic)
+  export FENIC_WORK_DIR="/path/to/custom/directory"
+```
 
 2. **Populate the documentation database:**
 
-   ```bash
-   cd /path/to/fenic/mcp/docs-server
-   python populate_tables.py
-   ```
+```bash
+  cd /path/to/fenic/mcp/docs-server
+  python populate_tables.py
+```
 
-3. **Configure Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+3. **Configure Claude Desktop** :
 
    ```json
    {
