@@ -1,7 +1,10 @@
 # News Article Bias Detection
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/news_analysis/README.md)
-
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/news_analysis/news_analysis.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 A comprehensive demonstration of fenic's semantic classification capabilities for detecting editorial bias and analyzing news articles. This example shows how to use semantic operations to identify bias patterns across multiple news sources and generate AI-powered media profiles.
 
 ## Overview

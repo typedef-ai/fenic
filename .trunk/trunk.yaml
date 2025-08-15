@@ -64,6 +64,7 @@ lint:
       paths:
         - CHANGELOG.md # let release-please be release-please
         - examples/markdown_processing/attention_is_all_you_need.md
+        - examples/**/README.md
         - .kiro/**
 actions:
   disabled:

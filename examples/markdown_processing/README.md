@@ -1,6 +1,10 @@
 # Markdown Processing with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/markdown_processing/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/markdown_processing/markdown_processing.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 This example demonstrates how to process structured markdown documents using fenic's specialized markdown functions, JSON processing, and text extraction capabilities. We use the "Attention Is All You Need" paper, the foundational work that introduced the Transformer architecture, which powers modern large language models (LLMs).
 

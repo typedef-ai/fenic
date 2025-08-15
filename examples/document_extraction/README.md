@@ -1,6 +1,10 @@
 # Document Metadata Extraction with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/document_extraction/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 This example demonstrates how to extract structured metadata from unstructured text data, using Fenic's semantic extraction capabilities.
 
@@ -26,7 +30,6 @@ This example showcases:
 3. **Data Structuring**
 
    The extracted data is represented as a struct column in a DataFrame with native Fenic struct fields. From there, it can be:
-
    - Unnested into individual columns
    - Exploded if it contains arrays
    - Processed in place as nested data
