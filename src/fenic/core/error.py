@@ -229,3 +229,38 @@ class InternalError(FenicError):
     """Internal invariant violations."""
 
     pass
+
+
+class ViewNotFoundError(CatalogError):
+    """View doesn't exist."""
+
+    def __init__(self, view_name: str, database: str):
+        """Initialize a view not found error.
+
+        Args:
+            view_name: The name of the view that was not found.
+            database: The name of the database containing the view.
+        """
+        self.view_name = view_name
+        self.database = database
+        super().__init__(f"View '{database}.{view_name}' does not exist")
+
+
+class ViewAlreadyExistsError(CatalogError):
+    """View already exists."""
+
+    def __init__(self, view_name: str, database: Optional[str] = None):
+        """Initialize a view already exists error.
+
+        Args:
+            view_name: The name of the view that already exists.
+            database: Optional name of the database containing the view.
+        """
+        if database:
+            view_ref = f"{database}.{view_name}"
+        else:
+            view_ref = view_name
+        super().__init__(
+            f"View '{view_ref}' already exists. "
+            f"Use mode='overwrite' to replace the existing view."
+        )

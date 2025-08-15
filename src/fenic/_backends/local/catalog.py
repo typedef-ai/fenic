@@ -24,6 +24,8 @@ from fenic.core.error import (
     DatabaseNotFoundError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ViewAlreadyExistsError,
+    ViewNotFoundError,
 )
 from fenic.core.types import (
     Schema,
@@ -298,6 +300,7 @@ class LocalCatalog(BaseCatalog):
             if maybe_schema is None:
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
             return maybe_schema
+
     def describe_view(self, view_name: str) -> LogicalPlan:
         """Get the schema of the specified view."""
         with self.lock:
@@ -310,7 +313,7 @@ class LocalCatalog(BaseCatalog):
                     view_identifier.db, view_identifier.table
                 )
                 if maybe_views is None:
-                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
+                    raise ViewNotFoundError(view_identifier.table, view_identifier.db)
                 return maybe_views
             except Exception as e:
                 raise CatalogError(f"Failed to describe view: {view_name}") from e
@@ -346,7 +349,7 @@ class LocalCatalog(BaseCatalog):
             _verify_table_catalog(view_identifier)
             if not self.does_view_exist(view_name):
                 if not ignore_if_not_exists:
-                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
+                    raise ViewNotFoundError(view_identifier.table, view_identifier.db)
                 return False
             try:
                 with DuckDBTransaction(self.db_conn):
@@ -409,11 +412,11 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(view_identifier)            
+            if self.does_view_exist(view_name):
+                if not ignore_if_exists:
+                    raise ViewAlreadyExistsError(view_identifier.table, view_identifier.db)
+                return False
             try:
-                if self.does_view_exist(view_name):
-                    if not ignore_if_exists:
-                        raise ValueError(f"View {view_name} already exists!")
-                    return False
                 with DuckDBTransaction(self.db_conn):
                     self.system_tables.save_view(
                         view_identifier.db, view_identifier.table, logical_plan)

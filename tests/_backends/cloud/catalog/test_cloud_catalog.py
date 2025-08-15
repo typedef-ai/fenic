@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import pytest
 
@@ -18,12 +19,16 @@ from fenic_cloud.hasura_client.generated_graphql_client.create_namespace import 
     CreateNamespaceInsertCatalogNamespaceOne,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.enums import (
+    CatalogDatasetTypeReferenceEnum,
     FileFormat,
+    RepresentationType,
     TypedefObjectStateReferenceEnum,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.fragments import (
     SimpleCatalogSchemaDetailsFields,
     SimpleCatalogTableDetailsSchema,
+    SimpleCatalogViewDetailsRepresentationSqlRepresentation,
+    SimpleCatalogViewDetailsSchema,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.get_dataset_names_for_catalog_namespace import (
     GetDatasetNamesForCatalogNamespace,
@@ -44,6 +49,11 @@ from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalog,
     LoadTableSimpleCatalogLoadTable,
 )
+from fenic_cloud.hasura_client.generated_graphql_client.load_view import (
+    LoadView,
+    LoadViewSimpleCatalog,
+    LoadViewSimpleCatalogLoadView,
+)
 from fenic_cloud.hasura_client.generated_graphql_client.sc_create_table import (
     ScCreateTable,
     ScCreateTableSimpleCatalog,
@@ -58,7 +68,7 @@ from fenic_cloud.hasura_client.generated_graphql_client.sc_drop_namespace import
     ScDropNamespaceSimpleCatalog,
 )
 
-from fenic import ColumnField, IntegerType, Schema, StringType
+from fenic import ColumnField, IntegerType, Schema, Session, SessionConfig, StringType
 from fenic._backends.cloud.catalog import CloudCatalog
 from fenic._backends.cloud.manager import CloudSessionManager
 from fenic._backends.cloud.session_state import CloudSessionState
@@ -66,6 +76,10 @@ from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
 )
+from fenic._backends.utils.catalog_utils import get_string_from_bytes
+from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.source import InMemorySource
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import (
     CatalogAlreadyExistsError,
     CatalogError,
@@ -74,6 +88,8 @@ from fenic.core.error import (
     DatabaseNotFoundError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ViewAlreadyExistsError,
+    ViewNotFoundError,
 )
 
 pytestmark = pytest.mark.cloud
@@ -107,7 +123,8 @@ TEST_NEW_TABLE_NAME = "new_table"
 TEST_SAMPLE_LOCATION = "s3://test-bucket/test-path"
 TEST_NEW_CATALOG_NAME = "new_catalog"
 TEST_NONEXISTENT_IDENTIFIER = "nonexistent"
-
+TEST_NEW_VIEW_NAME = "new_view"
+TEST_EXISTING_VIEW_NAME = "existing_view"
 
 @pytest.fixture(scope="function")
 def typedef_event_loop():
@@ -175,6 +192,82 @@ def _load_table_side_effect(
         ),
     )
 
+def _load_view_side_effect(
+            dispatch: CatalogDispatchInput,
+            namespace: str,
+            name: str) -> LoadView:
+    if TEST_NEW_VIEW_NAME in name or name in [TEST_NEW_VIEW_NAME]:
+        raise Exception("View not found")
+
+    serialized_logical_plan = serialize_logical_plan(get_logical_plan(get_session()))
+
+    return LoadView(
+        simple_catalog=LoadViewSimpleCatalog(
+            load_view=LoadViewSimpleCatalogLoadView(
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                schema_=SimpleCatalogViewDetailsSchema(
+                    schema_id=1,
+                    identifier_field_ids=[1],
+                    fields=[
+                        SimpleCatalogSchemaDetailsFields(
+                            id=1,
+                            name="id",
+                            data_type="int64",
+                            arrow_data_type="int64",
+                            nullable=False,
+                            metadata=None,
+                        ),
+                    ],
+                ),
+                properties=[],
+                representation=SimpleCatalogViewDetailsRepresentationSqlRepresentation(
+                    typename__="SqlRepresentation",
+                    dialect="sql",
+                    sql=serialized_logical_plan,
+                    type=RepresentationType.SQL,
+                ),
+            ),
+        ),
+    )
+
+def _list_datasets_side_effect(
+    catalog_id: UUID,
+    namespace: str,
+    dataset_type: CatalogDatasetTypeReferenceEnum):
+
+    if dataset_type == CatalogDatasetTypeReferenceEnum.TABLE:
+        return GetDatasetNamesForCatalogNamespace(
+                catalog_dataset=[
+                    GetDatasetNamesForCatalogNamespaceCatalogDataset(
+                        name=TEST_TABLE_NAME_1,
+                        namespace=GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace(
+                            name=TEST_DATABASE_NAME,
+                        ),
+                        dataset_id=uuid.UUID(str(TEST_TABLE_NAME_1_UUID)),
+                    ),
+                    GetDatasetNamesForCatalogNamespaceCatalogDataset(
+                        name=TEST_TABLE_NAME_2,
+                        namespace=GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace(
+                            name=TEST_DATABASE_NAME,
+                        ),
+                        dataset_id=uuid.UUID(str(TEST_TABLE_NAME_2_UUID)),
+                    ),
+                ]
+            )
+    else:
+        return GetDatasetNamesForCatalogNamespace(
+            catalog_dataset=[
+                GetDatasetNamesForCatalogNamespaceCatalogDataset(
+                    name=TEST_EXISTING_VIEW_NAME,
+                    namespace=GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace(
+                        name=TEST_DATABASE_NAME,
+                    ),
+                    dataset_id=uuid.UUID(str(TEST_TABLE_NAME_1_UUID)),
+                )
+            ]
+        )
+
 @pytest.fixture
 def mock_user_client(schema):
     user_client = MagicMock(spec=Client)
@@ -213,28 +306,10 @@ def mock_user_client(schema):
         )
     )
 
-    user_client.get_dataset_names_for_catalog_namespace.return_value = (
-        GetDatasetNamesForCatalogNamespace(
-            catalog_dataset=[
-                GetDatasetNamesForCatalogNamespaceCatalogDataset(
-                    name=TEST_TABLE_NAME_1,
-                    namespace=GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace(
-                        name=TEST_DATABASE_NAME,
-                    ),
-                    dataset_id=uuid.UUID(str(TEST_TABLE_NAME_1_UUID)),
-                ),
-                GetDatasetNamesForCatalogNamespaceCatalogDataset(
-                    name=TEST_TABLE_NAME_2,
-                    namespace=GetDatasetNamesForCatalogNamespaceCatalogDatasetNamespace(
-                        name=TEST_DATABASE_NAME,
-                    ),
-                    dataset_id=uuid.UUID(str(TEST_TABLE_NAME_2_UUID)),
-                ),
-            ]
-        )
-    )
-
+    # Set up side effects for the user client.
     user_client.load_table.side_effect = _load_table_side_effect
+    user_client.load_view.side_effect = _load_view_side_effect
+    user_client.get_dataset_names_for_catalog_namespace.side_effect = _list_datasets_side_effect
 
     user_client.create_namespace.return_value = CreateNamespace(
         insert_catalog_namespace_one=CreateNamespaceInsertCatalogNamespaceOne(
@@ -330,6 +405,17 @@ def cloud_catalog(mock_session_state, mock_user_client, mock_cloud_session_manag
 def cloud_catalog_default_catalog(mock_session_state, mock_user_client_no_catalogs, mock_cloud_session_manager):
     return _init_cloud_catalog(mock_session_state, mock_user_client_no_catalogs, mock_cloud_session_manager)
 
+# Session helpers: These will be called in the side effects methods that don't have access to fixtures.
+def get_session():
+    return Session.get_or_create(
+        SessionConfig(app_name="test_app"))
+
+def get_logical_plan(session):
+    df = session.create_dataframe({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+    return df._logical_plan
+
+def serialize_logical_plan(logical_plan: LogicalPlan) -> str:
+    return get_string_from_bytes(LogicalPlanSerde.serialize(logical_plan))
 
 def test_does_catalog_exist(cloud_catalog):
     assert cloud_catalog.does_catalog_exist(TEST_CATALOG_NAME) is True
@@ -593,6 +679,41 @@ def test_drop_catalog(cloud_catalog): # noqa: D103
 
     cloud_catalog.set_current_catalog(DEFAULT_CATALOG_NAME)
     assert cloud_catalog.drop_catalog(TEST_CATALOG_NAME)
+
+def test_create_view(cloud_catalog): # noqa: D103
+    cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
+    cloud_catalog.set_current_database(TEST_DATABASE_NAME)
+
+    logical_plan = get_logical_plan(get_session())
+
+    assert cloud_catalog.create_view(TEST_NEW_VIEW_NAME, logical_plan)
+    assert not cloud_catalog.create_view(TEST_EXISTING_VIEW_NAME, logical_plan)
+
+    with pytest.raises(ViewAlreadyExistsError):
+        cloud_catalog.create_view(TEST_EXISTING_VIEW_NAME, logical_plan, ignore_if_exists=False)
+
+def test_list_views(cloud_catalog): # noqa: D103
+    cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
+    cloud_catalog.set_current_database(TEST_DATABASE_NAME)
+    assert cloud_catalog.list_views() == [TEST_EXISTING_VIEW_NAME]
+
+def test_describe_view(cloud_catalog): # noqa: D103
+    cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
+    cloud_catalog.set_current_database(TEST_DATABASE_NAME)
+    logical_plan = cloud_catalog.describe_view(TEST_EXISTING_VIEW_NAME)
+    assert logical_plan is not None
+    assert isinstance(logical_plan, InMemorySource)
+
+def test_drop_view(cloud_catalog): # noqa: D103
+    cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
+    cloud_catalog.set_current_database(TEST_DATABASE_NAME)
+    # The view does not exist, so we should return False.
+    assert not cloud_catalog.drop_view(TEST_NEW_VIEW_NAME)
+    # The view exists, so we should return True.
+    assert cloud_catalog.drop_view(TEST_EXISTING_VIEW_NAME)
+    with pytest.raises(ViewNotFoundError):
+        cloud_catalog.drop_view(TEST_NEW_VIEW_NAME, ignore_if_not_exists=False)
+
 
 def _init_cloud_catalog(
     session_state: Any, client: Client, cloud_session_manager: Any

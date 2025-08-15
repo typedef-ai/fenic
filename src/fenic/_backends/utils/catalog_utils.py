@@ -1,3 +1,4 @@
+import base64
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -182,3 +183,11 @@ def validate_view(view_name: str,logical_plan: LogicalPlan, session_state: BaseS
 def _is_source_logical_plan(logical_plan: LogicalPlan) -> bool:
     return (isinstance(logical_plan, TableSource) or
             isinstance(logical_plan, FileSource))
+
+def get_string_from_bytes(bytes_data: bytes) -> str:
+    """Get a valid string from bytes data."""
+    return base64.b64encode(bytes_data).decode('utf-8')
+
+def get_bytes_from_string(string_data: str) -> bytes:
+    """Get bytes from a string."""
+    return base64.b64decode(string_data)

@@ -20,6 +20,8 @@ from fenic.core.error import (
     DatabaseNotFoundError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ViewAlreadyExistsError,
+    ViewNotFoundError,
 )
 
 NON_EXISTING_CATALOG_NAME = "non_existing_catalog"
@@ -304,8 +306,8 @@ def test_drop_view(local_session: Session):
     assert not local_session.catalog.does_view_exist(view_name_2)
 
     with pytest.raises(
-        TableNotFoundError,
-        match="Table 'typedef_default.df3' does not exist",
+        ViewNotFoundError,
+        match="View 'typedef_default.df3' does not exist",
     ):
         local_session.catalog.drop_view(
             "typedef_default.df3", ignore_if_not_exists=False
@@ -333,3 +335,17 @@ def test_create_table(local_session: Session):
         match="Invalid catalog name 'not_typedef_default'",
     ):
         local_session.catalog.create_table(TABLE_NAME_WITH_CATALOG, SIMPLE_TABLE_SCHEMA)
+
+def test_create_view(local_session: Session):
+    """Test the local catalog create_view method."""
+    TEST_VIEW_NAME = "test_view_df1"
+    df1 = local_session.create_dataframe({"a": [1, 2, 3]})
+    assert local_session._session_state.catalog.create_view(TEST_VIEW_NAME, df1._logical_plan)
+    assert local_session._session_state.catalog.does_view_exist(TEST_VIEW_NAME)
+    assert not local_session._session_state.catalog.create_view(TEST_VIEW_NAME, df1._logical_plan)
+
+    with pytest.raises(ViewAlreadyExistsError):
+        local_session._session_state.catalog.create_view(TEST_VIEW_NAME, df1._logical_plan, ignore_if_exists=False)
+
+    # clean up.
+    local_session._session_state.catalog.drop_view(TEST_VIEW_NAME, True)

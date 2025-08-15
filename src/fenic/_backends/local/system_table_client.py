@@ -5,7 +5,6 @@ schema metadata, particularly for logical types that can't be directly
 represented in the physical storage system.
 """
 
-import base64
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -13,7 +12,11 @@ from typing import List, Optional
 import duckdb
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
-from fenic._backends.utils.catalog_utils import normalize_object_name
+from fenic._backends.utils.catalog_utils import (
+    get_bytes_from_string,
+    get_string_from_bytes,
+    normalize_object_name,
+)
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
@@ -225,7 +228,7 @@ class SystemTableClient:
     ) -> None:
         database_name = database_name.casefold()
         view_name = view_name.casefold()
-        logical_plan_str = base64.b64encode(LogicalPlanSerde.serialize(logical_plan)).decode('utf-8')
+        logical_plan_str = get_string_from_bytes(LogicalPlanSerde.serialize(logical_plan))
         try:
             self.db_conn.execute(
                 f"""
@@ -261,7 +264,7 @@ class SystemTableClient:
                 logger.debug(f"No view found for {database_name}.{view_name}")
                 return None
 
-            view_blob = base64.b64decode(result[0])
+            view_blob = get_bytes_from_string(result[0])
             return LogicalPlanSerde.deserialize(view_blob)
         except Exception as e:
             logger.error(f"View error: {e}")

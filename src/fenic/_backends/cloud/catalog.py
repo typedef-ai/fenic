@@ -15,18 +15,24 @@ from fenic_cloud.hasura_client.generated_graphql_client.client import (
 from fenic_cloud.hasura_client.generated_graphql_client.enums import (
     CatalogDatasetTypeReferenceEnum,
     FileFormat,
+    RepresentationType,
     TypedefCatalogTypeReferenceEnum,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.input_types import (
     CreateTableInput,
+    CreateViewInput,
     NestedFieldInput,
     SchemaInput,
+    ViewRepresentationInput,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.list_catalogs_for_organization import (
     ListCatalogsForOrganization,
 )
 from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
+)
+from fenic_cloud.hasura_client.generated_graphql_client.load_view import (
+    LoadViewSimpleCatalogLoadView,
 )
 
 from fenic._backends.cloud.manager import CloudSessionManager
@@ -38,9 +44,12 @@ from fenic._backends.utils.catalog_utils import (
     DBIdentifier,
     TableIdentifier,
     compare_object_names,
+    get_bytes_from_string,
+    get_string_from_bytes,
 )
 from fenic.core._interfaces import BaseCatalog
 from fenic.core._logical_plan.plans import LogicalPlan
+from fenic.core._logical_plan.serde import LogicalPlanSerde
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
     convert_polars_schema_to_custom_schema,
@@ -53,6 +62,8 @@ from fenic.core.error import (
     DatabaseNotFoundError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ViewAlreadyExistsError,
+    ViewNotFoundError,
 )
 from fenic.core.types import Schema
 
@@ -244,9 +255,10 @@ class CloudCatalog(BaseCatalog):
     def list_tables(self) -> List[str]:
         """Get a list of all tables in the current database."""
         with self.lock:
-            return self._get_tables_for_database(
+            return self._get_datasets_for_database(
                 self.current_catalog_name,
                 self.current_database_name,
+                CatalogDatasetTypeReferenceEnum.TABLE,
             )
 
     def describe_table(self, table_name: str) -> Schema:
@@ -271,7 +283,10 @@ class CloudCatalog(BaseCatalog):
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table from the current database."""
         with self.lock:
-            return self._drop_table(table_name, ignore_if_not_exists)
+            return self._drop_dataset(
+                table_name,
+                CatalogDatasetTypeReferenceEnum.TABLE,
+                ignore_if_not_exists)
 
     def create_table(
         self,
@@ -292,37 +307,56 @@ class CloudCatalog(BaseCatalog):
         ignore_if_exists: bool = True,
     ) -> bool:
         """Create a new view in the current database."""
-        # TODO: Implement view creation for the cloud
-        raise NotImplementedError(
-            "View creation not implemented for cloud catalog"
-        )
+        with self.lock:
+            return self._create_view(
+                view_name, logical_plan, ignore_if_exists
+            )
 
     def drop_view(self, view_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a view from the current database."""
-        # TODO: Implement drop view for the cloud
-        raise NotImplementedError(
-            "Drop view not implemented for cloud catalog"
-        )
+        with self.lock:
+            return self._drop_dataset(
+                view_name,
+                CatalogDatasetTypeReferenceEnum.VIEW,
+                ignore_if_not_exists)
 
     def describe_view(self, view_name: str) -> LogicalPlan:
-        # TODO: Implement describe view for the cloud
-        raise NotImplementedError(
-            "Describe view not implemented for cloud catalog"
-        )
+        """Get the LogicalPlan of the specified view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.current_catalog_name,
+                self.current_database_name,
+            )
+
+            if not self._does_view_exist(
+                view_identifier.catalog, view_identifier.db, view_identifier.table
+            ):
+                raise ViewNotFoundError(view_identifier.table, view_identifier.db)
+
+            return self._get_view_details(
+                view_identifier.catalog,
+                view_identifier.db,
+                view_identifier.table,
+            )
 
     def list_views(self) -> List[str]:
         """Get a list of all views in the current database."""
-        # TODO: Implement list views for the cloud
-        raise NotImplementedError(
-            "List views not implemented for cloud catalog"
-        )
+        with self.lock:
+            return self._get_datasets_for_database(
+                self.current_catalog_name,
+                self.current_database_name,
+                CatalogDatasetTypeReferenceEnum.VIEW,
+            )
 
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
-        # TODO: Implement does view exist for the cloud
-        raise NotImplementedError(
-            "Method to check if view exists not implemented for cloud catalog"
-        )
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.current_catalog_name, self.current_database_name
+            )
+            return self._does_view_exist(
+                view_identifier.catalog, view_identifier.db, view_identifier.table
+            )
 
     def _drop_database(
         self,
@@ -413,6 +447,19 @@ class CloudCatalog(BaseCatalog):
 
         table = self._get_table(catalog_name, db_name, table_name)
         return table is not None
+
+    def _does_view_exist(
+        self, catalog_name: str, db_name: str, view_name: str
+    ) -> bool:
+        if not compare_object_names(self.current_catalog_name, catalog_name):
+            if not self._does_catalog_exist(catalog_name):
+                return False
+
+        if not self._does_database_exist(catalog_name, db_name):
+            return False
+
+        view = self._get_view(catalog_name, db_name, view_name)
+        return view is not None
 
     def _set_current_catalog(self, catalog_name: str) -> None:
         if not catalog_name:
@@ -512,17 +559,18 @@ class CloudCatalog(BaseCatalog):
 
         return databases
 
-    def _get_tables_for_database(
+    def _get_datasets_for_database(
         self,
         catalog_name: str,
         db_name: str,
+        dataset_type: CatalogDatasetTypeReferenceEnum,
     ) -> List[str]:
         catalog_id = self._get_catalog_id(catalog_name)
         result = self._execute_catalog_command(
             self.user_client.get_dataset_names_for_catalog_namespace(
                 catalog_id=catalog_id,
                 namespace=db_name,
-                dataset_type=CatalogDatasetTypeReferenceEnum.TABLE,
+                dataset_type=dataset_type,
             )
         )
         return [dataset.name for dataset in result.catalog_dataset]
@@ -577,85 +625,147 @@ class CloudCatalog(BaseCatalog):
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.current_catalog_name, self.current_database_name
         )
-
-        if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):
-            if not self._does_catalog_exist(table_identifier.catalog):
-                raise CatalogError(
-                    f"Catalog {table_identifier.catalog} referenced by {table_name} does not exist."
+        if not self._dataset_exists(table_identifier, CatalogDatasetTypeReferenceEnum.TABLE):
+            catalog_id = self._get_catalog_id(table_identifier.catalog)
+            self._execute_catalog_command(
+                self.user_client.sc_create_table(
+                    dispatch=self._get_catalog_dispatch_input(catalog_id),
+                    namespace=table_identifier.db,
+                    table=CreateTableInput(
+                        name=table_identifier.table,
+                        canonical_name=table_identifier.table.casefold(),
+                        description=None,
+                        external=False,
+                        location=self._get_table_location_from_table_identifier(table_identifier),
+                        file_format=FileFormat.PARQUET,
+                        partition_field_names=[],
+                        schema_=self._get_schema_input_from_schema(schema),
+                    ),
                 )
-
-        if not table_identifier.is_db_name_equal(self.current_database_name):
-            if not self._does_database_exist(
-                table_identifier.catalog, table_identifier.db
-            ):
-                raise CatalogError(
-                    f"Database {table_identifier.db} referenced by {table_name} does not exist."
-                )
-
-        if self._does_table_exist(
-            table_identifier.catalog, table_identifier.db, table_identifier.table
-        ):
-            if ignore_if_exists:
-                return False
-            else:
-                raise TableAlreadyExistsError(table_identifier.table, table_identifier.db)
-
-        catalog_id = self._get_catalog_id(table_identifier.catalog)
-        self._execute_catalog_command(
-            self.user_client.sc_create_table(
-                dispatch=self._get_catalog_dispatch_input(catalog_id),
-                namespace=table_identifier.db,
-                table=CreateTableInput(
-                    name=table_identifier.table,
-                    canonical_name=table_identifier.table.casefold(),
-                    description=None,
-                    external=False,
-                    location=self._get_table_location_from_table_identifier(table_identifier),
-                    file_format=FileFormat.PARQUET,
-                    partition_field_names=[],
-                    schema_=self._get_schema_input_from_schema(schema),
-                ),
             )
-        )
-        return True
+            return True
 
-    def _drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
-        """Drop a table from the current database."""
-        table_identifier = TableIdentifier.from_string(table_name).enrich(
+        if not ignore_if_exists:
+            raise TableAlreadyExistsError(table_identifier.table, table_identifier.db)
+
+        return False
+
+    def _drop_dataset(
+            self,
+            dataset_name: str,
+            dataset_type: CatalogDatasetTypeReferenceEnum,
+            ignore_if_not_exists: bool = True,
+        ) -> bool:
+        """Drops a dataset (table or view) from the current database."""
+        dataset_identifier = TableIdentifier.from_string(dataset_name).enrich(
+            self.current_catalog_name, self.current_database_name
+        )
+        if self._dataset_exists(dataset_identifier, dataset_type):
+            catalog_id = self._get_catalog_id(dataset_identifier.catalog)
+            self._execute_catalog_command(
+                self.user_client.sc_drop_dataset(
+                    dispatch=self._get_catalog_dispatch_input(catalog_id),
+                    namespace=dataset_identifier.db,
+                    dataset_name=dataset_identifier.table,
+                )
+            )
+            return True
+
+        if not ignore_if_not_exists:
+            if dataset_type == CatalogDatasetTypeReferenceEnum.TABLE:
+                raise TableNotFoundError(dataset_name, self.current_database_name)
+            else:
+                raise ViewNotFoundError(dataset_name, self.current_database_name)
+
+        return False
+
+    def _get_view(
+        self, catalog_name: str, db_name: str, view_name: str
+    ) -> Optional[LoadViewSimpleCatalogLoadView]:
+        catalog_id = self._get_catalog_id(catalog_name)
+        try:
+            result = self._execute_catalog_command(
+                self.user_client.load_view(
+                    dispatch=self._get_catalog_dispatch_input(catalog_id),
+                    namespace=db_name,
+                    name=view_name,
+                )
+            )
+            return result.simple_catalog.load_view
+        except Exception:
+            return None
+
+    def _get_view_details(
+        self, catalog_name: str, db_name: str, view_name: str
+    ) -> LogicalPlan:
+        load_view = self._get_view(catalog_name, db_name, view_name)
+        return self._get_view_definition(load_view)
+
+    def _create_view(
+        self,
+        view_name: str,
+        logical_plan: LogicalPlan,
+        ignore_if_exists: bool = True,
+    ) -> bool:
+        view_identifier = TableIdentifier.from_string(view_name).enrich(
             self.current_catalog_name, self.current_database_name
         )
 
-        if not table_identifier.is_catalog_name_equal(self.current_catalog_name):
-            if not self._does_catalog_exist(table_identifier.catalog):
+        if not self._dataset_exists(view_identifier, CatalogDatasetTypeReferenceEnum.VIEW):
+            catalog_id = self._get_catalog_id(view_identifier.catalog)
+            self._execute_catalog_command(
+                self.user_client.sc_create_view(
+                    dispatch=self._get_catalog_dispatch_input(catalog_id),
+                    namespace=view_identifier.db,
+                    view=CreateViewInput(
+                        name=view_identifier.table,
+                        canonical_name=view_identifier.table.casefold(),
+                        description=None,
+                        properties=None,
+                        representation=ViewRepresentationInput(
+                            sql=get_string_from_bytes(LogicalPlanSerde.serialize(logical_plan)),
+                            dialect="TYPEDEF",
+                            type=RepresentationType.SQL,
+                        ),
+                        schema_=self._get_schema_input_from_schema(logical_plan.schema()),
+                    ),
+                )
+            )
+            return True
+
+        if not ignore_if_exists:
+            raise ViewAlreadyExistsError(view_identifier.table, view_identifier.db)
+
+        return False
+
+    def _dataset_exists(self, dataset_identifier: TableIdentifier, dataset_type: CatalogDatasetTypeReferenceEnum) -> bool:
+        """Checks if a dataset exists in the current catalog and database.
+           This applies both for tables and views."""
+        if not dataset_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):
+            if not self._does_catalog_exist(dataset_identifier.catalog):
                 raise CatalogError(
-                    f"Catalog {table_identifier.catalog} referenced by {table_name} does not exist."
+                    f"Catalog {dataset_identifier.catalog} referenced by {str(dataset_identifier)} does not exist."
                 )
 
-        if not table_identifier.is_db_name_equal(self.current_database_name):
+        if not dataset_identifier.is_db_name_equal(self.current_database_name):
             if not self._does_database_exist(
-                table_identifier.catalog, table_identifier.db
+                dataset_identifier.catalog, dataset_identifier.db
             ):
                 raise CatalogError(
-                    f"Database {table_identifier.db} referenced by {table_name} does not exist."
+                    f"Database {dataset_identifier.db} referenced by {str(dataset_identifier)} does not exist."
                 )
 
-        if not self._does_table_exist(
-            table_identifier.catalog, table_identifier.db, table_identifier.table
-        ):
-            if ignore_if_not_exists:
-                return False
-            else:
-                raise TableNotFoundError(table_identifier.table, table_identifier.db)
+        if dataset_type == CatalogDatasetTypeReferenceEnum.TABLE:
+            dataset_exists = self._does_table_exist
+        else:
+            dataset_exists = self._does_view_exist
 
-        catalog_id = self._get_catalog_id(table_identifier.catalog)
-        self._execute_catalog_command(
-            self.user_client.sc_drop_dataset(
-                dispatch=self._get_catalog_dispatch_input(catalog_id),
-                namespace=table_identifier.db,
-                dataset_name=table_identifier.table,
-            )
+        result = dataset_exists(
+            dataset_identifier.catalog,
+            dataset_identifier.db,
+            dataset_identifier.table
         )
-        return True
+        return result
 
     @staticmethod
     def _get_schema_input_from_schema(schema: Schema) -> SchemaInput:
@@ -705,3 +815,8 @@ class CloudCatalog(BaseCatalog):
     def _get_table_location_from_table_identifier(table_identifier: TableIdentifier) -> str:
         """Gets the key in the s3 bucket for the table based on its database and name."""
         return f"{table_identifier.db}/{table_identifier.table}"
+
+    @staticmethod
+    def _get_view_definition(load_view: LoadViewSimpleCatalogLoadView) -> LogicalPlan:
+        serialized_logical_plan = load_view.representation.sql
+        return LogicalPlanSerde.deserialize(get_bytes_from_string(serialized_logical_plan))
