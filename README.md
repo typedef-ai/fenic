@@ -51,116 +51,19 @@ The fastest way to learn about fenic is by checking the examples.
 
 Below is a quick list of the examples in this repo:
 
-<table>
-  <thead>
-    <tr>
-      <th>Example</th>
-      <th>Description</th>
-      <th style="text-align:center;">Colab</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><a href="examples/hello_world">Hello World!</a></td>
-      <td>Introduction to semantic extraction and classification using fenic's core operators through error log analysis.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/hello_world/hello_world.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/enrichment">Enrichment</a></td>
-      <td>Multi-stage DataFrames with template-based text extraction, joins, and LLM-powered transformations demonstrated via log enrichment.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/enrichment/enrichment.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/meeting_transcript_processing">Meeting Transcript Processing</a></td>
-      <td>Native transcript parsing, Pydantic schema integration, and complex aggregations shown through meeting analysis.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/transcript_processing.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/news_analysis">News Analysis</a></td>
-      <td>Analyze and extract insights from news articles using semantic operators and structured data processing.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/news_analysis/news_analysis.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/podcast_summarization">Podcast Summarization</a></td>
-      <td>Process and summarize podcast transcripts with speaker-aware analysis and key point extraction.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/podcast_summarization/podcast_summarization.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/semantic_joins">Semantic Join</a></td>
-      <td>Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/semantic_joins/semantic_joins.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/named_entity_recognition">Named Entity Recognition</a></td>
-      <td>Extract and classify named entities from text using semantic extraction and classification.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/named_entity_recognition/ner.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/markdown_processing">Markdown Processing</a></td>
-      <td>Process and transform markdown documents with structured data extraction and formatting.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/markdown_processing/markdown_processing.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/json_processing">JSON Processing</a></td>
-      <td>Handle complex JSON data structures with semantic operations and schema validation.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/json_processing/json_processing.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/feedback_clustering">Feedback Clustering</a></td>
-      <td>Group and analyze feedback using semantic similarity and clustering operations.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/feedback_clustering/feedback_clustering.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td><a href="examples/document_extraction">Document Extraction</a></td>
-      <td>Extract structured information from various document formats using semantic operators.</td>
-      <td align="center">
-        <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb">
-          <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" height="32">
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
+| Example                                                                 | Description                                                                                                                         |                                                                                          Colab                                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| [Hello World!](examples/hello_world)                                    | Introduction to semantic extraction and classification using fenic's core operators through error log analysis.                     |               [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/hello_world/hello_world.ipynb)               |
+| [Enrichment](examples/enrichment)                                       | Multi-stage DataFrames with template-based text extraction, joins, and LLM-powered transformations demonstrated via log enrichment. |                [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/enrichment/enrichment.ipynb)                |
+| [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing, Pydantic schema integration, and complex aggregations shown through meeting analysis.                    | [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/transcript_processing.ipynb) |
+| [News Analysis](examples/news_analysis)                                 | Analyze and extract insights from news articles using semantic operators and structured data processing.                            |             [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/news_analysis/news_analysis.ipynb)             |
+| [Podcast Summarization](examples/podcast_summarization)                 | Process and summarize podcast transcripts with speaker-aware analysis and key point extraction.                                     |     [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/podcast_summarization/podcast_summarization.ipynb)     |
+| [Semantic Join](examples/semantic_joins)                                | Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.                     |            [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/semantic_joins/semantic_joins.ipynb)            |
+| [Named Entity Recognition](examples/named_entity_recognition)           | Extract and classify named entities from text using semantic extraction and classification.                                         |            [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/named_entity_recognition/ner.ipynb)             |
+| [Markdown Processing](examples/markdown_processing)                     | Process and transform markdown documents with structured data extraction and formatting.                                            |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/markdown_processing/markdown_processing.ipynb)       |
+| [JSON Processing](examples/json_processing)                             | Handle complex JSON data structures with semantic operations and schema validation.                                                 |           [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/json_processing/json_processing.ipynb)           |
+| [Feedback Clustering](examples/feedback_clustering)                     | Group and analyze feedback using semantic similarity and clustering operations.                                                     |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/feedback_clustering/feedback_clustering.ipynb)       |
+| [Document Extraction](examples/document_extraction)                     | Extract structured information from various document formats using semantic operators.                                              |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb)       |
 
 (Feel free to click any example above to jump right to its folder.)
 
