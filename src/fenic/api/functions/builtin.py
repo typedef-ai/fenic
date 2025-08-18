@@ -1,7 +1,7 @@
 """Built-in functions for Fenic DataFrames."""
 
 from functools import wraps
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any, Awaitable, Callable, List, Optional, Tuple, Union
 
 from pydantic import ConfigDict, validate_call
 
@@ -11,6 +11,7 @@ from fenic.core._logical_plan.expressions import (
     ArrayContainsExpr,
     ArrayExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     AvgExpr,
     CoalesceExpr,
     CountExpr,
@@ -312,6 +313,91 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
     if f is not None:
         return _create_udf(f)
     return _create_udf
+
+
+def async_udf(
+    f: Optional[Callable[..., Awaitable[Any]]] = None,
+    *,
+    return_type: DataType,
+    max_concurrency: int = 10,
+    timeout_seconds: float = 30,
+    num_retries: int = 0,
+):
+    """A decorator for creating async user-defined functions (UDFs) with configurable concurrency and retries.
+
+    Async UDFs allow IO-bound operations (API calls, database queries, MCP tool calls)
+    to be executed concurrently while maintaining DataFrame semantics.
+
+    Args:
+        f: Async function to convert to UDF
+        return_type: Expected return type of the UDF. Required parameter.
+        max_concurrency: Maximum number of concurrent executions (default: 10)
+        timeout_seconds: Per-item timeout in seconds (default: 30)
+        num_retries: Number of retries for failed items (default: 0)
+
+    Example: Basic async UDF
+        ```python
+        @async_udf(
+            return_type=IntegerType,
+            max_concurrency=5,
+            timeout_seconds=30,
+            num_retries=1
+        )
+        async def slow_add(x: int, y: int) -> int:
+            await asyncio.sleep(1)
+            return x + y
+
+        df = df.select(slow_add(fc.col("x"), fc.col("y")).alias("slow_sum"))
+        ```
+
+    Example: API call with retries
+        ```python
+        @async_udf(
+            return_type=StructType([
+                StructField("status", IntegerType),
+                StructField("data", StringType)
+            ]),
+            max_concurrency=10,
+            timeout_seconds=5,
+            num_retries=2
+        )
+        async def fetch_data(id: str) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://api.example.com/{id}") as resp:
+                    return {
+                        "status": resp.status,
+                        "data": await resp.text()
+                    }
+        ```
+
+    Note:
+        - Individual failures return None instead of raising exceptions
+    """
+
+    def _create_async_udf(func: Callable[..., Awaitable[Any]]) -> Callable:
+        @wraps(func)
+        def _async_udf_wrapper(*cols: ColumnOrName) -> Column:
+            col_exprs = [Column._from_col_or_name(c)._logical_expr for c in cols]
+            return Column._from_logical_expr(
+                AsyncUDFExpr(
+                    func,
+                    col_exprs,
+                    return_type,
+                    max_concurrency=max_concurrency,
+                    timeout_seconds=timeout_seconds,
+                    num_retries=num_retries
+                )
+            )
+        return _async_udf_wrapper
+
+    if _is_logical_type(return_type):
+        raise NotImplementedError(f"return_type {return_type} is not supported for async UDFs")
+
+    # Support both @async_udf and @async_udf(...) syntax
+    if f is None:
+        return _create_async_udf
+    else:
+        return _create_async_udf(f)
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

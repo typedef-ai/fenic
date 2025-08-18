@@ -7,12 +7,17 @@ if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
 import json
+import logging
 
 import numpy as np
 import polars as pl
 import pyarrow as pa
 
+logger = logging.getLogger(__name__)
+
 import fenic._backends.local.polars_plugins  # noqa: F401
+from fenic._backends.local.async_utils import EventLoopManager
+from fenic._backends.local.async_udf_stream import AsyncUDFSyncStream
 from fenic._backends.local.semantic_operators import (
     AnalyzeSentiment,
 )
@@ -36,6 +41,7 @@ from fenic.core._logical_plan.expressions import (
     ArrayExpr,
     ArrayJoinExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     AvgExpr,
     BooleanExpr,
     ByteLengthExpr,
@@ -111,6 +117,7 @@ from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
     convert_pydantic_type_to_custom_struct_type,
 )
+from fenic.core._utils.type_inference import infer_dtype_from_pyobj
 from fenic.core.error import InternalError
 from fenic.core.types.datatypes import (
     ArrayType,
@@ -365,6 +372,55 @@ class ExprConverter:
             return_dtype=convert_custom_dtype_to_polars(logical.return_type),
         )
 
+    @_convert_expr.register(AsyncUDFExpr)
+    def _convert_async_udf_expr(self, logical: AsyncUDFExpr) -> pl.Expr:
+        # Create struct from input columns
+        input_struct = pl.struct([self._convert_expr(arg) for arg in logical.args])
+
+        # Apply async function via map_batches
+        def execute_async_udf(batch: pl.Series) -> pl.Series:
+            # Extract struct as list of dicts [{col1: val1, col2: val2}, ...]
+            items = batch.to_list()
+
+            # Get or create event loop
+            loop = EventLoopManager().get_or_create_loop()
+
+            # Create async wrapper that unpacks dict as kwargs
+            async def async_wrapper(item: Dict[str, Any]) -> Any:
+                return await logical.func(*(item.values()))
+
+            # Execute async function with dict unpacking
+            async_udf = AsyncUDFSyncStream(
+                async_wrapper,
+                loop=loop,
+                max_concurrency=logical.max_concurrency,
+                timeout=logical.timeout_seconds,
+                num_retries=logical.num_retries
+            )
+
+            results = []
+            try:
+                for result in async_udf.call(items):
+                    if isinstance(result, Exception):
+                        # Log the exception before returning None
+                        logger.error(f"Async UDF execution failed: {result}")
+                        results.append(None)
+                    else:
+                        # Runtime type checking using Fenic's existing type inference
+                        inferred_type = infer_dtype_from_pyobj(result)
+                        if inferred_type != logical.return_type:
+                            # Cancel pending tasks before raising
+                            async_udf.cancel_pending_tasks()
+                            raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
+                        results.append(result)
+            except Exception:
+                # Ensure cleanup on any fatal error
+                async_udf.cancel_pending_tasks()
+                raise
+
+            return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
+
+        return input_struct.map_batches(execute_async_udf)
 
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:

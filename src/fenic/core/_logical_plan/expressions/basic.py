@@ -255,6 +255,48 @@ class UDFExpr(LogicalExpr):
         return self.func is other.func and self.return_type == other.return_type
 
 
+class AsyncUDFExpr(LogicalExpr):
+    """Expression for async user-defined functions with configurable concurrency and retries."""
+    
+    def __init__(
+        self,
+        func: Callable,
+        args: List[LogicalExpr],
+        return_type: DataType,
+        max_concurrency: int = 10,
+        timeout_seconds: float = 30,
+        num_retries: int = 0,
+    ):
+        self.func = func
+        self.args = args
+        self.return_type = return_type
+        self.max_concurrency = max_concurrency
+        self.timeout_seconds = timeout_seconds
+        self.num_retries = num_retries
+
+    def __str__(self):
+        args_str = ", ".join(str(arg) for arg in self.args)
+        return f"{self.func.__name__}({args_str})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        for arg in self.args:
+            _ = arg.to_column_field(plan, session_state)
+        return ColumnField(str(self), self.return_type)
+
+    def children(self) -> List[LogicalExpr]:
+        return self.args
+
+    def _eq_specific(self, other: AsyncUDFExpr) -> bool:
+        # For dynamic UDFs, we can only check identity since its tricky to compare Callables
+        return (
+            self.func is other.func 
+            and self.return_type == other.return_type
+            and self.max_concurrency == other.max_concurrency
+            and self.timeout_seconds == other.timeout_seconds
+            and self.num_retries == other.num_retries
+        )
+
+
 class IsNullExpr(LogicalExpr):
     def __init__(self, expr: LogicalExpr, is_null: bool):
         self.expr = expr
