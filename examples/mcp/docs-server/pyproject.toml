@@ -8,6 +8,7 @@ dependencies = [
   "fastmcp>=0.1.0",
   "griffe>=0.42.0",
   "fenic[anthropic,google]>=0.3.0",
+  "structlog>=25.4.0",
 ]
 
 [project.scripts]
