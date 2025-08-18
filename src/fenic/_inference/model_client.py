@@ -21,6 +21,7 @@ from typing import (
 from pydantic import BaseModel
 from tqdm import tqdm
 
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
@@ -141,7 +142,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.thread_exceptions_lock = threading.Lock()
 
         # Register with the event loop manager
-        ModelClientManager().register_client(self)
+        self._event_loop = EventLoopManager().get_or_create_loop()
+        asyncio.run_coroutine_threadsafe(self._process_queue(), self._event_loop)
 
         logger.info(
             f"Initialized client for model {model} with rate limit strategy {self.rate_limit_strategy}"
@@ -253,7 +255,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         exception = Exception(f"Model client for {self.model} has been shut down")
 
-        ModelClientManager().event_loop.call_soon_threadsafe(self.shutdown_event.set)
+        self._event_loop.call_soon_threadsafe(self.shutdown_event.set)
 
         if self.pending_requests:
             for queue_item in self.pending_requests:
@@ -275,11 +277,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 break
 
         cancel_future = asyncio.run_coroutine_threadsafe(
-            self._cancel_in_flight_requests(), ModelClientManager().event_loop
+            self._cancel_in_flight_requests(), self._event_loop
         )
         cancel_future.result()
 
-        ModelClientManager().unregister_client(self)
+        EventLoopManager().release_loop()
 
     def make_batch_requests(
             self,
@@ -486,7 +488,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
                         self._enqueue_request(queue_item),
-                        ModelClientManager().event_loop,
+                        self._event_loop,
                     )
                     enqueue_future.result()
 
@@ -692,89 +694,3 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         for task in self.inflight_requests:
             task.cancel()
         await asyncio.gather(*self.inflight_requests, return_exceptions=True)
-
-
-class ModelClientManager:
-    """Manages a shared asyncio event loop for multiple ModelClient instances.
-    Ensures that all clients run on the same loop for efficient resource management.
-    """
-
-    _instance = None
-    _lock = threading.Lock()
-
-    def __new__(cls):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(ModelClientManager, cls).__new__(cls)
-                cls._instance._initialize()
-            return cls._instance
-
-    def _initialize(self):
-        """Initializes the ModelClientManager, creating the event loop if it doesn't exist."""
-        self.registered_clients: Set[ModelClient] = set()
-        self.event_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.background_thread: Optional[threading.Thread] = None
-        self._maybe_create_event_loop()
-
-    def register_client(self, client: ModelClient):
-        """Registers a ModelClient with the manager and starts its processing task on the shared event loop.
-
-        Args:
-            client: The client to register.
-        """
-        with self._lock:
-            self._maybe_create_event_loop()
-            self.registered_clients.add(client)
-            asyncio.run_coroutine_threadsafe(client._process_queue(), self.event_loop)
-
-    def unregister_client(self, client: ModelClient):
-        """Unregisters a ModelClient from the manager and shuts down the event loop if no clients remain.
-
-        Args:
-            client: The client to unregister.
-        """
-        loop_to_shutdown = None
-        thread_to_join = None
-        with self._lock:
-            self.registered_clients.discard(client)
-            if (
-                    not self.registered_clients
-                    and self.event_loop
-                    and self.event_loop.is_running()
-            ):
-                loop_to_shutdown = self.event_loop
-                thread_to_join = self.background_thread
-                self.event_loop = None
-                self.background_thread = None
-
-        if loop_to_shutdown:
-            cancel_future = asyncio.run_coroutine_threadsafe(
-                _cancel_event_loop_tasks(loop_to_shutdown), loop_to_shutdown
-            )
-            cancel_future.result()
-            loop_to_shutdown.call_soon_threadsafe(loop_to_shutdown.stop)
-            if thread_to_join and thread_to_join.is_alive():
-                thread_to_join.join()
-            loop_to_shutdown.close()
-
-    def _maybe_create_event_loop(self):
-        """Creates and starts a dedicated event loop in a background thread if one doesn't exist."""
-        if self.event_loop is None or self.event_loop.is_closed():
-            self.event_loop = asyncio.new_event_loop()
-            self.background_thread = threading.Thread(
-                target=self.event_loop.run_forever, daemon=True
-            )
-            self.background_thread.start()
-
-
-async def _cancel_event_loop_tasks(loop: asyncio.AbstractEventLoop):
-    """Cancels all pending tasks in the given asyncio event loop, except the current task.
-
-    Args:
-        loop: The event loop to cancel tasks for.
-    """
-    asyncio.set_event_loop(loop)
-    tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)

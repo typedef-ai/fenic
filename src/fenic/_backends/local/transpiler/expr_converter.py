@@ -382,43 +382,42 @@ class ExprConverter:
             # Extract struct as list of dicts [{col1: val1, col2: val2}, ...]
             items = batch.to_list()
 
-            # Get or create event loop
-            loop = EventLoopManager().get_or_create_loop()
+            # Use context manager for automatic loop lifecycle management
+            with EventLoopManager().loop_context() as loop:
+                # Create async wrapper that unpacks dict as kwargs
+                async def async_wrapper(item: Dict[str, Any]) -> Any:
+                    return await logical.func(*(item.values()))
 
-            # Create async wrapper that unpacks dict as kwargs
-            async def async_wrapper(item: Dict[str, Any]) -> Any:
-                return await logical.func(*(item.values()))
+                # Execute async function with dict unpacking
+                async_udf = AsyncUDFSyncStream(
+                    async_wrapper,
+                    loop=loop,
+                    max_concurrency=logical.max_concurrency,
+                    timeout=logical.timeout_seconds,
+                    num_retries=logical.num_retries
+                )
 
-            # Execute async function with dict unpacking
-            async_udf = AsyncUDFSyncStream(
-                async_wrapper,
-                loop=loop,
-                max_concurrency=logical.max_concurrency,
-                timeout=logical.timeout_seconds,
-                num_retries=logical.num_retries
-            )
+                results = []
+                try:
+                    for result in async_udf.call(items):
+                        if isinstance(result, Exception):
+                            # Log the exception before returning None
+                            logger.error(f"Async UDF execution failed: {result}")
+                            results.append(None)
+                        else:
+                            # Runtime type checking using Fenic's existing type inference
+                            inferred_type = infer_dtype_from_pyobj(result)
+                            if inferred_type != logical.return_type:
+                                # Cancel pending tasks before raising
+                                async_udf.cancel_pending_tasks()
+                                raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
+                            results.append(result)
+                except Exception:
+                    # Ensure cleanup on any fatal error
+                    async_udf.cancel_pending_tasks()
+                    raise
 
-            results = []
-            try:
-                for result in async_udf.call(items):
-                    if isinstance(result, Exception):
-                        # Log the exception before returning None
-                        logger.error(f"Async UDF execution failed: {result}")
-                        results.append(None)
-                    else:
-                        # Runtime type checking using Fenic's existing type inference
-                        inferred_type = infer_dtype_from_pyobj(result)
-                        if inferred_type != logical.return_type:
-                            # Cancel pending tasks before raising
-                            async_udf.cancel_pending_tasks()
-                            raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
-                        results.append(result)
-            except Exception:
-                # Ensure cleanup on any fatal error
-                async_udf.cancel_pending_tasks()
-                raise
-
-            return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
+                return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
 
         return input_struct.map_batches(execute_async_udf)
 

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import random
-from typing import Any, Awaitable, Callable, Dict, Iterable, Optional
+from typing import Any, Awaitable, Callable, Dict, Iterable, Optional, AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class AsyncUDFSyncStream:
                     await asyncio.sleep(delay)
             raise last_err
 
-    async def _call_batch_async(self, items: Iterable[Dict[str, Any]]) -> Iterable[Any]:
+    async def _call_batch_async(self, items: Iterable[Dict[str, Any]]) -> AsyncGenerator[Any, None]:
         """Async generator yielding results in input order with bounded buffer.
 
         This method manages concurrent execution while maintaining result ordering
