@@ -81,7 +81,7 @@ class AsyncUDFSyncStream:
                 except Exception as e:
                     last_err = e
                     msg = "Timeout" if isinstance(e, asyncio.TimeoutError) else f"Failure: {e}"
-                    logger.warning(f"{msg} (attempt {attempt+1}/{self.num_retries+1})")
+                    logger.warning(f"AsyncUDFStream: {msg} (attempt {attempt+1}/{self.num_retries+1})")
 
                     if attempt < self.num_retries:
                         # trunk-ignore(bandit/B311): pseudo random is safe
