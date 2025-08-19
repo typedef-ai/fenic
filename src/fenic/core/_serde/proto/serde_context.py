@@ -48,7 +48,6 @@ from fenic.core._serde.proto.types import (
     ScalarStructProto,
     ScalarValueProto,
 )
-from fenic.core.error import InternalError
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
@@ -290,7 +289,7 @@ class SerdeContext:
             try:
                 # First, validate that target_type is actually a Literal type
                 if get_origin(target_type) is not Literal:
-                    raise InternalError(
+                    raise DeserializationError(
                         f"target_type {target_type} is not a typing.Literal type. "
                         f"Expected typing.Literal[...] but got {target_type} with origin {get_origin(target_type)}."
                     )
@@ -531,7 +530,7 @@ class SerdeContext:
         """Deserialize a resolved model alias."""
         with self.path_context(field_name):
             try:
-                # Optional field will be populated as "" if not present, which is falsey
+                # Optional field will be populated as "" if not present, which is false-y.
                 if not model_alias_proto.profile:
                     return ResolvedModelAlias(name=model_alias_proto.name)
                 else:

@@ -9,13 +9,13 @@ from typing import Optional
 
 from google.protobuf.message import Message
 
-from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.plans.base import CacheInfo, LogicalPlan
 from fenic.core._serde.proto.errors import (
     DeserializationError,
     SerializationError,
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
-from fenic.core._serde.proto.types import LogicalPlanProto
+from fenic.core._serde.proto.types import CacheInfoProto, LogicalPlanProto
 
 
 @singledispatch
@@ -50,7 +50,6 @@ def serialize_logical_plan(
 
     # Add cache_info if present
     if logical_plan.cache_info is not None:
-        from fenic.core._serde.proto.types import CacheInfoProto
         cache_info_proto = CacheInfoProto()
         if logical_plan.cache_info.duckdb_table_name is not None:
             cache_info_proto.duckdb_table_name = logical_plan.cache_info.duckdb_table_name
@@ -92,7 +91,6 @@ def deserialize_logical_plan(
 
     # Set cache_info if present
     if logical_plan_proto.HasField("cache_info"):
-        from fenic.core._logical_plan.plans.base import CacheInfo
         cache_info = CacheInfo(
             duckdb_table_name=logical_plan_proto.cache_info.duckdb_table_name if logical_plan_proto.cache_info.HasField("duckdb_table_name") else None
         )

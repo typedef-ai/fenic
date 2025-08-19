@@ -6,10 +6,43 @@ import polars as pl
 import pytest
 from pydantic import BaseModel, Field
 
-from fenic import ColumnField, DataFrame, IntegerType, Schema, col, lit, semantic, text
+from fenic import (
+    ColumnField,
+    DataFrame,
+    IntegerType,
+    Schema,
+    col,
+    count,
+    lit,
+    semantic,
+    sum,
+    text,
+)
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
-from fenic.core._logical_plan.plans import FileSink, TableSink
+
+# Import plan classes for the examples dictionary
+from fenic.core._logical_plan.plans import (
+    SQL,
+    Aggregate,
+    DropDuplicates,
+    Explode,
+    FileSink,
+    FileSource,
+    Filter,
+    InMemorySource,
+    Join,
+    Limit,
+    Projection,
+    SemanticCluster,
+    SemanticJoin,
+    SemanticSimilarityJoin,
+    Sort,
+    TableSink,
+    TableSource,
+    Union,
+    Unnest,
+)
 from fenic.core._serde.cloudpickle_serde import CloudPickleSerde
 from fenic.core._serde.proto.errors import SerializationError
 from fenic.core._serde.proto.plan_serde import serialize_logical_plan
@@ -19,6 +52,125 @@ from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 from fenic.core.types import ClassDefinition
 from fenic.core.types.semantic_examples import MapExample, MapExampleCollection
 
+
+def _create_plan_examples(session):
+    """Create all plan examples upfront."""
+    # Create base dataframes for testing
+    df1 = session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    df2 = session.create_dataframe({"d": [1, 2, 3], "c": ["foo", "bar", "baz"]})
+    # Create additional dataframes for specific tests
+    df_with_array = session.create_dataframe({"a": [1, 2], "arr": [[1, 2], [3, 4]]})
+    df_with_dupes = session.create_dataframe({"c1": [1, 1, 2], "c2": [1, 2, 2]})
+    df_with_struct = session.create_dataframe({"a": [{"b": 1, "c": 2}, {"b": 3, "c": 4}]})
+
+    # Create a test table for TableSource testing
+    test_table_df = session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    test_table_df.write.save_as_table("test_table", mode="overwrite")
+        # Get the absolute path of the current file
+    current_file_path = os.path.abspath(__file__)
+
+    # Get the directory containing the current file
+    current_file_directory = os.path.dirname(current_file_path)
+
+    return {
+        # Basic source plans
+        InMemorySource: [
+            ("basic_dataframe", df1._logical_plan),
+        ],
+        FileSource: [
+            ("csv_source", FileSource.from_session_state(
+                paths=[os.path.join(current_file_directory, "test_data", "test.csv")],
+                file_format="csv",
+                session_state=session._session_state,
+            )),
+        ],
+        TableSource: [
+            ("table_source", TableSource.from_session_state(
+                table_name="test_table",
+                session_state=session._session_state,
+            )),
+        ],
+        # Transform plans
+        Projection: [
+            ("simple_select", df1.select("a")._logical_plan),
+            ("complex_select", df1.select("a", col("b").alias("b_alias"))._logical_plan),
+        ],
+        Filter: [
+            ("simple_filter", df1.filter(col("a") > 1)._logical_plan),
+            ("complex_filter", df1.filter((col("a") > 1) & (col("b") == "y"))._logical_plan),
+        ],
+        Join: [
+            ("inner_join", df1.join(df2, left_on="a", right_on="d")._logical_plan),
+            ("left_join", df1.join(df2, left_on="a", right_on="d", how="left")._logical_plan),
+        ],
+        SemanticJoin: [
+            ("semantic_join", df1.semantic.join(df2, "match {{left_on}} to {{right_on}}",
+                                               left_on=col("b"), right_on=col("c"))._logical_plan),
+        ],
+        SemanticSimilarityJoin: [
+            ("similarity_join", (df1.with_column("emb1", semantic.embed(col("b")))
+                               .semantic.sim_join(
+                                   df2.with_column("emb2", semantic.embed(col("c"))),
+                                   left_on=col("emb1"), right_on=col("emb2"), k=2
+                               ).cache()._logical_plan)),
+        ],
+        Aggregate: [
+            ("simple_aggregate", df1.group_by("b").agg({"a": "sum"})._logical_plan),
+            ("complex_aggregate", df1.group_by("b").agg(sum("a").alias("sum_a"), count("a").alias("count_a"))._logical_plan),
+        ],
+        SemanticCluster: [
+            ("semantic_cluster", (df1.with_column("emb", semantic.embed(col("b")))
+                                .semantic.with_cluster_labels(col("emb"), 2)._logical_plan)),
+        ],
+        Union: [
+            ("simple_union", df1.union(df1.select("a", "b"))._logical_plan),
+        ],
+        Limit: [
+            ("simple_limit", df1.limit(2)._logical_plan),
+        ],
+        Explode: [
+            ("array_explode", df_with_array.explode("arr")._logical_plan),
+        ],
+        DropDuplicates: [
+            ("drop_duplicates", df_with_dupes.drop_duplicates(["c1", "c2"])._logical_plan),
+        ],
+        Sort: [
+            ("simple_sort", df1.sort("a")._logical_plan),
+            ("complex_sort", df1.sort(["a", "b"])._logical_plan),
+        ],
+        Unnest: [
+            ("struct_unnest", df_with_struct.unnest("a")._logical_plan),
+        ],
+        SQL: [
+            ("sql_query", session.sql("SELECT a, b FROM {df1}", df1=df1)._logical_plan),
+        ],
+
+        # Sink plans
+        FileSink: [
+            ("csv_sink", FileSink.from_session_state(
+                child=df1._logical_plan,
+                sink_type="csv",
+                path="/tmp/test.csv",
+                mode="overwrite",
+                session_state=session._session_state,
+            )),
+            ("parquet_sink", FileSink.from_session_state(
+                child=df1._logical_plan,
+                sink_type="parquet",
+                path="/tmp/test.parquet",
+                mode="overwrite",
+                session_state=session._session_state,
+            )),
+        ],
+        TableSink: [
+            ("table_sink", TableSink.from_session_state(
+                child=df1._logical_plan,
+                table_name="test_table",
+                mode="overwrite",
+                session_state=session._session_state,
+            )),
+        ],
+    }
 
 def _test_df_serialization(df: DataFrame, session: BaseSessionState,
                            serde_implementation: SupportsLogicalPlanSerde) -> DataFrame:
@@ -523,3 +675,73 @@ def test_serialize_unregistered_plan_type():
     context = SerdeContext()
     with pytest.raises(SerializationError, match="Serialization not implemented for Logical Plan"):
         serialize_logical_plan(mock_expr, context)
+
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_all_plan_types_with_examples(local_session, serde_implementation):
+    """Test all plan types with comprehensive examples using parameterized tests."""
+
+    test_cases = []
+    examples = _create_plan_examples(local_session)
+    for plan_class, examples_list in examples.items():
+        for example_name, plan in examples_list:
+            test_cases.append((plan_class, example_name, plan))
+
+    # Run all test cases
+    for plan_class, example_name, plan in test_cases:
+        try:
+            # Test serialization/deserialization
+            _test_plan_serialization(plan, local_session._session_state, serde_implementation)
+
+        except Exception as e:
+            pytest.fail(f"Test failed for {plan_class.__name__}.{example_name}: {e}")
+
+
+
+
+def test_plan_type_coverage(local_session):
+    """Test that all concrete LogicalPlan subclasses are covered in the test file."""
+    import importlib
+    import inspect
+
+    from fenic.core._logical_plan import LogicalPlan
+
+    # Find all concrete LogicalPlan subclasses
+    concrete_subclasses = set()
+    try:
+        module = importlib.import_module("fenic.core._logical_plan.plans")
+        for _name, obj in inspect.getmembers(module):
+            if (inspect.isclass(obj) and
+                issubclass(obj, LogicalPlan) and
+                obj != LogicalPlan and
+                not inspect.isabstract(obj)):
+                concrete_subclasses.add(obj.__name__)
+    except ImportError:
+        pass
+
+    # Get all tested plan classes from the examples
+    examples = _create_plan_examples(local_session)
+    tested_classes = set(cls.__name__ for cls in examples.keys())
+
+    # Find missing classes
+    missing = concrete_subclasses - tested_classes
+
+    if missing:
+        pytest.fail(
+            f"Missing {len(missing)} concrete LogicalPlan subclasses from tests: {sorted(missing)}. "
+            f"Add them to the _create_plan_examples function in this test file."
+        )
+
+    # Optional: Check for extra classes (not LogicalPlan subclasses)
+    extra = tested_classes - concrete_subclasses
+    if extra:
+        print(f"Warning: {len(extra)} tested classes are not concrete LogicalPlan subclasses: {sorted(extra)}")
+
+    # Verify coverage
+    coverage = len(concrete_subclasses - missing) / len(concrete_subclasses) * 100
+    assert coverage == 100.0, f"Plan coverage is {coverage:.1f}%, expected 100%"
+
+    # Count total examples
+    total_examples = __builtins__['sum'](len(examples) for examples in examples.values())
+    print(f"Total plan examples: {total_examples}")

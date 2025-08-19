@@ -406,14 +406,3 @@ def verify_round_trip(expr: LogicalExpr):
     # Add expression-specific assertions
     return deserialized
 ```
-
-## Summary
-
-The Fenic serde system provides a clean, maintainable, and performant solution for serializing complex logical plans and expressions. The centralized `SerdeContext` approach eliminates boilerplate, provides excellent error reporting, and makes the system easy to extend and maintain.
-
-Key benefits:
-
-- **🎯 Unified API**: All operations through SerdeContext methods
-- **🔍 Rich Debugging**: Automatic field path tracking for precise error locations
-- **🧩 Easy Extension**: Clear patterns for adding new types
-- **🛡️ Robust Error Handling**: Built-in error handling and validation
