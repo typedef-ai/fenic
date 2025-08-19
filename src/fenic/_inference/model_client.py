@@ -398,8 +398,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         await self.request_queue.put(queue_item)
 
-
-
+    # TODO(rohitrastogi): We should stream the requests to the model client and pipe results back from the background thread to the main thread to avoid unnecessary memory usage.
     def _make_batch_requests(self,
                              requests: List[Optional[RequestT]],
                              operation_name: str,

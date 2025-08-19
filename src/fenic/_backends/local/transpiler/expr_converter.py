@@ -13,11 +13,9 @@ import numpy as np
 import polars as pl
 import pyarrow as pa
 
-logger = logging.getLogger(__name__)
-
 import fenic._backends.local.polars_plugins  # noqa: F401
-from fenic._backends.local.async_utils import EventLoopManager
 from fenic._backends.local.async_udf_stream import AsyncUDFSyncStream
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._backends.local.semantic_operators import (
     AnalyzeSentiment,
 )
@@ -133,6 +131,7 @@ from fenic.core.types.datatypes import (
 )
 from fenic.core.types.enums import FuzzySimilarityMethod
 
+logger = logging.getLogger(__name__)
 
 class ExprConverter:
     def __init__(self, session_state: LocalSessionState):
@@ -380,17 +379,12 @@ class ExprConverter:
         # Apply async function via map_batches
         def execute_async_udf(batch: pl.Series) -> pl.Series:
             # Extract struct as list of dicts [{col1: val1, col2: val2}, ...]
-            items = batch.to_list()
+            items = ([row[name] for name in batch.struct.fields] for row in batch)
 
             # Use context manager for automatic loop lifecycle management
             with EventLoopManager().loop_context() as loop:
-                # Create async wrapper that unpacks dict as kwargs
-                async def async_wrapper(item: Dict[str, Any]) -> Any:
-                    return await logical.func(*(item.values()))
-
-                # Execute async function with dict unpacking
                 async_udf = AsyncUDFSyncStream(
-                    async_wrapper,
+                    lambda item: logical.func(*item),
                     loop=loop,
                     max_concurrency=logical.max_concurrency,
                     timeout=logical.timeout_seconds,
@@ -406,11 +400,12 @@ class ExprConverter:
                             results.append(None)
                         else:
                             # Runtime type checking using Fenic's existing type inference
-                            inferred_type = infer_dtype_from_pyobj(result)
-                            if inferred_type != logical.return_type:
-                                # Cancel pending tasks before raising
-                                async_udf.cancel_pending_tasks()
-                                raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
+                            if result:
+                                inferred_type = infer_dtype_from_pyobj(result)
+                                if inferred_type != logical.return_type:
+                                    # Cancel pending tasks before raising
+                                    async_udf.cancel_pending_tasks()
+                                    raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
                             results.append(result)
                 except Exception:
                     # Ensure cleanup on any fatal error

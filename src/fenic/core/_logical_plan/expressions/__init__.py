@@ -24,6 +24,7 @@ from fenic.core._logical_plan.expressions.basic import ArrayExpr as ArrayExpr
 from fenic.core._logical_plan.expressions.basic import (
     ArrayLengthExpr as ArrayLengthExpr,
 )
+from fenic.core._logical_plan.expressions.basic import AsyncUDFExpr as AsyncUDFExpr
 from fenic.core._logical_plan.expressions.basic import CastExpr as CastExpr
 from fenic.core._logical_plan.expressions.basic import CoalesceExpr as CoalesceExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr as ColumnExpr
@@ -37,7 +38,6 @@ from fenic.core._logical_plan.expressions.basic import NotExpr as NotExpr
 from fenic.core._logical_plan.expressions.basic import SortExpr as SortExpr
 from fenic.core._logical_plan.expressions.basic import StructExpr as StructExpr
 from fenic.core._logical_plan.expressions.basic import UDFExpr as UDFExpr
-from fenic.core._logical_plan.expressions.basic import AsyncUDFExpr as AsyncUDFExpr
 from fenic.core._logical_plan.expressions.case import OtherwiseExpr as OtherwiseExpr
 from fenic.core._logical_plan.expressions.case import WhenExpr as WhenExpr
 from fenic.core._logical_plan.expressions.comparison import (

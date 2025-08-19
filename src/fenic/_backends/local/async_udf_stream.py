@@ -1,19 +1,48 @@
-"""Async UDF execution engine for Fenic."""
-
 import asyncio
 import logging
 import random
-from typing import Any, Awaitable, Callable, Dict, Iterable, Optional, AsyncGenerator
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterable
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_BUFFER_MULTIPLIER = 10
+HARD_BUFFER_LIMIT = 50_000
+DEFAULT_PENDING_MULTIPLIER = 3
+HARD_PENDING_LIMIT = 1_000
+
 
 class AsyncUDFSyncStream:
-    """Executes async UDFs with bounded concurrency, retries, and ordered results.
+    """
+    Async UDF execution engine with bounded concurrency, retries, and ordered results.
 
-    This class bridges async execution with sync iteration, allowing async UDFs
-    to be used in Polars map_batches operations while maintaining result ordering
-    and providing robust error handling.
+    High-level intuition:
+
+    - Goal: Run an async function on many input items while:
+        * Limiting concurrency (max_pending tasks in-flight)
+        * Handling retries and timeouts per item
+        * Yielding results in input order
+        * Enforcing bounded memory usage (max_buffer_size)
+
+    - Key idea: Use two “buckets” of state:
+        1. pending: tasks currently running
+        2. results: completed tasks that are waiting to be yielded
+
+    - Flow:
+        1. Schedule tasks up to max_pending / max_buffer_size
+        2. Wait for tasks to finish
+           - Usually wait for any task
+           - If results buffer full, wait specifically for the next expected result
+        3. Store completed results in a dict keyed by input index
+        4. Yield results in input order (next_to_yield)
+        5. Schedule more tasks if room exists
+        6. Repeat until all items are processed
+
+    - Guarantees:
+        * Ordered output
+        * Memory bounded by max_buffer_size
+        * In-flight tasks bounded by max_pending
+        * Retries and timeout handled per item
+        * Safe cleanup of remaining tasks if iteration stops early
     """
 
     def __init__(
@@ -21,176 +50,124 @@ class AsyncUDFSyncStream:
         fn: Callable[[Dict[str, Any]], Awaitable[Any]],
         *,
         loop: asyncio.AbstractEventLoop,
-        max_concurrency: int = 10,
-        num_retries: int = 0,
-        timeout: Optional[float] = None,  # per-item timeout in seconds
-        max_buffer_size: int = 1000,  # limit memory used for results
+        max_concurrency: int,
+        num_retries: int,
+        timeout: float,
     ):
-        """Initialize the async UDF stream processor.
-
-        Args:
-            fn: Async function to execute for each item
-            loop: Event loop to run async operations on
-            max_concurrency: Maximum number of concurrent executions
-            num_retries: Number of retries for failed items
-            timeout: Per-item timeout in seconds
-            max_buffer_size: Maximum number of results to buffer
-
-        Raises:
-            TypeError: If fn is not an async function
-        """
-        if not asyncio.iscoroutinefunction(fn):
-            print(fn)
-            raise TypeError("fn must be async")
         self.fn = fn
         self.loop = loop
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.max_concurrency = max_concurrency
         self.num_retries = num_retries
         self.timeout = timeout
-        self.max_buffer_size = max_buffer_size
-        self.pending_tasks = set()  # Track for cancellation
+
+        # Maximum number of results that can be buffered before forcing yield
+        self.max_buffer_size = min(HARD_BUFFER_LIMIT, DEFAULT_BUFFER_MULTIPLIER * max_concurrency)
+        # Maximum number of tasks allowed to be in-flight
+        self.max_pending = min(HARD_PENDING_LIMIT, DEFAULT_PENDING_MULTIPLIER * max_concurrency)
 
     async def _call(self, item: Any) -> Any:
-        """Execute single async call with semaphore, retries, and timeout.
-
-        Args:
-            item: Input item to process
-
-        Returns:
-            Result from the async function
-
-        Raises:
-            Last exception if all retries fail
-        """
+        """Execute a single async call with retries, timeout, and concurrency control."""
         async with self.semaphore:
             last_err = None
             for attempt in range(self.num_retries + 1):
                 try:
-                    if self.timeout is not None:
-                        return await asyncio.wait_for(self.fn(item), timeout=self.timeout)
-                    else:
-                        return await self.fn(item)
-                except asyncio.TimeoutError as e:
-                    last_err = e
-                    logger.warning(f"Item timed out (attempt {attempt+1}/{self.num_retries+1})")
+                    return await asyncio.wait_for(self.fn(item), timeout=self.timeout)
                 except Exception as e:
                     last_err = e
-                    logger.warning(f"Item failed (attempt {attempt+1}/{self.num_retries+1}): {e}")
+                    msg = "Timeout" if isinstance(e, asyncio.TimeoutError) else f"Failure: {e}"
+                    logger.warning(f"AsyncUDFStream: {msg} (attempt {attempt+1}/{self.num_retries+1})")
 
-                # Simple fixed delay with small jitter
-                # Exponential backoff doesn't help much with high concurrency
-                if attempt < self.num_retries:
-                    delay = 1.0 + random.uniform(0, 0.5)  # 1-1.5 seconds
-                    await asyncio.sleep(delay)
-            raise last_err
+                    # Exponential backoff with jitter for retries
+                    if attempt < self.num_retries:
+                        # trunk-ignore(bandit/B311): pseudo random is safe
+                        await asyncio.sleep(2**attempt + random.uniform(0, 2**attempt * 0.5))
+            raise last_err  # All retries exhausted
 
     async def _call_batch_async(self, items: Iterable[Dict[str, Any]]) -> AsyncGenerator[Any, None]:
-        """Async generator yielding results in input order with bounded buffer.
+        """
+        Async generator yielding results in input order.
 
-        This method manages concurrent execution while maintaining result ordering
-        and limiting memory usage through a bounded buffer.
-
-        Args:
-            items: Iterable of items to process
-
-        Yields:
-            Results in the same order as input items (exceptions included)
+        Key properties:
+        - Bounded memory: results buffer never exceeds max_buffer_size
+        - Bounded concurrency: in-flight tasks never exceed max_pending
+        - Ordered output: results are yielded in input order
+        - Retry and timeout logic per item
         """
         items_iter = enumerate(items)
-        results_buffer = {}
-        next_index_to_yield = 0
+        pending: dict[int, asyncio.Task] = {}  # index -> in-flight task
+        results: dict[int, Any] = {}           # index -> result or exception
+        next_to_yield = 0                       # index of the next result to yield
+        exhausted = False                        # whether input iterator is exhausted
 
-        class IndexedTask:
-            """Wrapper to track task index for ordering."""
-            def __init__(self, idx, coro):
-                self.idx = idx
-                self.task = asyncio.create_task(coro)
+        # Wrap each task to always return (index, result_or_exception)
+        async def call_with_index(idx: int, item: Any):
+            try:
+                res = await self._call(item)
+                return idx, res
+            except Exception as e:
+                return idx, e
 
-        async def schedule_task(idx, item):
-            """Schedule a task and set up its completion callback."""
-            task_wrapper = IndexedTask(idx, self._call(item))
-            self.pending_tasks.add(task_wrapper)
+        def can_schedule_more():
+            """Check if we can schedule more tasks without exceeding limits."""
+            return not exhausted and len(pending) < self.max_pending and len(results) < self.max_buffer_size
 
-            def _done_callback(tw: IndexedTask):
-                self.pending_tasks.discard(tw)
-                try:
-                    results_buffer[tw.idx] = tw.task.result()
-                except Exception as e:
-                    # Store exception as result - let caller decide how to handle
-                    results_buffer[tw.idx] = e
-                    logger.error(f"Item at index {tw.idx} failed permanently: {e}")
-
-            task_wrapper.task.add_done_callback(lambda t: _done_callback(task_wrapper))
-
-        # Initially schedule up to max_concurrency tasks
-        for _ in range(self.max_concurrency):
+        # Initial scheduling: fill up the pending tasks as much as allowed
+        while can_schedule_more():
             try:
                 idx, item = next(items_iter)
-                await schedule_task(idx, item)
+                pending[idx] = asyncio.create_task(call_with_index(idx, item))
             except StopIteration:
+                exhausted = True
                 break
 
-        while self.pending_tasks or results_buffer:
-            # Yield in order if available
-            while next_index_to_yield in results_buffer:
-                res = results_buffer.pop(next_index_to_yield)
-                next_index_to_yield += 1
+        try:
+            while pending or results:
+                # Yield ready results in strict order
+                while next_to_yield in results:
+                    yield results.pop(next_to_yield)
+                    next_to_yield += 1
 
-                # Always yield the result (success or exception)
-                # Let the caller decide how to handle exceptions
-                yield res
+                if not pending:
+                    break  # no more tasks, we are done
 
-                # Schedule next items lazily but respect max_buffer_size
-                try:
-                    while len(results_buffer) < self.max_buffer_size:
+                # Decide which tasks to wait for:
+                # - If the buffer is full, wait specifically for the next needed result
+                # - Otherwise, wait for any task to complete
+                tasks_to_wait = {pending[next_to_yield]} if len(results) >= self.max_buffer_size else set(pending.values())
+                done, _ = await asyncio.wait(tasks_to_wait, return_when=asyncio.FIRST_COMPLETED)
+
+                # Collect all completed tasks
+                for t in done:
+                    idx, res = await t   # always returns (index, result_or_exception)
+                    results[idx] = res
+                    del pending[idx]
+
+                # Schedule more tasks if we have room
+                while can_schedule_more():
+                    try:
                         idx, item = next(items_iter)
-                        await schedule_task(idx, item)
-                except StopIteration:
-                    break
-
-            if self.pending_tasks and next_index_to_yield not in results_buffer:
-                # Wait for at least one task to complete
-                await asyncio.wait(
-                    [tw.task for tw in self.pending_tasks],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-
-    def cancel_pending_tasks(self):
-        """Cancel all pending tasks on fatal error.
-
-        This method is called when a fatal error occurs (e.g., type mismatch)
-        to prevent orphaned tasks from continuing execution.
-        """
-        for tw in self.pending_tasks:
-            tw.task.cancel()
-        logger.info(f"Cancelled {len(self.pending_tasks)} pending tasks")
+                        pending[idx] = asyncio.create_task(call_with_index(idx, item))
+                    except StopIteration:
+                        exhausted = True
+                        break
+        finally:
+            # Clean up remaining tasks if the generator is closed early
+            for t in pending.values():
+                t.cancel()
 
     def call(self, items: Iterable[Dict[str, Any]]) -> Iterable[Any]:
-        """Sync streaming entrypoint: yields results in order, blocking on existing loop.
-
-        This method provides a synchronous interface to the async execution engine,
-        allowing it to be used in Polars map_batches operations.
-
-        Args:
-            items: Iterable of items to process
-
-        Yields:
-            Results in the same order as input items
-
-        Raises:
-            Exception: Re-raises any exceptions that occur during processing
         """
-        self.pending_tasks = set()  # Reset for new batch
+        Synchronous interface to the async UDF engine.
+
+        - Yields results in order
+        - Blocks on the existing event loop
+        - Exceptions are returned as-is in the results
+        """
         async_gen = self._call_batch_async(items)
         try:
             while True:
-                coro = async_gen.__anext__()
-                fut = asyncio.run_coroutine_threadsafe(coro, self.loop)
+                fut = asyncio.run_coroutine_threadsafe(async_gen.__anext__(), self.loop)
                 yield fut.result()
         except (StopIteration, StopAsyncIteration):
             return
-        except Exception:
-            # Cancel any remaining tasks on fatal error
-            self.cancel_pending_tasks()
-            raise

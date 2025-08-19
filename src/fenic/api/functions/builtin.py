@@ -1,5 +1,6 @@
 """Built-in functions for Fenic DataFrames."""
 
+import inspect
 from functools import wraps
 from typing import Any, Awaitable, Callable, List, Optional, Tuple, Union
 
@@ -314,7 +315,7 @@ def udf(f: Optional[Callable] = None, *, return_type: DataType):
         return _create_udf(f)
     return _create_udf
 
-
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def async_udf(
     f: Optional[Callable[..., Awaitable[Any]]] = None,
     *,
@@ -375,6 +376,12 @@ def async_udf(
     """
 
     def _create_async_udf(func: Callable[..., Awaitable[Any]]) -> Callable:
+        if not inspect.iscoroutinefunction(func):
+            raise ValidationError(
+                f"@async_udf requires an async function, got {func.__name__!r} "
+                f"of type {type(func)}"
+            )
+
         @wraps(func)
         def _async_udf_wrapper(*cols: ColumnOrName) -> Column:
             col_exprs = [Column._from_col_or_name(c)._logical_expr for c in cols]
@@ -393,7 +400,7 @@ def async_udf(
     if _is_logical_type(return_type):
         raise NotImplementedError(f"return_type {return_type} is not supported for async UDFs")
 
-    # Support both @async_udf and @async_udf(...) syntax
+    # Support both @async_udf and async_udf(...) syntax
     if f is None:
         return _create_async_udf
     else:

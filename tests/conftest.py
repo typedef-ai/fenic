@@ -122,7 +122,7 @@ def pytest_addoption(parser):
     parser.addoption(
         LANGUAGE_MODEL_NAME_ARG,
         action="store",
-        default="gpt-5-nano",
+        default="gpt-4.1-nano",
         help="Model Name to run tests against",
     )
     parser.addoption(
