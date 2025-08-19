@@ -1,10 +1,11 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
 from fenic.core.types import Schema
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan.plans.base import LogicalPlan
+    from fenic.core._logical_plan.tools import ToolParams, ValidatedTool
 
 
 class BaseCatalog(ABC):
@@ -123,4 +124,18 @@ class BaseCatalog(ABC):
     @abstractmethod
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
+        pass
+
+    @abstractmethod
+    def create_tool(self, tool_name: str, tool_description: str, tool_params: ToolParams, tool_query: "LogicalPlan", result_limit: int = 50) -> bool:
+        """Create a new tool in the current database."""
+        pass
+
+    @abstractmethod
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current database."""
+        pass
+
+    def list_tools(self) -> List[ValidatedTool]:
+        """Get a list of all tools in the current database."""
         pass

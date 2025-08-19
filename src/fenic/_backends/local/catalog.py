@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import List
+from typing import List, Optional
 
 import duckdb
 import polars as pl
@@ -16,6 +16,11 @@ from fenic._backends.utils.catalog_utils import (
 )
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.tools import (
+    ToolParams,
+    ValidatedTool,
+    create_validated_tool,
+)
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
@@ -537,6 +542,24 @@ class LocalCatalog(BaseCatalog):
     def _build_qualified_table_name(self, table_identifier: TableIdentifier,
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'
+
+    def get_tool(self, tool_name: str) -> Optional[ValidatedTool]:
+        """Get a tool's metadata from the system table."""
+        return self.system_tables.get_tool(tool_name)
+
+    def create_tool(self, tool_name: str, tool_description: str, tool_params: ToolParams, tool_query: "LogicalPlan", result_limit: int = 50) -> bool:
+        """Create a new tool in the current database."""
+        validated_tool = create_validated_tool(tool_name, tool_description, tool_params, tool_query, result_limit)
+        self.system_tables.save_tool(validated_tool)
+        return True
+
+    def list_tools(self) -> List[ValidatedTool]:
+        """List all tools in the current database."""
+        return self.system_tables.list_tools()
+
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current database."""
+        return self.system_tables.delete_tool(tool_name)
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

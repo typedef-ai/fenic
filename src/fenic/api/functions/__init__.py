@@ -28,7 +28,7 @@ from fenic.api.functions.builtin import (
     udf,
     when,
 )
-from fenic.api.functions.core import col, empty, lit, null
+from fenic.api.functions.core import col, empty, lit, null, param
 
 __all__ = [
     "semantic",
@@ -71,4 +71,5 @@ __all__ = [
     "least",
     "empty",
     "null",
+    "param",
 ]

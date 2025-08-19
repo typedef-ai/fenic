@@ -1,10 +1,12 @@
 """Catalog API for managing database objects in Fenic."""
 
-from typing import List
+from typing import Any, List
 
 from pydantic import ConfigDict, validate_call
 
+from fenic.api.dataframe.dataframe import DataFrame
 from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._logical_plan.tools import ToolParam, ToolParams, ValidatedTool
 from fenic.core.types import Schema
 
 
@@ -556,6 +558,84 @@ class Catalog:
         """
         return self.catalog.drop_view(view_name, ignore_if_not_exists)
 
+    @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_query: DataFrame,
+        tool_params: List[ToolParam[Any]],
+        result_limit: int = 50,
+    ) -> bool:
+        """Creates a new tool.
+
+        Args:
+            tool_name (str): The name of the tool.
+            tool_description (str): The description of the tool.
+            tool_query (DataFrame): The query to execute when the tool is called.
+            tool_params (Sequence[ToolParam]): The parameters of the tool.
+            result_limit (int): The maximum number of rows to return from the tool.
+
+        Returns:
+            bool: True if the tool was created successfully, False otherwise.
+
+        Raises:
+            ToolAlreadyExistsError: If the tool already exists.
+
+        Examples:
+            ```python
+            # Create a new tool with a single parameter
+            df = session.create_dataframe(...)
+
+            session.catalog.create_tool(
+                tool_name="my_tool",
+                tool_description="A tool that does something",
+                tool_query=df,
+                result_limit=100,
+                ToolParam(name="param1", description="A parameter", type=str, required=True),
+            )
+            # Returns: True
+            ```
+        """
+        return self.catalog.create_tool(
+            tool_name,
+            tool_description,
+            ToolParams(params=tool_params),
+            tool_query._logical_plan,
+            result_limit,
+        )
+
+    @validate_call(config=ConfigDict(strict=True))
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drops the specified tool.
+
+        Args:
+            tool_name (str): The name of the tool to drop.
+            ignore_if_not_exists (bool): If True, return False when the tool doesn't exist.
+                If False, raise an error when the tool doesn't exist.
+                Defaults to True.
+
+        Returns:
+            bool: True if the tool was dropped successfully, False if the tool
+                didn't exist and ignore_if_not_exists is True.
+
+        Raises:
+            ToolNotFoundError: If the tool doesn't exist and ignore_if_not_exists is False
+
+        Example:
+            >>> session.catalog.drop_tool('my_tool')
+            True
+            >>> session.catalog.drop_tool('my_tool', ignore_if_not_exists=True)
+            False
+            >>> session.catalog.drop_tool('my_tool', ignore_if_not_exists=False)
+            # Raises ToolNotFoundError.
+        """
+        return self.catalog.drop_tool(tool_name, ignore_if_not_exists)
+
+    def list_tools(self) -> List[ValidatedTool]:
+        """Lists the tools available in the catalog."""
+        return self.catalog.list_tools()
+
     # Spark-style camelCase aliases
     doesCatalogExist = does_catalog_exist
     getCurrentCatalog = get_current_catalog
@@ -572,3 +652,5 @@ class Catalog:
     listViews = list_views
     doesViewExist = does_view_exist
     dropView = drop_view
+    createTool = create_tool
+    dropTool = drop_tool

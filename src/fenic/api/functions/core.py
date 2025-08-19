@@ -1,17 +1,18 @@
 """Core functions for Fenic DataFrames."""
 
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import ConfigDict, validate_call
 
 from fenic.api.column import Column
 from fenic.core._logical_plan.expressions import LiteralExpr
+from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
 from fenic.core._utils.type_inference import (
     TypeInferenceError,
     infer_dtype_from_pyobj,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.datatypes import ArrayType, DataType, StructType
+from fenic.core.types.datatypes import ArrayType, DataType, StructType, _LogicalType
 
 
 @validate_call(config=ConfigDict(strict=True))
@@ -129,3 +130,27 @@ def lit(value: Any) -> Column:
         raise ValidationError(f"`lit` failed to infer type for value `{value}`") from e
     literal_expr = LiteralExpr(value, inferred_type)
     return Column._from_logical_expr(literal_expr)
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def param(parameter_name: str, data_type: DataType, default_value: Optional[Any] = None) -> Column:
+    """Creates an unresolved literal placeholder column with a declared data type.
+
+    Use this to parameterize logical plans. The resulting expression will be
+    validated and replaced by a concrete literal via the binder when parameters
+    are supplied.
+
+    Args:
+        parameter_name: The name of the parameter to reference.
+        data_type: The expected data type for the parameter value.
+
+    Returns:
+        A Column wrapping an UnresolvedLiteralExpr for the given parameter.
+    """
+    if isinstance(data_type, _LogicalType):
+        raise ValidationError(f"Cannot use a logical type as a parameter type: {data_type}")
+    if default_value:
+        default_obj_type = infer_dtype_from_pyobj(default_value)
+        if default_obj_type != data_type:
+            raise ValidationError(f"The default value `{default_value}` does not match the provided type `{data_type}`")
+    return Column._from_logical_expr(UnresolvedLiteralExpr(data_type=data_type, parameter_name=parameter_name, default_value=None))
