@@ -18,7 +18,11 @@ def unwrap_optional_union(node: Dict[str, Any]) -> Dict[str, Any]:
     return node
 
 def to_strict_json_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a strict JSON Schema suitable for OpenAI/Google.
+    """Return a strict JSON Schema suitable for a Model Provider.
+
+    All Model Providers have different requirements for supported features and formats of JSON schemas.
+    This function is a best-effort attempt to generate a JSON schema that is strict enough for the most inflexible model provider:
+    OpenAI. Other model provider implementations may need to apply additional transformations to the schema before passing it to the model provider.
 
     Rules (adapted from OpenAI's internal logic):
     - Set additionalProperties: false for all objects (when not present)

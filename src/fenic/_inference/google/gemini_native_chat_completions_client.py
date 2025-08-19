@@ -396,12 +396,22 @@ class GeminiNativeChatCompletionsClient(
             return TransientException(e)
 
     def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
+        """Google Gemini does not support additionalProperties in JSON schemas, even if it is set to False.
+
+        This function copies the original schema and recursively removes all additionalProperties from its objects.
+        If additionalProperties is not removed, the genai service will reject the schema and return a 400 error.
+
+        Args:
+            response_format: The response format to prepare
+
+        Returns:
+            The prepared schema
+        """
         def remove_additional_properties(result: Any) -> Any:
             if not isinstance(result, dict):
                 return result
 
-            # Make a copy and remove additionalProperties from this level
-
+            # Remove additionalProperties from this level
             if "additionalProperties" in result:
                 del result["additionalProperties"]
 
