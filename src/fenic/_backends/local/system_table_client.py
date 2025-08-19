@@ -16,7 +16,7 @@ from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde import LogicalPlanSerde
-from fenic.core._logical_plan.tools import ToolParams, ValidatedTool
+from fenic.core._logical_plan.tools import ResolvedTool, UnresolvedTool, resolve_tool
 from fenic.core.error import CatalogError
 from fenic.core.types import Schema
 
@@ -347,28 +347,28 @@ class SystemTableClient:
                 f"Failed to delete views metadata for database {database_name}"
             ) from e
 
-    def save_tool(self, tool: ValidatedTool) -> None:
+    def save_tool(self, tool: UnresolvedTool, query: LogicalPlan) -> None:
         """Save a tool's metadata to the system table.
         Raises:
             CatalogError: If the tool metadata cannot be saved.
         """
         try:
-            plan_blob = base64.b64encode(LogicalPlanSerde.serialize(tool.query)).decode('utf-8')
-            params_json = tool.params.model_dump_json()
+            plan_blob = base64.b64encode(LogicalPlanSerde.serialize(query)).decode('utf-8')
+            tool_json = tool.model_dump_json()
             self.db_conn.execute(
                 f"""
                 INSERT OR REPLACE INTO "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}" (
-                    tool_name, tool_description, tool_params, query_blob, result_limit
-                ) VALUES (?, ?, ?, ?, ?)
+                    tool_name, tool_json, query_blob, result_limit
+                ) VALUES (?, ?, ?, ?)
             """,
-                (tool.name, tool.description, params_json, plan_blob, tool.result_limit),
+                (tool.name, tool_json, plan_blob, tool.result_limit),
             )
         except Exception as e:
             raise CatalogError(
                 f"Failed to save tool metadata for {tool.name}"
             ) from e
 
-    def get_tool(self, tool_name: str) -> Optional[ValidatedTool]:
+    def get_tool(self, tool_name: str) -> Optional[ResolvedTool]:
         """Get a tool's metadata from the system table.
         Raises:
             CatalogError: If the tool metadata cannot be retrieved.
@@ -376,7 +376,7 @@ class SystemTableClient:
         try:
             result = self.db_conn.execute(
                 f"""
-                SELECT tool_name, tool_description, tool_params, query_blob, result_limit
+                SELECT tool_name, tool_json, query_blob, result_limit
                 FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
                 WHERE tool_name = ?
             """, # nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
@@ -384,21 +384,13 @@ class SystemTableClient:
             if result is None:
                 logger.debug(f"No tool found for {tool_name}")
                 return None
-            deserialized_params = ToolParams.model_validate_json(result[2])
-            deserialized_query = LogicalPlanSerde.deserialize(base64.b64decode(result[3]))
-            return ValidatedTool(
-                name=result[0],
-                description=result[1],
-                params=deserialized_params,
-                query=deserialized_query,
-                result_limit=result[4],
-            )
+            return self._deserialize_and_resolve_tool(result)
         except Exception as e:
             raise CatalogError(
                 f"Failed to retrieve tool metadata for {tool_name}"
             ) from e
 
-    def list_tools(self) -> List[ValidatedTool]:
+    def list_tools(self) -> List[ResolvedTool]:
         """List all tools in the system table.
         Raises:
             CatalogError: If the tools metadata cannot be retrieved.
@@ -406,17 +398,11 @@ class SystemTableClient:
         try:
             result = self.db_conn.execute(
                 f"""
-                SELECT tool_name, tool_description, tool_params, query_blob, result_limit
+                SELECT tool_name, tool_json, query_blob, result_limit
                 FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
             """, # nosec: B608: No risk of injection, only uses fixed constants.
             ).fetchall()
-            return [ValidatedTool(
-                name=row[0],
-                description=row[1],
-                params=ToolParams.model_validate_json(row[2]),
-                query=LogicalPlanSerde.deserialize(base64.b64decode(row[3])),
-                result_limit=row[4],
-            ) for row in result]
+            return [self._deserialize_and_resolve_tool(row) for row in result]
         except Exception as e:
             raise CatalogError(
                 "Failed to list tools"
@@ -529,8 +515,7 @@ class SystemTableClient:
                 f"""
                 CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}" (
                     tool_name TEXT NOT NULL,
-                    tool_description TEXT NOT NULL,
-                    tool_params TEXT NOT NULL,
+                    tool_json TEXT NOT NULL,
                     query_blob TEXT NOT NULL,
                     result_limit INTEGER NOT NULL,
                     PRIMARY KEY (tool_name)
@@ -541,3 +526,8 @@ class SystemTableClient:
             raise CatalogError(
                 f"Failed to initialize tools and {TOOLS_METADATA_TABLE} table"
             ) from e
+
+    def _deserialize_and_resolve_tool(self, row: tuple) -> ResolvedTool:
+        unresolved_tool = UnresolvedTool.model_validate_json(row[1])
+        deserialized_query = LogicalPlanSerde.deserialize(base64.b64decode(row[2]))
+        return resolve_tool(unresolved_tool, deserialized_query)

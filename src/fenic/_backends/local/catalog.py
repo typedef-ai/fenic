@@ -17,9 +17,10 @@ from fenic._backends.utils.catalog_utils import (
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.tools import (
-    ToolParams,
-    ValidatedTool,
-    create_validated_tool,
+    ResolvedTool,
+    ToolParam,
+    create_unresolved_tool,
+    resolve_tool,
 )
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
@@ -543,17 +544,19 @@ class LocalCatalog(BaseCatalog):
     ) -> str:
         return f'"{table_identifier.db}"."{table_identifier.table}"'
 
-    def get_tool(self, tool_name: str) -> Optional[ValidatedTool]:
+    def get_tool(self, tool_name: str) -> Optional[ResolvedTool]:
         """Get a tool's metadata from the system table."""
         return self.system_tables.get_tool(tool_name)
 
-    def create_tool(self, tool_name: str, tool_description: str, tool_params: ToolParams, tool_query: "LogicalPlan", result_limit: int = 50) -> bool:
+    def create_tool(self, tool_name: str, tool_description: str, tool_params: List[ToolParam], tool_query: "LogicalPlan", result_limit: int = 50) -> bool:
         """Create a new tool in the current database."""
-        validated_tool = create_validated_tool(tool_name, tool_description, tool_params, tool_query, result_limit)
-        self.system_tables.save_tool(validated_tool)
+        unresolved_tool = create_unresolved_tool(tool_name, tool_description, tool_params, result_limit)
+        # Ensure the tool is valid by resolving it.
+        _ = resolve_tool(unresolved_tool, tool_query)
+        self.system_tables.save_tool(unresolved_tool, tool_query)
         return True
 
-    def list_tools(self) -> List[ValidatedTool]:
+    def list_tools(self) -> List[ResolvedTool]:
         """List all tools in the current database."""
         return self.system_tables.list_tools()
 

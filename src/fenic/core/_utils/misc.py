@@ -1,4 +1,9 @@
 import uuid
+from enum import Enum
+
+
+class Parameter(Enum):
+    Omitted = "Omitted"
 
 
 def get_content_hash(content: str) -> str:

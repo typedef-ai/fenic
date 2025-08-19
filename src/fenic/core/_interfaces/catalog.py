@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
 from fenic.core.types import Schema
 
 if TYPE_CHECKING:
-    from fenic.core._logical_plan.tools import ToolParams, ValidatedTool
+    from fenic.core._logical_plan.plans.base import LogicalPlan
+    from fenic.core._logical_plan.tools import ResolvedTool, ToolParam
 
 
 class BaseCatalog(ABC):
@@ -127,7 +129,14 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def create_tool(self, tool_name: str, tool_description: str, tool_params: ToolParams, tool_query: "LogicalPlan", result_limit: int = 50) -> bool:
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: "LogicalPlan",
+        result_limit: int = 50,
+    ) -> bool:
         """Create a new tool in the current database."""
         pass
 
@@ -136,6 +145,7 @@ class BaseCatalog(ABC):
         """Drop a tool from the current database."""
         pass
 
-    def list_tools(self) -> List[ValidatedTool]:
+    @abstractmethod
+    def list_tools(self) -> List[ResolvedTool]:
         """Get a list of all tools in the current database."""
         pass

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Literal
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
@@ -84,10 +84,10 @@ class LiteralExpr(LogicalExpr):
         return self.literal == other.literal and self.data_type == other.data_type
 
 class UnresolvedLiteralExpr(LogicalExpr):
-    def __init__(self, data_type: DataType, parameter_name: str, default_value: Optional[Any] = None):
+    def __init__(self, data_type: DataType, parameter_name: str):
         self.data_type = data_type
         self.parameter_name = parameter_name
-        self.default_value = default_value
+
 
     def __str__(self) -> str:
         return f"param({self.parameter_name})"
@@ -99,7 +99,8 @@ class UnresolvedLiteralExpr(LogicalExpr):
         return []
 
     def _eq_specific(self, other: UnresolvedLiteralExpr) -> bool:
-        return self.parameter_name == other.parameter_name and self.data_type == other.data_type
+        return (self.parameter_name == other.parameter_name and
+                self.data_type == other.data_type)
 
 
 class AliasExpr(LogicalExpr):

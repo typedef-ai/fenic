@@ -1,12 +1,12 @@
 """Catalog API for managing database objects in Fenic."""
 
-from typing import Any, List
+from typing import List
 
 from pydantic import ConfigDict, validate_call
 
 from fenic.api.dataframe.dataframe import DataFrame
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core._logical_plan.tools import ToolParam, ToolParams, ValidatedTool
+from fenic.core._logical_plan.tools import ResolvedTool, ToolParam
 from fenic.core.types import Schema
 
 
@@ -564,7 +564,7 @@ class Catalog:
         tool_name: str,
         tool_description: str,
         tool_query: DataFrame,
-        tool_params: List[ToolParam[Any]],
+        tool_params: List[ToolParam],
         result_limit: int = 50,
     ) -> bool:
         """Creates a new tool.
@@ -592,7 +592,7 @@ class Catalog:
                 tool_description="A tool that does something",
                 tool_query=df,
                 result_limit=100,
-                ToolParam(name="param1", description="A parameter", type=str, required=True),
+                ToolParam(name="param1", description="A parameter", allowed_values=["value1", "value2"]),
             )
             # Returns: True
             ```
@@ -600,7 +600,7 @@ class Catalog:
         return self.catalog.create_tool(
             tool_name,
             tool_description,
-            ToolParams(params=tool_params),
+            tool_params,
             tool_query._logical_plan,
             result_limit,
         )
@@ -632,7 +632,7 @@ class Catalog:
         """
         return self.catalog.drop_tool(tool_name, ignore_if_not_exists)
 
-    def list_tools(self) -> List[ValidatedTool]:
+    def list_tools(self) -> List[ResolvedTool]:
         """Lists the tools available in the catalog."""
         return self.catalog.list_tools()
 

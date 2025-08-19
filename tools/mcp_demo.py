@@ -10,23 +10,29 @@ Prereqs:
 - Install MCP extra: `pip install "fenic[mcp]"` (or `pip install fastmcp`)
 - Run with: `uv run python tools/mcp_demo.py`
 """
-import textwrap
 
 import fenic as fc
-from fenic import OpenAILanguageModel, SemanticConfig
-from fenic.core import (
-    ParamaterizedQuery,
-    ViewFilters,
-    enum_param,
-    string_param,
-)
-from fenic.core._logical_plan.parameterized_views import FilterContext, QueryParameter
+from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType, lit
+from fenic.api.functions import tool_param
+from fenic.core._logical_plan.tools import ToolParam
 from fenic.core.mcp.generator import MCPGenerator
 
 
-def _seed_sample_users(session: fc.Session) -> None:
-    """Create a small `users` view for demo purposes (idempotent)."""
-    data = session.create_dataframe(
+def main() -> None:
+    fc.configure_logging()
+    local_session = fc.Session.get_or_create(fc.SessionConfig(
+        app_name="mcp_demo",
+        semantic=SemanticConfig(
+            language_models={
+                "nano": OpenAILanguageModel(
+                    model_name="gpt-4.1-nano",
+                    rpm=2500,
+                    tpm=1_000_000
+                )
+            }
+        )
+    ))
+    data = local_session.create_dataframe(
         {
             "name": ["Alice", "Bob", "Charlie", "Diana", "Eve"],
             "age": [25, 30, 35, 28, 32],
@@ -41,89 +47,65 @@ def _seed_sample_users(session: fc.Session) -> None:
             ],
         }
     )
-    if session.catalog.does_view_exist("users"):
-        session.catalog.drop_view("users")
-    data.write.save_as_view("users")
-
-
-def semantic_filter(df: fc.DataFrame, value: str, ctx: FilterContext) -> fc.DataFrame:
-    template = textwrap.dedent(f"""
-                Based on the user's bio, is the user interested in {value}?
-                """
-                """
-                BIO: {{ bio }}
-                """
-                )
-    return df.filter(fc.semantic.predicate(template, bio=fc.col(ctx.column)))
-
-
-def build_user_search_view() -> ParamaterizedQuery:
-    """Define a parameterized view over the `users` view."""
-    return ParamaterizedQuery(
-        name="search_users",
-        description="Search users by department, status, or age range.",
-        base_view="users",
-        parameters={
-            # string equality match on department
-            "department": string_param("department", "Department equals", ViewFilters.equals, required=False),
-            # enum list: allows multiple statuses
-            "status": enum_param("status", "Filter status", ["active", "inactive", "pending"], required=False),
-            # simple range on age (e.g., "25-32", ">=30")
-            "min_age": QueryParameter("min_age", int, "Minimum age", ViewFilters.greater_equal, required=False),
-            "max_age": QueryParameter("max_age", int, "Maximum age", ViewFilters.less_equal, required=False),
-            "interest": QueryParameter("interest", str,
-                                      "Based on their biography, would the user enjoy the provided interest?",
-                                      semantic_filter, required=False),
-        },
-        parameter_mapping={
-            "min_age": "age",
-            "max_age": "age",
-            "interest": "bio"
-        },
+    age_filter = data.filter(
+        fc.when(
+            tool_param("min_age", IntegerType).is_not_null(),
+            (fc.col("age") >= tool_param("min_age", IntegerType))
+        ).otherwise(lit(True))).filter(
+        fc.when(
+            tool_param("max_age", IntegerType).is_not_null(),
+            (fc.col("age") <= tool_param("max_age", IntegerType))
+        ).otherwise(lit(True))
+    )
+    department_filter = data.filter(fc.col("department") == tool_param("department", StringType))
+    status_filter = data.filter(fc.col("status") == tool_param("status", StringType))
+    bio_semantic_filter = data.filter(fc.semantic.predicate(
+        "Based on the user's bio, would they be interested in {{activity}}?"
+        "User Information:"
+        "{{bio}}",
+        bio=fc.col("bio"),
+        activity=tool_param("activity", StringType),
+    ))
+    local_session.catalog.create_tool(
+        "age_filter",
+        "Filter users by age",
+        age_filter,
+        tool_params=[
+            ToolParam(name="min_age", description="Minimum age", has_default=True, default_value=None),
+            ToolParam(name="max_age", description="Maximum age", has_default=True, default_value=None),
+        ]
+    )
+    local_session.catalog.create_tool(
+        "department_filter",
+        "Filter users by department",
+        department_filter,
+        tool_params=[
+            ToolParam(name="department", description="Department equals")
+        ]
     )
 
+    local_session.catalog.create_tool(
+        "status_filter",
+        "Filter users by status",
+        status_filter,
+        tool_params=[ToolParam(
+            name="status",
+            description="Status equals",
+            allowed_values=["active", "inactive", "pending"],
+        )],
+    )
 
-def main() -> None:
-    fc.configure_logging()
-    session = fc.Session.get_or_create(fc.SessionConfig(
-        app_name="mcp_demo",
-        semantic=SemanticConfig(
-            language_models={
-                "nano" : OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
-                    rpm=2500,
-                    tpm=1_000_000
-                )
-            }
-        )
-    ))
+    local_session.catalog.create_tool("bio_semantic_filter",
+                                      "Describe one or more activities in natural language, This will return users that are interested in that activity",
+                                      bio_semantic_filter,
+                                      tool_params=[ToolParam(
+                                          name="activity",
+                                          description="One or more activities in natural language",
+                                      )])
 
-    # Seed demo data
-    _seed_sample_users(session)
-
-    # Build parameterized views
-    user_view = build_user_search_view()
-
-    # Generate MCP server
-    gen = MCPGenerator(session, server_name="Fenic Demo Views")
-    gen.register_view(user_view)
-
-    try:
-        mcp = gen.generate_server()
-    except ImportError as e:
-        print(str(e))
-        print("\nInstall MCP extra: pip install \"fenic[mcp]\" (or install fastmcp)")
-        return
-
-    print("\nMCP server is starting. Available tools:")
-    print("- search_users(params): Filter users with department, status, age_range, limit")
-    print("\nExamples:")
-    print("- search_users(params={\"department\": \"engineering\", \"limit\": 3})")
-    print("- search_users(params={\"status\": [\"active\"]})")
-    print("- search_users(params={\"age_range\": \"25-30\"})")
-
-    # Start MCP server (Ctrl+C to stop)
-    mcp.run(transport="http", stateless_http=True)
+    tools = local_session.catalog.list_tools()
+    mcp_generator = MCPGenerator(local_session, tools, "FenicMCP")
+    mcp_generator.run(stateless_http=True)
 
 
 if __name__ == "__main__":

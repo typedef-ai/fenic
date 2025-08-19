@@ -1,6 +1,5 @@
 """Core functions for Fenic DataFrames."""
-
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import ConfigDict, validate_call
 
@@ -132,8 +131,9 @@ def lit(value: Any) -> Column:
     return Column._from_logical_expr(literal_expr)
 
 
+
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def param(parameter_name: str, data_type: DataType, default_value: Optional[Any] = None) -> Column:
+def tool_param(parameter_name: str, data_type: DataType) -> Column:
     """Creates an unresolved literal placeholder column with a declared data type.
 
     Use this to parameterize logical plans. The resulting expression will be
@@ -143,14 +143,13 @@ def param(parameter_name: str, data_type: DataType, default_value: Optional[Any]
     Args:
         parameter_name: The name of the parameter to reference.
         data_type: The expected data type for the parameter value.
+        default_value: The default value for the parameter.
+            If not provided, the parameter is required.
 
     Returns:
         A Column wrapping an UnresolvedLiteralExpr for the given parameter.
     """
     if isinstance(data_type, _LogicalType):
         raise ValidationError(f"Cannot use a logical type as a parameter type: {data_type}")
-    if default_value:
-        default_obj_type = infer_dtype_from_pyobj(default_value)
-        if default_obj_type != data_type:
-            raise ValidationError(f"The default value `{default_value}` does not match the provided type `{data_type}`")
-    return Column._from_logical_expr(UnresolvedLiteralExpr(data_type=data_type, parameter_name=parameter_name, default_value=None))
+
+    return Column._from_logical_expr(UnresolvedLiteralExpr(data_type=data_type, parameter_name=parameter_name))

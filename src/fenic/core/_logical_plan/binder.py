@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.expressions.basic import (
@@ -8,18 +8,19 @@ from fenic.core._logical_plan.expressions.basic import (
     UnresolvedLiteralExpr,
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core._logical_plan.tools import ResolvedToolParam
 from fenic.core._logical_plan.walker import find_expressions
 from fenic.core._utils.type_inference import TypeInferenceError, infer_dtype_from_pyobj
 from fenic.core.error import PlanError, TypeMismatchError
 
 
-def collect_unresolved_parameter_names(plan: LogicalPlan) -> Set[str]:
+def collect_unresolved_parameters(plan: LogicalPlan) -> dict[str, UnresolvedLiteralExpr]:
     """Return the set of parameter names referenced by UnresolvedLiteralExpr in the plan."""
     expressions = find_expressions(plan, lambda expr: isinstance(expr, UnresolvedLiteralExpr))
-    return {expr.parameter_name for expr in expressions}
+    return {expr.parameter_name: expr for expr in expressions}
 
 
-def bind_parameters(plan: LogicalPlan, params: Dict[str, Any]) -> LogicalPlan:
+def bind_parameters(plan: LogicalPlan, params: Dict[str, Any], tool_params: List[ResolvedToolParam]) -> LogicalPlan:
     """Bind provided params into a LogicalPlan by replacing placeholder literals.
 
     - Replaces every UnresolvedLiteralExpr with a LiteralExpr(value, data_type)
@@ -30,16 +31,34 @@ def bind_parameters(plan: LogicalPlan, params: Dict[str, Any]) -> LogicalPlan:
     Note: This only substitutes literal values. It does not change node schemas
     and assumes placeholder data types match the provided values semantically.
     """
-    missing = collect_unresolved_parameter_names(plan) - set(params.keys())
+    unresolved_parameters = collect_unresolved_parameters(plan)
+    tool_configs_by_name = {tool_config.name: tool_config for tool_config in tool_params}
+    missing = unresolved_parameters.keys() - set(params.keys())
+    missing_with_no_defaults = []
     if missing:
+        for param_name in missing:
+            tool_param = tool_configs_by_name.get(param_name)
+            # If we have no tool metadata or it has no default, it's an error
+            if tool_param is None or not tool_param.has_default:
+                missing_with_no_defaults.append(param_name)
+
+    if missing_with_no_defaults:
         raise PlanError(
-            "Missing parameter values for placeholders: " + ", ".join(sorted(missing))
+            "Missing parameter values for placeholders: " + ", ".join(sorted(missing_with_no_defaults))
         )
 
     def _transform_expr(expr: LogicalExpr) -> LogicalExpr:
         # Replace this node if it is a parameter placeholder
         if isinstance(expr, UnresolvedLiteralExpr):
             param_name = expr.parameter_name
+            if param_name not in params:
+                tool_param = tool_configs_by_name.get(param_name)
+                if tool_param is None:
+                    # Defensive: metadata missing and value not provided
+                    raise PlanError(
+                        "Missing parameter values for placeholders: " + param_name
+                    )
+                return LiteralExpr(literal=tool_param.default_value, data_type=expr.data_type)
             value = params[param_name]
             try:
                 inferred = infer_dtype_from_pyobj(value, path=param_name)

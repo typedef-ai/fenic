@@ -11,7 +11,7 @@ an MCP server will raise a helpful ImportError. Install with:
     # or
     pip install fastmcp
 """
-
+import re
 from typing import List
 
 from typing_extensions import Literal
@@ -19,13 +19,13 @@ from typing_extensions import Literal
 import fenic as fc
 from fenic.api.dataframe.dataframe import DataFrame
 from fenic.core._logical_plan.binder import bind_parameters
-from fenic.core._logical_plan.tools import ValidatedTool, create_pydantic_model_for_tool
+from fenic.core._logical_plan.tools import ResolvedTool, create_pydantic_model_for_tool
 
 
 class MCPGenerator:
     """Generate MCP tools from tools using a single Pydantic params argument."""
 
-    def __init__(self, session: fc.Session, tools: List[ValidatedTool], server_name: str = "Fenic Views"):
+    def __init__(self, session: fc.Session, tools: List[ResolvedTool], server_name: str = "Fenic Views"):
         """Initialize the generator with a Fenic session and server name."""
         self.session = session
         self.server_name = server_name
@@ -46,7 +46,7 @@ class MCPGenerator:
         """Run the MCP server."""
         self.mcp.run(transport=transport, **kwargs)
 
-    def _build_tool(self, tool: ValidatedTool):
+    def _build_tool(self, tool: ResolvedTool):
         """Create a FastMCP tool with signature (params: ViewParamsModel) -> str."""
         ParamsModel = create_pydantic_model_for_tool(tool)
 
@@ -54,7 +54,7 @@ class MCPGenerator:
             payload = params.model_dump(exclude_none=True)
             limit: int = tool.result_limit
             try:
-                bound_plan = bind_parameters(tool.query, payload)
+                bound_plan = bind_parameters(tool.query, payload, tool.params)
                 result_df = DataFrame._from_logical_plan(bound_plan, self.session._session_state)
                 preview_df = result_df.limit(limit)
                 rows_list = preview_df.to_pylist()
@@ -70,6 +70,13 @@ class MCPGenerator:
             except Exception as e:
                 return f"Error executing {tool.name}: {e}"
 
-        tool_fn.__name__ = tool.name
+        tool_fn.__name__ = self._to_snake_case(tool.name)
         tool_fn.__doc__ = tool.description
         return tool_fn
+
+    def _to_snake_case(self, name: str) -> str:
+        result = name
+        return '_'.join(
+            re.sub('([A-Z][a-z]+)', r' \1',
+                re.sub('([A-Z]+)', r' \1',
+                    result.replace('-', ' '))).split()).lower()

@@ -1,84 +1,178 @@
-from typing import Literal
 
-from fenic import IntegerType, Session, SessionConfig, StringType, col
-from fenic.api.functions import param, semantic
-from fenic.core._logical_plan.tools import ToolParam
-from fenic.core.mcp.generator import MCPGenerator
+import pytest
+from pydantic import BaseModel
+from pydantic import ValidationError as PydValidationError
+
+from fenic.api.functions import col, tool_param
+from fenic.core._logical_plan.tools import (
+    ResolvedTool,
+    ToolParam,
+    create_pydantic_model_for_tool,
+    create_unresolved_tool,
+    resolve_tool,
+)
+from fenic.core.error import PlanError
+from fenic.core.types.datatypes import IntegerType, StringType
 
 
-def test_tool_creation(local_session_config: SessionConfig) -> None:
-    """Create a tool from the system table.
-    Raises:
-    """
-    local_session = Session.get_or_create(local_session_config)
-    data = local_session.create_dataframe(
-        {
-            "name": ["Alice", "Bob", "Charlie", "Diana", "Eve"],
-            "age": [25, 30, 35, 28, 32],
-            "department": ["engineering", "marketing", "engineering", "sales", "engineering"],
-            "status": ["active", "inactive", "active", "pending", "active"],
-            "bio": [
-                "Alice is a software engineer at Google. She enjoys hiking and reading.",
-                "Bob is a marketing manager at Apple. He enjoys playing tennis and cooking.",
-                "Charlie is a software engineer at Facebook. He enjoys playing basketball and reading.",
-                "Diana is a sales representative at Amazon. She enjoys playing video games and listening to podcasts.",
-                "Eve is a software engineer at Microsoft. She enjoys hiking and reading.",
-            ],
-        }
-    )
+def test_toolparam_required_and_default_validation():
+    # No default => required
+    p = ToolParam(name="city", description="city filter")
+    assert p.required is True
 
-    age_filter = data.filter((col("age") >= param("min_age", IntegerType)) & (col("age") <= param("max_age", IntegerType)))
-    department_filter = data.filter(col("department") == param("department", StringType))
-    status_filter = data.filter(col("status") == param("status", StringType))
-    bio_semantic_filter = data.filter(semantic.predicate(
-        "Based on the user's bio, would they be interested in {{activity}}?"
-        "User Information:"
-        "{{bio}}",
-        bio=col("bio"),
-        activity=param("activity", StringType),
-    ))
-    local_session.catalog.create_tool(
-        "Age Filter",
-        "Filter users by age",
-        age_filter,
-        tool_params=[
-            ToolParam(name="min_age", description="Minimum age",
-                      type=int, required=False, default=18),
-            ToolParam(name="max_age", description="Maximum age",
-                      type=int, required=False, default=65),
-        ]
-    )
-    local_session.catalog.create_tool(
-        "Department Filter",
-        "Filter users by department",
-        department_filter,
+    # default provided => not required
+    p2 = ToolParam(name="city", description="city filter", default_value="SF")
+    assert p2.required is False
+
+    # allowed_values with valid non-None default passes
+    p3 = ToolParam(name="dept", description="dept", allowed_values=["Sales", "Eng"], default_value="Sales")
+    assert p3.required is False
+
+
+def test_resolve_tool_validates_unresolved_params(local_session):
+    df = local_session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30], "city": ["SF", "SEA"]})
+    query = df.filter((col("age") >= tool_param("min_age", IntegerType)) & (col("city") == tool_param("city_name", StringType)))._logical_plan
+
+    unresolved = create_unresolved_tool(
+        name="users_by_city",
+        description="Filter users",
         params=[
-            ToolParam(name="department", type=str, description="Department equals")
-        ]
+            ToolParam(name="min_age", description="Minimum age"),
+            ToolParam(name="city_name", description="City name"),
+        ],
+        result_limit=50,
     )
 
-    local_session.catalog.create_tool(
-        "Status Filter",
-        "Filter users by status",
-        status_filter,
-        params=[ToolParam(
-            name="status",
-            description="Status equals",
-            type=Literal["active", "inactive", "pending"],
-            required=True
-        )],
+    resolved = resolve_tool(unresolved, query)
+    assert isinstance(resolved, ResolvedTool)
+    assert {p.name for p in resolved.params} == {"min_age", "city_name"}
+
+    # Missing param should raise PlanError
+    unresolved_bad = create_unresolved_tool(
+        name="users_by_city",
+        description="Filter users",
+        params=[ToolParam(name="min_age", description="Minimum age")],
+        result_limit=50,
     )
+    with pytest.raises(PlanError):
+        resolve_tool(unresolved_bad, query)
 
-    local_session.catalog.create_tool("Bio Semantic Filter",
-                                      "Describe one or more activities in natural language, This will return users that are interested in that activity",
-                                      bio_semantic_filter,
-                                      params=[ToolParam(
-                                          name="activity",
-                                          description="One or more activities in natural language",
-                                          type=str
-                                      )])
 
-    tools = local_session.catalog.list_tools()
-    assert len(tools) == 4
-    mcp_generator = MCPGenerator(local_session, tools, "Test views")
-    mcp_generator.run()
+def test_create_pydantic_model_for_tool_defaults_and_required(local_session):
+    df = local_session.create_dataframe({"city": ["SF"], "age": [10]})
+    query = df.filter(col("city") == tool_param("city_name", StringType))._logical_plan
+
+    unresolved = create_unresolved_tool(
+        name="tool_x",
+        description="",
+        params=[
+            ToolParam(name="city_name", description="City name", default_value="SF"),
+        ],
+        result_limit=10,
+    )
+    resolved = resolve_tool(unresolved, query)
+
+    Model: type[BaseModel] = create_pydantic_model_for_tool(resolved)
+    m = Model()  # default applies
+    assert m.city_name == "SF"
+
+    # Now a required param model: no default
+    unresolved2 = create_unresolved_tool(
+        name="tool_y",
+        description="",
+        params=[ToolParam(name="city_name", description="City name")],
+        result_limit=10,
+    )
+    resolved2 = resolve_tool(unresolved2, query)
+    Model2: type[BaseModel] = create_pydantic_model_for_tool(resolved2)
+
+    with pytest.raises(PydValidationError):
+        Model2()  # required field missing
+    m2 = Model2(city_name="SEA")
+    assert m2.city_name == "SEA"
+
+
+def test_create_pydantic_model_with_allowed_values_default(local_session):
+    df = local_session.create_dataframe({"dept": ["Sales"]})
+    query = df.filter(col("dept") == tool_param("department", StringType))._logical_plan
+
+    unresolved = create_unresolved_tool(
+        name="dept_tool",
+        description="",
+        params=[
+            ToolParam(name="department", description="Department", allowed_values=["Sales", "Eng"], default_value="Sales"),
+        ],
+        result_limit=5,
+    )
+    resolved = resolve_tool(unresolved, query)
+
+    Model: type[BaseModel] = create_pydantic_model_for_tool(resolved)
+
+    # Default applies
+    m = Model()
+    assert m.department == "Sales"
+
+    # Allowed override works
+    m_ok = Model(department="Eng")
+    assert m_ok.department == "Eng"
+
+    # Disallowed value rejected
+    with pytest.raises(PydValidationError):
+        Model(department="HR")
+
+
+def test_create_pydantic_model_with_allowed_values_required(local_session):
+    df = local_session.create_dataframe({"dept": ["Sales"]})
+    query = df.filter(col("dept") == tool_param("department", StringType))._logical_plan
+
+    unresolved = create_unresolved_tool(
+        name="dept_tool_req",
+        description="",
+        params=[
+            ToolParam(name="department", description="Department", allowed_values=["Sales", "Eng"]),
+        ],
+        result_limit=5,
+    )
+    resolved = resolve_tool(unresolved, query)
+
+    Model: type[BaseModel] = create_pydantic_model_for_tool(resolved)
+
+    # Missing required field rejected
+    with pytest.raises(PydValidationError):
+        Model()
+
+    # Allowed value accepted
+    m_ok = Model(department="Sales")
+    assert m_ok.department == "Sales"
+
+    # Disallowed value rejected
+    with pytest.raises(PydValidationError):
+        Model(department="HR")
+
+
+def test_create_pydantic_model_with_allowed_values_ints(local_session):
+    df = local_session.create_dataframe({"priority": [1]})
+    query = df.filter(col("priority") == tool_param("priority", IntegerType))._logical_plan
+
+    unresolved = create_unresolved_tool(
+        name="priority_tool",
+        description="",
+        params=[
+            ToolParam(name="priority", description="Priority", allowed_values=[1, 2], default_value=1),
+        ],
+        result_limit=5,
+    )
+    resolved = resolve_tool(unresolved, query)
+    Model: type[BaseModel] = create_pydantic_model_for_tool(resolved)
+
+    # Default applies
+    m = Model()
+    assert m.priority == 1
+
+    # Allowed override works
+    m_ok = Model(priority=2)
+    assert m_ok.priority == 2
+
+    # Disallowed value rejected
+    with pytest.raises(PydValidationError):
+        Model(priority=3)

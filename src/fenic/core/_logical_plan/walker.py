@@ -12,13 +12,13 @@ Traversal strategy:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Generator, List, Set, Tuple
+from typing import Any, Callable, Generator, List, Set, Tuple
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
 
 
-def _iter_root_exprs_from_value(value) -> Generator[LogicalExpr, None, None]:
+def _iter_root_exprs_from_value(value: Any) -> Generator[LogicalExpr, None, None]:
     """Yield direct LogicalExpr roots from an arbitrary attribute value.
 
     - Direct LogicalExpr
