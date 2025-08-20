@@ -133,9 +133,10 @@ class AsyncUDFSyncStream:
 
                 # Process completed tasks
                 for t in done:
-                    idx, res = await t
+                    idx, res = t.result()
                     self._results[idx] = res
-                    del self._pending[idx]
+                    # Use pop to avoid KeyError if task was cancelled and removed from pending
+                    self._pending.pop(idx, None)
 
                 # Schedule more tasks if room
                 while can_schedule_more():
