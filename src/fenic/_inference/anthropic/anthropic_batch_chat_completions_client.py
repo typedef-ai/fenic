@@ -17,7 +17,6 @@ from anthropic.types import (
     ToolChoiceToolParam,
     ToolParam,
 )
-from pydantic import BaseModel
 
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
@@ -27,7 +26,10 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
+from fenic._inference.rate_limit_strategy import (
+    SeparatedTokenRateLimitStrategy,
+    TokenEstimate,
+)
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import (
@@ -40,6 +42,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
@@ -240,7 +243,7 @@ class AnthropicBatchCompletionsClient(
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
     @functools.cache # noqa: B019
-    def estimate_response_format_tokens(self, response_format: type[BaseModel]) -> int:
+    def estimate_response_format_tokens(self, response_format: ResolvedResponseFormat) -> int:
         """Estimate token count for a response format schema.
 
         Uses Anthropic's API to count tokens in a tool parameter that represents
@@ -324,8 +327,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             TokenEstimate: The estimated token usage
         """
-        from fenic._inference.rate_limit_strategy import TokenEstimate
-        
+
         # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
@@ -350,23 +352,21 @@ class AnthropicBatchCompletionsClient(
         """Reset metrics to initial state."""
         self._metrics = LMMetrics()
 
-    def create_response_format_tool(self, response_format: type[BaseModel]) -> ToolParam:
+    def create_response_format_tool(self, response_format: ResolvedResponseFormat) -> ToolParam:
         """Create a tool parameter for structured output.
 
-        Converts a Pydantic model to an Anthropic tool parameter for
+        Converts a JSON schema to an Anthropic tool parameter for
         structured output formatting.
 
         Args:
-            response_format: Pydantic model class defining the response format
+            response_format: Resolved JSON schema defining the response format
 
         Returns:
             Anthropic tool parameter
         """
-        # Convert Pydantic model to JSON schema
-        json_schema = response_format.model_json_schema()
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=json_schema,
+            input_schema=response_format.strict_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL
         )

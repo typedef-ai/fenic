@@ -104,7 +104,15 @@ class OpenAIChatCompletionsCore:
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
-                common_params["response_format"] = request.structured_output
+                # Build strict schema for OpenAI parse from the provided schema
+                common_params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "fenic_response",
+                        "schema": request.structured_output.strict_schema,
+                        "strict": True,
+                    },
+                }
                 response = await self._client.beta.chat.completions.parse(
                     **common_params
                 )

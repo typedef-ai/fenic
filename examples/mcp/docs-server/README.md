@@ -31,6 +31,7 @@ General models are great at Typescript and Python, not your private APIs. This s
 1. **(Optional) Set environment variables:**
 
 ```bash
+  export GOOGLE_API_KEY="your-google-developer-api-key"
   # Optional: Set custom data directory (defaults to ~/.fenic)
   export FENIC_WORK_DIR="/path/to/custom/directory"
 ```
@@ -49,7 +50,10 @@ General models are great at Typescript and Python, not your private APIs. This s
      "mcpServers": {
        "fenic-docs": {
          "command": "/path/to/fenic/examples/mcp/docs-server/.venv/bin/python",
-         "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"]
+         "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"],
+         "env": {
+           "GOOGLE_API_KEY":"your-google-developer-api-key",
+         }
        }
      }
    }

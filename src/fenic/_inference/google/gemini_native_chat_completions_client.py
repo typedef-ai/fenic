@@ -1,8 +1,8 @@
-import json
+import copy
 import logging
 import os
 from functools import cache
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from google import genai
 from google.genai.errors import ClientError, ServerError
@@ -11,7 +11,6 @@ from google.genai.types import (
     GenerateContentConfigDict,
     GenerateContentResponse,
 )
-from pydantic import BaseModel
 
 from fenic._inference.google.google_profile_manager import (
     GoogleCompletionsProfileManager,
@@ -37,6 +36,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
@@ -173,7 +173,7 @@ class GeminiNativeChatCompletionsClient(
         # Re-expose for mypy – same implementation as parent.
         return super().count_tokens(messages)
 
-    def _estimate_structured_output_overhead(self, response_format) -> int:
+    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
         """Use Google-specific response schema token estimation.
 
         Args:
@@ -204,7 +204,7 @@ class GeminiNativeChatCompletionsClient(
         )
 
     @cache  # noqa: B019 – builtin cache OK here.
-    def _estimate_response_schema_tokens(self, response_format: type[BaseModel]) -> int:
+    def _estimate_response_schema_tokens(self, response_format: ResolvedResponseFormat) -> int:
         """Estimate token count for a response format schema.
 
         Uses Google's tokenizer to count tokens in a JSON schema representation
@@ -216,9 +216,7 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Estimated token count for the response format
         """
-        schema_str = json.dumps(
-            response_format.model_json_schema(), separators=(",", ":")
-        )
+        schema_str = response_format.schema_fingerprint
         return self._token_counter.count_tokens(schema_str)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
@@ -283,11 +281,11 @@ class GeminiNativeChatCompletionsClient(
             "system_instruction": request.messages.system,
         }
         generation_config.update(profile_config.additional_generation_config)
-
         if request.structured_output is not None:
+            response_schema = self._prepare_schema(request.structured_output)
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=request.structured_output.model_json_schema(),
+                response_schema=response_schema,
             )
 
         # Build generation parameters
@@ -396,3 +394,46 @@ class GeminiNativeChatCompletionsClient(
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
             return TransientException(e)
+
+    def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
+        """Google Gemini does not support additionalProperties in JSON schemas, even if it is set to False.
+
+        This function copies the original schema and recursively removes all additionalProperties from its objects.
+        If additionalProperties is not removed, the genai service will reject the schema and return a 400 error.
+
+        Args:
+            response_format: The response format to prepare
+
+        Returns:
+            The prepared schema
+        """
+        def remove_additional_properties(result: Any) -> Any:
+            if not isinstance(result, dict):
+                return result
+
+            # Remove additionalProperties from this level
+            if "additionalProperties" in result:
+                del result["additionalProperties"]
+
+            # Recursively process nested objects
+            if result.get("type") == "object" and "properties" in result:
+                for key, prop_schema in result["properties"].items():
+                    result["properties"][key] = remove_additional_properties(prop_schema)
+
+            # Recursively process array items
+            if result.get("type") == "array" and "items" in result:
+                result["items"] = remove_additional_properties(result["items"])
+
+            # Recursively process anyOf/oneOf branches
+            for union_key in ["anyOf", "oneOf"]:
+                if union_key in result:
+                    result[union_key] = [remove_additional_properties(branch) for branch in result[union_key]]
+
+            # Recursively process $defs
+            if "$defs" in result:
+                for def_name, def_schema in result["$defs"].items():
+                    result["$defs"][def_name] = remove_additional_properties(def_schema)
+
+            return result
+
+        return remove_additional_properties(copy.deepcopy(response_format.strict_schema))

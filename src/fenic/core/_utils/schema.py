@@ -97,10 +97,6 @@ def convert_pydantic_type_to_custom_struct_type(
 
     fields = []
     for field_name, field_info in model.model_fields.items():
-        if field_info.description is None:
-            raise ValueError(
-                f"Field {field_name} has no description.  Please specify a description for each field."
-            )
         actual_type = _unwrap_optional_type(field_info.annotation)
         origin = get_origin(actual_type)
 

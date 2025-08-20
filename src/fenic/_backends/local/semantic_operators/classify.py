@@ -1,9 +1,8 @@
 import json
 import logging
-from typing import List, Optional, Type
+from typing import List, Optional
 
 import polars as pl
-from pydantic import BaseModel
 
 from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
@@ -21,6 +20,7 @@ from fenic._inference.language_model import InferenceConfiguration, LanguageMode
 from fenic.core._logical_plan.resolved_types import (
     ResolvedClassDefinition,
     ResolvedModelAlias,
+    ResolvedResponseFormat,
 )
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
 
@@ -57,7 +57,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
-                    response_format=self.output_model,
+                    response_format=ResolvedResponseFormat.from_pydantic_model(self.output_model, generate_struct_type=False),
                     model_profile=model_alias.profile if model_alias else None,
                 ),
             ),
@@ -99,9 +99,6 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                     )
                     predictions.append(None)
         return predictions
-
-    def get_response_format(self) -> Optional[Type[BaseModel]]:
-        return self.output_model
 
     def convert_example_to_assistant_message(self, example: ClassifyExample) -> str:
         return self.output_model(output=example.output).model_dump_json()

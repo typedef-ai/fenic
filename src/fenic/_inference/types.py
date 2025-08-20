@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from openai.types.chat import ChatCompletionTokenLogprob
-from pydantic import BaseModel
+
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 
 
 @dataclass
@@ -47,7 +48,7 @@ class FenicCompletionsRequest:
     messages: LMRequestMessages
     max_completion_tokens: int
     top_logprobs: Optional[int]
-    structured_output: Optional[type[BaseModel]]
+    structured_output: Optional[ResolvedResponseFormat]  # Resolved JSON schema
     temperature: Optional[float]
     model_profile: Optional[str] = None
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from fenic.core._logical_plan.resolved_types import (
     ResolvedClassDefinition,
     ResolvedModelAlias,
+    ResolvedResponseFormat,
 )
 from fenic.core._logical_plan.utils import validate_completion_parameters
 from fenic.core._resolved_session_config import (
@@ -37,7 +38,6 @@ from fenic.core._logical_plan.expressions.base import (
 from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr, SortExpr
 from fenic.core._logical_plan.jinja_validation import VariableTree
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
-from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core.error import (
     InvalidExampleCollectionError,
     TypeMismatchError,
@@ -64,7 +64,7 @@ class SemanticMapExpr(SemanticExpr):
         max_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
-        response_format: Optional[type[BaseModel]] = None,
+        response_format: Optional[ResolvedResponseFormat] = None,
         examples: Optional[MapExampleCollection] = None,
     ):
         self.template = jinja_template
@@ -81,7 +81,6 @@ class SemanticMapExpr(SemanticExpr):
         if examples:
             self._validate_example_response_format(examples)
             self.examples = examples
-        self.struct_type = convert_pydantic_type_to_custom_struct_type(response_format) if response_format else None
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -100,7 +99,7 @@ class SemanticMapExpr(SemanticExpr):
 
         return ColumnField(
             name=str(self),
-            data_type=self.struct_type if self.struct_type else StringType,
+            data_type=self.response_format.struct_type if self.response_format else StringType,
         )
 
     def _validate_example_response_format(self, example_collection: MapExampleCollection):
@@ -113,11 +112,16 @@ class SemanticMapExpr(SemanticExpr):
                         f"{type(example.output)} instead."
                     )
             else:
-                if not isinstance(example.output, self.response_format):
+                if isinstance(example.output, BaseModel):
+                    example_json = example.output.model_dump()
+                    try:
+                        self.response_format.validate_structured_response(example_json)
+                    except Exception as e:
+                        raise InvalidExampleCollectionError("Expected `semantic.map` example output type to be the same as the `response_format` type") from e
+                elif isinstance(example.output, str):
                     raise InvalidExampleCollectionError(
-                        f"Expected `semantic.map` example output to be an instance of {self.response_format}, "
-                        f"but got {type(example.output)} instead."
-                )
+                        f"Expected `semantic.map` example output to be a Pydantic BaseModel, but got {example.output} (str) instead."
+                    )
 
     def _validate_completion_parameters(self, session_state: BaseSessionState):
         """Validate completion parameters."""
@@ -138,7 +142,7 @@ class SemanticMapExpr(SemanticExpr):
             self.max_tokens == other.max_tokens
             and self.temperature == other.temperature
             and self.model_alias == other.model_alias
-            and self.response_format is other.response_format
+            and self.response_format == other.response_format
             and self.examples == other.examples
             and self.template == other.template
             and self.strict == other.strict
@@ -151,17 +155,16 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
     def __init__(
         self,
         expr: LogicalExpr,
-        schema: type[BaseModel],
         max_tokens: int,
         temperature: float,
+        response_format: ResolvedResponseFormat,
         model_alias: Optional[ResolvedModelAlias] = None,
     ):
         self.expr = expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
-        self.schema = schema
-
+        self.response_format = response_format
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
 
@@ -182,7 +185,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         return super().to_column_field(plan, session_state)
 
     def __str__(self):
-        schema_hash = utils.get_content_hash(str(self.schema))
+        schema_hash = utils.get_content_hash(self.response_format.schema_fingerprint)
         expr_str = str(self.expr)
         return f"semantic.extract_{schema_hash}({expr_str})"
 
@@ -198,11 +201,11 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
     def _infer_dynamic_return_type(
         self, arg_types: List[DataType], plan: LogicalPlan, session_state: BaseSessionState) -> DataType:
         """Return StructType based on the schema."""
-        return convert_pydantic_type_to_custom_struct_type(self.schema)
+        return self.response_format.struct_type
 
     def _eq_specific(self, other: SemanticExtractExpr) -> bool:
         return (
-            self.schema is other.schema
+            self.response_format == other.response_format
             and self.max_tokens == other.max_tokens
             and self.temperature == other.temperature
             and self.model_alias == other.model_alias
