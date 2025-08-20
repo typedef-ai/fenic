@@ -80,12 +80,14 @@ class AsyncUDFSyncStream:
                     return await asyncio.wait_for(self.fn(item), timeout=self.timeout)
                 except Exception as e:
                     last_err = e
-                    msg = "Timeout" if isinstance(e, asyncio.TimeoutError) else f"Failure: {e}"
-                    logger.warning(f"AsyncUDFStream: {msg} (attempt {attempt+1}/{self.num_retries+1})")
+                    error_msg = str(e) or f"{type(e).__name__} occurred"
+                    logger.info(f"AsyncUDFStream: {error_msg} (attempt {attempt+1}/{self.num_retries+1})")
 
                     if attempt < self.num_retries:
                         # trunk-ignore(bandit/B311): pseudo random is safe
-                        await asyncio.sleep(2**attempt + random.uniform(0, 2**attempt * 0.5))
+                        backoff_delay = 2**attempt + random.uniform(0, 2**attempt * 0.5)
+                        logger.info(f"AsyncUDFStream: Backing off for {backoff_delay} seconds")
+                        await asyncio.sleep(backoff_delay)
             raise last_err
 
     async def _call_batch_async(self, items: Iterable[Dict[str, Any]]) -> AsyncGenerator[Any, None]:

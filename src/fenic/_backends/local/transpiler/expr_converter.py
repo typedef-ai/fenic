@@ -395,7 +395,8 @@ class ExprConverter:
                     for result in async_udf.call(items):
                         if isinstance(result, Exception):
                             # Log the exception before returning None
-                            logger.error(f"Async UDF execution failed: {result}")
+                            error_msg = str(result) or f"{type(result).__name__} occurred"
+                            logger.warning(f"Async UDF execution failed: {error_msg}")
                             results.append(None)
                         else:
                             # Runtime type checking using Fenic's existing type inference
