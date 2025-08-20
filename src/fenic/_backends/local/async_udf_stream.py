@@ -71,24 +71,15 @@ class AsyncUDFSyncStream:
         self._next_to_yield: int = 0
         self._exhausted: bool = False
 
-    async def _call(self, item: Any) -> Any:
-        """Execute a single async call with retries, timeout, and concurrency control."""
-        async with self.semaphore:
-            last_err = None
-            for attempt in range(self.num_retries + 1):
-                try:
-                    return await asyncio.wait_for(self.fn(item), timeout=self.timeout)
-                except Exception as e:
-                    last_err = e
-                    error_msg = str(e) or f"{type(e).__name__} occurred"
-                    logger.info(f"AsyncUDFStream: {error_msg} (attempt {attempt+1}/{self.num_retries+1})")
-
-                    if attempt < self.num_retries:
-                        # trunk-ignore(bandit/B311): pseudo random is safe
-                        backoff_delay = 2**attempt + random.uniform(0, 2**attempt * 0.5)
-                        logger.info(f"AsyncUDFStream: Backing off for {backoff_delay} seconds")
-                        await asyncio.sleep(backoff_delay)
-            raise last_err
+    def call(self, items: Iterable[Dict[str, Any]]) -> Iterable[Any]:
+        """Synchronous interface: yields results in order, blocks on loop."""
+        async_gen = self._call_batch_async(items)
+        try:
+            while True:
+                fut = asyncio.run_coroutine_threadsafe(async_gen.__anext__(), self.loop)
+                yield fut.result()
+        except (StopIteration, StopAsyncIteration):
+            return
 
     async def _call_batch_async(self, items: Iterable[Dict[str, Any]]) -> AsyncGenerator[Any, None]:
         """
@@ -135,7 +126,6 @@ class AsyncUDFSyncStream:
                 for t in done:
                     idx, res = t.result()
                     self._results[idx] = res
-                    # Use pop to avoid KeyError if task was cancelled and removed from pending
                     self._pending.pop(idx, None)
 
                 # Schedule more tasks if room
@@ -149,19 +139,28 @@ class AsyncUDFSyncStream:
                         break
         finally:
             # Cancel remaining tasks if generator exits early
-            self.cancel_pending_tasks()
+            self._cancel_pending_tasks()
 
-    def call(self, items: Iterable[Dict[str, Any]]) -> Iterable[Any]:
-        """Synchronous interface: yields results in order, blocks on loop."""
-        async_gen = self._call_batch_async(items)
-        try:
-            while True:
-                fut = asyncio.run_coroutine_threadsafe(async_gen.__anext__(), self.loop)
-                yield fut.result()
-        except (StopIteration, StopAsyncIteration):
-            return
+    async def _call(self, item: Any) -> Any:
+        """Execute a single async call with retries, timeout, and concurrency control."""
+        async with self.semaphore:
+            last_err = None
+            for attempt in range(self.num_retries + 1):
+                try:
+                    return await asyncio.wait_for(self.fn(item), timeout=self.timeout)
+                except Exception as e:
+                    last_err = e
+                    error_msg = str(e) or f"{type(e).__name__} occurred"
+                    logger.info(f"AsyncUDFStream: {error_msg} (attempt {attempt+1}/{self.num_retries+1})")
 
-    def cancel_pending_tasks(self):
+                    if attempt < self.num_retries:
+                        # trunk-ignore(bandit/B311): pseudo random is safe
+                        backoff_delay = 2**attempt + random.uniform(0, 2**attempt * 0.5)
+                        logger.info(f"AsyncUDFStream: Backing off for {backoff_delay} seconds")
+                        await asyncio.sleep(backoff_delay)
+            raise last_err
+
+    def _cancel_pending_tasks(self):
         """Externally cancel all currently pending tasks."""
         for t in self._pending.values():
             t.cancel()

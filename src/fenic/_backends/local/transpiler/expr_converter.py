@@ -391,26 +391,20 @@ class ExprConverter:
                 )
 
                 results = []
-                try:
-                    for result in async_udf.call(items):
-                        if isinstance(result, Exception):
-                            # Log the exception before returning None
-                            error_msg = str(result) or f"{type(result).__name__} occurred"
-                            logger.warning(f"Async UDF execution failed: {error_msg}")
-                            results.append(None)
-                        else:
-                            # Runtime type checking using Fenic's existing type inference
-                            if result:
-                                inferred_type = infer_dtype_from_pyobj(result)
-                                if inferred_type != logical.return_type:
-                                    # Cancel pending tasks before raising
-                                    async_udf.cancel_pending_tasks()
-                                    raise TypeError(f"Expected {logical.return_type}, got {inferred_type}")
-                            results.append(result)
-                except Exception:
-                    # Ensure cleanup on any fatal error
-                    async_udf.cancel_pending_tasks()
-                    raise
+                for result in async_udf.call(items):
+                    if isinstance(result, Exception):
+                        # Log the exception before returning None
+                        error_msg = str(result) or f"{type(result).__name__} occurred"
+                        logger.warning(f"Async UDF execution failed: {error_msg}")
+                        results.append(None)
+                    else:
+                        # Runtime type checking using Fenic's existing type inference
+                        if result:
+                            inferred_type = infer_dtype_from_pyobj(result)
+                            if inferred_type != logical.return_type:
+                                # Cancel pending tasks before raising
+                                raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
+                        results.append(result)
 
                 return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
 
