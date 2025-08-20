@@ -379,7 +379,7 @@ class SystemTableClient:
                 SELECT tool_name, tool_json, query_blob, result_limit
                 FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
                 WHERE tool_name = ?
-            """, # nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
+            """, (tool_name,),# nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
             ).fetchone()
             if result is None:
                 logger.debug(f"No tool found for {tool_name}")
@@ -418,7 +418,7 @@ class SystemTableClient:
                 f"""
                 DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
                 WHERE tool_name = ?
-            """, # nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
+            """, (tool_name,) # nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
             ).fetchone()
             if result is None:
                 logger.debug(f"No tool found for {tool_name}")

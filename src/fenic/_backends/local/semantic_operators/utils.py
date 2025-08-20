@@ -1,7 +1,11 @@
 from enum import Enum
 from textwrap import dedent
 from typing import (
+    Any,
+    Dict,
     List,
+    Optional,
+    Type,
 )
 
 import polars as pl
@@ -58,3 +62,42 @@ def filter_invalid_embeddings_expr(embedding_column: str) -> pl.Expr:
         & ~pl.col(embedding_column).arr.contains(None)  # 2. No null elements
         & ~pl.col(embedding_column).arr.contains(float('nan'))  # 3. No NaN elements
     )
+
+
+# =============================================================================
+# Schema-related utilities for structured semantic operations
+# =============================================================================
+
+
+def validate_structured_response(
+    json_resp: Optional[str],
+    model_class: Type[BaseModel],
+    operator_name: str
+) -> Optional[Dict[str, Any]]:
+    """Validate and parse a structured JSON response from an LLM.
+
+    This function provides standardized validation for structured outputs across
+    semantic operations that use Pydantic schemas.
+
+    Args:
+        json_resp: The JSON response string from the LLM (can be None)
+        model_class: The Pydantic model class to validate against
+        operator_name: Name of the operation (for logging purposes)
+
+    Returns:
+        Validated dictionary representation of the model, or None if validation fails
+    """
+    logger = logging.getLogger(__name__)
+
+    if json_resp is None:
+        return None
+
+    try:
+        validated_model = model_class.model_validate_json(json_resp)
+        return validated_model.model_dump(mode="json")
+    except Exception as e:
+        logger.warning(
+            f"invalid model output: {json_resp} for {operator_name}: {e}",
+            exc_info=True,
+        )
+        return None

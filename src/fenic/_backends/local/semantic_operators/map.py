@@ -12,6 +12,7 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
+    validate_structured_response,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic.core._logical_plan.resolved_types import (
@@ -19,6 +20,10 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedResponseFormat,
 )
 from fenic.core.error import InternalError
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._utils.structured_outputs import (
+    convert_pydantic_model_to_key_descriptions,
+)
 from fenic.core.types import (
     MapExample,
     MapExampleCollection,
