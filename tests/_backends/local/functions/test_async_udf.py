@@ -373,6 +373,65 @@ class TestAsyncUDF:
         expected = [{"x": 1, "result": 2}, {"x": 2, "result": 4}, {"x": 3, "result": 6}]
         assert result == expected
 
+    def test_async_udf_concurrency_performance_comparison(self):
+        """Test that higher concurrency is faster than serial execution."""
+
+        @fc.async_udf(
+            return_type=IntegerType,
+            max_concurrency=1,  # Serial execution
+            timeout_seconds=10,
+            num_retries=0
+        )
+        async def slow_serial_func(x: int) -> int:
+            await asyncio.sleep(0.1)  # 100ms per call
+            return x * 10
+
+        @fc.async_udf(
+            return_type=IntegerType,
+            max_concurrency=5,  # Concurrent execution
+            timeout_seconds=10,
+            num_retries=0
+        )
+        async def slow_concurrent_func(x: int) -> int:
+            await asyncio.sleep(0.1)  # Same 100ms per call
+            return x * 10
+
+        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_performance"))
+
+        # Test data - 10 items
+        data = [{"x": i} for i in range(1, 11)]
+        df = session.create_dataframe(data)
+
+        # Test serial execution (concurrency=1)
+        start_time = time.time()
+        serial_result = df.select(
+            fc.col("x"),
+            slow_serial_func(fc.col("x")).alias("result")
+        ).to_pylist()
+        serial_elapsed = time.time() - start_time
+
+        # Test concurrent execution (concurrency=5)
+        start_time = time.time()
+        concurrent_result = df.select(
+            fc.col("x"),
+            slow_concurrent_func(fc.col("x")).alias("result")
+        ).to_pylist()
+        concurrent_elapsed = time.time() - start_time
+
+        # Verify results are the same
+        expected = [{"x": i, "result": i * 10} for i in range(1, 11)]
+        assert serial_result == expected
+        assert concurrent_result == expected
+
+        # Verify timing expectations:
+        # Serial: ~1.0 seconds (10 items × 0.1s each)
+        # Concurrent: ~0.2 seconds (2 batches × 0.1s with concurrency=5)
+
+        # Serial should take at least 0.9 seconds (allowing some overhead)
+        assert serial_elapsed >= 0.9, f"Serial execution too fast: {serial_elapsed:.2f}s (expected >= 0.9s)"
+
+        # Concurrent should take less than 0.5 seconds
+        assert concurrent_elapsed < 0.5, f"Concurrent execution too slow: {concurrent_elapsed:.2f}s (expected < 0.5s)"
 
     def test_async_udf_without_return_type_errors(self):
         """Test @async_udf without return type errors."""
