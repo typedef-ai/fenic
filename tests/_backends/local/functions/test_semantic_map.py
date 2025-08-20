@@ -261,8 +261,8 @@ def test_semantic_map_schema_validation_mismatch_error(local_session):
         output=person_example
     ))
 
-    # This should raise ValidationError - PersonInfo example doesn't match ProductSummary schema
-    with pytest.raises(ValidationError, match="Expected `semantic.map` example output to be an instance of"):
+    # This should raise InvalidExampleCollectionError - PersonInfo example doesn't match ProductSummary schema
+    with pytest.raises(InvalidExampleCollectionError, match="Expected `semantic.map` example output type to be the same as the `response_format` type"):
         source.select(
             semantic.map(
                 "Given name {{name}} and details {{details}}, create a product summary.",
@@ -287,8 +287,8 @@ def test_semantic_map_schema_validation_string_examples_with_schema(local_sessio
         output="A simple desk lamp for basic lighting needs"  # String output
     ))
 
-    # This should raise ValidationError - string examples don't match BaseModel schema
-    with pytest.raises(ValidationError, match="Expected `semantic.map` example output to be an instance of"):
+    # This should raise InvalidExampleCollectionError - string examples don't match BaseModel schema
+    with pytest.raises(InvalidExampleCollectionError, match="Expected `semantic.map` example output to be a Pydantic BaseModel"):
         source.select(
             semantic.map(
                 "Given name {{name}} and details {{details}}, create a product summary.",

@@ -26,7 +26,7 @@ def get_learnings_schema(include_embeddings: bool = True) -> fc.Schema:
         # Using text-embedding-3-large with 3072 dimensions
         embedding_type = fc.EmbeddingType(
             dimensions=3072, 
-            embedding_model="openai/text-embedding-3-large"
+            embedding_model="google-developer/gemini-embedding-001"
         )
         schema_fields.extend([
             fc.ColumnField('question_embedding', embedding_type),

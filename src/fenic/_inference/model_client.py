@@ -18,7 +18,6 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel
 from tqdm import tqdm
 
 from fenic._backends.local.async_utils import EventLoopManager
@@ -29,6 +28,7 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
 # Type variables
@@ -229,10 +229,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             return self._estimate_structured_output_overhead(request.structured_output)
         return 0
 
-    def _estimate_structured_output_overhead(self, response_format: type[BaseModel]) -> int:
+    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
         """Default structured output token estimation. Override for provider-specific logic."""
 
-        schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
+        schema_str = json.dumps(response_format.schema, separators=(',', ':'))
         return self.count_tokens(schema_str)
 
 

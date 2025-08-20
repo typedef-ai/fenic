@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from fenic import MapExample, MapExampleCollection
 from fenic._backends.local.semantic_operators.map import Map
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 
 
 class TestMap:
@@ -156,7 +157,7 @@ class TestMap:
             model=local_session._session_state.get_language_model(),
             temperature=0,
             max_tokens=512,
-            response_format=MovieReviewAnalysis
+            response_format=ResolvedResponseFormat.from_pydantic_model(MovieReviewAnalysis)
         )
         expected = [
             [

@@ -2,8 +2,6 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from pydantic import BaseModel
-
 from fenic._inference.model_client import (
     ModelClient,
 )
@@ -16,6 +14,7 @@ from fenic._inference.types import (
 from fenic.core._inference.model_catalog import (
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
 
@@ -26,7 +25,7 @@ class InferenceConfiguration:
     max_output_tokens: int
     temperature: float
     top_logprobs: Optional[int] = None
-    response_format: Optional[type[BaseModel]] = None
+    response_format: Optional[ResolvedResponseFormat] = None  # Resolved JSON schema
     model_profile: Optional[str] = None
 
 class LanguageModel:
@@ -45,7 +44,7 @@ class LanguageModel:
         messages: list[LMRequestMessages],
         max_tokens: int,
         temperature: float = 0,
-        response_format: Optional[type[BaseModel]] = None,
+        response_format: Optional[ResolvedResponseFormat] = None,
         top_logprobs: Optional[int] = None,
         model_profile: Optional[str] = None,
         operation_name: Optional[str] = None,

@@ -50,6 +50,7 @@ def test_extract_primitive_types(extract_data_df):
         })
     })
     assert result.schema == expected_schema
+    assert result["review"][0] is not None
 
 def test_extract_lists(local_session):
     """Test extraction with complex nested Pydantic models containing lists and lists of objects."""
@@ -90,6 +91,7 @@ def test_extract_lists(local_session):
         })),
         "entities": pl.List(pl.String),
     })})
+    assert result["blurb"][0] is not None
 
 def test_extract_nested_objects_with_optional_fields(local_session):
     class WorkExperience(BaseModel):
@@ -159,6 +161,7 @@ def test_extract_nested_objects_with_optional_fields(local_session):
             "graduation_year": pl.Int64,
         }),
     })})
+    assert result["resume"][0] is not None
 
 def test_pydantic_model_with_literal_types(local_session):
     """Test extraction with Pydantic models containing Literal types."""

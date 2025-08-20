@@ -15,10 +15,19 @@ from fenic._backends.local.semantic_operators.types import (
 )
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+    ResolvedResponseFormat,
+)
 from fenic.core.types import PredicateExample, PredicateExampleCollection
 
 logger = logging.getLogger(__name__)
+
+PREDICATE_FORMAT = ResolvedResponseFormat.from_pydantic_model(
+    SimpleBooleanOutputModelResponse,
+    generate_struct_type=False,
+)
+
 
 class Predicate(BaseMultiColumnInputOperator[str, bool]):
     SYSTEM_PROMPT = dedent("""\
@@ -44,7 +53,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                 operator_name="semantic.predicate",
                 inference_config=InferenceConfiguration(
                   max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
-                  response_format=SimpleBooleanOutputModelResponse,
+                  response_format=PREDICATE_FORMAT,
                   temperature=temperature,
                   model_profile=model_alias.profile if model_alias else None,
                 ),
