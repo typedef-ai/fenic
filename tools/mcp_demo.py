@@ -12,6 +12,7 @@ Prereqs:
 """
 
 import textwrap
+
 import fenic as fc
 from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType
 from fenic.api.functions import tool_param

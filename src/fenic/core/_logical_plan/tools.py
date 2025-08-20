@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 from pydantic.dataclasses import dataclass
@@ -69,6 +69,21 @@ class ResolvedTool:
     params: list[ResolvedToolParam]
     query: LogicalPlan
     result_limit: int
+
+
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
+class DynamicTool:
+    """A tool whose query is constructed dynamically from a Pydantic params model.
+
+    This avoids having to pre-embed unresolved literals in a static LogicalPlan.
+    The execute callable should construct and return a LogicalPlan based on the
+    provided session-like object and parsed params model instance.
+    """
+    name: str
+    description: str
+    params_model: type[BaseModel]
+    execute: Callable[[Any, BaseModel], LogicalPlan]
+    result_limit: Optional[int]
 
 
 def create_unresolved_tool(name: str, description: str, params: list[ToolParam], result_limit: int) -> UnresolvedTool:

@@ -1,8 +1,12 @@
 import asyncio
+from typing import Union
 
 import fenic as fc
 from fenic import OpenAILanguageModel, SemanticConfig
-from fenic.api.tools import auto_generate_filter_tool, auto_generate_semantic_tool
+from fenic.api.tools import (
+    auto_generate_core_tools,
+)
+from fenic.core._logical_plan.tools import DynamicTool, ResolvedTool
 from fenic.core.mcp.generator import MCPGenerator
 
 
@@ -27,29 +31,23 @@ async def main():
         "ideal_partner", "bio")
     moderation_report_df = local_session.read.parquet("./data/moderation_report.parquet")
 
-    # Generate tools for the conversations dataset
-    semantic_tool = auto_generate_semantic_tool(conversations_df, "conversations_semantic_filter",
-                                                "Semantic query tool for the raw conversations dataset, this contains the raw conversations between users on the dating app.")
-    filter_tool = auto_generate_filter_tool(conversations_df, "conversations_filter",
-                                            "Filter conversations tool for the conversations dataset, this contains the raw conversations between users on the dating app.")
-    tools = [semantic_tool, filter_tool]
-
-    # Generate tools for the enriched_profiles dataset
-    semantic_tool = auto_generate_semantic_tool(enriched_profiles_df, "user_profiles_semantic_filter",
-                                                "Semantic query tool for the Profiles dataset. This contains the profile information for the dating app users.")
-    filter_tool = auto_generate_filter_tool(enriched_profiles_df, "user_profiles_filter",
-                                            "Filter enriched_profiles tool for the enriched_profiles dataset. This contains the profile information for the dating app users.")
-    tools.append(semantic_tool)
-    tools.append(filter_tool)
-
-    # Generate tools for the moderation_report dataset
-    semantic_tool = auto_generate_semantic_tool(moderation_report_df, "moderation_report_semantic_filter",
-                                                "Semantic query tool for the moderation_report dataset. This contains the moderation report for the dating app users.")
-    filter_tool = auto_generate_filter_tool(moderation_report_df, "moderation_report_filter",
-                                            "Filter moderation_report tool for the moderation_report dataset. This contains the moderation report for the dating app users.")
-    tools.append(semantic_tool)
-    tools.append(filter_tool)
-    mcp_generator = MCPGenerator(local_session, tools, "Content Moderation MCP")
+    tools: list[Union[DynamicTool, ResolvedTool]] = []
+    tools.extend(auto_generate_core_tools(
+        conversations_df,
+        "Dating App Conversations",
+        "Raw Conversations taking place between users on a dating app.",
+        sql_max_rows=25
+    ))
+    tools.extend(auto_generate_core_tools(
+        enriched_profiles_df,
+        "Dating App Profiles",
+        "Profiles of users in the dating app, contains demographic and self-written biographic information about each user."))
+    tools.extend(auto_generate_core_tools(
+        moderation_report_df,
+        "Dating App Conversation Moderation Report",
+        "Curated Report detailing findings by the moderation team on analysis of the `Dating App Conversations`. Contains descriptions of bad actor behavior/explanations"
+    ))
+    mcp_generator = MCPGenerator(local_session._session_state, tools, "Content Moderation MCP")
     await mcp_generator.run(stateless_http=True)
 
     print("Made it to here!")
