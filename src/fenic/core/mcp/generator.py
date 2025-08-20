@@ -50,7 +50,7 @@ class MCPResultSet(BaseModel):
 class MCPGenerator:
     """Generate MCP tools from tools using a single Pydantic params argument."""
 
-    def __init__(self, session: fc.Session, tools: List[ResolvedTool], server_name: str = "Fenic Views", port=8000):
+    def __init__(self, session: fc.Session, tools: List[ResolvedTool], server_name: str = "Fenic Views"):
         """Initialize the generator with a Fenic session and server name."""
         self.session = session
         self.server_name = server_name
@@ -63,14 +63,14 @@ class MCPGenerator:
             raise ImportError(
                 "FastMCP is not installed. Install the 'mcp' extra: pip install \"fenic[mcp]\" or install fastmcp directly."
             ) from None
-        self.mcp = FastMCP(self.server_name, port=port)
+        self.mcp = FastMCP(self.server_name)
         for tool in self.tools:
             tool_fn = self._build_tool(tool)
             self.mcp.tool()(tool_fn)
 
-    def run(self, transport: Literal["http", "stdio"] = "http", **kwargs):
+    async def run(self, transport: Literal["http", "stdio"] = "http", **kwargs):
         """Run the MCP server."""
-        self.mcp.run(transport=transport, **kwargs)
+        await self.mcp.run_async(transport=transport, **kwargs)
 
     def _build_tool(self, tool: ResolvedTool):
         """Create a FastMCP tool with signature (params: ViewParamsModel) -> str."""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 from pydantic.dataclasses import dataclass
@@ -21,16 +21,6 @@ ToolParameterType = Union[str, int, float, bool, list, dict]
 TableFormat = Literal["structured", "markdown"]
 
 class ToolParam(BaseModel):
-    """
-    A tool parameter.
-
-    Args:
-        name: The name of the parameter.
-        description: The description of the parameter.
-        allowed_values: The allowed values for the parameter.
-        has_default: Whether the parameter has a default value. Only required to be set if default_value is None intentionally
-        default_value: The default value for the parameter.
-    """
     name: str
     description: str
     allowed_values: Optional[List[ToolParameterType]] = None
@@ -82,35 +72,14 @@ class ResolvedTool:
 
 
 def create_unresolved_tool(name: str, description: str, params: list[ToolParam], result_limit: int) -> UnresolvedTool:
-    """Create an unresolved tool.
-
-    An unresolved tool is a tool that has not been bound to a Logical Plan.
-    It is used to create a tool that can be used to execute a query.
-
-    Args:
-        name: The name of the tool.
-        description: The description of the tool.
-        params: The parameters of the tool.
-        result_limit: The number of rows to return in the result set.
-
-    Returns:
-        An UnresolvedTool object.
-    """
+    """Create an unresolved tool."""
     return UnresolvedTool(name=name, description=description, params=params, result_limit=result_limit)
 
 
 def resolve_tool(unresolved_tool: UnresolvedTool, query: LogicalPlan) -> ResolvedTool:
     """Create a tool from a query and a set of parameters.
 
-    Args:
-        unresolved_tool: The unresolved tool.
-        query: The query to execute.
-
-    Returns:
-        A ResolvedTool object.
-
-    Raises:
-        PlanError: If the the logical plan contains unresolved parameters that are not in the tool parameters.
+    Raises PlanError if the logical plan contains unresolved parameters that are not in the tool parameters.
     """
     unresolved_exprs: list[UnresolvedLiteralExpr] = [
         expr for expr in walker.find_expressions(query, lambda expr: isinstance(expr, UnresolvedLiteralExpr))
@@ -136,28 +105,32 @@ def resolve_tool(unresolved_tool: UnresolvedTool, query: LogicalPlan) -> Resolve
 
     resolved_params: list[ResolvedToolParam] = []
     for unresolved_expr_name, unresolved_expr in unresolved_exprs_by_name.items():
-        tool_param = tool_params[unresolved_expr_name]
+        tool_param_model = tool_params[unresolved_expr_name]
         # Validate allowed values if default present and non-None
-        if tool_param.allowed_values is not None and tool_param.has_default and tool_param.default_value is not None:
-            if tool_param.default_value not in tool_param.allowed_values:
+        if (
+            tool_param_model.allowed_values is not None
+            and tool_param_model.has_default
+            and tool_param_model.default_value is not None
+        ):
+            if tool_param_model.default_value not in tool_param_model.allowed_values:
                 raise PlanError(
-                    f"Default value {tool_param.default_value} is not in the allowed values {tool_param.allowed_values}"
+                    f"Default value {tool_param_model.default_value} is not in the allowed values {tool_param_model.allowed_values}"
                 )
             # Ensure allowed values are homogeneous with the default's Python type
-            if not all(isinstance(value, type(tool_param.default_value)) for value in tool_param.allowed_values):
+            if not all(isinstance(value, type(tool_param_model.default_value)) for value in tool_param_model.allowed_values):
                 raise PlanError(
-                    f"Allowed values {tool_param.allowed_values} must all be the same type as the default value {type(tool_param.default_value).__name__}"
+                    f"Allowed values {tool_param_model.allowed_values} must all be the same type as the default value {type(tool_param_model.default_value).__name__}"
                 )
 
         resolved_params.append(
             ResolvedToolParam(
-                name=tool_param.name,
-                description=tool_param.description,
+                name=tool_param_model.name,
+                description=tool_param_model.description,
                 data_type=unresolved_expr.data_type,
-                required=tool_param.required,
-                has_default=tool_param.has_default,
-                default_value=tool_param.default_value,
-                allowed_values=tool_param.allowed_values,
+                required=tool_param_model.required,
+                has_default=tool_param_model.has_default,
+                default_value=tool_param_model.default_value,
+                allowed_values=tool_param_model.allowed_values,
             )
         )
 
@@ -171,14 +144,7 @@ def resolve_tool(unresolved_tool: UnresolvedTool, query: LogicalPlan) -> Resolve
 
 
 def create_pydantic_model_for_tool(tool: ResolvedTool) -> type[BaseModel]:
-    """Create a Pydantic model for a tool.
-
-    Args:
-        tool: The tool to create a Pydantic model for.
-
-    Returns:
-        A Pydantic model.
-    """
+    """Create a Pydantic model for a tool."""
     model_name = f"{tool.name}_Params"
     model_fields = {}
     for param in tool.params:

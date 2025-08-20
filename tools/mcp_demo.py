@@ -76,7 +76,8 @@ def main() -> None:
     )
 
     # TODO(bc): now what would be really cool is automatically generating this or something else like it (perhaps using embeddings for semantic similarity search?)
-    # as then you'd have ready to go semantic search on any dataframe. 
+    # as then you'd have ready to go semantic search on any dataframe. if you wanted to do this in general, it would be very useful to have some sort of `nest(struct_name)`
+    # dataframe function to return a dataframe with all of the fields 
     freestyle_semantic_bio = data.filter(fc.semantic.predicate(
         textwrap.dedent("""\
         The following is a search query in a database of user information.
