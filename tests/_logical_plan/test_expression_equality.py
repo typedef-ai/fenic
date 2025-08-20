@@ -23,6 +23,7 @@ from fenic.core._logical_plan.expressions.basic import (
     ArrayContainsExpr,
     ArrayExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     CastExpr,
     CoalesceExpr,
     ColumnExpr,
@@ -263,6 +264,38 @@ class TestBasicExpressions:
         # Different return type
         udf4 = UDFExpr(func1, [col], StringType)
         assert udf1 != udf4
+
+    def test_async_udf_expr(self):
+        """Test AsyncUDFExpr compares func identity, return_type, and async-specific attributes."""
+        async def func1(x): return x * 2
+        async def func2(x): return x * 3
+
+        col = ColumnExpr("x")
+
+        # Same function and all attributes
+        audf1 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        audf2 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 == audf2
+
+        # Different function
+        audf3 = AsyncUDFExpr(func2, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf3
+
+        # Different return type
+        audf4 = AsyncUDFExpr(func1, [col], StringType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf4
+
+        # Different max_concurrency
+        audf5 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=20, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf5
+
+        # Different timeout_seconds
+        audf6 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=60, num_retries=2)
+        assert audf1 != audf6
+
+        # Different num_retries
+        audf7 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=3)
+        assert audf1 != audf7
 
     def test_is_null_expr(self):
         """Test IsNullExpr compares is_null flag."""
@@ -1302,6 +1335,8 @@ class TestCrossTypeInequality:
         """Test complex expression types are never equal to each other."""
         col = ColumnExpr("x")
 
+        async def async_func(x): return x
+
         # Different categories of expressions
         arith = ArithmeticExpr(col, col, Operator.PLUS)
         jq = JqExpr(col, ".foo")
@@ -1309,8 +1344,9 @@ class TestCrossTypeInequality:
         when = WhenExpr(None, EqualityComparisonExpr(col, LiteralExpr(1, IntegerType), Operator.EQ), col)
         sum_expr = SumExpr(col)
         embed = EmbeddingNormalizeExpr(col)
+        async_udf = AsyncUDFExpr(async_func, [col], IntegerType)
 
-        exprs = [arith, jq, md, when, sum_expr, embed]
+        exprs = [arith, jq, md, when, sum_expr, embed, async_udf]
         for i, expr1 in enumerate(exprs):
             for j, expr2 in enumerate(exprs):
                 if i != j:
