@@ -45,7 +45,7 @@ def read_table():
     return result, table_name
 
 
-print('starting')
+print('concurrent starting')
 with ThreadPoolExecutor(max_workers=1000) as executor:
     futures = [executor.submit(read_table) for _ in range(1000)]
     for i, future in enumerate(as_completed(futures)):
@@ -53,5 +53,17 @@ with ThreadPoolExecutor(max_workers=1000) as executor:
         print(f"Main thread {thread_id} processing future {i}")
         result = future.result()
         print(f"Future {i} finished. Got {len(result[0])} rows from {result[1]}")
+print('concurrent finished')
 
-print("Program completed successfully")
+print('sequential starting')
+with ThreadPoolExecutor(max_workers=1000) as executor:
+    for i in range(1000):
+        # Submit one task at a time and wait for it to complete
+        future = executor.submit(read_table)
+        thread_id = threading.current_thread().ident
+        print(f"Main thread {thread_id} processing task {i}")
+        result = future.result()  # This blocks until the task completes
+        print(f"Task {i} finished. Got {len(result[0])} rows from {result[1]}")
+print('sequential finished')
+
+print('done')
