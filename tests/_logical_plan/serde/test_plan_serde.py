@@ -25,6 +25,7 @@ from fenic.core._logical_plan import LogicalPlan
 from fenic.core._logical_plan.plans import (
     SQL,
     Aggregate,
+    DocSource,
     DropDuplicates,
     Explode,
     FileSink,
@@ -50,10 +51,11 @@ from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 from fenic.core.types import ClassDefinition
+from fenic.core.types.datatypes import MarkdownType
 from fenic.core.types.semantic_examples import MapExample, MapExampleCollection
 
 
-def _create_plan_examples(session):
+def _create_plan_examples(session, temp_dir_with_test_files):
     """Create all plan examples upfront."""
     # Create base dataframes for testing
     df1 = session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
@@ -74,6 +76,14 @@ def _create_plan_examples(session):
 
     return {
         # Basic source plans
+        DocSource: [
+            ("doc_source", DocSource.from_session_state(
+                paths=[temp_dir_with_test_files],
+                valid_file_extension=".md",
+                recursive=True,
+                session_state=session._session_state,
+            )),
+        ],
         InMemorySource: [
             ("basic_dataframe", df1._logical_plan),
         ],
@@ -362,7 +372,7 @@ def test_aggregate_plans(local_session, serde_implementation: SupportsLogicalPla
 
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)
-def test_file_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
+def test_file_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde, temp_dir_with_test_files):
     test_data = """name,age,city
 John,25,New York
 Alice,30,San Francisco
@@ -399,7 +409,6 @@ David,33,Seattle"""
         result = deserialized_df.to_polars()
         expected = df3.to_polars()
         assert result.equals(expected)
-
     finally:
         if os.path.exists(temp_csv_path):
             os.remove(temp_csv_path)
@@ -435,6 +444,15 @@ def test_table_source_plans(local_session, serde_implementation: SupportsLogical
     assert result.schema == expected.schema
     # grouping is not deterministic, so just test the schema matches
 
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_doc_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde, temp_dir_with_test_files):
+    df_docs = local_session.read.docs(
+        [temp_dir_with_test_files],
+        data_type=MarkdownType,
+        recursive=True
+    )
+    plan = df_docs._logical_plan
+    _test_plan_serialization(plan, local_session._session_state, serde_implementation)
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)
 def test_semantic_cluster(local_session, serde_implementation: SupportsLogicalPlanSerde):
@@ -679,11 +697,11 @@ def test_serialize_unregistered_plan_type():
 
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)
-def test_all_plan_types_with_examples(local_session, serde_implementation):
+def test_all_plan_types_with_examples(local_session, serde_implementation, temp_dir_with_test_files):
     """Test all plan types with comprehensive examples using parameterized tests."""
 
     test_cases = []
-    examples = _create_plan_examples(local_session)
+    examples = _create_plan_examples(local_session, temp_dir_with_test_files)
     for plan_class, examples_list in examples.items():
         for example_name, plan in examples_list:
             test_cases.append((plan_class, example_name, plan))
@@ -700,7 +718,7 @@ def test_all_plan_types_with_examples(local_session, serde_implementation):
 
 
 
-def test_plan_type_coverage(local_session):
+def test_plan_type_coverage(local_session, temp_dir_with_test_files):
     """Test that all concrete LogicalPlan subclasses are covered in the test file."""
     import importlib
     import inspect
@@ -721,7 +739,7 @@ def test_plan_type_coverage(local_session):
         pass
 
     # Get all tested plan classes from the examples
-    examples = _create_plan_examples(local_session)
+    examples = _create_plan_examples(local_session, temp_dir_with_test_files)
     tested_classes = set(cls.__name__ for cls in examples.keys())
 
     # Find missing classes

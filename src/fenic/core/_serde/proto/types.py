@@ -366,6 +366,9 @@ from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     ColumnField as ColumnFieldProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
+    DocSource as DocSourceProto,
+)
+from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     DropDuplicates as DropDuplicatesProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
@@ -562,6 +565,7 @@ __all__ = [
     "InMemorySourceProto",
     "FileSourceProto",
     "TableSourceProto",
+    "DocSourceProto",
     # Transform plan classes
     "ProjectionProto",
     "FilterProto",

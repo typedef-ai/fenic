@@ -1,5 +1,7 @@
+import json
 import os
 import tempfile
+from pathlib import Path
 from typing import Protocol, Tuple
 from urllib.parse import urlparse
 
@@ -469,3 +471,69 @@ def large_text_df(local_session):
     cap_content = response.text
 
     return local_session.create_dataframe({"text": [pp_content, cap_content]})
+
+@pytest.fixture
+def temp_dir_with_test_files():
+    """Create a temporary directory with test files."""
+    with tempfile.TemporaryDirectory() as _dir:
+        temp_path = Path(_dir)
+
+        # Create subdirectories
+        (temp_path / "subdir1").mkdir()
+        (temp_path / "subdir2").mkdir()
+        (temp_path / "temp").mkdir()
+
+        # Create test files
+        test_files = [
+            "file1.md",
+            "file2.md",
+            "file3.txy",
+            "subdir1/file4.md",
+            "subdir2/file5.md",
+            "temp/temp_file.md",
+            "backup.md.bak",
+            "file.tmp",
+            "file_json.json"
+        ]
+
+        for file_name in test_files:
+            file_path = temp_path / file_name
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            if file_name.endswith(".md"):
+                _save_md_file(file_path)
+            elif file_name.endswith(".json"):
+                # TODO: Create a better sample json file.
+                file_path.write_text(json.dumps({"name": file_name, "content": "sample content"}))
+            else:
+                file_path.write_text(f"sample content for {file_name}")
+
+        yield str(temp_path)
+
+@pytest.fixture
+def temp_dir_just_one_file():
+    """Create a temporary directory with test files."""
+    with tempfile.TemporaryDirectory() as _dir:
+        temp_path = Path(_dir)
+        _save_md_file(temp_path / "file1.md")
+
+        yield str(temp_path)
+
+def _save_md_file(file_path: Path):
+    """Save a sample markdown file to the given path"""
+    md_file_contents = """
+# title
+some text
+
+# 1 Introduction
+intro
+
+## 2 Background
+more text
+
+### 2.1 More background
+more background
+
+## 3 Methods
+some more text
+"""
+    file_path.write_text(md_file_contents)

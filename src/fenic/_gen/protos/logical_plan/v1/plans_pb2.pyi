@@ -31,12 +31,13 @@ class CacheInfo(_message.Message):
     def __init__(self, duckdb_table_name: _Optional[str] = ...) -> None: ...
 
 class LogicalPlan(_message.Message):
-    __slots__ = ("schema", "cache_info", "in_memory_source", "file_source", "table_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")
+    __slots__ = ("schema", "cache_info", "in_memory_source", "file_source", "table_source", "doc_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     CACHE_INFO_FIELD_NUMBER: _ClassVar[int]
     IN_MEMORY_SOURCE_FIELD_NUMBER: _ClassVar[int]
     FILE_SOURCE_FIELD_NUMBER: _ClassVar[int]
     TABLE_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    DOC_SOURCE_FIELD_NUMBER: _ClassVar[int]
     PROJECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     JOIN_FIELD_NUMBER: _ClassVar[int]
@@ -58,6 +59,7 @@ class LogicalPlan(_message.Message):
     in_memory_source: InMemorySource
     file_source: FileSource
     table_source: TableSource
+    doc_source: DocSource
     projection: Projection
     filter: Filter
     join: Join
@@ -74,7 +76,7 @@ class LogicalPlan(_message.Message):
     semantic_similarity_join: SemanticSimilarityJoin
     file_sink: FileSink
     table_sink: TableSink
-    def __init__(self, schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., cache_info: _Optional[_Union[CacheInfo, _Mapping]] = ..., in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., semantic_join: _Optional[_Union[SemanticJoin, _Mapping]] = ..., semantic_similarity_join: _Optional[_Union[SemanticSimilarityJoin, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
+    def __init__(self, schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., cache_info: _Optional[_Union[CacheInfo, _Mapping]] = ..., in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., doc_source: _Optional[_Union[DocSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., semantic_join: _Optional[_Union[SemanticJoin, _Mapping]] = ..., semantic_similarity_join: _Optional[_Union[SemanticSimilarityJoin, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
 
 class InMemorySource(_message.Message):
     __slots__ = ("source",)
@@ -99,6 +101,18 @@ class TableSource(_message.Message):
     TABLE_NAME_FIELD_NUMBER: _ClassVar[int]
     table_name: str
     def __init__(self, table_name: _Optional[str] = ...) -> None: ...
+
+class DocSource(_message.Message):
+    __slots__ = ("paths", "valid_file_extension", "exclude", "recursive")
+    PATHS_FIELD_NUMBER: _ClassVar[int]
+    VALID_FILE_EXTENSION_FIELD_NUMBER: _ClassVar[int]
+    EXCLUDE_FIELD_NUMBER: _ClassVar[int]
+    RECURSIVE_FIELD_NUMBER: _ClassVar[int]
+    paths: _containers.RepeatedScalarFieldContainer[str]
+    valid_file_extension: str
+    exclude: str
+    recursive: bool
+    def __init__(self, paths: _Optional[_Iterable[str]] = ..., valid_file_extension: _Optional[str] = ..., exclude: _Optional[str] = ..., recursive: bool = ...) -> None: ...
 
 class Projection(_message.Message):
     __slots__ = ("input", "exprs")

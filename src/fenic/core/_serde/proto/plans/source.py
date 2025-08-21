@@ -5,6 +5,7 @@ from io import BytesIO
 import polars as pl
 
 from fenic.core._logical_plan.plans.source import (
+    DocSource,
     FileSource,
     InMemorySource,
     TableSource,
@@ -15,6 +16,7 @@ from fenic.core._serde.proto.plan_serde import (
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import (
+    DocSourceProto,
     FileSourceProto,
     InMemorySourceProto,
     LogicalPlanProto,
@@ -125,3 +127,38 @@ def _deserialize_table_source(
         table_name=table_source.table_name,
         schema=schema,
     )
+
+# =============================================================================
+# DocSource
+# =============================================================================
+
+
+@_serialize_logical_plan_helper.register
+def _serialize_doc_source(
+    doc_source: DocSource, context: SerdeContext
+) -> LogicalPlanProto:
+    """Serialize a doc source (wrapper)."""
+    return LogicalPlanProto(
+        doc_source=DocSourceProto(
+            paths=doc_source._paths,
+            valid_file_extension=doc_source._valid_file_extension,
+            exclude=doc_source._exclude,
+            recursive=doc_source._recursive,
+        )
+    )
+
+
+@_deserialize_logical_plan_helper.register
+def _deserialize_doc_source(
+    doc_source: DocSourceProto, context: SerdeContext, schema: Schema
+) -> DocSource:
+    """Deserialize a DocSource LogicalPlan Node."""
+    doc_source = DocSource.from_schema(
+        paths=list(doc_source.paths),
+        valid_file_extension=doc_source.valid_file_extension,
+        exclude=doc_source.exclude if doc_source.HasField("exclude") else None,
+        recursive=doc_source.recursive,
+        schema=schema,
+    )
+
+    return doc_source

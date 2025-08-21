@@ -1,5 +1,6 @@
 import logging
 import os
+from enum import Enum
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 from urllib.parse import urlparse
@@ -12,6 +13,11 @@ from botocore.credentials import ReadOnlyCredentials
 from fenic.core.error import ConfigurationError, ValidationError
 
 logger = logging.getLogger(__name__)
+
+class PathScheme(Enum):
+    S3 = "s3"
+    HF = "hf"
+    LOCALFS = "localfs"
 
 def does_path_exist(path: str, s3_session: BotoSession) -> bool:
     """Check if a s3, hf, or local path exists."""
@@ -137,3 +143,13 @@ def _configure_duckdb_conn(db_conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBP
     """Common configuration for duckdb connections."""
     db_conn.execute("set arrow_large_buffer_size=true;")
     return db_conn
+
+def get_path_scheme(path: str) -> PathScheme:
+    """Gets the path scheme."""
+    scheme = urlparse(path).scheme
+    if scheme == "s3":
+        return PathScheme.S3
+    elif scheme == "hf":
+        return PathScheme.HF
+    else:
+        return PathScheme.LOCALFS
