@@ -38,7 +38,7 @@ def query_files(query: str, paths: List[str], s3_session: boto3.session.Session)
     duckdb_conn = _configure_duckdb_conn(duckdb.connect())
     if any(urlparse(path).scheme == "s3" for path in paths):
         query = _build_query_with_s3_creds(query, s3_session)
-    arrow_result = duckdb_conn.execute(query).arrow()
+    arrow_result = duckdb_conn.cursor().execute(query).arrow()
     return pl.from_arrow(arrow_result)
 
 

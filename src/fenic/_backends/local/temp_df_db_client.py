@@ -27,7 +27,7 @@ class TempDFDBClient:
     def read_df(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
-        result = self.db_conn.execute(f"SELECT * FROM {table_name}")
+        result = self.db_conn.cursor().execute(f"SELECT * FROM {table_name}")
         arrow_table = result.arrow()
         return pl.from_arrow(arrow_table)
         # trunk-ignore-end(bandit/B608)
@@ -44,7 +44,7 @@ class TempDFDBClient:
     def is_df_cached(self, table_name: str) -> bool:
         """Check if a Polars dataframe is stored in a DuckDB table in the 'main' schema."""
         # trunk-ignore-begin(bandit/B608)
-        result = self.db_conn.execute(
+        result = self.db_conn.cursor().execute(
             f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         )
         return len(result.fetchall()) > 0

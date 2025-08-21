@@ -121,7 +121,7 @@ class SystemTableClient:
         """
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = self.db_conn.cursor().execute(
                 f"""
                 SELECT schema_blob
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
@@ -248,7 +248,7 @@ class SystemTableClient:
     ) -> Optional[LogicalPlan]:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = self.db_conn.cursor().execute(
                 f"""
                 SELECT view_blob
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
@@ -274,7 +274,7 @@ class SystemTableClient:
     ) -> Optional[List[object]]:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = self.db_conn.cursor().execute(
                 f"""
                 SELECT view_name
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"

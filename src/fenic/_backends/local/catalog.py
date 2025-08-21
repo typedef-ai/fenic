@@ -252,15 +252,14 @@ class LocalCatalog(BaseCatalog):
         """Get a list of all tables in the current database."""
         with self.lock:
             try:
-                result = self.db_conn.execute(
+                result_list = self.db_conn.execute(
                     """
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = ? AND table_type = 'BASE TABLE'
                     """,
                     (self.get_current_database(),),
-                )
-                result_list = result.fetchall()
+                ).fetchall()
 
                 if len(result_list) > 0:
                     return [str(element[0]) for element in result_list]
@@ -525,9 +524,9 @@ class LocalCatalog(BaseCatalog):
         _verify_table_catalog(table_identifier)
         try:
             # trunk-ignore-begin(bandit/B608)
-            return self.db_conn.execute(
+            return pl.from_arrow(self.db_conn.execute(
                 f"SELECT * FROM {self._build_qualified_table_name(table_identifier)}"
-            ).pl()
+            ).arrow())
             # trunk-ignore-end(bandit/B608)
         except Exception as e:
             raise CatalogError(
