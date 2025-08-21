@@ -1164,6 +1164,19 @@ class DataFrame:
             # |        HR|    NYC|    72500.0|
             # +----------+--------+-----------+
             ```
+
+        Example: Group by expression
+            ```python
+            # Group by expression
+            df.group_by(lower(col("department")).alias("department")).agg(count("*")).show()
+            # Output:
+            # +---------+-----+
+            # |department|count|
+            # +----------+-----+
+            # |        it|    3|
+            # |        hr|    2|
+            # +---------+-----+
+            ```
         """
         return GroupedData(self, list(cols) if cols else None)
 
