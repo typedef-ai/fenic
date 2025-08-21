@@ -377,7 +377,7 @@ class ExprConverter:
 
         # Apply async function via map_batches
         def execute_async_udf(batch: pl.Series) -> pl.Series:
-            # Extract struct as list of dicts [{col1: val1, col2: val2}, ...]
+            # Extract struct as an iterable of dicts [{col1: val1, col2: val2}, ...]
             items = ([row[name] for name in batch.struct.fields] for row in batch)
 
             # Use context manager for automatic loop lifecycle management
@@ -402,7 +402,6 @@ class ExprConverter:
                         if result:
                             inferred_type = infer_dtype_from_pyobj(result)
                             if inferred_type != logical.return_type:
-                                # Cancel pending tasks before raising
                                 raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
                         results.append(result)
 
