@@ -35,46 +35,14 @@ class SystemTableClient:
 
         Args:
             connection: An initialized DuckDB connection
-        """
-        self.db_conn = connection
-
-    def initialize_system_table_client(self):
-            """Initialize the system tables for schema meta data and views.
-            Raises:
-                CatalogError: If the initialization of tables for schema meta data or views fails
-            """
-            self._initialize_system_schema()
-            self._initialize_views_metadata()
-
-    def initialize_system_schema(self) -> None:
-        """Initialize the system schema and metadata table for storing table schemas including logical type information.
 
         Raises:
-            CatalogError: If the system schema or metadata table cannot be created.
+            CatalogError: If the initialization of tables for schema meta data or views fails
         """
-        try:
-            # Create system schema if it doesn't exist
-            self.db_conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
+        self._initialize_system_schema(connection)
+        self._initialize_views_metadata(connection)
 
-            # Create the schema metadata table if it doesn't exist
-            self.db_conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}" (
-                    database_name TEXT NOT NULL,
-                    table_name TEXT NOT NULL,
-                    schema_blob TEXT NOT NULL,
-                    PRIMARY KEY (database_name, table_name)
-                );
-            """
-            )
-        except Exception as e:
-            raise CatalogError(
-                f"Failed to initialize system schema and {SCHEMA_METADATA_TABLE} table: {e}"
-            ) from e
-
-        logger.debug(f"Initialized system schema and {SCHEMA_METADATA_TABLE} table")
-
-    def save_schema(self, database_name: str, table_name: str, schema: Schema) -> None:
+    def save_schema(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str, schema: Schema) -> None:
         """Save a table's schema metadata to the system table. This is used for storing logical type information that can't be directly represented in the physical storage.
 
         Args:
@@ -91,7 +59,7 @@ class SystemTableClient:
 
         try:
             # Upsert the schema - replace if exists
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 INSERT OR REPLACE INTO "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}" (
                     database_name, table_name, schema_blob
@@ -106,7 +74,7 @@ class SystemTableClient:
                 f"Failed to save schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def get_schema(self, database_name: str, table_name: str) -> Optional[Schema]:
+    def get_schema(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[Schema]:
         """Retrieve a table's schema metadata from the system table.
 
         Args:
@@ -121,7 +89,7 @@ class SystemTableClient:
         """
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 SELECT schema_blob
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
@@ -143,7 +111,7 @@ class SystemTableClient:
                 f"Failed to retrieve schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def delete_schema(self, database_name: str, table_name: str) -> bool:
+    def delete_schema(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> bool:
         """Delete a table's schema metadata from the system table.
 
         Args:
@@ -158,7 +126,7 @@ class SystemTableClient:
         """
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 WHERE database_name = ? AND table_name = ?
@@ -180,7 +148,7 @@ class SystemTableClient:
                 f"Failed to delete schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def delete_database_schemas(self, database_name: str) -> int:
+    def delete_database_schemas(self, cursor: duckdb.DuckDBPyConnection, database_name: str) -> int:
         """Delete all schema metadata for a database.
 
         Args:
@@ -194,7 +162,7 @@ class SystemTableClient:
         """
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 WHERE database_name = ?
@@ -219,6 +187,7 @@ class SystemTableClient:
 
     def save_view(
         self,
+        cursor: duckdb.DuckDBPyConnection,
         database_name: str,
         view_name: str,
         logical_plan: LogicalPlan
@@ -227,7 +196,7 @@ class SystemTableClient:
         view_name = view_name.casefold()
         logical_plan_str = base64.b64encode(LogicalPlanSerde.serialize(logical_plan)).decode('utf-8')
         try:
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 INSERT OR REPLACE INTO "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}" (
                     database_name, view_name, view_blob, creation_time
@@ -244,11 +213,11 @@ class SystemTableClient:
             ) from e
 
     def get_view(
-        self, database_name: str, view_name: str
+        self, cursor: duckdb.DuckDBPyConnection, database_name: str, view_name: str
     ) -> Optional[LogicalPlan]:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 SELECT view_blob
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
@@ -270,11 +239,11 @@ class SystemTableClient:
             ) from e
 
     def list_views(
-        self, database_name: str
+        self, cursor: duckdb.DuckDBPyConnection, database_name: str
     ) -> Optional[List[object]]:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 SELECT view_name
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
@@ -293,10 +262,10 @@ class SystemTableClient:
                 f"Failed to retrieve all views for {database_name}"
             ) from e
 
-    def delete_view(self, database_name: str, view_name: str) -> bool:
+    def delete_view(self, cursor: duckdb.DuckDBPyConnection, database_name: str, view_name: str) -> bool:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
                 WHERE database_name = ? AND view_name = ?
@@ -318,10 +287,10 @@ class SystemTableClient:
                 f"Failed to delete views for {database_name}.{view_name}"
             ) from e
 
-    def delete_database_views(self, database_name: str) -> int:
+    def delete_database_views(self, cursor: duckdb.DuckDBPyConnection, database_name: str) -> int:
         try:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
                 WHERE database_name = ?
@@ -344,17 +313,17 @@ class SystemTableClient:
                 f"Failed to delete views metadata for database {database_name}"
             ) from e
 
-    def _initialize_system_schema(self) -> None:
+    def _initialize_system_schema(self, cursor: duckdb.DuckDBPyConnection) -> None:
         """Initialize the system schema and metadata table for storing table schemas including logical type information.
         Raises:
             CatalogError: If the system schema or metadata table cannot be created.
         """
         try:
             # Create system schema if it doesn't exist
-            self.db_conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
+            cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
 
             # Create the schema metadata table if it doesn't exist
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}" (
                     database_name TEXT NOT NULL,
@@ -371,17 +340,45 @@ class SystemTableClient:
 
         logger.debug(f"Initialized system schema and {SCHEMA_METADATA_TABLE} table")
 
-    def _initialize_views_metadata(self) -> None:
+    def _initialize_system_schema(self, cursor: duckdb.DuckDBPyConnection) -> None:
+        """Initialize the system schema and metadata table for storing table schemas including logical type information.
+
+        Raises:
+            CatalogError: If the system schema or metadata table cannot be created.
+        """
+        try:
+            # Create system schema if it doesn't exist
+            cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
+
+            # Create the schema metadata table if it doesn't exist
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}" (
+                    database_name TEXT NOT NULL,
+                    table_name TEXT NOT NULL,
+                    schema_blob TEXT NOT NULL,
+                    PRIMARY KEY (database_name, table_name)
+                );
+            """
+            )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to initialize system schema and {SCHEMA_METADATA_TABLE} table: {e}"
+            ) from e
+
+        logger.debug(f"Initialized system schema and {SCHEMA_METADATA_TABLE} table")
+
+    def _initialize_views_metadata(self, cursor: duckdb.DuckDBPyConnection) -> None:
         """Initialize the table for storing views metadata.
         Raises:
             CatalogError: If the views metadata table cannot be created.
         """
         try:
             # Create system schema if it doesn't exist
-            self.db_conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
+            cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
 
             # Create the schema metadata table if it doesn't exist
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}" (
                     database_name TEXT NOT NULL,

@@ -309,15 +309,16 @@ class SQLExec(PhysicalPlan):
         self.arrow_view_names = arrow_view_names
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        cursor = self.session_state.intermediate_df_client.db_conn.cursor()
         for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
-            self.session_state.intermediate_df_client.db_conn.register(arrow_view_name, child_df)
+            cursor.register(arrow_view_name, child_df)
         try:
-            arrow_result = self.session_state.intermediate_df_client.db_conn.execute(self.query).arrow()
+            arrow_result = cursor.execute(self.query).arrow()
             return apply_ingestion_coercions(pl.from_arrow(arrow_result))
         finally:
             for arrow_view_name in self.arrow_view_names:
                 try:
-                    self.session_state.intermediate_df_client.db_conn.execute(f"DROP VIEW IF EXISTS {arrow_view_name}")
+                    cursor.execute(f"DROP VIEW IF EXISTS {arrow_view_name}")
                 except Exception:
                     logger.error(f"Failed to drop view: {arrow_view_name}")
                     pass

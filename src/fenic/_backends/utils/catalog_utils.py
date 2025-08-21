@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -71,7 +73,7 @@ class TableIdentifier(BaseIdentifier):
     catalog: Optional[str] = None
 
     @classmethod
-    def from_string(cls, full_name: str) -> "TableIdentifier":
+    def from_string(cls, full_name: str) -> TableIdentifier:
         """Parse a table-qualified name.
         Returns an identifer with keys: catalog, database, table (None if not provided).
         Raises ValueError if not 1–3 parts.
@@ -98,7 +100,7 @@ class TableIdentifier(BaseIdentifier):
             return compare_object_names(self.table, table_name)
         return True
 
-    def enrich(self, catalog_name: str, db_name: str) -> "TableIdentifier":
+    def enrich(self, catalog_name: str, db_name: str) -> TableIdentifier:
         """Enrich the table identifier with the catalog name and database name."""
         return TableIdentifier(
             catalog=self.catalog if self.catalog else catalog_name,
@@ -113,7 +115,7 @@ class DBIdentifier(BaseIdentifier):
     catalog: Optional[str] = None
 
     @classmethod
-    def from_string(cls, full_name: str) -> "DBIdentifier":
+    def from_string(cls, full_name: str) -> DBIdentifier:
         """Parse a database-qualified name.
         Returns dict with keys: catalog (or None) and database.
         Raises ValueError if not 1 or 2 parts.
@@ -129,7 +131,7 @@ class DBIdentifier(BaseIdentifier):
             f"Invalid database name '{full_name}': expected 1 or 2 parts, got {len(parts)}"
         )
 
-    def enrich(self, catalog_name: str) -> "DBIdentifier":
+    def enrich(self, catalog_name: str) -> DBIdentifier:
         """Enrich the database identifier with the catalog name."""
         if self.catalog:
             return self

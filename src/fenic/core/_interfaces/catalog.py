@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List
 
@@ -99,7 +101,7 @@ class BaseCatalog(ABC):
     def create_view(
         self,
         view_name: str,
-        logical_plan: "LogicalPlan",
+        logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
     ) -> bool:
         """Create a new view in the current database."""
@@ -111,7 +113,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_view(self, view_name: str) -> "LogicalPlan":
+    def describe_view(self, view_name: str) -> LogicalPlan:
         """Get the serialized schema and logical plan of the specified view."""
         pass
 

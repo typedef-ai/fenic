@@ -9,7 +9,7 @@ from fenic.core._utils.misc import generate_unique_arrow_view_name
 
 class TempDFDBClient:
     """A client for reading and writing Polars dataframes to an ephemeral DuckDB database.
-    Used for cached dataframes and intermediate dataframes used in joins and lineage graphs.
+    Used for cached dataframes and intermediate dataframes used in lineage graphs.
     """
 
     def __init__(self, app_name: str):
@@ -27,7 +27,7 @@ class TempDFDBClient:
     def read_df(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
-        result = self.db_conn.execute(f"SELECT * FROM {table_name}")
+        result = self.db_conn.cursor().execute(f"SELECT * FROM {table_name}")
         arrow_table = result.arrow()
         return pl.from_arrow(arrow_table)
         # trunk-ignore-end(bandit/B608)
@@ -36,15 +36,16 @@ class TempDFDBClient:
         """Write a Polars dataframe to a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
         view_name = generate_unique_arrow_view_name()
-        self.db_conn.register(view_name, df)
-        self.db_conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM {view_name}")
-        self.db_conn.execute(f"DROP VIEW IF EXISTS {view_name}")
+        cursor = self.db_conn.cursor()
+        cursor.register(view_name, df)
+        cursor.execute(f"CREATE TABLE {table_name} AS SELECT * FROM {view_name}")
+        cursor.execute(f"DROP VIEW IF EXISTS {view_name}")
         # trunk-ignore-end(bandit/B608)
 
     def is_df_cached(self, table_name: str) -> bool:
         """Check if a Polars dataframe is stored in a DuckDB table in the 'main' schema."""
         # trunk-ignore-begin(bandit/B608)
-        result = self.db_conn.execute(
+        result = self.db_conn.cursor().execute(
             f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         )
         return len(result.fetchall()) > 0
