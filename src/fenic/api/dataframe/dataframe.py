@@ -1142,7 +1142,7 @@ class DataFrame:
             })
 
             # Group by single column
-            df.group_by(col("department")).count().show()
+            df.group_by(col("department")).agg(count("*")).show()
             # Output:
             # +----------+-----+
             # |department|count|
@@ -1163,20 +1163,6 @@ class DataFrame:
             # |        IT|    NYC|    85000.0|
             # |        HR|    NYC|    72500.0|
             # +----------+--------+-----------+
-            ```
-
-        Example: Group by expression
-            ```python
-            # Group by expression
-            df.group_by(col("age").cast("int").alias("age_group")).count().show()
-            # Output:
-            # +---------+-----+
-            # |age_group|count|
-            # +---------+-----+
-            # |       20|    2|
-            # |       30|    3|
-            # |       40|    1|
-            # +---------+-----+
             ```
         """
         return GroupedData(self, list(cols) if cols else None)
