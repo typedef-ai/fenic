@@ -68,7 +68,7 @@ jobs:
         platform:
           ## linux
           - target: x86_64
-            builds: on_release
+            builds: on_all
             manylinux: auto
             python_arch: x64
             ## linux cross
