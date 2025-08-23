@@ -45,9 +45,9 @@ from fenic.core.types import (
 
 # Re-export MCP generator (optional dependency)
 try:  # pragma: no cover - import-guard
-    from fenic.core.mcp.generator import MCPGenerator, create_mcp_server_from_views
+    from fenic.core.mcp.generator import FenicMCPServer, create_mcp_server_from_views
 except Exception:  # pragma: no cover - if fastmcp missing
-    MCPGenerator = None  # type: ignore
+    FenicMCPServer = None  # type: ignore
     create_mcp_server_from_views = None  # type: ignore
 
 __all__ = [
@@ -93,6 +93,6 @@ __all__ = [
     "DataLikeType",
     "QueryResult",
     # MCP (optional)
-    "MCPGenerator",
+    "FenicMCPServer",
     "create_mcp_server_from_views",
 ]

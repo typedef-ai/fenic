@@ -1,16 +1,10 @@
-import asyncio
-from typing import Union
-
 import fenic as fc
 from fenic import OpenAILanguageModel, SemanticConfig
-from fenic.api.tools import (
-    auto_generate_core_tools,
-)
-from fenic.core._logical_plan.tools import DynamicTool, ResolvedTool
-from fenic.core.mcp.generator import MCPGenerator
+from fenic.api.mcp import create_mcp_server, run_mcp_server_sync
+from fenic.api.tools import DatasetSpec
 
 
-async def main():
+def main():
     fc.configure_logging()
     local_session = fc.Session.get_or_create(fc.SessionConfig(
         app_name="mcp_demo",
@@ -31,27 +25,36 @@ async def main():
         "ideal_partner", "bio")
     moderation_report_df = local_session.read.parquet("./data/moderation_report.parquet")
 
-    tools: list[Union[DynamicTool, ResolvedTool]] = []
-    tools.extend(auto_generate_core_tools(
-        conversations_df,
-        "conversations",
-        "Raw Conversations taking place between users on a dating app.",
-        sql_max_rows=25
-    ))
-    tools.extend(auto_generate_core_tools(
-        enriched_profiles_df,
-        "profiles",
-        "Profiles of users in the dating app, contains demographic and self-written biographic information about each user."))
-    tools.extend(auto_generate_core_tools(
-        moderation_report_df,
-        "moderation_report",
-        "Curated Report detailing findings by the moderation team on analysis of the `Dating App Conversations`. Contains descriptions of bad actor behavior/explanations"
-    ))
-    mcp_generator = MCPGenerator(local_session._session_state, tools, "Content Moderation MCP")
-    await mcp_generator.run(stateless_http=True)
-
-    print("Made it to here!")
+    dataset_specs = [
+        DatasetSpec(
+            name="conversations",
+            description="Raw conversations between users on a dating app.",
+            df=conversations_df,
+        ),
+        DatasetSpec(
+            name="profiles",
+            description=(
+                "Profiles of users in the dating app, containing demographic and self-written biographic information."
+            ),
+            df=enriched_profiles_df,
+        ),
+        DatasetSpec(
+            name="moderation_report",
+            description=(
+                "Curated report with moderation analysis of the dating app conversations; includes descriptions of bad-actor behaviors/explanations."
+            ),
+            df=moderation_report_df,
+        ),
+    ]
+    mcp_generator = create_mcp_server(
+        local_session,
+        dataset_specs,
+        "Dating App Moderation Demo",
+        "Dating App Moderation Demo",
+        sql_max_rows=100,
+    )
+    run_mcp_server_sync(mcp_generator)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

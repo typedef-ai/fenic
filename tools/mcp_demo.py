@@ -1,23 +1,27 @@
-"""Demo: Generate and run an MCP server from Fenic parameterized views.
+"""Demo: Candidate hunting with Fenic + MCP.
 
-This script:
-- Creates a sample `users` view
-- Defines a parameterized view with a few filters
-- Generates an MCP server using fenic.core.mcp.generator
-- Runs the server (Ctrl+C to stop)
+Scenario:
+- Dataset contains free-form resumes and optional cover letters
+- We pre-extract a structured profile from each resume using semantic.extract
+- Tools:
+  1) candidates_for_job_description(job_description): predicate over structured profile to find good-fit candidates
+  2) create_outreach_for_candidate(candidate_id, tone, company, job_title, recruiter_name, why_join, instructions?):
+     generate a personalized outreach email using resume + cover letter context
 
-Prereqs:
-- Install MCP extra: `pip install "fenic[mcp]"` (or `pip install fastmcp`)
-- Run with: `uv run python tools/mcp_demo.py`
+Run:
+- pip install "fenic[mcp]"  # or: pip install fastmcp
+- uv run python tools/mcp_demo.py
 """
 
 import textwrap
 
+from pydantic import BaseModel, Field
+
 import fenic as fc
-from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType
+from fenic import OpenAILanguageModel, SemanticConfig, StringType
 from fenic.api.functions import tool_param
+from fenic.api.mcp import create_mcp_server, run_mcp_server_sync
 from fenic.core._logical_plan.tools import ToolParam
-from fenic.core.mcp.generator import MCPGenerator
 
 
 def main() -> None:
@@ -28,89 +32,144 @@ def main() -> None:
             language_models={
                 "nano": OpenAILanguageModel(
                     model_name="gpt-4.1-nano",
-                    rpm=2500,
-                    tpm=1_000_000
+                    rpm=10_000,
+                    tpm=10_000_000
                 )
             }
         )
     ))
-    data = local_session.create_dataframe(
-        {
-            "name": ["Alice", "Bob", "Charlie", "Diana", "Eve"],
-            "age": [25, 30, 35, 28, 32],
-            "department": ["engineering", "marketing", "engineering", "sales", "engineering"],
-            "status": ["active", "inactive", "pending", "active", "active"],
-            "bio": [
-                "Alice is a software engineer at Google. She enjoys hiking and reading.",
-                "Bob is a marketing manager at Apple. He enjoys playing tennis and cooking.",
-                "Charlie is a software engineer at Facebook. He enjoys playing basketball and reading.",
-                "Diana is a sales representative at Amazon. She enjoys playing video games and listening to podcasts.",
-                "Eve is a software engineer at Microsoft. She enjoys hiking and reading.",
-            ],
-        }
+    # Synthetic candidate dataset: (candidate_id, candidate_resume)
+    candidates_df = local_session.read.csv("./data/resume_raw.csv")
+
+    # Extract structured profile from resumes for filtering and routing
+    class Experience(BaseModel):
+        company: str = Field(description="Company name")
+        title: str = Field(description="Job title")
+        highlights: list[str] = Field(description="Key bullet points or notable work")
+
+    class CandidateProfile(BaseModel):
+        education: list[str] = Field(description="Degrees or programs")
+        seniority: str = Field(description="Likely seniority level, e.g., junior/senior/staff/principal")
+        fit_roles: list[str] = Field(description="Suitable role families, e.g., 'platform', 'ml', 'frontend'")
+        skills: list[str] = Field(description="Notable technical or domain skills")
+        experience: list[Experience] = Field(description="Work history", max_length=5)
+
+    enriched = candidates_df.select(
+        fc.col("candidate_id"),
+        fc.col("candidate_resume"),
+        fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096).alias("profile"),
+    ).cache()
+
+    # Materialize the enriched dataframe
+    enriched_profile_count = enriched.count()
+    print(f"Enriched profile count: {enriched_profile_count}")
+
+    # Tool 1: candidates_for_job_description — filter by free-form job description
+    # We evaluate candidates by referencing structured profile fields in a predicate.
+    fit_pred = fc.semantic.predicate(
+        textwrap.dedent(
+            """\
+            Job Description: {{job}}
+            Candidate Profile:
+              Seniority: {{profile.seniority}}
+              Fit Roles: {{profile.fit_roles}}
+              Skills: {{profile.skills}}
+              Education: {{profile.education}}
+              Experience: {{profile.experience}}
+            This candidate is a good fit for the job description.
+            """
+        ),
+        job=tool_param("job_description", StringType),
+        profile=fc.col("profile"),
     )
-    # Optional min/max bounds via coalesce: if param is absent (default None), predicate becomes True
-    # TODO(bc): can this be generated dynamically from the view? We have the schema and can use the types to infer which operators to support and prefixes
-    optional_min = fc.coalesce(fc.col("age") >= tool_param("min_age", IntegerType), fc.lit(True))
-    optional_max = fc.coalesce(fc.col("age") <= tool_param("max_age", IntegerType), fc.lit(True))
-    optional_department = fc.coalesce(fc.col("department") == tool_param("department", StringType), fc.lit(True))
-    optional_status = fc.coalesce(fc.col("status") == tool_param("status", StringType), fc.lit(True))
-    optional_bio_contains = fc.coalesce(fc.col("bio").contains(tool_param("bio_contains", StringType)), fc.lit(True))
-    core_filter = data.filter(
-        optional_min & optional_max & optional_department & optional_status & optional_bio_contains)
-
-
-    # TODO(bc): this too, could likely be automatically generated from a fenic dataframe schema,
-    # just like we know the prefixes and suffixes for the names, we can generate descriptions that are
-    # this simple, and the model is easily able to interpret what they mean.
+    candidates_for_job = enriched.filter(fit_pred).select(
+        fc.col("candidate_id"),
+        fc.col("candidate_resume"),
+        fc.col("profile"),
+    )
     local_session.catalog.create_tool(
-        "users_filter",
-        "Filter users by all available columns (age, department, status, bio)",
-        core_filter,
+        "candidates_for_job_description",
+        "Find candidates who are a good fit for a free-form job description using structured profiles.",
+        candidates_for_job,
         tool_params=[
-            ToolParam(name="min_age", description="Minimum age", has_default=True, default_value=None),
-            ToolParam(name="max_age", description="Maximum age", has_default=True, default_value=None),
-            ToolParam(name="department", description="Department equals", has_default=True, default_value=None),
-            ToolParam(name="status", description="Status equals", has_default=True, default_value=None),
-            ToolParam(name="bio_contains", description="Bio contains", has_default=True, default_value=None)
-        ]
+            ToolParam(name="job_description", description="Free-form job description text to match candidates against."),
+        ],
     )
 
-    # TODO(bc): now what would be really cool is automatically generating this or something else like it (perhaps using embeddings for semantic similarity search?)
-    # as then you'd have ready to go semantic search on any dataframe. if you wanted to do this in general, it would be very useful to have some sort of `nest(struct_name)`
-    # dataframe function to return a dataframe with all of the fields 
-    freestyle_semantic_bio = data.filter(fc.semantic.predicate(
-        textwrap.dedent("""\
-        The following is a search query in a database of user information.
-        QUERY: {{query}}
-        Determine if the user data shown below matches the query.
-        USER DATA:
-        NAME: {{name}}
-        AGE: {{age}}
-        DEPARTMENT: {{department}}
-        STATUS: {{status}}
-        BIO: {{bio}}
-        """),
-        query=tool_param("query", StringType),
-        bio=fc.col("bio"),
-        name=fc.col("name"),
-        age=fc.col("age"),
-        department=fc.col("department"),
-        status=fc.col("status"),
-    ))
+    # Tool 2: create_outreach_for_candidate — personalize a recruiting email at runtime
+    # Include resume + optional cover letter as rich context for personalization.
+    outreach_plan = enriched.select(
+        fc.col("candidate_id"),
+        fc.semantic.map(
+            textwrap.dedent(
+                """\
+                You are a recruiter writing to {{candidate_id}}.
+                Use the candidate's resume (and cover letter if present) to personalize the email.
+                Company: {{company}}
+                Job Title: {{job_title}}
+                Recruiter: {{recruiter_name}}
+                Why Join: {{why_join}}
+                Tone: {{tone}}
+                Extra Instructions: {{instructions}}
 
-    local_session.catalog.create_tool("semantic_query",
-                                      "Describe in natural language the users you are looking for, by name, age, department, status, or semantically similar information from their provided bio.",
-                                      freestyle_semantic_bio,
-                                      tool_params=[
-                                          ToolParam(
-                                              name="query",
-                                              description="Natural language query",
-                                          )])
+                Candidate Resume:\n{{resume}}
+                Candidate Cover Letter (may be empty):\n{{cover_letter}}
 
+                Write the email with a short subject line and a body under ~150 words.
+                Avoid generic phrasing; reference specific details from the resume/letter.
+                """
+            ),
+            candidate_id=fc.col("candidate_id"),
+            resume=fc.col("resume"),
+            cover_letter=fc.col("cover_letter"),
+            company=tool_param("company", StringType),
+            job_title=tool_param("job_title", StringType),
+            recruiter_name=tool_param("recruiter_name", StringType),
+            why_join=tool_param("why_join", StringType),
+            instructions=tool_param("instructions", StringType),
+            tone=tool_param("tone", StringType),
+            temperature=0.7,
+            max_output_tokens=320,
+        ).alias("email"),
+    )
+    # Filter to a single candidate_id at runtime
+    outreach_filtered = outreach_plan.filter(
+        fc.col("candidate_id") == tool_param("candidate_id", StringType)
+    )
+    local_session.catalog.create_tool(
+        "create_outreach_for_candidate",
+        "Create a personalized recruiting email for a candidate using resume and cover letter context.",
+        outreach_filtered,
+        tool_params=[
+            ToolParam(name="candidate_id", description="ID of the candidate, e.g., CAND-001"),
+            ToolParam(
+                name="tone",
+                description="Writing tone to use (e.g., friendly, formal, concise).",
+                has_default=True,
+                default_value="friendly",
+                allowed_values=["friendly", "formal", "concise"],
+            ),
+            ToolParam(name="company", description="Your company name."),
+            ToolParam(name="job_title", description="The job title being offered."),
+            ToolParam(name="recruiter_name", description="Your name for the signature."),
+            ToolParam(name="why_join", description="A sentence about why the candidate should join."),
+            ToolParam(
+                name="instructions",
+                description="Optional style/formatting instructions.",
+                has_default=True,
+                default_value="",
+            ),
+        ],
+    )
+
+    # Launch MCP server with only our custom tools
     tools = local_session.catalog.list_tools()
-    mcp_generator = MCPGenerator(local_session, tools, "FenicMCP")
-    mcp_generator.run(stateless_http=True)
+    server = create_mcp_server(
+        session=local_session,
+        server_name="Fenic Semantic Demo",
+        tools=tools,
+    )
+    run_mcp_server_sync(server)
 
 
 if __name__ == "__main__":

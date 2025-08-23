@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any, Callable, List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 from pydantic.dataclasses import dataclass

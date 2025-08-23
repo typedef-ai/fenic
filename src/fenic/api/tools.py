@@ -1,16 +1,22 @@
 """API-layer generators for automatic MCP tools from DataFrames.
+These helpers generate DynamicTool definitions for:
+- Schema: dataset column names and types
+- Describe: per-column statistics (counts, numeric summaries, simple string summaries)
+- Analyze: DuckDB SQL across one or more datasets
 
-This module builds optional-parameter filter tools and standalone semantic tools
-by inspecting a DataFrame schema, then delegates to core plumbing to create
-ResolvedTool objects.
+All generated tools return LogicalPlan objects. The MCP server wrapper handles
+execution and result formatting.
 """
 
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import re
-from typing import Dict, List
+from dataclasses import dataclass
+from functools import wraps
+from typing import Callable, Dict, List, Optional
 
 import polars as pl
 from typing_extensions import Annotated
@@ -24,7 +30,8 @@ from fenic.api.functions import (
 )
 from fenic.api.functions import max as max_
 from fenic.api.functions import min as min_
-from fenic.core._logical_plan.plans import SQL, InMemorySource
+from fenic.api.session.session import Session
+from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.tools import (
     DynamicTool,
@@ -38,34 +45,74 @@ from fenic.core.types.datatypes import (
 )
 
 
-def auto_generate_schema_tool(
-    df: DataFrame,
-    name: str,
-    description: str,
-) -> DynamicTool:
-    """Generate a dataset schema tool that returns all columns and types (no limit).
+@dataclass
+class DatasetSpec:
+    """Specification for a dataset exposed to a tool.
 
-    The output rows have columns: `column` and `type`.
+    - name: short identifier used in SQL (e.g., {orders}) and displayed to the model
+    - description: brief description of dataset contents/semantics for tooldocs
+    - df: the DataFrame object
     """
+    name: str
+    description: str
+    df: DataFrame
 
-    def schema_func() -> LogicalPlan:
-        schema_rows = [
-            {"column": f.name, "type": str(f.data_type)} for f in df.schema.column_fields
-        ]
-        pl_df = pl.DataFrame(schema_rows)
-        return InMemorySource.from_session_state(pl_df, df._session_state)
 
-    enhanced_description = "\n\n".join(
-        [
-            description.strip(),
-            "Notes:",
-            "- Returns the full schema (no row limit).",
-            "- Columns: column, type.",
-        ]
-    )
+def auto_generate_schema_tool(
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
+) -> DynamicTool:
+    """Create a schema tool over one or many datasets.
+
+    - Returns one row per dataset with a column `schema` containing a list of
+      {column, type} entries.
+    - If `df_name` is provided, returns only that dataset.
+    """
+    if len(datasets) == 0:
+        raise ValueError("Cannot create schema tool: no datasets provided.")
+
+    name_to_df: Dict[str, DataFrame] = {d.name: d.df for d in datasets}
+
+    def schema_func(
+        df_name: Annotated[str | None, "Optional DataFrame name to return a single schema for"] = None,
+    ) -> LogicalPlan:
+        # Choose subset of datasets
+        if df_name is not None:
+            if df_name not in name_to_df:
+                raise ValueError(
+                    f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}"
+                )
+            selected = {df_name: name_to_df[df_name]}
+        else:
+            selected = name_to_df
+
+        per_df_frames: List[pl.DataFrame] = []
+
+        for name, d in selected.items():
+            # Build a single-row DataFrame with a common list<struct{column,type}> schema column
+            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in d.schema.column_fields]
+            df_row = pl.DataFrame({
+                "dataset": [name],
+                "schema": [schema_entries],
+            })
+            per_df_frames.append(df_row)
+
+        combined = pl.concat(per_df_frames, how="vertical") if len(per_df_frames) > 1 else per_df_frames[0]
+        return InMemorySource.from_session_state(combined, session._session_state)
+
+    # Enhanced description lists datasets and descriptions
+    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
+    for spec in datasets:
+        if spec.description:
+            lines.append(f"- {spec.name}: {spec.description}")
+        else:
+            lines.append(f"- {spec.name}")
+    enhanced_description = "\n".join(lines)
 
     return DynamicTool(
-        name=name,
+        name=tool_name,
         description=enhanced_description,
         func=schema_func,
         result_limit=None,
@@ -74,19 +121,21 @@ def auto_generate_schema_tool(
 
 
 def auto_generate_sql_tool(
-    df: DataFrame,
-    name: str,
-    description: str,
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
     *,
     result_limit: int = 50,
 ) -> DynamicTool:
-    """Generate an Analyze tool that accepts a full SELECT-only DuckDB SQL over {df}.
+    """Create an Analyze tool that executes DuckDB SELECT SQL across datasets.
 
-    DDL/DML, JOINs, CTEs, subqueries, UNION, and multiple tables are not allowed (enforced upstream).
+    - JOINs between the provided datasets are allowed.
+    - DDL/DML, CTEs, subqueries, UNION, and multiple top-level queries are not allowed (enforced upstream).
+    - The callable returns a LogicalPlan gathered later by the MCP server.
     """
-    column_names = [f.name for f in df.schema.column_fields]
-    if not column_names:
-        raise ValueError("Cannot create SQL tool: DataFrame has no columns.")
+    if len(datasets) == 0:
+        raise ValueError("Cannot create SQL tool: no datasets provided.")
 
     def _assert_full_sql_shape(sql_text: str) -> None:
         text = sql_text.strip().lower()
@@ -94,32 +143,41 @@ def auto_generate_sql_tool(
             raise ValueError("Only SELECT is allowed in full_sql")
 
     def analyze_func(
-        full_sql: Annotated[str, "Full SELECT SQL. Must reference the DataFrame as {df}."]
+        full_sql: Annotated[str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., {orders}."]
     ) -> LogicalPlan:
         sql_text = full_sql.strip()
         _assert_full_sql_shape(sql_text)
-        query = sql_text
-        # Restricted to SELECT-only over a single source {df}
-        plan = SQL.from_session_state([df._logical_plan], ["df"], query, df._session_state)  # nosec B608
-        return plan
+        return session.sql(sql_text, **{spec.name: spec.df for spec in datasets})._logical_plan
 
-    enhanced_description = "\n\n".join(
+    # Enhanced description with dataset names and descriptions
+    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
+    for spec in datasets:
+        if spec.description:
+            lines.append(f"- {spec.name}: {spec.description}")
+        else:
+            lines.append(f"- {spec.name}")
+    if datasets:
+        example_name = datasets[0].name
+    else:
+        example_name = "data"
+    lines.extend(
         [
-            description.strip(),
+            "",
             "Notes:",
             "- SQL dialect: DuckDB.",
             "- For text search, prefer regular expressions using REGEXP_MATCHES().",
             "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
             "",
-            "Examples:",
-            "- SELECT * FROM {df} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT 100",
-            "- SELECT dept, COUNT(*) AS n FROM {df} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT 100",
-            "- -- Paging: page 2 of size 50\n  SELECT * FROM {df} ORDER BY created_at DESC LIMIT 50 OFFSET 50",
+            "Examples:",  # nosec B608 - example text only
+            f"- SELECT * FROM {{{example_name}}} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT 100",  # nosec B608 - example text only
+            f"- SELECT dept, COUNT(*) AS n FROM {{{example_name}}} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT 100",  # nosec B608 - example text only
+            f"- -- Paging: page 2 of size 50\n  SELECT * FROM {{{example_name}}} ORDER BY created_at DESC LIMIT 50 OFFSET 50",  # nosec B608 - example text only
         ]
     )
+    enhanced_description = "\n".join(lines)
 
     tool = DynamicTool(
-        name=name,
+        name=tool_name,
         description=enhanced_description,
         func=analyze_func,
         result_limit=result_limit,
@@ -138,49 +196,36 @@ def _sanitize_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")
 
 
-def auto_generate_profile_tool(
-    df: DataFrame,
-    name: str,
-    description: str,
+def auto_generate_describe_tool(
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
     *,
     topk_distinct: int = 10,
 ) -> DynamicTool:
-    """Generate a cached Describe tool with dataset-level profile info.
+    """Create a cached Describe tool for one or many datasets.
 
-    Columns in result:
-      - column, type, row_count, non_null_count, null_count
+    Output columns include:
+      - dataset, column, type, row_count, non_null_count, null_count
       - min, max, mean, std (for numerics)
-      - distinct_count, top_values (JSON) for strings [NOTE: computed via group_by; improve with a distinct operator]
+      - distinct_count, top_values (JSON) for strings
       - true_count, false_count for booleans
     """
+    if len(datasets) == 0:
+        raise ValueError("Cannot create describe tool: no datasets provided.")
 
-    def profile_func(
-        refresh: Annotated[bool, "Recompute and refresh cached profile view"] = False,
-    ) -> LogicalPlan:
-        tool_key = _sanitize_name(name)
-        schema_hash = _schema_fingerprint(df)
-        view_name = f"__fenic_profile__{tool_key}__{schema_hash}"
-
-        catalog = df._session_state.catalog
-        if not refresh and catalog.does_view_exist(view_name):
-            return catalog.describe_view(view_name)
-
-        # Compute row_count
+    def _compute_describe_rows(df: DataFrame, dataset_name: str) -> List[Dict[str, object]]:
         total_rows = df.count()
-
-        # Sample approach: operate on a preview for some stats; fallback to small materialization for string top-k
-        preview = df.limit(10000)
-        rows = preview.to_polars()
+        preview = df.limit(10000).to_polars()
         rows_list: List[Dict[str, object]] = []
         for field in df.schema.column_fields:
             col_name = field.name
             dtype_str = str(field.data_type)
-
-            # Non-null count
             nn = df.agg(count(col(col_name)).alias("c")).to_polars().get_column("c")[0]
             null_count = int(total_rows - nn)
-
             stats: Dict[str, object] = {
+                "dataset": dataset_name,
                 "column": col_name,
                 "type": dtype_str,
                 "row_count": int(total_rows),
@@ -195,8 +240,6 @@ def auto_generate_profile_tool(
                 "true_count": None,
                 "false_count": None,
             }
-
-            # Numeric stats
             if field.data_type in (IntegerType, FloatType, DoubleType):
                 agg_df = df.agg(
                     min_(col(col_name)).alias("min"),
@@ -208,26 +251,17 @@ def auto_generate_profile_tool(
                 stats["max"] = agg_df.get_column("max")[0]
                 stats["mean"] = agg_df.get_column("mean")[0]
                 stats["std"] = agg_df.get_column("std")[0]
-
-            # Boolean stats (computed from sample to avoid heavy full scans)
             elif field.data_type == BooleanType:
-                if col_name in rows.columns:
-                    s_bool = rows.get_column(col_name).cast(pl.Boolean)
-                    true_cnt = int((s_bool).sum())
-                    # Use vectorized negation for boolean Series
-                    false_cnt = int((~s_bool).sum())
+                if col_name in preview.columns:
+                    s_bool = preview.get_column(col_name).cast(pl.Boolean)
+                    stats["true_count"] = int((s_bool).sum())
+                    stats["false_count"] = int((~s_bool).sum())
                 else:
-                    true_cnt = 0
-                    false_cnt = 0
-                stats["true_count"] = true_cnt
-                stats["false_count"] = false_cnt
-
-            # String stats
+                    stats["true_count"] = 0
+                    stats["false_count"] = 0
             elif field.data_type == StringType:
-                # Heuristics to avoid overwhelming results for large text columns
-                # Use a sample to estimate average length and distinctness
-                if col_name in rows.columns:
-                    s = rows.get_column(col_name)
+                if col_name in preview.columns:
+                    s = preview.get_column(col_name)
                     try:
                         avg_len = float(s.str.len_chars().mean())
                     except Exception:
@@ -239,19 +273,15 @@ def auto_generate_profile_tool(
                 else:
                     avg_len = None
                     sample_distinct = None
-
-                # Only compute top-K for reasonably short text with manageable distincts
                 compute_topk = (
-                    (avg_len is not None and avg_len <= 128) and
-                    (sample_distinct is not None and sample_distinct <= max(topk_distinct * 10, 200))
+                    (avg_len is not None and avg_len <= 128)
+                    and (sample_distinct is not None and sample_distinct <= max(topk_distinct * 10, 200))
                 )
-
-                if compute_topk and col_name in rows.columns:
-                    vc = rows.get_column(col_name).value_counts(sort=True)
-                    distinct_cnt = int(vc.height)
-                    stats["distinct_count"] = distinct_cnt
-                    top_vals: List[Dict[str, object]] = []
+                if compute_topk and col_name in preview.columns:
+                    vc = preview.get_column(col_name).value_counts(sort=True)
+                    stats["distinct_count"] = int(vc.height)
                     val_col = col_name if col_name in vc.columns else vc.columns[0]
+                    top_vals: List[Dict[str, object]] = []
                     for i in range(min(topk_distinct, vc.height)):
                         top_vals.append({
                             "value": str(vc.get_column(val_col)[i]),
@@ -259,97 +289,228 @@ def auto_generate_profile_tool(
                         })
                     stats["top_values"] = json.dumps(top_vals)
                 else:
-                    # Skip heavy distincts for large text; leave fields empty
                     stats["distinct_count"] = None
                     stats["top_values"] = json.dumps([])
-
             rows_list.append(stats)
+        return rows_list
 
-        # Materialize profile as a view for caching
-        # Ensure all columns are valid (avoid Null dtype) by stringifying values
+    def _materialize_dataset_description(df: DataFrame, dataset_name: str, view_name: str) -> None:
+        rows_list = _compute_describe_rows(df, dataset_name)
         safe_rows: List[Dict[str, str]] = []
         for row in rows_list:
-            safe_row: Dict[str, str] = {}
-            for k, v in row.items():
-                safe_row[k] = "" if v is None else str(v)
-            safe_rows.append(safe_row)
+            safe_rows.append({k: ("" if v is None else str(v)) for k, v in row.items()})
         pl_df = pl.DataFrame(safe_rows)
-        plan = InMemorySource.from_session_state(pl_df, df._session_state)
-        catalog = df._session_state.catalog
+        plan = InMemorySource.from_session_state(pl_df, session._session_state)
+        catalog = session._session_state.catalog
         catalog.create_view(view_name, plan, ignore_if_exists=True)
+
+    def _ensure_describe_view_for_dataset(spec: DatasetSpec, tool_key: str, refresh: bool) -> LogicalPlan:
+        schema_hash = _schema_fingerprint(spec.df)
+        view_name = f"__fenic_describe__{tool_key}__{_sanitize_name(spec.name)}__{schema_hash}"
+        catalog = session._session_state.catalog
+        if refresh or not catalog.does_view_exist(view_name):
+            _materialize_dataset_description(spec.df, spec.name, view_name)
         return catalog.describe_view(view_name)
 
-    enhanced_description = "\n\n".join(
+    def describe_func(
+        df_name: Annotated[str | None, "Optional dataset name to describe only that dataset"] = None,
+        refresh: Annotated[bool, "Recompute and refresh cached describe view(s)"] = False,
+    ) -> LogicalPlan:
+        tool_key = _sanitize_name(tool_name)
+        # Single dataset branch returns the view plan directly
+        if df_name is not None:
+            spec = next((d for d in datasets if d.name == df_name), None)
+            if spec is None:
+                raise ValueError(f"Unknown dataset '{df_name}'. Available: {', '.join(d.name for d in datasets)}")
+            return _ensure_describe_view_for_dataset(spec, tool_key, refresh)
+
+        # Multi-dataset: concatenate cached views (or compute & cache if missing)
+        per_df_polars: List[pl.DataFrame] = []
+        for spec in datasets:
+            # Ensure view exists and read it, then convert to polars for concatenation
+            plan = _ensure_describe_view_for_dataset(spec, tool_key, refresh)
+            pl_df = session._session_state.execution.collect(plan)[0]
+            per_df_polars.append(pl_df)
+
+        combined = pl.concat(per_df_polars, how="vertical") if len(per_df_polars) > 1 else per_df_polars[0]
+        return InMemorySource.from_session_state(combined, session._session_state)
+
+    # Enhanced description: list datasets and notes
+    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
+    for spec in datasets:
+        if spec.description:
+            lines.append(f"- {spec.name}: {spec.description}")
+        else:
+            lines.append(f"- {spec.name}")
+    lines.extend(
         [
-            description.strip(),
+            "",
             "Notes:",
-            "- Results are cached per tool name and schema fingerprint; pass refresh=true to recompute.",
-            (
-                "- Returns per-column stats:\n"
-                "  * Numeric: min, max, mean, std\n"
-                "  * Boolean: true_count, false_count\n"
-                "  * String: distinct_count, top_values (best-effort from sample)"
-            ),
+            "- Results are cached per dataset, tool name, and schema fingerprint; pass refresh=true to recompute.",
+            "- Returns per-column stats (numeric, boolean, string).",
         ]
     )
+    enhanced_description = "\n".join(lines)
 
     return DynamicTool(
-        name=name,
+        name=tool_name,
         description=enhanced_description,
-        func=profile_func,
+        func=describe_func,
         result_limit=None,
     )
 
 
 def auto_generate_core_tools(
-    df: DataFrame,
-    dataset_name: str,
-    dataset_description: str,
+    datasets: List[DatasetSpec],
+    session: Session,
     *,
+    tool_group_name: str,
     sql_max_rows: int = 100,
 ) -> List[DynamicTool]:
-    """Generate the three core MCP tools for a dataset: Schema, Describe, Analyze.
+    """Generate core tools spanning all datasets: Schema, Describe, Analyze.
 
-    - Schema: returns all columns and types
-    - Describe: cached dataset profile (row count and per-column stats)
-    - Analyze: full DuckDB SELECT-only SQL over {df}, with a maximum row cap
+    - Schema: list columns/types for any or all datasets
+    - Describe: dataset statistics for any or all datasets
+    - Analyze: DuckDB SELECT-only SQL across datasets
     """
-    dataset_desc = dataset_description.strip()
+    group_desc = "; ".join(
+        [f"{d.name}: {d.description.strip()}" if d.description else d.name for d in datasets]
+    )
 
     schema_tool = auto_generate_schema_tool(
-        df,
-        name=f"{dataset_name} - Schema",
-        description="\n\n".join([
-            dataset_desc,
-            "Lists all columns and types for this dataset. Returns the full schema (no row limit).",
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Schema",
+        tool_description="\n\n".join([
+            "Show the schema (column names and types) for any or all of the datasets listed below.",
+            group_desc,
         ]),
     )
 
-    describe_tool = auto_generate_profile_tool(
-        df,
-        name=f"{dataset_name} - Describe",
-        description="\n\n".join([
-            dataset_desc,
-            (
-                "Return dataset profile: row_count and per-column stats.\n"
-                "Numerics: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.\n"
-                "Results are cached per tool name and schema fingerprint; pass refresh=true to recompute."
-            ),
+    describe_tool = auto_generate_describe_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Describe",
+        tool_description="\n\n".join([
+            "Return dataset description: row_count and per-column stats for any or all of the datasets listed below.",
+            "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
+            "Results are cached per tool name and schema fingerprint; pass refresh=true to recompute.",
+            group_desc,
         ]),
     )
 
     analyze_tool = auto_generate_sql_tool(
-        df,
-        name=f"{dataset_name} - Analyze",
-        description="\n\n".join([
-            dataset_desc,
-            (
-                "Execute DuckDB SELECT-only SQL over this dataset referenced as {df}.\n"
-                "DDL/DML, JOINs, CTEs, subqueries, UNION, and multiple tables are not allowed.\n"
-                "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT())."
-            ),
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Analyze",
+        tool_description="\n\n".join([
+            "Execute DuckDB SELECT-only SQL over the provided datasets.",
+            "DDL/DML, CTEs, subqueries, UNION, and multiple top-level queries are not allowed (enforced upstream).",
+            "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
+            "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
+            "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
+            "Below, the available datasets are listed, by name and description.",
+            group_desc,
         ]),
         result_limit=sql_max_rows,
     )
 
     return [schema_tool, describe_tool, analyze_tool]
+
+
+# -----------------------------
+# User-authored Dynamic Tools
+# -----------------------------
+
+def _ensure_no_var_args(func: Callable[..., object], *, func_label: str) -> None:
+    sig = inspect.signature(func)
+    for p in sig.parameters.values():
+        if p.kind.name in {"VAR_POSITIONAL", "VAR_KEYWORD"}:
+            raise ValueError(
+                f"{func_label} must not use *args or **kwargs for MCP tool introspection."
+            )
+
+
+def create_dynamic_tool(
+    tool_name: str,
+    tool_description: str,
+    source_df: DataFrame,
+    tool_func: Callable[[DataFrame], Callable[..., DataFrame]],
+    *,
+    result_limit: Optional[int] = None,
+) -> DynamicTool:
+    """Create a DynamicTool by currying a source DataFrame into a user function.
+
+    Usage pattern (closure/factory):
+        def make_tool(df: Annotated[DataFrame, "Source dataframe"]):
+            def tool(
+                param1: Annotated[str, "..."],
+                param2: Annotated[int, "..."],
+            ) -> DataFrame:
+                return df.filter(col("x") == param1).limit(param2)
+            return tool
+
+        tool = create_dynamic_tool(
+            "my_tool", "...", df, make_tool
+        )
+
+    The inner tool's signature (Annotated) is preserved for MCP, and it must not
+    use *args/**kwargs. Return either a DataFrame or a LogicalPlan.
+    """
+    bound_tool_func = tool_func(source_df)
+    _ensure_no_var_args(bound_tool_func, func_label="Dynamic tool function")
+
+    @wraps(bound_tool_func)
+    def tool_func_wrapper(*args, **kwargs) -> LogicalPlan:
+        result_df = bound_tool_func(*args, **kwargs)
+        return result_df._logical_plan
+
+    return DynamicTool(
+        name=tool_name,
+        description=tool_description,
+        func=tool_func_wrapper,
+        result_limit=result_limit,
+    )
+
+
+def dynamic_tool_from_df(
+    source_df: DataFrame,
+    *,
+    tool_name: str,
+    tool_description: str,
+    result_limit: Optional[int] = None,
+):
+    """Decorator to bind a DataFrame to a user-authored tool function.
+
+    Example:
+        @dynamic_tool_from_df(df, tool_name="find_rust", tool_description="...")
+        def find_rust(
+            query: Annotated[str, "Natural language query"],
+            limit: Annotated[int, "Max rows"] = 50,
+        ) -> DataFrame:
+            pred = fc.semantic.predicate("Matches: {{q}}", q=query, bio=fc.col("bio"))
+            return df.filter(pred).limit(limit)
+
+    Notes:
+    - The decorated function must NOT use *args/**kwargs, and should annotate parameters with Annotated descriptions.
+    - Return a DataFrame or LogicalPlan.
+    - The returned object is a DynamicTool ready for registration.
+    """
+
+    def decorator(func: Callable[..., DataFrame]) -> DynamicTool:
+        _ensure_no_var_args(func, func_label="Dynamic tool function")
+
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> LogicalPlan:
+            result_df = func(*args, **kwargs)
+            return result_df._logical_plan
+
+        return DynamicTool(
+            name=tool_name,
+            description=tool_description,
+            func=wrapper,
+            result_limit=result_limit,
+        )
+
+    return decorator
+
