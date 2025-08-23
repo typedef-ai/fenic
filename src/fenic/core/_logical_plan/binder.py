@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List
 
 from fenic.core._logical_plan.expressions.base import LogicalExpr
@@ -31,7 +32,8 @@ def bind_parameters(plan: LogicalPlan, params: Dict[str, Any], tool_params: List
     Note: This only substitutes literal values. It does not change node schemas
     and assumes placeholder data types match the provided values semantically.
     """
-    unresolved_parameters = collect_unresolved_parameters(plan)
+    plan_copy = copy.deepcopy(plan)
+    unresolved_parameters = collect_unresolved_parameters(plan_copy)
     tool_configs_by_name = {tool_config.name: tool_config for tool_config in tool_params}
     missing = unresolved_parameters.keys() - set(params.keys())
     missing_with_no_defaults = []
@@ -117,5 +119,5 @@ def bind_parameters(plan: LogicalPlan, params: Dict[str, Any], tool_params: List
         for child in node.children():
             _transform_plan(child)
 
-    _transform_plan(plan)
-    return plan
+    _transform_plan(plan_copy)
+    return plan_copy

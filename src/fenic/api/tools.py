@@ -13,8 +13,7 @@ import re
 from typing import Dict, List
 
 import polars as pl
-from pydantic import BaseModel, Field, create_model
-from typing_extensions import Literal
+from typing_extensions import Annotated
 
 from fenic.api.dataframe.dataframe import DataFrame
 from fenic.api.functions import (
@@ -25,12 +24,10 @@ from fenic.api.functions import (
 )
 from fenic.api.functions import max as max_
 from fenic.api.functions import min as min_
-from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans import SQL, InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.tools import (
     DynamicTool,
-    TableFormat,
 )
 from fenic.core.types.datatypes import (
     BooleanType,
@@ -51,22 +48,26 @@ def auto_generate_schema_tool(
     The output rows have columns: `column` and `type`.
     """
 
-    class ParamsModel(BaseModel):
-        table_format: TableFormat = Field(default="structured")
-
-    def build_plan(session_state: BaseSessionState, params: BaseModel) -> LogicalPlan:
+    def schema_func() -> LogicalPlan:
         schema_rows = [
-            {"column": f.name, "type": str(f.data_type)}
-            for f in df.schema.column_fields
+            {"column": f.name, "type": str(f.data_type)} for f in df.schema.column_fields
         ]
         pl_df = pl.DataFrame(schema_rows)
-        return InMemorySource.from_session_state(pl_df, session_state)
+        return InMemorySource.from_session_state(pl_df, df._session_state)
+
+    enhanced_description = "\n\n".join(
+        [
+            description.strip(),
+            "Notes:",
+            "- Returns the full schema (no row limit).",
+            "- Columns: column, type.",
+        ]
+    )
 
     return DynamicTool(
         name=name,
-        description=description,
-        params_model=ParamsModel,
-        execute=build_plan,
+        description=enhanced_description,
+        func=schema_func,
         result_limit=None,
     )
 
@@ -86,58 +87,43 @@ def auto_generate_sql_tool(
     column_names = [f.name for f in df.schema.column_fields]
     if not column_names:
         raise ValueError("Cannot create SQL tool: DataFrame has no columns.")
-    Literal[tuple(column_names)]  # type: ignore[valid-type]
-
-    ParamsModel = create_model(
-        f"{name}_Params",
-        full_sql=(str, Field(description="Full SELECT SQL. Must reference the DataFrame as {df}.")),
-        limit=(int, Field(default=result_limit, ge=1, le=1000)),
-        table_format=(TableFormat, Field(default="structured")),
-        __base__=BaseModel,
-    )
 
     def _assert_full_sql_shape(sql_text: str) -> None:
         text = sql_text.strip().lower()
         if not text.startswith("select"):
             raise ValueError("Only SELECT is allowed in full_sql")
-        # TODO(bcallender): check if this is necessary to enforce
-        # if sql_text.count("{df}") != 1:
-        #     raise ValueError("full_sql must reference the DataFrame exactly once as {df}")
 
-    # Note: build_plan accepts BaseModel for type-compatibility.
-    def build_plan(session_state: BaseSessionState, params: BaseModel) -> LogicalPlan:
-        parsed = params.model_dump()
-        sql_text = parsed["full_sql"].strip()
+    def analyze_func(
+        full_sql: Annotated[str, "Full SELECT SQL. Must reference the DataFrame as {df}."]
+    ) -> LogicalPlan:
+        sql_text = full_sql.strip()
         _assert_full_sql_shape(sql_text)
         query = sql_text
-
-        # Note: Query is restricted to SELECT-only over a single source {df} and vetted above. # nosec B608
+        # Restricted to SELECT-only over a single source {df}
         plan = SQL.from_session_state([df._logical_plan], ["df"], query, df._session_state)  # nosec B608
         return plan
 
-    enhanced_description_lines = [
-        description.strip(),
-        "",
-        "Notes:",
-        "- SQL dialect: DuckDB.",
-        "- For text search, prefer regular expressions using REGEXP or REGEXP_MATCHES().",
-        "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
-        "",
-        "Examples:",
-        "- SELECT * FROM {df} WHERE message REGEXP '(?i)error|fail' LIMIT 100",
-        "- SELECT dept, COUNT(*) AS n FROM {df} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT 100",
-        "- -- Paging: page 2 of size 50\n  SELECT * FROM {df} ORDER BY created_at DESC LIMIT 50 OFFSET 50",
-    ]
-    enhanced_description = "\n".join(enhanced_description_lines)
+    enhanced_description = "\n\n".join(
+        [
+            description.strip(),
+            "Notes:",
+            "- SQL dialect: DuckDB.",
+            "- For text search, prefer regular expressions using REGEXP_MATCHES().",
+            "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
+            "",
+            "Examples:",
+            "- SELECT * FROM {df} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT 100",
+            "- SELECT dept, COUNT(*) AS n FROM {df} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT 100",
+            "- -- Paging: page 2 of size 50\n  SELECT * FROM {df} ORDER BY created_at DESC LIMIT 50 OFFSET 50",
+        ]
+    )
 
     tool = DynamicTool(
         name=name,
         description=enhanced_description,
-        params_model=ParamsModel,
-        execute=build_plan,
+        func=analyze_func,
         result_limit=result_limit,
     )
-    # Attach helpful description to the Pydantic schema via generator later; for now, return tool
     return tool
 
 
@@ -168,14 +154,9 @@ def auto_generate_profile_tool(
       - true_count, false_count for booleans
     """
 
-    class ParamsModel(BaseModel):
-        refresh: bool = Field(default=False, description="Recompute and refresh cached profile view")
-        table_format: TableFormat = Field(default="structured")
-
-    def build_plan(session_state: BaseSessionState, params: BaseModel) -> LogicalPlan:
-        parsed = params.model_dump()
-        refresh = parsed.get("refresh", False)
-
+    def profile_func(
+        refresh: Annotated[bool, "Recompute and refresh cached profile view"] = False,
+    ) -> LogicalPlan:
         tool_key = _sanitize_name(name)
         schema_hash = _schema_fingerprint(df)
         view_name = f"__fenic_profile__{tool_key}__{schema_hash}"
@@ -187,7 +168,7 @@ def auto_generate_profile_tool(
         # Compute row_count
         total_rows = df.count()
 
-        # Sample approach: operate on the full df via aggregate ops; fallback to small materialization for string top-k
+        # Sample approach: operate on a preview for some stats; fallback to small materialization for string top-k
         preview = df.limit(10000)
         rows = preview.to_polars()
         rows_list: List[Dict[str, object]] = []
@@ -233,7 +214,8 @@ def auto_generate_profile_tool(
                 if col_name in rows.columns:
                     s_bool = rows.get_column(col_name).cast(pl.Boolean)
                     true_cnt = int((s_bool).sum())
-                    false_cnt = int((not s_bool).sum())
+                    # Use vectorized negation for boolean Series
+                    false_cnt = int((~s_bool).sum())
                 else:
                     true_cnt = 0
                     false_cnt = 0
@@ -293,14 +275,28 @@ def auto_generate_profile_tool(
             safe_rows.append(safe_row)
         pl_df = pl.DataFrame(safe_rows)
         plan = InMemorySource.from_session_state(pl_df, df._session_state)
+        catalog = df._session_state.catalog
         catalog.create_view(view_name, plan, ignore_if_exists=True)
         return catalog.describe_view(view_name)
 
+    enhanced_description = "\n\n".join(
+        [
+            description.strip(),
+            "Notes:",
+            "- Results are cached per tool name and schema fingerprint; pass refresh=true to recompute.",
+            (
+                "- Returns per-column stats:\n"
+                "  * Numeric: min, max, mean, std\n"
+                "  * Boolean: true_count, false_count\n"
+                "  * String: distinct_count, top_values (best-effort from sample)"
+            ),
+        ]
+    )
+
     return DynamicTool(
         name=name,
-        description=description,
-        params_model=ParamsModel,
-        execute=build_plan,
+        description=enhanced_description,
+        func=profile_func,
         result_limit=None,
     )
 
@@ -349,7 +345,8 @@ def auto_generate_core_tools(
             dataset_desc,
             (
                 "Execute DuckDB SELECT-only SQL over this dataset referenced as {df}.\n"
-                "For text search, prefer regular expressions (REGEXP / REGEXP_MATCHES())."
+                "DDL/DML, JOINs, CTEs, subqueries, UNION, and multiple tables are not allowed.\n"
+                "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT())."
             ),
         ]),
         result_limit=sql_max_rows,

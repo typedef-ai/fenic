@@ -34,17 +34,17 @@ async def main():
     tools: list[Union[DynamicTool, ResolvedTool]] = []
     tools.extend(auto_generate_core_tools(
         conversations_df,
-        "Dating App Conversations",
+        "conversations",
         "Raw Conversations taking place between users on a dating app.",
         sql_max_rows=25
     ))
     tools.extend(auto_generate_core_tools(
         enriched_profiles_df,
-        "Dating App Profiles",
+        "profiles",
         "Profiles of users in the dating app, contains demographic and self-written biographic information about each user."))
     tools.extend(auto_generate_core_tools(
         moderation_report_df,
-        "Dating App Conversation Moderation Report",
+        "moderation_report",
         "Curated Report detailing findings by the moderation team on analysis of the `Dating App Conversations`. Contains descriptions of bad actor behavior/explanations"
     ))
     mcp_generator = MCPGenerator(local_session._session_state, tools, "Content Moderation MCP")

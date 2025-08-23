@@ -73,16 +73,14 @@ class ResolvedTool:
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class DynamicTool:
-    """A tool whose query is constructed dynamically from a Pydantic params model.
+    """A tool implemented as a regular Python callable with explicit parameters.
 
-    This avoids having to pre-embed unresolved literals in a static LogicalPlan.
-    The execute callable should construct and return a LogicalPlan based on the
-    provided session-like object and parsed params model instance.
+    The callable must return a LogicalPlan. Collection/formatting is handled by
+    the MCP generator wrapper.
     """
     name: str
     description: str
-    params_model: type[BaseModel]
-    execute: Callable[[Any, BaseModel], LogicalPlan]
+    func: Callable[..., LogicalPlan]
     result_limit: Optional[int]
 
 
