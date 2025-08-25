@@ -350,6 +350,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     TsParseExpr as TsParseExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    UnresolvedLiteralExpr as UnresolvedLiteralExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Case expressions
     WhenExpr as WhenExprProto,
 )
@@ -466,6 +469,7 @@ __all__ = [
     "ResolvedClassDefinitionProto",
     "ResolvedModelAliasProto",
     "ResolvedResponseFormatProto",
+    "UnresolvedLiteralExprProto",
     # Expression classes
     "LogicalExprProto",
     "ColumnExprProto",

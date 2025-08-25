@@ -15,8 +15,8 @@ import duckdb
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._serde import LogicalPlanSerde
 from fenic.core._logical_plan.tools import ResolvedTool, UnresolvedTool, resolve_tool
+from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
 from fenic.core.types import Schema
 

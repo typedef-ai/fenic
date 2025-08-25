@@ -1,8 +1,9 @@
 """API-layer generators for automatic MCP tools from DataFrames.
+
 These helpers generate DynamicTool definitions for:
 - Schema: dataset column names and types
 - Describe: per-column statistics (counts, numeric summaries, simple string summaries)
-- Analyze: DuckDB SQL across one or more datasets
+- Analyze: DuckDB SQL across one or more datasets.
 
 All generated tools return LogicalPlan objects. The MCP server wrapper handles
 execution and result formatting.
@@ -16,9 +17,11 @@ import json
 import re
 from dataclasses import dataclass
 from functools import wraps
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import polars as pl
+from mcp.server.fastmcp.exceptions import ValidationError
+from pydantic import BaseModel, Field, ConfigDict
 from typing_extensions import Annotated
 
 from fenic.api.dataframe.dataframe import DataFrame
@@ -36,6 +39,8 @@ from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.tools import (
     DynamicTool,
 )
+from fenic.core._utils.structured_outputs import convert_pydantic_model_to_key_descriptions
+from fenic.core.error import ConfigurationError
 from fenic.core.types.datatypes import (
     BooleanType,
     DoubleType,
@@ -56,6 +61,217 @@ class DatasetSpec:
     name: str
     description: str
     df: DataFrame
+
+class ReadFuncParams(BaseModel):
+    model_config = ConfigDict(strict=False)
+
+    df_name: str = Field(description="Dataset name to read")
+    projection: list[str] | None = Field(description="Columns to project (subset)")
+    limit: int | None = Field(description="Max rows to read (accepts number or numeric string)")
+    offset: int | None = Field(description="Row offset to start from (requires order_by; accepts number or numeric string)")
+    order_by: list[str] | None = Field(description="Columns to order by (required for offset)")
+    sort_ascending: bool | None = Field(description="Sort ascending for all order_by columns")
+
+def auto_generate_read_tool(
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
+    *,
+    result_limit: int = 50,
+) -> DynamicTool:
+    """Create a read tool over one or many datasets."""
+    if len(datasets) == 0:
+        raise ConfigurationError("Cannot create read tool: no datasets provided.")
+
+    name_to_df: Dict[str, DataFrame] = {d.name: d.df for d in datasets}
+    def read_func(params: ReadFuncParams) -> LogicalPlan:
+        if isinstance(params, str):
+            params = ReadFuncParams.model_validate_json(params)
+        if params.df_name not in name_to_df:
+            raise ValidationError(f"Unknown DataFrame '{params.df_name}'. Available: {', '.join(name_to_df.keys())}")
+        df = name_to_df[params.df_name]
+
+        # projection
+        if params.projection:
+            missing = [c for c in params.projection if c not in df.columns]
+            if missing:
+                raise ValueError(
+                    f"Column(s) {missing} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
+                )
+            df = df.select(*params.projection)
+
+        # order_by when not paginating via OFFSET (to avoid double sorting)
+        if params.order_by and params.offset is None:
+            missing_order = [c for c in params.order_by if c not in df.columns]
+            if missing_order:
+                raise ValidationError(
+                    f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
+                )
+            df = df.order_by(params.order_by, ascending=True if params.sort_ascending is None else bool(params.sort_ascending))
+
+        # offset requires order_by and falls back to SQL for OFFSET
+        if params.offset is not None:
+            if not params.order_by:
+                raise ValidationError("offset requires order_by to ensure deterministic paging.")
+            # Validate order_by identifiers and reconstruct ORDER BY clause safely
+            missing_order = [c for c in params.order_by if c not in df.columns]
+            if missing_order:
+                raise ValidationError(
+                    f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
+                )
+            direction = "ASC" if (params.sort_ascending is None or params.sort_ascending) else "DESC"
+            safe_order_by = ", ".join(params.order_by)
+            # Coerce numeric inputs that might arrive as strings
+            lim_val = None if params.limit is None else int(str(params.limit))
+            off_val = int(str(params.offset))
+            base_sql = "SELECT * FROM {src} ORDER BY " + safe_order_by + f" {direction}"
+            if lim_val is not None:
+                base_sql += f" LIMIT {lim_val}"
+            base_sql += f" OFFSET {off_val}"
+            df_with_paging = session.sql(base_sql, src=df)
+            return df_with_paging._logical_plan
+
+        if params.limit is not None:
+            df = df.limit(int(str(params.limit)))
+        return df._logical_plan
+
+    schema_description = convert_pydantic_model_to_key_descriptions(ReadFuncParams)
+    enriched_description = f"{tool_description}\n\n{schema_description}"
+    return DynamicTool(
+        name=tool_name,
+        description=enriched_description,
+        func=read_func,
+        result_limit=result_limit,
+    )
+
+"""
+Replace single search generator with two split generators:
+- auto_generate_search_summary_tool
+- auto_generate_search_content_tool
+"""
+
+def auto_generate_search_summary_tool(
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
+) -> DynamicTool:
+    """Create a grep-like summary tool over one or many datasets (string columns)."""
+    if len(datasets) == 0:
+        raise ValueError("Cannot create search summary tool: no datasets provided.")
+
+    name_to_df: Dict[str, DataFrame] = {d.name: d.df for d in datasets}
+
+
+    def search_summary(
+        pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
+    ) -> LogicalPlan:
+        rows: List[Dict[str, object]] = []
+        for name, d in name_to_df.items():
+            cols = [f.name for f in d.schema.column_fields if f.data_type == StringType]
+            if not cols:
+                rows.append({"dataset": name, "total_matches": 0})
+                continue
+            predicate = None
+            for c_name in cols:
+                this = col(c_name).rlike(pattern)
+                predicate = this if predicate is None else (predicate | this)
+            total_count = d.filter(predicate).count()
+            rows.append({"dataset": name, "total_matches": int(total_count)})
+
+        pl_df = pl.DataFrame(rows)
+        return InMemorySource.from_session_state(pl_df, session._session_state)
+
+    return DynamicTool(
+        name=tool_name,
+        description=tool_description,
+        func=search_summary,
+        result_limit=None,
+    )
+
+class SearchFuncParams(BaseModel):
+    df_name: str = Field(description="Dataset name to search (single dataset)")
+    pattern: str = Field(description="Regex pattern to search for (use (?i) for case-insensitive).")
+    limit: Optional[int] = Field(default=None,description="Maximum rows to return (accepts number or numeric string)")
+    include_columns: Optional[str] = Field(default=None,description="Comma-separated column names to include in the search; if omitted, all string columns")
+    offset: Optional[int] = Field(default=None,description="Row offset (requires order_by; accepts number or numeric string)")
+    order_by: Optional[str] = Field(default=None,description="ORDER BY comma-separated column names (required with offset)")
+    sort_ascending: Optional[bool] = Field(default=True,description="Sort ascending")
+
+def auto_generate_search_content_tool(
+    datasets: List[DatasetSpec],
+    session: Session,
+    tool_name: str,
+    tool_description: str,
+    *,
+    result_limit: int = 100,
+) -> DynamicTool:
+    """Create a content search tool for a single dataset (string columns)."""
+    if len(datasets) == 0:
+        raise ValueError("Cannot create search content tool: no datasets provided.")
+
+    name_to_df: Dict[str, DataFrame] = {d.name: d.df for d in datasets}
+
+    def _string_columns(df: DataFrame, selected: str | None) -> list[str]:
+        if selected:
+            selected_columns = [c.strip() for c in selected.split(",") if c.strip()]
+            missing = [c for c in selected_columns if c not in df.columns]
+            if missing:
+                raise ValidationError(f"Column(s) {missing} not found. Available: {', '.join(df.columns)}")
+            return selected_columns
+        return [f.name for f in df.schema.column_fields if f.data_type == StringType]
+
+
+
+    def search_rows(params: SearchFuncParams) -> LogicalPlan:
+        if isinstance(params, str):
+            params = SearchFuncParams.model_validate_json(params)
+        if not params.pattern:
+            raise ValidationError("Query pattern cannot be empty.")
+        if params.df_name not in name_to_df:
+            raise ValidationError(f"Unknown DataFrame '{params.df_name}'. Available: {', '.join(name_to_df.keys())}")
+        d = name_to_df[params.df_name]
+        cols = _string_columns(d, params.include_columns)
+        if not cols:
+            return d.limit(0)._logical_plan
+        predicate = None
+        for c_name in cols:
+            this = col(c_name).rlike(params.pattern)
+            predicate = this if predicate is None else (predicate | this)
+        out = d.filter(predicate)
+
+        if params.offset is not None:
+            if not params.order_by:
+                raise ValidationError("offset requires order_by for deterministic paging")
+            # Validate order_by identifiers against actual columns
+            missing_order = [c for c in params.order_by if c not in out.columns]
+            if missing_order:
+                raise ValidationError(
+                    f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(out.columns)}"
+                )
+            direction = "ASC" if (params.sort_ascending is None or params.sort_ascending) else "DESC"
+            safe_order_by = ", ".join(params.order_by)
+            lim_val = None if params.limit is None else int(str(params.limit))
+            off_val = int(str(params.offset))
+            base_sql = "SELECT * FROM {src} ORDER BY " + safe_order_by + f" {direction}"
+            if lim_val is not None:
+                base_sql += f" LIMIT {lim_val}"
+            base_sql += f" OFFSET {off_val}"
+            out = session.sql(base_sql, src=out)
+        elif params.limit is not None:
+            out = out.limit(int(str(params.limit)))
+
+        return out._logical_plan
+
+    schema_description = convert_pydantic_model_to_key_descriptions(SearchFuncParams)
+    enriched_description = f"{tool_description}\n\n{schema_description}"
+    return DynamicTool(
+        name=tool_name,
+        description=enriched_description,
+        func=search_rows,
+        result_limit=result_limit,
+    )
 
 
 def auto_generate_schema_tool(
@@ -81,7 +297,7 @@ def auto_generate_schema_tool(
         # Choose subset of datasets
         if df_name is not None:
             if df_name not in name_to_df:
-                raise ValueError(
+                raise ValidationError(
                     f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}"
                 )
             selected = {df_name: name_to_df[df_name]}
@@ -135,12 +351,12 @@ def auto_generate_sql_tool(
     - The callable returns a LogicalPlan gathered later by the MCP server.
     """
     if len(datasets) == 0:
-        raise ValueError("Cannot create SQL tool: no datasets provided.")
+        raise ConfigurationError("Cannot create SQL tool: no datasets provided.")
 
     def _assert_full_sql_shape(sql_text: str) -> None:
         text = sql_text.strip().lower()
         if not text.startswith("select"):
-            raise ValueError("Only SELECT is allowed in full_sql")
+            raise ValidationError("Only SELECT is allowed in full_sql")
 
     def analyze_func(
         full_sql: Annotated[str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., {orders}."]
@@ -321,7 +537,7 @@ def auto_generate_describe_tool(
         if df_name is not None:
             spec = next((d for d in datasets if d.name == df_name), None)
             if spec is None:
-                raise ValueError(f"Unknown dataset '{df_name}'. Available: {', '.join(d.name for d in datasets)}")
+                raise ValidationError(f"Unknown dataset '{df_name}'. Available: {', '.join(d.name for d in datasets)}")
             return _ensure_describe_view_for_dataset(spec, tool_key, refresh)
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
@@ -399,6 +615,37 @@ def auto_generate_core_tools(
         ]),
     )
 
+    read_tool = auto_generate_read_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Read",
+        tool_description="\n\n".join([
+            "Read single dataset rows: subset columns, limit, offset, order_by, sort_ascending.",
+            group_desc,
+        ]),
+        result_limit=sql_max_rows,
+    )
+
+    search_summary_tool = auto_generate_search_summary_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Search Summary",
+        tool_description="\n\n".join([
+            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
+            group_desc,
+        ]),
+    )
+    search_content_tool = auto_generate_search_content_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Search Content",
+        tool_description="\n\n".join([
+            "Return matching rows from a single dataset using substring/regex across string columns.",
+            group_desc,
+        ]),
+        result_limit=sql_max_rows,
+    )
+
     analyze_tool = auto_generate_sql_tool(
         datasets,
         session,
@@ -415,8 +662,7 @@ def auto_generate_core_tools(
         result_limit=sql_max_rows,
     )
 
-    return [schema_tool, describe_tool, analyze_tool]
-
+    return [schema_tool, describe_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
 
 # -----------------------------
 # User-authored Dynamic Tools

@@ -10,6 +10,7 @@ Install with:
     pip install fastmcp
 """
 import asyncio
+import logging
 import re
 from functools import wraps
 from typing import Any, Dict, List, Union
@@ -30,6 +31,7 @@ from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
 )
 
+logger = logging.getLogger(__name__)
 
 def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     if not rows:
@@ -77,7 +79,7 @@ class FenicMCPServer:
         self.mcp = FastMCP(self.server_name)
         for tool in self.tools:
             tool_fn = self._build_tool(tool)
-            self.mcp.tool()(tool_fn)
+            self.mcp.tool(name=self._to_snake_case(tool.name), description=tool.description)(tool_fn)
 
     async def run_async(self, transport: MCPTransport = "http", **kwargs):
         """Run the MCP server asynchronously.
@@ -108,7 +110,11 @@ class FenicMCPServer:
         """Build a Pydantic single-parameter tool function for ResolvedTool."""
         ParamsModel = create_pydantic_model_for_tool(tool)
 
-        async def tool_fn(params: ParamsModel) -> MCPResultSet:  # type: ignore[name-defined]
+        async def tool_fn(params: Union[ParamsModel, str]) -> MCPResultSet:  # type: ignore[name-defined]
+            # https://github.com/anthropics/claude-code/issues/3084
+            # Claude Code will pass structured json parameters as a string
+            if isinstance(params, str):
+                params = ParamsModel.model_validate_json(params)
             payload = params.model_dump(exclude_none=True)
             table_format: TableFormat = payload.pop("table_format", "structured")
             requested_limit = payload.pop("limit", None)
@@ -116,7 +122,10 @@ class FenicMCPServer:
             try:
                 bound_plan = bind_parameters(tool.query, payload, tool.params)
                 async with self._collect_semaphore:
-                    pl_df, _metrics = await asyncio.to_thread(lambda: self.session_state.execution.collect(bound_plan, n=effective_limit))
+                    pl_df, metrics = await asyncio.to_thread(lambda: self.session_state.execution.collect(bound_plan, n=effective_limit))
+                    logger.info(f"Completed query for {tool.name} in {metrics.execution_time_ms:.0f}ms with {metrics.num_output_rows} result rows.")
+                    logger.debug(f"Query Details: {params.model_dump_json()}")
+
                 rows_list = pl_df.to_dicts()
 
                 schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
@@ -144,12 +153,7 @@ class FenicMCPServer:
         # Important: We intentionally use a two-layer wrapper pattern below.
         # - `wrapper` performs the actual execution/collection/formatting work.
         # - `wrapped` is decorated with `@wraps(tool.func)` so FastMCP can introspect the
-        #   original function signature (parameter names/types via Annotated) for tool
-        #   schema generation. We then explicitly set `wrapped.__name__` to a snake_case
-        #   variant of the tool name because FastMCP uses the callable's __name__ for
-        #   registration; this approach preserves the signature while ensuring the desired
-        #   exported name. Do not change this structure, as it is the only reliable way to
-        #   pass the intended __name__ through while keeping the original signature intact.
+        #   original function signature for tool schema generation.
 
         async def wrapper(*args, **kwargs) -> MCPResultSet:
             # Obtain the plan by invoking the dynamic tool. No session is injected here;
@@ -176,10 +180,6 @@ class FenicMCPServer:
             # FastMCP can generate a clean tool schema from annotations.
             return await wrapper(*args, **kwargs)
 
-        # Export a predictable snake_case tool name for FastMCP while keeping the wrapped
-        # function's signature intact (via @wraps above).
-        wrapped.__name__ = self._to_snake_case(tool.name)
-        wrapped.__doc__ = tool.description
         return wrapped
 
 

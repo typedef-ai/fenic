@@ -26,6 +26,7 @@ message LogicalExpr {
     ArrayContainsExpr array_contains = 14;
     GreatestExpr greatest = 15;
     LeastExpr least = 16;
+    UnresolvedLiteralExpr unresolved_literal = 17;
 
     // Binary expressions
     ArithmeticExpr arithmetic = 20;
@@ -518,4 +519,9 @@ message GreatestExpr {
 
 message LeastExpr {
   repeated LogicalExpr exprs = 1;
+}
+
+message UnresolvedLiteralExpr {
+  DataType data_type = 1;
+  string parameter_name = 2;
 }

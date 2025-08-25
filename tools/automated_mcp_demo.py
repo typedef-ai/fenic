@@ -1,6 +1,6 @@
 import fenic as fc
 from fenic import OpenAILanguageModel, SemanticConfig
-from fenic.api.mcp import create_mcp_server, run_mcp_server_sync
+from fenic.api.mcp import create_mcp_server, run_mcp_server_sync, ToolGenerationConfig
 from fenic.api.tools import DatasetSpec
 
 
@@ -48,10 +48,12 @@ def main():
     ]
     mcp_generator = create_mcp_server(
         local_session,
-        dataset_specs,
         "Dating App Moderation Demo",
-        "Dating App Moderation Demo",
-        sql_max_rows=100,
+        automated_tool_generation=ToolGenerationConfig(
+            datasets=dataset_specs,
+            tool_group_name="Dating App Moderation",
+            sql_max_rows=50
+        )
     )
     run_mcp_server_sync(mcp_generator)
 

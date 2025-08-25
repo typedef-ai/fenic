@@ -14,14 +14,17 @@ Run:
 """
 
 import textwrap
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
 
 import fenic as fc
-from fenic import OpenAILanguageModel, SemanticConfig, StringType
+from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType
 from fenic.api.functions import tool_param
-from fenic.api.mcp import create_mcp_server, run_mcp_server_sync
+from fenic.api.mcp import ToolGenerationConfig, create_mcp_server, run_mcp_server_sync
+from fenic.api.tools import DatasetSpec, dynamic_tool_from_df
 from fenic.core._logical_plan.tools import ToolParam
+from fenic.core.error import PlanError
 
 
 def main() -> None:
@@ -30,59 +33,113 @@ def main() -> None:
         app_name="mcp_demo",
         semantic=SemanticConfig(
             language_models={
-                "nano": OpenAILanguageModel(
+                "gpt-4.1-nano": OpenAILanguageModel(
                     model_name="gpt-4.1-nano",
-                    rpm=10_000,
-                    tpm=10_000_000
+                    rpm=2500,
+                    tpm=2_000_000
+                ),
+                "gpt-4.1-mini": OpenAILanguageModel(
+                    model_name="gpt-4.1-mini",
+                    rpm=2500,
+                    tpm=2_000_000
+                ),
+                "gpt-5-nano": OpenAILanguageModel(
+                    model_name="gpt-5-nano",
+                    rpm=2500,
+                    tpm=2_000_000,
+                    profiles={"default" : OpenAILanguageModel.Profile(
+                        reasoning_effort="minimal"
+                    )}
+                ),
+
+                "gpt-5-mini": OpenAILanguageModel(
+                    model_name="gpt-5-mini",
+                    rpm=2500,
+                    tpm=2_000_000,
+                    profiles={"default": OpenAILanguageModel.Profile(
+                        reasoning_effort="minimal"
+                    )}
                 )
-            }
+            },
+            default_language_model="gpt-4.1-nano",
         )
     ))
-    # Synthetic candidate dataset: (candidate_id, candidate_resume)
-    candidates_df = local_session.read.csv("./data/resume_raw.csv")
 
-    # Extract structured profile from resumes for filtering and routing
-    class Experience(BaseModel):
-        company: str = Field(description="Company name")
-        title: str = Field(description="Job title")
-        highlights: list[str] = Field(description="Key bullet points or notable work")
+    try:
+        candidates_df = local_session.read.parquet("./data/candidates.parquet")
+    except PlanError:
+        # Synthetic candidate dataset: (candidate_id, candidate_resume)
+        candidates_df = local_session.read.csv("./data/resume_raw.csv").limit(1000)
 
-    class CandidateProfile(BaseModel):
-        education: list[str] = Field(description="Degrees or programs")
-        seniority: str = Field(description="Likely seniority level, e.g., junior/senior/staff/principal")
-        fit_roles: list[str] = Field(description="Suitable role families, e.g., 'platform', 'ml', 'frontend'")
-        skills: list[str] = Field(description="Notable technical or domain skills")
-        experience: list[Experience] = Field(description="Work history", max_length=5)
+        class CandidateProfile(BaseModel):
+            first_name: str = Field( description="Candidate's first name.")
+            last_name: str = Field( description="Candidate's last name.")
+            title: Optional[str] = Field( description="Candidate's title. (if provided).")
+            pronouns: Optional[str] = Field( description="Candidate's pronouns. (if provided).")
+            education: str = Field(description="Degrees or programs")
+            seniority: str = Field(description="Likely seniority level, e.g., junior/senior/staff/principal")
+            skills: str = Field(description="Notable technical or domain skills")
+            experience: str = Field(description="Summary of candidate's work history, with companies, durations, and ")
 
-    enriched = candidates_df.select(
-        fc.col("candidate_id"),
-        fc.col("candidate_resume"),
-        fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096).alias("profile"),
-    ).cache()
-
-    # Materialize the enriched dataframe
-    enriched_profile_count = enriched.count()
-    print(f"Enriched profile count: {enriched_profile_count}")
+        candidates_df = candidates_df.with_column(
+            "profile",
+            fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096)
+        )
+        # Materialize the enriched dataframe
+        candidates_df.write.parquet("./data/candidates.parquet")
 
     # Tool 1: candidates_for_job_description — filter by free-form job description
     # We evaluate candidates by referencing structured profile fields in a predicate.
     fit_pred = fc.semantic.predicate(
         textwrap.dedent(
             """\
-            Job Description: {{job}}
-            Candidate Profile:
-              Seniority: {{profile.seniority}}
-              Fit Roles: {{profile.fit_roles}}
-              Skills: {{profile.skills}}
-              Education: {{profile.education}}
-              Experience: {{profile.experience}}
-            This candidate is a good fit for the job description.
+            Job Description
+            {{job}}
+            Candidate Profile
+
+            Seniority Level: {{profile.seniority}}
+            Skills: {{profile.skills}}
+            Education: {{profile.education}}
+            Experience: {{profile.experience}}
+
+            Evaluation Instructions
+            Assess this candidate's fit for the role based on the following criteria:
+            1. Skills Match
+
+            Does the candidate possess the required technical skills?
+            Are their transferable skills relevant to the role requirements?
+            What skill gaps exist, if any?
+
+            2. Experience Relevance
+
+            Is their work experience directly applicable to this position?
+            Have they handled similar responsibilities or projects?
+            Does their career progression align with the role's expectations?
+
+            3. Education Alignment
+
+            Does their educational background meet the minimum requirements?
+            Are there any preferred qualifications they possess?
+            Do certifications or continuing education demonstrate commitment to the field?
+
+            4. Seniority Level Compatibility
+
+            Is the candidate's current level appropriate for this role?
+            Critical consideration: Senior-level candidates are unlikely to accept roles significantly below their current level unless there are compelling reasons (career change, work-life balance, geographic preferences, company prestige, etc.)
+            Would this represent a step up, lateral move, or step down for the candidate?
+
+            5. Overall Assessment
+            Based on the above factors, determine:
+
+            Recommendation: Should we pursue this candidate?
             """
         ),
         job=tool_param("job_description", StringType),
         profile=fc.col("profile"),
+        strict=False,
+        model_alias="gpt-4.1-mini",
     )
-    candidates_for_job = enriched.filter(fit_pred).select(
+    candidates_for_job = candidates_df.filter(fit_pred).select(
         fc.col("candidate_id"),
         fc.col("candidate_resume"),
         fc.col("profile"),
@@ -92,13 +149,16 @@ def main() -> None:
         "Find candidates who are a good fit for a free-form job description using structured profiles.",
         candidates_for_job,
         tool_params=[
-            ToolParam(name="job_description", description="Free-form job description text to match candidates against."),
+            ToolParam(name="job_description",
+                      description="Free-form job description text to match candidates against."),
         ],
     )
 
     # Tool 2: create_outreach_for_candidate — personalize a recruiting email at runtime
     # Include resume + optional cover letter as rich context for personalization.
-    outreach_plan = enriched.select(
+    outreach_email = candidates_df.filter(
+        fc.col("candidate_id").is_in(tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType))),
+    ).select(
         fc.col("candidate_id"),
         fc.semantic.map(
             textwrap.dedent(
@@ -107,50 +167,52 @@ def main() -> None:
                 Use the candidate's resume (and cover letter if present) to personalize the email.
                 Company: {{company}}
                 Job Title: {{job_title}}
+                Job Description: {{job_description}}
                 Recruiter: {{recruiter_name}}
                 Why Join: {{why_join}}
                 Tone: {{tone}}
                 Extra Instructions: {{instructions}}
 
                 Candidate Resume:\n{{resume}}
-                Candidate Cover Letter (may be empty):\n{{cover_letter}}
+                \n\n
+                Candidate Profile:\n {{profile}}
 
                 Write the email with a short subject line and a body under ~150 words.
-                Avoid generic phrasing; reference specific details from the resume/letter.
+                Avoid generic phrasing; reference specific details from the resume.
                 """
             ),
             candidate_id=fc.col("candidate_id"),
-            resume=fc.col("resume"),
-            cover_letter=fc.col("cover_letter"),
+            resume=fc.col("candidate_resume"),
+            profile=fc.col("profile"),
             company=tool_param("company", StringType),
             job_title=tool_param("job_title", StringType),
+            job_description=tool_param("job_description", StringType),
             recruiter_name=tool_param("recruiter_name", StringType),
             why_join=tool_param("why_join", StringType),
             instructions=tool_param("instructions", StringType),
             tone=tool_param("tone", StringType),
-            temperature=0.7,
+            strict=False,
+            temperature=0.8,
             max_output_tokens=320,
+            model_alias="gpt-5-mini"
         ).alias("email"),
     )
     # Filter to a single candidate_id at runtime
-    outreach_filtered = outreach_plan.filter(
-        fc.col("candidate_id") == tool_param("candidate_id", StringType)
-    )
     local_session.catalog.create_tool(
         "create_outreach_for_candidate",
         "Create a personalized recruiting email for a candidate using resume and cover letter context.",
-        outreach_filtered,
+        outreach_email,
         tool_params=[
-            ToolParam(name="candidate_id", description="ID of the candidate, e.g., CAND-001"),
+            ToolParam(name="candidate_ids", description="IDs of the candidate(s) for which to generate outreach emails, e.g., [123456, 423512]"),
             ToolParam(
                 name="tone",
-                description="Writing tone to use (e.g., friendly, formal, concise).",
+                description="One word writing tone to use (e.g., friendly, formal, concise).",
                 has_default=True,
                 default_value="friendly",
-                allowed_values=["friendly", "formal", "concise"],
             ),
             ToolParam(name="company", description="Your company name."),
             ToolParam(name="job_title", description="The job title being offered."),
+            ToolParam(name="job_description", description="The job description being offered."),
             ToolParam(name="recruiter_name", description="Your name for the signature."),
             ToolParam(name="why_join", description="A sentence about why the candidate should join."),
             ToolParam(
@@ -162,14 +224,19 @@ def main() -> None:
         ],
     )
 
-    # Launch MCP server with only our custom tools
-    tools = local_session.catalog.list_tools()
+    # Launch MCP server with our custom tools, along with the auto-generated tools.
     server = create_mcp_server(
         session=local_session,
         server_name="Fenic Semantic Demo",
-        tools=tools,
+        tools=local_session.catalog.list_tools(),
+        automated_tool_generation=ToolGenerationConfig(
+            datasets=[
+                DatasetSpec(df=candidates_df, name="candidates", description="The candidates in the hiring pipeline")],
+            tool_group_name="Candidate Information"
+        )
     )
     run_mcp_server_sync(server)
+
 
 
 if __name__ == "__main__":

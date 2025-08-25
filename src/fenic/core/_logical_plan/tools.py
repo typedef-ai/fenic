@@ -111,7 +111,7 @@ def resolve_tool(unresolved_tool: UnresolvedTool, query: LogicalPlan) -> Resolve
     tool_params = {param.name: param for param in unresolved_tool.params}
     missing_params = unresolved_exprs_by_name.keys() - tool_params.keys()
     if missing_params:
-        raise PlanError(f"Missing parameters: {missing_params}")
+        raise PlanError(f"Tool does not have ToolParam(s) registered for the following placeholders: {missing_params}")
     extra_params = tool_params.keys() - unresolved_exprs_by_name.keys()
     if extra_params:
         logger.warning(f"Extra parameters: {extra_params}")
