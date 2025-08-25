@@ -20,6 +20,39 @@ class DataFrameReader:
     """Interface used to load a DataFrame from external storage systems.
     
     Similar to PySpark's DataFrameReader.
+
+    Supported External Storage Schemes:
+    - Amazon S3 (s3://)
+        - Format: s3://{bucket_name}/{path_to_file}
+
+        - Notes:
+            - Uses boto3 to aquire AWS credentials.
+
+        - Examples:
+            - s3://my-bucket/data.csv
+            - s3://my-bucket/data/*.parquet
+
+    - Hugging Face Datasets (hf://)
+        - Format: hf://{repo_type}/{repo_id}/{path_to_file}
+
+        - Notes:
+            - Supports glob patterns (*, **)
+            - Supports dataset revisions and branch aliases (e.g., @refs/convert/parquet, @~parquet)
+            - HF_TOKEN environment variable is required to read private datasets.
+
+        - Examples:
+            - hf://datasets/datasets-examples/doc-formats-csv-1/data.csv
+            - hf://datasets/cais/mmlu/astronomy/*.parquet
+            - hf://datasets/datasets-examples/doc-formats-csv-1@~parquet/**/*.parquet
+
+    - Local Files (file:// or implicit)
+        - Format: file://{absolute_or_relative_path}
+
+        - Notes:
+            - Paths without a scheme (e.g., ./data.csv or /tmp/data.parquet) are treated as local files
+        - Examples:
+            - file:///home/user/data.csv
+            - ./data/*.parquet
     """
 
     def __init__(self, session_state: BaseSessionState):

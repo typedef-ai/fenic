@@ -137,6 +137,12 @@ def pytest_addoption(parser):
         default="text-embedding-3-small",
         help="Model Name to run embeddings tests against",
     )
+    parser.addoption(
+        "--test-huggingface-reads",
+        action="store",
+        default=None,
+        help="If set, will run reader tests that read from HuggingFace.",
+    )
 
 @pytest.fixture
 def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:
