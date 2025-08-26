@@ -234,8 +234,16 @@ def multi_model_local_session(multi_model_local_session_config, request):
 
 
 @pytest.fixture
-def local_session_config(app_name, request) -> SessionConfig:
-    """Creates a test session config."""
+def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
+    """Creates a test session config.
+
+    Notes:
+        We mock the api key validation to avoid the noticeable delay of validating our api key in every test.
+    """
+    async def mock_validate_provider_api_keys(*args, **kwargs):
+        return
+    monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_keys", mock_validate_provider_api_keys)
+
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
     language_model = configure_language_model(language_model_provider, request.config.getoption(LANGUAGE_MODEL_NAME_ARG))

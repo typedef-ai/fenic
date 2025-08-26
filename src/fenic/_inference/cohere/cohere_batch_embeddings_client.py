@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from typing import List, Optional, Union
 
@@ -21,6 +22,8 @@ from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedCohereModelProfile
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
@@ -191,3 +194,8 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             The current metrics
         """
         return self._metrics
+
+    async def validate_api_key(self):
+        """Validate the Cohere API key by making a minimal API call."""
+        _ = self._client.embed(texts=["ping"], model=self.model, input_type="text")
+        logger.debug(f"Cohere API key validation successful for model {self.model}")

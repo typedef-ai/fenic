@@ -74,7 +74,7 @@ class QueueItem(Generic[RequestT]):
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
-    """Base client for interacting with language models.
+    """Base client for interacting with language and embedding models.
 
     This abstract base class provides a robust framework for interacting with language models,
     handling rate limiting, request queuing, retries, and deduplication. It manages concurrent
@@ -221,6 +221,19 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     @abstractmethod
     def reset_metrics(self):
         """Reset all metrics for this model client to their initial values."""
+        pass
+
+    @abstractmethod
+    async def validate_api_key(self):
+        """Validate the API token for this model client by performing a lightweight API call.
+
+        This method should make a minimal API call to verify that the configured credentials
+        are valid and the service is accessible. It should be designed to be fast and use
+        minimal resources.
+
+        Raises:
+            ConfigurationError: If the API token is invalid.
+        """
         pass
 
     def _count_auxiliary_input_tokens(self, request: RequestT) -> int:

@@ -437,3 +437,12 @@ class GeminiNativeChatCompletionsClient(
             return result
 
         return remove_additional_properties(copy.deepcopy(response_format.strict_schema))
+
+    async def validate_api_key(self):
+        """Validate the Google API key by making a minimal API call."""
+        await self._client.models.generate_content(
+                model=self.model,
+                contents=["ping"],
+                config={"max_output_tokens": 1},
+            )
+        logger.debug(f"Gemini API key validation successful for model {self.model}")

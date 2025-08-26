@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from typing import List, Optional, Union
 
@@ -23,6 +24,8 @@ from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
@@ -135,3 +138,8 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
 
     def get_metrics(self) -> RMMetrics:
         return self._metrics
+
+    async def validate_api_key(self):
+        """Validate the Google API token by making a minimal API call."""
+        _ = await self._client.models.embed_content(model=self.model, contents=["ping"])
+        logger.debug(f"Google API key validation successful for model {self.model}")

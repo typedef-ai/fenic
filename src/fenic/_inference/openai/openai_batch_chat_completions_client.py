@@ -129,3 +129,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         # Get profile-specific reasoning effort
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
         return base_tokens + profile_config.expected_additional_reasoning_tokens
+
+    async def validate_api_key(self):
+        """Validate the OpenAI API token by making a minimal API call."""
+        _ = await self._core._client.models.list()
+        logger.debug(f"OpenAI token validation successful for model {self.model}")
