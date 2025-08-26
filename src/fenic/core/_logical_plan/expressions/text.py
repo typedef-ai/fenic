@@ -3,10 +3,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from fenic.core._logical_plan.jinja_validation import (
     VariableTree,
+)
+from fenic.core.types.enums import (
+    StringCasingType,
+    StripCharsSide,
+    TranscriptFormatType,
 )
 
 if TYPE_CHECKING:
@@ -37,6 +42,19 @@ from fenic.core.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+class ChunkLengthFunction(Enum):
+    CHARACTER = "CHARACTER"
+    WORD = "WORD"
+    # trunk-ignore(bandit/B105): not a token
+    TOKEN = "TOKEN"
+
+
+class ChunkCharacterSet(Enum):
+    CUSTOM = "CUSTOM"
+    ASCII = "ASCII"
+    UNICODE = "UNICODE"
+
 
 class TokenType(Enum):
     DELIMITER = auto()    # Literal text content
@@ -192,19 +210,6 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
         return self.template == other.template
 
 
-class ChunkLengthFunction(Enum):
-    CHARACTER = "CHARACTER"
-    WORD = "WORD"
-    # trunk-ignore(bandit/B105): not a token
-    TOKEN = "TOKEN"
-
-
-class ChunkCharacterSet(Enum):
-    CUSTOM = "CUSTOM"
-    ASCII = "ASCII"
-    UNICODE = "UNICODE"
-
-
 class TextChunkExprConfiguration(BaseModel):
     desired_chunk_size: int = Field(gt=0)
     chunk_overlap_percentage: int = Field(default=0, ge=0, lt=100)
@@ -217,16 +222,11 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
+        chunking_configuration: TextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
-        self.chunk_configuration = TextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-        )
+        # Create the configuration object for internal use
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -237,10 +237,10 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
         return [self.input_expr]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
+        return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
     def _eq_specific(self, other: TextChunkExpr) -> bool:
-        return self.chunk_configuration == other.chunk_configuration
+        return self.chunking_configuration == other.chunking_configuration
 
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
@@ -253,20 +253,11 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
-        chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
-        chunking_character_set_custom_characters: Optional[list[str]] = None
+        chunking_configuration: RecursiveTextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
-        self.chunking_configuration = RecursiveTextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-            chunking_character_set_name=chunking_character_set_name,
-            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-        )
+        # Create the configuration object for internal use
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -559,7 +550,7 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
 class TsParseExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.parse_transcript"
 
-    def __init__(self, expr: LogicalExpr, format: str):
+    def __init__(self, expr: LogicalExpr, format: TranscriptFormatType):
         self.expr = expr
         self.format = format
         self._validator = SignatureValidator(self.function_name)
@@ -733,7 +724,7 @@ class StringCasingExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.string_casing"
 
-    def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
+    def __init__(self, expr: LogicalExpr, case: StringCasingType):
         self.expr = expr
         self.case = case
         self._validator = SignatureValidator(self.function_name)
@@ -771,7 +762,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
         self,
         expr: LogicalExpr,
         chars: Optional[LogicalExpr],
-        side: Literal["left", "right", "both"] = "both",
+        side: StripCharsSide = "both",
     ):
         self.expr = expr
         self.chars = chars

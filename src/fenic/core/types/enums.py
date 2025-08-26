@@ -76,3 +76,25 @@ These algorithms quantify the similarity or difference between two strings using
 
 Choose the method based on the type of expected variation (e.g., typos, transpositions, or structural changes).
 """
+
+StringCasingType = Literal["lower", "upper", "title"]
+"""
+Type alias representing the type of string casing.
+
+Valid values:
+
+- "lower": Convert to lowercase.
+- "upper": Convert to uppercase.
+- "title": Convert to title case.
+"""
+
+StripCharsSide = Literal["left", "right", "both"]
+"""
+Type alias representing the side of a string to strip characters from.
+
+Valid values:
+
+- "left": Strip characters from the left side.
+- "right": Strip characters from the right side.
+- "both": Strip characters from both sides.
+"""

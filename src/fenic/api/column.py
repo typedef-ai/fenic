@@ -19,6 +19,7 @@ from fenic.core._logical_plan.expressions import (
     LikeExpr,
     LiteralExpr,
     LogicalExpr,
+    Operator,
     OtherwiseExpr,
     RLikeExpr,
     SortExpr,
@@ -26,7 +27,7 @@ from fenic.core._logical_plan.expressions import (
     WhenExpr,
 )
 from fenic.core._logical_plan.expressions.arithmetic import ArithmeticExpr
-from fenic.core._logical_plan.expressions.base import AggregateExpr, Operator
+from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr, NotExpr
 from fenic.core._logical_plan.expressions.comparison import (
     BooleanExpr,

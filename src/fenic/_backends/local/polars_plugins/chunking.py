@@ -5,10 +5,7 @@ import polars as pl
 from polars._typing import IntoExpr
 from polars.plugins import register_plugin_function
 
-from fenic.core._logical_plan.expressions import (
-    ChunkCharacterSet,
-    ChunkLengthFunction,
-)
+from fenic.core._logical_plan.expressions import ChunkCharacterSet, ChunkLengthFunction
 
 PLUGIN_PATH = Path(__file__).parents[3]
 

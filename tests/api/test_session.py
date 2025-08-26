@@ -20,6 +20,7 @@ from fenic import (
     StringType,
     col,
 )
+from fenic.api.session.config import GoogleDeveloperLanguageModel
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
@@ -458,4 +459,49 @@ def test_embedding_with_no_profile(request):
     # Verify None is preserved (will use model's default)
     assert config.semantic.embedding_models["google_embed"].profiles is None
 
+def test_model_profile_validation():
+    """Test that model profile validation works for providers with multiple profiles and for models that do not use profiles."""
+    # Test profile on model that doesn't support profiles
+    with pytest.raises(ConfigurationError, match="Model 'gpt-4o-mini' does not support parameter profiles. Please remove the Profile configuration."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"gpt-4o-mini": OpenAILanguageModel(model_name="gpt-4o-mini", rpm=100, tpm=1000, profiles={"fast": OpenAILanguageModel.Profile(reasoning_effort="low")})}
+            )
+        )
 
+    # Test setting verbosity on model that doesn't support verbosity
+    with pytest.raises(ConfigurationError, match="Model 'o3' does not support verbosity. Please remove verbosity from 'fast'."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"o3": OpenAILanguageModel(model_name="o3", rpm=100, tpm=1000, profiles={"fast": OpenAILanguageModel.Profile(reasoning_effort="low", verbosity="low")})}
+            )
+        )
+
+    # Test setting minimal reasoning on model that doesn't support minimal reasoning
+    with pytest.raises(ConfigurationError, match="Model 'o3' does not support 'minimal' reasoning. Please set reasoning_effort on 'fast' to 'low', 'medium', or 'high' instead."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"o3": OpenAILanguageModel(model_name="o3", rpm=100, tpm=1000, profiles={"fast": OpenAILanguageModel.Profile(reasoning_effort="minimal")})}
+            )
+        )
+
+    # Test unsetting reasoning on model that doesn't support unsetting reasoning
+    with pytest.raises(ConfigurationError, match="Model '2.5-pro' does not support disabling reasoning. Please set thinking_token_budget on 'fast' to a non-zero value."):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"2.5-pro": GoogleDeveloperLanguageModel(model_name="gemini-2.5-pro", rpm=100, tpm=1000, profiles={"fast": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)})}
+            )
+        )
+
+    # Test profile from wrong model class
+    with pytest.raises(PydanticValidationError, match="Input should be a valid dictionary or instance of Profile"):
+        SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"o3": OpenAILanguageModel(model_name="o3", rpm=100, tpm=1000, profiles={"fast": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)})}
+            )
+        )

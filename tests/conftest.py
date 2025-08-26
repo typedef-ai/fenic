@@ -259,7 +259,20 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     )
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
-        if model_parameters.supports_reasoning:
+        if model_parameters.supports_reasoning and model_parameters.supports_verbosity:
+            language_model = OpenAILanguageModel(
+                model_name=model_name,
+                rpm=500,
+                tpm=100_000,
+                profiles={
+                    "minimal": OpenAILanguageModel.Profile(reasoning_effort="minimal", verbosity="low"),
+                    "low": OpenAILanguageModel.Profile(reasoning_effort="low", verbosity="low"),
+                    "medium": OpenAILanguageModel.Profile(reasoning_effort="medium", verbosity="low"),
+                    "high": OpenAILanguageModel.Profile(reasoning_effort="high", verbosity="low"),
+                },
+                default_profile="minimal",
+            )
+        elif model_parameters.supports_reasoning:
             language_model = OpenAILanguageModel(
                 model_name=model_name,
                 rpm=500,
@@ -269,7 +282,7 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                     "medium": OpenAILanguageModel.Profile(reasoning_effort="medium"),
                     "high": OpenAILanguageModel.Profile(reasoning_effort="high"),
                 },
-                default_profile="medium",
+                default_profile="low",
             )
         else:
             language_model = OpenAILanguageModel(

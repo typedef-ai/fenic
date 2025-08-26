@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+message DataType {
+  oneof data_type {
+    StringType string = 1;
+    IntegerType integer = 2;
+    FloatType float = 3;
+    DoubleType double = 4;
+    BooleanType boolean = 5;
+    ArrayType array = 6;
+    StructType struct = 7;
+    EmbeddingType embedding = 8;
+    TranscriptType transcript = 9;
+    DocumentPathType document_path = 10;
+    MarkdownType markdown = 11;
+    HTMLType html = 12;
+    JSONType json = 13;
+  }
+}
+message StringType {}
+message IntegerType {}
+message FloatType {}
+message DoubleType {}
+message BooleanType {}
+
+message ArrayType {
+  DataType element_type = 1;
+}
+
+message StructType {
+  repeated StructField fields = 1;
+}
+
+message StructField {
+  string name = 1;
+  DataType data_type = 2;
+}
+
+message EmbeddingType {
+  int32 dimensions = 1;
+  string embedding_model = 2;
+}
+
+message TranscriptType {
+    string format = 1;
+}
+
+message DocumentPathType {
+    string format = 1;
+}
+message MarkdownType {}
+message HTMLType {}
+message JSONType {}

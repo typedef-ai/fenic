@@ -1,6 +1,4 @@
 from fenic._backends.local.polars_plugins.chunking import (
-    ChunkCharacterSet,
-    ChunkLengthFunction,
     chunk_text,
 )
 from fenic._backends.local.polars_plugins.dtypes import (
@@ -31,8 +29,6 @@ __all__ = [
     "chunking",
     "tokenization",
     "chunk_text",
-    "ChunkLengthFunction",
-    "ChunkCharacterSet",
     "MarkdownExtractor",
     "TranscriptExtractor",
     "Tokenization",

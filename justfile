@@ -109,3 +109,10 @@ test-cloud modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvide
 # preview generated docs
 preview-docs:
   uv run --group=docs mkdocs serve
+
+generate-protos:
+  @just generate-protos-py
+
+generate-protos-py:
+  buf generate --template buf.gen.py.yaml
+  uv run python scripts/fix_proto_imports.py

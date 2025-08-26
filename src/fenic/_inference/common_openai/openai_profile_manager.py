@@ -9,7 +9,6 @@ from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 @dataclass
 class OpenAICompletionProfileConfiguration(BaseProfileConfiguration):
     additional_parameters: dict[str, Any] = field(default_factory=dict)
-    reasoning_effort: Optional[str] = None
     expected_additional_reasoning_tokens: int = 0
 
 
@@ -31,20 +30,23 @@ class OpenAICompletionsProfileManager(
         additional_parameters = {}
         additional_reasoning_tokens = 0
         if self.model_parameters.supports_reasoning:
+            # OpenAI does not support disabling reasoning for o-series or gpt5 models, so we default to low
             reasoning_effort = profile.reasoning_effort
-            # OpenAI does not support disabling reasoning for o-series models, so we default to low
             if not reasoning_effort:
                 reasoning_effort = "low"
             additional_parameters["reasoning_effort"] = reasoning_effort
-            if reasoning_effort == "low":
+            if reasoning_effort == "minimal":
+                additional_reasoning_tokens = 2048
+            elif reasoning_effort == "low":
                 additional_reasoning_tokens = 4096
             elif reasoning_effort == "medium":
                 additional_reasoning_tokens = 8192
             elif reasoning_effort == "high":
                 additional_reasoning_tokens = 16384
+        if self.model_parameters.supports_verbosity and profile.verbosity:
+            additional_parameters["verbosity"] = profile.verbosity
 
         return OpenAICompletionProfileConfiguration(
-            reasoning_effort=profile.reasoning_effort,
             additional_parameters=additional_parameters,
             expected_additional_reasoning_tokens=additional_reasoning_tokens
         )

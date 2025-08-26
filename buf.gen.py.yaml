@@ -1,0 +1,19 @@
+---
+version: v2
+clean: false # to avoid deleting the __init__.py
+managed:
+  enabled: true
+  disable:
+    - module: buf.build/bufbuild/protovalidate
+    - module: buf.build/grpc/grpc
+plugins:
+  - remote: buf.build/protocolbuffers/python:v29.1
+    out: src/fenic/_gen/protos/
+  - remote: buf.build/protocolbuffers/pyi:v29.1
+    out: src/fenic/_gen/protos/
+  - remote: buf.build/grpc/python:v1.72.0
+    out: src/fenic/_gen/protos/
+inputs:
+  - directory: protos
+    paths:
+      - protos/logical_plan
