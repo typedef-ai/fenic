@@ -51,7 +51,7 @@ class OpenAIEmbeddingsCore:
         self._client = client
         self._metrics = RMMetrics()
         self._model_parameters = model_catalog.get_embedding_model_parameters(self._model_provider, self._model)
-        self._model_identifier = f"{model_provider.value}/{model}"
+        self._model_identifier = f"{model_provider.name}/{model}"
 
     def reset_metrics(self) -> None:
         """Reset the metrics."""

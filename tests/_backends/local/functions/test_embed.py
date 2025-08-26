@@ -53,7 +53,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
 
 def test_embedding_very_long_string(local_session, embedding_model_name_and_dimensions):
     embedding_model_name, _ = embedding_model_name_and_dimensions
-    if ModelProvider.OPENAI.value in embedding_model_name:
+    if ModelProvider.OPENAI.name in embedding_model_name:
         string_val = "".join((" " if i%5 == 0 else choice(ascii_lowercase)) for i in range(32768))
         data = {
             "review": [string_val],

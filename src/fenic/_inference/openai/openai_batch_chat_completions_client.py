@@ -21,7 +21,7 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
-from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_catalog import model_catalog
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 
@@ -50,15 +50,16 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             profiles: Dictionary of profile configurations
             default_profile_name: Default profile to use when none specified
         """
+        from fenic._inference.common_openai.openai_provider import openai_provider
         super().__init__(
             model=model,
-            model_provider=ModelProvider.OPENAI,
+            model_provider=openai_provider,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
         )
-        self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
+        self._model_parameters = model_catalog.get_completion_model_parameters(openai_provider, model)
         self._profile_manager = OpenAICompletionsProfileManager(
             model_parameters=self._model_parameters,
             profile_configurations=profiles,
@@ -67,9 +68,9 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
 
         self._core = OpenAIChatCompletionsCore(
             model=model,
-            model_provider=ModelProvider.OPENAI,
+            model_provider=openai_provider,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
-            client=AsyncOpenAI()
+            client=openai_provider.get_client()
         )
 
     async def make_single_request(
@@ -129,3 +130,4 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         # Get profile-specific reasoning effort
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
         return base_tokens + profile_config.expected_additional_reasoning_tokens
+

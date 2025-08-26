@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference import (
     EmbeddingModel,
     LanguageModel,
@@ -56,12 +58,20 @@ class SessionModelRegistry:
 
         Args:
             config (ResolvedSemanticConfig): Configuration containing model settings and defaults.
+
+        Notes:
+            We only need to validate an API key once for each provider.  We prefer to validate a provider with
+            a language model over an embedding model, since the ping for an LLM is cheaper than
+            the embedding models (returning a single token calling list models, vs embedding a small string)
         """
+        validate_providers: set[str] = set()
         if config.language_models:
             language_model_config = config.language_models
             models: dict[str, LanguageModel] = {}
             for alias, model_config in language_model_config.model_configs.items():
-                models[alias] = self._initialize_language_model(model_config)
+                model = self._initialize_language_model(model_config)
+                models[alias] = model
+                validate_providers.add(model.client.model_provider)
             self.language_model_registry = LanguageModelRegistry(
                 models=models,
                 default_model=models[language_model_config.default_model],
@@ -71,11 +81,20 @@ class SessionModelRegistry:
             embedding_model_config = config.embedding_models
             models: dict[str, EmbeddingModel] = {}
             for alias, model_config in embedding_model_config.model_configs.items():
-                models[alias] = self._initialize_embedding_model(model_config)
+                model = self._initialize_embedding_model(model_config)
+                models[alias] = model
+                validate_providers.add(model.client.model_provider)
             self.embedding_model_registry = EmbeddingModelRegistry(
                 models=models,
                 default_model=models[embedding_model_config.default_model],
             )
+        if len(validate_providers) > 0:
+            with EventLoopManager().loop_context() as loop:
+                future = asyncio.run_coroutine_threadsafe(
+                    _validate_provider_api_keys(validate_providers),
+                    loop,
+                )
+                future.result()
 
     def get_language_model_metrics(self) -> LMMetrics:
         """Get aggregated metrics for all language models.
@@ -171,6 +190,8 @@ class SessionModelRegistry:
                     embedding_model.client.shutdown()
                 except Exception as e:
                     logger.warning(f"Failed graceful shutdown of embedding model client {alias}: {e}")
+
+
 
     def _initialize_embedding_model(self, model_config: ResolvedModelConfig) -> EmbeddingModel:
         """Initialize an embedding model with the given configuration.
@@ -302,3 +323,20 @@ class SessionModelRegistry:
 
         except Exception as e:
             raise SessionError(f"Failed to create language model client: {e}") from e
+
+
+async def _validate_provider_api_keys(validate_providers: set[str]):
+    """Validate api keys for all providers with registered models."""
+    tasks = []
+    if len(validate_providers) == 0:
+        return
+    
+    # Create validation tasks for each unique provider
+    for provider in validate_providers:
+        tasks.append(provider.validate_api_key())
+
+    # Run all validations concurrently
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        raise ConfigurationError(f"Error during API key validation: {e}") from e

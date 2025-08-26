@@ -69,7 +69,7 @@ class CloudSessionConfig:
                 get_and_store_key("GOOGLE_CLOUD_PROJECT", provider)
                 get_and_store_key("GOOGLE_CLOUD_LOCATION", provider)
             else:
-                key = f"{provider.value.upper()}{API_KEY_SUFFIX}"
+                key = f"{provider.name.upper()}{API_KEY_SUFFIX}"
                 get_and_store_key(key, provider)
 
 

@@ -1,17 +1,82 @@
-from enum import Enum
 from typing import Dict, Literal, Optional, TypeAlias, Union
 
-from fenic.core.error import InternalError
+from fenic.core.error import ConfigurationError, InternalError
 
+# Import the new ModelProvider base class
+from fenic.core._inference.model_provider import ModelProvider as ModelProviderBase
 
-class ModelProvider(Enum):
-    """Enum representing different model providers supported by the system."""
+# Backward compatibility - import provider instances
+def _get_provider_constants():
+    """Lazy import of provider instances for backward compatibility."""
+    from fenic._inference.common_openai.openai_provider import openai_provider
+    from fenic._inference.anthropic.anthropic_provider import anthropic_provider
+    from fenic._inference.google.google_provider import google_developer_provider, google_vertex_provider
+    from fenic._inference.cohere.cohere_provider import cohere_provider
+    
+    class ModelProviderConstants:
+        OPENAI = openai_provider
+        ANTHROPIC = anthropic_provider
+        GOOGLE_DEVELOPER = google_developer_provider
+        GOOGLE_VERTEX = google_vertex_provider
+        COHERE = cohere_provider
+    
+    return ModelProviderConstants()
 
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE_DEVELOPER = "google-developer"
-    GOOGLE_VERTEX = "google-vertex"
-    COHERE = "cohere"
+# Lazy initialization of backward compatibility constants
+_provider_constants = None
+
+def _get_provider_const():
+    global _provider_constants
+    if _provider_constants is None:
+        _provider_constants = _get_provider_constants()
+    return _provider_constants
+
+# Create namespace for backward compatibility
+class _ModelProviderNamespace:
+    def __init__(self):
+        self._name_to_provider_map = {
+            "openai": "OPENAI",
+            "anthropic": "ANTHROPIC", 
+            "google-developer": "GOOGLE_DEVELOPER",
+            "google-vertex": "GOOGLE_VERTEX",
+            "cohere": "COHERE"
+        }
+    
+    @property
+    def OPENAI(self):
+        return _get_provider_const().OPENAI
+    
+    @property  
+    def ANTHROPIC(self):
+        return _get_provider_const().ANTHROPIC
+    
+    @property
+    def GOOGLE_DEVELOPER(self):
+        return _get_provider_const().GOOGLE_DEVELOPER
+    
+    @property
+    def GOOGLE_VERTEX(self):
+        return _get_provider_const().GOOGLE_VERTEX
+    
+    @property
+    def COHERE(self):
+        return _get_provider_const().COHERE
+    
+    def __call__(self, provider_name: str):
+        """Make ModelProvider callable to handle ModelProvider(string) pattern."""
+        return self.get_provider(provider_name)
+    
+    def get_provider(self, provider_name: str):
+        """Get provider instance by string name."""
+        if provider_name not in self._name_to_provider_map:
+            raise ConfigurationError(f"Unknown provider: {provider_name}. Available providers: {list(self._name_to_provider_map.keys())}")
+        
+        # Get the corresponding constant name and return the provider instance
+        constant_name = self._name_to_provider_map[provider_name]
+        return getattr(self, constant_name)
+
+# Create the backward compatibility interface
+ModelProvider = _ModelProviderNamespace()
 
 class TieredTokenCost:
     def __init__(
@@ -229,8 +294,12 @@ class ProviderModelCollection:
     """
 
 
-    def __init__(self, provider: ModelProvider) -> None:
-        self.provider = provider
+    def __init__(self, provider: Union[ModelProviderBase, str]) -> None:
+        # Handle provider instances and strings
+        if isinstance(provider, str):
+            self.provider_name = provider
+        else:
+            self.provider_name = provider.name
         self.completion_models: CompletionModelCollection = {}
         self.embedding_models: EmbeddingModelCollection = {}
 
@@ -280,7 +349,7 @@ class ModelCatalog:
 
     def __init__(self):
         self.provider_model_collections: dict[
-            ModelProvider, ProviderModelCollection
+            str, ProviderModelCollection
         ] = {}
         self._initialize_models()
 
@@ -294,8 +363,11 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        # Lazy import to avoid circular dependencies
+        from fenic._inference.anthropic.anthropic_provider import anthropic_provider
+        
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-opus-4-1",
             CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
@@ -310,7 +382,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-opus-4-0",
             CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
@@ -325,7 +397,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-sonnet-4-0",
             CompletionModelParameters(
                 input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
@@ -340,7 +412,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-3-7-sonnet-latest",
             CompletionModelParameters(
                 input_token_cost=3.0 / 1_000_000,  # $3 per 1M tokens
@@ -355,7 +427,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-3-5-sonnet-latest",
             CompletionModelParameters(
                 input_token_cost=3 / 1_000_000,  # $3 per 1M tokens
@@ -370,7 +442,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-3-5-haiku-latest",
             CompletionModelParameters(
                 input_token_cost=0.80 / 1_000_000,  # $0.80 per 1M tokens
@@ -385,7 +457,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-3-opus-latest",
             CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
@@ -400,7 +472,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
+            anthropic_provider,
             "claude-3-haiku-20240307",
             CompletionModelParameters(
                 input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
@@ -415,8 +487,9 @@ class ModelCatalog:
 
     def _initialize_openai_models(self):
         """Initialize OpenAI models in the catalog."""
+        from fenic._inference.common_openai.openai_provider import openai_provider
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4",
             CompletionModelParameters(
                 input_token_cost=30 / 1_000_000,  # $30 per 1M tokens
@@ -431,7 +504,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4-turbo",
             CompletionModelParameters(
                 input_token_cost=10 / 1_000_000,  # $10 per 1M tokens
@@ -446,7 +519,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4o-mini",
             CompletionModelParameters(
                 input_token_cost=0.300 / 1_000_000,  # $0.300 per 1M tokens
@@ -461,7 +534,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4o",
             CompletionModelParameters(
                 input_token_cost=3.750 / 1_000_000,  # $3.750 per 1M tokens
@@ -476,7 +549,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4.1-nano",
             CompletionModelParameters(
                 input_token_cost=0.100 / 1_000_000,  # $0.100 per 1M tokens
@@ -491,7 +564,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4.1-mini",
             CompletionModelParameters(
                 input_token_cost=0.400 / 1_000_000,  # $0.400 per 1M tokens
@@ -506,7 +579,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-4.1",
             CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
@@ -521,7 +594,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "o1",
             CompletionModelParameters(
                 input_token_cost=15 / 1_000_000,  # $15 per 1M tokens
@@ -536,7 +609,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "o1-mini",
             CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
@@ -550,7 +623,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "o3",
             CompletionModelParameters(
                 input_token_cost=2 / 1_000_000,  # $2 per 1M tokens
@@ -565,7 +638,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "o3-mini",
             CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
@@ -580,7 +653,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "o4-mini",
             CompletionModelParameters(
                 input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
@@ -594,7 +667,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-5",
             CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
@@ -611,7 +684,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-5-mini",
             CompletionModelParameters(
                 input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
@@ -628,7 +701,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "gpt-5-nano",
             CompletionModelParameters(
                 input_token_cost=0.05 / 1_000_000,  # $0.05 per 1M tokens
@@ -646,7 +719,7 @@ class ModelCatalog:
 
         # OpenAI Embedding Models
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "text-embedding-3-small",
             EmbeddingModelParameters(
                 input_token_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
@@ -656,7 +729,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.OPENAI,
+            openai_provider,
             "text-embedding-3-large",
             EmbeddingModelParameters(
                 input_token_cost=0.13 / 1_000_000,  # $0.13 per 1M tokens
@@ -667,8 +740,9 @@ class ModelCatalog:
 
     def _initialize_google_vertex_models(self):
         """Initialize the Google Vertex Models."""
+        from fenic._inference.google.google_provider import google_vertex_provider
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-2.5-pro",
             CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
@@ -692,7 +766,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-2.5-flash",
             CompletionModelParameters(
                 input_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
@@ -706,7 +780,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-2.5-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -719,7 +793,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-2.0-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
@@ -732,7 +806,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-2.0-flash",
             CompletionModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
@@ -746,7 +820,7 @@ class ModelCatalog:
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "gemini-embedding-001",
             EmbeddingModelParameters(
                 input_token_cost=0.00015 / 1_000,  # $0.00015 per 1k tokens
@@ -758,7 +832,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "text-embedding-005",
             EmbeddingModelParameters(
                 input_token_cost=0.000025
@@ -770,7 +844,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
+            google_vertex_provider,
             "text-multilingual-embedding-002",
             EmbeddingModelParameters(
                 input_token_cost=0.000025
@@ -782,9 +856,10 @@ class ModelCatalog:
 
     def _initialize_google_gla_models(self):
         """Initialize Google models in the catalog."""
+        from fenic._inference.google.google_provider import google_developer_provider
         # Google GLA Models (same models, possibly different pricing)
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-2.5-pro",
             CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
@@ -808,7 +883,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-2.5-flash",
             CompletionModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
@@ -822,7 +897,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-2.5-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -835,7 +910,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-2.0-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
@@ -849,7 +924,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-2.0-flash",
             CompletionModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -865,7 +940,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "gemini-embedding-001",
             EmbeddingModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
@@ -877,7 +952,7 @@ class ModelCatalog:
         )
 
         self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
+            google_developer_provider,
             "text-embedding-004",
             EmbeddingModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
@@ -888,9 +963,10 @@ class ModelCatalog:
 
     def _initialize_cohere_models(self):
         """Initialize Cohere models in the catalog."""
+        from fenic._inference.cohere.cohere_provider import cohere_provider
         # embed-v4.0 - Latest multimodal model with variable dimensions
         self._add_model_to_catalog(
-            ModelProvider.COHERE,
+            cohere_provider,
             "embed-v4.0",
             EmbeddingModelParameters(
                 input_token_cost=0.12 / 1_000_000,  # $0.12 per 1M tokens
@@ -902,7 +978,7 @@ class ModelCatalog:
 
         # embed-english-v3.0 - English-only model
         self._add_model_to_catalog(
-            ModelProvider.COHERE,
+            cohere_provider,
             "embed-english-v3.0",
             EmbeddingModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -913,7 +989,7 @@ class ModelCatalog:
 
         # embed-english-light-v3.0 - Smaller, faster English-only model
         self._add_model_to_catalog(
-            ModelProvider.COHERE,
+            cohere_provider,
             "embed-english-light-v3.0",
             EmbeddingModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -924,7 +1000,7 @@ class ModelCatalog:
 
         # embed-multilingual-v3.0 - Multi-language support
         self._add_model_to_catalog(
-            ModelProvider.COHERE,
+            cohere_provider,
             "embed-multilingual-v3.0",
             EmbeddingModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -935,7 +1011,7 @@ class ModelCatalog:
 
         # embed-multilingual-light-v3.0 - Smaller, faster multilingual model
         self._add_model_to_catalog(
-            ModelProvider.COHERE,
+            cohere_provider,
             "embed-multilingual-light-v3.0",
             EmbeddingModelParameters(
                 input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
@@ -945,7 +1021,7 @@ class ModelCatalog:
         )
 
     # Public methods
-    def get_completion_model_parameters(self, model_provider: ModelProvider,
+    def get_completion_model_parameters(self, model_provider: Union[ModelProviderBase, str],
                                         model_name: str) -> CompletionModelParameters | None:
         """Gets the parameters for a specific completion model.
 
@@ -956,9 +1032,10 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        return self._get_supported_completions_models_by_provider(model_provider).get(model_name)
+        provider_name = self._normalize_provider_name(model_provider)
+        return self._get_supported_completions_models_by_provider(provider_name).get(model_name)
 
-    def get_embedding_model_parameters(self, model_provider: ModelProvider, model_name: str) -> EmbeddingModelParameters | None:
+    def get_embedding_model_parameters(self, model_provider: Union[ModelProviderBase, str], model_name: str) -> EmbeddingModelParameters | None:
         """Gets the parameters for a specific embedding model.
 
         Args:
@@ -968,9 +1045,10 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        return self._get_supported_embeddings_models_by_provider(model_provider).get(model_name)
+        provider_name = self._normalize_provider_name(model_provider)
+        return self._get_supported_embeddings_models_by_provider(provider_name).get(model_name)
 
-    def generate_unsupported_completion_model_error_message(self, model_provider: ModelProvider,
+    def generate_unsupported_completion_model_error_message(self, model_provider: Union[ModelProviderBase, str],
                                                             model_name: str) -> str:
         """Generates an error message for unsupported completion models.
 
@@ -981,9 +1059,10 @@ class ModelCatalog:
         Returns:
             Error message string
         """
-        return f"Model '{model_name}' is not supported for {model_provider.value}. Supported Models: {self._get_supported_completions_models_by_provider_as_string(model_provider)}"
+        provider_name = self._normalize_provider_name(model_provider)
+        return f"Model '{model_name}' is not supported for {provider_name}. Supported Models: {self._get_supported_completions_models_by_provider_as_string(provider_name)}"
 
-    def generate_unsupported_embedding_model_error_message(self, model_provider: ModelProvider, model_name: str) -> str:
+    def generate_unsupported_embedding_model_error_message(self, model_provider: Union[ModelProviderBase, str], model_name: str) -> str:
         """Generates an error message for unsupported embedding models.
 
         Args:
@@ -993,8 +1072,9 @@ class ModelCatalog:
         Returns:
             Error message string
         """
-        return (f"Model '{model_name}' is not supported for {model_provider.value}."
-                f" Supported Models: {self._get_supported_embeddings_models_by_provider_as_string(model_provider)}")
+        provider_name = self._normalize_provider_name(model_provider)
+        return (f"Model '{model_name}' is not supported for {provider_name}."
+                f" Supported Models: {self._get_supported_embeddings_models_by_provider_as_string(provider_name)}")
 
     def get_supported_completions_models_as_string(self) -> str:
         """Returns a comma-separated string of all supported completion models.
@@ -1003,9 +1083,9 @@ class ModelCatalog:
             Comma-separated string of model names in format 'provider:model'
         """
         all_models = []
-        for model_provider in ModelProvider:
-            for model in self._get_supported_completions_models_by_provider(model_provider).keys():
-                all_models.append(f"{model_provider.value}:{model}")
+        for provider_name in self.provider_model_collections.keys():
+            for model in self._get_supported_completions_models_by_provider(provider_name).keys():
+                all_models.append(f"{provider_name}:{model}")
         return ", ".join(sorted(all_models))
 
     def get_supported_embeddings_models_as_string(self) -> str:
@@ -1015,14 +1095,22 @@ class ModelCatalog:
             Comma-separated string of model names
         """
         all_models = []
-        for model_provider in ModelProvider:
-            for model in self._get_supported_embeddings_models_by_provider(model_provider).keys():
-                all_models.append(f"{model_provider.value}:{model}")
+        for provider_name in self.provider_model_collections.keys():
+            for model in self._get_supported_embeddings_models_by_provider(provider_name).keys():
+                all_models.append(f"{provider_name}:{model}")
         return ", ".join(sorted(all_models))
+    
+    def _normalize_provider_name(self, provider: Union[ModelProviderBase, str]) -> str:
+        """Normalize provider to string name for internal use."""
+        if isinstance(provider, str):
+            return provider
+        else:
+            # All ModelProvider instances must have a name property
+            return provider.name
 
     def calculate_completion_model_cost(
         self,
-        model_provider: ModelProvider,
+        model_provider: Union[ModelProviderBase, str],
         model_name: str,
         uncached_input_tokens: int,
         cached_input_tokens_read: int,
@@ -1045,9 +1133,10 @@ class ModelCatalog:
         Raises:
             ValueError: If the model is not supported
         """
-        model_parameters = self.get_completion_model_parameters(model_provider, model_name)
+        provider_name = self._normalize_provider_name(model_provider)
+        model_parameters = self.get_completion_model_parameters(provider_name, model_name)
         if model_parameters is None:
-            raise ValueError(self.generate_unsupported_completion_model_error_message(model_provider, model_name))
+            raise ValueError(self.generate_unsupported_completion_model_error_message(provider_name, model_name))
         input_token_cost = model_parameters.input_token_cost
         cached_input_tokens_read_cost = model_parameters.cached_input_token_read_cost
         output_token_cost = model_parameters.output_token_cost
@@ -1067,7 +1156,7 @@ class ModelCatalog:
         )
 
     def calculate_embedding_model_cost(
-        self, model_provider: ModelProvider, model_name: str, billable_inputs: int
+        self, model_provider: Union[ModelProviderBase, str], model_name: str, billable_inputs: int
     ) -> float:
         """Calculates the total cost for an embedding model operation.
 
@@ -1082,18 +1171,19 @@ class ModelCatalog:
         Raises:
             ValueError: If the model is not supported
         """
-        model_costs = self.get_embedding_model_parameters(model_provider, model_name)
+        provider_name = self._normalize_provider_name(model_provider)
+        model_costs = self.get_embedding_model_parameters(provider_name, model_name)
         if model_costs is None:
             raise ValueError(
                 self.generate_unsupported_embedding_model_error_message(
-                    model_provider, model_name
+                    provider_name, model_name
                 )
             )
         return billable_inputs * model_costs.input_token_cost
 
     def _add_model_to_catalog(
         self,
-        model_provider: ModelProvider,
+        model_provider: Union[ModelProviderBase, str],
         name: str,
         parameters: Union[CompletionModelParameters, EmbeddingModelParameters],
         snapshots: Optional[list[str]] = None,
@@ -1109,14 +1199,15 @@ class ModelCatalog:
         Raises:
             InternalError: If the model already exists in the catalog
         """
+        provider_name = self._normalize_provider_name(model_provider)
         provider_model_collection = self.provider_model_collections.get(
-            model_provider, ProviderModelCollection(model_provider)
+            provider_name, ProviderModelCollection(model_provider)
         )
         provider_model_collection.add_model(name, parameters, snapshots)
-        self.provider_model_collections[model_provider] = provider_model_collection
+        self.provider_model_collections[provider_name] = provider_model_collection
 
     def _get_supported_completions_models_by_provider(
-        self, model_provider: ModelProvider
+        self, model_provider: Union[ModelProviderBase, str]
     ) -> CompletionModelCollection:
         """Returns the collection of completion models for a specific provider.
 
@@ -1126,10 +1217,11 @@ class ModelCatalog:
         Returns:
             Collection of completion models for the specified provider, including snapshots
         """
-        return self.provider_model_collections[model_provider].completion_models
+        provider_name = self._normalize_provider_name(model_provider)
+        return self.provider_model_collections[provider_name].completion_models
 
     def _get_supported_embeddings_models_by_provider(
-        self, model_provider: ModelProvider
+        self, model_provider: Union[ModelProviderBase, str]
     ) -> EmbeddingModelCollection:
         """Returns the collection of embedding models for a specific provider.
 
@@ -1139,10 +1231,11 @@ class ModelCatalog:
         Returns:
             Collection of embedding models for the specified provider, including snapshots
         """
-        return self.provider_model_collections[model_provider].embedding_models
+        provider_name = self._normalize_provider_name(model_provider)
+        return self.provider_model_collections[provider_name].embedding_models
 
     def _get_supported_completions_models_by_provider_as_string(
-        self, model_provider: ModelProvider
+        self, model_provider: Union[ModelProviderBase, str]
     ) -> str:
         """Returns a comma-separated string of supported completion model names for a provider.
 
@@ -1152,16 +1245,17 @@ class ModelCatalog:
         Returns:
             Comma-separated string of model names
         """
+        provider_name = self._normalize_provider_name(model_provider)
         return ", ".join(
             sorted(
                 self._get_supported_completions_models_by_provider(
-                    model_provider
+                    provider_name
                 ).keys()
             )
         )
 
     def _get_supported_embeddings_models_by_provider_as_string(
-        self, model_provider: ModelProvider
+        self, model_provider: Union[ModelProviderBase, str]
     ) -> str:
         """Returns a comma-separated string of supported completion model names for a provider.
 
@@ -1171,14 +1265,28 @@ class ModelCatalog:
         Returns:
             Comma-separated string of model names
         """
+        provider_name = self._normalize_provider_name(model_provider)
         return ", ".join(
             sorted(
                 self._get_supported_embeddings_models_by_provider(
-                    model_provider
+                    provider_name
                 ).keys()
             )
         )
 
 
-# Create a singleton instance
-model_catalog = ModelCatalog()
+class _ModelCatalogSingleton:
+    """Lazy singleton wrapper for ModelCatalog."""
+    _instance = None
+    
+    def __getattribute__(self, name):
+        if name.startswith('_') or name in ['__class__', '__dict__']:
+            return object.__getattribute__(self, name)
+        
+        if self._instance is None:
+            self._instance = ModelCatalog()
+        
+        return getattr(self._instance, name)
+
+# Create a singleton instance that initializes lazily
+model_catalog = _ModelCatalogSingleton()

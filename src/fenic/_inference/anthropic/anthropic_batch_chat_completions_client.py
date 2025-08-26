@@ -1,4 +1,5 @@
 import functools
+import logging
 import math
 from typing import Any, Optional, Union
 
@@ -39,7 +40,6 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
-    ModelProvider,
     model_catalog,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -47,6 +47,8 @@ from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
 from fenic.core.metrics import LMMetrics
+
+logger = logging.getLogger(__name__)
 
 TEXT_DELTA = "text_delta"
 
@@ -90,9 +92,10 @@ class AnthropicBatchCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
         """
+        from fenic._inference.anthropic.anthropic_provider import anthropic_provider
         super().__init__(
             model=model,
-            model_provider=ModelProvider.ANTHROPIC,
+            model_provider=anthropic_provider,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -100,12 +103,12 @@ class AnthropicBatchCompletionsClient(
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
-        self._sync_client = anthropic.Client()
-        self._client = AsyncAnthropic()
+        self._sync_client = anthropic_provider.get_sync_client()
+        self._client = anthropic_provider.get_client()
         self._metrics = LMMetrics()
         self._output_formatter_tool_name = "output_formatter"
         self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
-        self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, model)
+        self._model_parameters = model_catalog.get_completion_model_parameters(anthropic_provider, model)
 
         # Use the profile configuration manager
         self._profile_manager = AnthropicCompletionsProfileManager(
@@ -182,7 +185,7 @@ class AnthropicBatchCompletionsClient(
                 self._metrics.num_output_tokens += output_tokens
                 self._metrics.num_requests += 1
                 self._metrics.cost += model_catalog.calculate_completion_model_cost(
-                    model_provider=ModelProvider.ANTHROPIC,
+                    model_provider=anthropic_provider,
                     model_name=self.model,
                     uncached_input_tokens=num_uncached_input_tokens,
                     cached_input_tokens_read=num_pre_cached_tokens,
@@ -400,3 +403,4 @@ class AnthropicBatchCompletionsClient(
         )
         message_params.append(MessageParam(content=[user_prompt], role="user"))
         return system_prompt, message_params
+

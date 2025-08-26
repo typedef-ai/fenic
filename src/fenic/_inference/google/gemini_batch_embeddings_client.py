@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from typing import List, Optional, Union
 
@@ -20,16 +21,18 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
-from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_catalog import model_catalog
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
-        model_provider: ModelProvider,
+        model_provider,
         model: str,
         queue_size: int = 100,
         max_backoffs: int = 10,
@@ -47,7 +50,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         self.model = model
         # Native gen-ai client. Passing `vertexai=True` automatically routes traffic
         # through Vertex-AI if the environment is configured for it.
-        if model_provider == ModelProvider.GOOGLE_DEVELOPER:
+        if model_provider.name == "google-developer":
             if "GEMINI_API_KEY" in os.environ:
                 self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
             else:
@@ -135,3 +138,4 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
 
     def get_metrics(self) -> RMMetrics:
         return self._metrics
+

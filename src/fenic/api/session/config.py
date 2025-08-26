@@ -17,10 +17,10 @@ from fenic.core._inference.model_catalog import (
     GoogleDeveloperLanguageModelName,
     GoogleVertexEmbeddingModelName,
     GoogleVertexLanguageModelName,
-    ModelProvider,
     OpenAIEmbeddingModelName,
     OpenAILanguageModelName,
     model_catalog,
+    ModelProvider,
 )
 from fenic.core._resolved_session_config import (
     ReasoningEffort,
@@ -102,7 +102,7 @@ class GoogleDeveloperEmbeddingModel(BaseModel):
         ```
     """
     model_name: GoogleDeveloperEmbeddingModelName
-    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_DEVELOPER)
+    model_provider: Literal["google-developer"] = Field(default="google-developer")
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
@@ -267,7 +267,7 @@ class GoogleVertexEmbeddingModel(BaseModel):
         ```
     """
     model_name: GoogleVertexEmbeddingModelName
-    model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_VERTEX)
+    model_provider: Literal["google-vertex"] = Field(default="google-vertex")
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
@@ -1052,9 +1052,11 @@ class SessionConfig(BaseModel):
 
     def _to_resolved_config(self) -> ResolvedSessionConfig:
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
+            provider = _get_model_provider_for_model_config(model)
             if isinstance(model, OpenAIEmbeddingModel):
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
+                    model_provider=provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                 )
@@ -1065,6 +1067,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedOpenAIModelConfig(
                     model_name=model.model_name,
+                    model_provider=provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -1077,7 +1080,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
-                    model_provider=_get_model_provider_for_model_config(model),
+                    model_provider=provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -1093,7 +1096,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedGoogleModelConfig(
                     model_name=model.model_name,
-                    model_provider=model.model_provider,
+                    model_provider=provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=resolved_profiles,
@@ -1106,6 +1109,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedAnthropicModelConfig(
                     model_name=model.model_name,
+                    model_provider=provider,
                     rpm=model.rpm,
                     input_tpm=model.input_tpm,
                     output_tpm=model.output_tpm,
@@ -1119,6 +1123,7 @@ class SessionConfig(BaseModel):
                 } if model.profiles else None
                 return ResolvedCohereModelConfig(
                     model_name=model.model_name,
+                    model_provider=provider,
                     rpm=model.rpm,
                     tpm=model.tpm,
                     profiles=profiles,
@@ -1185,7 +1190,7 @@ def _validate_embedding_profile(
             f"Available Options: {embedding_model_parameters.get_possible_dimensions()}")
 
 def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
-    """Determine the ModelProvider for the given model configuration."""
+    """Determine the model provider name for the given model configuration."""
     if isinstance(model_config, (OpenAILanguageModel, OpenAIEmbeddingModel)):
         return ModelProvider.OPENAI
     elif isinstance(model_config, (GoogleDeveloperLanguageModel, GoogleDeveloperEmbeddingModel)):

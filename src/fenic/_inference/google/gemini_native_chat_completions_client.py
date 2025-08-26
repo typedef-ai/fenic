@@ -33,7 +33,6 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
-    ModelProvider,
     model_catalog,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -59,7 +58,7 @@ class GeminiNativeChatCompletionsClient(
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
-        model_provider: ModelProvider,
+        model_provider,
         model: str,
         queue_size: int = 100,
         max_backoffs: int = 10,
@@ -89,15 +88,7 @@ class GeminiNativeChatCompletionsClient(
             token_counter=token_counter,
         )
 
-        # Native gen-ai client. Passing `vertexai=True` automatically routes traffic
-        # through Vertex-AI if the environment is configured for it.
-        if model_provider == ModelProvider.GOOGLE_DEVELOPER:
-            if "GEMINI_API_KEY" in os.environ:
-                self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-            else:
-                self._base_client = genai.Client()
-        else:
-            self._base_client = genai.Client(vertexai=True)
+        self._base_client = model_provider.get_client()
         self._client = self._base_client.aio
         self._metrics = LMMetrics()
         self._token_counter = token_counter  # For type checkers
@@ -437,3 +428,4 @@ class GeminiNativeChatCompletionsClient(
             return result
 
         return remove_additional_properties(copy.deepcopy(response_format.strict_schema))
+

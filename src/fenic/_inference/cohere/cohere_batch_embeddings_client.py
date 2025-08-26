@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from typing import List, Optional, Union
 
@@ -18,9 +19,11 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
-from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_catalog import model_catalog
 from fenic.core._resolved_session_config import ResolvedCohereModelProfile
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
@@ -45,9 +48,10 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             preset_configurations: Dictionary of preset configurations
             default_preset_name: Default preset to use when none specified
         """
+        from fenic._inference.cohere.cohere_provider import cohere_provider
         super().__init__(
             model=model,
-            model_provider=ModelProvider.COHERE,
+            model_provider=cohere_provider,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -63,7 +67,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         self.model = model
         
         self._model_parameters = model_catalog.get_embedding_model_parameters(
-            ModelProvider.COHERE, model
+            "cohere", model
         )
         self._metrics = RMMetrics()
         
@@ -114,7 +118,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             self._metrics.num_input_tokens += total_tokens
             self._metrics.num_requests += 1
             self._metrics.cost += model_catalog.calculate_embedding_model_cost(
-                model_provider=ModelProvider.COHERE,
+                model_provider=cohere_provider,
                 model_name=self.model,
                 billable_inputs=total_tokens,
             )
@@ -191,3 +195,4 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             The current metrics
         """
         return self._metrics
+

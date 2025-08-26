@@ -1,5 +1,6 @@
 """Client for making batch requests to OpenAI's embeddings API."""
 
+import logging
 from typing import Union
 
 from openai import AsyncOpenAI
@@ -22,6 +23,8 @@ from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import RMMetrics
 
+logger = logging.getLogger(__name__)
+
 
 class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float]]):
     """Client for making batch requests to OpenAI's embeddings API."""
@@ -41,9 +44,10 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             model: The model to use
             max_backoffs: Maximum number of backoff attempts
         """
+        from fenic._inference.common_openai.openai_provider import openai_provider
         super().__init__(
             model=model,
-            model_provider=ModelProvider.OPENAI,
+            model_provider=openai_provider,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -51,9 +55,9 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         )
         self._core = OpenAIEmbeddingsCore(
             model=self.model,
-            model_provider=self.model_provider,
+            model_provider=openai_provider,
             token_counter=TiktokenTokenCounter(model_name=model),
-            client=AsyncOpenAI(),
+            client=openai_provider.get_client(),
         )
 
     async def make_single_request(
@@ -106,3 +110,4 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
 
     def _get_max_output_tokens(self, request: RequestT) -> int:
         return 0
+

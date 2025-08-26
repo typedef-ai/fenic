@@ -81,9 +81,9 @@ def validate_completion_parameters(
         model_provider = ModelProvider.ANTHROPIC
     completion_parameters: CompletionModelParameters = model_catalog.get_completion_model_parameters(model_provider, model_config.model_name)
     if max_tokens is not None and max_tokens > completion_parameters.max_output_tokens:
-        raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
+        raise ValidationError(f"[{model_provider.name}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}")
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
-        raise ValidationError(f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
+        raise ValidationError(f"[{model_provider.name}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}")
 
 def validate_scalar_expr(expr: LogicalExpr, function_name: str):
     if isinstance(expr, SortExpr):

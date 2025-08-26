@@ -10,9 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
-from fenic.core._inference.model_catalog import ModelProvider
+if TYPE_CHECKING:
+    from fenic.core._inference.model_catalog import ModelProvider
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 Verbosity = Literal["low", "medium", "high"]
@@ -42,11 +43,13 @@ class ResolvedGoogleModelProfile:
 
 @dataclass
 class ResolvedOpenAIModelProfile:
+    model_provider: "ModelProvider"
     reasoning_effort: Optional[ReasoningEffort] = None
     verbosity: Optional[Verbosity] = None
 
 @dataclass
 class ResolvedCohereModelProfile:
+    model_provider: "ModelProvider"
     embedding_dimensionality: Optional[int] = None
     embedding_task_type: Optional[str] = None
 
@@ -55,7 +58,7 @@ class ResolvedOpenAIModelConfig:
     model_name: str
     rpm: int
     tpm: int
-    model_provider: ModelProvider = ModelProvider.OPENAI
+    model_provider: "ModelProvider"
     profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
     default_profile: Optional[str] = None
 
@@ -66,14 +69,14 @@ class ResolvedAnthropicModelConfig:
     rpm: int
     input_tpm: int
     output_tpm: int
-    model_provider: ModelProvider = ModelProvider.ANTHROPIC
+    model_provider: "ModelProvider"
     profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
     default_profile: Optional[str] = None
 
 @dataclass
 class ResolvedGoogleModelConfig:
     model_name: str
-    model_provider: Literal[ModelProvider.GOOGLE_DEVELOPER, ModelProvider.GOOGLE_VERTEX]
+    model_provider: "ModelProvider"
     rpm: int
     tpm: int
     profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None
@@ -84,7 +87,7 @@ class ResolvedCohereModelConfig:
     model_name: str
     rpm: int
     tpm: int
-    model_provider: ModelProvider = ModelProvider.COHERE
+    model_provider: "ModelProvider"
     profiles: Optional[dict[str, ResolvedCohereModelProfile]] = None
     default_profile: Optional[str] = None
 

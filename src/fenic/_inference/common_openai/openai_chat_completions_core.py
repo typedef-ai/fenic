@@ -60,7 +60,7 @@ class OpenAIChatCompletionsCore:
         self._client = client
         self._metrics = LMMetrics()
         self._model_parameters = model_catalog.get_completion_model_parameters(self._model_provider, self._model)
-        self._model_identifier = f"{model_provider.value}:{model}"
+        self._model_identifier = f"{model_provider.name}:{model}"
 
     def reset_metrics(self) -> None:
         """Reset the metrics."""
@@ -168,7 +168,7 @@ class OpenAIChatCompletionsCore:
             completion = response.choices[0].message.content
             if completion is None:
                 logger.warning(
-                    f"[{self._model_provider.value}:{self._model}] returned None for completion for {self.get_request_key(request)}: {response}")
+                    f"[{self._model_provider.name}:{self._model}] returned None for completion for {self.get_request_key(request)}: {response}")
             return FenicCompletionsResponse(
                 completion=response.choices[0].message.content,
                 logprobs=response.choices[0].logprobs,

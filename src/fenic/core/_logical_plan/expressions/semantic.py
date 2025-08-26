@@ -561,7 +561,7 @@ class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
             self.dimensions = embedding_params.default_dimensions
 
         return EmbeddingType(
-            embedding_model=f"{model_provider.value}/{model_name}",
+            embedding_model=f"{model_provider.name}/{model_name}",
             dimensions=self.dimensions,
         )
 
