@@ -1,5 +1,6 @@
 """Tests for logical expression serialization and deserialization."""
 
+import asyncio
 from typing import List, Literal, Optional, Type
 
 import pytest
@@ -17,6 +18,7 @@ from fenic.core._logical_plan.expressions import (
     # Text expressions
     ArrayJoinExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     # Aggregate expressions
     AvgExpr,
     # Comparison expressions
@@ -138,6 +140,11 @@ class BasicResponseFormat(BaseModel):
     explanation: Optional[str] = None
     nested: NestedResponseFormat
 
+
+async def async_udf_fn(x: str) -> str:
+    await asyncio.sleep(1)
+    return x + " async"
+
 # Define examples for each expression type
 # Each type has a list of examples to test different scenarios. In general when adding new expressions:
 # 1. Add a new entry to the expression_examples dictionary with the expression class as the key and a list of examples as the value.
@@ -185,6 +192,10 @@ expression_examples = {
     UDFExpr: [
         # Note: UDFExpr cannot be serialized, but we test the type exists
         UDFExpr(lambda x: x, [ColumnExpr("test_col")], StringType),
+    ],
+    AsyncUDFExpr: [
+        # Note: AsyncUDFExpr cannot be serialized, but we test the type exists
+        AsyncUDFExpr(async_udf_fn, [ColumnExpr("test_col")], StringType),
     ],
     IsNullExpr: [
         IsNullExpr(ColumnExpr("test_col"), is_null=True),
@@ -416,7 +427,7 @@ expression_examples = {
     RecursiveTextChunkExpr: [
         RecursiveTextChunkExpr(
             ColumnExpr("text_col"), RecursiveTextChunkExprConfiguration(
-                desired_chunk_size=100, chunk_overlap_percentage=10, chunk_length_function_name=ChunkLengthFunction.TOKEN, 
+                desired_chunk_size=100, chunk_overlap_percentage=10, chunk_length_function_name=ChunkLengthFunction.TOKEN,
                 chunking_character_set_name=ChunkCharacterSet.ASCII)
         ),
         RecursiveTextChunkExpr(
@@ -567,7 +578,7 @@ class TestExpressionSerde:
         # Test each expression type with its examples
         for i, example in enumerate(expression_examples[expr_class]):
             # Expect serialization errors for UDFExpr
-            if expr_class == UDFExpr:
+            if expr_class == UDFExpr or expr_class == AsyncUDFExpr:
                 with pytest.raises(UnsupportedTypeError, match="UDFExpr cannot be serialized"):
                     serialized = serialize_logical_expr(example, self.context)
                 continue
@@ -593,8 +604,6 @@ class TestExpressionSerde:
                 # Compare expressions using the helper method
                 self._compare_expressions(example, deserialized, expr_class.__name__, i)
 
-                
-
             except Exception as e:
                 pytest.fail(
                     f"Serde failed for {expr_class.__name__} example {i}: {e}"
@@ -610,7 +619,7 @@ class TestExpressionSerde:
 
             def __str__(self):
                 return "mock_expr"
-            
+
             def to_column_field(self, plan):
                 return None
 
@@ -628,7 +637,7 @@ class TestExpressionSerde:
     def test_deserialize_empty_proto(self):
         """Test deserialization of an empty LogicalExprProto returns None."""
         from fenic.core._serde.proto.types import LogicalExprProto
-        
+
         empty_proto = LogicalExprProto()
         result = deserialize_logical_expr(empty_proto, self.context)
         assert result is None
