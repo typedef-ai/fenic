@@ -135,6 +135,19 @@ def test_drop_database(local_session: Session):
     assert not local_session.catalog.does_database_exist(ANOTHER_DATABASE_NAME)
 
 
+    local_session.catalog.create_database(ANOTHER_DATABASE_NAME)
+    local_session.catalog.set_current_database(ANOTHER_DATABASE_NAME)
+    local_session.create_dataframe({"a": [1, 2, 3]}).write.save_as_view("df1")
+    assert local_session.catalog.does_view_exist("df1")
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+    with pytest.raises(CatalogError, match="Cannot drop database 'another_existing_db' because it contains views. Use CASCADE to drop the database and all its views."):
+        local_session.catalog.drop_database(ANOTHER_DATABASE_NAME, cascade=False)
+    local_session.catalog.set_current_database(ANOTHER_DATABASE_NAME)
+    assert local_session.catalog.does_view_exist("df1")
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+    local_session.catalog.drop_database(ANOTHER_DATABASE_NAME, cascade=True)
+    assert not local_session.catalog.does_database_exist(ANOTHER_DATABASE_NAME)
+
 def test_list_databases(local_session: Session):
     local_session.catalog.create_database(A_DATABASE_NAME)
     local_session.catalog.create_database(ANOTHER_DATABASE_NAME)

@@ -183,10 +183,11 @@ class LocalCatalog(BaseCatalog):
                         cursor.execute(
                             f'DROP SCHEMA IF EXISTS "{db_identifier.db}" CASCADE;'
                         )
-                        self.system_tables.delete_database_schemas(cursor, database_name)
-                        self.system_tables.delete_database_views(cursor, database_name)
+                        self.system_tables.delete_database_schemas(cursor, db_identifier.db)
+                        self.system_tables.delete_database_views(cursor, db_identifier.db)
                     else:
-                        if self.system_tables.list_views(cursor, database_name):
+                        print(self.system_tables.list_views(cursor, db_identifier.db))
+                        if self.system_tables.list_views(cursor, db_identifier.db):
                             raise CatalogError(
                                 f"Cannot drop database '{database_name}' because it contains views. Use CASCADE to drop the database and all its views."
                             )
@@ -194,6 +195,8 @@ class LocalCatalog(BaseCatalog):
                             f'DROP SCHEMA IF EXISTS "{db_identifier.db}";'
                         )
                 return True
+            except CatalogError:
+                raise
             except Exception as e:
                 raise CatalogError(f"Failed to drop database: {database_name}") from e
 
