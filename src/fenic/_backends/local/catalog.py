@@ -186,7 +186,6 @@ class LocalCatalog(BaseCatalog):
                         self.system_tables.delete_database_schemas(cursor, db_identifier.db)
                         self.system_tables.delete_database_views(cursor, db_identifier.db)
                     else:
-                        print(self.system_tables.list_views(cursor, db_identifier.db))
                         if self.system_tables.list_views(cursor, db_identifier.db):
                             raise CatalogError(
                                 f"Cannot drop database '{database_name}' because it contains views. Use CASCADE to drop the database and all its views."
