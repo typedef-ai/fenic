@@ -9,12 +9,15 @@ from fenic import Session, SessionConfig
 # number of rows
 n = 10_000
 
-# generate dictionary with 10 columns
 data = {
     f"col{i}": np.random.randint(0, 100000, size=n).tolist()
     for i in range(10)
 }
 
+# Add a random array of strings
+# Method 1: Random words from a predefined list
+words = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon']
+data['string_col'] = [random.choice(words) for _ in range(n)]
 session = Session.get_or_create(
     SessionConfig(
         app_name="test_segfault",

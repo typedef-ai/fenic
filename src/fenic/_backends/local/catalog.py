@@ -517,21 +517,21 @@ class LocalCatalog(BaseCatalog):
 
     def read_df_from_table(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current database."""
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            try:
-                # trunk-ignore-begin(bandit/B608)
-                return self.db_conn.cursor().execute(
-                    f"SELECT * FROM {self._build_qualified_table_name(table_identifier)}"
-                ).pl()
-                # trunk-ignore-end(bandit/B608)
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
-                ) from e
+        # with self.lock:
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        try:
+            # trunk-ignore-begin(bandit/B608)
+            return self.db_conn.cursor().execute(
+                f"SELECT * FROM {self._build_qualified_table_name(table_identifier)}"
+            ).pl()
+            # trunk-ignore-end(bandit/B608)
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
+            ) from e
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:
