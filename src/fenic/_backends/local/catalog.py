@@ -72,7 +72,16 @@ class DuckDBTransaction:
 
 
 class LocalCatalog(BaseCatalog):
-    """A catalog for local execution mode. Implements the BaseCatalog - all table reads and writes should go through this class for unified table name canonicalization."""
+    """A catalog for local execution mode implementing BaseCatalog.
+
+    All table reads and writes go through this class for unified table name canonicalization.
+
+    Thread Safety:
+    - Catalog metadata operations (e.g., current database access) are protected by locks
+    - DuckDB handles concurrent table read/write access internally via MVCC and optimistic concurrency control
+    - Each thread must use its own cursor for concurrent operations to avoid segfaults
+    See: https://duckdb.org/docs/stable/guides/python/multiple_threads.html#reader-and-writer-functions
+    """
 
     def __init__(self, connection: duckdb.DuckDBPyConnection):
         self.db_conn: duckdb.DuckDBPyConnection = connection
@@ -449,75 +458,72 @@ class LocalCatalog(BaseCatalog):
     def insert_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Insert a Polars dataframe into a table in the current database."""
         temp_view_name = generate_unique_arrow_view_name()
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            cursor = self.db_conn.cursor()
-            if self._does_table_exist(cursor, table_identifier):
-                existing_schema = self.system_tables.get_schema(cursor, table_identifier.db, table_identifier.table)
-                if not existing_schema:
-                    raise InternalError(f"Schema for table '{table_name}' does not exist, but table exists.")
-                if existing_schema != schema:
-                    raise CatalogError(
-                        f"Table '{table_name}' already exists with a different schema!\n"
-                        f"Existing schema: {existing_schema}\n"
-                        f"New schema: {schema}\n"
-                        "To replace the existing table, use mode='overwrite'."
-                    )
-            try:
-                # trunk-ignore-begin(bandit/B608)
-                cursor.register(temp_view_name, df)
-                cursor.execute(
-                    f"INSERT INTO {self._build_qualified_table_name(table_identifier)} SELECT * FROM {temp_view_name}"
-                )
-            except Exception as e:
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        cursor = self.db_conn.cursor()
+        if self._does_table_exist(cursor, table_identifier):
+            existing_schema = self.system_tables.get_schema(cursor, table_identifier.db, table_identifier.table)
+            if not existing_schema:
+                raise InternalError(f"Schema for table '{table_name}' does not exist, but table exists.")
+            if existing_schema != schema:
                 raise CatalogError(
-                    f"Failed to insert dataframe into table: `{table_identifier.db}.{table_identifier.table}`"
-                ) from e
-            finally:
-                try:
-                    cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
-                except Exception:
-                    logger.error(f"Failed to drop view: {temp_view_name}")
-                    pass
-            # trunk-ignore-end(bandit/B608)
+                    f"Table '{table_name}' already exists with a different schema!\n"
+                    f"Existing schema: {existing_schema}\n"
+                    f"New schema: {schema}\n"
+                    "To replace the existing table, use mode='overwrite'."
+                )
+        try:
+            # trunk-ignore-begin(bandit/B608)
+            cursor.register(temp_view_name, df)
+            cursor.execute(
+                f"INSERT INTO {self._build_qualified_table_name(table_identifier)} SELECT * FROM {temp_view_name}"
+            )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to insert dataframe into table: `{table_identifier.db}.{table_identifier.table}`"
+            ) from e
+        finally:
+            try:
+                cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+            except Exception:
+                logger.error(f"Failed to drop view: {temp_view_name}")
+                pass
+        # trunk-ignore-end(bandit/B608)
 
     def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Replace a table in the current database with a Polars dataframe."""
         temp_view_name = generate_unique_arrow_view_name()
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            cursor = self.db_conn.cursor()
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        cursor = self.db_conn.cursor()
+        try:
+            # trunk-ignore-begin(bandit/B608)
+            with DuckDBTransaction(cursor):
+                cursor.register(temp_view_name, df)
+                cursor.execute(
+                    f"CREATE OR REPLACE TABLE {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
+                )
+                self.system_tables.save_schema(
+                    cursor, table_identifier.db, table_identifier.table, schema
+                )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to overwrite table: `{table_identifier.db}.{table_identifier.table}`"
+            ) from e
+        finally:
             try:
-                # trunk-ignore-begin(bandit/B608)
-                with DuckDBTransaction(cursor):
-                    cursor.register(temp_view_name, df)
-                    cursor.execute(
-                        f"CREATE OR REPLACE TABLE {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
-                    )
-                    self.system_tables.save_schema(
-                        cursor, table_identifier.db, table_identifier.table, schema
-                    )
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to overwrite table: `{table_identifier.db}.{table_identifier.table}`"
-                ) from e
-            finally:
-                try:
-                    cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
-                except Exception:
-                    logger.error(f"Failed to drop view: {temp_view_name}")
-                    pass
+                cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+            except Exception:
+                logger.error(f"Failed to drop view: {temp_view_name}")
+                pass
         # trunk-ignore-end(bandit/B608)
 
     def read_df_from_table(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current database."""
-        # with self.lock:
         table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())

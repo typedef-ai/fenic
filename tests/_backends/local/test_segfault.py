@@ -1,9 +1,10 @@
-from fenic import col, Session, SessionConfig
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import numpy as np
 import sys
 import traceback
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import numpy as np
+
+from fenic import Session, SessionConfig
 
 # number of rows
 n = 10_000
