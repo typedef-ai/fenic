@@ -89,6 +89,7 @@ class TestAsyncUDF:
 
         # Verify timing - should take at least 0.5 seconds (3 batches * 0.2s)
         assert elapsed >= 0.5, f"Expected at least 0.5s, got {elapsed:.2f}s"
+        assert elapsed < 1.0, f"Expected less than 1.0s, got {elapsed:.2f}s"
 
     def test_async_udf_with_failures(self):
         """Test async UDF handling of individual failures."""

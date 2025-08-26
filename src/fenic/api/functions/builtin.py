@@ -338,27 +338,32 @@ def async_udf(
 
     Example: Basic async UDF
         ```python
-        @async_udf(
-            return_type=IntegerType,
-            max_concurrency=5,
-            timeout_seconds=30,
-            num_retries=1
-        )
+        @async_udf(return_type=IntegerType)
         async def slow_add(x: int, y: int) -> int:
             await asyncio.sleep(1)
             return x + y
 
         df = df.select(slow_add(fc.col("x"), fc.col("y")).alias("slow_sum"))
-        ```
 
-    Example: API call with retries
+        # Or
+        async def slow_add_fn(x: int, y: int) -> int:
+            await asyncio.sleep(1)
+            return x + y
+
+        slow_add = async_udf(
+            slow_add_fn,
+            return_type=IntegerType
+        )
+    ```
+
+    Example: API call with custom concurrency and retries
         ```python
         @async_udf(
             return_type=StructType([
                 StructField("status", IntegerType),
                 StructField("data", StringType)
             ]),
-            max_concurrency=10,
+            max_concurrency=20,
             timeout_seconds=5,
             num_retries=2
         )
@@ -373,13 +378,15 @@ def async_udf(
 
     Note:
         - Individual failures return None instead of raising exceptions
+        - Async UDFs should not block or do CPU-intensive work, as they
+          will block execution of other instances of the function call.
     """
 
     def _create_async_udf(func: Callable[..., Awaitable[Any]]) -> Callable:
         if not inspect.iscoroutinefunction(func):
             raise ValidationError(
-                f"@async_udf requires an async function, got {func.__name__!r} "
-                f"of type {type(func)}"
+                f"@async_udf requires an async function, but found a synchronous "
+                f"function {func.__name__!r} of type {type(func)}"
             )
 
         @wraps(func)
