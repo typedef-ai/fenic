@@ -24,6 +24,7 @@ from fenic.core._logical_plan.expressions.basic import ArrayExpr as ArrayExpr
 from fenic.core._logical_plan.expressions.basic import (
     ArrayLengthExpr as ArrayLengthExpr,
 )
+from fenic.core._logical_plan.expressions.basic import AsyncUDFExpr as AsyncUDFExpr
 from fenic.core._logical_plan.expressions.basic import CastExpr as CastExpr
 from fenic.core._logical_plan.expressions.basic import CoalesceExpr as CoalesceExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr as ColumnExpr

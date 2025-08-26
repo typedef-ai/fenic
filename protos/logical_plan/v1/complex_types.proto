@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+import "logical_plan/v1/datatypes.proto";
+
+message ScalarValue {
+  oneof value_type {
+    string string_value = 1;
+    int32 int_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+    bytes bytes_value = 5;
+    ScalarArray array_value = 6;
+    ScalarStruct struct_value = 7;
+    //all types we support for LiteralExpr
+  }
+}
+
+message ScalarArray {
+  repeated ScalarValue elements = 1;
+}
+
+message ScalarStruct {
+  repeated ScalarStructField fields = 1;
+}
+
+message ScalarStructField {
+  string name = 1;
+  ScalarValue value = 2;
+}
+
+message ResolvedClassDefinition {
+  string label = 1;
+  optional string description = 2;
+}
+
+message ResolvedModelAlias {
+  string name = 1;
+  optional string profile = 2;
+}
+
+message ResolvedResponseFormat {
+  string schema = 1;
+  optional DataType struct_type = 2;
+  optional string prompt_schema_definition = 3;
+}
+
+// NumPy array serialization
+message NumpyArray {
+  bytes data = 1;
+  repeated int32 shape = 2;
+  string dtype = 3;
+}
+
+// KeyPoints format for summarization
+message KeyPoints {
+  int32 max_points = 1;
+}
+
+// Paragraph format for summarization
+message Paragraph {
+  int32 max_words = 1;
+}
+
+// Union type for summarization formats
+message SummarizationFormat {
+  oneof format_type {
+    KeyPoints key_points = 1;
+    Paragraph paragraph = 2;
+  }
+}
+
+// Semantic example types
+message MapExample {
+  map<string, ScalarValue> input = 1;
+  string output = 2;
+}
+
+message MapExampleCollection {
+  repeated MapExample examples = 1;
+}
+
+message ClassifyExample {
+  string input = 1;
+  string output = 2;
+}
+
+message ClassifyExampleCollection {
+  repeated ClassifyExample examples = 1;
+}
+
+message PredicateExample {
+  map<string, ScalarValue> input = 1;
+  bool output = 2;
+}
+
+message PredicateExampleCollection {
+  repeated PredicateExample examples = 1;
+}
+
+message JoinExample {
+  ScalarValue left = 1;
+  ScalarValue right = 2;
+  bool output = 3;
+}
+
+message JoinExampleCollection {
+  repeated JoinExample examples = 1;
+}

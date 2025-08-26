@@ -7,12 +7,15 @@ if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
 import json
+import logging
 
 import numpy as np
 import polars as pl
 import pyarrow as pa
 
 import fenic._backends.local.polars_plugins  # noqa: F401
+from fenic._backends.local.async_udf_stream import AsyncUDFSyncStream
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._backends.local.semantic_operators import (
     AnalyzeSentiment,
 )
@@ -36,6 +39,7 @@ from fenic.core._logical_plan.expressions import (
     ArrayExpr,
     ArrayJoinExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     AvgExpr,
     BooleanExpr,
     ByteLengthExpr,
@@ -110,6 +114,7 @@ from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
 )
+from fenic.core._utils.type_inference import infer_dtype_from_pyobj
 from fenic.core.error import InternalError
 from fenic.core.types.datatypes import (
     ArrayType,
@@ -125,6 +130,7 @@ from fenic.core.types.datatypes import (
 )
 from fenic.core.types.enums import FuzzySimilarityMethod
 
+logger = logging.getLogger(__name__)
 
 class ExprConverter:
     def __init__(self, session_state: LocalSessionState):
@@ -364,6 +370,41 @@ class ExprConverter:
             return_dtype=convert_custom_dtype_to_polars(logical.return_type),
         )
 
+    @_convert_expr.register(AsyncUDFExpr)
+    def _convert_async_udf_expr(self, logical: AsyncUDFExpr) -> pl.Expr:
+        # Create struct from input columns
+        input_struct = pl.struct([self._convert_expr(arg) for arg in logical.args])
+
+        # Apply async function via map_batches
+        def execute_async_udf(batch: pl.Series) -> pl.Series:
+            # Extract struct as an iterable of dicts [{col1: val1, col2: val2}, ...]
+            items = ([row[name] for name in batch.struct.fields] for row in batch)
+
+            # Use context manager for automatic loop lifecycle management
+            with EventLoopManager().loop_context() as loop:
+                async_udf = AsyncUDFSyncStream(
+                    lambda item: logical.func(*item),
+                    loop=loop,
+                    max_concurrency=logical.max_concurrency,
+                    timeout=logical.timeout_seconds,
+                    num_retries=logical.num_retries
+                )
+
+                results = []
+                for result in async_udf.call(items):
+                    if isinstance(result, Exception):
+                        results.append(None)
+                    else:
+                        # Runtime type checking using Fenic's existing type inference
+                        if result:
+                            inferred_type = infer_dtype_from_pyobj(result)
+                            if inferred_type != logical.return_type:
+                                raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
+                        results.append(result)
+
+                return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
+
+        return input_struct.map_batches(execute_async_udf)
 
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:
@@ -485,7 +526,7 @@ class ExprConverter:
 
         model = "cl100k_base"
         encoding = tiktoken.get_encoding(model)
-        config = logical.chunk_configuration
+        config = logical.chunking_configuration
         chunk_overlap = round(
             config.chunk_overlap_percentage * (config.desired_chunk_size / 100.0)
         )

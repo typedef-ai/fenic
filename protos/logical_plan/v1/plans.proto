@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+import "logical_plan/v1/datatypes.proto";
+import "logical_plan/v1/enums.proto";
+import "logical_plan/v1/expressions.proto";
+import "logical_plan/v1/complex_types.proto";
+
+// Supporting types
+message FenicSchema {
+  repeated ColumnField column_fields = 1;
+}
+
+message ColumnField {
+  string name = 1;
+  DataType data_type = 2;
+}
+
+message CacheInfo {
+  optional string duckdb_table_name = 1;
+}
+
+// Base message for all logical plans
+message LogicalPlan {
+  // Common fields for all plan types
+  FenicSchema schema = 1;
+  optional CacheInfo cache_info = 2;
+
+  oneof plan_type {
+    // Source operations
+    InMemorySource in_memory_source = 10;
+    FileSource file_source = 11;
+    TableSource table_source = 12;
+    
+    // Transform operations
+    Projection projection = 20;
+    Filter filter = 21;
+    Join join = 22;
+    Aggregate aggregate = 23;
+    Union union = 24;
+    Limit limit = 25;
+    Explode explode = 26;
+    DropDuplicates drop_duplicates = 27;
+    Sort sort = 28;
+    Unnest unnest = 29;
+    SQL sql = 30;
+    SemanticCluster semantic_cluster = 31;
+    SemanticJoin semantic_join = 32;
+    SemanticSimilarityJoin semantic_similarity_join = 33;
+    
+    // Sink operations
+    FileSink file_sink = 40;
+    TableSink table_sink = 41;
+  }
+}
+
+message InMemorySource {
+  bytes source = 1;
+}
+
+message FileSource {
+  repeated string paths = 1;
+  string file_format = 2;
+  optional bool options_merge_schema = 3;
+  optional FenicSchema options_schema = 4;
+}
+
+message TableSource {
+  string table_name = 1;
+}
+
+// Transform operations
+message Projection {
+  LogicalPlan input = 1;
+  repeated LogicalExpr exprs = 2;
+}
+
+message Filter {
+  LogicalPlan input = 1;
+  LogicalExpr predicate = 2;
+}
+
+message Join {
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
+  string join_type = 3;
+  repeated LogicalExpr left_on = 4;
+  repeated LogicalExpr right_on = 5;
+}
+
+message SemanticJoin {
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
+  LogicalExpr left_on = 3;
+  LogicalExpr right_on = 4;
+  string jinja_template = 5;
+  bool strict = 6;
+  float temperature = 7;
+  optional ResolvedModelAlias model_alias = 8;
+  optional JoinExampleCollection examples = 9;
+}
+
+message SemanticSimilarityJoin {
+  // Python `Literal` Enums
+  enum SemanticSimilarityMetric {
+    COSINE = 0;
+    L2 = 1;
+    DOT = 2;
+  }
+  LogicalPlan left = 1;
+  LogicalPlan right = 2;
+  LogicalExpr left_on = 3;
+  LogicalExpr right_on = 4;
+  int32 k = 6;
+  SemanticSimilarityMetric similarity_metric = 7;
+  optional string similarity_score_column = 8;
+}
+
+message Aggregate {
+  LogicalPlan input = 1;
+  repeated LogicalExpr group_exprs = 2;
+  repeated LogicalExpr agg_exprs = 3;
+}
+
+message Union {
+  repeated LogicalPlan inputs = 1;
+}
+
+message Limit {
+  LogicalPlan input = 1;
+  int32 n = 2;
+}
+
+message Explode {
+  LogicalPlan input = 1;
+  LogicalExpr expr = 2;
+}
+
+message DropDuplicates {
+  LogicalPlan input = 1;
+  repeated LogicalExpr subset = 2;
+}
+
+message Sort {
+  LogicalPlan input = 1;
+  repeated LogicalExpr sort_exprs = 2;
+}
+
+message Unnest {
+  LogicalPlan input = 1;
+  repeated LogicalExpr exprs = 2;
+}
+
+message SQL {
+  repeated LogicalPlan inputs = 1;
+  repeated string template_names = 2;
+  string templated_query = 3;
+}
+
+message SemanticCluster {
+  LogicalPlan input = 1;
+  LogicalExpr by_expr = 2;
+  int32 num_clusters = 3;
+  int32 max_iter = 4;
+  int32 num_init = 5;
+  string label_column = 6;
+  optional string centroid_column = 7;
+}
+
+message FileSink {
+  LogicalPlan child = 1;
+  string sink_type = 2;
+  string path = 3;
+  string mode = 4;
+}
+
+message TableSink {
+  LogicalPlan child = 1;
+  string table_name = 2;
+  string mode = 3;
+}

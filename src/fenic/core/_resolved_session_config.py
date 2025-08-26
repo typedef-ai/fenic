@@ -14,7 +14,8 @@ from typing import Literal, Optional, Union
 
 from fenic.core._inference.model_catalog import ModelProvider
 
-ReasoningEffort = Literal["low", "medium", "high"]
+ReasoningEffort = Literal["minimal", "low", "medium", "high"]
+Verbosity = Literal["low", "medium", "high"]
 
 # --- Enums ---
 
@@ -42,6 +43,7 @@ class ResolvedGoogleModelProfile:
 @dataclass
 class ResolvedOpenAIModelProfile:
     reasoning_effort: Optional[ReasoningEffort] = None
+    verbosity: Optional[Verbosity] = None
 
 @dataclass
 class ResolvedCohereModelProfile:

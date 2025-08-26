@@ -1,0 +1,521 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+import "logical_plan/v1/complex_types.proto";
+import "logical_plan/v1/datatypes.proto";
+import "logical_plan/v1/enums.proto";
+
+// Base message for all logical expressions
+message LogicalExpr {
+  oneof expr_type {
+    // Basic expressions
+    ColumnExpr column = 1;
+    LiteralExpr literal = 2;
+    AliasExpr alias = 3;
+    SortExpr sort = 4;
+    IndexExpr index = 5;
+    ArrayExpr array = 6;
+    StructExpr struct = 7;
+    CastExpr cast = 8;
+    NotExpr not_expr = 9; //keyword
+    CoalesceExpr coalesce = 10;
+    InExpr in_expr = 11; //keyword
+    IsNullExpr is_null = 12;
+    ArrayLengthExpr array_length = 13;
+    ArrayContainsExpr array_contains = 14;
+    GreatestExpr greatest = 15;
+    LeastExpr least = 16;
+
+    // Binary expressions
+    ArithmeticExpr arithmetic = 20;
+    BooleanExpr boolean = 21;
+    EqualityComparisonExpr equality_comparison = 22;
+    NumericComparisonExpr numeric_comparison = 23;
+
+    // Semantic expressions
+    SemanticMapExpr semantic_map = 30;
+    SemanticExtractExpr semantic_extract = 31;
+    SemanticPredExpr semantic_pred = 32;
+    SemanticReduceExpr semantic_reduce = 33;
+    SemanticClassifyExpr semantic_classify = 34;
+    AnalyzeSentimentExpr analyze_sentiment = 35;
+    EmbeddingsExpr embeddings = 36;
+    SemanticSummarizeExpr semantic_summarize = 37;
+
+    // Embedding expressions
+    EmbeddingNormalizeExpr embedding_normalize = 40;
+    EmbeddingSimilarityExpr embedding_similarity = 41;
+
+    // Text expressions
+    TextractExpr textract = 50;
+    TextChunkExpr text_chunk = 51;
+    RecursiveTextChunkExpr recursive_text_chunk = 52;
+    CountTokensExpr count_tokens = 53;
+    ConcatExpr concat = 54;
+    ArrayJoinExpr array_join = 55;
+    ContainsExpr contains = 56;
+    ContainsAnyExpr contains_any = 57;
+    RLikeExpr rlike = 58;
+    LikeExpr like = 59;
+    ILikeExpr ilike = 60;
+    TsParseExpr ts_parse = 61;
+    StartsWithExpr starts_with = 62;
+    EndsWithExpr ends_with = 63;
+    RegexpSplitExpr regexp_split = 64;
+    SplitPartExpr split_part = 65;
+    StringCasingExpr string_casing = 66;
+    StripCharsExpr strip_chars = 67;
+    ReplaceExpr replace = 68;
+    StrLengthExpr str_length = 69;
+    ByteLengthExpr byte_length = 70;
+    JinjaExpr jinja = 71;
+    FuzzyRatioExpr fuzzy_ratio = 72;
+    FuzzyTokenSortRatioExpr fuzzy_token_sort_ratio = 73;
+    FuzzyTokenSetRatioExpr fuzzy_token_set_ratio = 74;
+
+    // JSON expressions
+    JqExpr jq = 80;
+    JsonTypeExpr json_type = 81;
+    JsonContainsExpr json_contains = 82;
+
+    // Markdown expressions
+    MdToJsonExpr md_to_json = 90;
+    MdGetCodeBlocksExpr md_get_code_blocks = 91;
+    MdGenerateTocExpr md_generate_toc = 92;
+    MdExtractHeaderChunks md_extract_header_chunks = 93;
+
+    // Case expressions
+    WhenExpr when = 100;
+    OtherwiseExpr otherwise = 101;
+
+    // Aggregate expressions
+    SumExpr sum = 110;
+    AvgExpr avg = 111;
+    CountExpr count = 112;
+    MaxExpr max = 113;
+    MinExpr min = 114;
+    FirstExpr first = 115;
+    ListExpr list = 116;
+    StdDevExpr std_dev = 117;
+
+  }
+}
+
+// Basic expressions
+message ColumnExpr {
+  string name = 1;
+}
+
+
+message LiteralExpr {
+  ScalarValue value = 1;
+  DataType data_type = 2;
+}
+
+message AliasExpr {
+  LogicalExpr expr = 1;
+  string name = 2;
+}
+
+message SortExpr {
+  LogicalExpr expr = 1;
+  bool ascending = 2;
+  bool nulls_last = 3;
+}
+
+message IndexExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr index = 2;
+}
+
+message ArrayExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message StructExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message CastExpr {
+  LogicalExpr expr = 1;
+  DataType dest_type = 2;
+}
+
+message NotExpr {
+  LogicalExpr expr = 1;
+}
+
+message CoalesceExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message InExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+}
+
+message IsNullExpr {
+  LogicalExpr expr = 1;
+  bool is_null = 2;
+}
+
+message ArrayLengthExpr {
+  LogicalExpr expr = 1;
+}
+
+message ArrayContainsExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+}
+
+// Binary expressions
+message ArithmeticExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message BooleanExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message NumericComparisonExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+message EqualityComparisonExpr {
+  LogicalExpr left = 1;
+  LogicalExpr right = 2;
+  Operator operator = 3;
+}
+
+// Semantic expressions - using descriptive  suffix naming
+message SemanticMapExpr {
+  string template = 1;
+  bool strict = 2;
+  repeated LogicalExpr exprs = 3;  // Parsed from instruction
+  int32 max_tokens = 4;
+  double temperature = 5;
+  optional ResolvedModelAlias model_alias = 6;
+  optional ResolvedResponseFormat response_format = 7;
+  optional MapExampleCollection examples = 8;
+}
+
+message SemanticExtractExpr {
+  LogicalExpr expr = 1;
+  ResolvedResponseFormat response_format = 2;
+  int32 max_tokens = 3;
+  double temperature = 4;
+  optional ResolvedModelAlias model_alias = 5;
+}
+
+message SemanticPredExpr {
+  string template = 1;
+  bool strict = 2;
+  repeated LogicalExpr exprs = 3;  // Parsed from instruction
+  double temperature = 4;
+  optional ResolvedModelAlias model_alias = 5;
+  optional PredicateExampleCollection examples = 6;
+}
+
+message SemanticReduceExpr {
+  string instruction = 1;
+  LogicalExpr input_expr = 2;
+  int32 max_tokens = 3;
+  double temperature = 4;
+  repeated LogicalExpr group_context_exprs = 5;
+  repeated LogicalExpr order_by_exprs = 6;
+  optional ResolvedModelAlias model_alias = 7;
+}
+
+message SemanticClassifyExpr {
+  LogicalExpr expr = 1;
+  repeated ResolvedClassDefinition classes = 2;
+  double temperature = 3;
+  optional ResolvedModelAlias model_alias = 4;
+  optional ClassifyExampleCollection examples = 5;
+}
+
+message AnalyzeSentimentExpr {
+  LogicalExpr expr = 1;
+  double temperature = 2;
+  optional ResolvedModelAlias model_alias = 3;
+}
+
+message EmbeddingsExpr {
+  LogicalExpr expr = 1;
+  optional ResolvedModelAlias model_alias = 2;
+}
+
+message SemanticSummarizeExpr {
+  LogicalExpr expr = 1;
+  SummarizationFormat format = 2;
+  double temperature = 3;
+  optional ResolvedModelAlias model_alias = 4;
+}
+
+// Embedding expressions
+message EmbeddingNormalizeExpr {
+  LogicalExpr expr = 1;
+}
+
+message EmbeddingSimilarityExpr {
+  LogicalExpr expr = 1;
+  oneof other_type {
+    LogicalExpr other_expr = 2;
+    NumpyArray query_vector = 3;
+  }
+  string metric = 4;
+}
+
+// Text expressions
+message TextractExpr {
+  LogicalExpr input_expr = 1;
+  string template = 2;
+}
+
+message TextChunkExpr {
+  LogicalExpr expr = 1;
+  message TextChunkExprConfiguration {
+    int32 desired_chunk_size = 2;
+    int32 chunk_overlap_percentage = 3;
+    ChunkLengthFunction chunk_length_function_name = 4;
+  }
+  TextChunkExprConfiguration configuration = 2;
+}
+
+message RecursiveTextChunkExpr {
+  LogicalExpr input_expr = 1;
+  message RecursiveTextChunkExprConfiguration {
+    int32 desired_chunk_size = 2;
+    int32 chunk_overlap_percentage = 3;
+    ChunkLengthFunction chunk_length_function_name = 4;
+    ChunkCharacterSet chunking_character_set_name = 5;
+    repeated string chunking_character_set_custom_characters = 6;
+  }
+  RecursiveTextChunkExprConfiguration configuration = 2;
+}
+
+message CountTokensExpr {
+  LogicalExpr input_expr = 1;
+}
+
+message ConcatExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message ArrayJoinExpr {
+  LogicalExpr expr = 1;
+  string delimiter = 2;
+}
+
+message ContainsExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr substr = 2;
+}
+
+message ContainsAnyExpr {
+  LogicalExpr expr = 1;
+  repeated string substrs = 2;
+  bool case_insensitive = 3;
+}
+
+message RLikeExpr {
+  LogicalExpr expr = 1;
+  string pattern = 2;
+}
+
+message LikeExpr {
+  LogicalExpr expr = 1;
+  string pattern = 2;
+}
+
+message ILikeExpr {
+  LogicalExpr expr = 1;
+  string pattern = 2;
+}
+
+message TsParseExpr {
+  enum TranscriptFormatType {
+    SRT = 0;
+    GENERIC = 1;
+    WEBVTT = 2;
+  }
+  LogicalExpr expr = 1;
+  TranscriptFormatType format = 2;
+}
+
+message StartsWithExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr substr = 2;
+}
+
+message EndsWithExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr substr = 2;
+}
+
+message RegexpSplitExpr {
+  LogicalExpr expr = 1;
+  string pattern = 2;
+  int32 limit = 3;
+}
+
+message SplitPartExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr delimiter = 2;
+  LogicalExpr part_number = 3;
+}
+
+message StringCasingExpr {
+  LogicalExpr expr = 1;
+  enum StringCasingType {
+    LOWER = 0;
+    UPPER = 1;
+    TITLE = 2;
+  }
+  StringCasingType case = 2;
+}
+
+message StripCharsExpr {
+  LogicalExpr expr = 1;
+  optional LogicalExpr chars = 2;
+  enum StripCharsSide {
+    LEFT = 0;
+    RIGHT = 1;
+    BOTH = 2;
+  }
+  StripCharsSide side = 3;
+}
+
+message ReplaceExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr search = 2;
+  LogicalExpr replacement = 3;
+  bool literal = 4;
+}
+
+message StrLengthExpr {
+  LogicalExpr expr = 1;
+}
+
+message ByteLengthExpr {
+  LogicalExpr expr = 1;
+}
+
+message JinjaExpr {
+  repeated LogicalExpr exprs = 1;
+  string template = 2;
+  bool strict = 3;
+}
+
+message FuzzyRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  FuzzySimilarityMethod method = 3;
+}
+
+message FuzzyTokenSortRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  FuzzySimilarityMethod method = 3;
+}
+
+message FuzzyTokenSetRatioExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr other = 2;
+  FuzzySimilarityMethod method = 3;
+}
+
+// JSON expressions
+message JqExpr {
+  LogicalExpr expr = 1;
+  string query = 2;
+}
+
+message JsonTypeExpr {
+  LogicalExpr expr = 1;
+}
+
+message JsonContainsExpr {
+  LogicalExpr expr = 1;
+  string value = 2;
+}
+
+// Markdown expressions
+message MdToJsonExpr {
+  LogicalExpr expr = 1;
+}
+
+message MdGetCodeBlocksExpr {
+  LogicalExpr expr = 1;
+  optional string language_filter = 2;
+}
+
+message MdGenerateTocExpr {
+  LogicalExpr expr = 1;
+  optional int32 max_level = 2;
+}
+
+message MdExtractHeaderChunks {
+  LogicalExpr expr = 1;
+  int32 header_level = 2;
+}
+
+// Case expressions
+message WhenExpr {
+  optional LogicalExpr expr = 1;  // Optional for simple CASE
+  LogicalExpr condition = 2;
+  LogicalExpr value = 3;
+}
+
+message OtherwiseExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr value = 2;
+}
+
+// Aggregate expressions
+message SumExpr {
+  LogicalExpr expr = 1;
+}
+
+message AvgExpr {
+  LogicalExpr expr = 1;
+}
+
+message CountExpr {
+  LogicalExpr expr = 1;
+}
+
+message MaxExpr {
+  LogicalExpr expr = 1;
+}
+
+message MinExpr {
+  LogicalExpr expr = 1;
+}
+
+message FirstExpr {
+  LogicalExpr expr = 1;
+}
+
+message ListExpr {
+  LogicalExpr expr = 1;
+}
+
+message StdDevExpr {
+  LogicalExpr expr = 1;
+}
+
+message GreatestExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message LeastExpr {
+  repeated LogicalExpr exprs = 1;
+}

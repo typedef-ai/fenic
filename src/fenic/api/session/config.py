@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
     CohereEmbeddingModelName,
+    CompletionModelParameters,
     EmbeddingModelParameters,
     GoogleDeveloperEmbeddingModelName,
     GoogleDeveloperLanguageModelName,
@@ -37,6 +38,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelProfile,
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
+    Verbosity,
 )
 from fenic.core.error import ConfigurationError, InternalError
 
@@ -197,6 +199,9 @@ class GoogleDeveloperLanguageModel(BaseModel):
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
 
+        Raises:
+            ConfigurationError: If a profile is set with parameters that are not supported by the model.
+
         Example:
             Configuring a profile with a fixed thinking budget:
 
@@ -268,6 +273,7 @@ class GoogleVertexEmbeddingModel(BaseModel):
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
     default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
 
+
     class Profile(BaseModel):
         """Profile configurations for Google Vertex embedding models.
 
@@ -296,7 +302,6 @@ class GoogleVertexEmbeddingModel(BaseModel):
 
         output_dimensionality: Optional[int] = Field(default=None, ge=768, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
-
 
 class GoogleVertexLanguageModel(BaseModel):
     """Configuration for Google Vertex AI models.
@@ -357,6 +362,9 @@ class GoogleVertexLanguageModel(BaseModel):
                 the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
+
+        Raises:
+            ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Example:
             Configuring a profile with a fixed thinking budget:
@@ -458,13 +466,15 @@ class OpenAILanguageModel(BaseModel):
         """OpenAI-specific profile configurations.
 
         This class defines profile configurations for OpenAI models, allowing a user to reference
-        the same underlying model in semantic operations with different settings. For now, only
-        the reasoning effort can be customized.
+        the same underlying model in semantic operations with different settings.
 
         Attributes:
-            reasoning_effort: If configuring a reasoning model, provide a reasoning effort. OpenAI has separate o-series reasoning models,
-                for which thinking cannot be disabled. If an o-series model is specified, but no `reasoning_effort` is provided,
-                the `reasoning_effort` will be set to `low`.
+            reasoning_effort: Provide a reasoning effort. Only for gpt5 and o-series models.
+                If reasoning effort is not provided, the `reasoning_effort` will be set to `low` (for o-series models) or `minimal` (for gpt5 models).
+            verbosity: Provide a verbosity level. Only for gpt5 models.
+
+        Raises:
+            ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
             When using an o-series reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
@@ -481,6 +491,10 @@ class OpenAILanguageModel(BaseModel):
         reasoning_effort: Optional[ReasoningEffort] = Field(
             default=None, description="The reasoning effort level for the profile"
         )
+        verbosity: Optional[Verbosity] = Field(
+            default=None, description="The verbosity level for the profile"
+        )
+
 
 class OpenAIEmbeddingModel(BaseModel):
     """Configuration for OpenAI embedding models.
@@ -578,8 +592,11 @@ class AnthropicLanguageModel(BaseModel):
         different thinking token budget settings to be applied to the same model.
 
         Attributes:
-            thinking_token_budget: If configuring a model that supports reasoning, provide a default thinking budget in tokens. If not provided,
+            thinking_token_budget: Provide a default thinking budget in tokens. If not provided,
                 thinking will be disabled for the profile. The minimum token budget supported by Anthropic is 1024 tokens.
+
+        Raises:
+            ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
             If `thinking_token_budget` is set, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
@@ -855,7 +872,19 @@ class SemanticConfig(BaseModel):
                 language_model_name = language_model.model_name
                 language_model_provider = _get_model_provider_for_model_config(language_model)
 
+                completion_model_params = model_catalog.get_completion_model_parameters(language_model_provider,
+                                                                                 language_model_name)
+                if completion_model_params is None:
+                    raise ConfigurationError(
+                        model_catalog.generate_unsupported_completion_model_error_message(
+                            language_model_provider,
+                            language_model_name
+                        )
+                    )
                 if language_model.profiles is not None:
+                    if not completion_model_params.supports_profiles:
+                        raise ConfigurationError(
+                            f"Model '{model_alias}' does not support parameter profiles. Please remove the Profile configuration.")
                     profile_names = list(language_model.profiles.keys())
                     if language_model.default_profile is None and len(profile_names) > 0:
                         raise ConfigurationError(
@@ -863,16 +892,10 @@ class SemanticConfig(BaseModel):
                     if language_model.default_profile is not None and language_model.default_profile not in profile_names:
                         raise ConfigurationError(
                             f"default_profile {language_model.default_profile} is not in configured profiles for model {model_alias}. Available profiles: {profile_names}")
+                    for profile_alias, profile in language_model.profiles.items():
+                        _validate_language_profile(language_model, model_alias, completion_model_params, profile, profile_alias)
 
-                completion_model = model_catalog.get_completion_model_parameters(language_model_provider,
-                                                                                 language_model_name)
-                if completion_model is None:
-                    raise ConfigurationError(
-                        model_catalog.generate_unsupported_completion_model_error_message(
-                            language_model_provider,
-                            language_model_name
-                        )
-                    )
+
         if self.embedding_models is not None:
             available_embedding_model_aliases = list(self.embedding_models.keys())
             if self.default_embedding_model is None and len(self.embedding_models) > 1:
@@ -902,7 +925,7 @@ class SemanticConfig(BaseModel):
                             f"default_profile {embedding_model.default_profile} is not in configured profiles for model {model_alias}. Available profiles: {profile_names}")
 
                     for profile_alias, profile in embedding_model.profiles.items():
-                        _validate_embedding_profile(embedding_model_parameters, profile_alias, profile)
+                        _validate_embedding_profile(embedding_model_parameters, model_alias, profile_alias, profile)
 
 
         return self
@@ -1037,7 +1060,7 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, OpenAILanguageModel):
                 profiles = {
-                    profile: ResolvedOpenAIModelProfile(reasoning_effort=profile_config.reasoning_effort) for
+                    profile: ResolvedOpenAIModelProfile(reasoning_effort=profile_config.reasoning_effort, verbosity=profile_config.verbosity) for
                     profile, profile_config in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedOpenAIModelConfig(
@@ -1137,8 +1160,20 @@ class SessionConfig(BaseModel):
             cloud=resolved_cloud
         )
 
+def _validate_language_profile(language_model: LanguageModel, model_alias: str, completion_model_params: CompletionModelParameters, profile:Any, profile_alias: str) -> None:
+    """Validate the language profile against the language model."""
+    if isinstance(language_model, OpenAILanguageModel):
+        if not completion_model_params.supports_minimal_reasoning and profile.reasoning_effort == "minimal":
+            raise ConfigurationError(f"Model '{model_alias}' does not support 'minimal' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
+        if not completion_model_params.supports_verbosity and profile.verbosity is not None:
+            raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
+    elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
+        if not profile.thinking_token_budget or profile.thinking_token_budget == 0 and model_alias == "gemini-2.5-pro":
+            raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
+
 def _validate_embedding_profile(
     embedding_model_parameters: EmbeddingModelParameters,
+    model_alias: str,
     profile_alias: str,
     profile: EmbeddingModel.Profile
 ):

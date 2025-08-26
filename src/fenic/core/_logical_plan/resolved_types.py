@@ -69,7 +69,7 @@ class ResolvedResponseFormat:
     def from_json_schema(
         cls,
         raw_schema: Dict[str, Any],
-        prompt_schema_definition: Optional[str] = None,
+        prompt_schema_definition: str,
         struct_type: Optional[StructType] = None,
     ) -> "ResolvedResponseFormat":
         """Create a ResolvedResponseFormat from a Pydantic model."""

@@ -79,7 +79,7 @@ class OpenAIChatCompletionsCore:
 
         Args:
             request: The messages to send
-            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort)
+            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort and verbosity)
         Returns:
             The response text or an exception
         """
