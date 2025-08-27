@@ -201,10 +201,12 @@ class TableSink(LogicalPlan):
             table_name=self.table_name,
             mode=self.mode,
             session_state=session_state,
+            description=self.description,
         )
 
     def _eq_specific(self, other: TableSink) -> bool:
         return (
             self.table_name == other.table_name
             and self.mode == other.mode
+            and self.description == other.description
         )
