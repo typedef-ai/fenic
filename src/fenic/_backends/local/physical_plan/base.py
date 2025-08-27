@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
@@ -19,6 +20,7 @@ from fenic.core.metrics import (
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
+logger = logging.getLogger(__name__)
 
 # TODO(rohitrastogi): Consider using a visitor pattern to traverse logical and physical plans. This can help
 # with separating the traversal logic from the node processing logic.
@@ -75,7 +77,8 @@ class PhysicalPlan:
                 curr_operator_metrics.execution_time_ms = (
                     time.time() - start_time
                 ) * 1000
-                return df, QueryMetrics(
+                cached_query_metrics = QueryMetrics(
+                    session_id=self.session_state.session_id,
                     execution_time_ms=curr_operator_metrics.execution_time_ms,
                     num_output_rows=curr_operator_metrics.num_output_rows,
                     total_lm_metrics=total_lm_metrics,
@@ -83,6 +86,14 @@ class PhysicalPlan:
                     _plan_repr=plan_repr,
                     _operator_metrics=all_operator_metrics,
                 )
+                
+                # Append cached metrics to the metrics table
+                try:
+                    self.session_state.catalog.insert_metrics(cached_query_metrics)
+                except Exception as e:
+                    logger.error(f"Failed to append cached query metrics: {e}")
+                
+                return df, cached_query_metrics
 
         # Step 3: Execute child operators and collect their metrics
         child_dfs = []
@@ -118,7 +129,9 @@ class PhysicalPlan:
         # Calculate total execution time for the query metrics
         total_execution_time = child_execution_time + operator_execution_time
 
+        # Create query metrics with session information
         query_metrics = QueryMetrics(
+            session_id=self.session_state.session_id,
             execution_time_ms=total_execution_time,
             num_output_rows=curr_operator_metrics.num_output_rows,
             total_lm_metrics=total_lm_metrics + curr_operator_metrics.lm_metrics,
@@ -126,6 +139,13 @@ class PhysicalPlan:
             _plan_repr=plan_repr,
             _operator_metrics=all_operator_metrics,
         )
+        
+        # Append metrics to the metrics table
+        try:
+            self.session_state.catalog.insert_metrics(query_metrics)
+        except Exception as e:
+            logger.error(f"Failed to append query metrics: {e}")
+        
         return result_df, query_metrics
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:

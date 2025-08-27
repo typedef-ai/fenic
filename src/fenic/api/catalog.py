@@ -13,6 +13,8 @@ class Catalog:
 
     The Catalog provides methods to interact with and manage database tables,
     including listing available tables, describing table schemas, and dropping tables.
+    It also provides read-only access to tables in the `fenic_system` database, such as `metrics`.
+
 
     Example: Basic usage
         ```python
@@ -37,6 +39,54 @@ class Catalog:
             ColumnField('id', IntegerType),
         ]))
         # Returns: True
+        ```
+
+    ## Metrics Table:
+
+    Fenic keeps track of system metrics and costs per session in your app.  It persists
+    in your local database, and you can load it into a dataframe for analysis.
+    A summary of your session's metrics will print once you stop your session.
+
+    Example: Basic Metrics Table queries
+        ```python
+        # Get the metrics for a session
+        metrics_df = session.table("fenic_system.metrics")
+
+        # Show metrics from the last 10 queries
+        metrics_df.order_by(fc.col("index").desc()).limit(10).show()
+
+        # Get metrics from a specific session that incurred LM costs
+        session_metrics_df = (metrics_df
+            .filter(fc.col("session_id") == "9e7e256f-fad9-4cd9-844e-399d795aaea0")
+            .where(fc.col("total_lm_cost") > 0)
+            .order_by(fc.col("index").desc())
+        )
+
+        # Get total costs from that session
+        session_metrics_df.agg(
+            fc.sum("total_lm_cost").alias("session_lm_costs"),
+            fc.sum("total_lm_requests").alias("session_lm_requests")
+        ).show()
+        ```
+
+    Example: Query metrics by timestamp
+        You can use the index column to order the metrics, or you can use the start_ts and end_ts columns.
+        Currently, fenic does not natively support timestamp types so these are strings. To query by timestamps,
+        CAST them to timestamp in a SQL query.
+
+        ```python
+        # Get total lm costs and requests from timewindow between 10:00:00 and 12:00:00
+        metrics_window = session.sql(\"\"\"
+        SELECT
+            CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
+            CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
+        FROM {df}
+        WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
+            CAST('2025-08-29 10:00:00' AS TIMESTAMP) AND
+            CAST('2025-08-29 12:00:00' AS TIMESTAMP)
+        \"\"\", df=metrics_df)
+
+        metrics_window.show()
         ```
     """
 

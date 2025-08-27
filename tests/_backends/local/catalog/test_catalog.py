@@ -14,10 +14,14 @@ from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
 )
+from fenic._backends.local.system_table_client import (
+    READ_ONLY_SYSTEM_SCHEMA_NAME,
+)
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
+    ExecutionError,
     TableAlreadyExistsError,
     TableNotFoundError,
 )
@@ -155,7 +159,27 @@ def test_list_databases(local_session: Session):
     assert A_DATABASE_NAME in databases
     assert ANOTHER_DATABASE_NAME in databases
     assert DEFAULT_DATABASE_NAME in databases
-    assert len(databases) == 3
+    assert READ_ONLY_SYSTEM_SCHEMA_NAME in databases  # Read-only system database
+    assert len(databases) == 4
+
+
+def test_read_only_system_database_protection(local_session: Session):
+    """Test that the fenic_system database cannot be dropped."""
+    with pytest.raises(CatalogError, match="Cannot drop read-only system database"):
+        local_session.catalog.drop_database(READ_ONLY_SYSTEM_SCHEMA_NAME)
+    
+    # Test that tables in fenic_system cannot be dropped
+    with pytest.raises(CatalogError, match="Cannot drop table 'fenic_system.metrics' from read-only system database"):
+        local_session.catalog.drop_table(f"{READ_ONLY_SYSTEM_SCHEMA_NAME}.metrics")
+    
+    # Test that we cannot create tables in fenic_system
+    with pytest.raises(CatalogError, match="Cannot create table 'fenic_system.test_table' in read-only system database"):
+        local_session.catalog.create_table(f"{READ_ONLY_SYSTEM_SCHEMA_NAME}.test_table", SIMPLE_TABLE_SCHEMA)
+    
+    # Test that we cannot write to tables in fenic_system
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    with pytest.raises(ExecutionError, match="Cannot write to table 'fenic_system.test_table' in read-only system database"):
+        df.write.save_as_table("fenic_system.test_table")
 
 
 def test_get_and_set_current_database(local_session: Session):

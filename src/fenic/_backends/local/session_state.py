@@ -1,6 +1,7 @@
 """Session state management for query execution."""
 
 import logging
+import uuid
 from functools import cached_property
 from pathlib import Path
 from typing import Optional
@@ -41,6 +42,7 @@ class LocalSessionState(BaseSessionState):
     ):
         super().__init__(config)
         self.app_name = config.app_name
+        self.session_id = str(uuid.uuid4())  # Generate unique session ID
         if config.db_path:
             db_path = Path(config.db_path) / f"{config.app_name}.duckdb"
         else:
@@ -91,6 +93,9 @@ class LocalSessionState(BaseSessionState):
 
     def stop(self):
         """Clean up the session state."""
+        # Print session usage summary before stopping
+        self._print_session_usage_summary()
+        
         from fenic._backends.local.manager import LocalSessionManager
 
         LocalSessionManager().remove_session(self.app_name)
@@ -107,3 +112,24 @@ class LocalSessionState(BaseSessionState):
             raise SessionError(
                 f"This session '{self.app_name}' has been stopped. Create a new session using Session.get_or_create()."
             )
+
+    def _print_session_usage_summary(self):
+        """Print total usage summary for this session."""
+        try:
+            costs = self.catalog.get_metrics_for_session(self.session_id)
+            if costs["query_count"] > 0:
+                print("\nSession Usage Summary:")
+                print(f"  App Name: {self.app_name}")
+                print(f"  Session ID: {self.session_id}")
+                print(f"  Total queries executed: {costs['query_count']}")
+                print(f"  Total execution time: {costs['total_execution_time_ms']:.2f}ms")
+                print(f"  Total rows processed: {costs['total_output_rows']:,}")
+                print(f"  Total language model cost: ${costs['total_lm_cost']:.6f}")
+                print(f"  Total embedding model cost: ${costs['total_rm_cost']:.6f}")
+                total_cost = costs['total_lm_cost'] + costs['total_rm_cost']
+                print(f"  Total cost: ${total_cost:.6f}")
+        except Exception as e:
+            # Don't fail session stop if metrics summary fails
+            logger.warning(f"Failed to print session usage summary: {e}")
+
+

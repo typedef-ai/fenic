@@ -335,7 +335,10 @@ class Session:
         )
 
     def stop(self):
-        """Stops the session and closes all connections."""
+        """Stops the session and closes all connections.
+
+        A summary of your session's metrics will print once you stop your session.
+        """
         self._session_state.stop()
 
 
