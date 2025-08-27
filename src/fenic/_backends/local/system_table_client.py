@@ -37,7 +37,7 @@ class SystemTableClient:
             connection: An initialized DuckDB connection
 
         Raises:
-            CatalogError: If the initialization of tables for schema meta data or views fails
+            CatalogError: If the initialization of tables for schema or view metadata fails
         """
         self._initialize_system_schema(connection)
         self._initialize_views_metadata(connection)
