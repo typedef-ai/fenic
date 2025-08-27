@@ -296,8 +296,9 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+            cursor = self.db_conn.cursor()
             try:
-                self.system_tables.set_table_description(table_identifier.db, table_identifier.table, description)
+                self.system_tables.set_table_description(cursor, table_identifier.db, table_identifier.table, description)
             except Exception as e:
                 raise CatalogError(
                     f"Failed to set description for table: `{table_identifier.db}.{table_identifier.table}`"
@@ -309,8 +310,9 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(view_identifier)
+            cursor = self.db_conn.cursor()
             try:
-                self.system_tables.set_view_description(view_identifier.db, view_identifier.table, description)
+                self.system_tables.set_view_description(cursor, view_identifier.db, view_identifier.table, description)
             except Exception as e:
                 raise CatalogError(
                     f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
@@ -323,7 +325,8 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
             schema = self.describe_table(table_name)
-            description = self.system_tables.get_table_description(table_identifier.db, table_identifier.table)
+            cursor = self.db_conn.cursor()
+            description = self.system_tables.get_table_description(cursor, table_identifier.db, table_identifier.table)
             return TableMetadata(schema=schema, description=description)
 
     def get_view_metadata(self, view_name: str) -> ViewMetadata:
@@ -334,7 +337,8 @@ class LocalCatalog(BaseCatalog):
             _verify_table_catalog(view_identifier)
             logical_plan = self.describe_view(view_name)
             schema = logical_plan.schema()
-            description = self.system_tables.get_view_description(view_identifier.db, view_identifier.table)
+            cursor = self.db_conn.cursor()
+            description = self.system_tables.get_view_description(cursor, view_identifier.db, view_identifier.table)
             return ViewMetadata(schema=schema, description=description)
 
     def describe_table(self, table_name: str) -> Schema:

@@ -54,14 +54,22 @@ class SystemTableClient:
         self._initialize_views_metadata()
         self._initialize_read_only_system_schema_and_tables()
 
-    def save_schema(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str, schema: Schema, description: Optional[str] = None) -> None:
+    def save_schema(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        database_name: str,
+        table_name: str,
+        schema: Schema,
+        description: Optional[str] = None
+    ) -> None:
         """Save a table's schema metadata to the system table. This is used for storing logical type information that can't be directly represented in the physical storage.
 
         Args:
+            cursor: A thread-safe DuckDB cursor
             database_name: The name of the database/schema
             table_name: The name of the table
             schema: The schema to store
-
+            description: Optional description of the table
         Raises:
             CatalogError: If the schema cannot be saved
         """
@@ -72,7 +80,7 @@ class SystemTableClient:
         try:
             if description is None:
                 # Preserve existing description if not provided
-                existing_desc = self.get_table_description(database_name, table_name)
+                existing_desc = self.get_table_description(cursor, database_name, table_name)
                 description = existing_desc
             # Upsert the schema - replace if exists
             cursor.execute(
@@ -94,6 +102,7 @@ class SystemTableClient:
         """Retrieve a table's schema metadata from the system table.
 
         Args:
+            cursor: A thread-safe DuckDB cursor
             database_name: The name of the database/schema
             table_name: The name of the table
 
@@ -127,11 +136,16 @@ class SystemTableClient:
                 f"Failed to retrieve schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def get_table_description(self, database_name: str, table_name: str) -> Optional[str]:
+    def get_table_description(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        database_name: str,
+        table_name: str
+    ) -> Optional[str]:
         """Retrieve a table's description from the system table, if present."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 SELECT description
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
@@ -148,11 +162,12 @@ class SystemTableClient:
                 f"Failed to retrieve table description for {database_name}.{table_name}: {e}"
             ) from e
 
-    def set_table_description(self, database_name: str, table_name: str, description: Optional[str]) -> None:
+    def set_table_description(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str,
+                              description: Optional[str]) -> None:
         """Set or clear a table's description in the system table."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 UPDATE "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 SET description = ?
@@ -170,6 +185,7 @@ class SystemTableClient:
         """Delete a table's schema metadata from the system table.
 
         Args:
+            cursor: A thread-safe DuckDB cursor
             database_name: The name of the database/schema
             table_name: The name of the table
 
@@ -207,6 +223,7 @@ class SystemTableClient:
         """Delete all schema metadata for a database.
 
         Args:
+            cursor: A thread-safe DuckDB cursor
             database_name: The name of the database/schema
 
         Returns:
@@ -254,7 +271,7 @@ class SystemTableClient:
         try:
             if description is None:
                 # Preserve existing description if not provided
-                existing_desc = self.get_view_description(database_name, view_name)
+                existing_desc = self.get_view_description(cursor, database_name, view_name)
                 description = existing_desc
             cursor.execute(
                 f"""
@@ -298,11 +315,16 @@ class SystemTableClient:
                 f"Failed to retrieve view for {database_name}.{view_name}"
             ) from e
 
-    def get_view_description(self, database_name: str, view_name: str) -> Optional[str]:
+    def get_view_description(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        database_name: str,
+        view_name: str
+    ) -> Optional[str]:
         """Retrieve a view's description, if present."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
-            result = self.db_conn.execute(
+            result = cursor.execute(
                 f"""
                 SELECT description
                 FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
@@ -319,11 +341,12 @@ class SystemTableClient:
                 f"Failed to retrieve view description for {database_name}.{view_name}"
             ) from e
 
-    def set_view_description(self, database_name: str, view_name: str, description: Optional[str]) -> None:
+    def set_view_description(self, cursor: duckdb.DuckDBPyConnection, database_name: str, view_name: str,
+                             description: Optional[str]) -> None:
         """Set or clear a view's description in the system table."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
-            self.db_conn.execute(
+            cursor.execute(
                 f"""
                 UPDATE "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
                 SET description = ?
@@ -436,7 +459,7 @@ class SystemTableClient:
             """
             )
             # Ensure description column exists for dev-time schema evolution
-            self.db_conn.execute(
+            cursor.execute(
                 f"ALTER TABLE \"{SYSTEM_SCHEMA_NAME}\".\"{SCHEMA_METADATA_TABLE}\" ADD COLUMN IF NOT EXISTS description TEXT;"
             )
         except Exception as e:
@@ -533,7 +556,7 @@ class SystemTableClient:
             """
             )
             # Ensure description column exists for dev-time schema evolution
-            self.db_conn.execute(
+            cursor.execute(
                 f"ALTER TABLE \"{SYSTEM_SCHEMA_NAME}\".\"{VIEWS_METADATA_TABLE}\" ADD COLUMN IF NOT EXISTS description TEXT;"
             )
         except Exception as e:
