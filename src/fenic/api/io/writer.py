@@ -56,6 +56,7 @@ class DataFrameWriter:
         self,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
+        description: str | None = None,
     ) -> QueryMetrics:
         """Saves the content of the DataFrame as the specified table.
 
@@ -66,6 +67,7 @@ class DataFrameWriter:
                  - append: Appends data to table if it exists
                  - overwrite: Overwrites existing table
                  - ignore: Silently ignores operation if table exists
+            description: Optional human-readable table description to store in the catalog.
 
         Returns:
             QueryMetrics: The query metrics
@@ -86,7 +88,11 @@ class DataFrameWriter:
             ```
         """
         sink_plan = TableSink.from_session_state(
-            child=self._dataframe._logical_plan, table_name=table_name, mode=mode, session_state=self._dataframe._session_state
+            child=self._dataframe._logical_plan,
+            table_name=table_name,
+            mode=mode,
+            session_state=self._dataframe._session_state,
+            description=description,
         )
 
         metrics = self._dataframe._session_state.execution.save_as_table(
@@ -98,16 +104,19 @@ class DataFrameWriter:
     def save_as_view(
         self,
         view_name: str,
+        description: str | None = None,
     ) -> None:
         """Saves the content of the DataFrame as a view.
 
         Args:
             view_name: Name of the view to save to
+            description: Optional human-readable view description to store in the catalog.
+
         Returns:
             None.
         """
         self._dataframe._session_state.execution.save_as_view(
-            logical_plan=self._dataframe._logical_plan, view_name=view_name
+            logical_plan=self._dataframe._logical_plan, view_name=view_name, view_description=description
         )
 
     def csv(

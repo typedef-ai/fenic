@@ -161,6 +161,7 @@ class CloudExecution(BaseExecution):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        table_description: Optional[str] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table."""
         logger.debug(f"Saving plan {logical_plan} as table: {table_name}")
@@ -197,6 +198,7 @@ class CloudExecution(BaseExecution):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        view_description: Optional[str] = None,
     ) -> None:
         """Save the dataframe as a view."""
         # TODO: Implement saving dataframe view

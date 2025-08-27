@@ -289,11 +289,13 @@ class FileSink(_message.Message):
     def __init__(self, child: _Optional[_Union[LogicalPlan, _Mapping]] = ..., sink_type: _Optional[str] = ..., path: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...
 
 class TableSink(_message.Message):
-    __slots__ = ("child", "table_name", "mode")
+    __slots__ = ("child", "table_name", "mode", "description")
     CHILD_FIELD_NUMBER: _ClassVar[int]
     TABLE_NAME_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     child: LogicalPlan
     table_name: str
     mode: str
-    def __init__(self, child: _Optional[_Union[LogicalPlan, _Mapping]] = ..., table_name: _Optional[str] = ..., mode: _Optional[str] = ...) -> None: ...
+    description: str
+    def __init__(self, child: _Optional[_Union[LogicalPlan, _Mapping]] = ..., table_name: _Optional[str] = ..., mode: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...

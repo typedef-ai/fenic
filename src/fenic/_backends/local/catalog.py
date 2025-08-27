@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import duckdb
 import polars as pl
@@ -15,7 +15,7 @@ from fenic._backends.utils.catalog_utils import (
     TableIdentifier,
     compare_object_names,
 )
-from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._interfaces.catalog import BaseCatalog, TableMetadata, ViewMetadata
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_arrow_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
@@ -289,6 +289,54 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to list views in database '{self.get_current_database()}'"
                 ) from e
 
+    # Descriptions
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            try:
+                self.system_tables.set_table_description(table_identifier.db, table_identifier.table, description)
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for table: `{table_identifier.db}.{table_identifier.table}`"
+                ) from e
+
+    def set_view_description(self, view_name: str, description: Optional[str]) -> None:
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            try:
+                self.system_tables.set_view_description(view_identifier.db, view_identifier.table, description)
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
+                ) from e
+
+    def get_table_metadata(self, table_name: str) -> TableMetadata:
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            schema = self.describe_table(table_name)
+            description = self.system_tables.get_table_description(table_identifier.db, table_identifier.table)
+            return TableMetadata(schema=schema, description=description)
+
+    def get_view_metadata(self, view_name: str) -> ViewMetadata:
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            logical_plan = self.describe_view(view_name)
+            schema = logical_plan.schema()
+            description = self.system_tables.get_view_description(view_identifier.db, view_identifier.table)
+            return ViewMetadata(schema=schema, description=description)
+
     def describe_table(self, table_name: str) -> Schema:
         """Get the schema of the specified table."""
         with self.lock:
@@ -373,7 +421,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table."""
         temp_view_name = generate_unique_arrow_view_name()
@@ -402,7 +450,7 @@ class LocalCatalog(BaseCatalog):
                         f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name} WHERE 1=0"
                     )
                     self.system_tables.save_schema(
-                        cursor, table_identifier.db, table_identifier.table, schema
+                        cursor, table_identifier.db, table_identifier.table, schema, description
                     )
                 return True
             except Exception as e:
@@ -422,6 +470,7 @@ class LocalCatalog(BaseCatalog):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         with self.lock:
@@ -441,14 +490,14 @@ class LocalCatalog(BaseCatalog):
                     raise ValueError(f"View {view_name} already exists!")
                 with DuckDBTransaction(cursor):
                     self.system_tables.save_view(
-                        cursor, view_identifier.db, view_identifier.table, logical_plan)
+                        cursor, view_identifier.db, view_identifier.table, logical_plan, description)
                     return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
 
-    def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
+    def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema, description: Optional[str] = None):
         """Write a Polars dataframe to a table in the current database."""
         temp_view_name = generate_unique_arrow_view_name()
         with self.lock:
@@ -470,7 +519,7 @@ class LocalCatalog(BaseCatalog):
                         f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                     )
                     self.system_tables.save_schema(
-                        cursor, table_identifier.db, table_identifier.table, schema
+                        cursor, table_identifier.db, table_identifier.table, schema, description
                     )
             except Exception as e:
                 raise CatalogError(
@@ -525,7 +574,7 @@ class LocalCatalog(BaseCatalog):
                 pass
         # trunk-ignore-end(bandit/B608)
 
-    def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema):
+    def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema, description: Optional[str] = None):
         """Replace a table in the current database with a Polars dataframe."""
         temp_view_name = generate_unique_arrow_view_name()
         table_identifier = TableIdentifier.from_string(table_name).enrich(
@@ -545,7 +594,7 @@ class LocalCatalog(BaseCatalog):
                     f"CREATE OR REPLACE TABLE {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                 )
                 self.system_tables.save_schema(
-                    cursor, table_identifier.db, table_identifier.table, schema
+                    cursor, table_identifier.db, table_identifier.table, schema, description
                 )
         except Exception as e:
             raise CatalogError(

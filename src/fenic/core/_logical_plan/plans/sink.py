@@ -119,7 +119,8 @@ class TableSink(LogicalPlan):
             table_name: str,
             mode: Literal["error", "append", "overwrite", "ignore"] = "error",
             session_state: Optional[BaseSessionState] = None,
-            schema: Optional[Schema] = None):
+            schema: Optional[Schema] = None,
+            description: Optional[str] = None):
         """Initialize a table sink node.
 
         Args:
@@ -132,10 +133,12 @@ class TableSink(LogicalPlan):
                  - ignore: Silently ignores operation if table exists
             session_state: The session state to use for the new node.
             schema: The schema to use for the new node.
+            description: Optional human-readable description to persist for the table.
         """
         self.child = child
         self.table_name = table_name
         self.mode = mode
+        self.description = description
         super().__init__(session_state, schema)
 
     @classmethod
@@ -145,8 +148,9 @@ class TableSink(LogicalPlan):
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
         session_state: Optional[BaseSessionState] = None,
+        description: Optional[str] = None,
     ) -> TableSink:
-        return TableSink(child, table_name, mode, session_state, None)
+        return TableSink(child, table_name, mode, session_state, None, description)
 
     @classmethod
     def from_schema(
@@ -155,8 +159,9 @@ class TableSink(LogicalPlan):
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
         schema: Optional[Schema] = None,
+        description: Optional[str] = None,
     ) -> TableSink:
-        return TableSink(child, table_name, mode, None, schema)
+        return TableSink(child, table_name, mode, None, schema, description)
 
     def children(self) -> List[LogicalPlan]:
         """Returns the child node of this sink operator."""

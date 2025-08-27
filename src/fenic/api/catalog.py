@@ -4,7 +4,7 @@ from typing import List
 
 from pydantic import ConfigDict, validate_call
 
-from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core._interfaces.catalog import BaseCatalog, TableMetadata, ViewMetadata
 from fenic.core.types import Schema
 
 
@@ -559,6 +559,20 @@ class Catalog:
             ['view1', 'view2', 'view3'].
         """
         return self.catalog.list_views()
+
+    # Metadata convenience
+    def get_table_metadata(self, table_name: str) -> TableMetadata:
+        """Return schema and description for a table in one call."""
+        return self.catalog.get_table_metadata(table_name)
+
+    def get_view_metadata(self, view_name: str) -> ViewMetadata:
+        """Return schema and description for a view in one call."""
+        return self.catalog.get_view_metadata(view_name)
+
+    # Description mutators
+    def set_table_description(self, table_name: str, description: str | None) -> None:
+        """Set or clear the description for a table."""
+        self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:

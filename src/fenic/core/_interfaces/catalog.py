@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional
 
 from fenic.core.types import Schema
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
+
+
+@dataclass(frozen=True)
+class TableMetadata:
+    schema: Schema
+    description: Optional[str]
+
+
+@dataclass(frozen=True)
+class ViewMetadata:
+    schema: Schema
+    description: Optional[str]
 
 
 class BaseCatalog(ABC):
@@ -92,7 +105,7 @@ class BaseCatalog(ABC):
 
     @abstractmethod
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table in the current database."""
         pass
@@ -103,6 +116,7 @@ class BaseCatalog(ABC):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         pass
@@ -125,4 +139,25 @@ class BaseCatalog(ABC):
     @abstractmethod
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
+        pass
+
+    @abstractmethod
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set or clear the description for a table."""
+        pass
+
+    @abstractmethod
+    def set_view_description(self, view_name: str, description: Optional[str]) -> None:
+        """Set or clear the description for a view."""
+        pass
+
+    # Combined metadata getters
+    @abstractmethod
+    def get_table_metadata(self, table_name: str) -> TableMetadata:
+        """Return table schema and description together."""
+        pass
+
+    @abstractmethod
+    def get_view_metadata(self, view_name: str) -> ViewMetadata:
+        """Return view schema and description together."""
         pass

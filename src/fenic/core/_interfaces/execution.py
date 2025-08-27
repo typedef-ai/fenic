@@ -41,6 +41,7 @@ class BaseExecution(ABC):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
+        table_description: Optional[str] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
         pass
@@ -50,6 +51,7 @@ class BaseExecution(ABC):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        view_description: Optional[str] = None,
     ) -> None:
         """Save the dataframe as a view in the current database."""
         pass
