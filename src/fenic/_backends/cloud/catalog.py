@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import threading
 from dataclasses import dataclass
@@ -6,8 +7,6 @@ from datetime import datetime
 from typing import Any, Coroutine, Dict, List, Optional
 from uuid import UUID
 
-import polars as pl
-import pyarrow as pa
 from fenic_cloud.hasura_client.generated_graphql_client.client import (
     CatalogDispatchInput,
 )
@@ -28,6 +27,7 @@ from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
 )
 
+from fenic._backends.cloud.cloud_catalog_utils import convert_custom_dtype_to_pyarrow
 from fenic._backends.cloud.manager import CloudSessionManager
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
@@ -40,10 +40,8 @@ from fenic._backends.utils.catalog_utils import (
 )
 from fenic.core._interfaces import BaseCatalog
 from fenic.core._logical_plan.plans import LogicalPlan
-from fenic.core._utils.schema import (
-    convert_custom_dtype_to_polars,
-    convert_polars_schema_to_custom_schema,
-)
+from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.core._serde.proto.types import DataTypeProto
 from fenic.core.error import (
     CatalogAlreadyExistsError,
     CatalogError,
@@ -54,6 +52,7 @@ from fenic.core.error import (
     TableNotFoundError,
 )
 from fenic.core.types import Schema
+from fenic.core.types.schema import ColumnField
 
 logger = logging.getLogger(__name__)
 
@@ -660,14 +659,17 @@ class CloudCatalog(BaseCatalog):
     @staticmethod
     def _get_schema_input_from_schema(schema: Schema) -> SchemaInput:
         fields: List[NestedFieldInput] = []
+        context = SerdeContext()
         for column_field in schema.column_fields:
+            data_type_proto = context.serialize_data_type(
+                "data_type",
+                column_field.data_type
+            ).SerializeToString()
             fields.append(
                 NestedFieldInput(
                     name=column_field.name,
-                    data_type=str(column_field.data_type),
-                    arrow_data_type=str(
-                        convert_custom_dtype_to_polars(column_field.data_type)
-                    ),
+                    data_type=base64.b64encode(data_type_proto).decode("utf-8"),
+                    arrow_data_type=str(convert_custom_dtype_to_pyarrow(column_field.data_type)),
                     doc=None,
                     nullable=False,
                     identifier_field=None,
@@ -678,25 +680,17 @@ class CloudCatalog(BaseCatalog):
 
     @staticmethod
     def _get_table_schema(table_details: LoadTableSimpleCatalogLoadTable) -> Schema:
-        schema = table_details.schema_
-        pa_fields = []
-        for field in schema.fields:
-            pa_fields.append(
-                pa.field(
-                    field.name,
-                    CloudCatalog._get_schema_type_to_pyarrow(field.arrow_data_type),
+        context = SerdeContext()
+        column_fields = []
+        for field in table_details.schema_.fields:
+            decoded_data = base64.b64decode(field.data_type)
+            column_fields.append(
+                ColumnField(
+                    name=field.name,
+                    data_type=context.deserialize_data_type(
+                        "data_type",
+                        DataTypeProto.FromString(decoded_data)
+                    ),
                 )
             )
-
-        pa_schema = pa.schema(pa_fields)
-        empty_table = pa.Table.from_batches([], schema=pa_schema)
-        polars_schema = pl.from_arrow(empty_table).schema
-        return convert_polars_schema_to_custom_schema(polars_schema)
-
-    @staticmethod
-    def _get_schema_type_to_pyarrow(schema_type: str):
-        """Convert the schema type to a pyarrow type."""
-        if schema_type.startswith("Decimal"):
-            return pa.float64()
-        else:
-            return schema_type
+        return Schema(column_fields=column_fields)
