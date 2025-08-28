@@ -12,12 +12,24 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class TableMetadata:
+    """Metadata for a table.
+
+    Attributes:
+        schema: The schema of the table.
+        description: The description of the table.
+    """
     schema: Schema
     description: Optional[str]
 
 
 @dataclass(frozen=True)
 class ViewMetadata:
+    """Metadata for a view.
+
+    Attributes:
+        schema: The schema of the view.
+        description: The description of the view.
+    """
     schema: Schema
     description: Optional[str]
 
@@ -94,8 +106,8 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_table(self, table_name: str) -> Schema:
-        """Get the schema of the specified table."""
+    def describe_table(self, table_name: str) -> TableMetadata:
+        """Get the schema and description of the specified table."""
         pass
 
     @abstractmethod
@@ -151,11 +163,6 @@ class BaseCatalog(ABC):
         """Set or clear the description for a view."""
         pass
 
-    # Combined metadata getters
-    @abstractmethod
-    def get_table_metadata(self, table_name: str) -> TableMetadata:
-        """Return table schema and description together."""
-        pass
 
     @abstractmethod
     def get_view_metadata(self, view_name: str) -> ViewMetadata:

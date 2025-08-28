@@ -14,6 +14,7 @@ import duckdb
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
+from fenic.core._interfaces.catalog import TableMetadata
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
@@ -98,7 +99,7 @@ class SystemTableClient:
                 f"Failed to save schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def get_schema(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[Schema]:
+    def get_table_metadata(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[TableMetadata]:
         """Retrieve a table's schema metadata from the system table.
 
         Args:
@@ -116,7 +117,7 @@ class SystemTableClient:
             # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
             result = cursor.execute(
                 f"""
-                SELECT schema_blob
+                SELECT schema_blob, description
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 WHERE database_name = ? AND table_name = ?
             """,
@@ -130,19 +131,15 @@ class SystemTableClient:
                 return None
 
             schema_blob = result[0]
-            return deserialize_schema(schema_blob)
+            description = result[1]
+            return TableMetadata(schema=deserialize_schema(schema_blob), description=description)
         except Exception as e:
             raise CatalogError(
                 f"Failed to retrieve schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def get_table_description(
-        self,
-        cursor: duckdb.DuckDBPyConnection,
-        database_name: str,
-        table_name: str
-    ) -> Optional[str]:
-        """Retrieve a table's description from the system table, if present."""
+    def get_table_description(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[str]:
+        """Retrieve a table's description, if present."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
             result = cursor.execute(
@@ -458,10 +455,6 @@ class SystemTableClient:
                 );
             """
             )
-            # Ensure description column exists for dev-time schema evolution
-            cursor.execute(
-                f"ALTER TABLE \"{SYSTEM_SCHEMA_NAME}\".\"{SCHEMA_METADATA_TABLE}\" ADD COLUMN IF NOT EXISTS description TEXT;"
-            )
         except Exception as e:
             raise CatalogError(
                 f"Failed to initialize system schema and {SCHEMA_METADATA_TABLE} table: {e}"
@@ -554,10 +547,6 @@ class SystemTableClient:
                     PRIMARY KEY (database_name, view_name)
                 );
             """
-            )
-            # Ensure description column exists for dev-time schema evolution
-            cursor.execute(
-                f"ALTER TABLE \"{SYSTEM_SCHEMA_NAME}\".\"{VIEWS_METADATA_TABLE}\" ADD COLUMN IF NOT EXISTS description TEXT;"
             )
         except Exception as e:
             raise CatalogError(

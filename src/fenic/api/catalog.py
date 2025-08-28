@@ -1,6 +1,6 @@
 """Catalog API for managing database objects in Fenic."""
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import ConfigDict, validate_call
 
@@ -431,28 +431,35 @@ class Catalog:
         return self.catalog.list_tables()
 
     @validate_call(config=ConfigDict(strict=True))
-    def describe_table(self, table_name: str) -> Schema:
+    def describe_table(self, table_name: str) -> TableMetadata:
         """Returns the schema of the specified table.
 
         Args:
             table_name (str): Fully qualified or relative table name to describe.
 
         Returns:
-            Schema: A schema object describing the table's structure with field names and types.
+            TableMetadata: An object containing:
+                schema: A schema object describing the table's structure with field names and types.
+                description: A natural language description of the table's contents and uses.
 
         Raises:
             TableNotFoundError: If the table doesn't exist.
 
         Example: Describe a table's schema
             ```python
-            # For a table created with: CREATE TABLE t1 (id int)
+            # For a table created with: create_table('t1', Schema([ColumnField('id', IntegerType)]), description='My table description')
             session.catalog.describe_table('t1')
-            # Returns: Schema([
+            # Returns: TableMetadata(schema=Schema([
             #     ColumnField('id', IntegerType),
-            # ])
+            # ]), description="My table description")
             ```
         """
         return self.catalog.describe_table(table_name)
+
+    @validate_call(config=ConfigDict(strict=True))
+    def set_table_description(self, table_name: str, description: str | None) -> None:
+        """Set or clear the description for a table."""
+        self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
@@ -498,7 +505,7 @@ class Catalog:
 
     @validate_call(config=ConfigDict(strict=True))
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Creates a new table.
 
@@ -508,6 +515,8 @@ class Catalog:
             ignore_if_exists (bool): If True, return False when the table already exists.
                 If False, raise an error when the table already exists.
                 Defaults to True.
+            description (Optional[str]): Description of the table to create.
+                Defaults to None.
 
         Returns:
             bool: True if the table was created successfully, False if the table
@@ -521,7 +530,7 @@ class Catalog:
             # Create a new table with an integer column
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]))
+            ]), description='My table description')
             # Returns: True
             ```
 
@@ -530,7 +539,7 @@ class Catalog:
             # Try to create an existing table with ignore_if_exists=True
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]), ignore_if_exists=True)
+            ]), ignore_if_exists=True, description='My table description')
             # Returns: False
             ```
 
@@ -539,11 +548,11 @@ class Catalog:
             # Try to create an existing table with ignore_if_exists=False
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]), ignore_if_exists=False)
+            ]), ignore_if_exists=False, description='My table description')
             # Raises: TableAlreadyExistsError
             ```
         """
-        return self.catalog.create_table(table_name, schema, ignore_if_exists)
+        return self.catalog.create_table(table_name, schema, ignore_if_exists, description)
 
     def list_views(self) -> List[str]:
         """Returns a list of views stored in the current database.
@@ -560,19 +569,10 @@ class Catalog:
         """
         return self.catalog.list_views()
 
-    # Metadata convenience
-    def get_table_metadata(self, table_name: str) -> TableMetadata:
-        """Return schema and description for a table in one call."""
-        return self.catalog.get_table_metadata(table_name)
-
+    @validate_call(config=ConfigDict(strict=True))
     def get_view_metadata(self, view_name: str) -> ViewMetadata:
         """Return schema and description for a view in one call."""
         return self.catalog.get_view_metadata(view_name)
-
-    # Description mutators
-    def set_table_description(self, table_name: str, description: str | None) -> None:
-        """Set or clear the description for a table."""
-        self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:

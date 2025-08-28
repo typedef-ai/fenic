@@ -87,6 +87,9 @@ class DataFrameWriter:
             df.write.save_as_table("my_table", mode="overwrite")  # Replaces existing table
             ```
         """
+        if description is not None and not description.strip():
+            raise ValidationError("If a table description is provided, it cannot be an empty string.")
+
         sink_plan = TableSink.from_session_state(
             child=self._dataframe._logical_plan,
             table_name=table_name,

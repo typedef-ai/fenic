@@ -318,16 +318,13 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
 
-    def get_table_metadata(self, table_name: str) -> TableMetadata:
+    def get_table_description(self, table_name: str) -> Optional[str]:
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            schema = self.describe_table(table_name)
-            cursor = self.db_conn.cursor()
-            description = self.system_tables.get_table_description(cursor, table_identifier.db, table_identifier.table)
-            return TableMetadata(schema=schema, description=description)
+            return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
 
     def get_view_metadata(self, view_name: str) -> ViewMetadata:
         with self.lock:
@@ -341,19 +338,19 @@ class LocalCatalog(BaseCatalog):
             description = self.system_tables.get_view_description(cursor, view_identifier.db, view_identifier.table)
             return ViewMetadata(schema=schema, description=description)
 
-    def describe_table(self, table_name: str) -> Schema:
-        """Get the schema of the specified table."""
+    def describe_table(self, table_name: str) -> TableMetadata:
+        """Get the TableMetadata of the specified table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            maybe_schema = self.system_tables.get_schema(
+            maybe_table_metadata = self.system_tables.get_table_metadata(
                 self.db_conn.cursor(), table_identifier.db, table_identifier.table
             )
-            if maybe_schema is None:
+            if maybe_table_metadata is None:
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
-            return maybe_schema
+            return maybe_table_metadata
 
     def describe_view(self, view_name: str) -> LogicalPlan:
         """Get the schema of the specified view."""
@@ -550,7 +547,8 @@ class LocalCatalog(BaseCatalog):
             )
         cursor = self.db_conn.cursor()
         if self._does_table_exist(cursor, table_identifier):
-            existing_schema = self.system_tables.get_schema(cursor, table_identifier.db, table_identifier.table)
+            existing_table_metadata = self.system_tables.get_table_metadata(cursor, table_identifier.db, table_identifier.table)
+            existing_schema = existing_table_metadata.schema if existing_table_metadata else None
             if not existing_schema:
                 raise InternalError(f"Schema for table '{table_name}' does not exist, but table exists.")
             if existing_schema != schema:

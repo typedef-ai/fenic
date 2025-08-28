@@ -39,6 +39,7 @@ from fenic._backends.utils.catalog_utils import (
     compare_object_names,
 )
 from fenic.core._interfaces import BaseCatalog
+from fenic.core._interfaces.catalog import TableMetadata
 from fenic.core._logical_plan.plans import LogicalPlan
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import DataTypeProto
@@ -239,7 +240,7 @@ class CloudCatalog(BaseCatalog):
                 self.current_database_name,
             )
 
-    def describe_table(self, table_name: str) -> Schema:
+    def describe_table(self, table_name: str) -> TableMetadata:
         """Get the schema of the specified table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
@@ -252,11 +253,19 @@ class CloudCatalog(BaseCatalog):
             ):
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
 
-            return self._get_table_details(
+            schema =  self._get_table_details(
                 table_identifier.catalog,
                 table_identifier.db,
                 table_identifier.table,
             )
+            #TODO(bcallender): Modify fenic_cloud's graphql client to return the description.
+            return TableMetadata(schema=schema, description=None)
+
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set or clear the description for a table."""
+        raise NotImplementedError(
+            "Set table description not implemented for cloud catalog"
+        )
 
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table from the current database."""
@@ -270,11 +279,12 @@ class CloudCatalog(BaseCatalog):
         location: str,
         ignore_if_exists: bool = True,
         file_format: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new table in the current database."""
         with self.lock:
             return self._create_table(
-                table_name, schema, location, ignore_if_exists, file_format
+                table_name, schema, location, ignore_if_exists, file_format, description
             )
 
     def create_view(
@@ -282,6 +292,7 @@ class CloudCatalog(BaseCatalog):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         # TODO: Implement view creation for the cloud
@@ -567,6 +578,7 @@ class CloudCatalog(BaseCatalog):
         location: str,
         ignore_if_exists: bool = True,
         file_format: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> bool:
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.current_catalog_name, self.current_database_name
@@ -607,7 +619,7 @@ class CloudCatalog(BaseCatalog):
                 table=CreateTableInput(
                     name=table_identifier.table,
                     canonical_name=table_identifier.table.casefold(),
-                    description=None,
+                    description=description,
                     external=False,
                     location=location,
                     file_format=fixed_file_format,

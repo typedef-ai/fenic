@@ -76,5 +76,5 @@ def _deserialize_table_sink(table_sink: TableSinkProto, context: SerdeContext, s
         table_name=table_sink.table_name,
         mode=table_sink.mode,
         schema=schema,
-        description=table_sink.description,
+        description=table_sink.description if table_sink.description else None,
     )
