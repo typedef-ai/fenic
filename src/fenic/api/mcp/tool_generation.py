@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Union
 
 import polars as pl
 from mcp.server.fastmcp.exceptions import ValidationError
-from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated
 
 from fenic.api.dataframe.dataframe import DataFrame
@@ -35,9 +34,6 @@ from fenic.api.session.session import Session
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
-from fenic.core._utils.structured_outputs import (
-    convert_pydantic_model_to_key_descriptions,
-)
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp.types import DynamicToolDefinition
 from fenic.core.types.datatypes import (
@@ -94,16 +90,6 @@ def auto_generate_core_tools_from_tables(
         sql_max_rows=sql_max_rows,
     )
 
-class ReadFuncParams(BaseModel):
-    """Parameters for the auto-generated Read Tool."""
-    model_config = ConfigDict(strict=False)
-
-    df_name: str = Field(description="Dataset name to read")
-    limit: int | None = Field(description="Max rows to read (accepts number or numeric string)")
-    offset: int | None = Field(description="Row offset to start from (requires order_by; accepts number or numeric string)")
-    order_by: list[str] | None = Field(description="Columns to order by (required for offset)")
-    sort_ascending: bool | None = Field(description="Sort ascending for all order_by columns")
-
 def _auto_generate_read_tool(
     datasets: List[DatasetSpec],
     session: Session,
@@ -117,37 +103,44 @@ def _auto_generate_read_tool(
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
 
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
-    def read_func(params: Union[ReadFuncParams, str]) -> LogicalPlan:
-        if isinstance(params, str):
-            params = ReadFuncParams.model_validate_json(params)
-        if params.df_name not in name_to_df:
-            raise ValidationError(f"Unknown DataFrame '{params.df_name}'. Available: {', '.join(name_to_df.keys())}")
-        df = name_to_df[params.df_name]
+    def read_func(
+        df_name: Annotated[str, "Dataset name to read rows from."],
+        limit: Annotated[Optional[Union[int, str]], "Max rows to read"] = None,
+        offset: Annotated[Optional[Union[int, str]], "Row offset to start from (requires order_by)"] = None,
+        order_by: Annotated[Optional[str], "Comma separated list of columns to order by (required for offset)"] = None,
+        sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending for all order_by columns"] = True,
+    ) -> LogicalPlan:
+
+        limit = int(limit) if isinstance(limit, str) else limit
+        offset = int(offset) if isinstance(offset, str) else offset
+        sort_ascending = bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
+        order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
+        if df_name not in name_to_df:
+            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
+        df = name_to_df[df_name]
 
         # order_by when not paginating via OFFSET (to avoid double sorting)
-        if params.order_by and params.offset is None:
-            missing_order = [c for c in params.order_by if c not in df.columns]
+        if order_by and offset is None:
+            missing_order = [c for c in order_by if c not in df.columns]
             if missing_order:
                 raise ValidationError(
                     f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
                 )
-            df = df.order_by(params.order_by, ascending=True if params.sort_ascending is None else bool(params.sort_ascending))
+            df = df.order_by(order_by, ascending=sort_ascending)
 
         # Apply paging (handles offset+order_by via SQL and optional limit)
         return _apply_paging(
             df,
             session,
-            limit=params.limit,
-            offset=params.offset,
-            order_by=params.order_by,
-            sort_ascending=params.sort_ascending,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            sort_ascending=sort_ascending,
         )
 
-    schema_description = convert_pydantic_model_to_key_descriptions(ReadFuncParams)
-    enriched_description = f"{tool_description}\n\n{schema_description}"
     return DynamicToolDefinition(
         name=tool_name,
-        description=enriched_description,
+        description=tool_description,
         func=read_func,
         result_limit=result_limit,
     )
@@ -197,16 +190,6 @@ def _auto_generate_search_summary_tool(
         result_limit=None,
     )
 
-class SearchFuncParams(BaseModel):
-    """Parameters for auto-generated search function."""
-    df_name: str = Field(description="Dataset name to search (single dataset)")
-    pattern: str = Field(description="Regex pattern to search for (use (?i) for case-insensitive).")
-    limit: Optional[int] = Field(default=None,description="Maximum rows to return (accepts number or numeric string)")
-    include_columns: Optional[list[str]] = Field(default=None,description="Column names to include in the search; if omitted, all string columns")
-    offset: Optional[int] = Field(default=None,description="Row offset (requires order_by)")
-    order_by: Optional[list[str]] = Field(default=None,description="ORDER BY column names (required with offset)")
-    sort_ascending: Optional[bool] = Field(default=True,description="Sort ascending")
-
 def auto_generate_search_content_tool(
     datasets: List[DatasetSpec],
     session: Session,
@@ -221,7 +204,7 @@ def auto_generate_search_content_tool(
 
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
 
-    def _string_columns(df: DataFrame, selected: str | None) -> list[str]:
+    def _string_columns(df: DataFrame, selected: Optional[List[str]]) -> List[str]:
         if selected:
             selected_columns = [c.strip() for c in selected.split(",") if c.strip()]
             missing = [c for c in selected_columns if c not in df.columns]
@@ -230,37 +213,48 @@ def auto_generate_search_content_tool(
             return selected_columns
         return [f.name for f in df.schema.column_fields if f.data_type == StringType]
 
-    def search_rows(params: Union[SearchFuncParams, str]) -> LogicalPlan:
-        if isinstance(params, str):
-            params = SearchFuncParams.model_validate_json(params)
-        if not params.pattern:
+    def search_rows(
+        df_name: Annotated[str, "Dataset name to search (single dataset)"],
+        pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
+        limit: Annotated[Optional[Union[int, str]], "Max rows to return (accepts number or numeric string)"] = None,
+        offset: Optional[Union[int, str]] = None,
+        order_by: Annotated[Optional[str], "Comma separated list of column names to order by (required with offset)"] = None,
+        sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending"] = True,
+        search_columns: Annotated[Optional[str], "Comma separated list of column names search within; if omitted, matches in any string coluumn will be returned. Use this to query only specific columns in the search as needed."] = None,
+    ) -> LogicalPlan:
+
+        limit = int(limit) if isinstance(limit, str) else limit
+        offset = int(offset) if isinstance(offset, str) else offset
+        sort_ascending = bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
+        search_columns = [c.strip() for c in search_columns.split(",") if c.strip()] if search_columns else None
+        order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
+
+        if not pattern:
             raise ValidationError("Query pattern cannot be empty.")
-        if params.df_name not in name_to_df:
-            raise ValidationError(f"Unknown DataFrame '{params.df_name}'. Available: {', '.join(name_to_df.keys())}")
-        d = name_to_df[params.df_name]
-        cols = _string_columns(d, params.include_columns)
+        if df_name not in name_to_df:
+            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
+        d = name_to_df[df_name]
+        cols = _string_columns(d, search_columns)
         if not cols:
             return d.limit(0)._logical_plan
         predicate = None
         for c_name in cols:
-            this = col(c_name).rlike(params.pattern)
+            this = col(c_name).rlike(pattern)
             predicate = this if predicate is None else (predicate | this)
         out = d.filter(predicate)
 
         return _apply_paging(
             out,
             session,
-            limit=params.limit,
-            offset=params.offset,
-            order_by=params.order_by,
-            sort_ascending=params.sort_ascending,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            sort_ascending=sort_ascending,
         )
 
-    schema_description = convert_pydantic_model_to_key_descriptions(SearchFuncParams)
-    enriched_description = f"{tool_description}\n\n{schema_description}"
     return DynamicToolDefinition(
         name=tool_name,
-        description=enriched_description,
+        description=tool_description,
         func=search_rows,
         result_limit=result_limit,
     )
@@ -725,8 +719,8 @@ def _build_datasets_from_tables(table_names: List[str], session: Session) -> Lis
         if not session.catalog.does_table_exist(table_name):
             missing_tables.append(table_name)
             continue
-        meta = session.catalog.get_table_metadata(table_name)
-        desc = (meta.description or "").strip()
+        table_metadata = session.catalog.describe_table(table_name)
+        desc = (table_metadata.description or "").strip()
         if not desc:
             missing_desc.append(table_name)
         df = session.table(table_name)
@@ -740,6 +734,7 @@ def _build_datasets_from_tables(table_names: List[str], session: Session) -> Lis
         raise ConfigurationError(
             "All tables must have a non-empty description to enable automated tool creation. "
             f"Missing descriptions for: {', '.join(sorted(missing_desc))}"
+            "Use `session.catalog.set_table_description(table_name, description)` to set the table description."
         )
 
     return specs

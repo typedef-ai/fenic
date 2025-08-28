@@ -80,13 +80,14 @@ class FenicMCPServer:
                 "To use fenic MCP server generation, install the 'mcp' extra: pip install \"fenic[mcp]\""
             ) from None
         self.mcp = FastMCP(self.server_name)
+        annotations = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
         for tool in self.paramaterized_tools:
             tool_fn = self._build_parameterized_tool(tool)
-            self.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False))(tool_fn)
+            self.mcp.tool(annotations=annotations)(tool_fn)
 
         for tool in self.dynamic_tools:
             tool_fn = self._register_dynamic_callable(tool)
-            self.mcp.tool(name=self._to_snake_case(tool.name), description=tool.description)(tool_fn)
+            self.mcp.tool(name=self._to_snake_case(tool.name), description=tool.description, annotations=annotations)(tool_fn)
 
     async def run_async(self, transport: MCPTransport = "http", **kwargs):
         """Run the MCP server asynchronously.
@@ -167,21 +168,27 @@ class FenicMCPServer:
         async def wrapper(*args, **kwargs) -> MCPResultSet:
             # Obtain the plan by invoking the dynamic tool. No session is injected here;
             # the callable is expected to derive any context it needs from inputs.
-            bound_plan = tool.func(*args, **kwargs)
-            n_rows = tool.result_limit
-            # Collect on a thread to avoid blocking the event loop, and gate concurrent
-            # collections with a semaphore to protect the backend executor.
-            async with self._collect_semaphore:
-                pl_df, _metrics = await asyncio.to_thread(
-                    lambda: self.session_state.execution.collect(bound_plan, n=n_rows)
-                )
-            rows_list = pl_df.to_dicts()
-            schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
-            table_format = "structured"
-            out = MCPResultSet(table_schema=schema_fields, rows=rows_list, row_count=len(rows_list))
-            if table_format == "markdown":
-                out.rows = _render_markdown_preview(rows_list)
-            return out
+            try:
+                bound_plan = tool.func(*args, **kwargs)
+                n_rows = tool.result_limit
+                # Collect on a thread to avoid blocking the event loop, and gate concurrent
+                # collections with a semaphore to protect the backend executor.
+                async with self._collect_semaphore:
+                    pl_df, metrics = await asyncio.to_thread(
+                        lambda: self.session_state.execution.collect(bound_plan, n=n_rows)
+                    )
+                    logger.info(f"Completed query for {tool.name} in {metrics.execution_time_ms:.0f}ms with {metrics.num_output_rows} result rows.")
+                    logger.debug(f"Query Details: {args} {kwargs}")
+                rows_list = pl_df.to_dicts()
+                schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
+                table_format = "structured"
+                out = MCPResultSet(table_schema=schema_fields, rows=rows_list, row_count=len(rows_list))
+                if table_format == "markdown":
+                    out.rows = _render_markdown_preview(rows_list)
+                return out
+            except Exception as e:
+                from fastmcp.exceptions import ToolError
+                raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
 
         @wraps(tool.func)
         async def wrapped(*args, **kwargs):

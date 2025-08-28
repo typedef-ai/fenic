@@ -36,7 +36,7 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     assert len(tools) == 6
     names = {t.name for t in tools}
     assert any(name.endswith("Schema") for name in names)
-    assert any(name.endswith("Describe") for name in names)
+    assert any(name.endswith("Profile") for name in names)
     assert any(name.endswith("Read") for name in names)
     assert any(name.endswith("Search Summary") for name in names)
     assert any(name.endswith("Search Content") for name in names)
