@@ -327,17 +327,17 @@ message ContainsAnyExpr {
 
 message RLikeExpr {
   LogicalExpr expr = 1;
-  string pattern = 2;
+  LogicalExpr pattern = 2;
 }
 
 message LikeExpr {
   LogicalExpr expr = 1;
-  string pattern = 2;
+  LogicalExpr pattern = 2;
 }
 
 message ILikeExpr {
   LogicalExpr expr = 1;
-  string pattern = 2;
+  LogicalExpr pattern = 2;
 }
 
 message TsParseExpr {
