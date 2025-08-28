@@ -41,7 +41,6 @@ class BaseExecution(ABC):
         logical_plan: LogicalPlan,
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
-        table_description: Optional[str] = None,
     ) -> QueryMetrics:
         """Execute the logical plan and save the result as a table in the current database."""
         pass

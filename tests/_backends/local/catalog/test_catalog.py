@@ -260,7 +260,7 @@ def test_list_views(local_session: Session):
 def test_describe_view(local_session: Session):
     df1 = local_session.create_dataframe({"a": [1, 2, 3]})
     df1.write.save_as_view("df1")
-    view_df1 = local_session._session_state.catalog.describe_view("df1")
+    view_df1 = local_session._session_state.catalog.get_view_plan("df1")
     assert view_df1.schema().column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
@@ -356,7 +356,8 @@ def test_save_as_table_with_description_and_metadata(local_session: Session):
     table_name = "meta_table_desc"
     df = local_session.create_dataframe({"a": [1, 2, 3]})
     # Save with description
-    df.write.save_as_table(table_name, mode="overwrite", description="table desc")
+    df.write.save_as_table(table_name, mode="overwrite")
+    local_session.catalog.set_table_description(table_name, "table desc")
 
     meta = local_session.catalog.describe_table(table_name)
     assert meta.description == "table desc"
@@ -369,9 +370,13 @@ def test_save_as_view_with_description_and_metadata(local_session: Session):
     # Save with description
     df.write.save_as_view(view_name, description="view desc")
 
-    vmeta = local_session.catalog.get_view_metadata(view_name)
+    vmeta = local_session.catalog.describe_view(view_name)
     assert vmeta.description == "view desc"
     assert vmeta.schema.column_names() == ["b"]
+
+    local_session.catalog.set_view_description(view_name, "updated_view_desc")
+    meta = local_session.catalog.describe_view(view_name)
+    assert meta.description == "updated_view_desc"
 
 
 def test_get_table_metadata_without_description(local_session: Session):

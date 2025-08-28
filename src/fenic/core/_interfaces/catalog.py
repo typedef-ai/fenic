@@ -1,37 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional
 
-from fenic.core.types import Schema
+from fenic.core.types import DatasetMetadata, Schema
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
-
-
-@dataclass(frozen=True)
-class TableMetadata:
-    """Metadata for a table.
-
-    Attributes:
-        schema: The schema of the table.
-        description: The description of the table.
-    """
-    schema: Schema
-    description: Optional[str]
-
-
-@dataclass(frozen=True)
-class ViewMetadata:
-    """Metadata for a view.
-
-    Attributes:
-        schema: The schema of the view.
-        description: The description of the view.
-    """
-    schema: Schema
-    description: Optional[str]
 
 
 class BaseCatalog(ABC):
@@ -106,7 +81,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_table(self, table_name: str) -> TableMetadata:
+    def describe_table(self, table_name: str) -> DatasetMetadata:
         """Get the schema and description of the specified table."""
         pass
 
@@ -120,6 +95,11 @@ class BaseCatalog(ABC):
         self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table in the current database."""
+        pass
+
+    @abstractmethod
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set or clear the description for a table."""
         pass
 
     @abstractmethod
@@ -139,7 +119,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_view(self, view_name: str) -> LogicalPlan:
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
         """Get the serialized schema and logical plan of the specified view."""
         pass
 
@@ -154,17 +134,11 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
-        """Set or clear the description for a table."""
-        pass
-
-    @abstractmethod
     def set_view_description(self, view_name: str, description: Optional[str]) -> None:
-        """Set or clear the description for a view."""
+        """Set the description for a view."""
         pass
 
-
     @abstractmethod
-    def get_view_metadata(self, view_name: str) -> ViewMetadata:
+    def describe_view(self, view_name: str) -> DatasetMetadata:
         """Return view schema and description together."""
         pass

@@ -4,8 +4,9 @@ This module provides classes for defining and working with DataFrame schemas.
 It includes ColumnField for individual column definitions and Schema for complete
 DataFrame structure definitions.
 """
+from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from pydantic.dataclasses import ConfigDict, dataclass
 
@@ -120,3 +121,15 @@ class Schema:
             A list of strings containing the names of all columns in the schema.
         """
         return [field.name for field in self.column_fields]
+
+
+@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class DatasetMetadata:
+    """Metadata for a dataset (table or view).
+
+    Attributes:
+        schema: The schema of the dataset.
+        description: The natural language description of the dataset's contents.
+    """
+    schema: Schema
+    description: Optional[str]

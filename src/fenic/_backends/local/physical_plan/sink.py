@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, List, Literal, Tuple
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -80,7 +80,6 @@ class DuckDBTableSinkExec(PhysicalPlan):
         cache_info: CacheInfo,
         session_state: LocalSessionState,
         schema: Schema,
-        description: Optional[str] = None,
     ):
         super().__init__(
             children=[child], cache_info=cache_info, session_state=session_state
@@ -88,7 +87,6 @@ class DuckDBTableSinkExec(PhysicalPlan):
         self.table_name = table_name
         self.mode = mode
         self.schema = schema
-        self.description = description
 
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
@@ -116,11 +114,11 @@ class DuckDBTableSinkExec(PhysicalPlan):
                 )
             elif self.mode == "overwrite":
                 self.session_state.catalog.replace_table_with_df(
-                    df, self.table_name, self.schema, self.description
+                    df, self.table_name, self.schema
                 )
         else:
             self.session_state.catalog.write_df_to_table(
-                df, self.table_name, self.schema, self.description
+                df, self.table_name, self.schema
             )
 
         return pl.DataFrame()

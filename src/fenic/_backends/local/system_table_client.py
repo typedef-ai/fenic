@@ -14,10 +14,10 @@ import duckdb
 
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
-from fenic.core._interfaces.catalog import TableMetadata
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
+from fenic.core.types import DatasetMetadata, Schema
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import ColumnField, Schema
 from fenic.core.types.datatypes import (
@@ -55,7 +55,7 @@ class SystemTableClient:
         self._initialize_views_metadata()
         self._initialize_read_only_system_schema_and_tables()
 
-    def save_schema(
+    def save_table(
         self,
         cursor: duckdb.DuckDBPyConnection,
         database_name: str,
@@ -99,7 +99,7 @@ class SystemTableClient:
                 f"Failed to save schema metadata for {database_name}.{table_name}: {e}"
             ) from e
 
-    def get_table_metadata(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[TableMetadata]:
+    def get_table_metadata(self, cursor: duckdb.DuckDBPyConnection, database_name: str, table_name: str) -> Optional[DatasetMetadata]:
         """Retrieve a table's schema metadata from the system table.
 
         Args:
@@ -132,7 +132,8 @@ class SystemTableClient:
 
             schema_blob = result[0]
             description = result[1]
-            return TableMetadata(schema=deserialize_schema(schema_blob), description=description)
+            return DatasetMetadata(schema=deserialize_schema(schema_blob), description=description)
+
         except Exception as e:
             raise CatalogError(
                 f"Failed to retrieve schema metadata for {database_name}.{table_name}: {e}"
@@ -312,6 +313,34 @@ class SystemTableClient:
                 f"Failed to retrieve view for {database_name}.{view_name}"
             ) from e
 
+    def get_view_metadata(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        database_name: str,
+        view_name: str
+    ) -> Optional[DatasetMetadata]:
+        """Retrieve a view's description, if present."""
+        try:
+            # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
+            result = cursor.execute(
+                f"""
+                SELECT description, view_blob
+                FROM "{SYSTEM_SCHEMA_NAME}"."{VIEWS_METADATA_TABLE}"
+                WHERE database_name = ? AND view_name = ?
+            """,
+                (database_name, view_name),
+            ).fetchone()
+            # trunk-ignore-end(bandit/B608)
+            if result is None:
+                return None
+            view_blob = base64.b64decode(result[1])
+            schema = LogicalPlanSerde.deserialize(view_blob).schema()
+            return DatasetMetadata(schema=schema, description=result[0])
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to retrieve view metadata for {database_name}.{view_name}"
+            ) from e
+
     def get_view_description(
         self,
         cursor: duckdb.DuckDBPyConnection,
@@ -339,8 +368,8 @@ class SystemTableClient:
             ) from e
 
     def set_view_description(self, cursor: duckdb.DuckDBPyConnection, database_name: str, view_name: str,
-                             description: Optional[str]) -> None:
-        """Set or clear a view's description in the system table."""
+                             description: str) -> None:
+        """Set a view's description in the system table."""
         try:
             # trunk-ignore-begin(bandit/B608): Query built from constants; parameters are bound.
             cursor.execute(

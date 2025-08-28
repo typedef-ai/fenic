@@ -26,6 +26,7 @@ from fenic.core.types.enums import (
 from fenic.core.types.query_result import DataLike, DataLikeType, QueryResult
 from fenic.core.types.schema import (
     ColumnField,
+    DatasetMetadata,
     Schema,
 )
 from fenic.core.types.semantic_examples import (
@@ -79,5 +80,6 @@ __all__ = [
     "Paragraph",
     "TranscriptType",
     "FuzzySimilarityMethod",
+    "DatasetMetadata",
 ]
 

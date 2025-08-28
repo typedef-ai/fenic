@@ -187,5 +187,4 @@ message TableSink {
   LogicalPlan child = 1;
   string table_name = 2;
   string mode = 3;
-  optional string description = 4;
 }

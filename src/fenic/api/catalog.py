@@ -4,8 +4,9 @@ from typing import List, Optional
 
 from pydantic import ConfigDict, validate_call
 
-from fenic.core._interfaces.catalog import BaseCatalog, TableMetadata, ViewMetadata
-from fenic.core.types import Schema
+from fenic.core._interfaces.catalog import BaseCatalog
+from fenic.core.error import ValidationError
+from fenic.core.types import DatasetMetadata, Schema
 
 
 class Catalog:
@@ -431,14 +432,14 @@ class Catalog:
         return self.catalog.list_tables()
 
     @validate_call(config=ConfigDict(strict=True))
-    def describe_table(self, table_name: str) -> TableMetadata:
+    def describe_table(self, table_name: str) -> DatasetMetadata:
         """Returns the schema of the specified table.
 
         Args:
             table_name (str): Fully qualified or relative table name to describe.
 
         Returns:
-            TableMetadata: An object containing:
+            DatasetMetadata: An object containing:
                 schema: A schema object describing the table's structure with field names and types.
                 description: A natural language description of the table's contents and uses.
 
@@ -449,7 +450,7 @@ class Catalog:
             ```python
             # For a table created with: create_table('t1', Schema([ColumnField('id', IntegerType)]), description='My table description')
             session.catalog.describe_table('t1')
-            # Returns: TableMetadata(schema=Schema([
+            # Returns: DatasetMetadata(schema=Schema([
             #     ColumnField('id', IntegerType),
             # ]), description="My table description")
             ```
@@ -457,8 +458,19 @@ class Catalog:
         return self.catalog.describe_table(table_name)
 
     @validate_call(config=ConfigDict(strict=True))
-    def set_table_description(self, table_name: str, description: str | None) -> None:
-        """Set or clear the description for a table."""
+    def set_table_description(self, table_name: str, description: str) -> None:
+        """Set the description for a table.
+
+        Args:
+            table_name (str): Fully qualified or relative table name to set the description for.
+            description (str): The description to set for the table.
+
+        Raises:
+            TableNotFoundError: If the table doesn't exist.
+            ValidationError: If the description is empty.
+        """
+        if not description or not description.strip():
+            raise ValidationError("Description cannot be empty")
         self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
@@ -570,9 +582,43 @@ class Catalog:
         return self.catalog.list_views()
 
     @validate_call(config=ConfigDict(strict=True))
-    def get_view_metadata(self, view_name: str) -> ViewMetadata:
-        """Return schema and description for a view in one call."""
-        return self.catalog.get_view_metadata(view_name)
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Returns the schema and description of the specified view.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to describe.
+
+        Returns:
+            DatasetMetadata: An object containing:
+                schema: A schema object describing the view's structure with field names and types.
+                description: A natural language description of the view's contents and uses.
+
+        Raises:
+            ViewNotFoundError: If the view doesn't exist.
+
+        """
+        return self.catalog.describe_view(view_name)
+
+    @validate_call(config=ConfigDict(strict=True))
+    def set_view_description(self, view_name: str, description: str) -> None:
+        """Set the description for a view.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to set the description for.
+            description (str): The description to set for the view.
+
+        Raises:
+            ViewNotFoundError: If the view doesn't exist.
+            ValidationError: If the description is empty.
+
+        Example: Set a description for a view
+            ```python
+            # Set a description for a view 'v1'
+            session.catalog.set_view_description('v1', 'My view description')
+        """
+        if not description or not description.strip():
+            raise ValidationError("Description cannot be empty")
+        self.catalog.set_view_description(view_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:
@@ -633,6 +679,7 @@ class Catalog:
     describeTable = describe_table
     dropTable = drop_table
     createTable = create_table
+    setTableDescription = set_table_description
     listViews = list_views
     doesViewExist = does_view_exist
     dropView = drop_view

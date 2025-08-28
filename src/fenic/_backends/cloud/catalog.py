@@ -39,7 +39,6 @@ from fenic._backends.utils.catalog_utils import (
     compare_object_names,
 )
 from fenic.core._interfaces import BaseCatalog
-from fenic.core._interfaces.catalog import TableMetadata
 from fenic.core._logical_plan.plans import LogicalPlan
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import DataTypeProto
@@ -52,7 +51,7 @@ from fenic.core.error import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
-from fenic.core.types import Schema
+from fenic.core.types import DatasetMetadata, Schema
 from fenic.core.types.schema import ColumnField
 
 logger = logging.getLogger(__name__)
@@ -240,7 +239,7 @@ class CloudCatalog(BaseCatalog):
                 self.current_database_name,
             )
 
-    def describe_table(self, table_name: str) -> TableMetadata:
+    def describe_table(self, table_name: str) -> DatasetMetadata:
         """Get the schema of the specified table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
@@ -259,10 +258,10 @@ class CloudCatalog(BaseCatalog):
                 table_identifier.table,
             )
             #TODO(bcallender): Modify fenic_cloud's graphql client to return the description.
-            return TableMetadata(schema=schema, description=None)
+            return DatasetMetadata(schema=schema, description=None)
 
-    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
-        """Set or clear the description for a table."""
+    def set_table_description(self, table_name: str, description: str) -> None:
+        """Set the description for a table."""
         raise NotImplementedError(
             "Set table description not implemented for cloud catalog"
         )
@@ -307,7 +306,14 @@ class CloudCatalog(BaseCatalog):
             "Drop view not implemented for cloud catalog"
         )
 
-    def describe_view(self, view_name: str) -> LogicalPlan:
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
+        # TODO: Implement describe view for the cloud
+        raise NotImplementedError(
+            "get view plan not implemented for cloud catalog"
+        )
+
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified view."""
         # TODO: Implement describe view for the cloud
         raise NotImplementedError(
             "Describe view not implemented for cloud catalog"
@@ -325,6 +331,13 @@ class CloudCatalog(BaseCatalog):
         # TODO: Implement does view exist for the cloud
         raise NotImplementedError(
             "Method to check if view exists not implemented for cloud catalog"
+        )
+
+    def set_view_description(self, view_name: str, description: str) -> bool:
+        """Set the description for a view."""
+        # TODO: Implement set view description for the cloud
+        raise NotImplementedError(
+            "Set view description not implemented for cloud catalog"
         )
 
     def _drop_database(
