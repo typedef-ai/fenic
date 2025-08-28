@@ -1,17 +1,17 @@
 """Core functions for Fenic DataFrames."""
-
 from typing import Any
 
 from pydantic import ConfigDict, validate_call
 
 from fenic.api.column import Column
 from fenic.core._logical_plan.expressions import LiteralExpr
+from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
 from fenic.core._utils.type_inference import (
     TypeInferenceError,
     infer_dtype_from_pyobj,
 )
 from fenic.core.error import ValidationError
-from fenic.core.types.datatypes import ArrayType, DataType, StructType
+from fenic.core.types.datatypes import ArrayType, DataType, StructType, _LogicalType
 
 
 @validate_call(config=ConfigDict(strict=True))
@@ -129,3 +129,61 @@ def lit(value: Any) -> Column:
         raise ValidationError(f"`lit` failed to infer type for value `{value}`") from e
     literal_expr = LiteralExpr(value, inferred_type)
     return Column._from_logical_expr(literal_expr)
+
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def tool_param(parameter_name: str, data_type: DataType) -> Column:
+    """Creates an unresolved literal placeholder column with a declared data type.
+
+    Use this to add parameters to a Dataframe. This acts as a placeholder for a literal of
+    the provided type -- to be passed in when the Dataframe is collected. This allows for the creation
+    of parameterized views and MCP Tools that act against Fenic dataframes with customizable parameters.
+    If, at execution time, no substitute value is provided for the unresolved parameter, it is substituted with a null value.
+
+    Notes:
+        Supports only Primitive/Object/ArrayLike Types (StringType, IntegerType, FloatType, DoubleType, BooleanType, StructType, ArrayType)
+
+    Args:
+        parameter_name: The name of the parameter to reference.
+        data_type: The expected data type for the parameter value.
+
+    Returns:
+        A Column wrapping an UnresolvedLiteralExpr for the given parameter.
+
+    Example: A simple tool with one parameter
+        ```python
+        # Assume we are reading data with a `name` column.
+        df = session.read.csv(data.csv)
+        parameterized_df = df.filter(fc.col("name").contains(fc.tool_param('query', StringType)))
+        ...
+        session.catalog.create_tool(
+            tool_name="my_tool",
+            tool_description="A tool that searches the name field",
+            tool_query=parameterized_df,
+            result_limit=100,
+            tool_params=[ToolParam(name="query", description="The name should contain the following value")]
+        )
+
+    Example: A tool with multiple filters
+        ```python
+        # Assume we are reading data with an `age` column.
+        df = session.read.csv(users.csv)
+        # create multiple filters that evaluate to true if a param is not passed.
+        optional_min = fc.coalesce(fc.col("age") >= tool_param("min_age", IntegerType), fc.lit(True))
+        optional_max = fc.coalesce(fc.col("age") <= tool_param("max_age", IntegerType), fc.lit(True))
+        core_filter = df.filter(optional_min & optional_max)
+        session.catalog.create_tool(
+            "users_filter",
+            "Filter users by age",
+            core_filter,
+            tool_params=[
+                ToolParam(name="min_age", description="Minimum age", has_default=True, default_value=None),
+                ToolParam(name="max_age", description="Maximum age", has_default=True, default_value=None),
+            ]
+        )
+    """
+    if isinstance(data_type, _LogicalType):
+        raise ValidationError(f"Cannot use a logical type as a parameter type: {data_type}")
+
+    return Column._from_logical_expr(UnresolvedLiteralExpr(data_type=data_type, parameter_name=parameter_name))

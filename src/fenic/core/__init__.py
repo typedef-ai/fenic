@@ -1,5 +1,10 @@
 """Core module for Fenic."""
 
+from fenic.core.mcp import (
+    BoundToolParam,
+    ParameterizedToolDefinition,
+    ToolParam,
+)
 from fenic.core.metrics import (
     LMMetrics,
     OperatorMetrics,
@@ -88,4 +93,8 @@ __all__ = [
     "QueryResult",
     # Catalog/Schema
     "DatasetMetadata",
+    # MCP
+    "ToolParam",
+    "BoundToolParam",
+    "ParameterizedToolDefinition",
 ]

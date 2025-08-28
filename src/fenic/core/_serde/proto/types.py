@@ -350,6 +350,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     TsParseExpr as TsParseExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    UnresolvedLiteralExpr as UnresolvedLiteralExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Case expressions
     WhenExpr as WhenExprProto,
 )
@@ -430,6 +433,12 @@ from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     Unnest as UnnestProto,
 )
+from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
+    ToolDefinition as ToolDefinitionProto,
+)
+from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
+    ToolParameter as ToolParameterProto,
+)
 
 # Export all protobuf classes for easy importing
 __all__ = [
@@ -469,6 +478,7 @@ __all__ = [
     "ResolvedClassDefinitionProto",
     "ResolvedModelAliasProto",
     "ResolvedResponseFormatProto",
+    "UnresolvedLiteralExprProto",
     # Expression classes
     "LogicalExprProto",
     "ColumnExprProto",
@@ -584,4 +594,7 @@ __all__ = [
     # Sink plan classes
     "FileSinkProto",
     "TableSinkProto",
+    # Tools
+    "ToolParameterProto",
+    "ToolDefinitionProto"
 ]

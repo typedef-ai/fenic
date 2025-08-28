@@ -69,6 +69,7 @@ cloud = [
   "pydantic_settings",
   "fenic-cloud>=0.1.3",
 ]
+mcp = ["fastmcp>=2.11.3"]
 
 [build-system]
 requires = ["maturin>=1.8.6"]
@@ -83,3 +84,6 @@ include = ["PYPI.rst"]
 markers = [
   "cloud: marks tests that test client interactions with typedef cloud",
 ]
+
+[project.scripts]
+fenic-serve = "fenic.scripts.fenic_serve:main"

@@ -37,11 +37,18 @@ from fenic.api.functions import (
     struct,
     sum,
     text,
+    tool_param,
     udf,
     when,
 )
 from fenic.api.io import DataFrameReader, DataFrameWriter
 from fenic.api.lineage import Lineage
+from fenic.api.mcp import (
+    create_mcp_server,
+    run_mcp_server_asgi,
+    run_mcp_server_async,
+    run_mcp_server_sync,
+)
 from fenic.api.session import (
     AnthropicLanguageModel,
     CloudConfig,
@@ -119,6 +126,12 @@ __all__ = [
     "null",
     "greatest",
     "least",
+    "tool_param",
     # Lineage
     "Lineage",
+    # MCP,
+    "create_mcp_server",
+    "run_mcp_server_sync",
+    "run_mcp_server_async",
+    "run_mcp_server_asgi"
 ]

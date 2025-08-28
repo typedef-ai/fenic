@@ -51,6 +51,7 @@ from fenic.core.error import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
+from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
 from fenic.core.types import DatasetMetadata, Schema
 from fenic.core.types.schema import ColumnField
 
@@ -338,6 +339,43 @@ class CloudCatalog(BaseCatalog):
         # TODO: Implement set view description for the cloud
         raise NotImplementedError(
             "Set view description not implemented for cloud catalog"
+        )
+
+    def get_tool(
+        self,
+        tool_name: str,
+        ignore_if_not_exists: bool = True,
+    ) -> ParameterizedToolDefinition:
+        """Find and return the tool from the current database."""
+        # TODO: Implement get tool for the cloud
+        raise NotImplementedError(
+            "Get tool not implemented for cloud catalog"
+        )
+
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: LogicalPlan,
+        result_limit: int = 50,
+        ignore_if_exists: bool = True,
+    ) -> bool:
+        """Create a new tool in the current database."""
+        raise NotImplementedError(
+            "Create tool not implemented for cloud catalog"
+        )
+
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current database."""
+        raise NotImplementedError(
+            "Drop tool not implemented for cloud catalog"
+        )
+
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """Get a list of all tools in the current database."""
+        raise NotImplementedError(
+            "List tools not implemented for cloud catalog"
         )
 
     def _drop_database(

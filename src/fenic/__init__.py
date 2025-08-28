@@ -35,6 +35,7 @@ from fenic.api import (
     col,
     collect_list,
     count,
+    create_mcp_server,
     desc,
     desc_nulls_first,
     desc_nulls_last,
@@ -50,17 +51,22 @@ from fenic.api import (
     mean,
     min,
     null,
+    run_mcp_server_asgi,
+    run_mcp_server_async,
+    run_mcp_server_sync,
     semantic,
     stddev,
     struct,
     sum,
     text,
+    tool_param,
     udf,
     when,
 )
 from fenic.core import (
     ArrayType,
     BooleanType,
+    BoundToolParam,
     ClassDefinition,
     ClassifyExample,
     ClassifyExampleCollection,
@@ -86,6 +92,7 @@ from fenic.core import (
     MarkdownType,
     OperatorMetrics,
     Paragraph,
+    ParameterizedToolDefinition,
     PredicateExample,
     PredicateExampleCollection,
     QueryMetrics,
@@ -96,6 +103,7 @@ from fenic.core import (
     StringType,
     StructField,
     StructType,
+    ToolParam,
     TranscriptType,
 )
 from fenic.core.error import InvalidExampleCollectionError
@@ -198,6 +206,7 @@ __all__ = [
     "least",
     "empty",
     "null",
+    "tool_param",
     # Lineage
     "Lineage",
     # Metrics
@@ -213,4 +222,12 @@ __all__ = [
     "DataLike",
     "DataLikeType",
     "QueryResult",
+    # MCP
+    "ToolParam",
+    "BoundToolParam",
+    "ParameterizedToolDefinition",
+    "create_mcp_server",
+    "run_mcp_server_asgi",
+    "run_mcp_server_async",
+    "run_mcp_server_sync",
 ]

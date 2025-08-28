@@ -219,6 +219,8 @@ def _convert_polars_dtype_to_custom_dtype(
         return FloatType
     elif isinstance(polars_dtype, pl.Float64):
         return DoubleType
+    elif isinstance(polars_dtype, pl.Decimal):
+        return DoubleType
     elif isinstance(polars_dtype, pl.Utf8):
         return StringType
     elif isinstance(polars_dtype, pl.Boolean):

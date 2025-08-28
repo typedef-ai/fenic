@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+import "logical_plan/v1/datatypes.proto";
+import "logical_plan/v1/complex_types.proto";
+import "logical_plan/v1/plans.proto";
+
+
+message ToolParameter {
+  string name = 1;
+  string description = 2;
+  DataType data_type = 3;
+  bool required = 4;
+  bool has_default = 5;
+  optional ScalarValue default_value = 6;
+  repeated ScalarValue allowed_values = 7;
+}
+
+message ToolDefinition {
+  string name = 1;
+  string description = 2;
+  repeated ToolParameter params = 3;
+  LogicalPlan parameterized_view = 4;
+  int32 result_limit = 5;
+}

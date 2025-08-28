@@ -26,7 +26,11 @@ from fenic.core.error import (
     InternalError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ToolAlreadyExistsError,
+    ToolNotFoundError,
 )
+from fenic.core.mcp._tools import bind_tool
+from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
     DatasetMetadata,
@@ -242,8 +246,8 @@ class LocalCatalog(BaseCatalog):
         """Checks if a view with the specified name exists in the current database."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
             try:
                 views = self.system_tables.get_view(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
@@ -262,7 +266,8 @@ class LocalCatalog(BaseCatalog):
                     """
                     SELECT table_name
                     FROM information_schema.tables
-                    WHERE table_schema = ? AND table_type = 'BASE TABLE'
+                    WHERE table_schema = ?
+                      AND table_type = 'BASE TABLE'
                     """,
                     (self.get_current_database(),),
                 )
@@ -344,8 +349,8 @@ class LocalCatalog(BaseCatalog):
         """Get the LogicalPlan for the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
             try:
                 maybe_views = self.system_tables.get_view(
@@ -388,8 +393,8 @@ class LocalCatalog(BaseCatalog):
         """Drop a view from the current database."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
             if view_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
                 raise CatalogError(
@@ -495,8 +500,6 @@ class LocalCatalog(BaseCatalog):
             _verify_table_catalog(view_identifier)
             cursor = self.db_conn.cursor()
             if not self._does_view_exist(cursor, view_identifier):
-                if description is None:
-                    return
                 raise TableNotFoundError(view_identifier.table, view_identifier.db)
             try:
                 self.system_tables.set_view_description(cursor, view_identifier.db, view_identifier.table, description)
@@ -505,6 +508,51 @@ class LocalCatalog(BaseCatalog):
                 raise CatalogError(
                     f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
+
+
+    def get_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> Optional[ParameterizedToolDefinition]:
+        """Get a tool's metadata from the system table."""
+        cursor = self.db_conn.cursor()
+        existing_tool = self.system_tables.get_tool(cursor, tool_name)
+        if existing_tool:
+            if ignore_if_not_exists:
+                return None
+            raise ToolNotFoundError(tool_name)
+        return existing_tool
+
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: "LogicalPlan",
+        result_limit: int = 50,
+        ignore_if_exists: bool = True
+    ) -> bool:
+        """Create a new tool in the current catalog."""
+        # Ensure the tool is valid by resolving it.
+        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+        cursor = self.db_conn.cursor()
+        if self.system_tables.get_tool(cursor, tool_name):
+            if ignore_if_exists:
+                return False
+            raise ToolAlreadyExistsError(tool_name)
+        self.system_tables.save_tool(cursor, tool_definition)
+        return True
+
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """List all tools in the current catalog."""
+        cursor = self.db_conn.cursor()
+        return self.system_tables.list_tools(cursor)
+
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current catalog."""
+        cursor = self.db_conn.cursor()
+        if not self.system_tables.get_tool(cursor, tool_name):
+            if ignore_if_not_exists:
+                return False
+            raise ToolNotFoundError(tool_name)
+        return self.system_tables.delete_tool(cursor, tool_name)
 
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""
@@ -621,8 +669,8 @@ class LocalCatalog(BaseCatalog):
     def read_df_from_table(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current database."""
         table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
+            self.get_current_catalog(),
+            self.get_current_database())
         _verify_table_catalog(table_identifier)
         try:
             # trunk-ignore-begin(bandit/B608)
@@ -673,6 +721,7 @@ class LocalCatalog(BaseCatalog):
             raise CatalogError(
                 f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
             ) from e
+
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

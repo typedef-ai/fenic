@@ -47,11 +47,15 @@ from fenic.core._serde.proto.types import (
     ScalarStructFieldProto,
     ScalarStructProto,
     ScalarValueProto,
+    ToolDefinitionProto,
+    ToolParameterProto,
 )
+from fenic.core.mcp.types import BoundToolParam, ParameterizedToolDefinition
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
 EnumType = TypeVar("EnumType", bound=Enum)
+
 
 class SerdeContext:
     """Context for managing serialization/deserialization state and path tracking.
@@ -302,7 +306,6 @@ class SerdeContext:
                         f"Expected a typing.Literal[...] type with literal values, but get_args() returned empty tuple."
                     )
 
-
                 # Validate the protobuf enum value is valid
                 if value not in proto_enum.values():
                     raise DeserializationError(
@@ -345,7 +348,6 @@ class SerdeContext:
                 return serialize_enum_value(enum_value, target_proto, self)
             except Exception as e:
                 self._handle_serde_error(e)
-
 
     def deserialize_enum_value(
         self,
@@ -687,7 +689,6 @@ class SerdeContext:
             except Exception as e:
                 self._handle_serde_error(e)
 
-
     def serialize_scalar_value(self, field_name: str, value: Any) -> ScalarValueProto:
         """Serialize a Python value to ScalarValue oneof.
 
@@ -856,6 +857,97 @@ class SerdeContext:
                         )
                         for field in schema_proto.column_fields
                     ]
+                )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def serialize_tool_parameter(
+        self,
+        tool_param: BoundToolParam,
+        field_name: str = "params",
+    ) -> ToolParameterProto:
+        """Serialize a ToolParameter."""
+        with self.path_context(field_name):
+            try:
+                allowed_values = None
+                if tool_param.allowed_values:
+                    allowed_values = [
+                        self.serialize_scalar_value("allowed_values", allowed_value) for allowed_value in
+                        tool_param.allowed_values
+                    ]
+                return ToolParameterProto(
+                    name=tool_param.name,
+                    description=tool_param.description,
+                    data_type=self.serialize_data_type(self.DATA_TYPE, tool_param.data_type),
+                    required=tool_param.required,
+                    has_default=tool_param.has_default,
+                    default_value=self.serialize_scalar_value("default_value", tool_param.default_value),
+                    allowed_values=allowed_values,
+                )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def deserialize_tool_parameter(
+        self,
+        tool_param_proto: ToolParameterProto,
+        field_name: str = "params"
+    ) -> BoundToolParam:
+        """Deserialize a ToolParameter."""
+        with self.path_context(field_name):
+            try:
+                allowed_values = None
+                if tool_param_proto.allowed_values:
+                    allowed_values = [
+                        self.deserialize_scalar_value("allowed_values", allowed_value) for allowed_value in
+                        tool_param_proto.allowed_values]
+                return BoundToolParam(
+                    name=tool_param_proto.name,
+                    description=tool_param_proto.description,
+                    data_type=self.deserialize_data_type(self.DATA_TYPE, tool_param_proto.data_type),
+                    required=tool_param_proto.required,
+                    has_default=tool_param_proto.has_default,
+                    default_value=self.deserialize_scalar_value("default_value", tool_param_proto.default_value),
+                    allowed_values=allowed_values,
+                )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def serialize_tool_definition(
+        self,
+        tool_definition: ParameterizedToolDefinition,
+        field_name: str = "tool_definition"
+    ) -> ToolDefinitionProto:
+        with self.path_context(field_name):
+            serialized_params = [
+                self.serialize_tool_parameter(tool_param) for tool_param in tool_definition.params
+            ]
+            try:
+                return ToolDefinitionProto(
+                    name=tool_definition.name,
+                    description=tool_definition.description,
+                    params=serialized_params,
+                    parameterized_view=self.serialize_logical_plan("parameterized_view",
+                                                                   tool_definition._parameterized_view),
+                    result_limit=tool_definition.result_limit,
+                )
+            except Exception as e:
+                self._handle_serde_error(e)
+
+    def deserialize_tool_definition(
+        self,
+        tool_definition_proto: ToolDefinitionProto,
+        field_name: str = "tool_definition"
+    ) -> ParameterizedToolDefinition:
+        """Deserialize a ToolDefinition."""
+        with self.path_context(field_name):
+            try:
+                return ParameterizedToolDefinition(
+                    name=tool_definition_proto.name,
+                    description=tool_definition_proto.description,
+                    params=[self.deserialize_tool_parameter(tool_param) for tool_param in tool_definition_proto.params],
+                    _parameterized_view=self.deserialize_logical_plan("parameterized_view",
+                                                                      tool_definition_proto.parameterized_view),
+                    result_limit=tool_definition_proto.result_limit,
                 )
             except Exception as e:
                 self._handle_serde_error(e)

@@ -16,7 +16,10 @@ from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic._backends.utils.catalog_utils import normalize_object_name
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde import LogicalPlanSerde
+from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.core._serde.proto.types import ToolDefinitionProto
 from fenic.core.error import CatalogError
+from fenic.core.mcp.types import ParameterizedToolDefinition
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import ColumnField, DatasetMetadata, Schema
 from fenic.core.types.datatypes import (
@@ -29,6 +32,7 @@ from fenic.core.types.datatypes import (
 SYSTEM_SCHEMA_NAME = "__fenic_system"
 SCHEMA_METADATA_TABLE = "table_schemas"
 VIEWS_METADATA_TABLE = "table_views"
+TOOLS_METADATA_TABLE = "mcp_tools"
 
 # Constants for read-only system schema and tables
 READ_ONLY_SYSTEM_SCHEMA_NAME = "fenic_system"
@@ -52,6 +56,8 @@ class SystemTableClient:
         self._initialize_system_schema(cursor)
         self._initialize_views_metadata(cursor)
         self._initialize_read_only_system_schema_and_tables(cursor)
+        self._initialize_tools_metadata(cursor)
+        self.serde_context = SerdeContext()
 
     def save_table(
         self,
@@ -459,6 +465,105 @@ class SystemTableClient:
                 f"Failed to delete views metadata for database {database_name}"
             ) from e
 
+    def save_tool(self, cursor: duckdb.DuckDBPyConnection, tool: ParameterizedToolDefinition) -> None:
+        """Save a tool's metadata to the system table.
+        Raises:
+            CatalogError: If the tool metadata cannot be saved.
+        """
+        try:
+            tool_proto = self.serde_context.serialize_tool_definition(tool)
+            tool_blob = base64.b64encode(tool_proto.SerializeToString())
+            cursor.execute(
+                f"""
+                INSERT OR REPLACE INTO "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}" (
+                    tool_name, tool_blob
+                ) VALUES (?, ?)
+            """,
+                (tool.name, tool_blob),
+            )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to save tool metadata for {tool.name}"
+            ) from e
+
+    def get_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+        """Get a tool's metadata from the system table.
+        Raises:
+            CatalogError: If the tool metadata cannot be retrieved.
+        """
+        try:
+            result = cursor.execute(
+                f"""
+                SELECT tool_blob
+                FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
+                WHERE tool_name = ?
+            """, (tool_name,),# nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
+            ).fetchone()
+            if result is None:
+                logger.debug(f"No tool found for {tool_name}")
+                return None
+            return self._deserialize_and_resolve_tool(result)
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to retrieve tool metadata for {tool_name}"
+            ) from e
+
+    def list_tools(self, cursor: duckdb.DuckDBPyConnection) -> List[ParameterizedToolDefinition]:
+        """List all tools in the system table.
+        Raises:
+            CatalogError: If the tools metadata cannot be retrieved.
+        """
+        try:
+            result = cursor.execute(
+                f"""
+                SELECT tool_blob
+                FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
+            """, # nosec: B608: No risk of injection, only uses fixed constants.
+            ).fetchall()
+            return [self._deserialize_and_resolve_tool(row) for row in result]
+        except Exception as e:
+            raise CatalogError(
+                "Failed to list tools"
+            ) from e
+
+    def delete_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> bool:
+        """Delete a tool's metadata from the system table.
+        Raises:
+            CatalogError: If the tool metadata cannot be deleted.
+        """
+        try:
+            result = cursor.execute(
+                f"""
+                DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
+                WHERE tool_name = ?
+            """, (tool_name,) # nosec: B608: No major risk of SQL injection here, because queries run on a client side DuckDB instance.
+            ).fetchone()
+            if result is None:
+                logger.debug(f"No tool found for {tool_name}")
+                return False
+            return True
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to delete tool metadata for {tool_name}"
+            ) from e
+
+    def delete_all_tools(self, cursor: duckdb.DuckDBPyConnection) -> bool:
+        """Delete all tools from the system table.
+        Raises:
+            CatalogError: If the tools metadata cannot be deleted.
+        """
+        try:
+            cursor.execute(
+                f"""
+                DELETE FROM "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}"
+            """, # nosec: B608: No risk of injection, only uses fixed constants.
+            )
+            return True
+        except Exception as e:
+            raise CatalogError(
+                "Failed to delete all tools"
+            ) from e
+
     def insert_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
         """Append query execution metrics to the metrics table.
 
@@ -694,3 +799,32 @@ class SystemTableClient:
             ) from e
 
         logger.debug(f"Initialized views and {VIEWS_METADATA_TABLE} table")
+
+    def _initialize_tools_metadata(self, cursor: duckdb.DuckDBPyConnection) -> None:
+        """Initialize the table for storing tools metadata.
+        Raises:
+            CatalogError: If the tools metadata table cannot be created.
+        """
+        try:
+            # Create system schema if it doesn't exist
+            cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
+
+            # Create the tools metadata table if it doesn't exist
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}"."{TOOLS_METADATA_TABLE}" (
+                    tool_name TEXT NOT NULL,
+                    tool_blob TEXT NOT NULL,
+                    PRIMARY KEY (tool_name)
+                );
+            """
+            )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to initialize tools and {TOOLS_METADATA_TABLE} table"
+            ) from e
+
+    def _deserialize_and_resolve_tool(self, row: tuple) -> ParameterizedToolDefinition:
+       decoded_tool = base64.b64decode(row[0])
+       proto_tool = ToolDefinitionProto.FromString(decoded_tool)
+       return self.serde_context.deserialize_tool_definition(proto_tool)

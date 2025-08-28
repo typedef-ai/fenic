@@ -83,6 +83,25 @@ class LiteralExpr(LogicalExpr):
     def _eq_specific(self, other: LiteralExpr) -> bool:
         return self.literal == other.literal and self.data_type == other.data_type
 
+class UnresolvedLiteralExpr(LogicalExpr):
+    def __init__(self, data_type: DataType, parameter_name: str):
+        self.data_type = data_type
+        self.parameter_name = parameter_name
+
+
+    def __str__(self) -> str:
+        return f"param({self.parameter_name})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        return ColumnField(str(self), self.data_type)
+
+    def children(self) -> List[LogicalExpr]:
+        return []
+
+    def _eq_specific(self, other: UnresolvedLiteralExpr) -> bool:
+        return (self.parameter_name == other.parameter_name and
+                self.data_type == other.data_type)
+
 
 class AliasExpr(LogicalExpr):
     """Expression representing a column alias."""

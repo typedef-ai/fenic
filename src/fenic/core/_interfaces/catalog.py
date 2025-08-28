@@ -7,6 +7,7 @@ from fenic.core.types import DatasetMetadata, Schema
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
+    from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
 
 
 class BaseCatalog(ABC):
@@ -141,4 +142,36 @@ class BaseCatalog(ABC):
     @abstractmethod
     def describe_view(self, view_name: str) -> DatasetMetadata:
         """Return view schema and description together."""
+        pass
+
+    @abstractmethod
+    def get_tool(
+        self,
+        tool_name: str,
+        ignore_if_not_exists: bool = True
+    ) -> ParameterizedToolDefinition:
+        """Find and return the tool from the current catalog."""
+        pass
+
+    @abstractmethod
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: LogicalPlan,
+        result_limit: int = 50,
+        ignore_if_exists: bool = True
+    ) -> bool:
+        """Create a new tool in the current catalog."""
+        pass
+
+    @abstractmethod
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current catalog."""
+        pass
+
+    @abstractmethod
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """Get a list of all tools in the current catalog."""
         pass

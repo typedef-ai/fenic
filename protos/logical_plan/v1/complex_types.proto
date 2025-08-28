@@ -108,3 +108,4 @@ message JoinExample {
 message JoinExampleCollection {
   repeated JoinExample examples = 1;
 }
+

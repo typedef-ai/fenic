@@ -3,6 +3,8 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
+from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
+
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
@@ -189,6 +191,13 @@ class ExprConverter:
             raise ValueError(f"Unsupported data type {data_type} for literal conversion")
 
         return _literal_to_polars_expr(logical.literal, logical.data_type)
+
+    @_convert_expr.register
+    def _convert_unresolved_literal_expr(self, logical: UnresolvedLiteralExpr) -> pl.Expr:
+        raise InternalError(
+            f"An unresolved literal expression was found in the plan: {logical}, which was not expected. "
+            "All unresolved literal expressions should have been resolved by the binder."
+        )
 
 
     @_convert_expr.register

@@ -52,6 +52,7 @@ nav:
               - Markdown Processing: examples/markdown_processing.md
       - Topics:
           - Markdown -> JSON: topics/markdown-json.md
+          - Fenic MCP: topics/fenic-mcp.md
       - Contributing: CONTRIBUTING.md
   - API Reference
 watch:

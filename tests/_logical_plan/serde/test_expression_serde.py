@@ -89,6 +89,7 @@ from fenic.core._logical_plan.expressions import (
     TextractExpr,
     TsParseExpr,
     UDFExpr,
+    UnresolvedLiteralExpr,
     WhenExpr,
 )
 from fenic.core._logical_plan.expressions.base import (
@@ -117,6 +118,7 @@ from fenic.core.types import (
     JsonType,
     StringType,
 )
+from fenic.core.types.datatypes import ArrayType, StructField, StructType
 from fenic.core.types.semantic_examples import (
     MapExample,
     MapExampleCollection,
@@ -161,6 +163,12 @@ expression_examples = {
         LiteralExpr(42, IntegerType),
         LiteralExpr(3.14, FloatType),
         LiteralExpr(True, BooleanType),
+    ],
+    UnresolvedLiteralExpr: [
+        UnresolvedLiteralExpr(StringType, "test_param_1"),
+        UnresolvedLiteralExpr(IntegerType, "test_param_2"),
+        UnresolvedLiteralExpr(ArrayType(StringType), "test_param_3"),
+        UnresolvedLiteralExpr(StructType([StructField("name", StringType), StructField("age", IntegerType)]), "test_param_4"),
     ],
     AliasExpr: [
         AliasExpr(ColumnExpr("test_col"), "test_alias"),

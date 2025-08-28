@@ -17,6 +17,7 @@ from fenic.core._logical_plan.expressions.basic import (
     NotExpr,
     SortExpr,
     StructExpr,
+    UnresolvedLiteralExpr,
 )
 from fenic.core._serde.proto.expression_serde import (
     _deserialize_logical_expr_helper,
@@ -41,6 +42,7 @@ from fenic.core._serde.proto.types import (
     NotExprProto,
     SortExprProto,
     StructExprProto,
+    UnresolvedLiteralExprProto,
 )
 
 # =============================================================================
@@ -90,6 +92,30 @@ def _deserialize_literal_expr(
         data_type=context.deserialize_data_type(SerdeContext.DATA_TYPE, logical_proto.data_type),
     )
 
+# =============================================================================
+# UnresolvedLiteralExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_unresolved_literal_expr(
+    logical: UnresolvedLiteralExpr, context: SerdeContext
+) -> LogicalExprProto:
+    return LogicalExprProto(
+        unresolved_literal=UnresolvedLiteralExprProto(
+            parameter_name=logical.parameter_name,
+            data_type=context.serialize_data_type(SerdeContext.DATA_TYPE, logical.data_type),
+        )
+    )
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_unresolved_literal_expr(
+    logical_proto: UnresolvedLiteralExprProto, context: SerdeContext
+) -> UnresolvedLiteralExpr:
+    return UnresolvedLiteralExpr(
+        parameter_name=logical_proto.parameter_name,
+        data_type=context.deserialize_data_type(SerdeContext.DATA_TYPE, logical_proto.data_type),
+    )
 
 # =============================================================================
 # AliasExpr

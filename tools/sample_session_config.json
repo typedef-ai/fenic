@@ -1,0 +1,50 @@
+{
+  "app_name": "mcp_demo",
+  "db_path": null,
+  "semantic": {
+    "language_models": {
+      "gpt-4.1-nano": {
+        "model_name": "gpt-4.1-nano",
+        "rpm": 2500,
+        "tpm": 2000000,
+        "profiles": null,
+        "default_profile": null
+      },
+      "gpt-4.1-mini": {
+        "model_name": "gpt-4.1-mini",
+        "rpm": 2500,
+        "tpm": 2000000,
+        "profiles": null,
+        "default_profile": null
+      },
+      "gpt-5-nano": {
+        "model_name": "gpt-5-nano",
+        "rpm": 2500,
+        "tpm": 2000000,
+        "profiles": {
+          "default": {
+            "reasoning_effort": "minimal",
+            "verbosity": null
+          }
+        },
+        "default_profile": "default"
+      },
+      "gpt-5-mini": {
+        "model_name": "gpt-5-mini",
+        "rpm": 2500,
+        "tpm": 2000000,
+        "profiles": {
+          "default": {
+            "reasoning_effort": "minimal",
+            "verbosity": null
+          }
+        },
+        "default_profile": "default"
+      }
+    },
+    "default_language_model": "gpt-4.1-nano",
+    "embedding_models": null,
+    "default_embedding_model": null
+  },
+  "cloud": null
+}

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from fenic.api.types import DataType
+    from fenic.core.types.datatypes import DataType
 
 
 # Base exception
@@ -171,6 +171,27 @@ class TableAlreadyExistsError(CatalogError):
             f"Use mode='overwrite' to replace the existing table."
         )
 
+class ToolNotFoundError(CatalogError):
+    """Tool doesn't exist."""
+
+    def __init__(self, tool_name: str):
+        """Initialize a tool not found error.
+
+        Args:
+            tool_name: The name of the tool that was not found.
+        """
+        super().__init__(f"Tool '{tool_name}' does not exist")
+
+class ToolAlreadyExistsError(CatalogError):
+    """Tool already exists."""
+
+    def __init__(self, tool_name: str):
+        """Initialize a tool already exists error.
+
+        Args:
+            tool_name: The name of the tool that already exists.
+        """
+        super().__init__(f"Tool '{tool_name}' already exists")
 
 class DatabaseNotFoundError(CatalogError):
     """Database doesn't exist."""

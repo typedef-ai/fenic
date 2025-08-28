@@ -1050,6 +1050,10 @@ class SessionConfig(BaseModel):
     semantic: Optional[SemanticConfig] = None
     cloud: Optional[CloudConfig] = None
 
+    def to_json(self) -> str:
+        """Export the session config to a JSON string."""
+        return self.model_dump_json(indent=2)
+
     def _to_resolved_config(self) -> ResolvedSessionConfig:
         def resolve_model(model: ModelConfig) -> ResolvedModelConfig:
             if isinstance(model, OpenAIEmbeddingModel):
