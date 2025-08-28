@@ -2,15 +2,13 @@
 import logging
 from typing import Optional, Union
 
-from openai import AsyncOpenAI
-
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
 )
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
-from fenic.core._inference.model_provider import ModelProviderClass
+from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -23,7 +21,6 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 

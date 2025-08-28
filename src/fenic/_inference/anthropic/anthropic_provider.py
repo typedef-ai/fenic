@@ -1,9 +1,9 @@
 """Anthropic model provider implementation."""
 
 import logging
+from typing import Optional
 
 import anthropic
-from typing import Optional
 
 from fenic.core._inference.model_provider import ModelProviderClass
 

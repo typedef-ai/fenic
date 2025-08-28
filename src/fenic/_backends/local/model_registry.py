@@ -1,7 +1,8 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional
+
 from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference import (
     EmbeddingModel,
@@ -13,6 +14,7 @@ from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
+from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
@@ -22,7 +24,6 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelConfig,
     ResolvedSemanticConfig,
 )
-from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
 

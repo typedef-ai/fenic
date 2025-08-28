@@ -8,7 +8,6 @@ from anthropic import (
     AnthropicError,
     APIConnectionError,
     APITimeoutError,
-    AsyncAnthropic,
     RateLimitError,
 )
 from anthropic.types import (
@@ -22,12 +21,12 @@ from anthropic.types import (
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
 )
+from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
 )
-from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     TokenEstimate,

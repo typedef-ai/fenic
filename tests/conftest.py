@@ -23,8 +23,8 @@ from fenic.api.session.config import (
     LanguageModel,
     OpenAILanguageModel,
 )
-from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_provider import ModelProviderClass
 
 LANGUAGE_MODEL_PROVIDER_ARG = "--language-model-provider"
 LANGUAGE_MODEL_NAME_ARG = "--language-model-name"

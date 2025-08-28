@@ -1,10 +1,11 @@
 """Google model provider implementation."""
 
-from abc import abstractmethod
 import logging
 import os
-from google import genai
+from abc import abstractmethod
 from typing import Optional
+
+from google import genai
 
 from fenic.core._inference.model_provider import ModelProviderClass
 

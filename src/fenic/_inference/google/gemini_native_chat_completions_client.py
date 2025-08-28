@@ -1,9 +1,8 @@
 import copy
 import logging
-import os
 from functools import cache
 from typing import Any, Optional, Union
-print("HERE")
+
 from google import genai
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
@@ -12,9 +11,12 @@ from google.genai.types import (
     GenerateContentResponse,
 )
 
-from fenic._inference.google.google_provider import GoogleDeveloperModelProvider, GoogleVertexModelProvider
 from fenic._inference.google.google_profile_manager import (
     GoogleCompletionsProfileManager,
+)
+from fenic._inference.google.google_provider import (
+    GoogleDeveloperModelProvider,
+    GoogleVertexModelProvider,
 )
 from fenic._inference.model_client import (
     FatalException,

@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional
+
 import cohere
 
 from fenic.core._inference.model_provider import ModelProviderClass

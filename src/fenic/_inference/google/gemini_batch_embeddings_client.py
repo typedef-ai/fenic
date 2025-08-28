@@ -1,15 +1,16 @@
 import hashlib
 import logging
-import os
 from typing import List, Optional, Union
 
-from google import genai
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import ContentEmbedding
 
-from fenic._inference.google.google_provider import GoogleDeveloperModelProvider, GoogleVertexModelProvider
 from fenic._inference.google.google_profile_manager import (
     GoogleEmbeddingsProfileManager,
+)
+from fenic._inference.google.google_provider import (
+    GoogleDeveloperModelProvider,
+    GoogleVertexModelProvider,
 )
 from fenic._inference.model_client import (
     FatalException,

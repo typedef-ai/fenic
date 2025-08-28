@@ -3,11 +3,10 @@
 import logging
 from typing import Union
 
-from openai import AsyncOpenAI
-
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
+from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -21,7 +20,6 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic.core.metrics import RMMetrics
 
 logger = logging.getLogger(__name__)

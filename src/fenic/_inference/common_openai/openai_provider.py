@@ -1,8 +1,9 @@
 """OpenAI model provider implementation."""
 
 import logging
-from openai import AsyncOpenAI
 from typing import Optional
+
+from openai import AsyncOpenAI
 
 from fenic.core._inference.model_provider import ModelProviderClass
 
@@ -26,15 +27,13 @@ class OpenAIModelProvider(ModelProviderClass):
     def name(self) -> str:
         return "openai"
 
-    @classmethod
-    def get_client(cls):
+    def get_client(self):
         """Get OpenAI client instance."""
         return AsyncOpenAI()
     
-    @classmethod
-    async def validate_api_key(cls) -> None:
+    async def validate_api_key(self) -> None:
         """Validate OpenAI API key by listing models."""
-        client = cls.get_client()
+        client = self.get_client()
         _ = await client.models.list()
         logger.debug("OpenAI API key validation successful")
 

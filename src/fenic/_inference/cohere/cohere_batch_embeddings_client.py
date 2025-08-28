@@ -8,6 +8,7 @@ import cohere
 from fenic._inference.cohere.cohere_profile_manager import (
     CohereEmbeddingsProfileManager,
 )
+from fenic._inference.cohere.cohere_provider import CohereModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -20,7 +21,6 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
-from fenic._inference.cohere.cohere_provider import CohereModelProvider
 from fenic.core._resolved_session_config import ResolvedCohereModelProfile
 from fenic.core.metrics import RMMetrics
 
