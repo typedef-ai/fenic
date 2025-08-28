@@ -533,7 +533,7 @@ def test_session_config_with_invalid_api_keys(monkeypatch):
 
 def test_session_config_with_invalid_gemini_api_key(monkeypatch):
     """Test that session configuration validation rejects models with invalid Gemini API keys."""
-    pytest.importorskip("google")
+    pytest.importorskip("google.genai")
 
     monkeypatch.setenv("GEMINI_API_KEY", "__invalid__")
     # test google developer chat completions client
