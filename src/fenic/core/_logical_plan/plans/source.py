@@ -98,7 +98,7 @@ class FileSource(LogicalPlan):
                     ) from e
                 else:
                     raise PlanError(
-                        "Failed to infer schema from CSV files"
+                        f"Failed to infer schema from CSV files: {e}"
                     ) from e
 
         elif self._file_format == "parquet":
@@ -114,7 +114,7 @@ class FileSource(LogicalPlan):
                     ) from e
                 else:
                     raise PlanError(
-                        "Failed to infer schema from Parquet files"
+                        f"Failed to infer schema from Parquet files: {e}"
                     ) from e
 
     def children(self) -> List[LogicalPlan]:
