@@ -3,7 +3,6 @@
 import logging
 import os
 from abc import abstractmethod
-from typing import Optional
 
 from google import genai
 
@@ -28,18 +27,7 @@ class GoogleModelProvider(ModelProviderClass):
 
 
 class GoogleDeveloperModelProvider(GoogleModelProvider):
-    """Google implementation of ModelProvider."""
-
-    _instance: Optional["GoogleDeveloperModelProvider"] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        if not hasattr(self, "_initialized"):
-            self._initialized = True 
+    """Google Developer implementation of ModelProvider."""
 
     @property
     def name(self) -> str:
@@ -54,18 +42,7 @@ class GoogleDeveloperModelProvider(GoogleModelProvider):
 
 
 class GoogleVertexModelProvider(GoogleModelProvider):
-    """Google implementation of ModelProvider."""
-
-    _instance: Optional["GoogleVertexModelProvider"] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        if not hasattr(self, "_initialized"):
-            self._initialized = True 
+    """Google Vertex implementation of ModelProvider."""
 
     @property
     def name(self) -> str:

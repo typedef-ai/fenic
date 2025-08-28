@@ -1,7 +1,6 @@
 """Anthropic model provider implementation."""
 
 import logging
-from typing import Optional
 
 import anthropic
 
@@ -12,17 +11,6 @@ logger = logging.getLogger(__name__)
 
 class AnthropicModelProvider(ModelProviderClass):
     """Anthropic implementation of ModelProvider."""
-    
-    _instance: Optional["AnthropicModelProvider"] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        if not hasattr(self, "_initialized"):
-            self._initialized = True
 
     @property
     def name(self) -> str:

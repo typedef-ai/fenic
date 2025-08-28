@@ -61,7 +61,6 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             profile_configurations=profiles,
             default_profile_name=default_profile_name
         )
-
         self._core = OpenAIChatCompletionsCore(
             model=model,
             model_provider=ModelProvider.OPENAI,
