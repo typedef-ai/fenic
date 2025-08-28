@@ -28,6 +28,7 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
@@ -87,6 +88,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     Attributes:
         model (str): The name or identifier of the model
         model_provider (ModelProvider): The provider of the model (e.g., OPENAI, ANTHROPIC)
+        model_provider_class (ModelProviderClass): A class that implements common provider logic
         rate_limit_strategy (RateLimitStrategy): Strategy for rate limiting requests
         token_counter (TiktokenTokenCounter): Counter for estimating token usage
     """
@@ -95,6 +97,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             self,
             model: str,
             model_provider: ModelProvider,
+            model_provider_class: ModelProviderClass,
             rate_limit_strategy: RateLimitStrategy,
             token_counter: TiktokenTokenCounter,
             queue_size: int = 100,
@@ -107,6 +110,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Args:
             model: The name or identifier of the model
             model_provider: The model provider (OPENAI, ANTHROPIC)
+            model_provider_class: The model provider class (OpenAIModelProvider, AnthropicModelProvider, etc.)
             alias: The Model Client's alias, for logging purposes
             rate_limit_strategy: Strategy for rate limiting requests
             token_counter: Implementation for predicting input token counts
@@ -117,6 +121,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         self.model = model
         self.model_provider = model_provider
+        self.model_provider_class = model_provider_class
         self.rate_limit_strategy = rate_limit_strategy
         self.context_tokens_per_minute = rate_limit_strategy.context_tokens_per_minute()
         self.token_counter = token_counter
@@ -221,19 +226,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     @abstractmethod
     def reset_metrics(self):
         """Reset all metrics for this model client to their initial values."""
-        pass
-
-    @abstractmethod
-    async def validate_api_key(self):
-        """Validate the API token for this model client by performing a lightweight API call.
-
-        This method should make a minimal API call to verify that the configured credentials
-        are valid and the service is accessible. It should be designed to be fast and use
-        minimal resources.
-
-        Raises:
-            ConfigurationError: If the API token is invalid.
-        """
         pass
 
     def _count_auxiliary_input_tokens(self, request: RequestT) -> int:

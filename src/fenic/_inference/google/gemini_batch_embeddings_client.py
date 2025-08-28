@@ -7,6 +7,7 @@ from google import genai
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import ContentEmbedding
 
+from fenic._inference.google.google_provider import GoogleDeveloperModelProvider, GoogleVertexModelProvider
 from fenic._inference.google.google_profile_manager import (
     GoogleEmbeddingsProfileManager,
 )
@@ -42,21 +43,14 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         super().__init__(
             model=model,
             model_provider=model_provider,
+            model_provider_class=GoogleDeveloperModelProvider() if model_provider == ModelProvider.GOOGLE_DEVELOPER else GoogleVertexModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=TiktokenTokenCounter(model_name=model),
         )
         self.model = model
-        # Native gen-ai client. Passing `vertexai=True` automatically routes traffic
-        # through Vertex-AI if the environment is configured for it.
-        if model_provider == ModelProvider.GOOGLE_DEVELOPER:
-            if "GEMINI_API_KEY" in os.environ:
-                self._base_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-            else:
-                self._base_client = genai.Client()
-        else:
-            self._base_client = genai.Client(vertexai=True)
+        self._base_client = self.model_provider_class.get_client()
         self._client = self._base_client.aio
         self._model_parameters = model_catalog.get_embedding_model_parameters(
             model_provider, model
@@ -139,7 +133,3 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
     def get_metrics(self) -> RMMetrics:
         return self._metrics
 
-    async def validate_api_key(self):
-        """Validate the Google API token by making a minimal API call."""
-        _ = await self._client.models.embed_content(model=self.model, contents=["ping"])
-        logger.debug(f"Google API key validation successful for model {self.model}")

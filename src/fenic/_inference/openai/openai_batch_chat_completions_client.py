@@ -10,6 +10,7 @@ from fenic._inference.common_openai.openai_chat_completions_core import (
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
+from fenic.core._inference.model_provider import ModelProviderClass
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -22,6 +23,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 
@@ -53,6 +55,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
+            model_provider_class=OpenAIModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -69,7 +72,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             model=model,
             model_provider=ModelProvider.OPENAI,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
-            client=AsyncOpenAI()
+            client=self.model_provider_class.get_client()
         )
 
     async def make_single_request(

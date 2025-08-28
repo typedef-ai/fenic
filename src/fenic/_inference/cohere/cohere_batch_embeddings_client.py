@@ -20,6 +20,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic._inference.cohere.cohere_provider import CohereModelProvider
 from fenic.core._resolved_session_config import ResolvedCohereModelProfile
 from fenic.core.metrics import RMMetrics
 
@@ -51,6 +52,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         super().__init__(
             model=model,
             model_provider=ModelProvider.COHERE,
+            model_provider_class=CohereModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -62,7 +64,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         if not api_key:
             raise ValueError("COHERE_API_KEY environment variable is required")
         
-        self._client = cohere.ClientV2(api_key=api_key)
+        self._client = self.model_provider_class.get_client()
         self.model = model
         
         self._model_parameters = model_catalog.get_embedding_model_parameters(
