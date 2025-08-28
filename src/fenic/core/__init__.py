@@ -2,6 +2,7 @@
 
 from fenic.core.mcp import (
     BoundToolParam,
+    DynamicToolDefinition,
     ParameterizedToolDefinition,
     ToolParam,
 )
@@ -105,4 +106,5 @@ __all__ = [
     "ToolParam",
     "BoundToolParam",
     "ParameterizedToolDefinition",
+    "DynamicToolDefinition",
 ]

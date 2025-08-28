@@ -1,7 +1,7 @@
 """Exported Types related to Parameterized View/MCP Tool Generation."""
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.dataclasses import dataclass
@@ -74,3 +74,16 @@ class ParameterizedToolDefinition:
     params: list[BoundToolParam]
     result_limit: int
     _parameterized_view: LogicalPlan
+
+
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
+class DynamicToolDefinition:
+    """A tool implemented as a regular Python callable with explicit parameters.
+
+    The callable must return a LogicalPlan. Collection/formatting is handled by
+    the MCP generator wrapper.
+    """
+    name: str
+    description: str
+    func: Callable[..., LogicalPlan]
+    result_limit: Optional[int]

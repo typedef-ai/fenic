@@ -6,10 +6,14 @@ This module exposes helpers to:
 """
 from typing import List, Optional
 
+from fenic.api.mcp.tool_generation import (
+    ToolGenerationConfig,
+    auto_generate_core_tools_from_tables,
+)
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp._server import FenicMCPServer, MCPTransport
-from fenic.core.mcp.types import ParameterizedToolDefinition
+from fenic.core.mcp.types import DynamicToolDefinition, ParameterizedToolDefinition
 
 
 def create_mcp_server(
@@ -17,6 +21,7 @@ def create_mcp_server(
     server_name: str,
     *,
     tools: Optional[List[ParameterizedToolDefinition]] = None,
+    automated_tool_generation: Optional[ToolGenerationConfig] = None,
     concurrency_limit: int = 8,
 ) -> FenicMCPServer:
     """Create an MCP server from datasets and tools.
@@ -25,13 +30,22 @@ def create_mcp_server(
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
         tools: Tools to register (optional).
+        automated_tool_generation: Generate automated tools for one or more Dataframes
         concurrency_limit: Maximum number of concurrent tool executions.
     """
+    dynamic_tools: List[DynamicToolDefinition] = []
     if tools is None:
         tools = []
-    if not tools:
-        raise ConfigurationError("No tools provided. Either provide tools or register them to catalog.")
-    return FenicMCPServer(session._session_state, tools, server_name, concurrency_limit)
+    if automated_tool_generation:
+        dynamic_tools.extend(auto_generate_core_tools_from_tables(
+            automated_tool_generation.table_names,
+            session,
+            tool_group_name=automated_tool_generation.tool_group_name,
+            sql_max_rows=automated_tool_generation.sql_max_rows)
+        )
+    if not tools and not dynamic_tools:
+        raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")
+    return FenicMCPServer(session._session_state, tools, dynamic_tools, server_name, concurrency_limit)
 
 def run_mcp_server_asgi(
     server: FenicMCPServer,

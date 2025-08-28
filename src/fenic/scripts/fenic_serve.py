@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Optional
 
 from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync
+from fenic.api.mcp.tool_generation import ToolGenerationConfig
 from fenic.api.session.config import SessionConfig
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
@@ -63,8 +64,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--stateful-http", action="store_true",
                         help="Run the MCP server in stateful mode -- clients are assigned a session id and can use it to persist state across requests (default: stateless).")
 
-    # Inputs: tools
+    # Inputs: tools or tables
     parser.add_argument("--tools", nargs="*", default=None, help="Catalog tool names to load.")
+    parser.add_argument("--tables", nargs="*", default=None, help="Catalog table names for automated tool generation.")
+    parser.add_argument("--generated-tool-prefix", type=str, default="dataset_exploration",
+                        help="Tool prefix for generated tools. Will be converted to `snake_case`. Defaults to `dataset_exploration`, "
+                             "so tools will be generated as `dataset_exploration_schema`, `dataset_exploration_read` etc.")
+    parser.add_argument("--sql-max-rows", type=int, default=100, help="Row limit for Analyze/Read/Search tools.")
 
     return parser.parse_args()
 
@@ -99,15 +105,24 @@ def main() -> None:
     else:
         tools = session.catalog.list_tools()
 
-    # If no tools resolved, error out with guidance
-    if not tools:
+    auto_cfg: Optional[ToolGenerationConfig] = None
+    if args.tables:
+        auto_cfg = ToolGenerationConfig(
+            table_names=args.tables,
+            tool_group_name=args.generated_tool_prefix,
+            sql_max_rows=args.sql_max_rows,
+        )
+
+    # If neither tables nor any tools resolved, error out with guidance
+    if not args.tables and not tools:
         raise ConfigurationError(
-            "No tools provided, and no tools registered in the catalog. Provide --tools or register tools.")
+            "No tools or tables provided, and no tools registered in the catalog. Provide --tools/--tables or register tools.")
 
     server = create_mcp_server(
         session,
         server_name=args.server_name,
         tools=tools if tools else None,
+        automated_tool_generation=auto_cfg,
         concurrency_limit=args.concurrency_limit,
     )
 

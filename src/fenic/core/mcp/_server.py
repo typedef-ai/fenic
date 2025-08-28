@@ -12,6 +12,7 @@ Install with:
 import asyncio
 import logging
 import re
+from functools import wraps
 from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ from fenic.core.mcp._tools import (
     create_pydantic_model_for_tool,
 )
 from fenic.core.mcp.types import (
+    DynamicToolDefinition,
     ParameterizedToolDefinition,
     TableFormat,
 )
@@ -50,6 +52,7 @@ class FenicMCPServer:
         self,
         session_state: BaseSessionState,
         paramaterized_tools: list[ParameterizedToolDefinition],
+        dynamic_tools: list[DynamicToolDefinition],
         server_name: str = "Fenic Views",
         concurrency_limit: int = 8
     ):
@@ -58,14 +61,16 @@ class FenicMCPServer:
         Args:
             session_state: Fenic session state to use for tool execution.
             paramaterized_tools: List of user-created tools
+            dynamic_tools: List of auto-generated tools
             server_name: Name of the MCP server.
             concurrency_limit: Maximum number of concurrent tool executions.
         """
         self.session_state = session_state
         self.server_name = server_name
         self.paramaterized_tools = paramaterized_tools
+        self.dynamic_tools = dynamic_tools
         self._collect_semaphore = asyncio.Semaphore(concurrency_limit)
-        if not paramaterized_tools:
+        if not (paramaterized_tools or dynamic_tools):
             raise ConfigurationError("No tools provided to MCP server.")
         try:
             from fastmcp import FastMCP
@@ -78,6 +83,10 @@ class FenicMCPServer:
         for tool in self.paramaterized_tools:
             tool_fn = self._build_parameterized_tool(tool)
             self.mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False))(tool_fn)
+
+        for tool in self.dynamic_tools:
+            tool_fn = self._register_dynamic_callable(tool)
+            self.mcp.tool(name=self._to_snake_case(tool.name), description=tool.description)(tool_fn)
 
     async def run_async(self, transport: MCPTransport = "http", **kwargs):
         """Run the MCP server asynchronously.
@@ -144,6 +153,43 @@ class FenicMCPServer:
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
         tool_fn.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
         return tool_fn
+
+    def _register_dynamic_callable(self, tool: DynamicToolDefinition):
+        # Dynamic function must return a LogicalPlan. This registrar wraps the callable so
+        # that we (a) execute/collect the plan off the event loop, (b) limit concurrency,
+        # and (c) format the results into an MCPResultSet for FastMCP.
+        #
+        # Important: We intentionally use a two-layer wrapper pattern below.
+        # - `wrapper` performs the actual execution/collection/formatting work.
+        # - `wrapped` is decorated with `@wraps(tool.func)` so FastMCP can introspect the
+        #   original function signature for tool schema generation.
+
+        async def wrapper(*args, **kwargs) -> MCPResultSet:
+            # Obtain the plan by invoking the dynamic tool. No session is injected here;
+            # the callable is expected to derive any context it needs from inputs.
+            bound_plan = tool.func(*args, **kwargs)
+            n_rows = tool.result_limit
+            # Collect on a thread to avoid blocking the event loop, and gate concurrent
+            # collections with a semaphore to protect the backend executor.
+            async with self._collect_semaphore:
+                pl_df, _metrics = await asyncio.to_thread(
+                    lambda: self.session_state.execution.collect(bound_plan, n=n_rows)
+                )
+            rows_list = pl_df.to_dicts()
+            schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
+            table_format = "structured"
+            out = MCPResultSet(table_schema=schema_fields, rows=rows_list, row_count=len(rows_list))
+            if table_format == "markdown":
+                out.rows = _render_markdown_preview(rows_list)
+            return out
+
+        @wraps(tool.func)
+        async def wrapped(*args, **kwargs):
+            # Delegate to the inner wrapper; @wraps preserves the original signature so
+            # FastMCP can generate a clean tool schema from annotations.
+            return await wrapper(*args, **kwargs)
+
+        return wrapped
 
 
 def _to_snake_case(name: str) -> str:
