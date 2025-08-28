@@ -83,13 +83,14 @@ class SessionModelRegistry:
                 models=models,
                 default_model=models[embedding_model_config.default_model],
             )
-        if len(validate_providers) > 0:
+        for provider in validate_providers:
             with EventLoopManager().loop_context() as loop:
                 future = asyncio.run_coroutine_threadsafe(
-                    _validate_provider_api_keys(validate_providers),
+                    _validate_provider_api_key(provider),
                     loop,
                 )
                 future.result()
+
 
     def get_language_model_metrics(self) -> LMMetrics:
         """Get aggregated metrics for all language models.
@@ -321,18 +322,9 @@ class SessionModelRegistry:
             raise SessionError(f"Failed to create language model client: {e}") from e
 
 
-async def _validate_provider_api_keys(validate_providers: set[ModelProviderClass]):
+async def _validate_provider_api_key(provider: ModelProviderClass):
     """Validate api keys for all providers with registered models."""
-    tasks = []
-    if len(validate_providers) == 0:
-        return
-
-    for provider in validate_providers:
-        tasks.append(provider.validate_api_key())
-
-    # Run all validations concurrently
-
     try:
-        await asyncio.gather(*tasks)
+        await provider.validate_api_key()
     except Exception as e:
         raise ConfigurationError(f"Error during API key validation: {e}") from e

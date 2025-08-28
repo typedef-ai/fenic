@@ -23,6 +23,7 @@ from fenic.api.session.config import (
     LanguageModel,
     OpenAILanguageModel,
 )
+from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 
 LANGUAGE_MODEL_PROVIDER_ARG = "--language-model-provider"
@@ -240,9 +241,9 @@ def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
     Notes:
         We mock the api key validation to avoid the noticeable delay of validating our api key in every test.
     """
-    async def mock_validate_provider_api_keys(*args, **kwargs):
+    async def mock_validate_provider_api_key(provider: ModelProviderClass):
         return
-    monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_keys", mock_validate_provider_api_keys)
+    monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_key", mock_validate_provider_api_key)
 
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
