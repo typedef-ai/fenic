@@ -1,5 +1,4 @@
 import functools
-import logging
 import math
 from typing import Any, Optional, Union
 
@@ -48,8 +47,6 @@ from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
 from fenic.core.metrics import LMMetrics
-
-logger = logging.getLogger(__name__)
 
 TEXT_DELTA = "text_delta"
 
@@ -404,13 +401,3 @@ class AnthropicBatchCompletionsClient(
         )
         message_params.append(MessageParam(content=[user_prompt], role="user"))
         return system_prompt, message_params
-
-    async def validate_api_key(self):
-        """Validate the Anthropic API key by making a minimal API call."""
-        _ = await self._client.completions.create(
-                model=self.model,
-                prompt="ping",
-                max_tokens_to_sample=1,
-                temperature=0
-            )
-        logger.debug(f"Anthropic API key validation successful for model {self.model}")

@@ -1,5 +1,4 @@
 """Client for making batch requests to OpenAI's chat completions API."""
-import logging
 from typing import Optional, Union
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
@@ -23,8 +22,6 @@ from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResp
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -129,8 +126,3 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         # Get profile-specific reasoning effort
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
         return base_tokens + profile_config.expected_additional_reasoning_tokens
-
-    async def validate_api_key(self):
-        """Validate the OpenAI API token by making a minimal API call."""
-        _ = await self._core._client.models.list()
-        logger.debug(f"OpenAI token validation successful for model {self.model}")

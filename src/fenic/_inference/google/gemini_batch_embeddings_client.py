@@ -1,5 +1,4 @@
 import hashlib
-import logging
 from typing import List, Optional, Union
 
 from google.genai.errors import ClientError, ServerError
@@ -26,8 +25,6 @@ from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.metrics import RMMetrics
-
-logger = logging.getLogger(__name__)
 
 
 class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
@@ -133,4 +130,3 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
 
     def get_metrics(self) -> RMMetrics:
         return self._metrics
-

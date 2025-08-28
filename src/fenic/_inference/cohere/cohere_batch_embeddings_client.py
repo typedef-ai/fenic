@@ -196,8 +196,3 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             The current metrics
         """
         return self._metrics
-
-    async def validate_api_key(self):
-        """Validate the Cohere API key by making a minimal API call."""
-        _ = self._client.embed(texts=["ping"], model=self.model, input_type="text")
-        logger.debug(f"Cohere API key validation successful for model {self.model}")
