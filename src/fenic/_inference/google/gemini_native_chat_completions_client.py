@@ -93,8 +93,7 @@ class GeminiNativeChatCompletionsClient(
             token_counter=token_counter,
         )
 
-        self._base_client = self.model_provider_class.get_client()
-        self._client = self._base_client.aio
+        self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
         self._token_counter = token_counter  # For type checkers
         self._model_parameters = model_catalog.get_completion_model_parameters(

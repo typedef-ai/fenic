@@ -15,10 +15,19 @@ class ModelProviderClass(ABC):
         pass
     
     @abstractmethod
-    def get_client():
-        """Get the client for this provider.
+    def create_client():
+        """Create a synchronous client for this provider.
         
-        Returns the provider-specific client instance configured with the
+        Returns the provider-specific synchronous client instance configured with the
+        appropriate credentials and settings.
+        """
+        pass
+
+    @abstractmethod
+    def create_aio_client():
+        """Create an async client for this provider.
+
+        Returns the provider-specific asynchronous client instance configured with the
         appropriate credentials and settings.
         """
         pass

@@ -279,7 +279,6 @@ class SessionModelRegistry:
                         AnthropicBatchCompletionsClient,
                     )
                 except ImportError as err:
-                    breakpoint()
                     raise ImportError(
                         "To use Anthropic models, please install the required dependencies by running: pip install fenic[anthropic]"
                     ) from err

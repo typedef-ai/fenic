@@ -64,7 +64,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         if not api_key:
             raise ValueError("COHERE_API_KEY environment variable is required")
         
-        self._client = self.model_provider_class.get_client()
+        self._client = self.model_provider_class.create_client()
         self.model = model
         
         self._model_parameters = model_catalog.get_embedding_model_parameters(

@@ -48,8 +48,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             token_counter=TiktokenTokenCounter(model_name=model),
         )
         self.model = model
-        self._base_client = self.model_provider_class.get_client()
-        self._client = self._base_client.aio
+        self._client = self.model_provider_class.create_aio_client()
         self._model_parameters = model_catalog.get_embedding_model_parameters(
             model_provider, model
         )
