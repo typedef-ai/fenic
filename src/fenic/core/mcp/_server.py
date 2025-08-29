@@ -83,11 +83,20 @@ class FenicMCPServer:
         annotations = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
         for tool in self.paramaterized_tools:
             tool_fn = self._build_parameterized_tool(tool)
-            self.mcp.tool(annotations=annotations)(tool_fn)
+            self.mcp.tool(
+                annotations=annotations,
+                name=_to_snake_case(tool.name),
+                title=tool.name
+            )(tool_fn)
 
         for tool in self.dynamic_tools:
             tool_fn = self._register_dynamic_callable(tool)
-            self.mcp.tool(name=self._to_snake_case(tool.name), description=tool.description, annotations=annotations)(tool_fn)
+            self.mcp.tool(
+                annotations=annotations,
+                name=_to_snake_case(tool.name),
+                title=tool.name,
+                description=tool.description
+            )(tool_fn)
 
     async def run_async(self, transport: MCPTransport = "http", **kwargs):
         """Run the MCP server asynchronously.
@@ -132,7 +141,8 @@ class FenicMCPServer:
                 bound_plan = bind_parameters(tool._parameterized_view, payload, tool.params)
                 async with self._collect_semaphore:
                     pl_df, metrics = await asyncio.to_thread(lambda: self.session_state.execution.collect(bound_plan, n=effective_limit))
-                    logger.info(f"Completed query for {tool.name} in {metrics.execution_time_ms:.0f}ms with {metrics.num_output_rows} result rows.")
+                    logger.info(f"Completed query for {tool.name}")
+                    logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {params.model_dump_json()}")
 
                 rows_list = pl_df.to_dicts()
@@ -150,7 +160,6 @@ class FenicMCPServer:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
 
-        tool_fn.__name__ = _to_snake_case(tool.name)
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
         tool_fn.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
         return tool_fn
@@ -177,8 +186,9 @@ class FenicMCPServer:
                     pl_df, metrics = await asyncio.to_thread(
                         lambda: self.session_state.execution.collect(bound_plan, n=n_rows)
                     )
-                    logger.info(f"Completed query for {tool.name} in {metrics.execution_time_ms:.0f}ms with {metrics.num_output_rows} result rows.")
-                    logger.debug(f"Query Details: {args} {kwargs}")
+                    logger.info(f"Completed query for {tool.name}")
+                    logger.info(metrics.get_summary())
+                    logger.debug(f"Query Details: {args if args else kwargs}")
                 rows_list = pl_df.to_dicts()
                 schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
                 table_format = "structured"

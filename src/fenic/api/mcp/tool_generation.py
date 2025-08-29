@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
 import polars as pl
-from mcp.server.fastmcp.exceptions import ValidationError
 from typing_extensions import Annotated
 
 from fenic.api.dataframe.dataframe import DataFrame
@@ -34,7 +33,7 @@ from fenic.api.session.session import Session
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, ValidationError
 from fenic.core.mcp.types import DynamicToolDefinition
 from fenic.core.types.datatypes import (
     BooleanType,
@@ -200,7 +199,7 @@ def auto_generate_search_content_tool(
 ) -> DynamicToolDefinition:
     """Create a content search tool for a single dataset (string columns)."""
     if len(datasets) == 0:
-        raise ValueError("Cannot create search content tool: no datasets provided.")
+        raise ValidationError("Cannot create search content tool: no datasets provided.")
 
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
 
@@ -558,7 +557,7 @@ def _auto_generate_profile_tool(
         catalog = session._session_state.catalog
         if refresh or not catalog.does_view_exist(view_name):
             _materialize_dataset_description(spec.df, spec.table_name, view_name)
-        return catalog.describe_view(view_name)
+        return catalog.get_view_plan(view_name)
 
     def profile_func(
         df_name: Annotated[str | None, "Optional DataFrame name to return a single profile for. To return profiles for all datasets, omit this parameter."] = None,
