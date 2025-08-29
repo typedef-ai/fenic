@@ -125,6 +125,9 @@ class Filter(LogicalPlan):
     def predicate(self) -> LogicalExpr:
         return self._predicate
 
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._predicate]
+
     def _repr(self) -> str:
         """Return the representation for the Filter node."""
         return f"Filter(predicate={self._predicate})"
@@ -158,6 +161,9 @@ class Union(LogicalPlan):
 
     def children(self) -> List[LogicalPlan]:
         return self._inputs
+
+    def exprs(self) -> List[LogicalExpr]:
+        return []
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         schemas = [input_plan.schema() for input_plan in self._inputs]
@@ -255,6 +261,9 @@ class Limit(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         return [self._input]
 
+    def exprs(self) -> List[LogicalExpr]:
+        return []
+
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
@@ -294,6 +303,9 @@ class Explode(LogicalPlan):
 
     def children(self) -> list[LogicalPlan]:
         return [self._input]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._expr]
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         input_schema = self._input.schema()
@@ -363,6 +375,9 @@ class DropDuplicates(LogicalPlan):
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         return self._input.schema()
 
+    def exprs(self) -> List[LogicalExpr]:
+        return list(self.subset)
+
     def _repr(self) -> str:
         return f"DropDuplicates(subset={', '.join(str(expr) for expr in self.subset)})"
 
@@ -413,6 +428,9 @@ class Sort(LogicalPlan):
 
     def sort_exprs(self) -> List[LogicalExpr]:
         return self._sort_exprs
+
+    def exprs(self) -> List[LogicalExpr]:
+        return list(self._sort_exprs)
 
     def _repr(self) -> str:
         return f"Sort(cols={', '.join(str(expr) for expr in self._sort_exprs)})"
@@ -470,6 +488,9 @@ class Unnest(LogicalPlan):
                 column_fields.append(field)
         return Schema(column_fields)
 
+    def exprs(self) -> List[LogicalExpr]:
+        return list(self._exprs)
+
     def _repr(self) -> str:
         return f"Unnest(exprs={', '.join(str(expr) for expr in self._exprs)})"
 
@@ -521,6 +542,9 @@ class SQL(LogicalPlan):
 
     def children(self) -> List[LogicalPlan]:
         return self._inputs
+
+    def exprs(self) -> List[LogicalExpr]:
+        return []
 
     def _repr(self) -> str:
         return f"SQL(query={self._templated_query})"
@@ -683,6 +707,9 @@ class SemanticCluster(LogicalPlan):
             self._centroid_info = CentroidInfo(self._centroid_column, by_expr_type.dimensions)
 
         return Schema(column_fields=self._input.schema().column_fields + new_fields)
+
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._by_expr]
 
     def _repr(self) -> str:
         return f"SemanticCluster(by_expr={str(self._by_expr)}, num_clusters={self._num_clusters})"

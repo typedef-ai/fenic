@@ -71,6 +71,9 @@ class Join(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         return [self._left, self._right]
 
+    def exprs(self) -> List[LogicalExpr]:
+        return list(self._left_on) + list(self._right_on)
+
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         for left_on, right_on in zip(self._left_on, self._right_on, strict=False):
             left_type = left_on.to_column_field(self._left, session_state).data_type
@@ -180,6 +183,9 @@ class BaseSemanticJoin(LogicalPlan, ABC):
 
     def children(self) -> List[LogicalPlan]:
         return [self._left, self._right]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._left_on, self._right_on]
 
     @abstractmethod
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:

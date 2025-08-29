@@ -85,6 +85,11 @@ class Aggregate(LogicalPlan):
     def agg_exprs(self) -> List[LogicalExpr]:
         return self._agg_exprs
 
+    def exprs(self) -> List[LogicalExpr]:
+        plan_exprs = list(self._group_exprs)
+        plan_exprs.extend(self._agg_exprs)
+        return plan_exprs
+
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise InternalError("Aggregate must have exactly one child")

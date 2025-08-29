@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import TYPE_CHECKING, List, Literal, Optional
 
 import polars as pl
 
@@ -12,6 +12,8 @@ from fenic.core._utils.schema import convert_polars_schema_to_custom_schema
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
 
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.expressions.base import LogicalExpr
 
 class InMemorySource(LogicalPlan):
     def __init__(
@@ -31,6 +33,9 @@ class InMemorySource(LogicalPlan):
         return InMemorySource(source=source, session_state=session_state)
 
     def children(self) -> List[LogicalPlan]:
+        return []
+
+    def exprs(self) -> List[LogicalExpr]:
         return []
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
@@ -121,6 +126,9 @@ class FileSource(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         return []
 
+    def exprs(self) -> List[LogicalExpr]:
+        return []
+
     def _repr(self) -> str:
         return f"FileSource(paths={self._paths}, format={self._file_format})"
 
@@ -167,6 +175,9 @@ class TableSource(LogicalPlan):
         return session_state.catalog.describe_table(self._table_name).schema
 
     def children(self) -> List[LogicalPlan]:
+        return []
+
+    def exprs(self) -> List[LogicalExpr]:
         return []
 
     def _repr(self) -> str:
@@ -224,6 +235,9 @@ class DocSource(LogicalPlan):
         return DocFolderLoader.get_schema()
 
     def children(self) -> List[LogicalPlan]:
+        return []
+
+    def exprs(self) -> List[LogicalExpr]:
         return []
 
     def _repr(self) -> str:

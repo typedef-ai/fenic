@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types.schema import Schema
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan import LogicalExpr
 
 
 @dataclass
@@ -145,3 +148,13 @@ class LogicalPlan(ABC):
             child1 == child2
             for child1, child2 in zip(self_children, other_children, strict=True)
         )
+
+    @abstractmethod
+    def exprs(self) -> List["LogicalExpr"]:
+        """Return a flat list of all LogicalExprs referenced by this plan node.
+
+        Subclasses should include every expression they hold, whether stored as a
+        single variable, inside a list, or in a dictionary. Nodes without
+        expressions should return an empty list.
+        """
+        pass

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import TYPE_CHECKING, List, Literal, Optional
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.error import InternalError
 from fenic.core.types import Schema
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.expressions.base import LogicalExpr
 
 
 class FileSink(LogicalPlan):
@@ -63,6 +66,9 @@ class FileSink(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         """Returns the child node of this sink operator."""
         return [self.child]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return []
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""
@@ -162,6 +168,9 @@ class TableSink(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         """Returns the child node of this sink operator."""
         return [self.child]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return []
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""

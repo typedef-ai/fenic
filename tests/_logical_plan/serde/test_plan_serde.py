@@ -22,6 +22,7 @@ from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan import LogicalPlan
 
 # Import plan classes for the examples dictionary
+from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.plans import (
     SQL,
     Aggregate,
@@ -679,6 +680,9 @@ def test_serialize_unregistered_plan_type():
 
         def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
             raise NotImplementedError()
+
+        def exprs(self) -> List[LogicalExpr]:
+            return []
 
         def _repr(self) -> str:
             return "mock_expr"
