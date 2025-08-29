@@ -1,11 +1,12 @@
 import logging
 import threading
-from typing import List
+from typing import Dict, List
 
 import duckdb
 import polars as pl
 
 from fenic._backends.local.system_table_client import (
+    READ_ONLY_SYSTEM_SCHEMA_NAME,
     SYSTEM_SCHEMA_NAME,
     SystemTableClient,
 )
@@ -26,6 +27,7 @@ from fenic.core.error import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
+from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
     Schema,
 )
@@ -56,7 +58,7 @@ class DuckDBTransaction:
         return self.connection
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Commit transaction if no exceptions, otherwise rollback and log error."""
+        """Commit transaction if no exceptions, otherwise rollback and l error."""
         if exc_type is None:
             # No exception occurred, commit the transaction
             logger.debug("Committing DuckDB transaction")
@@ -168,6 +170,10 @@ class LocalCatalog(BaseCatalog):
         with self.lock:
             db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
             _verify_db_catalog(db_identifier)
+            if db_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop read-only system database '{READ_ONLY_SYSTEM_SCHEMA_NAME}'"
+                )
             if db_identifier.is_db_name_equal(self.get_current_database()):
                 raise CatalogError(
                     f"Cannot drop the current database '{database_name}'. Switch to another database first."
@@ -321,14 +327,18 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop table '{table_identifier}' from read-only system database"
+                )
             cursor = self.db_conn.cursor()
             if not self._does_table_exist(cursor, table_identifier):
-                if ignore_if_not_exists:
-                    return False
-                raise TableNotFoundError(table_identifier.table, table_identifier.db)
+                if not ignore_if_not_exists:
+                    raise TableNotFoundError(table_identifier.table, table_identifier.db)
+                return False
             try:
                 with DuckDBTransaction(cursor):
-                    sql = f"DROP TABLE IF EXISTS {self._build_qualified_table_name(table_identifier)}"
+                    sql = f"DROP TABLE IF EXISTS {table_identifier.build_qualified_table_name()}"
                     cursor.execute(sql)
                     self.system_tables.delete_schema(cursor, table_identifier.db, table_identifier.table)
                 return True
@@ -344,6 +354,10 @@ class LocalCatalog(BaseCatalog):
                     self.get_current_catalog(),
                     self.get_current_database())
             _verify_table_catalog(view_identifier)
+            if view_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop view '{view_identifier}' from read-only system database"
+                )
             cursor = self.db_conn.cursor()
             if not self._does_view_exist(cursor, view_identifier):
                 if ignore_if_not_exists:
@@ -368,6 +382,10 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot create table '{table_identifier}' in read-only system database"
+                )
             cursor = self.db_conn.cursor()
             if self._does_table_exist(cursor, table_identifier):
                 if ignore_if_exists:
@@ -381,7 +399,7 @@ class LocalCatalog(BaseCatalog):
                     )
                     # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
                     cursor.execute(
-                        f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name} WHERE 1=0"
+                        f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name} WHERE 1=0"
                     )
                     self.system_tables.save_schema(
                         cursor, table_identifier.db, table_identifier.table, schema
@@ -411,6 +429,10 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(view_identifier)
+            if view_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot create view '{view_identifier}' in read-only system database"
+                )
             try:
                 cursor = self.db_conn.cursor()
                 if self._does_view_exist(cursor, view_identifier):
@@ -434,13 +456,18 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot write to table '{table_identifier}' in read-only system database"
+                )
             cursor = self.db_conn.cursor()
             try:
                 # trunk-ignore-begin(bandit/B608)
                 with DuckDBTransaction(cursor):
                     cursor.register(temp_view_name, df)
                     cursor.execute(
-                        f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
+                        f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                     )
                     self.system_tables.save_schema(
                         cursor, table_identifier.db, table_identifier.table, schema
@@ -464,6 +491,10 @@ class LocalCatalog(BaseCatalog):
             self.get_current_catalog(),
             self.get_current_database())
         _verify_table_catalog(table_identifier)
+        if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+            raise CatalogError(
+                f"Cannot insert into table '{table_identifier}' in read-only system database"
+            )
         cursor = self.db_conn.cursor()
         if self._does_table_exist(cursor, table_identifier):
             existing_schema = self.system_tables.get_schema(cursor, table_identifier.db, table_identifier.table)
@@ -480,7 +511,7 @@ class LocalCatalog(BaseCatalog):
             # trunk-ignore-begin(bandit/B608)
             cursor.register(temp_view_name, df)
             cursor.execute(
-                f"INSERT INTO {self._build_qualified_table_name(table_identifier)} SELECT * FROM {temp_view_name}"
+                f"INSERT INTO {table_identifier.build_qualified_table_name()} SELECT * FROM {temp_view_name}"
             )
         except Exception as e:
             raise CatalogError(
@@ -501,13 +532,17 @@ class LocalCatalog(BaseCatalog):
             self.get_current_catalog(),
             self.get_current_database())
         _verify_table_catalog(table_identifier)
+        if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+            raise CatalogError(
+                f"Cannot replace table '{table_identifier}' in read-only system database"
+            )
         cursor = self.db_conn.cursor()
         try:
             # trunk-ignore-begin(bandit/B608)
             with DuckDBTransaction(cursor):
                 cursor.register(temp_view_name, df)
                 cursor.execute(
-                    f"CREATE OR REPLACE TABLE {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
+                    f"CREATE OR REPLACE TABLE {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                 )
                 self.system_tables.save_schema(
                     cursor, table_identifier.db, table_identifier.table, schema
@@ -533,13 +568,22 @@ class LocalCatalog(BaseCatalog):
         try:
             # trunk-ignore-begin(bandit/B608)
             return self.db_conn.cursor().execute(
-                f"SELECT * FROM {self._build_qualified_table_name(table_identifier)}"
+                f"SELECT * FROM {table_identifier.build_qualified_table_name()}"
             ).pl()
             # trunk-ignore-end(bandit/B608)
         except Exception as e:
             raise CatalogError(
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
+
+    def insert_metrics(self, metrics: QueryMetrics) -> None:
+        """Insert metrics into the metrics system read-only table."""
+        self.system_tables.insert_metrics(metrics)
+
+    def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
+        """Get metrics for a specific session from the metrics system read-only table."""
+        return self.system_tables.get_metrics_for_session(session_id)
+
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:
@@ -571,9 +615,6 @@ class LocalCatalog(BaseCatalog):
             raise CatalogError(
                 f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
             ) from e
-
-    def _build_qualified_table_name(self, table_identifier: TableIdentifier) -> str:
-        return f'"{table_identifier.db}"."{table_identifier.table}"'
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

@@ -108,6 +108,14 @@ class TableIdentifier(BaseIdentifier):
             table=self.table,
         )
 
+    def build_qualified_table_name(self) -> str:
+        """Build a qualified table name."""
+        return f'"{self.db}"."{self.table}"'
+
+    def __str__(self) -> str:
+        """String representation of the table identifier."""
+        return f'{self.db}.{self.table}'
+
 
 @dataclass(frozen=True)
 class DBIdentifier(BaseIdentifier):

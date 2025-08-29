@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 async def get_query_execution_metrics(client: Client, execution_id: str) -> QueryMetrics:
     """Get query execution metrics from the cloud catalog."""
     query_metrics = QueryMetrics(
+        execution_id=execution_id,
+        session_id=None,
         execution_time_ms=0,
         num_output_rows=0,
         total_lm_metrics=LMMetrics(),
@@ -27,6 +29,7 @@ async def get_query_execution_metrics(client: Client, execution_id: str) -> Quer
     cloud_query_metrics: ListQueryExecutionMetricByQueryExecutionId = await client.list_query_execution_metric_by_query_execution_id(execution_id)
     if cloud_query_metrics.typedef_query_execution_by_pk.query_execution_metrics:
         for metric in cloud_query_metrics.typedef_query_execution_by_pk.query_execution_metrics:
+            query_metrics.end_ts = metric.metric_timestamp
             if metric.metric_name == "execution_time_ms":
                 query_metrics.execution_time_ms = metric.metric_value
             elif metric.metric_name == "num_output_rows":
