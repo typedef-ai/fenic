@@ -637,12 +637,11 @@ class LocalCatalog(BaseCatalog):
 
     def insert_metrics(self, metrics: QueryMetrics) -> None:
         """Insert metrics into the metrics system read-only table."""
-        self.system_tables.insert_metrics(metrics)
+        self.system_tables.insert_metrics(self.db_conn.cursor(), metrics)
 
     def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
         """Get metrics for a specific session from the metrics system read-only table."""
-        return self.system_tables.get_metrics_for_session(session_id)
-
+        return self.system_tables.get_metrics_for_session(self.db_conn.cursor(), session_id)
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:

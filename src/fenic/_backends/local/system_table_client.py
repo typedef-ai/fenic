@@ -17,9 +17,8 @@ from fenic._backends.utils.catalog_utils import normalize_object_name
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import CatalogError
-from fenic.core.types import DatasetMetadata, Schema
 from fenic.core.metrics import QueryMetrics
-from fenic.core.types import ColumnField, Schema
+from fenic.core.types import ColumnField, DatasetMetadata, Schema
 from fenic.core.types.datatypes import (
     DoubleType,
     IntegerType,
@@ -41,7 +40,7 @@ logger = logging.getLogger(__name__)
 class SystemTableClient:
     """Handles storage and retrieval of schema metadata in the system tables. This is particularly important for logical types that can't be directly represented in the physical storage system."""
 
-    def __init__(self, connection: duckdb.DuckDBPyConnection):
+    def __init__(self, cursor: duckdb.DuckDBPyConnection):
         """Initialize the schema storage with a DuckDB connection.
 
         Args:
@@ -50,10 +49,9 @@ class SystemTableClient:
         Raises:
             CatalogError: If the initialization of tables for schema or view metadata fails
         """
-        self.connection = connection
-        self._initialize_system_schema()
-        self._initialize_views_metadata()
-        self._initialize_read_only_system_schema_and_tables()
+        self._initialize_system_schema(cursor)
+        self._initialize_views_metadata(cursor)
+        self._initialize_read_only_system_schema_and_tables(cursor)
 
     def save_table(
         self,
@@ -461,13 +459,120 @@ class SystemTableClient:
                 f"Failed to delete views metadata for database {database_name}"
             ) from e
 
-    def _initialize_system_schema(self) -> None:
+    def insert_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
+        """Append query execution metrics to the metrics table.
+
+        Uses atomic SQL to determine the next index value to prevent race conditions
+        in parallel sessions.
+
+        Args:
+            cursor: The thread-safe DuckDB cursor to use to store the metrics.
+            metrics: The QueryMetrics instance to store
+
+        Raises:
+            CatalogError: If the metrics cannot be saved
+        """
+        metrics_dict = metrics.to_dict()
+        try:
+            # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, this client is not exposed to the user.
+            cursor.execute(
+                f"""
+                INSERT INTO "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}" (
+                    index, execution_id, session_id, execution_time_ms, num_output_rows,
+                    start_ts, end_ts, total_lm_cost, total_lm_uncached_input_tokens,
+                    total_lm_cached_input_tokens, total_lm_output_tokens, total_lm_requests,
+                    total_rm_cost, total_rm_input_tokens, total_rm_requests
+                )
+                SELECT
+                    COALESCE(MAX(index), 0) + 1,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                FROM "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}"
+            """,
+                (
+                    metrics_dict["execution_id"],
+                    metrics_dict["session_id"],
+                    metrics_dict["execution_time_ms"],
+                    metrics_dict["num_output_rows"],
+                    metrics_dict["start_ts"],
+                    metrics_dict["end_ts"],
+                    metrics_dict["total_lm_cost"],
+                    metrics_dict["total_lm_uncached_input_tokens"],
+                    metrics_dict["total_lm_cached_input_tokens"],
+                    metrics_dict["total_lm_output_tokens"],
+                    metrics_dict["total_lm_requests"],
+                    metrics_dict["total_rm_cost"],
+                    metrics_dict["total_rm_input_tokens"],
+                    metrics_dict["total_rm_requests"],
+                ),
+            )
+            # trunk-ignore-end(bandit/B608)
+
+            logger.debug(f"Appended metrics for execution {metrics.execution_id}")
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to append metrics for execution {metrics.execution_id}: {e}"
+            ) from e
+
+    def get_metrics_for_session(self, cursor: duckdb.DuckDBPyConnection, session_id: str) -> Dict[str, float]:
+        """Get aggregated metrics and costs for a specific session.
+
+        Args:
+            cursor: The thread-safe DuckDB cursor to use to get the metrics for the session.
+            session_id: The session ID to aggregate costs for
+
+        Returns:
+            Dictionary containing aggregated cost information
+
+        Raises:
+            CatalogError: If there's an error retrieving the costs
+        """
+        try:
+            # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, this client is not exposed to the user.
+            result = cursor.execute(
+                f"""
+                SELECT
+                    SUM(total_lm_cost) as total_lm_cost,
+                    SUM(total_rm_cost) as total_rm_cost,
+                    COUNT(*) as query_count,
+                    SUM(execution_time_ms) as total_execution_time_ms,
+                    SUM(num_output_rows) as total_output_rows
+                FROM "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}"
+                WHERE session_id = ?
+            """,
+                (session_id,),
+            ).fetchone()
+            # trunk-ignore-end(bandit/B608)
+            if result is None:
+                return {
+                    "total_lm_cost": 0.0,
+                    "total_rm_cost": 0.0,
+                    "query_count": 0,
+                    "total_execution_time_ms": 0.0,
+                    "total_output_rows": 0,
+                }
+
+            return {
+                "total_lm_cost": result[0],
+                "total_rm_cost": result[1],
+                "query_count": result[2],
+                "total_execution_time_ms": result[3],
+                "total_output_rows": result[4],
+            }
+
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to get session aggregate costs for {session_id}: {e}"
+            ) from e
+
+    def _initialize_system_schema(self, cursor: duckdb.DuckDBPyConnection) -> None:
         """Initialize the system schema and metadata table for storing table schemas including logical type information.
+
+        Args:
+            cursor: The thread-safe DuckDB cursor to use to initialize the system schema and metadata table.
 
         Raises:
             CatalogError: If the system schema or metadata table cannot be created.
         """
-        cursor = self.connection.cursor()
         try:
             # Create system schema if it doesn't exist
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
@@ -491,12 +596,15 @@ class SystemTableClient:
 
         logger.debug(f"Initialized system schema and {SCHEMA_METADATA_TABLE} table")
 
-    def _initialize_read_only_system_schema_and_tables(self) -> None:
+    def _initialize_read_only_system_schema_and_tables(self, cursor: duckdb.DuckDBPyConnection) -> None:
         """Initialize the read-only system schema and tables, including the metrics table.
+
+        Args:
+            cursor: The thread-safe DuckDB cursor to use to initialize the read-only system schema and tables.
+
         Raises:
             CatalogError: If the read-only system schema or tables cannot be created.
         """
-        cursor = self.connection.cursor()
         try:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{READ_ONLY_SYSTEM_SCHEMA_NAME}";')
 
@@ -542,7 +650,7 @@ class SystemTableClient:
             ])
 
             # Save the schema to system tables
-            self.save_schema(
+            self.save_table(
                 cursor=cursor,
                 database_name=READ_ONLY_SYSTEM_SCHEMA_NAME,
                 table_name=METRICS_TABLE_NAME,
@@ -556,10 +664,13 @@ class SystemTableClient:
 
     def _initialize_views_metadata(self, cursor: duckdb.DuckDBPyConnection) -> None:
         """Initialize the table for storing views metadata.
+
+        Args:
+            cursor: The thread-safe DuckDB cursor to use to initialize the views metadata table.
+
         Raises:
             CatalogError: If the views metadata table cannot be created.
         """
-        cursor = self.connection.cursor()
         try:
             # Create system schema if it doesn't exist
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_SCHEMA_NAME}";')
@@ -583,108 +694,3 @@ class SystemTableClient:
             ) from e
 
         logger.debug(f"Initialized views and {VIEWS_METADATA_TABLE} table")
-
-    def insert_metrics(self, metrics: QueryMetrics) -> None:
-        """Append query execution metrics to the metrics table.
-
-        Uses atomic SQL to determine the next index value to prevent race conditions
-        in parallel sessions.
-
-        Args:
-            metrics: The QueryMetrics instance to store
-
-        Raises:
-            CatalogError: If the metrics cannot be saved
-        """
-        metrics_dict = metrics.to_dict()
-        cursor = self.connection.cursor()
-        try:
-            # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, this client is not exposed to the user.
-            cursor.execute(
-                f"""
-                INSERT INTO "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}" (
-                    index, execution_id, session_id, execution_time_ms, num_output_rows,
-                    start_ts, end_ts, total_lm_cost, total_lm_uncached_input_tokens, 
-                    total_lm_cached_input_tokens, total_lm_output_tokens, total_lm_requests,
-                    total_rm_cost, total_rm_input_tokens, total_rm_requests
-                )
-                SELECT 
-                    COALESCE(MAX(index), 0) + 1,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                FROM "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}"
-            """,
-                (
-                    metrics_dict["execution_id"],
-                    metrics_dict["session_id"],
-                    metrics_dict["execution_time_ms"],
-                    metrics_dict["num_output_rows"],
-                    metrics_dict["start_ts"],
-                    metrics_dict["end_ts"],
-                    metrics_dict["total_lm_cost"],
-                    metrics_dict["total_lm_uncached_input_tokens"],
-                    metrics_dict["total_lm_cached_input_tokens"],
-                    metrics_dict["total_lm_output_tokens"],
-                    metrics_dict["total_lm_requests"],
-                    metrics_dict["total_rm_cost"],
-                    metrics_dict["total_rm_input_tokens"],
-                    metrics_dict["total_rm_requests"],
-                ),
-            )
-            # trunk-ignore-end(bandit/B608)
-
-            logger.debug(f"Appended metrics for execution {metrics.execution_id}")
-        except Exception as e:
-            raise CatalogError(
-                f"Failed to append metrics for execution {metrics.execution_id}: {e}"
-            ) from e
-
-    def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
-        """Get aggregated metrics and costs for a specific session.
-
-        Args:
-            session_id: The session ID to aggregate costs for
-
-        Returns:
-            Dictionary containing aggregated cost information
-
-        Raises:
-            CatalogError: If there's an error retrieving the costs
-        """
-        cursor = self.connection.cursor()
-        try:
-            # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, this client is not exposed to the user.
-            result = cursor.execute(
-                f"""
-                SELECT 
-                    SUM(total_lm_cost) as total_lm_cost,
-                    SUM(total_rm_cost) as total_rm_cost,
-                    COUNT(*) as query_count,
-                    SUM(execution_time_ms) as total_execution_time_ms,
-                    SUM(num_output_rows) as total_output_rows
-                FROM "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}"
-                WHERE session_id = ?
-            """,
-                (session_id,),
-            ).fetchone()
-            # trunk-ignore-end(bandit/B608)
-            if result is None:
-                return {
-                    "total_lm_cost": 0.0,
-                    "total_rm_cost": 0.0,
-                    "query_count": 0,
-                    "total_execution_time_ms": 0.0,
-                    "total_output_rows": 0,
-                }
-
-            return {
-                "total_lm_cost": result[0],
-                "total_rm_cost": result[1],
-                "query_count": result[2],
-                "total_execution_time_ms": result[3],
-                "total_output_rows": result[4],
-            }
-
-        except Exception as e:
-            raise CatalogError(
-                f"Failed to get session aggregate costs for {session_id}: {e}"
-            ) from e

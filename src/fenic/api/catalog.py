@@ -590,7 +590,7 @@ class Catalog:
                 description: A natural language description of the view's contents and uses.
 
         Raises:
-            ViewNotFoundError: If the view doesn't exist.
+            TableNotFoundError: If the view doesn't exist.
 
         """
         return self.catalog.describe_view(view_name)
@@ -604,7 +604,7 @@ class Catalog:
             description (str): The description to set for the view.
 
         Raises:
-            ViewNotFoundError: If the view doesn't exist.
+            TableNotFoundError: If the view doesn't exist.
             ValidationError: If the description is empty.
 
         Example: Set a description for a view
