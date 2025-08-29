@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import os
 from typing import List, Optional, Union
 
 import cohere
