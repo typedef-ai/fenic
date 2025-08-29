@@ -117,7 +117,8 @@ class LocalExecution(BaseExecution):
                 logger.warning(f"Table {table_name} already exists, ignoring write.")
                 return QueryMetrics(session_id=self.session_state.session_id)
             if mode == "append":
-                saved_schema = self.session_state.catalog.describe_table(table_name)
+                saved_table_metadata = self.session_state.catalog.describe_table(table_name)
+                saved_schema = saved_table_metadata.schema
                 plan_schema = logical_plan.schema()
                 if saved_schema != plan_schema:
                     raise PlanError(

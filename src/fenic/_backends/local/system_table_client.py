@@ -121,7 +121,7 @@ class SystemTableClient:
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 WHERE database_name = ? AND table_name = ?
             """,
-                (normalize_object_name(database_name), normalize_object_name(table_name)),
+                (database_name, table_name),
             ).fetchone()
             # trunk-ignore-end(bandit/B608)
             if result is None:
@@ -149,7 +149,7 @@ class SystemTableClient:
                 FROM "{SYSTEM_SCHEMA_NAME}"."{SCHEMA_METADATA_TABLE}"
                 WHERE database_name = ? AND table_name = ?
             """,
-                (normalize_object_name(database_name), normalize_object_name(table_name)),
+                (database_name, table_name),
             ).fetchone()
             # trunk-ignore-end(bandit/B608)
             if result is None:
@@ -171,7 +171,7 @@ class SystemTableClient:
                 SET description = ?
                 WHERE database_name = ? AND table_name = ?
             """,
-                (description, normalize_object_name(database_name), normalize_object_name(table_name)),
+                (description, database_name, table_name),
             )
             # trunk-ignore-end(bandit/B608)
         except Exception as e:

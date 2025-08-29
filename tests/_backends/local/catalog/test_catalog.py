@@ -363,6 +363,15 @@ def test_save_as_table_with_description_and_metadata(local_session: Session):
     assert meta.description == "table desc"
     assert meta.schema.column_names() == ["a"]
 
+def test_set_description_for_non_existing_table(local_session: Session):
+    table_name = "non_existing_table"
+    with pytest.raises(TableNotFoundError, match=f"Table '{DEFAULT_DATABASE_NAME}.{table_name}' does not exist"):
+        local_session.catalog.set_table_description(table_name, "table desc")
+
+def test_set_description_for_non_existing_view(local_session: Session):
+    view_name = "non_existing_view"
+    with pytest.raises(TableNotFoundError, match=f"Table '{DEFAULT_DATABASE_NAME}.{view_name}' does not exist"):
+        local_session.catalog.set_view_description(view_name, "view desc")
 
 def test_save_as_view_with_description_and_metadata(local_session: Session):
     view_name = "meta_view_desc"

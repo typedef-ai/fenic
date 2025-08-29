@@ -501,7 +501,8 @@ def test_does_table_exist(cloud_catalog: CloudCatalog):
 def test_get_table_schema(cloud_catalog: CloudCatalog):
     cloud_catalog.set_current_catalog(TEST_CATALOG_NAME)
     cloud_catalog.set_current_database(TEST_DATABASE_NAME)
-    schema = cloud_catalog.describe_table(TEST_TABLE_NAME_1)
+    table_metadata = cloud_catalog.describe_table(TEST_TABLE_NAME_1)
+    schema = table_metadata.schema
     assert schema is not None
     assert len(schema.column_names()) == 6
     assert schema.column_names() == ["id", "name", "account_balance", "is_active", "transcript", "transcript_embedding"]

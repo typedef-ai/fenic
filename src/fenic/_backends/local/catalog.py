@@ -298,6 +298,8 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+            if not self._does_table_exist(self.db_conn.cursor(), table_identifier):
+                raise TableNotFoundError(table_identifier.table, table_identifier.db)
             cursor = self.db_conn.cursor()
             try:
                 self.system_tables.set_table_description(cursor, table_identifier.db, table_identifier.table, description)
@@ -492,6 +494,10 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_database())
             _verify_table_catalog(view_identifier)
             cursor = self.db_conn.cursor()
+            if not self._does_view_exist(cursor, view_identifier):
+                if description is None:
+                    return
+                raise TableNotFoundError(view_identifier.table, view_identifier.db)
             try:
                 self.system_tables.set_view_description(cursor, view_identifier.db, view_identifier.table, description)
                 return True
