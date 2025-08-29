@@ -1,6 +1,7 @@
 """Shared async utilities for Fenic backend operations."""
 
 import asyncio
+import atexit
 import logging
 import threading
 from contextlib import contextmanager
@@ -34,6 +35,8 @@ class EventLoopManager:
         self.thread: Optional[threading.Thread] = None
         self._manager_lock = threading.Lock()
         self._client_count = 0
+        # Required to clean up event loop at exit if user doesn't call session.stop()
+        self._shutdown_handler = None
 
     def get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         """Get existing loop or create new one on background thread.
@@ -60,6 +63,9 @@ class EventLoopManager:
                 self.loop = None
                 self.thread = None
                 self._client_count = 0
+                if self._shutdown_handler:
+                    atexit.unregister(self._shutdown_handler)
+                    self._shutdown_handler = None
 
         # Shutdown outside lock to avoid deadlock
         if loop_to_shutdown:
@@ -83,6 +89,7 @@ class EventLoopManager:
         while not self.loop.is_running():
             pass
 
+        self._shutdown_handler = atexit.register(self._shutdown_loop, self.loop, self.thread)
         logger.info("Created new event loop on background thread")
 
     def _run_event_loop(self, loop: asyncio.AbstractEventLoop):
@@ -110,18 +117,16 @@ class EventLoopManager:
         # Join thread
         if thread and thread.is_alive():
             thread.join()
-            if thread.is_alive():
-                logger.warning("Event loop thread did not terminate in time")
 
         logger.info("Event loop shutdown complete")
 
     @contextmanager
     def loop_context(self) -> Generator[asyncio.AbstractEventLoop, None, None]:
         """Context manager for temporary event loop usage.
-        
+
         Automatically acquires and releases the event loop reference.
         Perfect for short-lived operations like async UDF execution.
-        
+
         Usage:
             with EventLoopManager().loop_context() as loop:
                 # Use loop for async operations
