@@ -17,6 +17,7 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    CohereEmbeddingModel,
     EmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
@@ -374,15 +375,21 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     return language_model
 
 def configure_embedding_model(model_provider: ModelProvider, model_name: str) -> EmbeddingModel:
+    """ Configure an embedding model for the test session.
+
+    Note: Don't configure profiles that change dimension defaults, or it won't be consistent with embedding_model_name_and_dimensions
+    and test_embed.py will fail. """
     if model_provider == ModelProvider.OPENAI:
         embedding_model = OpenAIEmbeddingModel(
             model_name=model_name, rpm=3000, tpm=1_000_000
         )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
         embedding_model = GoogleDeveloperEmbeddingModel(
-            model_name=model_name, rpm=3000, tpm=1_000_000, profiles={
-                "default": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536, task_type="SEMANTIC_SIMILARITY"),
-            }
+            model_name=model_name, rpm=3000, tpm=1_000_000
+        )
+    elif model_provider == ModelProvider.COHERE:
+        embedding_model = CohereEmbeddingModel(
+            model_name=model_name, rpm=3000, tpm=1_000_000
         )
     else:
         raise ValueError(f"Unsupported embedding model provider: {model_provider}")
