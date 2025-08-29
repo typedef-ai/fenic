@@ -390,19 +390,19 @@ class ExprConverter:
                     num_retries=logical.num_retries
                 )
 
-                results = []
-                for result in async_udf.call(items):
-                    if isinstance(result, Exception):
-                        results.append(None)
-                    else:
-                        # Runtime type checking using Fenic's existing type inference
-                        if result:
-                            inferred_type = infer_dtype_from_pyobj(result)
-                            if inferred_type != logical.return_type:
-                                raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
-                        results.append(result)
+                def results_generator():
+                    for result in async_udf.call(items):
+                        if isinstance(result, Exception):
+                            yield None
+                        else:
+                            # Runtime type checking using Fenic's existing type inference
+                            if result:
+                                inferred_type = infer_dtype_from_pyobj(result)
+                                if inferred_type != logical.return_type:
+                                    raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
+                            yield result
 
-                return pl.Series(results, dtype=convert_custom_dtype_to_polars(logical.return_type))
+                return pl.Series(results_generator(), dtype=convert_custom_dtype_to_polars(logical.return_type))
 
         return input_struct.map_batches(execute_async_udf)
 
