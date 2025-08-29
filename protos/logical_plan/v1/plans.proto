@@ -32,6 +32,7 @@ message LogicalPlan {
     InMemorySource in_memory_source = 10;
     FileSource file_source = 11;
     TableSource table_source = 12;
+    DocSource doc_source = 13;
     
     // Transform operations
     Projection projection = 20;
@@ -68,6 +69,13 @@ message FileSource {
 
 message TableSource {
   string table_name = 1;
+}
+
+message DocSource {
+  repeated string paths = 1;
+  string valid_file_extension = 2;
+  optional string exclude = 3;
+  optional bool recursive = 4;
 }
 
 // Transform operations

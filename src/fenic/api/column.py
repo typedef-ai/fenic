@@ -460,15 +460,15 @@ class Column:
             other_expr = other._logical_expr
         return Column._from_logical_expr(EndsWithExpr(self._logical_expr, other_expr))
 
-    def rlike(self, other: str) -> Column:
+    def rlike(self, other: Union[str, Column]) -> Column:
         r"""Check if the column matches a regular expression pattern.
 
         This method creates a boolean expression that checks if each value in the column
-        matches the specified regular expression pattern. The pattern must be a literal string
-        and cannot be a column expression.
+        matches the specified regular expression pattern.
 
         Args:
-            other (str): The regular expression pattern to match against
+            other (Union[str, Column]): The regular expression pattern to match against.
+                  Can be a string or a a column expression that resolves to a string.
 
         Returns:
             Column: A boolean column indicating whether each value matches the pattern
@@ -485,14 +485,18 @@ class Column:
             df.filter(col("text").rlike(r"\bhello\b"))
             ```
         """
-        return Column._from_logical_expr(RLikeExpr(self._logical_expr, other))
+        if isinstance(other, str):
+            other_expr = LiteralExpr(other, StringType)
+        else:
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(RLikeExpr(self._logical_expr, other_expr))
 
-    def like(self, other: str) -> Column:
+    def like(self, other: Union[str, Column]) -> Column:
         r"""Check if the column matches a SQL LIKE pattern.
 
         This method creates a boolean expression that checks if each value in the column
-        matches the specified SQL LIKE pattern. The pattern must be a literal string
-        and cannot be a column expression.
+        matches the specified SQL LIKE pattern.
+        The pattern can be a string or a a column expression that resolves to a string.
 
         SQL LIKE pattern syntax:
 
@@ -517,14 +521,18 @@ class Column:
             df.filter(col("code").like("A_B%"))
             ```
         """
-        return Column._from_logical_expr(LikeExpr(self._logical_expr, other))
+        if isinstance(other, str):
+            other_expr = LiteralExpr(other, StringType)
+        else:
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(LikeExpr(self._logical_expr, other_expr))
 
-    def ilike(self, other: str) -> Column:
+    def ilike(self, other: Union[str, Column]) -> Column:
         r"""Check if the column matches a SQL LIKE pattern (case-insensitive).
 
         This method creates a boolean expression that checks if each value in the column
-        matches the specified SQL LIKE pattern, ignoring case. The pattern must be a literal string
-        and cannot be a column expression.
+        matches the specified SQL LIKE pattern, ignoring case.
+        The pattern can be a string or a a column expression that resolves to a string.
 
         SQL LIKE pattern syntax:
 
@@ -549,7 +557,11 @@ class Column:
             df.filter(col("code").ilike("a_b%"))
             ```
         """
-        return Column._from_logical_expr(ILikeExpr(self._logical_expr, other))
+        if isinstance(other, str):
+            other_expr = LiteralExpr(other, StringType)
+        else:
+            other_expr = other._logical_expr
+        return Column._from_logical_expr(ILikeExpr(self._logical_expr, other_expr))
 
     def is_null(self) -> Column:
         """Check if the column contains NULL values.
@@ -866,9 +878,9 @@ Column.starts_with = validate_call(
 Column.ends_with = validate_call(
     config=ConfigDict(strict=True, arbitrary_types_allowed=True)
 )(Column.ends_with)
-Column.rlike = validate_call(config=ConfigDict(strict=True))(Column.rlike)
-Column.like = validate_call(config=ConfigDict(strict=True))(Column.like)
-Column.ilike = validate_call(config=ConfigDict(strict=True))(Column.ilike)
+Column.rlike = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))(Column.rlike)
+Column.like = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))(Column.like)
+Column.ilike = validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))(Column.ilike)
 Column.when = validate_call(
     config=ConfigDict(strict=True, arbitrary_types_allowed=True)
 )(Column.when)

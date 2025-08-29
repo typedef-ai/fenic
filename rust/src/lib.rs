@@ -5,6 +5,7 @@ pub mod fuzz;
 pub mod jinja;
 pub mod json;
 pub mod markdown_json;
+pub mod regex;
 pub mod transcript;
 
 use pyo3::prelude::*;
@@ -12,5 +13,6 @@ use pyo3::prelude::*;
 #[pymodule]
 fn _polars_plugins(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(json::py_validate_jq_query, m)?)?;
+    m.add_function(wrap_pyfunction!(regex::py_validate_regex, m)?)?;
     Ok(())
 }

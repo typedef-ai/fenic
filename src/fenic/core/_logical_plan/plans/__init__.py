@@ -12,6 +12,7 @@ from fenic.core._logical_plan.plans.join import (
 )
 from fenic.core._logical_plan.plans.sink import FileSink, TableSink
 from fenic.core._logical_plan.plans.source import (
+    DocSource,
     FileSource,
     InMemorySource,
     TableSource,
@@ -35,6 +36,7 @@ __all__ = [
     "SemanticAggregate",
     "SemanticCluster",
     "CacheInfo",
+    "DocSource",
     "LogicalPlan",
     "Join",
     "SemanticJoin",

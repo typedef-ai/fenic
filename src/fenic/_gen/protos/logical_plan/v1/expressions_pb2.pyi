@@ -518,24 +518,24 @@ class RLikeExpr(_message.Message):
     EXPR_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    pattern: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
+    pattern: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class LikeExpr(_message.Message):
     __slots__ = ("expr", "pattern")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    pattern: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
+    pattern: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class ILikeExpr(_message.Message):
     __slots__ = ("expr", "pattern")
     EXPR_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     expr: LogicalExpr
-    pattern: str
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
+    pattern: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., pattern: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class TsParseExpr(_message.Message):
     __slots__ = ("expr", "format")

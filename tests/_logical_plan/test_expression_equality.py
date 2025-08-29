@@ -869,12 +869,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        rlike1 = RLikeExpr(col, r"\d+")
-        rlike2 = RLikeExpr(col, r"\d+")
+        rlike1 = RLikeExpr(col, LiteralExpr(r"\d+", StringType))
+        rlike2 = RLikeExpr(col, LiteralExpr(r"\d+", StringType))
         assert rlike1 == rlike2
 
         # Different pattern
-        rlike3 = RLikeExpr(col, r"[a-z]+")
+        rlike3 = RLikeExpr(col, LiteralExpr(r"[a-z]+", StringType))
         assert rlike1 != rlike3
 
     def test_like_expr(self):
@@ -882,12 +882,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        like1 = LikeExpr(col, "hello%")
-        like2 = LikeExpr(col, "hello%")
+        like1 = LikeExpr(col, LiteralExpr("hello%", StringType))
+        like2 = LikeExpr(col, LiteralExpr("hello%", StringType))
         assert like1 == like2
 
         # Different pattern
-        like3 = LikeExpr(col, "world%")
+        like3 = LikeExpr(col, LiteralExpr("world%", StringType))
         assert like1 != like3
 
     def test_ilike_expr(self):
@@ -895,12 +895,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        ilike1 = ILikeExpr(col, "HELLO%")
-        ilike2 = ILikeExpr(col, "HELLO%")
+        ilike1 = ILikeExpr(col, LiteralExpr("HELLO%", StringType))
+        ilike2 = ILikeExpr(col, LiteralExpr("HELLO%", StringType))
         assert ilike1 == ilike2
 
         # Different pattern
-        ilike3 = ILikeExpr(col, "WORLD%")
+        ilike3 = ILikeExpr(col, LiteralExpr("WORLD%", StringType))
         assert ilike1 != ilike3
 
     def test_ts_parse_expr(self):

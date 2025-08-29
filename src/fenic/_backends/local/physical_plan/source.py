@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import polars as pl
 
@@ -15,6 +15,7 @@ from fenic._backends.local.physical_plan.base import (
     _with_lineage_uuid,
 )
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
+from fenic._backends.local.utils.doc_loader import DocFolderLoader
 from fenic._backends.local.utils.io_utils import query_files
 
 
@@ -88,6 +89,42 @@ class DuckDBTableSourceExec(PhysicalPlan):
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: TableSourceExec expects 0 children")
         return self.session_state.catalog.read_df_from_table(self.table_name)
+
+    def _build_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        df = self._execute([])
+        materialize_df = _with_lineage_uuid(df)
+        source_operator = self._build_source_operator_lineage(materialize_df)
+        leaf_nodes.append(source_operator)
+        return source_operator, materialize_df
+
+
+class DocSourceExec(PhysicalPlan):
+    def __init__(
+            self,
+            paths: list[str],
+            valid_file_extension: str,
+            exclude: Optional[str],
+            recursive: bool,
+            session_state: LocalSessionState,
+    ):
+        super().__init__(children=[], cache_info=None, session_state=session_state)
+        self.paths = paths
+        self.valid_file_extension = valid_file_extension
+        self.exclude = exclude
+        self.recursive = recursive
+
+    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        if len(child_dfs) != 0:
+            raise InternalError("Unreachable: DocSourceExec expects 0 children")
+        df = DocFolderLoader.load_docs_from_folder(
+            self.paths,
+            self.valid_file_extension,
+            self.exclude,
+            self.recursive)
+        return apply_ingestion_coercions(df)
 
     def _build_lineage(
         self,

@@ -21,6 +21,9 @@ from fenic._backends.local.physical_plan.sink import (
 )
 from fenic._backends.local.physical_plan.sink import FileSinkExec as FileSinkExec
 from fenic._backends.local.physical_plan.source import (
+    DocSourceExec as DocSourceExec,
+)
+from fenic._backends.local.physical_plan.source import (
     DuckDBTableSourceExec as DuckDBTableSourceExec,
 )
 from fenic._backends.local.physical_plan.source import (
@@ -57,6 +60,7 @@ __all__ = [
     "FileSinkExec",
     "DuckDBTableSourceExec",
     "FileSourceExec",
+    "DocSourceExec",
     "InMemorySourceExec",
     "DropDuplicatesExec",
     "ExplodeExec",

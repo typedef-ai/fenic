@@ -690,11 +690,21 @@ class ExprConverter:
 
 
     # Group like/regex expressions together
-    def _handle_regex_like_expr(self, logical, pattern_field="pattern", literal: bool = False) -> pl.Expr:
+    def _handle_regex_like_expr(self, logical) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        pattern = getattr(logical, pattern_field)
-        return physical_expr.str.contains(pattern=pattern, literal=literal)
+        pattern = self._convert_expr(logical.pattern)
+        case_insensitive = True if isinstance(logical, ILikeExpr) else False
 
+        strict = False
+        if isinstance(logical.pattern, LiteralExpr) and logical.pattern.data_type == StringType:
+            # If the pattern is a "string" literal, then make sure that strict is True.
+            strict = True
+
+        if isinstance(logical, ILikeExpr) or isinstance(logical, LikeExpr):
+            # Convert the LIKE pattern to a regex pattern
+            pattern = _like_to_regex(pattern, case_insensitive)
+
+        return physical_expr.str.contains(pattern=pattern, literal=False, strict=strict)
 
     @_convert_expr.register(RLikeExpr)
     @_convert_expr.register(LikeExpr)
@@ -1253,3 +1263,23 @@ def _convert_udf_to_map_elements(udf: Callable) -> Callable:
         return udf(*column_values)
 
     return adapted_udf
+
+def _like_to_regex(pattern_expr: pl.Expr, case_insensitive: bool = False) -> pl.Expr:
+    """Convert a LIKE pattern to a regex pattern."""
+    # Escape regex metacharacters except SQL wildcards % and _
+    # Character class: [](){}^$.|+\ and the backslash itself
+    meta_class = r"([\\\[\]\(\)\{\}\^\$\.\|\+])"
+
+    regex_expr = (
+        pattern_expr
+        # Escape each meta character by prefixing with a backslash
+        .str.replace_all(meta_class, r"\\\1")
+        # Translate SQL wildcards to regex
+        .str.replace_all("%", ".*", literal=True)
+        .str.replace_all("_", ".",  literal=True)
+    )
+
+    if case_insensitive:
+        return (pl.lit("(?i)") + regex_expr)
+
+    return regex_expr

@@ -405,8 +405,8 @@ def _serialize_rlike_expr(
     """Serialize an rlike expression."""
     return LogicalExprProto(
         rlike=RLikeExprProto(
-            expr=context.serialize_logical_expr("expr", logical.expr),
-            pattern=logical.pattern,
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+            pattern=context.serialize_logical_expr(SerdeContext.PATTERN, logical.pattern),
         )
     )
 
@@ -418,7 +418,7 @@ def _deserialize_rlike_expr(
     """Deserialize an rlike expression."""
     return RLikeExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        pattern=logical_proto.pattern,
+        pattern=context.deserialize_logical_expr(SerdeContext.PATTERN, logical_proto.pattern),
     )
 
 
@@ -432,8 +432,8 @@ def _serialize_like_expr(logical: LikeExpr, context: SerdeContext) -> LogicalExp
     """Serialize a like expression."""
     return LogicalExprProto(
         like=LikeExprProto(
-            expr=context.serialize_logical_expr("expr", logical.expr),
-            pattern=logical.raw_pattern,
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+            pattern=context.serialize_logical_expr(SerdeContext.PATTERN, logical.pattern),
         )
     )
 
@@ -445,7 +445,7 @@ def _deserialize_like_expr(
     """Deserialize a like expression."""
     return LikeExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        pattern=logical_proto.pattern,
+        pattern=context.deserialize_logical_expr(SerdeContext.PATTERN, logical_proto.pattern),
     )
 
 
@@ -462,7 +462,7 @@ def _serialize_ilike_expr(
     return LogicalExprProto(
         ilike=ILikeExprProto(
             expr=context.serialize_logical_expr("expr", logical.expr),
-            pattern=logical.raw_pattern,
+            pattern=context.serialize_logical_expr(SerdeContext.PATTERN, logical.pattern),
         )
     )
 
@@ -474,7 +474,7 @@ def _deserialize_ilike_expr(
     """Deserialize an ilike expression."""
     return ILikeExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
-        pattern=logical_proto.pattern,
+        pattern=context.deserialize_logical_expr(SerdeContext.PATTERN, logical_proto.pattern),
     )
 
 

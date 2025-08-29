@@ -467,14 +467,14 @@ expression_examples = {
         ),
     ],
     RLikeExpr: [
-        RLikeExpr(ColumnExpr("text_col"), r"\d+"),
+        RLikeExpr(ColumnExpr("text_col"), LiteralExpr(r"\d+", StringType)),
     ],
     LikeExpr: [
-        LikeExpr(ColumnExpr("text_col"), "%test%"),
-        LikeExpr(ColumnExpr("text_col"), "test_"),
+        LikeExpr(ColumnExpr("text_col"), LiteralExpr("%test%", StringType)),
+        LikeExpr(ColumnExpr("text_col"), LiteralExpr("test_", StringType)),
     ],
     ILikeExpr: [
-        ILikeExpr(ColumnExpr("text_col"), "%TEST%"),
+        ILikeExpr(ColumnExpr("text_col"), LiteralExpr("%TEST%", StringType)),
     ],
     TsParseExpr: [
         TsParseExpr(ColumnExpr("transcript_col"), "srt"),

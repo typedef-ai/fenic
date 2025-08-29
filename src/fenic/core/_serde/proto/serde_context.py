@@ -79,6 +79,7 @@ class SerdeContext:
     THEN = "then"
     OPERATOR = "operator"
     CHILD = "child"
+    PATTERN = "pattern"
 
     def __init__(self):
         """Initialize a SerdeContext with an empty path tracker."""

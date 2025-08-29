@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
@@ -21,6 +20,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
+from fenic._polars_plugins import py_validate_regex  # noqa: F401
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
@@ -28,7 +28,11 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
-from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr
+from fenic.core._logical_plan.expressions.basic import (
+    AliasExpr,
+    ColumnExpr,
+    LiteralExpr,
+)
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -408,22 +412,20 @@ class RLikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The regular expression pattern to match against
 
     Raises:
-        TypeError: If the input expression is not a string column
         ValidationError: If the regular expression pattern is invalid
     """
 
     function_name = "text.rlike"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
         self.expr = expr
         self.pattern = pattern
-
-        # Validate regex pattern at construction time
-        try:
-            re.compile(pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid regex pattern: {pattern}") from e
-
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -451,22 +453,21 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The SQL LIKE pattern to match against (% for any sequence, _ for single character)
 
     Raises:
-        TypeError: If the input expression is not a string column
+        TypeError: If the input expression is not a literal expression that resolves to a string.
         ValidationError: If the LIKE pattern is invalid
     """
 
     function_name = "text.like"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
         self.expr = expr
-        self.raw_pattern = pattern
-        self.pattern = self._convert_to_regex(pattern)
+        self.pattern = pattern
 
-        # Validate the converted pattern
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(self.pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid LIKE pattern: {self.pattern}") from e
 
         self._validator = SignatureValidator(self.function_name)
 
@@ -477,20 +478,11 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
 
-    def _convert_to_regex(self, pattern: str) -> str:
-        # Convert SQL LIKE pattern to regex pattern
-        # Escape special regex characters except % and _
-        special_chars = r"[](){}^$.|+\\"
-        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
-        # Convert SQL wildcards to regex wildcards
-        pattern = pattern.replace("%", ".*").replace("_", ".")
-        return pattern
-
     def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
     def _eq_specific(self, other: LikeExpr) -> bool:
-        return self.raw_pattern == other.raw_pattern
+        return self.pattern == other.pattern
 
 
 class ILikeExpr(ValidatedSignature, LogicalExpr):
@@ -505,22 +497,21 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The SQL LIKE pattern to match against (% for any sequence, _ for single character)
 
     Raises:
-        TypeError: If the input expression is not a string column
-        ValidationError: If the LIKE pattern is invalid
+        TypeError: If the input expression is not a literal expression that resolves to a string.
+        ValidationError: If the LIKE pattern is invalid.
     """
 
     function_name = "text.ilike"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
         self.expr = expr
-        self.raw_pattern = pattern
-        self.pattern = self._convert_to_regex(pattern)
+        self.pattern = pattern
 
-        # Validate the converted pattern
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(self.pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid ILIKE pattern: {self.pattern}") from e
 
         self._validator = SignatureValidator(self.function_name)
 
@@ -532,19 +523,10 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         return [self.expr]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
-
-    def _convert_to_regex(self, pattern: str) -> str:
-        # Convert SQL LIKE pattern to regex pattern with case insensitivity
-        # Escape special regex characters except % and _
-        special_chars = r"[](){}^$.|+\\"
-        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
-        # Convert SQL wildcards to regex wildcards
-        pattern = pattern.replace("%", ".*").replace("_", ".")
-        return f"(?i){pattern}"
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
     def _eq_specific(self, other: ILikeExpr) -> bool:
-        return self.raw_pattern == other.raw_pattern
+        return self.pattern == other.pattern
 
 
 class TsParseExpr(ValidatedSignature, LogicalExpr):
