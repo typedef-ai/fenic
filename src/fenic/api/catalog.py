@@ -5,7 +5,6 @@ from typing import List, Optional
 from pydantic import ConfigDict, validate_call
 
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core.error import ValidationError
 from fenic.core.types import DatasetMetadata, Schema
 
 
@@ -458,19 +457,16 @@ class Catalog:
         return self.catalog.describe_table(table_name)
 
     @validate_call(config=ConfigDict(strict=True))
-    def set_table_description(self, table_name: str, description: str) -> None:
-        """Set the description for a table.
+    def set_table_description(self, table_name: str, description: Optional[str] = None) -> None:
+        """Set or unset the description for a table.
 
         Args:
-            table_name (str): Fully qualified or relative table name to set the description for.
-            description (str): The description to set for the table.
+            table_name: Fully qualified or relative table name to set the description for.
+            description: The description to set for the table.
 
         Raises:
             TableNotFoundError: If the table doesn't exist.
-            ValidationError: If the description is empty.
         """
-        if not description or not description.strip():
-            raise ValidationError("Description cannot be empty")
         self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
@@ -600,7 +596,7 @@ class Catalog:
         return self.catalog.describe_view(view_name)
 
     @validate_call(config=ConfigDict(strict=True))
-    def set_view_description(self, view_name: str, description: str) -> None:
+    def set_view_description(self, view_name: str, description: Optional[str] = None) -> None:
         """Set the description for a view.
 
         Args:
@@ -616,8 +612,6 @@ class Catalog:
             # Set a description for a view 'v1'
             session.catalog.set_view_description('v1', 'My view description')
         """
-        if not description or not description.strip():
-            raise ValidationError("Description cannot be empty")
         self.catalog.set_view_description(view_name, description)
 
     @validate_call(config=ConfigDict(strict=True))

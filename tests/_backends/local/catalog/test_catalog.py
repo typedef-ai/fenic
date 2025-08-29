@@ -389,10 +389,14 @@ def test_get_table_metadata_without_description(local_session: Session):
 
 def test_set_table_description_updates_metadata(local_session: Session):
     tbl = "meta_table_set_desc"
-    local_session.catalog.create_table(tbl, SIMPLE_TABLE_SCHEMA)
+    local_session.catalog.create_table(tbl, SIMPLE_TABLE_SCHEMA, description="table desc")
     local_session.catalog.set_table_description(tbl, "updated desc")
     meta = local_session.catalog.describe_table(tbl)
     assert meta.description == "updated desc"
+    assert meta.schema.column_names() == ["id"]
+    local_session.catalog.set_table_description(tbl, None)
+    meta = local_session.catalog.describe_table(tbl)
+    assert meta.description is None
     assert meta.schema.column_names() == ["id"]
 
 def test_create_table(local_session: Session):

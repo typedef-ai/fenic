@@ -292,6 +292,7 @@ class LocalCatalog(BaseCatalog):
 
     # Descriptions
     def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set the description for a table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -306,6 +307,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
     def get_table_description(self, table_name: str) -> Optional[str]:
+        """Get description of the specified table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -314,6 +316,7 @@ class LocalCatalog(BaseCatalog):
             return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
 
     def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
                 self.get_current_catalog(),
@@ -336,7 +339,7 @@ class LocalCatalog(BaseCatalog):
             return maybe_table_metadata
 
     def get_view_plan(self, view_name: str) -> LogicalPlan:
-        """Get the schema and description of the specified view."""
+        """Get the LogicalPlan for the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
                     self.get_current_catalog(),
@@ -481,7 +484,7 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
 
-    def set_view_description(self, view_name: str, description: str) -> bool:
+    def set_view_description(self, view_name: str, description: Optional[str]) -> bool:
         """Set the description for a view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
