@@ -59,12 +59,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             token_counter=TiktokenTokenCounter(model_name=model),
         )
         
-        # Initialize Cohere client - reads COHERE_API_KEY from environment
-        api_key = os.environ.get("COHERE_API_KEY")
-        if not api_key:
-            raise ValueError("COHERE_API_KEY environment variable is required")
-        
-        self._client = self.model_provider_class.create_client()
+        self._client = self.model_provider_class.create_aio_client()
         self.model = model
         
         self._model_parameters = model_catalog.get_embedding_model_parameters(
@@ -105,7 +100,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
                 embed_params["output_dimension"] = profile_config.output_dimensionality
             
             # Make the API call
-            response = self._client.embed(**embed_params)
+            response = await self._client.embed(**embed_params)
             embedding_values = response.embeddings.float[0]
 
             # Count tokens and update metrics

@@ -65,7 +65,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             model=model,
             model_provider=ModelProvider.OPENAI,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
-            client=self.model_provider_class.create_client()
+            client=self.model_provider_class.create_aio_client()
         )
 
     async def make_single_request(
