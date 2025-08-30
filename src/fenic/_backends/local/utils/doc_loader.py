@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -54,7 +54,7 @@ class DocFolderLoader:
         """
         if not paths:
             raise ValidationError("No paths provided")
-        
+
         logger.debug(f"Attempting to load files from: {paths}")
 
         files = DocFolderLoader._enumerate_files(
@@ -62,7 +62,7 @@ class DocFolderLoader:
             valid_file_extension,
             exclude_pattern,
             recursive)
-        
+
         if not files:
             logger.debug(f"No files found in {paths}")
             return DocFolderLoader._build_no_files_dataframe()
@@ -88,7 +88,7 @@ class DocFolderLoader:
                 ColumnField(name="content", data_type=StringType),
             ]
         )
-    
+
     @staticmethod
     def validate_paths(
         paths: list[str],
@@ -96,7 +96,7 @@ class DocFolderLoader:
         """Checks that the path is valid, and returns a list of files that match the include and exclude patterns."""
         if not get_path_scheme(paths[0]) == PathScheme.LOCALFS:
             raise NotImplementedError("S3 and HF paths are not supported yet.")
-        
+
         # List the paths, this will raise an error if the path is not valid.
         DocFolderLoader._list_paths_local_fs(paths)
 
@@ -121,7 +121,7 @@ class DocFolderLoader:
         recursive: bool = False
     ) -> List[str]:
         r"""Enumerate files in a folder based on include and exclude patterns.
-        
+
         Args:
             paths: paths to the folders to traverse, these will be glob patterns.
             exclude_pattern: Regex pattern to exclude files (e.g., r"\.tmp$", r"temp.*")
@@ -154,19 +154,38 @@ class DocFolderLoader:
             DataFrame: A dataframe containing the files in the folder.
         """
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(DocFolderLoader._process_single_file, file) for file in files]
-            results_generator = (future.result() for future in as_completed(futures))
+            def results_generator():
+                it = iter(files)
+                pending = {
+                    executor.submit(DocFolderLoader._process_single_file, f)
+                    for _, f in zip(range(max_workers), it)
+                }
 
-             # Uses the iterator over the results to build the dataframe.
-            return pl.DataFrame(results_generator, schema=DocFolderLoader._get_polars_schema())
+                while pending:
+                    done, pending = wait(pending, return_when=FIRST_COMPLETED)
 
+                    # Yield all completed results
+                    for future in done:
+                        yield future.result()
+                        # Immediately enqueue next file if available
+                        try:
+                            next_file = next(it)
+                        except StopIteration:
+                            continue
+                        else:
+                            pending.add(
+                                executor.submit(DocFolderLoader._process_single_file, next_file)
+                            )
+
+            # Uses the iterator over the results to build the dataframe.
+            return pl.DataFrame(results_generator(), schema=DocFolderLoader._get_polars_schema())
 
     @staticmethod
     def _process_single_file(
         file_path: str,
     ) -> Tuple[str, Optional[str], Optional[str]]:
         """Process a single file.
-        
+
         Args:
             file_path: The path to the file to process
             is_s3_path: Whether the path is an S3 path
@@ -214,7 +233,7 @@ class DocFolderLoader:
     ) -> List[str]:
         """Enumerate files in an S3 bucket based on include/exclude patterns."""
         raise NotImplementedError("S3 file enumeration is not implemented yet.")
-    
+
     @staticmethod
     def _enumerate_files_hf(
             paths: list[str],
