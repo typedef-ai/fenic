@@ -158,7 +158,7 @@ class DocFolderLoader:
                 it = iter(files)
                 pending = {
                     executor.submit(DocFolderLoader._process_single_file, f)
-                    for _, f in zip(range(max_workers), it, strict=True)
+                    for _, f in zip(range(max_workers), it, strict=False)
                 }
 
                 while pending:
