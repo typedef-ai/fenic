@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 import re
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -154,28 +154,19 @@ class DocFolderLoader:
             DataFrame: A dataframe containing the files in the folder.
         """
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            it = iter(files)
+            pending = {executor.submit(DocFolderLoader._process_single_file, f)
+                       for _, f in zip(range(max_workers), it, strict=False)}
+
             def results_generator():
-                it = iter(files)
-                pending = {
-                    executor.submit(DocFolderLoader._process_single_file, f)
-                    for _, f in zip(range(max_workers), it, strict=False)
-                }
-
                 while pending:
-                    done, pending = wait(pending, return_when=FIRST_COMPLETED)
-
-                    # Yield all completed results
-                    for future in done:
+                    for future in as_completed(pending):
+                        pending.remove(future)
                         yield future.result()
-                        # Immediately enqueue next file if available
                         try:
-                            next_file = next(it)
+                            pending.add(executor.submit(DocFolderLoader._process_single_file, next(it)))
                         except StopIteration:
-                            continue
-                        else:
-                            pending.add(
-                                executor.submit(DocFolderLoader._process_single_file, next_file)
-                            )
+                            pass
 
             # Uses the iterator over the results to build the dataframe.
             return pl.DataFrame(results_generator(), schema=DocFolderLoader._get_polars_schema())
