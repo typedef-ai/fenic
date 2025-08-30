@@ -110,20 +110,20 @@ def main() -> None:
             "profile",
             fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096)
         ).unnest("profile").cache()
-        candidates_df.write.parquet("candidates.parquet")
 
     candidates_df.write.save_as_table("candidates", mode="overwrite")
     local_session.catalog.set_table_description("candidates", "Resumes for all candidates in our hiring pipeline")
     candidates_df = local_session.table("candidates")
     # Tool 1: search_candidates -- perform a regex search over the candidate education, seniority, skills, experience
-    # coalesce to false if no value is passed in so the OR works as expected.
-    education_match = fc.coalesce(fc.col("education").rlike(tool_param("education_query", StringType)), fc.lit(False))
-    seniority_match = fc.coalesce(fc.col("seniority").rlike(tool_param("seniority_query", StringType)), fc.lit(False))
-    skills_match = fc.coalesce(fc.col("skills").rlike(tool_param("skills_query", StringType)), fc.lit(False))
-    experience_match = fc.coalesce(fc.col("experience").rlike(tool_param("experience_query", StringType)), fc.lit(False))
-    job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(False))
-    merged_filter = education_match | seniority_match | skills_match | experience_match | job_category_match
+    education_match = fc.coalesce(fc.col("education").rlike(tool_param("education_query", StringType)), fc.lit(True))
+    seniority_match = fc.coalesce(fc.col("seniority").rlike(tool_param("seniority_query", StringType)), fc.lit(True))
+    skills_match = fc.coalesce(fc.col("skills").rlike(tool_param("skills_query", StringType)), fc.lit(True))
+    experience_match = fc.coalesce(fc.col("experience").rlike(tool_param("experience_query", StringType)), fc.lit(True))
+    job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
+    merged_filter = education_match & seniority_match & skills_match & experience_match & job_category_match
     search_candidates = candidates_df.filter(merged_filter).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
+    if local_session.catalog.get_tool("search_candidates"):
+        local_session.catalog.drop_tool("search_candidates")
     local_session.catalog.create_tool(
         "search_candidates",
         "Search candidates by education, seniority, skills, and experience using regex patterns.",
@@ -140,6 +140,8 @@ def main() -> None:
 
     # Tool 2: candidate_resumes_by_candidate_ids -- given a list of candidate ids, return the raw resumes for each candidate
     candidate_resumes = candidates_df.filter(fc.col("candidate_id").is_in(fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType)))).select("candidate_id", "candidate_resume")
+    if local_session.catalog.get_tool("candidate_resumes_by_candidate_ids"):
+        local_session.catalog.drop_tool("candidate_resumes_by_candidate_ids")
     local_session.catalog.create_tool(
         "candidate_resumes_by_candidate_ids",
         "Return the raw resumes for a list of candidate ids.",
@@ -206,6 +208,8 @@ def main() -> None:
     )
     job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
     candidates_for_job = candidates_df.filter(job_category_match).filter(fit_pred).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
+    if local_session.catalog.get_tool("candidates_for_job_description"):
+        local_session.catalog.drop_tool("candidates_for_job_description")
     local_session.catalog.create_tool(
         "candidates_for_job_description",
         "Find candidates who are a good fit for a free-form job description using structured profiles.",
@@ -270,12 +274,13 @@ def main() -> None:
             why_join=fc.tool_param("why_join", StringType),
             instructions=fc.tool_param("instructions", StringType),
             strict=False,
-            temperature=1,
             max_output_tokens=320,
             model_alias="gpt-5-mini"
         ).alias("email"),
     )
     # Filter to a single candidate_id at runtime
+    if local_session.catalog.get_tool("create_outreach_for_candidate"):
+        local_session.catalog.drop_tool("create_outreach_for_candidate")
     local_session.catalog.create_tool(
         "create_outreach_for_candidate",
         "Create a personalized recruiting email for a candidate using resume and cover letter context.",

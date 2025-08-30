@@ -123,7 +123,7 @@ def create_pydantic_model_for_tool(tool: ParameterizedToolDefinition) -> type[Ba
 
     model_fields["table_format"] = (
         TableFormat,
-        Field(default="structured", description="The format of the table to return in the response."),
+        Field(default="markdown", description="The format of the table to return in the response. If `structured`, the rows will be returned as a list of JSON objects. If `markdown`, the rows will be returned as a markdown-formatted table."),
     )
     model_fields["limit"] = (
         int,

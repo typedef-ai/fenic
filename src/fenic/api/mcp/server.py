@@ -17,6 +17,7 @@ def create_mcp_server(
     server_name: str,
     *,
     tools: Optional[List[ParameterizedToolDefinition]] = None,
+    concurrency_limit: int = 8,
 ) -> FenicMCPServer:
     """Create an MCP server from datasets and tools.
 
@@ -24,12 +25,13 @@ def create_mcp_server(
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
         tools: Tools to register (optional).
+        concurrency_limit: Maximum number of concurrent tool executions.
     """
     if tools is None:
         tools = []
     if not tools:
         raise ConfigurationError("No tools provided. Either provide tools or register them to catalog.")
-    return FenicMCPServer(session._session_state, tools, server_name)
+    return FenicMCPServer(session._session_state, tools, server_name, concurrency_limit)
 
 def run_mcp_server_asgi(
     server: FenicMCPServer,

@@ -17,7 +17,7 @@ from fenic.core.mcp.types import BoundToolParam
 
 def collect_unresolved_parameters(plan: LogicalPlan) -> dict[str, UnresolvedLiteralExpr]:
     """Return the set of parameter names referenced by UnresolvedLiteralExpr in the plan."""
-    expressions = find_expressions(plan, lambda expr: isinstance(expr, UnresolvedLiteralExpr), leaf_exprs=True)
+    expressions = find_expressions(plan, lambda expr: isinstance(expr, UnresolvedLiteralExpr))
     return {expr.parameter_name: expr for expr in expressions}
 
 

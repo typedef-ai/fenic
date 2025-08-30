@@ -136,10 +136,8 @@ def lit(value: Any) -> Column:
 def tool_param(parameter_name: str, data_type: DataType) -> Column:
     """Creates an unresolved literal placeholder column with a declared data type.
 
-    Use this to add parameters to a Dataframe. This acts as a placeholder for a literal of
-    the provided type -- to be passed in when the Dataframe is collected. This allows for the creation
-    of parameterized views and MCP Tools that act against Fenic dataframes with customizable parameters.
-    If, at execution time, no substitute value is provided for the unresolved parameter, it is substituted with a null value.
+    A placeholder argument for a DataFrame, representing a literal value to be provided at execution time. 
+    If no value is supplied, it defaults to null. Enables parameterized views and macros over fenic DataFrames.
 
     Notes:
         Supports only Primitive/Object/ArrayLike Types (StringType, IntegerType, FloatType, DoubleType, BooleanType, StructType, ArrayType)

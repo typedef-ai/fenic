@@ -55,6 +55,7 @@ def _parse_args() -> argparse.Namespace:
 
     # Server
     parser.add_argument("--server-name", type=str, default="Fenic MCP", help="Name for the MCP server.")
+    parser.add_argument("--concurrency-limit", type=int, default=8, help="Maximum number of concurrent tool executions.")
     parser.add_argument("--transport", type=str, choices=["http", "stdio"], default="http", help="Transport protocol.")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host for HTTP transport.")
     parser.add_argument("--port", type=int, default=8000, help="Port for HTTP transport.")
@@ -107,6 +108,7 @@ def main() -> None:
         session,
         server_name=args.server_name,
         tools=tools if tools else None,
+        concurrency_limit=args.concurrency_limit,
     )
 
     run_mcp_server_sync(

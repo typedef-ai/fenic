@@ -1,6 +1,28 @@
 # Fenic MCP: Create and Serve Catalog Tools
 
-This guide shows how to expose your Fenic tools via an MCP server. In this version, the server loads tools you have already registered in the catalog (no automated tool generation).
+This guide shows how to expose Fenic Paramaterized Tools via an MCP server. Paramaterized Tools are created by adding placeholder values to DataFrame operations
+to be filled in at runtime, and managed in the Fenic Catalog. In most respects, these Paramaterized Tools are like SQL Macros. Just like one might create a macro as:
+
+```SQL
+CREATE MACRO get_users(user_name) AS TABLE
+    SELECT * FROM users WHERE name = user_name;
+```
+
+One can create a Paramaterized Tool in Fenic:
+
+```python
+filter_tool_df = df.filter(fc.col("name") == fc.tool_param("user_name", StringType))
+session.catalog.create_tool(
+    "users_by_name",
+    "Filter users by name",
+    filter_tool_df,
+    tool_params=[
+        # If default values are provided, the parameters will be marked as `Optional` in the MCP API Spec.
+        ToolParam(name="user_name", description="User's Name (Exact Match)")
+    ]
+)
+
+```
 
 ## Prerequisites
 

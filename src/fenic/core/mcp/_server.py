@@ -34,17 +34,6 @@ from fenic.logging import configure_logging
 
 logger = logging.getLogger(__name__)
 
-def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
-    if not rows:
-        return "No rows."
-    columns = list(rows[0].keys())
-    header = "| " + " | ".join(columns) + " |"
-    sep = "| " + " | ".join(["---"] * len(columns)) + " |"
-    lines = [header, sep]
-    for row in rows:
-        lines.append("| " + " | ".join(str(row.get(col, "")) for col in columns) + " |")
-    return "\n".join(lines)
-
 
 class MCPResultSet(BaseModel):
     """Structured result returned to the MCP client."""
@@ -61,7 +50,8 @@ class FenicMCPServer:
         self,
         session_state: BaseSessionState,
         paramaterized_tools: list[ParameterizedToolDefinition],
-        server_name: str = "Fenic Views"
+        server_name: str = "Fenic Views",
+        concurrency_limit: int = 8
     ):
         """Initialize the server with a Fenic session state and tool list.
 
@@ -69,11 +59,12 @@ class FenicMCPServer:
             session_state: Fenic session state to use for tool execution.
             paramaterized_tools: List of user-created tools
             server_name: Name of the MCP server.
+            concurrency_limit: Maximum number of concurrent tool executions.
         """
         self.session_state = session_state
         self.server_name = server_name
         self.paramaterized_tools = paramaterized_tools
-        self._collect_semaphore = asyncio.Semaphore(8)
+        self._collect_semaphore = asyncio.Semaphore(concurrency_limit)
         if not paramaterized_tools:
             raise ConfigurationError("No tools provided to MCP server.")
         try:
@@ -124,7 +115,7 @@ class FenicMCPServer:
             if isinstance(params, str):
                 params = ParamsModel.model_validate_json(params)
             payload = params.model_dump(exclude_none=True)
-            table_format: TableFormat = payload.pop("table_format", "structured")
+            table_format: TableFormat = payload.pop("table_format", "markdown")
             requested_limit = payload.pop("limit", None)
             effective_limit: int = tool.result_limit if requested_limit is None else min(int(requested_limit), tool.result_limit)
             try:
@@ -149,18 +140,29 @@ class FenicMCPServer:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
 
-        tool_fn.__name__ = self._to_snake_case(tool.name)
+        tool_fn.__name__ = _to_snake_case(tool.name)
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
         tool_fn.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
         return tool_fn
 
 
-    def _to_snake_case(self, name: str) -> str:
-        result = name
-        return "_".join(
-            re.sub(
-                "([A-Z][a-z]+)",
-                r" \1",
-                re.sub("([A-Z]+)", r" \1", result.replace("-", " ")),
-            ).split()
-        ).lower()
+def _to_snake_case(name: str) -> str:
+    result = name
+    return "_".join(
+        re.sub(
+            "([A-Z][a-z]+)",
+            r" \1",
+            re.sub("([A-Z]+)", r" \1", result.replace("-", " ")),
+        ).split()
+    ).lower()
+
+def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "No rows."
+    columns = list(rows[0].keys())
+    header = "| " + " | ".join(columns) + " |"
+    sep = "| " + " | ".join(["---"] * len(columns)) + " |"
+    lines = [header, sep]
+    for row in rows:
+        lines.append("| " + " | ".join(str(row.get(col, "")) for col in columns) + " |")
+    return "\n".join(lines)

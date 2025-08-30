@@ -18,7 +18,7 @@ from fenic.core._logical_plan.expressions.base import LogicalExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
 
 
-def iter_plan_expressions(plan: LogicalPlan, leaf_exprs: bool = True) -> Generator[Tuple[LogicalPlan, LogicalExpr], None, None]:
+def iter_plan_expressions(plan: LogicalPlan) -> Generator[Tuple[LogicalPlan, LogicalExpr], None, None]:
     """Yield (plan_node, expr) pairs for every LogicalExpr reachable from the plan.
 
     For each plan node:
@@ -27,22 +27,25 @@ def iter_plan_expressions(plan: LogicalPlan, leaf_exprs: bool = True) -> Generat
     - recurse into child plan nodes
     """
     # Expressions attached to this plan node
-    for expr in plan.exprs():
-        if not expr.children() or not leaf_exprs:
-            yield (plan, expr)
-        else:
-            for child_expr in _iter_expr_tree(expr):
-                yield (plan, child_expr)
+    yielded: Set[int] = set()
+
+    for root_expr in plan.exprs():
+        for expr in _iter_expr_tree(root_expr):
+            expr_id = id(expr)
+            if expr_id in yielded:
+                continue
+            yielded.add(expr_id)
+            yield plan, expr
 
     # Recurse into children
     for child in plan.children():
         yield from iter_plan_expressions(child)
 
 
-def find_expressions(plan: LogicalPlan, predicate: Callable[[LogicalExpr], bool], leaf_exprs: bool = True) -> List[LogicalExpr]:
+def find_expressions(plan: LogicalPlan, predicate: Callable[[LogicalExpr], bool]) -> List[LogicalExpr]:
     """Collect expressions in the plan tree that satisfy the predicate."""
     matches: List[LogicalExpr] = []
-    for _, expr in iter_plan_expressions(plan, leaf_exprs):
+    for _, expr in iter_plan_expressions(plan):
         if predicate(expr):
             matches.append(expr)
     return matches

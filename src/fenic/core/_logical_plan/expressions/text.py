@@ -433,7 +433,7 @@ class RLikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern})"
@@ -465,7 +465,7 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
 
         if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
             try:
-                py_validate_regex(self.pattern.literal)
+                py_validate_regex(pattern.literal)
             except Exception as e:
                 raise ValidationError(f"Invalid LIKE pattern: {self.pattern}") from e
 
@@ -476,7 +476,7 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern})"
@@ -509,7 +509,7 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
 
         if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
             try:
-                py_validate_regex(self.pattern.literal)
+                py_validate_regex(pattern.literal)
             except Exception as e:
                 raise ValidationError(f"Invalid ILIKE pattern: {self.pattern}") from e
 
@@ -520,7 +520,7 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern})"
