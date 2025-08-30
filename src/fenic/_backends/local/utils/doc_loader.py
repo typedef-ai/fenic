@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 import re
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -158,7 +158,7 @@ class DocFolderLoader:
                 it = iter(files)
                 pending = {
                     executor.submit(DocFolderLoader._process_single_file, f)
-                    for _, f in zip(range(max_workers), it)
+                    for _, f in zip(range(max_workers), it, strict=True)
                 }
 
                 while pending:
