@@ -28,6 +28,7 @@ from fenic.api.session.config import (
     GoogleDeveloperLanguageModel,
     LanguageModel,
     OpenAILanguageModel,
+    OpenRouterLanguageModel,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._inference.model_provider import ModelProviderClass
@@ -223,6 +224,13 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
                 tpm=500_000,
             ),
         }
+    elif language_model_provider == ModelProvider.OPENROUTER:
+        language_models = {
+            "model_1": nano,
+            "model_2": OpenRouterLanguageModel(
+                model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
+            ),
+        }
     else:
         raise ValueError(f"Unsupported language model provider: {language_model_provider}")
     return SessionConfig(
@@ -378,6 +386,14 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 rpm=1000,
                 tpm=500_000,
             )
+    elif model_provider == ModelProvider.OPENROUTER:
+        language_model = OpenRouterLanguageModel(
+            model_name=model_name,
+            profiles={
+                "default": OpenRouterLanguageModel.Profile(),
+            },
+            default_profile="default",
+        )
     else:
         raise ValueError(f"Unsupported language model provider: {model_provider}")
     return language_model

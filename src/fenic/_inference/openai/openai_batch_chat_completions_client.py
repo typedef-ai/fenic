@@ -7,12 +7,12 @@ from fenic._inference.common_openai.openai_chat_completions_core import (
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
 )
+from fenic._inference.openai.openai_provider import OpenAIModelProvider
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,

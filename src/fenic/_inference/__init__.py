@@ -6,3 +6,6 @@ from fenic._inference.openai.openai_batch_chat_completions_client import (
 from fenic._inference.openai.openai_batch_embeddings_client import (
     OpenAIBatchEmbeddingsClient as OpenAIBatchEmbeddingsClient,
 )
+from fenic._inference.openrouter.openrouter_batch_chat_completions_client import (
+    OpenRouterBatchChatCompletionsClient as OpenRouterBatchChatCompletionsClient,
+)

@@ -4,7 +4,6 @@ This module defines internal configuration classes that represent the fully reso
 state of a session after processing user-provided configuration. These classes are
 used internally after the user creates a SessionConfig in the API layer.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Literal, Optional, Union
 
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core.types.provider_routing import ProviderSort
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 Verbosity = Literal["low", "medium", "high"]
@@ -49,6 +49,13 @@ class ResolvedOpenAIModelProfile:
 class ResolvedCohereModelProfile:
     embedding_dimensionality: Optional[int] = None
     embedding_task_type: Optional[str] = None
+
+@dataclass
+class ResolvedOpenRouterModelProfile:
+    reasoning_effort: Optional[Literal["high", "medium", "low"]] = None
+    reasoning_max_tokens: Optional[int] = None
+    models: Optional[list[str]] = None
+    provider_sort: Optional[ProviderSort] = None
 
 @dataclass
 class ResolvedOpenAIModelConfig:
@@ -88,7 +95,20 @@ class ResolvedCohereModelConfig:
     profiles: Optional[dict[str, ResolvedCohereModelProfile]] = None
     default_profile: Optional[str] = None
 
-ResolvedModelConfig = Union[ResolvedOpenAIModelConfig, ResolvedAnthropicModelConfig, ResolvedGoogleModelConfig, ResolvedCohereModelConfig]
+@dataclass
+class ResolvedOpenRouterModelConfig:
+    model_name: str
+    profiles: Optional[dict[str, ResolvedOpenRouterModelProfile]] = None
+    model_provider: ModelProvider = ModelProvider.OPENROUTER
+    default_profile: Optional[str] = None
+
+ResolvedModelConfig = Union[
+    ResolvedOpenAIModelConfig,
+    ResolvedAnthropicModelConfig,
+    ResolvedGoogleModelConfig,
+    ResolvedCohereModelConfig,
+    ResolvedOpenRouterModelConfig,
+]
 
 
 # --- Semantic / Cloud / Session Configs ---

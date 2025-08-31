@@ -23,7 +23,7 @@ class CohereModelProvider(ModelProviderClass):
         if not api_key:
             raise ValueError("COHERE_API_KEY environment variable is required")
 
-    def create_client(self):
+    def client(self):
         """Create a Cohere client instance."""
         return cohere.ClientV2(api_key=self.get_api_key())
 

@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from fenic.core.types.provider_routing import ProviderSort
 
+from fenic._inference.openrouter.openrouter_provider import OpenRouterModelProvider
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
     CohereEmbeddingModelName,
@@ -36,6 +38,8 @@ from fenic.core._resolved_session_config import (
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedOpenAIModelProfile,
+    ResolvedOpenRouterModelConfig,
+    ResolvedOpenRouterModelProfile,
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
     Verbosity,
@@ -628,6 +632,31 @@ class AnthropicLanguageModel(BaseModel):
             ge=1024,
         )
 
+class OpenRouterLanguageModel(BaseModel):
+    """Configuration for OpenRouter language models.
+
+    This class defines the configuration settings for OpenRouter language models,
+    including model selection and rate limiting parameters.
+    """
+    model_name: str = Field(..., description="The name of the OpenRouter model to use, typically `{provider}/{model_name}`")
+    profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
+    default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
+
+    class Profile(BaseModel):
+        """Profile configurations for OpenRouter language models.
+
+        Pass-through of selected OpenRouter chat completion parameters for parity:
+        - models: backup models for routing overrides
+        - provider_sort: provider routing preference (price, throughput, latency)
+        - reasoning_effort / reasoning_max_tokens: reasoning config (OpenRouter fields)
+        """
+        model_config = ConfigDict(extra='forbid')
+
+        reasoning_effort: Optional[Literal["high","medium","low"]] = Field(default=None, description="OpenAI-style reasoning effort")
+        reasoning_max_tokens: Optional[int] = Field(default=None, gt=0, description="Non-OpenAI-style reasoning effort (max tokens)")
+        models: Optional[list[str]] = Field(default=None, description="Alternate models for routing overrides")
+        provider_sort: Optional[ProviderSort] = Field(default=None, description="Sort providers by preference")
+
 CohereEmbeddingTaskType = Literal[
     "search_document",
     "search_query",
@@ -707,7 +736,7 @@ class CohereEmbeddingModel(BaseModel):
         input_type: CohereEmbeddingTaskType = Field(default="search_document", description="Type of input")
 
 EmbeddingModel = Union[OpenAIEmbeddingModel, GoogleVertexEmbeddingModel, GoogleDeveloperEmbeddingModel, CohereEmbeddingModel]
-LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
+LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel, OpenRouterLanguageModel]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
 
 class SemanticConfig(BaseModel):
@@ -877,7 +906,8 @@ class SemanticConfig(BaseModel):
             for model_alias, language_model in self.language_models.items():
                 language_model_name = language_model.model_name
                 language_model_provider = _get_model_provider_for_model_config(language_model)
-
+                if language_model_provider == ModelProvider.OPENROUTER:
+                    _ = OpenRouterModelProvider()
                 completion_model_params = model_catalog.get_completion_model_parameters(language_model_provider,
                                                                                  language_model_name)
                 if completion_model_params is None:
@@ -1134,6 +1164,20 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile
                 )
+            elif isinstance(model, OpenRouterLanguageModel):
+                profiles = {
+                    profile: ResolvedOpenRouterModelProfile(
+                        reasoning_effort=profile_config.reasoning_effort,
+                        reasoning_max_tokens=profile_config.reasoning_max_tokens,
+                        models=profile_config.models,
+                        provider_sort=profile_config.provider_sort,
+                    ) for profile, profile_config in model.profiles.items()
+                } if model.profiles else None
+                return ResolvedOpenRouterModelConfig(
+                    model_name=model.model_name,
+                    profiles=profiles,
+                    default_profile=model.default_profile,
+                )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")
 
@@ -1180,6 +1224,10 @@ def _validate_language_profile(language_model: LanguageModel, model_alias: str, 
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
         if (not profile.thinking_token_budget or profile.thinking_token_budget == 0) and not completion_model_params.supports_disabled_reasoning:
             raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
+    elif isinstance(language_model, OpenRouterLanguageModel):
+        # For OpenRouter, validate pass-through parameters against capabilities
+        if (profile.reasoning_effort or profile.reasoning_max_tokens) and not completion_model_params.supports_reasoning:
+            raise ConfigurationError(f"Model '{model_alias}' does not support reasoning. Remove 'reasoning' from '{profile_alias}'.")
 
 def _validate_embedding_profile(
     embedding_model_parameters: EmbeddingModelParameters,
@@ -1206,5 +1254,7 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.ANTHROPIC
     elif isinstance(model_config, CohereEmbeddingModel):
         return ModelProvider.COHERE
+    elif isinstance(model_config, OpenRouterLanguageModel):
+        return ModelProvider.OPENROUTER
     else :
         raise InternalError(f"Unknown model type: {type(model_config)}")
