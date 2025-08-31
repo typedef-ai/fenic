@@ -16,7 +16,7 @@ class AnthropicModelProvider(ModelProviderClass):
     def name(self) -> str:
         return "anthropic"
     
-    def create_client(self):
+    def client(self):
         """Create an Anthropic sync client instance."""
         return anthropic.Client()
 

@@ -1,5 +1,7 @@
+import logging
+import threading
 from enum import Enum
-from typing import Dict, Literal, Optional, TypeAlias, Union
+from typing import Callable, Dict, Literal, Optional, TypeAlias, Union
 
 from fenic.core.error import InternalError
 
@@ -12,6 +14,7 @@ class ModelProvider(Enum):
     GOOGLE_DEVELOPER = "google-developer"
     GOOGLE_VERTEX = "google-vertex"
     COHERE = "cohere"
+    OPENROUTER = "openrouter"
 
 class TieredTokenCost:
     def __init__(
@@ -61,6 +64,7 @@ class CompletionModelParameters:
         supports_disabled_reasoning = True,
         supports_custom_temperature = True,
         supports_verbosity = False,
+        supported_parameters: Optional[set[str]] = None,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -77,6 +81,8 @@ class CompletionModelParameters:
         self.supports_disabled_reasoning = supports_disabled_reasoning
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
+        # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
+        self.supported_parameters: set[str] = supported_parameters or set()
 
 
 class EmbeddingModelParameters:
@@ -280,9 +286,15 @@ class ModelCatalog:
     """
 
     def __init__(self):
-        self.provider_model_collections: dict[
-            ModelProvider, ProviderModelCollection
-        ] = {}
+        self.provider_model_collections: dict[ModelProvider, ProviderModelCollection] = {}
+        # Ensure all providers have an initialized collection, even if empty (e.g., OpenRouter)
+        for provider in ModelProvider:
+            self.provider_model_collections[provider] = ProviderModelCollection(provider)
+        # Dynamic provider loaders
+        self._dynamic_loaders: dict[ModelProvider, Callable[[], None]] = {}
+        self._dynamic_loaded: set[ModelProvider] = set()
+        self._loader_mutex = threading.Lock()
+        self._logger = logging.getLogger(__name__)
         self._initialize_models()
 
     def _initialize_models(self):
@@ -945,7 +957,27 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        return self._get_supported_completions_models_by_provider(model_provider).get(model_name)
+        models = self._get_supported_completions_models_by_provider(model_provider)
+        params = models.get(model_name)
+        if params is not None:
+            return params
+        # Lazy load for dynamic providers
+        loader = self._dynamic_loaders.get(model_provider)
+        if loader and model_provider not in self._dynamic_loaded:
+            with self._loader_mutex:
+                if model_provider not in self._dynamic_loaded:
+                    try:
+                        self._logger.info(f"Dynamically loading models for provider: {model_provider.value}")
+                        loader()
+                        self._dynamic_loaded.add(model_provider)
+                    except Exception as exc:
+                        self._logger.error(
+                            f"Failed dynamic load for provider {model_provider.value}: {exc}",
+                            exc_info=True,
+                        )
+            models = self._get_supported_completions_models_by_provider(model_provider)
+            return models.get(model_name)
+        return None
 
     def get_embedding_model_parameters(self, model_provider: ModelProvider, model_name: str) -> EmbeddingModelParameters | None:
         """Gets the parameters for a specific embedding model.
@@ -1103,6 +1135,27 @@ class ModelCatalog:
         )
         provider_model_collection.add_model(name, parameters, snapshots)
         self.provider_model_collections[model_provider] = provider_model_collection
+
+    # Public API for providers to add models and register dynamic loaders
+    def add_model(
+        self,
+        model_provider: ModelProvider,
+        name: str,
+        parameters: Union[CompletionModelParameters, EmbeddingModelParameters],
+        snapshots: Optional[list[str]] = None,
+    ) -> None:
+        try:
+            self._add_model_to_catalog(model_provider, name, parameters, snapshots)
+        except InternalError:
+            # Ignore duplicates from providers
+            pass
+
+    def register_dynamic_provider(self, model_provider: ModelProvider, loader: Callable[[], None]) -> None:
+        """Register a one-time loader that populates models on first request.
+
+        The loader should synchronously call add_model() for each model to register.
+        """
+        self._dynamic_loaders[model_provider] = loader
 
     def _get_supported_completions_models_by_provider(
         self, model_provider: ModelProvider

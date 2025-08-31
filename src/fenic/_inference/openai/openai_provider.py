@@ -16,7 +16,7 @@ class OpenAIModelProvider(ModelProviderClass):
     def name(self) -> str:
         return "openai"
 
-    def create_client(self):
+    def client(self):
         """Create an OpenAI client instance."""
         return OpenAI()
 

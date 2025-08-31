@@ -91,6 +91,8 @@ class OpenAIChatCompletionsCore:
                 "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
+            if request.temperature:
+                common_params.update({"temperature": request.temperature})
 
             # Determine if we need logprobs
             if request.top_logprobs:

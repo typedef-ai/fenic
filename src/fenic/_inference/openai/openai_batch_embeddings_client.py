@@ -6,13 +6,13 @@ from typing import Union
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     RequestT,
     TransientException,
 )
+from fenic._inference.openai.openai_provider import OpenAIModelProvider
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,

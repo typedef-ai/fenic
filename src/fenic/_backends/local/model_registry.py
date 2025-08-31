@@ -10,7 +10,9 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
+from fenic._inference.openrouter.openrouter_batch_chat_completions_client import OpenRouterBatchChatCompletionsClient
 from fenic._inference.rate_limit_strategy import (
+    NoopRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
@@ -22,7 +24,7 @@ from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
-    ResolvedSemanticConfig,
+    ResolvedSemanticConfig, ResolvedOpenRouterModelConfig,
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
@@ -311,7 +313,14 @@ class SessionModelRegistry:
                         profiles=model_config.profiles,
                         default_profile_name=model_config.default_profile,
                     )
-
+            elif isinstance(model_config, ResolvedOpenRouterModelConfig):
+                rate_limit_strategy = NoopRateLimitStrategy()
+                client = OpenRouterBatchChatCompletionsClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    profiles=model_config.profiles,
+                    default_profile_name=model_config.default_profile,
+                )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
             return LanguageModel(client=client)

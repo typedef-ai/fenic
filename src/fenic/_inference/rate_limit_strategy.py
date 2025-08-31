@@ -107,6 +107,31 @@ class RateLimitStrategy(ABC):
         pass
 
 
+class NoopRateLimitStrategy(RateLimitStrategy):
+    """Rate limit strategy that effectively allows all requests through.
+
+    Behavior:
+    - check_and_consume_rate_limit always returns True (no token accounting)
+    - backoff zeros request capacity to briefly pause on provider 429s
+    - context_tokens_per_minute returns a very large sentinel value
+    """
+
+    def __init__(self, rpm: int = 50_000_000):
+        super().__init__(rpm=rpm)
+
+    def backoff(self, curr_time: float) -> int:
+        # Minimal backoff: drop request bucket capacity to 0 to yield scheduling
+        self.requests_bucket._set_capacity(0, curr_time)
+
+    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
+        # Always allow; no token accounting
+        return True
+
+    def context_tokens_per_minute(self) -> int:
+        # Effectively unlimited for scheduling purposes
+        return 1_000_000_000
+
+
 class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
     """Rate limiting strategy that uses a single token bucket for both input and output tokens.
 
