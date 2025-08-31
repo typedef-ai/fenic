@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from fenic.core.types.provider_routing import ProviderSort
 
 from fenic._inference.openrouter.openrouter_provider import OpenRouterModelProvider
 from fenic.core._inference.model_catalog import (
@@ -45,6 +44,7 @@ from fenic.core._resolved_session_config import (
     Verbosity,
 )
 from fenic.core.error import ConfigurationError, InternalError
+from fenic.core.types.provider_routing import ProviderSort
 
 profiles_desc = """
             Allow the same model configuration to be used with different profiles, currently used to set thinking budget/reasoning effort

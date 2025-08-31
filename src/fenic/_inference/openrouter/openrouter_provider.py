@@ -5,7 +5,6 @@ from functools import cached_property
 from typing import Any, Dict, Optional
 
 import requests
-import httpx
 from openai import AsyncOpenAI, OpenAI
 
 from fenic.core._inference.model_catalog import (
@@ -16,6 +15,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._inference.model_provider import ModelProviderClass
 
 logger = logging.getLogger(__name__)
+
 
 class OpenRouterModelProvider(ModelProviderClass):
     """Lazy singleton provider that caches OpenRouter model parameters.
@@ -53,7 +53,11 @@ class OpenRouterModelProvider(ModelProviderClass):
     @cached_property
     def _headers(self) -> Dict[str, str]:
         key = os.environ.get("OPENROUTER_API_KEY")
-        headers = {"Accept": "application/json", "X-Title": "typedef-fenic"}
+        headers = {
+            "Accept": "application/json",
+            "HTTP-Referer": "https://github.com/typedef-ai/fenic",
+            "X-Title": "fenic (by typedef)"
+        }
         if key:
             headers["Authorization"] = f"Bearer {key}"
         return headers
@@ -62,6 +66,7 @@ class OpenRouterModelProvider(ModelProviderClass):
     def client(self):
         """Return an OpenAI SDK client configured for OpenRouter."""
         return OpenAI(
+            default_headers=self._headers,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY"),
         )
@@ -70,6 +75,7 @@ class OpenRouterModelProvider(ModelProviderClass):
     def aio_client(self):
         """Return an Async OpenAI SDK client configured for OpenRouter."""
         return AsyncOpenAI(
+            default_headers=self._headers,
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY"),
         )
@@ -152,7 +158,8 @@ class OpenRouterModelProvider(ModelProviderClass):
                 if isinstance(model_id, str):
                     # Register into global catalog so standard lookups succeed
                     try:
-                        model_catalog.add_model(ModelProvider.OPENROUTER, model_id, params, snapshots=[canonical] if isinstance(canonical, str) else None)
+                        model_catalog.add_model(ModelProvider.OPENROUTER, model_id, params,
+                                                snapshots=[canonical] if isinstance(canonical, str) else None)
                     except Exception:
                         logger.error(f"Failed to add OpenRouter model to catalog: {model_id}", exc_info=True)
                     loaded += 1

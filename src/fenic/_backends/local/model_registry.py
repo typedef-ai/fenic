@@ -10,7 +10,9 @@ from fenic._inference import (
     OpenAIBatchChatCompletionsClient,
     OpenAIBatchEmbeddingsClient,
 )
-from fenic._inference.openrouter.openrouter_batch_chat_completions_client import OpenRouterBatchChatCompletionsClient
+from fenic._inference.openrouter.openrouter_batch_chat_completions_client import (
+    OpenRouterBatchChatCompletionsClient,
+)
 from fenic._inference.rate_limit_strategy import (
     NoopRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
@@ -24,7 +26,8 @@ from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedModelConfig,
     ResolvedOpenAIModelConfig,
-    ResolvedSemanticConfig, ResolvedOpenRouterModelConfig,
+    ResolvedOpenRouterModelConfig,
+    ResolvedSemanticConfig,
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics

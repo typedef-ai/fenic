@@ -10,7 +10,8 @@ from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
     ResolvedOpenAIModelConfig,
-    ResolvedSessionConfig, ResolvedOpenRouterModelConfig,
+    ResolvedOpenRouterModelConfig,
+    ResolvedSessionConfig,
 )
 from fenic.core.error import PlanError, ValidationError
 

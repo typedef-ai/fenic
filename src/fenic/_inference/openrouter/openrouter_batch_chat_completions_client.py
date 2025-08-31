@@ -18,8 +18,8 @@ from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResp
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core.metrics import LMMetrics
 
+from ...core.error import ConfigurationError
 from .openrouter_provider import OpenRouterModelProvider
-from ...core.error import ExecutionError, ConfigurationError
 
 
 class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -68,11 +68,11 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             additional_reasoning_tokens = 0
             if profile.reasoning_max_tokens:
                 additional_reasoning_tokens = profile.reasoning_max_tokens
-            if profile.reasoning_effort is "low":
+            if profile.reasoning_effort == "low":
                 additional_reasoning_tokens = 1024
-            if profile.reasoning_effort is "medium":
+            if profile.reasoning_effort == "medium":
                 additional_reasoning_tokens = 4096
-            if profile.reasoning_effort is "high":
+            if profile.reasoning_effort == "high":
                 additional_reasoning_tokens = 8192
             common_params = {
                 "model": self.model,
