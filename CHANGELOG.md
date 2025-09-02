@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.4.0](https://github.com/typedef-ai/fenic/compare/v0.3.0...v0.4.0) (2025-09-02)
+
+
+### Features
+
+* Add connector for reading huggingface scheme ([#157](https://github.com/typedef-ai/fenic/issues/157)) ([9854cff](https://github.com/typedef-ai/fenic/commit/9854cffe2fcda1ae846846854071ec85b303f66c))
+* Add gpt-5 support ([#134](https://github.com/typedef-ai/fenic/issues/134)) ([65cbb07](https://github.com/typedef-ai/fenic/commit/65cbb07eef63bd756b7129dafa16acab744c4a7f))
+* add support for async udfs (for tool calling) ([2fb185f](https://github.com/typedef-ai/fenic/commit/2fb185fe8ce86423abd332d8ece2666802be5f12))
+* Add verbosity and minimal reasoning params for gpt5 ([#135](https://github.com/typedef-ai/fenic/issues/135)) ([1fe1d95](https://github.com/typedef-ai/fenic/commit/1fe1d95b04c0f1ae30c08204d8700d554d57c0ae))
+* allow users to add descriptions to views and tables ([#160](https://github.com/typedef-ai/fenic/issues/160)) ([12b5575](https://github.com/typedef-ai/fenic/commit/12b5575e39e60e54927e5815e64dcdcaf2d01d99))
+* create `none()` and `empty()` column functions to allow users to populate columns with null/empty values ([#132](https://github.com/typedef-ai/fenic/issues/132)) ([8fafca7](https://github.com/typedef-ai/fenic/commit/8fafca7f4a55eb58ea36d69c4df007c0b7484e8a))
+* declarative tool creation ([#150](https://github.com/typedef-ai/fenic/issues/150)) ([863cd70](https://github.com/typedef-ai/fenic/commit/863cd70c3f9d979b84988ad18defb9204d242fb8))
+* local metrics table ([#161](https://github.com/typedef-ai/fenic/issues/161)) ([314e20f](https://github.com/typedef-ai/fenic/commit/314e20fca1bd81f554dd2a73df33f9cd3d4869af))
+* make schema mismatch errors for union() more helpful ([#131](https://github.com/typedef-ai/fenic/issues/131)) ([d9087bd](https://github.com/typedef-ai/fenic/commit/d9087bdeb36570ae73c3695cb8c8c544ea734eec))
+* MCP server example ([#120](https://github.com/typedef-ai/fenic/issues/120)) ([1169d7d](https://github.com/typedef-ai/fenic/commit/1169d7dbf5199e29e6b2667607e9efe96ff680a0))
+* support claude-opus-4-1 ([#137](https://github.com/typedef-ai/fenic/issues/137)) ([2e74871](https://github.com/typedef-ai/fenic/commit/2e74871c9e87917d9e216d253c252aa8917f799f))
+* support loading directory content into a dataframe ([#151](https://github.com/typedef-ai/fenic/issues/151)) ([83e151b](https://github.com/typedef-ai/fenic/commit/83e151b1bee0b73c315f81a966c059f2a83531f5))
+* support logical types in cloud catalog  ([#140](https://github.com/typedef-ai/fenic/issues/140)) ([4e05c7c](https://github.com/typedef-ai/fenic/commit/4e05c7c884835a7987a7bdcd5d5e61076fe5b065))
+* validate provider keys ([#164](https://github.com/typedef-ai/fenic/issues/164)) ([4cc5c72](https://github.com/typedef-ai/fenic/commit/4cc5c723ebb953b7604b1544794832f7f4b9f694))
+
+
+### Bug Fixes
+
+* add retry to OpenAI for 404 errors when no processing was done ([#176](https://github.com/typedef-ai/fenic/issues/176)) ([720f595](https://github.com/typedef-ai/fenic/commit/720f5952b3624cf91ba150a7a0b08852d3d6fc88))
+* make local catalog threadsafe ([#156](https://github.com/typedef-ai/fenic/issues/156)) ([7f309b2](https://github.com/typedef-ai/fenic/commit/7f309b22026df7d2e677ce733349969e30139bac))
+* make the error message when trying to load files from S3 without credentials set up more clear ([#165](https://github.com/typedef-ai/fenic/issues/165)) ([fb8f148](https://github.com/typedef-ai/fenic/commit/fb8f148abf9da5b5e490c3347dc8b2bda9b5e823))
+* model_registry now uses the new ResolvedModelAlias for embedding model lookup properly ([#142](https://github.com/typedef-ai/fenic/issues/142)) ([3d80cd6](https://github.com/typedef-ai/fenic/commit/3d80cd6ee864d21010f213d6ed5a5f7d3205c72e))
+* only use regex search for the mcp server example ([#148](https://github.com/typedef-ai/fenic/issues/148)) ([8fbbf72](https://github.com/typedef-ai/fenic/commit/8fbbf7288f0425a94d17c2db318778004fd0a3d5))
+* shutdown event loop and cancel tasks on program exit ([#167](https://github.com/typedef-ai/fenic/issues/167)) ([b92dd1b](https://github.com/typedef-ai/fenic/commit/b92dd1b1b9c294bb76db1467555d88e2060d1e3f))
+* test failure in lit(none) that somehow got merged ([#139](https://github.com/typedef-ai/fenic/issues/139)) ([73008c9](https://github.com/typedef-ai/fenic/commit/73008c9b608f75042086adf9f0a452722d87786c))
+* use rust regex to validate regular expression used for rlike, ilike, like ([#162](https://github.com/typedef-ai/fenic/issues/162)) ([68f27b6](https://github.com/typedef-ai/fenic/commit/68f27b6153823a0b2f0f30ba4b964a8baeacbce8))
+
+
+### Documentation
+
+* enrich mcp server example README.md ([#145](https://github.com/typedef-ai/fenic/issues/145)) ([e0cd34f](https://github.com/typedef-ai/fenic/commit/e0cd34fb4391ca99e3ece6315133390667d6d269))
+* fix group by docstring to use count() within agg() ([#152](https://github.com/typedef-ai/fenic/issues/152)) ([aaca9da](https://github.com/typedef-ai/fenic/commit/aaca9daf6d67d8785fc49d1eb9d0f2d22cc24829))
+* Main readme colab ([#146](https://github.com/typedef-ai/fenic/issues/146)) ([d3842b0](https://github.com/typedef-ai/fenic/commit/d3842b0defc1283ede02afb2238ef5c1bcaaac37))
+* Update example notebooks ([#144](https://github.com/typedef-ai/fenic/issues/144)) ([3cc0446](https://github.com/typedef-ai/fenic/commit/3cc044614c6203dfb7f0a354a382e9d3a416552a))
+* update readme to reflect updated clustering api ([#127](https://github.com/typedef-ai/fenic/issues/127)) ([16c1ada](https://github.com/typedef-ai/fenic/commit/16c1ada9bdea9b17b499524e31c950c6d721345f))
+
 ## [0.3.0](https://github.com/typedef-ai/fenic/compare/v0.2.1...v0.3.0) (2025-08-04)
 
 
