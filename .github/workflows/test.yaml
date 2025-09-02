@@ -30,13 +30,13 @@ jobs:
         id: matrix
         # yamllint disable rule:line-length
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Run all combinations on scheduled runs
-            matrix='{"dependency": ["true", "min", "max"], "test": ["local", "cloud"], "python-version": ["3.10", "3.11", "3.12"]}'
-          else
-            # Run only true/local/3.11 on PR/manual runs
-            matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.11"}]}'
-          fi
+          #if [ "${{ github.event_name }}" = "schedule" ]; then
+          # Run all combinations on scheduled runs
+          matrix='{"dependency": ["true", "min", "max"], "test": ["local", "cloud"], "python-version": ["3.10", "3.11", "3.12"]}'
+          #else
+          # Run only true/local/3.11 on PR/manual runs
+          #  matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.11"}]}'
+          #fi
           # shellcheck disable=SC2086
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length

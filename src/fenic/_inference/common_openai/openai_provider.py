@@ -1,5 +1,4 @@
 """OpenAI model provider implementation."""
-
 import logging
 
 from openai import AsyncOpenAI, OpenAI
@@ -7,7 +6,6 @@ from openai import AsyncOpenAI, OpenAI
 from fenic.core._inference.model_provider import ModelProviderClass
 
 logger = logging.getLogger(__name__)
-
 
 class OpenAIModelProvider(ModelProviderClass):
     """OpenAI implementation of ModelProvider."""
