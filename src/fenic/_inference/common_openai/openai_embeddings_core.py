@@ -8,6 +8,7 @@ from openai import (
     APIConnectionError,
     APITimeoutError,
     AsyncOpenAI,
+    NotFoundError,
     OpenAIError,
     RateLimitError,
 )
@@ -103,6 +104,18 @@ class OpenAIEmbeddingsCore:
 
         except (RateLimitError, APITimeoutError, APIConnectionError) as e:
             return TransientException(e)
+        
+        except NotFoundError as e:
+            # During our CI tests, where we run a larger set of tests, we've seen an intermittent 404 error
+            # that is not coming from OpenAI.
+            # Usually 404 errors should be considered as fatal, as there is no use in retrying them,
+            # in this case some of the requests have succeeded, so we're marking this as transient and as such
+            # the request will be retried.
+            if e.response.headers.get("openai-processing-ms") == "0":
+                logger.error("404 with zero processing time → likely routing glitch - Marking this as transient.")
+                return TransientException(e)
+            else:
+                return FatalException(e)
 
         except OpenAIError as e:
             return FatalException(e)
