@@ -1,6 +1,10 @@
 # Meeting Transcript Processing with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/transcript_processing.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 This example demonstrates how to use Fenic to automatically extract actionable insights from engineering meeting transcripts using semantic extraction and structured data processing.
 

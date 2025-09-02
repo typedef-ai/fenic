@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, Generic, List, Type, TypeVar, Union
+from typing import Any, ClassVar, Dict, Generic, List, Mapping, Type, TypeVar, Union
 
 import pandas as pd
 import polars as pl
@@ -35,8 +35,27 @@ class MapExample(BaseModel):
     string or structured model used in a semantic.map operation.
     """
 
-    input: Dict[str, Any]
+    input: Mapping[str, Any]
     output: Union[str, BaseModel]
+
+    def __eq__(self, other: MapExample) -> bool:
+        """Compare MapExample instances, handling dictionary key order differences."""
+        if not isinstance(other, MapExample):
+            return False
+
+        # Compare outputs
+        if self.output != other.output:
+            return False
+
+        # Compare inputs, handling dictionary key order differences
+        if len(self.input) != len(other.input):
+            return False
+
+        # Convert to sorted items for comparison
+        self_items = sorted(self.input.items())
+        other_items = sorted(other.input.items())
+
+        return self_items == other_items
 
 
 class ClassifyExample(BaseModel):
@@ -57,8 +76,27 @@ class PredicateExample(BaseModel):
     used in a semantic.predicate operation.
     """
 
-    input: Dict[str, Any]
+    input: Mapping[str, Any]
     output: bool
+
+    def __eq__(self, other: PredicateExample) -> bool:
+        """Compare PredicateExample instances, handling dictionary key order differences."""
+        if not isinstance(other, PredicateExample):
+            return False
+
+        # Compare outputs
+        if self.output != other.output:
+            return False
+
+        # Compare inputs, handling dictionary key order differences
+        if len(self.input) != len(other.input):
+            return False
+
+        # Convert to sorted items for comparison
+        self_items = sorted(self.input.items())
+        other_items = sorted(other.input.items())
+
+        return self_items == other_items
 
 
 class JoinExample(BaseModel):
@@ -87,7 +125,7 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
     - Improving model performance without changing the underlying model
     """
 
-    example_class: ClassVar[Type] = None
+    example_class: ClassVar[Type[ExampleType]]
 
     def __init__(self, examples: List[ExampleType] = None):
         """Initialize a collection of semantic examples.
@@ -193,6 +231,17 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
             return False
         if len(self.examples) != len(other.examples):
             return False
+
+        # For MapExampleCollection and PredicateExampleCollection, compare examples directly since their __eq__ methods now handle key order differences
+        if isinstance(self, MapExampleCollection) and isinstance(other, MapExampleCollection):
+            # Compare examples directly since MapExample.__eq__ now handles key order differences
+            return all(example1 == example2 for example1, example2 in zip(self.examples, other.examples, strict=True))
+
+        if isinstance(self, PredicateExampleCollection) and isinstance(other, PredicateExampleCollection):
+            # Compare examples directly since PredicateExample.__eq__ now handles key order differences
+            return all(example1 == example2 for example1, example2 in zip(self.examples, other.examples, strict=True))
+
+        # For other collection types, use the DataFrame comparison
         return self.to_polars().equals(other.to_polars())
 
 class MapExampleCollection(BaseExampleCollection[MapExample]):

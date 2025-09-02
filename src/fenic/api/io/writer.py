@@ -22,6 +22,26 @@ class DataFrameWriter:
     """Interface used to write a DataFrame to external storage systems.
     
     Similar to PySpark's DataFrameWriter.
+
+    Supported External Storage Schemes:
+    - Amazon S3 (s3://)
+        - Format: s3://{bucket_name}/{path_to_file}
+
+        - Notes:
+            - Uses boto3 to aquire AWS credentials.
+
+        - Examples:
+            - s3://my-bucket/data.csv
+            - s3://my-bucket/data/*.parquet
+
+    - Local Files (file:// or implicit)
+        - Format: file://{absolute_or_relative_path}
+
+        - Notes:
+            - Paths without a scheme (e.g., ./data.csv or /tmp/data.parquet) are treated as local files
+        - Examples:
+            - file:///home/user/data.csv
+            - ./data/*.parquet
     """
 
     def __init__(self, dataframe: DataFrame):
@@ -66,7 +86,10 @@ class DataFrameWriter:
             ```
         """
         sink_plan = TableSink.from_session_state(
-            child=self._dataframe._logical_plan, table_name=table_name, mode=mode, session_state=self._dataframe._session_state
+            child=self._dataframe._logical_plan,
+            table_name=table_name,
+            mode=mode,
+            session_state=self._dataframe._session_state,
         )
 
         metrics = self._dataframe._session_state.execution.save_as_table(
@@ -78,16 +101,19 @@ class DataFrameWriter:
     def save_as_view(
         self,
         view_name: str,
+        description: str | None = None,
     ) -> None:
         """Saves the content of the DataFrame as a view.
 
         Args:
             view_name: Name of the view to save to
+            description: Optional human-readable view description to store in the catalog.
+
         Returns:
             None.
         """
         self._dataframe._session_state.execution.save_as_view(
-            logical_plan=self._dataframe._logical_plan, view_name=view_name
+            logical_plan=self._dataframe._logical_plan, view_name=view_name, view_description=description
         )
 
     def csv(

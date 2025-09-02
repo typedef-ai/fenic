@@ -108,9 +108,11 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         Returns:
             A Polars Series containing the final operator output (e.g., classification, label, etc).
         """
+         # TODO(rohitrastogi): We should pipeline the requests from message building, to inference, to postprocessing to avoid unnecessary memory usage.
         prompts = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
-        return pl.Series(self.postprocess(responses))
+        postprocessed_responses = self.postprocess(responses)
+        return pl.Series(postprocessed_responses)
 
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
         messages_batch = []

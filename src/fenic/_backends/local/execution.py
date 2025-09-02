@@ -115,9 +115,10 @@ class LocalExecution(BaseExecution):
                 )
             if mode == "ignore":
                 logger.warning(f"Table {table_name} already exists, ignoring write.")
-                return QueryMetrics()
+                return QueryMetrics(session_id=self.session_state.session_id)
             if mode == "append":
-                saved_schema = self.session_state.catalog.describe_table(table_name)
+                saved_table_metadata = self.session_state.catalog.describe_table(table_name)
+                saved_schema = saved_table_metadata.schema
                 plan_schema = logical_plan.schema()
                 if saved_schema != plan_schema:
                     raise PlanError(
@@ -141,13 +142,14 @@ class LocalExecution(BaseExecution):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        view_description: Optional[str] = None,
     ) -> None:
         """Save the table as a view in the current database."""
         self.session_state._check_active()
 
         if self.session_state.catalog.does_view_exist(view_name):
             raise CatalogError(f"View {view_name} already exists!")
-        self.session_state.catalog.create_view(view_name, logical_plan, False)
+        self.session_state.catalog.create_view(view_name, logical_plan, False, description=view_description)
 
      # infer schema and save_to_file methods are overridden in the engine execution
      # because the file IO is handled differently in cloud execution.
@@ -171,7 +173,7 @@ class LocalExecution(BaseExecution):
             )
         if mode == "ignore" and file_exists:
             logger.warning(f"File {file_path} already exists, ignoring write.")
-            return QueryMetrics()
+            return QueryMetrics(session_id=self.session_state.session_id)
 
         physical_plan = self.transpiler.transpile(logical_plan)
         try:

@@ -254,7 +254,7 @@ class Session:
         if not self._session_state.catalog.does_view_exist(view_name):
             raise CatalogError(f"View {view_name} does not exist")
 
-        view_plan = self._session_state.catalog.describe_view(view_name)
+        view_plan = self._session_state.catalog.get_view_plan(view_name)
         validate_view(view_name, view_plan, self._session_state)
 
         return DataFrame._from_logical_plan(
@@ -335,7 +335,10 @@ class Session:
         )
 
     def stop(self):
-        """Stops the session and closes all connections."""
+        """Stops the session and closes all connections.
+
+        A summary of your session's metrics will print once you stop your session.
+        """
         self._session_state.stop()
 
 

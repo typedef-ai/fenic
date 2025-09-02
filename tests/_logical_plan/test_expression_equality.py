@@ -23,6 +23,7 @@ from fenic.core._logical_plan.expressions.basic import (
     ArrayContainsExpr,
     ArrayExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     CastExpr,
     CoalesceExpr,
     ColumnExpr,
@@ -85,6 +86,7 @@ from fenic.core._logical_plan.expressions.text import (
     JinjaExpr,
     LikeExpr,
     RecursiveTextChunkExpr,
+    RecursiveTextChunkExprConfiguration,
     RegexpSplitExpr,
     ReplaceExpr,
     RLikeExpr,
@@ -94,6 +96,7 @@ from fenic.core._logical_plan.expressions.text import (
     StripCharsExpr,
     StrLengthExpr,
     TextChunkExpr,
+    TextChunkExprConfiguration,
     TextractExpr,
     TsParseExpr,
 )
@@ -263,6 +266,38 @@ class TestBasicExpressions:
         # Different return type
         udf4 = UDFExpr(func1, [col], StringType)
         assert udf1 != udf4
+
+    def test_async_udf_expr(self):
+        """Test AsyncUDFExpr compares func identity, return_type, and async-specific attributes."""
+        async def func1(x): return x * 2
+        async def func2(x): return x * 3
+
+        col = ColumnExpr("x")
+
+        # Same function and all attributes
+        audf1 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        audf2 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 == audf2
+
+        # Different function
+        audf3 = AsyncUDFExpr(func2, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf3
+
+        # Different return type
+        audf4 = AsyncUDFExpr(func1, [col], StringType, max_concurrency=10, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf4
+
+        # Different max_concurrency
+        audf5 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=20, timeout_seconds=30, num_retries=2)
+        assert audf1 != audf5
+
+        # Different timeout_seconds
+        audf6 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=60, num_retries=2)
+        assert audf1 != audf6
+
+        # Different num_retries
+        audf7 = AsyncUDFExpr(func1, [col], IntegerType, max_concurrency=10, timeout_seconds=30, num_retries=3)
+        assert audf1 != audf7
 
     def test_is_null_expr(self):
         """Test IsNullExpr compares is_null flag."""
@@ -683,20 +718,40 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same configuration
-        chunk1 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN)
-        chunk2 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN)
+        chunk1 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
+        chunk2 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 == chunk2
 
         # Different desired_chunk_size
-        chunk3 = TextChunkExpr(col, 200, 10, ChunkLengthFunction.TOKEN)
+        chunk3 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=200,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 != chunk3
 
         # Different chunk_overlap_percentage
-        chunk4 = TextChunkExpr(col, 100, 20, ChunkLengthFunction.TOKEN)
+        chunk4 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=20,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+        ))
         assert chunk1 != chunk4
 
         # Different chunk_length_function_name
-        chunk5 = TextChunkExpr(col, 100, 10, ChunkLengthFunction.WORD)
+        chunk5 = TextChunkExpr(col, TextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.WORD,
+        ))
         assert chunk1 != chunk5
 
     def test_recursive_text_chunk_expr(self):
@@ -704,13 +759,46 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same configuration
-        chunk1 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.ASCII)
-        chunk2 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.ASCII)
+        chunk1 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.ASCII,
+        ))
+        chunk2 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.ASCII,
+        ))
         assert chunk1 == chunk2
 
         # Different chunking_character_set_name
-        chunk3 = RecursiveTextChunkExpr(col, 100, 10, ChunkLengthFunction.TOKEN, ChunkCharacterSet.UNICODE)
+        chunk3 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.UNICODE,
+        ))
         assert chunk1 != chunk3
+
+        # Different chunk_character_set_custom_characters
+        chunk4 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.CUSTOM,
+            chunking_character_set_custom_characters=["a", "b", "c"],
+        ))
+
+        chunk5 = RecursiveTextChunkExpr(col, RecursiveTextChunkExprConfiguration(
+            desired_chunk_size=100,
+            chunk_overlap_percentage=10,
+            chunk_length_function_name=ChunkLengthFunction.TOKEN,
+            chunking_character_set_name=ChunkCharacterSet.CUSTOM,
+            chunking_character_set_custom_characters=["a", "b", "c", "d"],
+        ))
+        assert chunk4 != chunk5
 
     def test_count_tokens_expr(self):
         """Test CountTokensExpr has no specific attributes."""
@@ -781,12 +869,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        rlike1 = RLikeExpr(col, r"\d+")
-        rlike2 = RLikeExpr(col, r"\d+")
+        rlike1 = RLikeExpr(col, LiteralExpr(r"\d+", StringType))
+        rlike2 = RLikeExpr(col, LiteralExpr(r"\d+", StringType))
         assert rlike1 == rlike2
 
         # Different pattern
-        rlike3 = RLikeExpr(col, r"[a-z]+")
+        rlike3 = RLikeExpr(col, LiteralExpr(r"[a-z]+", StringType))
         assert rlike1 != rlike3
 
     def test_like_expr(self):
@@ -794,12 +882,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        like1 = LikeExpr(col, "hello%")
-        like2 = LikeExpr(col, "hello%")
+        like1 = LikeExpr(col, LiteralExpr("hello%", StringType))
+        like2 = LikeExpr(col, LiteralExpr("hello%", StringType))
         assert like1 == like2
 
         # Different pattern
-        like3 = LikeExpr(col, "world%")
+        like3 = LikeExpr(col, LiteralExpr("world%", StringType))
         assert like1 != like3
 
     def test_ilike_expr(self):
@@ -807,12 +895,12 @@ class TestTextExpressions:
         col = ColumnExpr("text")
 
         # Same pattern
-        ilike1 = ILikeExpr(col, "HELLO%")
-        ilike2 = ILikeExpr(col, "HELLO%")
+        ilike1 = ILikeExpr(col, LiteralExpr("HELLO%", StringType))
+        ilike2 = ILikeExpr(col, LiteralExpr("HELLO%", StringType))
         assert ilike1 == ilike2
 
         # Different pattern
-        ilike3 = ILikeExpr(col, "WORLD%")
+        ilike3 = ILikeExpr(col, LiteralExpr("WORLD%", StringType))
         assert ilike1 != ilike3
 
     def test_ts_parse_expr(self):
@@ -1302,6 +1390,8 @@ class TestCrossTypeInequality:
         """Test complex expression types are never equal to each other."""
         col = ColumnExpr("x")
 
+        async def async_func(x): return x
+
         # Different categories of expressions
         arith = ArithmeticExpr(col, col, Operator.PLUS)
         jq = JqExpr(col, ".foo")
@@ -1309,8 +1399,9 @@ class TestCrossTypeInequality:
         when = WhenExpr(None, EqualityComparisonExpr(col, LiteralExpr(1, IntegerType), Operator.EQ), col)
         sum_expr = SumExpr(col)
         embed = EmbeddingNormalizeExpr(col)
+        async_udf = AsyncUDFExpr(async_func, [col], IntegerType)
 
-        exprs = [arith, jq, md, when, sum_expr, embed]
+        exprs = [arith, jq, md, when, sum_expr, embed, async_udf]
         for i, expr1 in enumerate(exprs):
             for j, expr2 in enumerate(exprs):
                 if i != j:

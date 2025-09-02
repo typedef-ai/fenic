@@ -18,9 +18,9 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel
 from tqdm import tqdm
 
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
@@ -28,6 +28,8 @@ from fenic._inference.rate_limit_strategy import (
 )
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_provider import ModelProviderClass
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
 # Type variables
@@ -73,7 +75,7 @@ class QueueItem(Generic[RequestT]):
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
-    """Base client for interacting with language models.
+    """Base client for interacting with language and embedding models.
 
     This abstract base class provides a robust framework for interacting with language models,
     handling rate limiting, request queuing, retries, and deduplication. It manages concurrent
@@ -86,6 +88,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     Attributes:
         model (str): The name or identifier of the model
         model_provider (ModelProvider): The provider of the model (e.g., OPENAI, ANTHROPIC)
+        model_provider_class (ModelProviderClass): A class that implements common provider logic
         rate_limit_strategy (RateLimitStrategy): Strategy for rate limiting requests
         token_counter (TiktokenTokenCounter): Counter for estimating token usage
     """
@@ -94,6 +97,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             self,
             model: str,
             model_provider: ModelProvider,
+            model_provider_class: ModelProviderClass,
             rate_limit_strategy: RateLimitStrategy,
             token_counter: TiktokenTokenCounter,
             queue_size: int = 100,
@@ -106,6 +110,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Args:
             model: The name or identifier of the model
             model_provider: The model provider (OPENAI, ANTHROPIC)
+            model_provider_class: The model provider class (OpenAIModelProvider, AnthropicModelProvider, etc.)
             alias: The Model Client's alias, for logging purposes
             rate_limit_strategy: Strategy for rate limiting requests
             token_counter: Implementation for predicting input token counts
@@ -116,6 +121,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         self.model = model
         self.model_provider = model_provider
+        self.model_provider_class = model_provider_class
         self.rate_limit_strategy = rate_limit_strategy
         self.context_tokens_per_minute = rate_limit_strategy.context_tokens_per_minute()
         self.token_counter = token_counter
@@ -141,7 +147,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.thread_exceptions_lock = threading.Lock()
 
         # Register with the event loop manager
-        ModelClientManager().register_client(self)
+        self._event_loop = EventLoopManager().get_or_create_loop()
+        asyncio.run_coroutine_threadsafe(self._process_queue(), self._event_loop)
 
         logger.info(
             f"Initialized client for model {model} with rate limit strategy {self.rate_limit_strategy}"
@@ -227,10 +234,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             return self._estimate_structured_output_overhead(request.structured_output)
         return 0
 
-    def _estimate_structured_output_overhead(self, response_format: type[BaseModel]) -> int:
+    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
         """Default structured output token estimation. Override for provider-specific logic."""
 
-        schema_str = json.dumps(response_format.model_json_schema(), separators=(',', ':'))
+        schema_str = json.dumps(response_format.schema, separators=(',', ':'))
         return self.count_tokens(schema_str)
 
 
@@ -253,7 +260,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         exception = Exception(f"Model client for {self.model} has been shut down")
 
-        ModelClientManager().event_loop.call_soon_threadsafe(self.shutdown_event.set)
+        self._event_loop.call_soon_threadsafe(self.shutdown_event.set)
 
         if self.pending_requests:
             for queue_item in self.pending_requests:
@@ -275,11 +282,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 break
 
         cancel_future = asyncio.run_coroutine_threadsafe(
-            self._cancel_in_flight_requests(), ModelClientManager().event_loop
+            self._cancel_in_flight_requests(), self._event_loop
         )
         cancel_future.result()
 
-        ModelClientManager().unregister_client(self)
+        EventLoopManager().release_loop()
 
     def make_batch_requests(
             self,
@@ -396,8 +403,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         await self.request_queue.put(queue_item)
 
-
-
+    # TODO(rohitrastogi): We should stream the requests to the model client and pipe results back from the background thread to the main thread to avoid unnecessary memory usage.
     def _make_batch_requests(self,
                              requests: List[Optional[RequestT]],
                              operation_name: str,
@@ -486,7 +492,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
                         self._enqueue_request(queue_item),
-                        ModelClientManager().event_loop,
+                        self._event_loop,
                     )
                     enqueue_future.result()
 
@@ -553,6 +559,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             raise
         except Exception as e:
             logger.error(f"Error in worker for model {self.model}: {e}", exc_info=True)
+
 
     async def _process_single_request(self, queue_item: QueueItem[RequestT]):
         """Process a single request from the queues.
@@ -692,89 +699,3 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         for task in self.inflight_requests:
             task.cancel()
         await asyncio.gather(*self.inflight_requests, return_exceptions=True)
-
-
-class ModelClientManager:
-    """Manages a shared asyncio event loop for multiple ModelClient instances.
-    Ensures that all clients run on the same loop for efficient resource management.
-    """
-
-    _instance = None
-    _lock = threading.Lock()
-
-    def __new__(cls):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super(ModelClientManager, cls).__new__(cls)
-                cls._instance._initialize()
-            return cls._instance
-
-    def _initialize(self):
-        """Initializes the ModelClientManager, creating the event loop if it doesn't exist."""
-        self.registered_clients: Set[ModelClient] = set()
-        self.event_loop: Optional[asyncio.AbstractEventLoop] = None
-        self.background_thread: Optional[threading.Thread] = None
-        self._maybe_create_event_loop()
-
-    def register_client(self, client: ModelClient):
-        """Registers a ModelClient with the manager and starts its processing task on the shared event loop.
-
-        Args:
-            client: The client to register.
-        """
-        with self._lock:
-            self._maybe_create_event_loop()
-            self.registered_clients.add(client)
-            asyncio.run_coroutine_threadsafe(client._process_queue(), self.event_loop)
-
-    def unregister_client(self, client: ModelClient):
-        """Unregisters a ModelClient from the manager and shuts down the event loop if no clients remain.
-
-        Args:
-            client: The client to unregister.
-        """
-        loop_to_shutdown = None
-        thread_to_join = None
-        with self._lock:
-            self.registered_clients.discard(client)
-            if (
-                    not self.registered_clients
-                    and self.event_loop
-                    and self.event_loop.is_running()
-            ):
-                loop_to_shutdown = self.event_loop
-                thread_to_join = self.background_thread
-                self.event_loop = None
-                self.background_thread = None
-
-        if loop_to_shutdown:
-            cancel_future = asyncio.run_coroutine_threadsafe(
-                _cancel_event_loop_tasks(loop_to_shutdown), loop_to_shutdown
-            )
-            cancel_future.result()
-            loop_to_shutdown.call_soon_threadsafe(loop_to_shutdown.stop)
-            if thread_to_join and thread_to_join.is_alive():
-                thread_to_join.join()
-            loop_to_shutdown.close()
-
-    def _maybe_create_event_loop(self):
-        """Creates and starts a dedicated event loop in a background thread if one doesn't exist."""
-        if self.event_loop is None or self.event_loop.is_closed():
-            self.event_loop = asyncio.new_event_loop()
-            self.background_thread = threading.Thread(
-                target=self.event_loop.run_forever, daemon=True
-            )
-            self.background_thread.start()
-
-
-async def _cancel_event_loop_tasks(loop: asyncio.AbstractEventLoop):
-    """Cancels all pending tasks in the given asyncio event loop, except the current task.
-
-    Args:
-        loop: The event loop to cancel tasks for.
-    """
-    asyncio.set_event_loop(loop)
-    tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)

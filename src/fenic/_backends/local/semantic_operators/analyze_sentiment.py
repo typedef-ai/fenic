@@ -15,7 +15,10 @@ from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
-from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._logical_plan.resolved_types import (
+    ResolvedModelAlias,
+    ResolvedResponseFormat,
+)
 from fenic.core.types import ClassifyExample, ClassifyExampleCollection
 
 logger = logging.getLogger(__name__)
@@ -111,6 +114,7 @@ EXAMPLES.create_example(
 )
 
 SENTIMENT_ANALYSIS_MODEL = create_classification_pydantic_model(["positive", "negative", "neutral"])
+SENTIMENT_ANALYSIS_FORMAT = ResolvedResponseFormat.from_pydantic_model(SENTIMENT_ANALYSIS_MODEL, generate_struct_type=False)
 
 class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
     SYSTEM_PROMPT = """You are a sentiment analysis expert.
@@ -139,7 +143,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                 inference_config=InferenceConfiguration(
                     max_output_tokens=MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
                     temperature=temperature,
-                    response_format=SENTIMENT_ANALYSIS_MODEL,
+                    response_format=SENTIMENT_ANALYSIS_FORMAT,
                     model_profile=model_alias.profile if model_alias else None,
                 ),
             ),

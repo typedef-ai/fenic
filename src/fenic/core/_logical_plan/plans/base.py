@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types.schema import Schema
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan import LogicalExpr
 
 
 @dataclass
@@ -116,5 +119,42 @@ class LogicalPlan(ABC):
 
         Returns:
             A new logical plan instance of the same type with updated children
+        """
+        pass
+
+    @abstractmethod
+    def _eq_specific(self, other: LogicalPlan) -> bool:
+        """Returns True if the plan has equal non plan attributes to the other plan.
+
+        Args:
+            other: The other plan to compare to.
+        """
+        pass
+
+    def __eq__(self, other: LogicalPlan) -> bool:
+        if not isinstance(other, LogicalPlan):
+            return False
+        if type(self) is not type(other):
+            return False
+        if self.schema() != other.schema():
+            return False
+        if not self._eq_specific(other):
+            return False
+        self_children = self.children()
+        other_children = other.children()
+        if len(self_children) != len(other_children):
+            return False
+        return all(
+            child1 == child2
+            for child1, child2 in zip(self_children, other_children, strict=True)
+        )
+
+    @abstractmethod
+    def exprs(self) -> List["LogicalExpr"]:
+        """Return a flat list of all LogicalExprs referenced by this plan node.
+
+        Subclasses should include every expression they hold, whether stored as a
+        single variable, inside a list, or in a dictionary. Nodes without
+        expressions should return an empty list.
         """
         pass

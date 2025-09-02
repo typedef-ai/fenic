@@ -1,6 +1,10 @@
 # Podcast Summarization with Fenic
 
-[View in Github](https://github.com/typedef-ai/fenic/blob/main/examples/podcast_summarization/README.md)
+<p>
+  <a href="https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/podcast_summarization/podcast_summarization.ipynb">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg">
+  </a>
+</p>
 
 This example demonstrates comprehensive podcast transcript summarization using Fenic's semantic operations and unstructured data processing capabilities.
 

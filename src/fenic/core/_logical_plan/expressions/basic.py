@@ -83,6 +83,25 @@ class LiteralExpr(LogicalExpr):
     def _eq_specific(self, other: LiteralExpr) -> bool:
         return self.literal == other.literal and self.data_type == other.data_type
 
+class UnresolvedLiteralExpr(LogicalExpr):
+    def __init__(self, data_type: DataType, parameter_name: str):
+        self.data_type = data_type
+        self.parameter_name = parameter_name
+
+
+    def __str__(self) -> str:
+        return f"param({self.parameter_name})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        return ColumnField(str(self), self.data_type)
+
+    def children(self) -> List[LogicalExpr]:
+        return []
+
+    def _eq_specific(self, other: UnresolvedLiteralExpr) -> bool:
+        return (self.parameter_name == other.parameter_name and
+                self.data_type == other.data_type)
+
 
 class AliasExpr(LogicalExpr):
     """Expression representing a column alias."""
@@ -228,6 +247,15 @@ class StructExpr(ValidatedDynamicSignature, UnparameterizedExpr, LogicalExpr):
 
 
 class UDFExpr(LogicalExpr):
+    """User-defined function expression.
+    
+    Warning:
+        UDFExpr cannot be serialized and is not supported in cloud execution.
+        This expression contains arbitrary Python code that cannot be transmitted
+        to remote workers. Use built-in fenic functions for cloud compatibility.
+    """
+
+    function_name = "udf"
     def __init__(
         self,
         func: Callable,
@@ -255,7 +283,50 @@ class UDFExpr(LogicalExpr):
         return self.func is other.func and self.return_type == other.return_type
 
 
+class AsyncUDFExpr(LogicalExpr):
+    """Expression for async user-defined functions with configurable concurrency and retries."""
+    
+    def __init__(
+        self,
+        func: Callable,
+        args: List[LogicalExpr],
+        return_type: DataType,
+        max_concurrency: int = 10,
+        timeout_seconds: float = 30,
+        num_retries: int = 0,
+    ):
+        self.func = func
+        self.args = args
+        self.return_type = return_type
+        self.max_concurrency = max_concurrency
+        self.timeout_seconds = timeout_seconds
+        self.num_retries = num_retries
+
+    def __str__(self):
+        args_str = ", ".join(str(arg) for arg in self.args)
+        return f"{self.func.__name__}({args_str})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        for arg in self.args:
+            _ = arg.to_column_field(plan, session_state)
+        return ColumnField(str(self), self.return_type)
+
+    def children(self) -> List[LogicalExpr]:
+        return self.args
+
+    def _eq_specific(self, other: AsyncUDFExpr) -> bool:
+        # For dynamic UDFs, we can only check identity since its tricky to compare Callables
+        return (
+            self.func is other.func 
+            and self.return_type == other.return_type
+            and self.max_concurrency == other.max_concurrency
+            and self.timeout_seconds == other.timeout_seconds
+            and self.num_retries == other.num_retries
+        )
+
+
 class IsNullExpr(LogicalExpr):
+
     def __init__(self, expr: LogicalExpr, is_null: bool):
         self.expr = expr
         self.is_null = is_null

@@ -116,12 +116,11 @@ def register_text_signatures():
         )
     )
 
-    # String matching functions - string input (patterns handled as literals)
     FunctionRegistry.register(
         "text.rlike",
         FunctionSignature(
             function_name="text.rlike",
-            type_signature=Exact([StringType]),  # string input only
+            type_signature=Exact([StringType, StringType]),  # expr, pattern
             return_type=BooleanType
         )
     )
@@ -130,7 +129,7 @@ def register_text_signatures():
         "text.like",
         FunctionSignature(
             function_name="text.like",
-            type_signature=Exact([StringType]),  # string input only
+            type_signature=Exact([StringType, StringType]),  # expr, pattern
             return_type=BooleanType
         )
     )
@@ -139,7 +138,7 @@ def register_text_signatures():
         "text.ilike",
         FunctionSignature(
             function_name="text.ilike",
-            type_signature=Exact([StringType]),  # string input only
+            type_signature=Exact([StringType, StringType]),  # expr, pattern
             return_type=BooleanType
         )
     )

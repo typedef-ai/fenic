@@ -18,6 +18,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
     validate_output_format,
@@ -117,6 +118,10 @@ def map(
             exprs.append(column.alias(var_name)._logical_expr)
 
     resolved_model_alias = _resolve_model_alias(model_alias)
+    if response_format:
+        resolved_response_format = ResolvedResponseFormat.from_pydantic_model(response_format)
+    else:
+        resolved_response_format = None
     return Column._from_logical_expr(
         SemanticMapExpr(
             prompt,
@@ -125,7 +130,7 @@ def map(
             max_tokens=max_output_tokens,
             temperature=temperature,
             model_alias=resolved_model_alias,
-            response_format=response_format,
+            response_format=resolved_response_format,
             examples=examples,
         )
     )
@@ -186,12 +191,13 @@ def extract(
         raise ValidationError(f"Invalid response format: {str(e)}") from None
 
     resolved_model_alias = _resolve_model_alias(model_alias)
+    resolved_response_format = ResolvedResponseFormat.from_pydantic_model(response_format)
     return Column._from_logical_expr(
         SemanticExtractExpr(
             Column._from_col_or_name(column)._logical_expr,
             max_tokens=max_output_tokens,
             temperature=temperature,
-            schema=response_format,
+            response_format=resolved_response_format,
             model_alias=resolved_model_alias,
         )
     )

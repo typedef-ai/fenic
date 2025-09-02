@@ -3,16 +3,21 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
+from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
+
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
 import json
+import logging
 
 import numpy as np
 import polars as pl
 import pyarrow as pa
 
 import fenic._backends.local.polars_plugins  # noqa: F401
+from fenic._backends.local.async_udf_stream import AsyncUDFSyncStream
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._backends.local.semantic_operators import (
     AnalyzeSentiment,
 )
@@ -36,6 +41,7 @@ from fenic.core._logical_plan.expressions import (
     ArrayExpr,
     ArrayJoinExpr,
     ArrayLengthExpr,
+    AsyncUDFExpr,
     AvgExpr,
     BooleanExpr,
     ByteLengthExpr,
@@ -109,8 +115,8 @@ from fenic.core._logical_plan.expressions import (
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
     convert_custom_dtype_to_polars,
-    convert_pydantic_type_to_custom_struct_type,
 )
+from fenic.core._utils.type_inference import infer_dtype_from_pyobj
 from fenic.core.error import InternalError
 from fenic.core.types.datatypes import (
     ArrayType,
@@ -126,6 +132,7 @@ from fenic.core.types.datatypes import (
 )
 from fenic.core.types.enums import FuzzySimilarityMethod
 
+logger = logging.getLogger(__name__)
 
 class ExprConverter:
     def __init__(self, session_state: LocalSessionState):
@@ -168,6 +175,8 @@ class ExprConverter:
 
             if isinstance(data_type, ArrayType):
                 elems = [_literal_to_polars_expr(v, data_type.element_type) for v in value]
+                if not elems:
+                    return pl.lit([], dtype=convert_custom_dtype_to_polars(data_type))
                 return pl.concat_list(elems)
 
             if isinstance(data_type, StructType):
@@ -182,6 +191,13 @@ class ExprConverter:
             raise ValueError(f"Unsupported data type {data_type} for literal conversion")
 
         return _literal_to_polars_expr(logical.literal, logical.data_type)
+
+    @_convert_expr.register
+    def _convert_unresolved_literal_expr(self, logical: UnresolvedLiteralExpr) -> pl.Expr:
+        raise InternalError(
+            f"An unresolved literal expression was found in the plan: {logical}, which was not expected. "
+            "All unresolved literal expressions should have been resolved by the binder."
+        )
 
 
     @_convert_expr.register
@@ -363,6 +379,41 @@ class ExprConverter:
             return_dtype=convert_custom_dtype_to_polars(logical.return_type),
         )
 
+    @_convert_expr.register(AsyncUDFExpr)
+    def _convert_async_udf_expr(self, logical: AsyncUDFExpr) -> pl.Expr:
+        # Create struct from input columns
+        input_struct = pl.struct([self._convert_expr(arg) for arg in logical.args])
+
+        # Apply async function via map_batches
+        def execute_async_udf(batch: pl.Series) -> pl.Series:
+            # Extract struct as an iterable of dicts [{col1: val1, col2: val2}, ...]
+            items = ([row[name] for name in batch.struct.fields] for row in batch)
+
+            # Use context manager for automatic loop lifecycle management
+            with EventLoopManager().loop_context() as loop:
+                async_udf = AsyncUDFSyncStream(
+                    lambda item: logical.func(*item),
+                    loop=loop,
+                    max_concurrency=logical.max_concurrency,
+                    timeout=logical.timeout_seconds,
+                    num_retries=logical.num_retries
+                )
+
+                def results_generator():
+                    for result in async_udf.call(items):
+                        if isinstance(result, Exception):
+                            yield None
+                        else:
+                            # Runtime type checking using Fenic's existing type inference
+                            if result:
+                                inferred_type = infer_dtype_from_pyobj(result)
+                                if inferred_type != logical.return_type:
+                                    raise TypeError(f"Expected {logical.return_type}, got {inferred_type} in async UDF")
+                            yield result
+
+                return pl.Series(results_generator(), dtype=convert_custom_dtype_to_polars(logical.return_type))
+
+        return input_struct.map_batches(execute_async_udf)
 
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:
@@ -455,10 +506,10 @@ class ExprConverter:
             strict=logical.strict,
         )
 
-        if logical.struct_type:
+        if logical.response_format:
             return jinja_expr.map_batches(
                 sem_map_fn,
-                return_dtype=convert_custom_dtype_to_polars(logical.struct_type)
+                return_dtype=convert_custom_dtype_to_polars(logical.response_format.struct_type),
             )
         return jinja_expr.map_batches(
             sem_map_fn,
@@ -484,7 +535,7 @@ class ExprConverter:
 
         model = "cl100k_base"
         encoding = tiktoken.get_encoding(model)
-        config = logical.chunk_configuration
+        config = logical.chunking_configuration
         chunk_overlap = round(
             config.chunk_overlap_percentage * (config.desired_chunk_size / 100.0)
         )
@@ -540,7 +591,7 @@ class ExprConverter:
         def sem_ext_fn(batch: pl.Series) -> pl.Series:
             return SemanticExtract(
                 input=batch,
-                schema=logical.schema,
+                response_format=logical.response_format,
                 model=self.session_state.get_language_model(logical.model_alias),
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
@@ -550,7 +601,7 @@ class ExprConverter:
         return self._convert_expr(logical.expr).map_batches(
             sem_ext_fn,
             return_dtype=convert_custom_dtype_to_polars(
-                convert_pydantic_type_to_custom_struct_type(logical.schema)
+                logical.response_format.struct_type
             ),
         )
 
@@ -648,11 +699,21 @@ class ExprConverter:
 
 
     # Group like/regex expressions together
-    def _handle_regex_like_expr(self, logical, pattern_field="pattern", literal: bool = False) -> pl.Expr:
+    def _handle_regex_like_expr(self, logical) -> pl.Expr:
         physical_expr = self._convert_expr(logical.expr)
-        pattern = getattr(logical, pattern_field)
-        return physical_expr.str.contains(pattern=pattern, literal=literal)
+        pattern = self._convert_expr(logical.pattern)
+        case_insensitive = True if isinstance(logical, ILikeExpr) else False
 
+        strict = False
+        if isinstance(logical.pattern, LiteralExpr) and logical.pattern.data_type == StringType:
+            # If the pattern is a "string" literal, then make sure that strict is True.
+            strict = True
+
+        if isinstance(logical, ILikeExpr) or isinstance(logical, LikeExpr):
+            # Convert the LIKE pattern to a regex pattern
+            pattern = _like_to_regex(pattern, case_insensitive)
+
+        return physical_expr.str.contains(pattern=pattern, literal=False, strict=strict)
 
     @_convert_expr.register(RLikeExpr)
     @_convert_expr.register(LikeExpr)
@@ -1211,3 +1272,23 @@ def _convert_udf_to_map_elements(udf: Callable) -> Callable:
         return udf(*column_values)
 
     return adapted_udf
+
+def _like_to_regex(pattern_expr: pl.Expr, case_insensitive: bool = False) -> pl.Expr:
+    """Convert a LIKE pattern to a regex pattern."""
+    # Escape regex metacharacters except SQL wildcards % and _
+    # Character class: [](){}^$.|+\ and the backslash itself
+    meta_class = r"([\\\[\]\(\)\{\}\^\$\.\|\+])"
+
+    regex_expr = (
+        pattern_expr
+        # Escape each meta character by prefixing with a backslash
+        .str.replace_all(meta_class, r"\\\1")
+        # Translate SQL wildcards to regex
+        .str.replace_all("%", ".*", literal=True)
+        .str.replace_all("_", ".",  literal=True)
+    )
+
+    if case_insensitive:
+        return (pl.lit("(?i)") + regex_expr)
+
+    return regex_expr

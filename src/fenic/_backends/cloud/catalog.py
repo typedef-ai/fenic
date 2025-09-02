@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import threading
 from dataclasses import dataclass
@@ -6,8 +7,6 @@ from datetime import datetime
 from typing import Any, Coroutine, Dict, List, Optional
 from uuid import UUID
 
-import polars as pl
-import pyarrow as pa
 from fenic_cloud.hasura_client.generated_graphql_client.client import (
     CatalogDispatchInput,
 )
@@ -28,6 +27,7 @@ from fenic_cloud.hasura_client.generated_graphql_client.load_table import (
     LoadTableSimpleCatalogLoadTable,
 )
 
+from fenic._backends.cloud.cloud_catalog_utils import convert_custom_dtype_to_pyarrow
 from fenic._backends.cloud.manager import CloudSessionManager
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
@@ -40,10 +40,8 @@ from fenic._backends.utils.catalog_utils import (
 )
 from fenic.core._interfaces import BaseCatalog
 from fenic.core._logical_plan.plans import LogicalPlan
-from fenic.core._utils.schema import (
-    convert_custom_dtype_to_polars,
-    convert_polars_schema_to_custom_schema,
-)
+from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.core._serde.proto.types import DataTypeProto
 from fenic.core.error import (
     CatalogAlreadyExistsError,
     CatalogError,
@@ -53,7 +51,9 @@ from fenic.core.error import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
-from fenic.core.types import Schema
+from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.types import DatasetMetadata, Schema
+from fenic.core.types.schema import ColumnField
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ class CloudCatalog(BaseCatalog):
                 self.current_database_name,
             )
 
-    def describe_table(self, table_name: str) -> Schema:
+    def describe_table(self, table_name: str) -> DatasetMetadata:
         """Get the schema of the specified table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
@@ -253,11 +253,19 @@ class CloudCatalog(BaseCatalog):
             ):
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
 
-            return self._get_table_details(
+            schema =  self._get_table_details(
                 table_identifier.catalog,
                 table_identifier.db,
                 table_identifier.table,
             )
+            #TODO(bcallender): Modify fenic_cloud's graphql client to return the description.
+            return DatasetMetadata(schema=schema, description=None)
+
+    def set_table_description(self, table_name: str, description: str) -> None:
+        """Set the description for a table."""
+        raise NotImplementedError(
+            "Set table description not implemented for cloud catalog"
+        )
 
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table from the current database."""
@@ -271,11 +279,12 @@ class CloudCatalog(BaseCatalog):
         location: str,
         ignore_if_exists: bool = True,
         file_format: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new table in the current database."""
         with self.lock:
             return self._create_table(
-                table_name, schema, location, ignore_if_exists, file_format
+                table_name, schema, location, ignore_if_exists, file_format, description
             )
 
     def create_view(
@@ -283,6 +292,7 @@ class CloudCatalog(BaseCatalog):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         # TODO: Implement view creation for the cloud
@@ -297,7 +307,14 @@ class CloudCatalog(BaseCatalog):
             "Drop view not implemented for cloud catalog"
         )
 
-    def describe_view(self, view_name: str) -> LogicalPlan:
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
+        # TODO: Implement describe view for the cloud
+        raise NotImplementedError(
+            "get view plan not implemented for cloud catalog"
+        )
+
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified view."""
         # TODO: Implement describe view for the cloud
         raise NotImplementedError(
             "Describe view not implemented for cloud catalog"
@@ -315,6 +332,50 @@ class CloudCatalog(BaseCatalog):
         # TODO: Implement does view exist for the cloud
         raise NotImplementedError(
             "Method to check if view exists not implemented for cloud catalog"
+        )
+
+    def set_view_description(self, view_name: str, description: str) -> bool:
+        """Set the description for a view."""
+        # TODO: Implement set view description for the cloud
+        raise NotImplementedError(
+            "Set view description not implemented for cloud catalog"
+        )
+
+    def get_tool(
+        self,
+        tool_name: str,
+        ignore_if_not_exists: bool = True,
+    ) -> ParameterizedToolDefinition:
+        """Find and return the tool from the current database."""
+        # TODO: Implement get tool for the cloud
+        raise NotImplementedError(
+            "Get tool not implemented for cloud catalog"
+        )
+
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: LogicalPlan,
+        result_limit: int = 50,
+        ignore_if_exists: bool = True,
+    ) -> bool:
+        """Create a new tool in the current database."""
+        raise NotImplementedError(
+            "Create tool not implemented for cloud catalog"
+        )
+
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current database."""
+        raise NotImplementedError(
+            "Drop tool not implemented for cloud catalog"
+        )
+
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """Get a list of all tools in the current database."""
+        raise NotImplementedError(
+            "List tools not implemented for cloud catalog"
         )
 
     def _drop_database(
@@ -568,6 +629,7 @@ class CloudCatalog(BaseCatalog):
         location: str,
         ignore_if_exists: bool = True,
         file_format: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> bool:
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.current_catalog_name, self.current_database_name
@@ -608,7 +670,7 @@ class CloudCatalog(BaseCatalog):
                 table=CreateTableInput(
                     name=table_identifier.table,
                     canonical_name=table_identifier.table.casefold(),
-                    description=None,
+                    description=description,
                     external=False,
                     location=location,
                     file_format=fixed_file_format,
@@ -660,14 +722,17 @@ class CloudCatalog(BaseCatalog):
     @staticmethod
     def _get_schema_input_from_schema(schema: Schema) -> SchemaInput:
         fields: List[NestedFieldInput] = []
+        context = SerdeContext()
         for column_field in schema.column_fields:
+            data_type_proto = context.serialize_data_type(
+                "data_type",
+                column_field.data_type
+            ).SerializeToString()
             fields.append(
                 NestedFieldInput(
                     name=column_field.name,
-                    data_type=str(column_field.data_type),
-                    arrow_data_type=str(
-                        convert_custom_dtype_to_polars(column_field.data_type)
-                    ),
+                    data_type=base64.b64encode(data_type_proto).decode("utf-8"),
+                    arrow_data_type=str(convert_custom_dtype_to_pyarrow(column_field.data_type)),
                     doc=None,
                     nullable=False,
                     identifier_field=None,
@@ -678,25 +743,17 @@ class CloudCatalog(BaseCatalog):
 
     @staticmethod
     def _get_table_schema(table_details: LoadTableSimpleCatalogLoadTable) -> Schema:
-        schema = table_details.schema_
-        pa_fields = []
-        for field in schema.fields:
-            pa_fields.append(
-                pa.field(
-                    field.name,
-                    CloudCatalog._get_schema_type_to_pyarrow(field.arrow_data_type),
+        context = SerdeContext()
+        column_fields = []
+        for field in table_details.schema_.fields:
+            decoded_data = base64.b64decode(field.data_type)
+            column_fields.append(
+                ColumnField(
+                    name=field.name,
+                    data_type=context.deserialize_data_type(
+                        "data_type",
+                        DataTypeProto.FromString(decoded_data)
+                    ),
                 )
             )
-
-        pa_schema = pa.schema(pa_fields)
-        empty_table = pa.Table.from_batches([], schema=pa_schema)
-        polars_schema = pl.from_arrow(empty_table).schema
-        return convert_polars_schema_to_custom_schema(polars_schema)
-
-    @staticmethod
-    def _get_schema_type_to_pyarrow(schema_type: str):
-        """Convert the schema type to a pyarrow type."""
-        if schema_type.startswith("Decimal"):
-            return pa.float64()
-        else:
-            return schema_type
+        return Schema(column_fields=column_fields)

@@ -4,12 +4,18 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DocumentPathType,
     DoubleType,
+    EmbeddingType,
     FloatType,
+    HtmlType,
     IntegerType,
+    JsonType,
+    MarkdownType,
     StringType,
     StructField,
     StructType,
+    TranscriptType,
 )
 
 
@@ -18,6 +24,28 @@ class TypeInferenceError(ValueError):
         full_message = f"{message} at {path}" if path else message
         super().__init__(full_message)
         self.path = path
+
+def infer_pytype_from_dtype(dtype: DataType) -> type:
+    if dtype == BooleanType:
+        return bool
+    elif dtype == IntegerType:
+        return int
+    elif dtype == FloatType:
+        return float
+    elif dtype == StringType:
+        return str
+    elif dtype == JsonType or dtype == MarkdownType or dtype == HtmlType:
+        return str
+    elif isinstance(dtype, (TranscriptType, DocumentPathType)):
+        return str
+    elif isinstance(dtype, ArrayType):
+        return list
+    elif isinstance(dtype, StructType):
+        return dict
+    elif isinstance(dtype, EmbeddingType):
+        return list[float]
+    else:
+        raise TypeInferenceError(f"Unsupported type {dtype}")
 
 def infer_dtype_from_pyobj(value: Any, path="") -> DataType:
     if isinstance(value, bool):

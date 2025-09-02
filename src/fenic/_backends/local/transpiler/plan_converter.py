@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from fenic._backends.local.physical_plan import (
     AggregateExec,
+    DocSourceExec,
     DropDuplicatesExec,
     DuckDBTableSinkExec,
     DuckDBTableSourceExec,
@@ -36,6 +37,7 @@ from fenic.core._logical_plan.optimizer import (
 from fenic.core._logical_plan.plans import (
     SQL,
     Aggregate,
+    DocSource,
     DropDuplicates,
     Explode,
     FileSink,
@@ -141,6 +143,14 @@ class PlanConverter:
         elif isinstance(logical, TableSource):
             return DuckDBTableSourceExec(
                 table_name=logical._table_name,
+                session_state=self.session_state,
+            )
+        elif isinstance(logical, DocSource):
+            return DocSourceExec(
+                paths=logical._paths,
+                valid_file_extension=logical._valid_file_extension,
+                exclude=logical._exclude,
+                recursive=logical._recursive,
                 session_state=self.session_state,
             )
         elif isinstance(logical, Limit):

@@ -11,6 +11,7 @@ from fenic.api.functions import (
     asc,
     asc_nulls_first,
     asc_nulls_last,
+    async_udf,
     avg,
     coalesce,
     col,
@@ -20,6 +21,7 @@ from fenic.api.functions import (
     desc_nulls_first,
     desc_nulls_last,
     embedding,
+    empty,
     first,
     greatest,
     json,
@@ -29,16 +31,24 @@ from fenic.api.functions import (
     max,
     mean,
     min,
+    null,
     semantic,
     stddev,
     struct,
     sum,
     text,
+    tool_param,
     udf,
     when,
 )
 from fenic.api.io import DataFrameReader, DataFrameWriter
 from fenic.api.lineage import Lineage
+from fenic.api.mcp import (
+    create_mcp_server,
+    run_mcp_server_asgi,
+    run_mcp_server_async,
+    run_mcp_server_sync,
+)
 from fenic.api.session import (
     AnthropicLanguageModel,
     CloudConfig,
@@ -93,6 +103,7 @@ __all__ = [
     "asc",
     "asc_nulls_first",
     "asc_nulls_last",
+    "async_udf",
     "avg",
     "coalesce",
     "collect_list",
@@ -111,8 +122,16 @@ __all__ = [
     "when",
     "col",
     "lit",
+    "empty",
+    "null",
     "greatest",
     "least",
+    "tool_param",
     # Lineage
     "Lineage",
+    # MCP,
+    "create_mcp_server",
+    "run_mcp_server_sync",
+    "run_mcp_server_async",
+    "run_mcp_server_asgi"
 ]

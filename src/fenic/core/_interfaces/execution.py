@@ -50,6 +50,7 @@ class BaseExecution(ABC):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        view_description: Optional[str] = None,
     ) -> None:
         """Save the dataframe as a view in the current database."""
         pass

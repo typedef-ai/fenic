@@ -1,11 +1,12 @@
 import logging
 import threading
-from typing import List
+from typing import Dict, List, Optional
 
 import duckdb
 import polars as pl
 
 from fenic._backends.local.system_table_client import (
+    READ_ONLY_SYSTEM_SCHEMA_NAME,
     SYSTEM_SCHEMA_NAME,
     SystemTableClient,
 )
@@ -22,10 +23,17 @@ from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
+    InternalError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ToolAlreadyExistsError,
+    ToolNotFoundError,
 )
+from fenic.core.mcp._tools import bind_tool
+from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
+    DatasetMetadata,
     Schema,
 )
 
@@ -45,7 +53,7 @@ DEFAULT_DATABASE_NAME = "typedef_default"
 class DuckDBTransaction:
     """A context manager for DuckDB transactions."""
 
-    def __init__(self, connection):
+    def __init__(self, connection: duckdb.DuckDBPyConnection):
         self.connection = connection
 
     def __enter__(self):
@@ -55,7 +63,7 @@ class DuckDBTransaction:
         return self.connection
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Commit transaction if no exceptions, otherwise rollback and log error."""
+        """Commit transaction if no exceptions, otherwise rollback and l error."""
         if exc_type is None:
             # No exception occurred, commit the transaction
             logger.debug("Committing DuckDB transaction")
@@ -71,15 +79,23 @@ class DuckDBTransaction:
 
 
 class LocalCatalog(BaseCatalog):
-    """A catalog for local execution mode. Implements the BaseCatalog - all table reads and writes should go through this class for unified table name canonicalization."""
+    """A catalog for local execution mode implementing BaseCatalog.
+
+    All table reads and writes go through this class for unified table name canonicalization.
+
+    Thread Safety:
+    - Catalog metadata operations (e.g., current database access) are protected by locks
+    - DuckDB handles concurrent table read/write access internally via MVCC and optimistic concurrency control
+    - Each thread must use its own cursor for concurrent operations to avoid segfaults
+    See: https://duckdb.org/docs/stable/guides/python/multiple_threads.html#reader-and-writer-functions
+    """
 
     def __init__(self, connection: duckdb.DuckDBPyConnection):
         self.db_conn: duckdb.DuckDBPyConnection = connection
         self.lock = threading.RLock()
         self.create_database(DEFAULT_DATABASE_NAME)
-        self.set_current_database(DEFAULT_DATABASE_NAME)
-        self.system_tables = SystemTableClient(self.db_conn)
-        self.system_tables.initialize_system_table_client()
+        self.current_database = DEFAULT_DATABASE_NAME
+        self.system_tables = SystemTableClient(self.db_conn.cursor())
 
     def does_catalog_exist(self, catalog_name: str) -> bool:
         """Checks if a catalog with the specified name exists."""
@@ -120,22 +136,13 @@ class LocalCatalog(BaseCatalog):
         with self.lock:
             db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
             _verify_db_catalog(db_identifier)
-            try:
-                schema = self.db_conn.execute(
-                    "SELECT schema_name FROM duckdb_schemas() WHERE schema_name = ?;",
-                    (db_identifier.db,),
-                ).fetchone()
-                return schema is not None
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to check if database exists: {database_name}"
-                ) from e
+            return self._does_database_exist(self.db_conn.cursor(), db_identifier.db)
 
     def get_current_database(self) -> str:
         """Get the name of the current database in the current catalog."""
         with self.lock:
             try:
-                return self.db_conn.execute("SELECT current_schema();").fetchone()[0]
+                return self.current_database
             except Exception as e:
                 raise CatalogError("Failed to get current database") from e
 
@@ -144,14 +151,16 @@ class LocalCatalog(BaseCatalog):
     ) -> bool:
         """Create a new database."""
         with self.lock:
-            if self.does_database_exist(database_name):
+            db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
+            _verify_db_catalog(db_identifier)
+            cursor = self.db_conn.cursor()
+            if self._does_database_exist(cursor, db_identifier.db):
                 if ignore_if_exists:
                     return False
                 raise DatabaseAlreadyExistsError(database_name)
-            db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
-            _verify_db_catalog(db_identifier)
+
             try:
-                self.db_conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{db_identifier.db}";')
+                cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{db_identifier.db}";')
                 return True
             except Exception as e:
                 raise CatalogError(f"Failed to create database: {database_name}") from e
@@ -166,27 +175,38 @@ class LocalCatalog(BaseCatalog):
         with self.lock:
             db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
             _verify_db_catalog(db_identifier)
+            if db_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop read-only system database '{READ_ONLY_SYSTEM_SCHEMA_NAME}'"
+                )
             if db_identifier.is_db_name_equal(self.get_current_database()):
                 raise CatalogError(
                     f"Cannot drop the current database '{database_name}'. Switch to another database first."
                 )
-            if not self.does_database_exist(database_name):
+            cursor = self.db_conn.cursor()
+            if not self._does_database_exist(cursor, db_identifier.db):
                 if not ignore_if_not_exists:
                     raise DatabaseNotFoundError(database_name)
                 return False
             try:
-                with DuckDBTransaction(self.db_conn):
+                with DuckDBTransaction(cursor):
                     if cascade:
-                        self.db_conn.execute(
+                        cursor.execute(
                             f'DROP SCHEMA IF EXISTS "{db_identifier.db}" CASCADE;'
                         )
+                        self.system_tables.delete_database_schemas(cursor, db_identifier.db)
+                        self.system_tables.delete_database_views(cursor, db_identifier.db)
                     else:
-                        self.db_conn.execute(
+                        if self.system_tables.list_views(cursor, db_identifier.db):
+                            raise CatalogError(
+                                f"Cannot drop database '{database_name}' because it contains views. Use CASCADE to drop the database and all its views."
+                            )
+                        cursor.execute(
                             f'DROP SCHEMA IF EXISTS "{db_identifier.db}";'
                         )
-                    self.system_tables.delete_database_schemas(database_name)
-                    self.system_tables.delete_database_views(database_name)
                 return True
+            except CatalogError:
+                raise
             except Exception as e:
                 raise CatalogError(f"Failed to drop database: {database_name}") from e
 
@@ -194,7 +214,8 @@ class LocalCatalog(BaseCatalog):
         """Get a list of all databases in the current catalog."""
         with self.lock:
             try:
-                schemas = self.db_conn.execute(
+                cursor = self.db_conn.cursor()
+                schemas = cursor.execute(
                     "SELECT schema_name FROM duckdb_schemas();"
                 ).fetchall()
                 return [
@@ -206,12 +227,11 @@ class LocalCatalog(BaseCatalog):
     def set_current_database(self, database_name: str) -> None:
         """Set the current database in the current catalog."""
         with self.lock:
-            if not self.does_database_exist(database_name):
+            db_identifier = DBIdentifier.from_string(database_name).enrich(self.get_current_catalog())
+            _verify_db_catalog(db_identifier)
+            if not self._does_database_exist(self.db_conn.cursor(), db_identifier.db):
                 raise DatabaseNotFoundError(database_name)
-            try:
-                self.db_conn.execute(f'USE "{database_name}";')
-            except Exception as e:
-                raise CatalogError("Failed to set current database") from e
+            self.current_database = db_identifier.db
 
     def does_table_exist(self, table_name: str) -> bool:
         """Checks if a table with the specified name exists."""
@@ -220,43 +240,34 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-
-            try:
-                table = self.db_conn.execute(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = ? AND table_name = ?;",
-                    (table_identifier.db, table_identifier.table),
-                ).fetchone()
-                return table is not None
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to check if table: `{table_identifier.db}.{table_identifier.table}` exists"
-                ) from e
+            return self._does_table_exist(self.db_conn.cursor(), table_identifier)
 
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
             try:
-                views = self.system_tables.get_view(view_identifier.db, view_identifier.table)
+                views = self.system_tables.get_view(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
                 return views is not None
             except Exception as e:
                 raise CatalogError(
                     f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
                 ) from e
-            
+
     def list_tables(self) -> List[str]:
         """Get a list of all tables in the current database."""
         with self.lock:
+            cursor = self.db_conn.cursor()
             try:
-                result = self.db_conn.execute(
+                result = cursor.execute(
                     """
                     SELECT table_name
                     FROM information_schema.tables
-                    WHERE table_schema = ? AND table_type = 'BASE TABLE'
+                    WHERE table_schema = ?
+                      AND table_type = 'BASE TABLE'
                     """,
                     (self.get_current_database(),),
                 )
@@ -274,7 +285,7 @@ class LocalCatalog(BaseCatalog):
         """Get a list of all views in the current database."""
         with self.lock:
             try:
-                result_list = self.system_tables.list_views(self.get_current_database())
+                result_list = self.system_tables.list_views(self.db_conn.cursor(), self.get_current_database())
 
                 if len(result_list) > 0:
                     return [str(element[0]) for element in result_list]
@@ -283,38 +294,74 @@ class LocalCatalog(BaseCatalog):
                 raise CatalogError(
                     f"Failed to list views in database '{self.get_current_database()}'"
                 ) from e
-            
-    def describe_table(self, table_name: str) -> Schema:
-        """Get the schema of the specified table."""
+
+    # Descriptions
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set the description for a table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-
-            maybe_schema = self.system_tables.get_schema(
-                table_identifier.db, table_identifier.table
-            )
-            if maybe_schema is None:
+            if not self._does_table_exist(self.db_conn.cursor(), table_identifier):
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
-            return maybe_schema
-    def describe_view(self, view_name: str) -> LogicalPlan:
-        """Get the schema of the specified view."""
+            cursor = self.db_conn.cursor()
+            try:
+                self.system_tables.set_table_description(cursor, table_identifier.db, table_identifier.table, description)
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for table: `{table_identifier.db}.{table_identifier.table}`"
+                ) from e
+
+    def get_table_description(self, table_name: str) -> Optional[str]:
+        """Get description of the specified table."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
+
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            return self.system_tables.get_view_metadata(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
+
+    def describe_table(self, table_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified table."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            maybe_table_metadata = self.system_tables.get_table_metadata(
+                self.db_conn.cursor(), table_identifier.db, table_identifier.table
+            )
+            if maybe_table_metadata is None:
+                raise TableNotFoundError(table_identifier.table, table_identifier.db)
+            return maybe_table_metadata
+
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
+        """Get the LogicalPlan for the specified view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
             try:
                 maybe_views = self.system_tables.get_view(
-                    view_identifier.db, view_identifier.table
+                    self.db_conn.cursor(), view_identifier.db, view_identifier.table
                 )
                 if maybe_views is None:
                     raise TableNotFoundError(view_identifier.table, view_identifier.db)
                 return maybe_views
             except Exception as e:
                 raise CatalogError(f"Failed to describe view: {view_name}") from e
-            
+
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table."""
         with self.lock:
@@ -322,15 +369,20 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            if not self.does_table_exist(table_name):
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop table '{table_identifier}' from read-only system database"
+                )
+            cursor = self.db_conn.cursor()
+            if not self._does_table_exist(cursor, table_identifier):
                 if not ignore_if_not_exists:
                     raise TableNotFoundError(table_identifier.table, table_identifier.db)
                 return False
             try:
-                with DuckDBTransaction(self.db_conn):
-                    sql = f"DROP TABLE IF EXISTS {self._build_qualified_table_name(table_identifier)}"
-                    self.db_conn.execute(sql)
-                    self.system_tables.delete_schema(table_identifier.db, table_identifier.table)
+                with DuckDBTransaction(cursor):
+                    sql = f"DROP TABLE IF EXISTS {table_identifier.build_qualified_table_name()}"
+                    cursor.execute(sql)
+                    self.system_tables.delete_schema(cursor, table_identifier.db, table_identifier.table)
                 return True
             except Exception as e:
                 raise CatalogError(
@@ -341,24 +393,29 @@ class LocalCatalog(BaseCatalog):
         """Drop a view from the current database."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
-                    self.get_current_catalog(),
-                    self.get_current_database())
+                self.get_current_catalog(),
+                self.get_current_database())
             _verify_table_catalog(view_identifier)
-            if not self.does_view_exist(view_name):
-                if not ignore_if_not_exists:
-                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
-                return False
+            if view_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot drop view '{view_identifier}' from read-only system database"
+                )
+            cursor = self.db_conn.cursor()
+            if not self._does_view_exist(cursor, view_identifier):
+                if ignore_if_not_exists:
+                    return False
+                raise TableNotFoundError(view_identifier.table, view_identifier.db)
             try:
-                with DuckDBTransaction(self.db_conn):
-                    self.system_tables.delete_view(view_identifier.db, view_identifier.table)
+                with DuckDBTransaction(cursor):
+                    self.system_tables.delete_view(cursor, view_identifier.db, view_identifier.table)
                 return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to drop view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
-            
+
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table."""
         temp_view_name = generate_unique_arrow_view_name()
@@ -367,22 +424,27 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            if self.does_table_exist(table_name):
-                if not ignore_if_exists:
-                    raise TableAlreadyExistsError(table_identifier.table, table_identifier.db)
-                return False
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot create table '{table_identifier}' in read-only system database"
+                )
+            cursor = self.db_conn.cursor()
+            if self._does_table_exist(cursor, table_identifier):
+                if ignore_if_exists:
+                    return False
+                raise TableAlreadyExistsError(table_identifier.table, table_identifier.db)
             polars_schema = convert_custom_schema_to_polars_schema(schema)
             try:
-                with DuckDBTransaction(self.db_conn):
-                    self.db_conn.register(
+                with DuckDBTransaction(cursor):
+                    cursor.register(
                         temp_view_name, pl.DataFrame(schema=polars_schema)
                     )
                     # trunk-ignore-begin(bandit/B608): No major risk of SQL injection here, because queries run on a client side DuckDB instance.
-                    self.db_conn.execute(
-                        f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name} WHERE 1=0"
+                    cursor.execute(
+                        f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name} WHERE 1=0"
                     )
-                    self.system_tables.save_schema(
-                        table_identifier.db, table_identifier.table, schema
+                    self.system_tables.save_table(
+                        cursor, table_identifier.db, table_identifier.table, schema, description
                     )
                 return True
             except Exception as e:
@@ -391,7 +453,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
             finally:
                 try:
-                    self.db_conn.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+                    cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
                 except Exception:
                     logger.error(f"Failed to drop view: {temp_view_name}")
                     pass
@@ -402,27 +464,96 @@ class LocalCatalog(BaseCatalog):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())
-            _verify_table_catalog(view_identifier)            
+            _verify_table_catalog(view_identifier)
+            if view_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot create view '{view_identifier}' in read-only system database"
+                )
             try:
-                if self.does_view_exist(view_name):
-                    if not ignore_if_exists:
-                        raise ValueError(f"View {view_name} already exists!")
-                    return False
-                with DuckDBTransaction(self.db_conn):
+                cursor = self.db_conn.cursor()
+                if self._does_view_exist(cursor, view_identifier):
+                    if ignore_if_exists:
+                        return False
+                    raise ValueError(f"View {view_name} already exists!")
+                with DuckDBTransaction(cursor):
                     self.system_tables.save_view(
-                        view_identifier.db, view_identifier.table, logical_plan)
+                        cursor, view_identifier.db, view_identifier.table, logical_plan, description)
                     return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
-            
+
+    def set_view_description(self, view_name: str, description: Optional[str]) -> bool:
+        """Set the description for a view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            cursor = self.db_conn.cursor()
+            if not self._does_view_exist(cursor, view_identifier):
+                raise TableNotFoundError(view_identifier.table, view_identifier.db)
+            try:
+                self.system_tables.set_view_description(cursor, view_identifier.db, view_identifier.table, description)
+                return True
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
+                ) from e
+
+
+    def get_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> Optional[ParameterizedToolDefinition]:
+        """Get a tool's metadata from the system table."""
+        cursor = self.db_conn.cursor()
+        existing_tool = self.system_tables.get_tool(cursor, tool_name)
+        if existing_tool:
+            if ignore_if_not_exists:
+                return None
+            raise ToolNotFoundError(tool_name)
+        return existing_tool
+
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_params: List[ToolParam],
+        tool_query: "LogicalPlan",
+        result_limit: int = 50,
+        ignore_if_exists: bool = True
+    ) -> bool:
+        """Create a new tool in the current catalog."""
+        # Ensure the tool is valid by resolving it.
+        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+        cursor = self.db_conn.cursor()
+        if self.system_tables.get_tool(cursor, tool_name):
+            if ignore_if_exists:
+                return False
+            raise ToolAlreadyExistsError(tool_name)
+        self.system_tables.save_tool(cursor, tool_definition)
+        return True
+
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """List all tools in the current catalog."""
+        cursor = self.db_conn.cursor()
+        return self.system_tables.list_tools(cursor)
+
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drop a tool from the current catalog."""
+        cursor = self.db_conn.cursor()
+        if not self.system_tables.get_tool(cursor, tool_name):
+            if ignore_if_not_exists:
+                return False
+            raise ToolNotFoundError(tool_name)
+        return self.system_tables.delete_tool(cursor, tool_name)
+
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""
         temp_view_name = generate_unique_arrow_view_name()
@@ -431,15 +562,21 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
+
+            if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+                raise CatalogError(
+                    f"Cannot write to table '{table_identifier}' in read-only system database"
+                )
+            cursor = self.db_conn.cursor()
             try:
                 # trunk-ignore-begin(bandit/B608)
-                with DuckDBTransaction(self.db_conn):
-                    self.db_conn.register(temp_view_name, df)
-                    self.db_conn.execute(
-                        f"CREATE TABLE IF NOT EXISTS {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
+                with DuckDBTransaction(cursor):
+                    cursor.register(temp_view_name, df)
+                    cursor.execute(
+                        f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                     )
-                    self.system_tables.save_schema(
-                        table_identifier.db, table_identifier.table, schema
+                    self.system_tables.save_table(
+                        cursor, table_identifier.db, table_identifier.table, schema
                     )
             except Exception as e:
                 raise CatalogError(
@@ -447,7 +584,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
             finally:
                 try:
-                    self.db_conn.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+                    cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
                 except Exception:
                     logger.error(f"Failed to drop view: {temp_view_name}")
                     pass
@@ -456,77 +593,89 @@ class LocalCatalog(BaseCatalog):
     def insert_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Insert a Polars dataframe into a table in the current database."""
         temp_view_name = generate_unique_arrow_view_name()
-        with self.lock:
-            if self.does_table_exist(table_name):
-                if self.describe_table(table_name) != schema:
-                    raise CatalogError(
-                        f"Table '{table_name}' already exists with a different schema!\n"
-                        f"Existing schema: {self.describe_table(table_name)}\n"
-                        f"New schema: {schema}\n"
-                        "To replace the existing table, use mode='overwrite'."
-                    )
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            try:
-                # trunk-ignore-begin(bandit/B608)
-                self.db_conn.register(temp_view_name, df)
-                self.db_conn.execute(
-                    f"INSERT INTO {self._build_qualified_table_name(table_identifier)} SELECT * FROM {temp_view_name}"
-                )
-            except Exception as e:
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+            raise CatalogError(
+                f"Cannot insert into table '{table_identifier}' in read-only system database"
+            )
+        cursor = self.db_conn.cursor()
+        if self._does_table_exist(cursor, table_identifier):
+            existing_table_metadata = self.system_tables.get_table_metadata(cursor, table_identifier.db, table_identifier.table)
+            existing_schema = existing_table_metadata.schema if existing_table_metadata else None
+            if not existing_schema:
+                raise InternalError(f"Schema for table '{table_name}' does not exist, but table exists.")
+            if existing_schema != schema:
                 raise CatalogError(
-                    f"Failed to insert dataframe into table: `{table_identifier.db}.{table_identifier.table}`"
-                ) from e
-            finally:
-                try:
-                    self.db_conn.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
-                except Exception:
-                    logger.error(f"Failed to drop view: {temp_view_name}")
-                    pass
-            # trunk-ignore-end(bandit/B608)
+                    f"Table '{table_name}' already exists with a different schema!\n"
+                    f"Existing schema: {existing_schema}\n"
+                    f"New schema: {schema}\n"
+                    "To replace the existing table, use mode='overwrite'."
+                )
+        try:
+            # trunk-ignore-begin(bandit/B608)
+            cursor.register(temp_view_name, df)
+            cursor.execute(
+                f"INSERT INTO {table_identifier.build_qualified_table_name()} SELECT * FROM {temp_view_name}"
+            )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to insert dataframe into table: `{table_identifier.db}.{table_identifier.table}`"
+            ) from e
+        finally:
+            try:
+                cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+            except Exception:
+                logger.error(f"Failed to drop view: {temp_view_name}")
+                pass
+        # trunk-ignore-end(bandit/B608)
 
     def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Replace a table in the current database with a Polars dataframe."""
         temp_view_name = generate_unique_arrow_view_name()
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        if table_identifier.is_db_name_equal(READ_ONLY_SYSTEM_SCHEMA_NAME):
+            raise CatalogError(
+                f"Cannot replace table '{table_identifier}' in read-only system database"
+            )
+        cursor = self.db_conn.cursor()
+        try:
+            # trunk-ignore-begin(bandit/B608)
+            with DuckDBTransaction(cursor):
+                cursor.register(temp_view_name, df)
+                cursor.execute(
+                    f"CREATE OR REPLACE TABLE {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
+                )
+                self.system_tables.save_table(
+                    cursor, table_identifier.db, table_identifier.table, schema
+                )
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to overwrite table: `{table_identifier.db}.{table_identifier.table}`"
+            ) from e
+        finally:
             try:
-                # trunk-ignore-begin(bandit/B608)
-                with DuckDBTransaction(self.db_conn):
-                    self.db_conn.register(temp_view_name, df)
-                    self.db_conn.execute(
-                        f"CREATE OR REPLACE TABLE {self._build_qualified_table_name(table_identifier)} AS SELECT * FROM {temp_view_name}"
-                    )
-                    self.system_tables.save_schema(
-                        table_identifier.db, table_identifier.table, schema
-                    )
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to overwrite table: `{table_identifier.db}.{table_identifier.table}`"
-                ) from e
-            finally:
-                try:
-                    self.db_conn.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
-                except Exception:
-                    logger.error(f"Failed to drop view: {temp_view_name}")
-                    pass
+                cursor.execute(f"DROP VIEW IF EXISTS {temp_view_name}")
+            except Exception:
+                logger.error(f"Failed to drop view: {temp_view_name}")
+                pass
         # trunk-ignore-end(bandit/B608)
 
     def read_df_from_table(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current database."""
         table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
+            self.get_current_catalog(),
+            self.get_current_database())
         _verify_table_catalog(table_identifier)
         try:
             # trunk-ignore-begin(bandit/B608)
-            return self.db_conn.execute(
-                f"SELECT * FROM {self._build_qualified_table_name(table_identifier)}"
+            return self.db_conn.cursor().execute(
+                f"SELECT * FROM {table_identifier.build_qualified_table_name()}"
             ).pl()
             # trunk-ignore-end(bandit/B608)
         except Exception as e:
@@ -534,9 +683,45 @@ class LocalCatalog(BaseCatalog):
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
 
-    def _build_qualified_table_name(self, table_identifier: TableIdentifier,
-    ) -> str:
-        return f'"{table_identifier.db}"."{table_identifier.table}"'
+    def insert_metrics(self, metrics: QueryMetrics) -> None:
+        """Insert metrics into the metrics system read-only table."""
+        self.system_tables.insert_metrics(self.db_conn.cursor(), metrics)
+
+    def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
+        """Get metrics for a specific session from the metrics system read-only table."""
+        return self.system_tables.get_metrics_for_session(self.db_conn.cursor(), session_id)
+
+    def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
+        try:
+            return cursor.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+                (table_identifier.db, table_identifier.table)
+            ).fetchone() is not None
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to check if table: {table_identifier.db}.{table_identifier.table} exists"
+            ) from e
+
+    def _does_database_exist(self, cursor: duckdb.DuckDBPyConnection, database_name: str) -> bool:
+        try:
+            return cursor.execute(
+                "SELECT * FROM duckdb_schemas() WHERE schema_name = ?",
+                (database_name,)
+            ).fetchone() is not None
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to check if database: {database_name} exists"
+            ) from e
+
+    def _does_view_exist(self, cursor: duckdb.DuckDBPyConnection, view_identifier: TableIdentifier) -> bool:
+        try:
+            views = self.system_tables.get_view(cursor, view_identifier.db, view_identifier.table)
+            return views is not None
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
+            ) from e
+
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

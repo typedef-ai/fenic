@@ -35,7 +35,7 @@ from fenic_cloud.protos.engine.v1.engine_pb2_grpc import EngineServiceStub
 from fenic._backends.cloud.metrics import get_query_execution_metrics
 from fenic._backends.schema_serde import deserialize_schema, serialize_schema
 from fenic.core._interfaces import BaseExecution
-from fenic.core._logical_plan.serde import LogicalPlanSerde
+from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import (
     CloudExecutionError,
     CloudSessionError,
@@ -197,6 +197,7 @@ class CloudExecution(BaseExecution):
         self,
         logical_plan: LogicalPlan,
         view_name: str,
+        view_description: Optional[str] = None,
     ) -> None:
         """Save the dataframe as a view."""
         # TODO: Implement saving dataframe view

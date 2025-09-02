@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from fenic.core._logical_plan.jinja_validation import (
     VariableTree,
+)
+from fenic.core.types.enums import (
+    StringCasingType,
+    StripCharsSide,
+    TranscriptFormatType,
 )
 
 if TYPE_CHECKING:
@@ -16,6 +20,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
+from fenic._polars_plugins import py_validate_regex  # noqa: F401
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
@@ -23,7 +28,11 @@ from fenic.core._logical_plan.expressions.base import (
     ValidatedDynamicSignature,
     ValidatedSignature,
 )
-from fenic.core._logical_plan.expressions.basic import AliasExpr, ColumnExpr
+from fenic.core._logical_plan.expressions.basic import (
+    AliasExpr,
+    ColumnExpr,
+    LiteralExpr,
+)
 from fenic.core._logical_plan.signatures.signature_validator import SignatureValidator
 from fenic.core.error import ValidationError
 from fenic.core.types import (
@@ -37,6 +46,19 @@ from fenic.core.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+class ChunkLengthFunction(Enum):
+    CHARACTER = "CHARACTER"
+    WORD = "WORD"
+    # trunk-ignore(bandit/B105): not a token
+    TOKEN = "TOKEN"
+
+
+class ChunkCharacterSet(Enum):
+    CUSTOM = "CUSTOM"
+    ASCII = "ASCII"
+    UNICODE = "UNICODE"
+
 
 class TokenType(Enum):
     DELIMITER = auto()    # Literal text content
@@ -192,19 +214,6 @@ class TextractExpr(ValidatedDynamicSignature, LogicalExpr):
         return self.template == other.template
 
 
-class ChunkLengthFunction(Enum):
-    CHARACTER = "CHARACTER"
-    WORD = "WORD"
-    # trunk-ignore(bandit/B105): not a token
-    TOKEN = "TOKEN"
-
-
-class ChunkCharacterSet(Enum):
-    CUSTOM = "CUSTOM"
-    ASCII = "ASCII"
-    UNICODE = "UNICODE"
-
-
 class TextChunkExprConfiguration(BaseModel):
     desired_chunk_size: int = Field(gt=0)
     chunk_overlap_percentage: int = Field(default=0, ge=0, lt=100)
@@ -217,16 +226,11 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN
+        chunking_configuration: TextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
-        self.chunk_configuration = TextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-        )
+        # Create the configuration object for internal use
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -237,10 +241,10 @@ class TextChunkExpr(ValidatedSignature, LogicalExpr):
         return [self.input_expr]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.input_expr}, {self.chunk_configuration})"
+        return f"{self.function_name}({self.input_expr}, {self.chunking_configuration})"
 
     def _eq_specific(self, other: TextChunkExpr) -> bool:
-        return self.chunk_configuration == other.chunk_configuration
+        return self.chunking_configuration == other.chunking_configuration
 
 class RecursiveTextChunkExprConfiguration(TextChunkExprConfiguration):
     chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII
@@ -253,20 +257,11 @@ class RecursiveTextChunkExpr(ValidatedSignature, LogicalExpr):
     def __init__(
         self,
         input_expr: LogicalExpr,
-        desired_chunk_size: int,
-        chunk_overlap_percentage: int = 0,
-        chunk_length_function_name: ChunkLengthFunction = ChunkLengthFunction.TOKEN,
-        chunking_character_set_name: ChunkCharacterSet = ChunkCharacterSet.ASCII,
-        chunking_character_set_custom_characters: Optional[list[str]] = None
+        chunking_configuration: RecursiveTextChunkExprConfiguration,
     ):
         self.input_expr = input_expr
-        self.chunking_configuration = RecursiveTextChunkExprConfiguration(
-            desired_chunk_size=desired_chunk_size,
-            chunk_overlap_percentage=chunk_overlap_percentage,
-            chunk_length_function_name=chunk_length_function_name,
-            chunking_character_set_name=chunking_character_set_name,
-            chunking_character_set_custom_characters=chunking_character_set_custom_characters,
-        )
+        # Create the configuration object for internal use
+        self.chunking_configuration = chunking_configuration
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -417,22 +412,20 @@ class RLikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The regular expression pattern to match against
 
     Raises:
-        TypeError: If the input expression is not a string column
         ValidationError: If the regular expression pattern is invalid
     """
 
     function_name = "text.rlike"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
         self.expr = expr
         self.pattern = pattern
-
-        # Validate regex pattern at construction time
-        try:
-            re.compile(pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid regex pattern: {pattern}") from e
-
         self._validator = SignatureValidator(self.function_name)
 
     @property
@@ -440,7 +433,7 @@ class RLikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
         return f"{self.function_name}({self.expr}, {self.pattern})"
@@ -460,22 +453,21 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The SQL LIKE pattern to match against (% for any sequence, _ for single character)
 
     Raises:
-        TypeError: If the input expression is not a string column
+        TypeError: If the input expression is not a literal expression that resolves to a string.
         ValidationError: If the LIKE pattern is invalid
     """
 
     function_name = "text.like"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
         self.expr = expr
-        self.raw_pattern = pattern
-        self.pattern = self._convert_to_regex(pattern)
+        self.pattern = pattern
 
-        # Validate the converted pattern
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid LIKE pattern: {self.raw_pattern}") from e
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid LIKE pattern: {self.pattern}") from e
 
         self._validator = SignatureValidator(self.function_name)
 
@@ -484,22 +476,13 @@ class LikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
-
-    def _convert_to_regex(self, pattern: str) -> str:
-        # Convert SQL LIKE pattern to regex pattern
-        # Escape special regex characters except % and _
-        special_chars = r"[](){}^$.|+\\"
-        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
-        # Convert SQL wildcards to regex wildcards
-        pattern = pattern.replace("%", ".*").replace("_", ".")
-        return pattern
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
     def _eq_specific(self, other: LikeExpr) -> bool:
-        return self.raw_pattern == other.raw_pattern
+        return self.pattern == other.pattern
 
 
 class ILikeExpr(ValidatedSignature, LogicalExpr):
@@ -514,22 +497,21 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         pattern: The SQL LIKE pattern to match against (% for any sequence, _ for single character)
 
     Raises:
-        TypeError: If the input expression is not a string column
-        ValidationError: If the LIKE pattern is invalid
+        TypeError: If the input expression is not a literal expression that resolves to a string.
+        ValidationError: If the LIKE pattern is invalid.
     """
 
     function_name = "text.ilike"
 
-    def __init__(self, expr: LogicalExpr, pattern: str):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
         self.expr = expr
-        self.raw_pattern = pattern
-        self.pattern = self._convert_to_regex(pattern)
+        self.pattern = pattern
 
-        # Validate the converted pattern
-        try:
-            re.compile(self.pattern)
-        except Exception as e:
-            raise ValidationError(f"Invalid ILIKE pattern: {self.raw_pattern}") from e
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid ILIKE pattern: {self.pattern}") from e
 
         self._validator = SignatureValidator(self.function_name)
 
@@ -538,28 +520,19 @@ class ILikeExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr]
+        return [self.expr, self.pattern]
 
     def __str__(self) -> str:
-        return f"{self.function_name}({self.expr}, {self.raw_pattern}, {self.pattern})"
-
-    def _convert_to_regex(self, pattern: str) -> str:
-        # Convert SQL LIKE pattern to regex pattern with case insensitivity
-        # Escape special regex characters except % and _
-        special_chars = r"[](){}^$.|+\\"
-        pattern = "".join("\\" + c if c in special_chars else c for c in pattern)
-        # Convert SQL wildcards to regex wildcards
-        pattern = pattern.replace("%", ".*").replace("_", ".")
-        return f"(?i){pattern}"
+        return f"{self.function_name}({self.expr}, {self.pattern})"
 
     def _eq_specific(self, other: ILikeExpr) -> bool:
-        return self.raw_pattern == other.raw_pattern
+        return self.pattern == other.pattern
 
 
 class TsParseExpr(ValidatedSignature, LogicalExpr):
     function_name = "text.parse_transcript"
 
-    def __init__(self, expr: LogicalExpr, format: str):
+    def __init__(self, expr: LogicalExpr, format: TranscriptFormatType):
         self.expr = expr
         self.format = format
         self._validator = SignatureValidator(self.function_name)
@@ -733,7 +706,7 @@ class StringCasingExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.string_casing"
 
-    def __init__(self, expr: LogicalExpr, case: Literal["upper", "lower", "title"]):
+    def __init__(self, expr: LogicalExpr, case: StringCasingType):
         self.expr = expr
         self.case = case
         self._validator = SignatureValidator(self.function_name)
@@ -771,7 +744,7 @@ class StripCharsExpr(ValidatedSignature, LogicalExpr):
         self,
         expr: LogicalExpr,
         chars: Optional[LogicalExpr],
-        side: Literal["left", "right", "both"] = "both",
+        side: StripCharsSide = "both",
     ):
         self.expr = expr
         self.chars = chars

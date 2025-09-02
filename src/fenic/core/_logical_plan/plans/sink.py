@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import TYPE_CHECKING, List, Literal, Optional
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core.error import InternalError
 from fenic.core.types import Schema
+
+if TYPE_CHECKING:
+    from fenic.core._logical_plan.expressions.base import LogicalExpr
 
 
 class FileSink(LogicalPlan):
@@ -64,6 +67,9 @@ class FileSink(LogicalPlan):
         """Returns the child node of this sink operator."""
         return [self.child]
 
+    def exprs(self) -> List[LogicalExpr]:
+        return []
+
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""
         return self.child.schema()
@@ -103,6 +109,12 @@ class FileSink(LogicalPlan):
             session_state=session_state,
         )
 
+    def _eq_specific(self, other: FileSink) -> bool:
+        return (
+            self.sink_type == other.sink_type
+            and self.path == other.path
+            and self.mode == other.mode
+        )
 
 class TableSink(LogicalPlan):
     """Logical plan node that represents a table writing operation."""
@@ -113,7 +125,8 @@ class TableSink(LogicalPlan):
             table_name: str,
             mode: Literal["error", "append", "overwrite", "ignore"] = "error",
             session_state: Optional[BaseSessionState] = None,
-            schema: Optional[Schema] = None):
+            schema: Optional[Schema] = None,
+        ):
         """Initialize a table sink node.
 
         Args:
@@ -156,6 +169,9 @@ class TableSink(LogicalPlan):
         """Returns the child node of this sink operator."""
         return [self.child]
 
+    def exprs(self) -> List[LogicalExpr]:
+        return []
+
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         """The schema of a sink node is the same as its child's schema."""
         return self.child.schema()
@@ -190,4 +206,10 @@ class TableSink(LogicalPlan):
             table_name=self.table_name,
             mode=self.mode,
             session_state=session_state,
+        )
+
+    def _eq_specific(self, other: TableSink) -> bool:
+        return (
+            self.table_name == other.table_name
+            and self.mode == other.mode
         )

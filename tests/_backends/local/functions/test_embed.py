@@ -15,6 +15,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic._backends.local.session_state import LocalSessionState
 from fenic.api.session import (
     OpenAILanguageModel,
     SemanticConfig,
@@ -22,6 +23,7 @@ from fenic.api.session import (
     SessionConfig,
 )
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
@@ -33,7 +35,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
     ]
 
     result = df.to_polars()
-    assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+    assert result.schema["embeddings"] == pl.Array(pl.Float32, embedding_model_name_and_dimensions[1])
     df = extract_data_df.select(
         semantic.embed(
             text.concat(
@@ -47,7 +49,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
         ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name))
     ]
     result = df.to_polars()
-    assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+    assert result.schema["embeddings"] == pl.Array(pl.Float32, embedding_model_name_and_dimensions[1])
 
 def test_embedding_very_long_string(local_session, embedding_model_name_and_dimensions):
     embedding_model_name, _ = embedding_model_name_and_dimensions
@@ -332,3 +334,8 @@ def test_cosine_similarity_special_cases(local_session):
     similarities = result["cosine_sim"].to_list()
 
     assert all(np.isnan(sim) for sim in similarities)
+
+def test_fetch_embedding_model_by_alias(local_session):
+    session_state: LocalSessionState = local_session._session_state
+    embedding_model = session_state.get_embedding_model(alias=ResolvedModelAlias(name="embedding"))
+    assert embedding_model

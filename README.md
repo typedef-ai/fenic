@@ -51,19 +51,19 @@ The fastest way to learn about fenic is by checking the examples.
 
 Below is a quick list of the examples in this repo:
 
-| Example                                                                 | Description                                                                                                                         |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [Hello World!](examples/hello_world)                                    | Introduction to semantic extraction and classification using fenic's core operators through error log analysis.                     |
-| [Enrichment](examples/enrichment)                                       | Multi-stage DataFrames with template-based text extraction, joins, and LLM-powered transformations demonstrated via log enrichment. |
-| [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing, Pydantic schema integration, and complex aggregations shown through meeting analysis.                    |
-| [News Analysis](examples/news_analysis)                                 | Analyze and extract insights from news articles using semantic operators and structured data processing.                            |
-| [Podcast Summarization](examples/podcast_summarization)                 | Process and summarize podcast transcripts with speaker-aware analysis and key point extraction.                                     |
-| [Semantic Join](examples/semantic_joins)                                | Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.                     |
-| [Named Entity Recognition](examples/named_entity_recognition)           | Extract and classify named entities from text using semantic extraction and classification.                                         |
-| [Markdown Processing](examples/markdown_processing)                     | Process and transform markdown documents with structured data extraction and formatting.                                            |
-| [JSON Processing](examples/json_processing)                             | Handle complex JSON data structures with semantic operations and schema validation.                                                 |
-| [Feedback Clustering](examples/feedback_clustering)                     | Group and analyze feedback using semantic similarity and clustering operations.                                                     |
-| [Document Extraction](examples/document_extraction)                     | Extract structured information from various document formats using semantic operators.                                              |
+| Example                                                                 | Description                                                                                                                         |                                                                                          Colab                                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| [Hello World!](examples/hello_world)                                    | Introduction to semantic extraction and classification using fenic's core operators through error log analysis.                     |               [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/hello_world/hello_world.ipynb)               |
+| [Enrichment](examples/enrichment)                                       | Multi-stage DataFrames with template-based text extraction, joins, and LLM-powered transformations demonstrated via log enrichment. |                [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/enrichment/enrichment.ipynb)                |
+| [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing, Pydantic schema integration, and complex aggregations shown through meeting analysis.                    | [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/meeting_transcript_processing/transcript_processing.ipynb) |
+| [News Analysis](examples/news_analysis)                                 | Analyze and extract insights from news articles using semantic operators and structured data processing.                            |             [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/news_analysis/news_analysis.ipynb)             |
+| [Podcast Summarization](examples/podcast_summarization)                 | Process and summarize podcast transcripts with speaker-aware analysis and key point extraction.                                     |     [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/podcast_summarization/podcast_summarization.ipynb)     |
+| [Semantic Join](examples/semantic_joins)                                | Instead of simple fuzzy matching, use fenic's powerful semantic join functionality to match data across tables.                     |            [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/semantic_joins/semantic_joins.ipynb)            |
+| [Named Entity Recognition](examples/named_entity_recognition)           | Extract and classify named entities from text using semantic extraction and classification.                                         |            [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/named_entity_recognition/ner.ipynb)             |
+| [Markdown Processing](examples/markdown_processing)                     | Process and transform markdown documents with structured data extraction and formatting.                                            |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/markdown_processing/markdown_processing.ipynb)       |
+| [JSON Processing](examples/json_processing)                             | Handle complex JSON data structures with semantic operations and schema validation.                                                 |           [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/json_processing/json_processing.ipynb)           |
+| [Feedback Clustering](examples/feedback_clustering)                     | Group and analyze feedback using semantic similarity and clustering operations.                                                     |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/feedback_clustering/feedback_clustering.ipynb)       |
+| [Document Extraction](examples/document_extraction)                     | Extract structured information from various document formats using semantic operators.                                              |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb)       |
 
 (Feel free to click any example above to jump right to its folder.)
 
@@ -91,7 +91,7 @@ fenic brings the reliability of traditional data pipelines to AI workloads.
 - `semantic.analyze_sentiment` - Built-in sentiment analysis
 - `semantic.classify` - Categorize text with few-shot examples
 - `semantic.extract` - Transform unstructured text into structured data with schemas
-- `semantic.group_by` - Group data by semantic similarity
+- `semantic.with_cluster_labels` - Cluster each row by embedding column
 - `semantic.join` - Join DataFrames on meaning, not just values
 - `semantic.map` - Apply natural language transformations
 - `semantic.predicate` - Create predicates using natural language to filter rows
@@ -102,7 +102,7 @@ fenic brings the reliability of traditional data pipelines to AI workloads.
 Goes beyond typical multimodal data types (audio, images) by creating specialized types for text-heavy workloads:
 
 - Markdown parsing and extraction as a first-class data type
-- Transcript processing (SRT, generic formats) with speaker and timestamp awareness
+- Transcript processing (SRT, WebVTT, generic formats) with speaker and timestamp awareness
 - JSON manipulation with JQ expressions for nested data
 - Automatic text chunking with configurable overlap for long documents
 
@@ -136,7 +136,7 @@ fenic creates a clear separation between heavy inference tasks and real-time age
 
 DataFrames aren't just for data practitioners. The fluent, composable API design makes it accessible to any engineer:
 
-- Chain operations naturally: `df.filter(...).semantic.group_by(...)`
+- Chain operations naturally: `df.filter(...).semantic.with_cluster_labels(...)`
 - Mix imperative and declarative styles seamlessly
 - Get started quickly with familiar patterns from pandas/PySpark or SQL
 

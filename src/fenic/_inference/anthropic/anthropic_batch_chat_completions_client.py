@@ -7,7 +7,6 @@ from anthropic import (
     AnthropicError,
     APIConnectionError,
     APITimeoutError,
-    AsyncAnthropic,
     RateLimitError,
 )
 from anthropic.types import (
@@ -17,17 +16,20 @@ from anthropic.types import (
     ToolChoiceToolParam,
     ToolParam,
 )
-from pydantic import BaseModel
 
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
 )
+from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import SeparatedTokenRateLimitStrategy
+from fenic._inference.rate_limit_strategy import (
+    SeparatedTokenRateLimitStrategy,
+    TokenEstimate,
+)
 from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import (
@@ -40,6 +42,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
@@ -90,6 +93,7 @@ class AnthropicBatchCompletionsClient(
         super().__init__(
             model=model,
             model_provider=ModelProvider.ANTHROPIC,
+            model_provider_class=AnthropicModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -97,8 +101,8 @@ class AnthropicBatchCompletionsClient(
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
-        self._sync_client = anthropic.Client()
-        self._client = AsyncAnthropic()
+        self._sync_client = self.model_provider_class.create_client()
+        self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
         self._output_formatter_tool_name = "output_formatter"
         self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."
@@ -158,28 +162,30 @@ class AnthropicBatchCompletionsClient(
                 return FenicCompletionsResponse(completion="", logprobs=None)
             if usage_data:
                 # Extract usage metrics
+                num_cache_tokens_written = usage_data.cache_creation_input_tokens
                 num_pre_cached_tokens = usage_data.cache_read_input_tokens
-                total_input_tokens = usage_data.input_tokens + usage_data.cache_read_input_tokens
+                num_uncached_input_tokens = usage_data.input_tokens
+                prompt_tokens = num_pre_cached_tokens + num_uncached_input_tokens + num_cache_tokens_written
                 output_tokens = usage_data.output_tokens
 
                 # Create ResponseUsage object
                 usage = ResponseUsage(
-                    prompt_tokens=total_input_tokens,
+                    prompt_tokens=prompt_tokens,
                     completion_tokens=output_tokens,  # For Anthropic, all output tokens are completion tokens
-                    total_tokens=total_input_tokens + output_tokens,
+                    total_tokens=prompt_tokens + output_tokens,
                     cached_tokens=num_pre_cached_tokens,
                     thinking_tokens=0  # Anthropic doesn't separate thinking tokens yet
                 )
 
                 # Update metrics (existing logic)
                 self._metrics.num_cached_input_tokens += num_pre_cached_tokens
-                self._metrics.num_uncached_input_tokens += total_input_tokens
+                self._metrics.num_uncached_input_tokens += num_uncached_input_tokens
                 self._metrics.num_output_tokens += output_tokens
                 self._metrics.num_requests += 1
                 self._metrics.cost += model_catalog.calculate_completion_model_cost(
                     model_provider=ModelProvider.ANTHROPIC,
                     model_name=self.model,
-                    uncached_input_tokens=total_input_tokens,
+                    uncached_input_tokens=num_uncached_input_tokens,
                     cached_input_tokens_read=num_pre_cached_tokens,
                     cached_input_tokens_written=usage_data.cache_creation_input_tokens,
                     output_tokens=output_tokens,
@@ -238,7 +244,7 @@ class AnthropicBatchCompletionsClient(
     # lightweight caching to allow us to approximate the tokens in a given tool param
     # will replace with something more sophisticated later.
     @functools.cache # noqa: B019
-    def estimate_response_format_tokens(self, response_format: type[BaseModel]) -> int:
+    def estimate_response_format_tokens(self, response_format: ResolvedResponseFormat) -> int:
         """Estimate token count for a response format schema.
 
         Uses Anthropic's API to count tokens in a tool parameter that represents
@@ -322,8 +328,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             TokenEstimate: The estimated token usage
         """
-        from fenic._inference.rate_limit_strategy import TokenEstimate
-        
+
         # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
@@ -348,23 +353,21 @@ class AnthropicBatchCompletionsClient(
         """Reset metrics to initial state."""
         self._metrics = LMMetrics()
 
-    def create_response_format_tool(self, response_format: type[BaseModel]) -> ToolParam:
+    def create_response_format_tool(self, response_format: ResolvedResponseFormat) -> ToolParam:
         """Create a tool parameter for structured output.
 
-        Converts a Pydantic model to an Anthropic tool parameter for
+        Converts a JSON schema to an Anthropic tool parameter for
         structured output formatting.
 
         Args:
-            response_format: Pydantic model class defining the response format
+            response_format: Resolved JSON schema defining the response format
 
         Returns:
             Anthropic tool parameter
         """
-        # Convert Pydantic model to JSON schema
-        json_schema = response_format.model_json_schema()
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=json_schema,
+            input_schema=response_format.strict_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL
         )
@@ -391,5 +394,10 @@ class AnthropicBatchCompletionsClient(
         for example in messages.examples:
             message_params.append(MessageParam(content=example.user, role="user"))
             message_params.append(MessageParam(content=example.assistant, role="assistant"))
-        message_params.append(MessageParam(content=messages.user, role="user"))
+        user_prompt = TextBlockParam(
+            text=messages.user,
+            type="text",
+            cache_control=EPHEMERAL_CACHE_CONTROL
+        )
+        message_params.append(MessageParam(content=[user_prompt], role="user"))
         return system_prompt, message_params

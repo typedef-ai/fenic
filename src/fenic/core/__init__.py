@@ -1,5 +1,10 @@
 """Core module for Fenic."""
 
+from fenic.core.mcp import (
+    BoundToolParam,
+    ParameterizedToolDefinition,
+    ToolParam,
+)
 from fenic.core.metrics import (
     LMMetrics,
     OperatorMetrics,
@@ -16,6 +21,7 @@ from fenic.core.types import (
     ColumnField,
     DataLike,
     DataLikeType,
+    DatasetMetadata,
     DataType,
     DocumentPathType,
     DoubleType,
@@ -85,4 +91,10 @@ __all__ = [
     "DataLike",
     "DataLikeType",
     "QueryResult",
+    # Catalog/Schema
+    "DatasetMetadata",
+    # MCP
+    "ToolParam",
+    "BoundToolParam",
+    "ParameterizedToolDefinition",
 ]

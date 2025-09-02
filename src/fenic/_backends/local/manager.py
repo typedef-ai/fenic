@@ -46,6 +46,7 @@ class LocalSessionManager:
         """
         with self._sessions_lock:
             if app_name not in self._live_session_states:
+                logger.info(f"Redundant stop request: session.stop() invoked for {app_name}, which is already stopped")
                 return
             session_state: LocalSessionState = self._live_session_states[
                 app_name

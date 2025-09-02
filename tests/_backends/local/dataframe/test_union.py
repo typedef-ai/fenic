@@ -1,6 +1,7 @@
 import pytest
 
 from fenic import col
+from fenic.core._logical_plan.plans.base import PlanError
 
 
 def test_basic_union(sample_df):
@@ -41,13 +42,24 @@ def test_union_with_duplicates(local_session):
     assert result["value"].to_list() == ["a", "b", "a", "b"]
 
 
-def test_union_different_schemas(local_session):
+def test_union_different_column_names(local_session):
     """Test union fails with incompatible schemas."""
     data1 = {"id": [1, 2], "value": ["a", "b"]}
     data2 = {"id": [3, 4], "different_column": ["c", "d"]}
     df1 = local_session.create_dataframe(data1)
     df2 = local_session.create_dataframe(data2)
 
-    # Should raise ValueError due to different columns
-    with pytest.raises(ValueError) as _:
+    # Should raise PlanError due to different columns
+    with pytest.raises(PlanError, match="Cannot union DataFrames: DataFrame #1 has different columns than DataFrame #0."):
+        df1.union(df2).to_polars()
+
+def test_union_different_column_types(local_session):
+    """Test union fails with incompatible schemas."""
+    data1 = {"id": [1, 2], "value": ["a", "b"]}
+    data2 = {"id": [3, 4], "value": [1, 2]}
+    df1 = local_session.create_dataframe(data1)
+    df2 = local_session.create_dataframe(data2)
+
+    # Should raise PlanError due to different columns
+    with pytest.raises(PlanError, match="Cannot union DataFrames: DataFrame #1 has incompatible column types."):
         df1.union(df2).to_polars()

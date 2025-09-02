@@ -1,5 +1,7 @@
+import json
 import os
 import tempfile
+from pathlib import Path
 from typing import Protocol, Tuple
 from urllib.parse import urlparse
 
@@ -17,6 +19,7 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    CohereEmbeddingModel,
     EmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
@@ -24,6 +27,7 @@ from fenic.api.session.config import (
     OpenAILanguageModel,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_provider import ModelProviderClass
 
 LANGUAGE_MODEL_PROVIDER_ARG = "--language-model-provider"
 LANGUAGE_MODEL_NAME_ARG = "--language-model-name"
@@ -137,6 +141,12 @@ def pytest_addoption(parser):
         default="text-embedding-3-small",
         help="Model Name to run embeddings tests against",
     )
+    parser.addoption(
+        "--test-huggingface-reads",
+        action="store",
+        default=None,
+        help="If set, will run reader tests that read from HuggingFace.",
+    )
 
 @pytest.fixture
 def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:
@@ -234,8 +244,16 @@ def multi_model_local_session(multi_model_local_session_config, request):
 
 
 @pytest.fixture
-def local_session_config(app_name, request) -> SessionConfig:
-    """Creates a test session config."""
+def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
+    """Creates a test session config.
+
+    Notes:
+        We mock the api key validation to avoid the noticeable delay of validating our api key in every test.
+    """
+    async def mock_validate_provider_api_keys(providers: set[ModelProviderClass]):
+        return
+    monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_keys", mock_validate_provider_api_keys)
+
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
     language_model = configure_language_model(language_model_provider, request.config.getoption(LANGUAGE_MODEL_NAME_ARG))
@@ -259,7 +277,20 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     )
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
-        if model_parameters.supports_reasoning:
+        if model_parameters.supports_reasoning and model_parameters.supports_verbosity:
+            language_model = OpenAILanguageModel(
+                model_name=model_name,
+                rpm=500,
+                tpm=100_000,
+                profiles={
+                    "minimal": OpenAILanguageModel.Profile(reasoning_effort="minimal", verbosity="low"),
+                    "low": OpenAILanguageModel.Profile(reasoning_effort="low", verbosity="low"),
+                    "medium": OpenAILanguageModel.Profile(reasoning_effort="medium", verbosity="low"),
+                    "high": OpenAILanguageModel.Profile(reasoning_effort="high", verbosity="low"),
+                },
+                default_profile="minimal",
+            )
+        elif model_parameters.supports_reasoning:
             language_model = OpenAILanguageModel(
                 model_name=model_name,
                 rpm=500,
@@ -269,7 +300,7 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                     "medium": OpenAILanguageModel.Profile(reasoning_effort="medium"),
                     "high": OpenAILanguageModel.Profile(reasoning_effort="high"),
                 },
-                default_profile="medium",
+                default_profile="low",
             )
         else:
             language_model = OpenAILanguageModel(
@@ -346,15 +377,21 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     return language_model
 
 def configure_embedding_model(model_provider: ModelProvider, model_name: str) -> EmbeddingModel:
+    """ Configure an embedding model for the test session.
+
+    Note: Don't configure profiles that change dimension defaults, or it won't be consistent with embedding_model_name_and_dimensions
+    and test_embed.py will fail. """
     if model_provider == ModelProvider.OPENAI:
         embedding_model = OpenAIEmbeddingModel(
             model_name=model_name, rpm=3000, tpm=1_000_000
         )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
         embedding_model = GoogleDeveloperEmbeddingModel(
-            model_name=model_name, rpm=3000, tpm=1_000_000, profiles={
-                "default": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536, task_type="SEMANTIC_SIMILARITY"),
-            }
+            model_name=model_name, rpm=3000, tpm=1_000_000
+        )
+    elif model_provider == ModelProvider.COHERE:
+        embedding_model = CohereEmbeddingModel(
+            model_name=model_name, rpm=3000, tpm=1_000_000
         )
     else:
         raise ValueError(f"Unsupported embedding model provider: {model_provider}")
@@ -450,3 +487,69 @@ def large_text_df(local_session):
     cap_content = response.text
 
     return local_session.create_dataframe({"text": [pp_content, cap_content]})
+
+@pytest.fixture
+def temp_dir_with_test_files():
+    """Create a temporary directory with test files."""
+    with tempfile.TemporaryDirectory() as _dir:
+        temp_path = Path(_dir)
+
+        # Create subdirectories
+        (temp_path / "subdir1").mkdir()
+        (temp_path / "subdir2").mkdir()
+        (temp_path / "temp").mkdir()
+
+        # Create test files
+        test_files = [
+            "file1.md",
+            "file2.md",
+            "file3.txy",
+            "subdir1/file4.md",
+            "subdir2/file5.md",
+            "temp/temp_file.md",
+            "backup.md.bak",
+            "file.tmp",
+            "file_json.json"
+        ]
+
+        for file_name in test_files:
+            file_path = temp_path / file_name
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            if file_name.endswith(".md"):
+                _save_md_file(file_path)
+            elif file_name.endswith(".json"):
+                # TODO: Create a better sample json file.
+                file_path.write_text(json.dumps({"name": file_name, "content": "sample content"}))
+            else:
+                file_path.write_text(f"sample content for {file_name}")
+
+        yield str(temp_path)
+
+@pytest.fixture
+def temp_dir_just_one_file():
+    """Create a temporary directory with test files."""
+    with tempfile.TemporaryDirectory() as _dir:
+        temp_path = Path(_dir)
+        _save_md_file(temp_path / "file1.md")
+
+        yield str(temp_path)
+
+def _save_md_file(file_path: Path):
+    """Save a sample markdown file to the given path"""
+    md_file_contents = """
+# title
+some text
+
+# 1 Introduction
+intro
+
+## 2 Background
+more text
+
+### 2.1 More background
+more background
+
+## 3 Methods
+some more text
+"""
+    file_path.write_text(md_file_contents)

@@ -1,12 +1,12 @@
 """Client for making batch requests to OpenAI's embeddings API."""
 
+import logging
 from typing import Union
-
-from openai import AsyncOpenAI
 
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
+from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -21,6 +21,8 @@ from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float]]):
@@ -44,6 +46,7 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
+            model_provider_class=OpenAIModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -53,7 +56,8 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             model=self.model,
             model_provider=self.model_provider,
             token_counter=TiktokenTokenCounter(model_name=model),
-            client=AsyncOpenAI(),
+            client=self.model_provider_class.create_aio_client()
+
         )
 
     async def make_single_request(
@@ -106,3 +110,8 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
 
     def _get_max_output_tokens(self, request: RequestT) -> int:
         return 0
+
+    async def validate_api_key(self):
+        """Validate the OpenAI API token by making a minimal API call."""
+        _ = await self._core._client.models.list()
+        logger.debug(f"OpenAI token validation successful for model {self.model}")

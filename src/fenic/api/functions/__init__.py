@@ -9,6 +9,7 @@ from fenic.api.functions.builtin import (
     asc,
     asc_nulls_first,
     asc_nulls_last,
+    async_udf,
     avg,
     coalesce,
     collect_list,
@@ -28,7 +29,7 @@ from fenic.api.functions.builtin import (
     udf,
     when,
 )
-from fenic.api.functions.core import col, lit
+from fenic.api.functions.core import col, empty, lit, null, tool_param
 
 __all__ = [
     "semantic",
@@ -36,6 +37,7 @@ __all__ = [
     "embedding",
     "array",
     "array_agg",
+    "async_udf",
     "avg",
     "collect_list",
     "coalesce",
@@ -69,4 +71,7 @@ __all__ = [
     "stddev",
     "greatest",
     "least",
+    "empty",
+    "null",
+    "tool_param",
 ]

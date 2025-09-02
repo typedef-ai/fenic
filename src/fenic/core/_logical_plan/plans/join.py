@@ -71,6 +71,9 @@ class Join(LogicalPlan):
     def children(self) -> List[LogicalPlan]:
         return [self._left, self._right]
 
+    def exprs(self) -> List[LogicalExpr]:
+        return list(self._left_on) + list(self._right_on)
+
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         for left_on, right_on in zip(self._left_on, self._right_on, strict=False):
             left_type = left_on.to_column_field(self._left, session_state).data_type
@@ -139,6 +142,13 @@ class Join(LogicalPlan):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: Join) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._how == other._how
+        )
+
 
 class BaseSemanticJoin(LogicalPlan, ABC):
     def __init__(
@@ -173,6 +183,9 @@ class BaseSemanticJoin(LogicalPlan, ABC):
 
     def children(self) -> List[LogicalPlan]:
         return [self._left, self._right]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._left_on, self._right_on]
 
     @abstractmethod
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
@@ -302,6 +315,17 @@ class SemanticJoin(BaseSemanticJoin):
         result.set_cache_info(self.cache_info)
         return result
 
+    def _eq_specific(self, other: SemanticJoin) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._jinja_template == other._jinja_template
+            and self._strict == other._strict
+            and self._examples == other._examples
+            and self.temperature == other.temperature
+            and self.model_alias == other.model_alias
+        )
+
 
 class SemanticSimilarityJoin(BaseSemanticJoin):
     def __init__(
@@ -423,3 +447,12 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         )
         result.set_cache_info(self.cache_info)
         return result
+
+    def _eq_specific(self, other: SemanticSimilarityJoin) -> bool:
+        return (
+            self._left_on == other._left_on
+            and self._right_on == other._right_on
+            and self._k == other._k
+            and self._similarity_metric == other._similarity_metric
+            and self._similarity_score_column == other._similarity_score_column
+        )

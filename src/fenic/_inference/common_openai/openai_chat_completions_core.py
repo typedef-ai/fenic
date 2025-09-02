@@ -79,7 +79,7 @@ class OpenAIChatCompletionsCore:
 
         Args:
             request: The messages to send
-            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort)
+            profile_configuration: The optional profile configuration for the request (for passing reasoning_effort and verbosity)
         Returns:
             The response text or an exception
         """
@@ -90,9 +90,6 @@ class OpenAIChatCompletionsCore:
                 "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
-            if not profile_configuration or not profile_configuration.reasoning_effort:
-                # OpenAI does not allow temperature to be modified for o-series reasoning models.
-                common_params["temperature"] = request.temperature
 
             # Determine if we need logprobs
             if request.top_logprobs:
@@ -107,7 +104,15 @@ class OpenAIChatCompletionsCore:
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
-                common_params["response_format"] = request.structured_output
+                # Build strict schema for OpenAI parse from the provided schema
+                common_params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "fenic_response",
+                        "schema": request.structured_output.strict_schema,
+                        "strict": True,
+                    },
+                }
                 response = await self._client.beta.chat.completions.parse(
                     **common_params
                 )

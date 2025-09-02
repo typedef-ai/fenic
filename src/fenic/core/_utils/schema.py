@@ -1,6 +1,5 @@
 """Utilities for converting between different schema representations."""
-import typing
-from typing import List, Union, get_args, get_origin
+from typing import List, Literal, Union, get_args, get_origin
 
 import polars as pl
 from pydantic import BaseModel
@@ -9,21 +8,21 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DocumentPathType,
     DoubleType,
     EmbeddingType,
     FloatType,
     IntegerType,
-    JsonType,
     StringType,
     StructField,
     StructType,
+    TranscriptType,
+    _HtmlType,
     _JsonType,
+    _MarkdownType,
     _PrimitiveType,
 )
-from fenic.core.types.schema import (
-    ColumnField,
-    Schema,
-)
+from fenic.core.types.schema import ColumnField, Schema
 
 
 def convert_polars_schema_to_custom_schema(
@@ -97,10 +96,6 @@ def convert_pydantic_type_to_custom_struct_type(
 
     fields = []
     for field_name, field_info in model.model_fields.items():
-        if field_info.description is None:
-            raise ValueError(
-                f"Field {field_name} has no description.  Please specify a description for each field."
-            )
         actual_type = _unwrap_optional_type(field_info.annotation)
         origin = get_origin(actual_type)
 
@@ -141,6 +136,10 @@ def convert_custom_dtype_to_polars(
         ArrayType,
         StructType,
         _JsonType,
+        _MarkdownType,
+        _HtmlType,
+        TranscriptType,
+        DocumentPathType,
     ],
 ) -> pl.DataType:
     """Convert custom data type to the Polars data type.
@@ -174,10 +173,10 @@ def convert_custom_dtype_to_polars(
                 for field in custom_dtype.struct_fields
             ]
         )
-    elif custom_dtype == JsonType:
-        return pl.String
     elif isinstance(custom_dtype, EmbeddingType):
         return pl.Array(pl.Float32, custom_dtype.dimensions)
+    elif isinstance(custom_dtype, (_JsonType, _MarkdownType, _HtmlType, TranscriptType, DocumentPathType)):
+        return pl.String
     else:
         raise ValueError(f"Unsupported custom data type: {custom_dtype}")
 
@@ -192,7 +191,7 @@ def _convert_pytype_to_custom_dtype(py_type: type) -> _PrimitiveType:
         return DoubleType
     elif py_type is bool:
         return BooleanType
-    elif hasattr(py_type, '__origin__') and py_type.__origin__ is typing.Literal:
+    elif hasattr(py_type, '__origin__') and py_type.__origin__ is Literal:
         return StringType
     else:
         raise ValueError(f"Unsupported Python type: {py_type.__name__}")
@@ -219,6 +218,8 @@ def _convert_polars_dtype_to_custom_dtype(
     elif isinstance(polars_dtype, pl.Float32):
         return FloatType
     elif isinstance(polars_dtype, pl.Float64):
+        return DoubleType
+    elif isinstance(polars_dtype, pl.Decimal):
         return DoubleType
     elif isinstance(polars_dtype, pl.Utf8):
         return StringType

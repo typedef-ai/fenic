@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package logical_plan.v1;
+
+// Binary operators for expressions
+enum Operator {
+  // Arithmetic operators
+  EQ = 0;
+  NOT_EQ = 1;
+  LT = 2;
+  LTEQ = 3;
+  GT = 4;
+  GTEQ = 5;
+  PLUS = 6;
+  MINUS = 7;
+  MULTIPLY = 8;
+  DIVIDE = 9;
+  AND = 10;
+  OR = 11;
+}
+
+// Text chunking function types
+enum ChunkLengthFunction {
+  CHARACTER = 0;
+  WORD = 1;
+  TOKEN = 2;
+}
+
+// Text chunking character set types
+enum ChunkCharacterSet {
+  CUSTOM = 0;
+  ASCII = 1;
+  UNICODE = 2;
+}
+
+// Python `Literal` Enums. Only literals that are used by multiple expressions should be here.
+// Otherwise, they should be embedded in the expression/plan proto. This is to avoid issues with
+// the single protobuf enum namespace -- any enums defined at top level with any of the same values will conflict.
+// We make these UPPER_SNAKE_CASE to match with protobuf's enum naming convention -- we convert these back down to lowercase when
+// deserializing to the Python Literal type.
+enum JoinType {
+  INNER = 0;
+  FULL = 1;
+  LEFT = 2;
+  RIGHT = 3;
+  CROSS = 4;
+}
+
+enum FuzzySimilarityMethod {
+  INDEL = 0;
+  LEVENSHTEIN = 1;
+  DAMERAU_LEVENSHTEIN = 2;
+  JARO_WINKLER = 3;
+  JARO = 4;
+  HAMMING = 5;
+}

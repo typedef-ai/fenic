@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -71,7 +73,7 @@ class TableIdentifier(BaseIdentifier):
     catalog: Optional[str] = None
 
     @classmethod
-    def from_string(cls, full_name: str) -> "TableIdentifier":
+    def from_string(cls, full_name: str) -> TableIdentifier:
         """Parse a table-qualified name.
         Returns an identifer with keys: catalog, database, table (None if not provided).
         Raises ValueError if not 1–3 parts.
@@ -98,13 +100,21 @@ class TableIdentifier(BaseIdentifier):
             return compare_object_names(self.table, table_name)
         return True
 
-    def enrich(self, catalog_name: str, db_name: str) -> "TableIdentifier":
+    def enrich(self, catalog_name: str, db_name: str) -> TableIdentifier:
         """Enrich the table identifier with the catalog name and database name."""
         return TableIdentifier(
             catalog=self.catalog if self.catalog else catalog_name,
             db=self.db if self.db else db_name,
             table=self.table,
         )
+
+    def build_qualified_table_name(self) -> str:
+        """Build a qualified table name."""
+        return f'"{self.db}"."{self.table}"'
+
+    def __str__(self) -> str:
+        """String representation of the table identifier."""
+        return f'{self.db}.{self.table}'
 
 
 @dataclass(frozen=True)
@@ -113,7 +123,7 @@ class DBIdentifier(BaseIdentifier):
     catalog: Optional[str] = None
 
     @classmethod
-    def from_string(cls, full_name: str) -> "DBIdentifier":
+    def from_string(cls, full_name: str) -> DBIdentifier:
         """Parse a database-qualified name.
         Returns dict with keys: catalog (or None) and database.
         Raises ValueError if not 1 or 2 parts.
@@ -129,7 +139,7 @@ class DBIdentifier(BaseIdentifier):
             f"Invalid database name '{full_name}': expected 1 or 2 parts, got {len(parts)}"
         )
 
-    def enrich(self, catalog_name: str) -> "DBIdentifier":
+    def enrich(self, catalog_name: str) -> DBIdentifier:
         """Enrich the database identifier with the catalog name."""
         if self.catalog:
             return self
@@ -144,12 +154,11 @@ def normalize_object_name(name: str) -> str:
     """Normalize an object name, handling DuckDB's naming conventions."""
     return name.casefold()
 
-def validate_view(view_name: str,logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
+def validate_view(view_name: str, logical_plan: LogicalPlan, session_state: BaseSessionState) -> None:
     """Validate the schema of the specified view."""
     for child in logical_plan.children():
-        if child.children():
-            validate_view(view_name, child, session_state)
-            continue
+        validate_view(view_name, child, session_state)
+        continue
 
     if _is_source_logical_plan(logical_plan):
         if isinstance(logical_plan, FileSource):

@@ -5,8 +5,10 @@ including language model usage, embedding model usage, operator performance,
 and overall query statistics.
 """
 
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List
+from datetime import datetime
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -110,19 +112,54 @@ class QueryMetrics:
     in the execution plan.
 
     Attributes:
+        execution_id: Unique identifier for this query execution
+        session_id: Identifier for the session this query belongs to
         execution_time_ms: Total query execution time in milliseconds
         num_output_rows: Total number of rows returned by the query
         total_lm_metrics: Aggregated language model metrics across all operators
+        end_ts: Timestamp when query execution completed
     """
 
+    execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str = ""
     execution_time_ms: float = 0.0
     num_output_rows: int = 0
     total_lm_metrics: LMMetrics = field(default_factory=LMMetrics)
     total_rm_metrics: RMMetrics = field(default_factory=RMMetrics)
+    end_ts: datetime = field(default_factory=datetime.now)
     _operator_metrics: Dict[str, OperatorMetrics] = field(default_factory=dict)
     _plan_repr: PhysicalPlanRepr = field(
         default_factory=lambda: PhysicalPlanRepr(operator_id="empty")
     )
+
+    @property
+    def start_ts(self) -> datetime:
+        """Calculate start timestamp from end timestamp and execution time."""
+        from datetime import timedelta
+        return self.end_ts - timedelta(milliseconds=self.execution_time_ms)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert QueryMetrics to a dictionary for table storage.
+        
+        Returns:
+            Dict containing all metrics fields suitable for database storage.
+        """
+        return {
+            "execution_id": self.execution_id,
+            "session_id": self.session_id,
+            "execution_time_ms": self.execution_time_ms,
+            "num_output_rows": self.num_output_rows,
+            "start_ts": self.start_ts,
+            "end_ts": self.end_ts,
+            "total_lm_cost": self.total_lm_metrics.cost,
+            "total_lm_uncached_input_tokens": self.total_lm_metrics.num_uncached_input_tokens,
+            "total_lm_cached_input_tokens": self.total_lm_metrics.num_cached_input_tokens,
+            "total_lm_output_tokens": self.total_lm_metrics.num_output_tokens,
+            "total_lm_requests": self.total_lm_metrics.num_requests,
+            "total_rm_cost": self.total_rm_metrics.cost,
+            "total_rm_input_tokens": self.total_rm_metrics.num_input_tokens,
+            "total_rm_requests": self.total_rm_metrics.num_requests,
+        }
 
     def get_summary(self) -> str:
         """Summarize the query metrics in a single line.

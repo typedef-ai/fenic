@@ -509,6 +509,17 @@ def test_rlike(local_session):
         bad_pattern = r"[.*"
         df.filter(col("text_col").rlike(bad_pattern))
 
+    # Test cases that are valid python regex but not valid polars regex
+    bad_patterns = [
+        r"(?<=semantic\.)extract",      # Lookbehind assertions
+        r"(\w+)\s+\1",                  # Backreferences
+        r"(?P<word>\w+)\s+(?P=word)",   # Named group backreferences
+        r"semantic{",                   # Invalid quantifier
+    ]
+    for bad_pattern in bad_patterns:
+        with pytest.raises(ValidationError):
+            df.filter(col("text_col").rlike(bad_pattern))
+
 
 def test_starts_with(local_session):
     data = {"text_col": ["hello", "world", "foo", "bar"]}

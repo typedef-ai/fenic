@@ -12,14 +12,49 @@ if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
     from fenic.core._interfaces import BaseSessionState
 
-from fenic.core._logical_plan.plans import FileSource
-from fenic.core.error import ValidationError
+from fenic.api.functions import col
+from fenic.core._logical_plan.plans import DocSource, FileSource
+from fenic.core.error import UnsupportedFileTypeError, ValidationError
+from fenic.core.types.datatypes import JsonType, MarkdownType
 
 
 class DataFrameReader:
     """Interface used to load a DataFrame from external storage systems.
     
     Similar to PySpark's DataFrameReader.
+
+    Supported External Storage Schemes:
+    - Amazon S3 (s3://)
+        - Format: s3://{bucket_name}/{path_to_file}
+
+        - Notes:
+            - Uses boto3 to aquire AWS credentials.
+
+        - Examples:
+            - s3://my-bucket/data.csv
+            - s3://my-bucket/data/*.parquet
+
+    - Hugging Face Datasets (hf://)
+        - Format: hf://{repo_type}/{repo_id}/{path_to_file}
+
+        - Notes:
+            - Supports glob patterns (*, **)
+            - Supports dataset revisions and branch aliases (e.g., @refs/convert/parquet, @~parquet)
+            - HF_TOKEN environment variable is required to read private datasets.
+
+        - Examples:
+            - hf://datasets/datasets-examples/doc-formats-csv-1/data.csv
+            - hf://datasets/cais/mmlu/astronomy/*.parquet
+            - hf://datasets/datasets-examples/doc-formats-csv-1@~parquet/**/*.parquet
+
+    - Local Files (file:// or implicit)
+        - Format: file://{absolute_or_relative_path}
+
+        - Notes:
+            - Paths without a scheme (e.g., ./data.csv or /tmp/data.parquet) are treated as local files
+        - Examples:
+            - file:///home/user/data.csv
+            - ./data/*.parquet
     """
 
     def __init__(self, session_state: BaseSessionState):
@@ -107,9 +142,10 @@ class DataFrameReader:
                         f"Example: Schema([ColumnField(name='id', data_type=IntegerType), ColumnField(name='name', data_type=StringType)])"
                     )
         options = {
-            "schema": schema,
             "merge_schemas": merge_schemas,
         }
+        if schema:
+            options["schema"] = schema
         return self._read_file(
             paths, file_format="csv", file_extension=".csv", **options
         )
@@ -226,3 +262,74 @@ class DataFrameReader:
         from fenic.api.dataframe import DataFrame
 
         return DataFrame._from_logical_plan(logical_node, self._session_state)
+
+    def docs(
+            self,
+            paths: Union[str, list[str]],
+            data_type: Union[MarkdownType, JsonType],
+            exclude: Optional[str] = None,
+            recursive: bool = False,
+    ) -> DataFrame:
+        r"""Load a DataFrame from a list of paths of documents (markdown or json).
+
+        Args:
+            paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
+            data_type: Data type that will be used to cast the content of the files.
+                       One of MarkdownType or JsonType.
+            exclude: A regex pattern to exclude files.
+                     If it is not provided no files will be excluded.
+            recursive: Whether to recursively load files from the folder.
+
+        Returns:
+            DataFrame: A dataframe with all the documents found in the paths.
+                       Each document is a row in the dataframe.
+
+        Raises:
+            ValidationError: If any file does not have a `.md` or `.json` depending on the data_type.
+            UnsupportedFileTypeError: If the data_type is not supported.
+
+        Notes:
+            - Each row in the dataframe corresponds to a file in the list of paths.
+            - The dataframe has the following columns:
+                - file_path: The path to the file.
+                - error: The error message if the file failed to be loaded.
+                - content: The content of the file casted to the data_type.
+            - Recursive loading is supported in conjunction with the '**' glob pattern,
+              e.g. `data/**/*.md` will load all markdown files in the `data` folder and all subfolders
+                   when recursive is set to True.
+              Without recursive = True, then ** behaves like a single '*' pattern.
+
+        Example: Read all the markdown files in a folder and all its subfolders.
+            ```python
+            df = session.read.docs("data/docs/**/*.md", data_type=MarkdownType, recursive=True)
+            ```
+
+        Example: Read a folder of markdown files excluding some files.
+            ```python
+            df = session.read.docs("data/docs/*.md", data_type=MarkdownType, exclude=r"\.bak.md$")
+            ```
+
+        """
+        if data_type not in [MarkdownType, JsonType]:
+            raise UnsupportedFileTypeError(f"Unsupported file type: {data_type}")
+
+        if isinstance(paths, str):
+            paths = [paths]
+
+        valid_file_extension = "md" if data_type == MarkdownType else "json"
+        logical_node = DocSource.from_session_state(
+            paths=paths,
+            valid_file_extension=valid_file_extension,
+            exclude=exclude,
+            recursive=recursive,
+            session_state=self._session_state,
+        )
+        from fenic.api.dataframe import DataFrame
+
+        df = DataFrame._from_logical_plan(logical_node, self._session_state)
+        df = df.select(
+            col("file_path"),
+            col("error"),
+            col("content").cast(data_type).alias("content"),
+        )
+        return df

@@ -37,6 +37,12 @@ class CompletionModelParameters:
         output_token_cost: Cost per output token in USD
         context_window_length: Maximum number of tokens in the context window
         max_output_tokens: Maximum number of tokens the model can generate in a single request.
+        max_temperature: Maximum temperature for the model.
+        supports_profiles: Whether the model supports parameter profiles.
+        supports_reasoning: Whether the model supports reasoning parameter.
+        supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
+        supports_custom_temperature: Whether the model supports custom temperature.
+        supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
     """
 
     def __init__(
@@ -49,7 +55,11 @@ class CompletionModelParameters:
         cached_input_token_write_cost: float = 0.0,
         cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
+        supports_profiles = True,
         supports_reasoning = False,
+        supports_minimal_reasoning = False,
+        supports_custom_temperature = True,
+        supports_verbosity = False,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -60,7 +70,11 @@ class CompletionModelParameters:
         self.tiered_input_token_costs = tiered_token_costs
         self.max_output_tokens = max_output_tokens
         self.max_temperature = max_temperature
+        self.supports_profiles = supports_profiles
         self.supports_reasoning = supports_reasoning
+        self.supports_minimal_reasoning = supports_minimal_reasoning
+        self.supports_custom_temperature = supports_custom_temperature
+        self.supports_verbosity = supports_verbosity
 
 
 class EmbeddingModelParameters:
@@ -117,6 +131,12 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5",
+    "gpt-5-2025-08-07",
+    "gpt-5-mini",
+    "gpt-5-mini-2025-08-07",
+    "gpt-5-nano",
+    "gpt-5-nano-2025-08-07",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -169,6 +189,8 @@ AnthropicLanguageModelName = Literal[
     "claude-3-5-sonnet-latest",
     "claude-3-5-sonnet-20241022",
     "claude-3-5-sonnet-20240620",
+    "claude-opus-4-1",
+    "claude-opus-4-1-20250805",
     "claude-opus-4-0",
     "claude-opus-4-20250514",
     "claude-4-opus-20250514",
@@ -274,6 +296,21 @@ class ModelCatalog:
         """Initialize Anthropic models in the catalog."""
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
+            "claude-opus-4-1",
+            CompletionModelParameters(
+                input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
+                cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
+                cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=32_000,
+                supports_reasoning=True,
+            ),
+            snapshots=["claude-opus-4-1-20250805"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
             "claude-opus-4-0",
             CompletionModelParameters(
                 input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
@@ -327,6 +364,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=8_192,
+                supports_profiles=False,
             ),
             snapshots=["claude-3-5-sonnet-20241022", "claude-3-5-sonnet-20240620"],
         )
@@ -341,6 +379,7 @@ class ModelCatalog:
                 output_token_cost=4.00 / 1_000_000,  # $4 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=8_000,
+                supports_profiles=False,
             ),
             snapshots=["claude-3-5-haiku-20241022"],
         )
@@ -355,6 +394,7 @@ class ModelCatalog:
                 output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=4_096,
+                supports_profiles=False,
             ),
             snapshots=["claude-3-opus-20240229"],
         )
@@ -369,6 +409,7 @@ class ModelCatalog:
                 output_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=4_096,
+                supports_profiles=False,
             ),
         )
 
@@ -384,6 +425,7 @@ class ModelCatalog:
                 context_window_length=8_192,
                 max_output_tokens=8_192,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4-0314", "gpt-4-0613"],
         )
@@ -398,6 +440,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=4_096,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4-turbo-2024-04-09"],
         )
@@ -412,6 +455,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4o-mini-2024-07-18"],
         )
@@ -426,6 +470,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
         )
@@ -440,6 +485,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4.1-nano-2025-04-14"],
         )
@@ -454,6 +500,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4.1-mini-2025-04-14"],
         )
@@ -468,6 +515,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
+                supports_profiles=False,
             ),
             snapshots=["gpt-4.1-2025-04-14"],
         )
@@ -483,6 +531,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -496,6 +545,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=65_536,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -510,6 +560,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -524,6 +575,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_custom_temperature=False,
             ),
         )
 
@@ -539,6 +591,57 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
             ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens (90% discount)
+                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=True,
+                supports_custom_temperature=False,
+                supports_verbosity=True,
+            ),
+            snapshots=["gpt-5-2025-08-07"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5-mini",
+            CompletionModelParameters(
+                input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
+                cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
+                output_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=True,
+                supports_custom_temperature=False,
+                supports_verbosity=True,
+            ),
+            snapshots=["gpt-5-mini-2025-08-07"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5-nano",
+            CompletionModelParameters(
+                input_token_cost=0.05 / 1_000_000,  # $0.05 per 1M tokens
+                cached_input_token_read_cost=0.005 / 1_000_000,  # $0.005 per 1M tokens
+                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=True,
+                supports_verbosity=True,
+                supports_custom_temperature=False,
+            ),
+            snapshots=["gpt-5-nano-2025-08-07"],
         )
 
         # OpenAI Embedding Models
@@ -740,6 +843,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                supports_profiles=False,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
         )
@@ -755,6 +859,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                supports_profiles=False,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )

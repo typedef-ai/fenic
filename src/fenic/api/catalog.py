@@ -1,11 +1,13 @@
 """Catalog API for managing database objects in Fenic."""
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import ConfigDict, validate_call
 
+from fenic.api.dataframe.dataframe import DataFrame
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core.types import Schema
+from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.types import DatasetMetadata, Schema
 
 
 class Catalog:
@@ -13,6 +15,8 @@ class Catalog:
 
     The Catalog provides methods to interact with and manage database tables,
     including listing available tables, describing table schemas, and dropping tables.
+    It also provides read-only access to tables in the `fenic_system` database, such as `metrics`.
+
 
     Example: Basic usage
         ```python
@@ -37,6 +41,54 @@ class Catalog:
             ColumnField('id', IntegerType),
         ]))
         # Returns: True
+        ```
+
+    ## Metrics Table:
+
+    Fenic keeps track of system metrics and costs per session in your app.  It persists
+    in your local database, and you can load it into a dataframe for analysis.
+    A summary of your session's metrics will print once you stop your session.
+
+    Example: Basic Metrics Table queries
+        ```python
+        # Get the metrics for a session
+        metrics_df = session.table("fenic_system.metrics")
+
+        # Show metrics from the last 10 queries
+        metrics_df.order_by(fc.col("index").desc()).limit(10).show()
+
+        # Get metrics from a specific session that incurred LM costs
+        session_metrics_df = (metrics_df
+            .filter(fc.col("session_id") == "9e7e256f-fad9-4cd9-844e-399d795aaea0")
+            .where(fc.col("total_lm_cost") > 0)
+            .order_by(fc.col("index").desc())
+        )
+
+        # Get total costs from that session
+        session_metrics_df.agg(
+            fc.sum("total_lm_cost").alias("session_lm_costs"),
+            fc.sum("total_lm_requests").alias("session_lm_requests")
+        ).show()
+        ```
+
+    Example: Query metrics by timestamp
+        You can use the index column to order the metrics, or you can use the start_ts and end_ts columns.
+        Currently, fenic does not natively support timestamp types so these are strings. To query by timestamps,
+        CAST them to timestamp in a SQL query.
+
+        ```python
+        # Get total lm costs and requests from timewindow between 10:00:00 and 12:00:00
+        metrics_window = session.sql(\"\"\"
+        SELECT
+            CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
+            CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
+        FROM {df}
+        WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
+            CAST('2025-08-29 10:00:00' AS TIMESTAMP) AND
+            CAST('2025-08-29 12:00:00' AS TIMESTAMP)
+        \"\"\", df=metrics_df)
+
+        metrics_window.show()
         ```
     """
 
@@ -381,28 +433,43 @@ class Catalog:
         return self.catalog.list_tables()
 
     @validate_call(config=ConfigDict(strict=True))
-    def describe_table(self, table_name: str) -> Schema:
+    def describe_table(self, table_name: str) -> DatasetMetadata:
         """Returns the schema of the specified table.
 
         Args:
             table_name (str): Fully qualified or relative table name to describe.
 
         Returns:
-            Schema: A schema object describing the table's structure with field names and types.
+            DatasetMetadata: An object containing:
+                schema: A schema object describing the table's structure with field names and types.
+                description: A natural language description of the table's contents and uses.
 
         Raises:
             TableNotFoundError: If the table doesn't exist.
 
         Example: Describe a table's schema
             ```python
-            # For a table created with: CREATE TABLE t1 (id int)
+            # For a table created with: create_table('t1', Schema([ColumnField('id', IntegerType)]), description='My table description')
             session.catalog.describe_table('t1')
-            # Returns: Schema([
+            # Returns: DatasetMetadata(schema=Schema([
             #     ColumnField('id', IntegerType),
-            # ])
+            # ]), description="My table description")
             ```
         """
         return self.catalog.describe_table(table_name)
+
+    @validate_call(config=ConfigDict(strict=True))
+    def set_table_description(self, table_name: str, description: Optional[str] = None) -> None:
+        """Set or unset the description for a table.
+
+        Args:
+            table_name: Fully qualified or relative table name to set the description for.
+            description: The description to set for the table.
+
+        Raises:
+            TableNotFoundError: If the table doesn't exist.
+        """
+        self.catalog.set_table_description(table_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
@@ -448,7 +515,7 @@ class Catalog:
 
     @validate_call(config=ConfigDict(strict=True))
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Creates a new table.
 
@@ -458,6 +525,8 @@ class Catalog:
             ignore_if_exists (bool): If True, return False when the table already exists.
                 If False, raise an error when the table already exists.
                 Defaults to True.
+            description (Optional[str]): Description of the table to create.
+                Defaults to None.
 
         Returns:
             bool: True if the table was created successfully, False if the table
@@ -471,7 +540,7 @@ class Catalog:
             # Create a new table with an integer column
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]))
+            ]), description='My table description')
             # Returns: True
             ```
 
@@ -480,7 +549,7 @@ class Catalog:
             # Try to create an existing table with ignore_if_exists=True
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]), ignore_if_exists=True)
+            ]), ignore_if_exists=True, description='My table description')
             # Returns: False
             ```
 
@@ -489,11 +558,11 @@ class Catalog:
             # Try to create an existing table with ignore_if_exists=False
             session.catalog.create_table('my_table', Schema([
                 ColumnField('id', IntegerType),
-            ]), ignore_if_exists=False)
+            ]), ignore_if_exists=False, description='My table description')
             # Raises: TableAlreadyExistsError
             ```
         """
-        return self.catalog.create_table(table_name, schema, ignore_if_exists)
+        return self.catalog.create_table(table_name, schema, ignore_if_exists, description)
 
     def list_views(self) -> List[str]:
         """Returns a list of views stored in the current database.
@@ -509,6 +578,43 @@ class Catalog:
             ['view1', 'view2', 'view3'].
         """
         return self.catalog.list_views()
+
+    @validate_call(config=ConfigDict(strict=True))
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Returns the schema and description of the specified view.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to describe.
+
+        Returns:
+            DatasetMetadata: An object containing:
+                schema: A schema object describing the view's structure with field names and types.
+                description: A natural language description of the view's contents and uses.
+
+        Raises:
+            TableNotFoundError: If the view doesn't exist.
+
+        """
+        return self.catalog.describe_view(view_name)
+
+    @validate_call(config=ConfigDict(strict=True))
+    def set_view_description(self, view_name: str, description: Optional[str] = None) -> None:
+        """Set the description for a view.
+
+        Args:
+            view_name (str): Fully qualified or relative view name to set the description for.
+            description (str): The description to set for the view.
+
+        Raises:
+            TableNotFoundError: If the view doesn't exist.
+            ValidationError: If the description is empty.
+
+        Example: Set a description for a view
+            ```python
+            # Set a description for a view 'v1'
+            session.catalog.set_view_description('v1', 'My view description')
+        """
+        self.catalog.set_view_description(view_name, description)
 
     @validate_call(config=ConfigDict(strict=True))
     def does_view_exist(self, view_name: str) -> bool:
@@ -556,6 +662,107 @@ class Catalog:
         """
         return self.catalog.drop_view(view_name, ignore_if_not_exists)
 
+    @validate_call(config=ConfigDict(strict=True))
+    def get_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> ParameterizedToolDefinition:
+        """Returns the tool with the specified name from the current catalog.
+
+        Args:
+            tool_name (str): The name of the tool to get.
+            ignore_if_not_exists (bool): If True, return None when the tool doesn't exist.
+                If False, raise an error when the tool doesn't exist.
+                Defaults to True.
+
+        Raises:
+            ToolNotFoundError: If the tool doesn't exist and ignore_if_not_exists is False
+
+        Returns:
+            Tool: The tool with the specified name.
+        """
+        return self.catalog.get_tool(tool_name, ignore_if_not_exists)
+
+    @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+    def create_tool(
+        self,
+        tool_name: str,
+        tool_description: str,
+        tool_query: DataFrame,
+        tool_params: List[ToolParam],
+        result_limit: int = 50,
+        ignore_if_exists: bool = True
+    ) -> bool:
+        """Creates a new tool in the current catalog.
+
+        Args:
+            tool_name (str): The name of the tool.
+            tool_description (str): The description of the tool.
+            tool_query (DataFrame): The query to execute when the tool is called.
+            tool_params (Sequence[ToolParam]): The parameters of the tool.
+            result_limit (int): The maximum number of rows to return from the tool.
+            ignore_if_exists (bool): If True, return False when the tool already exists.
+                If False, raise an error when the tool already exists.
+                Defaults to True.
+
+        Returns:
+            bool: True if the tool was created successfully, False otherwise.
+
+        Raises:
+            ToolAlreadyExistsError: If the tool already exists.
+
+        Examples:
+            ```python
+            # Create a new tool with a single parameter
+            df = session.create_dataframe(...)
+
+            session.catalog.create_tool(
+                tool_name="my_tool",
+                tool_description="A tool that does something",
+                tool_query=df,
+                result_limit=100,
+                tool_params=[ToolParam(name="param1", description="A parameter", allowed_values=["value1", "value2"])],
+            )
+            # Returns: True
+            ```
+        """
+        return self.catalog.create_tool(
+            tool_name,
+            tool_description,
+            tool_params,
+            tool_query._logical_plan,
+            result_limit,
+            ignore_if_exists,
+        )
+
+    @validate_call(config=ConfigDict(strict=True))
+    def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
+        """Drops the specified tool from the current catalog.
+
+        Args:
+            tool_name (str): The name of the tool to drop.
+            ignore_if_not_exists (bool): If True, return False when the tool doesn't exist.
+                If False, raise an error when the tool doesn't exist.
+                Defaults to True.
+
+        Returns:
+            bool: True if the tool was dropped successfully, False if the tool
+                didn't exist and ignore_if_not_exists is True.
+
+        Raises:
+            ToolNotFoundError: If the tool doesn't exist and ignore_if_not_exists is False
+
+        Example:
+            >>> session.catalog.drop_tool('my_tool')
+            True
+            >>> session.catalog.drop_tool('my_tool', ignore_if_not_exists=True)
+            False
+            >>> session.catalog.drop_tool('my_tool', ignore_if_not_exists=False)
+            # Raises ToolNotFoundError.
+        """
+        return self.catalog.drop_tool(tool_name, ignore_if_not_exists)
+
+    def list_tools(self) -> List[ParameterizedToolDefinition]:
+        """Lists the tools available in the current catalog."""
+        return self.catalog.list_tools()
+
     # Spark-style camelCase aliases
     doesCatalogExist = does_catalog_exist
     getCurrentCatalog = get_current_catalog
@@ -569,6 +776,10 @@ class Catalog:
     describeTable = describe_table
     dropTable = drop_table
     createTable = create_table
+    setTableDescription = set_table_description
     listViews = list_views
     doesViewExist = does_view_exist
     dropView = drop_view
+    getTool = get_tool
+    createTool = create_tool
+    dropTool = drop_tool

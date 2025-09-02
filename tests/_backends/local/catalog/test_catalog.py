@@ -14,10 +14,14 @@ from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
     DEFAULT_DATABASE_NAME,
 )
+from fenic._backends.local.system_table_client import (
+    READ_ONLY_SYSTEM_SCHEMA_NAME,
+)
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
     DatabaseNotFoundError,
+    ExecutionError,
     TableAlreadyExistsError,
     TableNotFoundError,
 )
@@ -135,6 +139,19 @@ def test_drop_database(local_session: Session):
     assert not local_session.catalog.does_database_exist(ANOTHER_DATABASE_NAME)
 
 
+    local_session.catalog.create_database(ANOTHER_DATABASE_NAME)
+    local_session.catalog.set_current_database(ANOTHER_DATABASE_NAME)
+    local_session.create_dataframe({"a": [1, 2, 3]}).write.save_as_view("df1")
+    assert local_session.catalog.does_view_exist("df1")
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+    with pytest.raises(CatalogError, match="Cannot drop database 'another_existing_db' because it contains views. Use CASCADE to drop the database and all its views."):
+        local_session.catalog.drop_database(ANOTHER_DATABASE_NAME, cascade=False)
+    local_session.catalog.set_current_database(ANOTHER_DATABASE_NAME)
+    assert local_session.catalog.does_view_exist("df1")
+    local_session.catalog.set_current_database(DEFAULT_DATABASE_NAME)
+    local_session.catalog.drop_database(ANOTHER_DATABASE_NAME, cascade=True)
+    assert not local_session.catalog.does_database_exist(ANOTHER_DATABASE_NAME)
+
 def test_list_databases(local_session: Session):
     local_session.catalog.create_database(A_DATABASE_NAME)
     local_session.catalog.create_database(ANOTHER_DATABASE_NAME)
@@ -142,7 +159,27 @@ def test_list_databases(local_session: Session):
     assert A_DATABASE_NAME in databases
     assert ANOTHER_DATABASE_NAME in databases
     assert DEFAULT_DATABASE_NAME in databases
-    assert len(databases) == 3
+    assert READ_ONLY_SYSTEM_SCHEMA_NAME in databases  # Read-only system database
+    assert len(databases) == 4
+
+
+def test_read_only_system_database_protection(local_session: Session):
+    """Test that the fenic_system database cannot be dropped."""
+    with pytest.raises(CatalogError, match="Cannot drop read-only system database"):
+        local_session.catalog.drop_database(READ_ONLY_SYSTEM_SCHEMA_NAME)
+    
+    # Test that tables in fenic_system cannot be dropped
+    with pytest.raises(CatalogError, match="Cannot drop table 'fenic_system.metrics' from read-only system database"):
+        local_session.catalog.drop_table(f"{READ_ONLY_SYSTEM_SCHEMA_NAME}.metrics")
+    
+    # Test that we cannot create tables in fenic_system
+    with pytest.raises(CatalogError, match="Cannot create table 'fenic_system.test_table' in read-only system database"):
+        local_session.catalog.create_table(f"{READ_ONLY_SYSTEM_SCHEMA_NAME}.test_table", SIMPLE_TABLE_SCHEMA)
+    
+    # Test that we cannot write to tables in fenic_system
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    with pytest.raises(ExecutionError, match="Cannot write to table 'fenic_system.test_table' in read-only system database"):
+        df.write.save_as_table("fenic_system.test_table")
 
 
 def test_get_and_set_current_database(local_session: Session):
@@ -223,19 +260,21 @@ def test_list_views(local_session: Session):
 def test_describe_view(local_session: Session):
     df1 = local_session.create_dataframe({"a": [1, 2, 3]})
     df1.write.save_as_view("df1")
-    view_df1 = local_session._session_state.catalog.describe_view("df1")
+    view_df1 = local_session._session_state.catalog.get_view_plan("df1")
     assert view_df1.schema().column_names() == ["a"]
 
 def test_describe_table(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
-    schema = local_session.catalog.describe_table(TABLE_NAME_T1)
+    table_metadata = local_session.catalog.describe_table(TABLE_NAME_T1)
+    schema = table_metadata.schema
     assert len(schema.column_fields) == 1
     assert schema.column_fields[0].name == "id"
     assert schema.column_fields[0].data_type == IntegerType
 
-    schema = local_session.catalog.describe_table(
+    table_metadata = local_session.catalog.describe_table(
         f"{DEFAULT_DATABASE_NAME}.{TABLE_NAME_T1}"
     )
+    schema = table_metadata.schema
     assert len(schema.column_fields) == 1
     assert schema.column_fields[0].name == "id"
     assert schema.column_fields[0].data_type == IntegerType
@@ -256,11 +295,12 @@ def test_describe_table(local_session: Session):
 
 def test_describe_table_struct(local_session: Session):
     local_session.catalog.create_table(TABLE_NAME_STRUCT, STRUCT_TABLE_SCHEMA)
-    schema = local_session.catalog.describe_table(TABLE_NAME_STRUCT)
+    table_metadata = local_session.catalog.describe_table(TABLE_NAME_STRUCT)
+    schema = table_metadata.schema
     assert len(schema.column_fields) == 1
     assert schema.column_fields[0].name == "s1"
     assert isinstance(schema.column_fields[0].data_type, StructType)
-    inner_schema = schema.column_fields[0].data_type
+    inner_schema = table_metadata.schema.column_fields[0].data_type
     assert len(inner_schema.struct_fields) == 2
     assert inner_schema.struct_fields[0].name == "i"
     assert inner_schema.struct_fields[0].data_type == IntegerType
@@ -310,6 +350,63 @@ def test_drop_view(local_session: Session):
         local_session.catalog.drop_view(
             "typedef_default.df3", ignore_if_not_exists=False
         )
+
+
+def test_save_as_table_with_description_and_metadata(local_session: Session):
+    table_name = "meta_table_desc"
+    df = local_session.create_dataframe({"a": [1, 2, 3]})
+    # Save with description
+    df.write.save_as_table(table_name, mode="overwrite")
+    local_session.catalog.set_table_description(table_name, "table desc")
+
+    meta = local_session.catalog.describe_table(table_name)
+    assert meta.description == "table desc"
+    assert meta.schema.column_names() == ["a"]
+
+def test_set_description_for_non_existing_table(local_session: Session):
+    table_name = "non_existing_table"
+    with pytest.raises(TableNotFoundError, match=f"Table '{DEFAULT_DATABASE_NAME}.{table_name}' does not exist"):
+        local_session.catalog.set_table_description(table_name, "table desc")
+
+def test_set_description_for_non_existing_view(local_session: Session):
+    view_name = "non_existing_view"
+    with pytest.raises(TableNotFoundError, match=f"Table '{DEFAULT_DATABASE_NAME}.{view_name}' does not exist"):
+        local_session.catalog.set_view_description(view_name, "view desc")
+
+def test_save_as_view_with_description_and_metadata(local_session: Session):
+    view_name = "meta_view_desc"
+    df = local_session.create_dataframe({"b": [1, 2, 3]})
+    # Save with description
+    df.write.save_as_view(view_name, description="view desc")
+
+    vmeta = local_session.catalog.describe_view(view_name)
+    assert vmeta.description == "view desc"
+    assert vmeta.schema.column_names() == ["b"]
+
+    local_session.catalog.set_view_description(view_name, "updated_view_desc")
+    meta = local_session.catalog.describe_view(view_name)
+    assert meta.description == "updated_view_desc"
+
+
+def test_get_table_metadata_without_description(local_session: Session):
+    tbl = "meta_table_no_desc"
+    local_session.catalog.create_table(tbl, SIMPLE_TABLE_SCHEMA)
+    meta = local_session.catalog.describe_table(tbl)
+    assert meta.description is None
+    assert meta.schema.column_names() == ["id"]
+
+
+def test_set_table_description_updates_metadata(local_session: Session):
+    tbl = "meta_table_set_desc"
+    local_session.catalog.create_table(tbl, SIMPLE_TABLE_SCHEMA, description="table desc")
+    local_session.catalog.set_table_description(tbl, "updated desc")
+    meta = local_session.catalog.describe_table(tbl)
+    assert meta.description == "updated desc"
+    assert meta.schema.column_names() == ["id"]
+    local_session.catalog.set_table_description(tbl, None)
+    meta = local_session.catalog.describe_table(tbl)
+    assert meta.description is None
+    assert meta.schema.column_names() == ["id"]
 
 def test_create_table(local_session: Session):
     assert local_session.catalog.create_table(TABLE_NAME_T1, SIMPLE_TABLE_SCHEMA)
