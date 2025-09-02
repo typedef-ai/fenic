@@ -188,7 +188,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         language_models = {
             "model_1": nano,
             "model_2": OpenAILanguageModel(
-                model_name="gpt-4.1-mini", rpm=250, tpm=50_000
+                model_name="gpt-4.1-mini", rpm=250, tpm=50_000,
             ),
         }
     elif language_model_provider == ModelProvider.ANTHROPIC:
