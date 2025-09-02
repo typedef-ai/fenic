@@ -19,6 +19,7 @@ from fenic import (
 )
 from fenic.api.session.config import (
     AnthropicLanguageModel,
+    CohereEmbeddingModel,
     EmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
@@ -26,6 +27,7 @@ from fenic.api.session.config import (
     OpenAILanguageModel,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_provider import ModelProviderClass
 
 LANGUAGE_MODEL_PROVIDER_ARG = "--language-model-provider"
 LANGUAGE_MODEL_NAME_ARG = "--language-model-name"
@@ -242,8 +244,16 @@ def multi_model_local_session(multi_model_local_session_config, request):
 
 
 @pytest.fixture
-def local_session_config(app_name, request) -> SessionConfig:
-    """Creates a test session config."""
+def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
+    """Creates a test session config.
+
+    Notes:
+        We mock the api key validation to avoid the noticeable delay of validating our api key in every test.
+    """
+    async def mock_validate_provider_api_keys(providers: set[ModelProviderClass]):
+        return
+    monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_keys", mock_validate_provider_api_keys)
+
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
     language_model = configure_language_model(language_model_provider, request.config.getoption(LANGUAGE_MODEL_NAME_ARG))
@@ -367,15 +377,21 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     return language_model
 
 def configure_embedding_model(model_provider: ModelProvider, model_name: str) -> EmbeddingModel:
+    """ Configure an embedding model for the test session.
+
+    Note: Don't configure profiles that change dimension defaults, or it won't be consistent with embedding_model_name_and_dimensions
+    and test_embed.py will fail. """
     if model_provider == ModelProvider.OPENAI:
         embedding_model = OpenAIEmbeddingModel(
             model_name=model_name, rpm=3000, tpm=1_000_000
         )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER or model_provider == ModelProvider.GOOGLE_VERTEX:
         embedding_model = GoogleDeveloperEmbeddingModel(
-            model_name=model_name, rpm=3000, tpm=1_000_000, profiles={
-                "default": GoogleDeveloperEmbeddingModel.Profile(output_dimensionality=1536, task_type="SEMANTIC_SIMILARITY"),
-            }
+            model_name=model_name, rpm=3000, tpm=1_000_000
+        )
+    elif model_provider == ModelProvider.COHERE:
+        embedding_model = CohereEmbeddingModel(
+            model_name=model_name, rpm=3000, tpm=1_000_000
         )
     else:
         raise ValueError(f"Unsupported embedding model provider: {model_provider}")

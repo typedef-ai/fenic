@@ -7,10 +7,13 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from fenic import (
+    AnthropicLanguageModel,
     CohereEmbeddingModel,
     ColumnField,
     GoogleDeveloperEmbeddingModel,
+    GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
+    GoogleVertexLanguageModel,
     IntegerType,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
@@ -20,7 +23,6 @@ from fenic import (
     StringType,
     col,
 )
-from fenic.api.session.config import GoogleDeveloperLanguageModel
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError
@@ -505,3 +507,107 @@ def test_model_profile_validation():
                 language_models={"o3": OpenAILanguageModel(model_name="o3", rpm=100, tpm=1000, profiles={"fast": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)})}
             )
         )
+
+def test_session_config_with_invalid_api_keys(monkeypatch):
+    """Test that session configuration validation rejects models with invalid API keys."""
+    monkeypatch.setenv("OPENAI_API_KEY", "__invalid__")
+    # test openai chat completions client
+    with pytest.raises(ConfigurationError, match="Incorrect API key provided: __invalid__."):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"o3": OpenAILanguageModel(model_name="o3", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+
+    # test openai embedding client
+    with pytest.raises(ConfigurationError, match="Incorrect API key provided: __invalid__."):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+
+def test_session_config_with_invalid_gemini_api_key(monkeypatch):
+    """Test that session configuration validation rejects models with invalid Gemini API keys."""
+    pytest.importorskip("google.genai")
+
+    monkeypatch.setenv("GEMINI_API_KEY", "__invalid__")
+    # test google developer chat completions client
+    with pytest.raises(ConfigurationError, match="API key not valid. Please pass a valid API key."):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"gemini_2.5_pro": GoogleDeveloperLanguageModel(model_name="gemini-2.5-pro", rpm=100, tpm=1000)}
+            )
+        )   
+        _ = Session.get_or_create(config)
+
+    # test google developer embedding client
+    with pytest.raises(ConfigurationError, match="API key not valid. Please pass a valid API key."):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={"google_embed": GoogleDeveloperEmbeddingModel(model_name="gemini-embedding-001", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+    
+    # test google developer chat completions client
+    # mock default credentials error
+    import google.auth
+    from google.auth.exceptions import DefaultCredentialsError
+    monkeypatch.setattr(
+        google.auth,
+        "default",
+        lambda *a, **kw: (_ for _ in ()).throw(DefaultCredentialsError("No ADC"))
+    )
+    with pytest.raises(ConfigurationError, match="401 UNAUTHENTICATED"):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"gemini_2.5_pro": GoogleVertexLanguageModel(model_name="gemini-2.5-pro", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+
+    # test google vertex embedding client
+    with pytest.raises(ConfigurationError, match="401 UNAUTHENTICATED"):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={"google_embed": GoogleVertexEmbeddingModel(model_name="gemini-embedding-001", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+
+def test_session_config_with_invalid_cohere_api_key(monkeypatch):
+    pytest.importorskip("cohere")
+    
+    monkeypatch.setenv("COHERE_API_KEY", "__invalid__")
+    # test cohere embedding client
+    with pytest.raises(ConfigurationError, match="invalid api token"):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                embedding_models={"cohere_embed": CohereEmbeddingModel(model_name="embed-v4.0", rpm=100, tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)
+
+def test_session_config_with_invalid_anthropic_api_key(monkeypatch):
+    pytest.importorskip("anthropic")
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "__invalid__")
+    # test anthropic chat completions client
+    with pytest.raises(ConfigurationError, match="'type': 'authentication_error'"):
+        config = SessionConfig(
+            app_name="test_app",
+            semantic=SemanticConfig(
+                language_models={"claude": AnthropicLanguageModel(model_name="claude-opus-4-1", rpm=100, input_tpm=100, output_tpm=1000)}
+            )
+        )
+        _ = Session.get_or_create(config)

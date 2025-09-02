@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference import (
     EmbeddingModel,
     LanguageModel,
@@ -12,6 +14,7 @@ from fenic._inference.rate_limit_strategy import (
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
+from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelConfig,
@@ -57,11 +60,14 @@ class SessionModelRegistry:
         Args:
             config (ResolvedSemanticConfig): Configuration containing model settings and defaults.
         """
+        validate_providers: set[ModelProviderClass] = set()
         if config.language_models:
             language_model_config = config.language_models
             models: dict[str, LanguageModel] = {}
             for alias, model_config in language_model_config.model_configs.items():
-                models[alias] = self._initialize_language_model(model_config)
+                model = self._initialize_language_model(model_config)
+                models[alias] = model
+                validate_providers.add(model.client.model_provider_class)
             self.language_model_registry = LanguageModelRegistry(
                 models=models,
                 default_model=models[language_model_config.default_model],
@@ -71,11 +77,19 @@ class SessionModelRegistry:
             embedding_model_config = config.embedding_models
             models: dict[str, EmbeddingModel] = {}
             for alias, model_config in embedding_model_config.model_configs.items():
-                models[alias] = self._initialize_embedding_model(model_config)
+                model = self._initialize_embedding_model(model_config)
+                models[alias] = model
+                validate_providers.add(model.client.model_provider_class)
             self.embedding_model_registry = EmbeddingModelRegistry(
                 models=models,
                 default_model=models[embedding_model_config.default_model],
             )
+        if len(validate_providers) > 0:
+            with EventLoopManager().loop_context() as loop:
+                future = asyncio.run_coroutine_threadsafe(_validate_provider_api_keys(validate_providers), loop)
+                future.result()
+
+
 
     def get_language_model_metrics(self) -> LMMetrics:
         """Get aggregated metrics for all language models.
@@ -172,14 +186,16 @@ class SessionModelRegistry:
                 except Exception as e:
                     logger.warning(f"Failed graceful shutdown of embedding model client {alias}: {e}")
 
+
+
     def _initialize_embedding_model(self, model_config: ResolvedModelConfig) -> EmbeddingModel:
         """Initialize an embedding model with the given configuration.
 
         Args:
-            model_config (ModelConfig): Configuration for the embedding model.
+            model_config (ModelConfig): Configuration for the embedding client model.
 
         Returns:
-            EmbeddingModel: Initialized embedding model.
+            EmbeddingModel: Initialized embedding client model.
 
         Raises:
             SessionError: If model initialization fails.
@@ -233,7 +249,7 @@ class SessionModelRegistry:
         return EmbeddingModel(client=client)
 
     def _initialize_language_model(self, model_config: ResolvedModelConfig) -> LanguageModel:
-        """Initialize a language model with the given configuration.
+        """Initialize a language client model with the given configuration.
 
         Args:
             model_alias: Base alias for the model
@@ -302,3 +318,19 @@ class SessionModelRegistry:
 
         except Exception as e:
             raise SessionError(f"Failed to create language model client: {e}") from e
+
+
+async def _validate_provider_api_keys(providers: set[ModelProviderClass]):
+    tasks = [asyncio.create_task(provider.validate_api_key()) for provider in providers]
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise ConfigurationError(f"Error during API key validation: {e}") from e
+    finally:
+        for task in tasks:
+            if not task.done(): 
+                task.cancel()

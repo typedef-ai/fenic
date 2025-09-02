@@ -1,8 +1,5 @@
 """Client for making batch requests to OpenAI's chat completions API."""
-import logging
 from typing import Optional, Union
-
-from openai import AsyncOpenAI
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
@@ -10,6 +7,7 @@ from fenic._inference.common_openai.openai_chat_completions_core import (
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
+from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -24,8 +22,6 @@ from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResp
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
-
-logger = logging.getLogger(__name__)
 
 
 class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -53,6 +49,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
+            model_provider_class=OpenAIModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -64,12 +61,11 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             profile_configurations=profiles,
             default_profile_name=default_profile_name
         )
-
         self._core = OpenAIChatCompletionsCore(
             model=model,
             model_provider=ModelProvider.OPENAI,
             token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
-            client=AsyncOpenAI()
+            client=self.model_provider_class.create_aio_client()
         )
 
     async def make_single_request(

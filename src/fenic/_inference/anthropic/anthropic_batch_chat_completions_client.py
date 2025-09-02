@@ -7,7 +7,6 @@ from anthropic import (
     AnthropicError,
     APIConnectionError,
     APITimeoutError,
-    AsyncAnthropic,
     RateLimitError,
 )
 from anthropic.types import (
@@ -21,6 +20,7 @@ from anthropic.types import (
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
 )
+from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -93,6 +93,7 @@ class AnthropicBatchCompletionsClient(
         super().__init__(
             model=model,
             model_provider=ModelProvider.ANTHROPIC,
+            model_provider_class=AnthropicModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
@@ -100,8 +101,8 @@ class AnthropicBatchCompletionsClient(
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
-        self._sync_client = anthropic.Client()
-        self._client = AsyncAnthropic()
+        self._sync_client = self.model_provider_class.create_client()
+        self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
         self._output_formatter_tool_name = "output_formatter"
         self._output_formatter_tool_description = "Format the output of the model to correspond strictly to the provided schema."

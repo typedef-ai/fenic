@@ -119,7 +119,8 @@ class TableSink(LogicalPlan):
             table_name: str,
             mode: Literal["error", "append", "overwrite", "ignore"] = "error",
             session_state: Optional[BaseSessionState] = None,
-            schema: Optional[Schema] = None):
+            schema: Optional[Schema] = None,
+        ):
         """Initialize a table sink node.
 
         Args:

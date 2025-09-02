@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
-from fenic.core.types import Schema
+from fenic.core.types import DatasetMetadata, Schema
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
@@ -81,8 +81,8 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_table(self, table_name: str) -> Schema:
-        """Get the schema of the specified table."""
+    def describe_table(self, table_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified table."""
         pass
 
     @abstractmethod
@@ -92,9 +92,14 @@ class BaseCatalog(ABC):
 
     @abstractmethod
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table in the current database."""
+        pass
+
+    @abstractmethod
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set or clear the description for a table."""
         pass
 
     @abstractmethod
@@ -103,6 +108,7 @@ class BaseCatalog(ABC):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         pass
@@ -113,7 +119,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_view(self, view_name: str) -> LogicalPlan:
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
         """Get the serialized schema and logical plan of the specified view."""
         pass
 
@@ -125,4 +131,14 @@ class BaseCatalog(ABC):
     @abstractmethod
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
+        pass
+
+    @abstractmethod
+    def set_view_description(self, view_name: str, description: Optional[str]) -> None:
+        """Set the description for a view."""
+        pass
+
+    @abstractmethod
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Return view schema and description together."""
         pass

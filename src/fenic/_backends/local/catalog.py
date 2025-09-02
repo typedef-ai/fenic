@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import duckdb
 import polars as pl
@@ -29,6 +29,7 @@ from fenic.core.error import (
 )
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
+    DatasetMetadata,
     Schema,
 )
 
@@ -289,22 +290,58 @@ class LocalCatalog(BaseCatalog):
                     f"Failed to list views in database '{self.get_current_database()}'"
                 ) from e
 
-    def describe_table(self, table_name: str) -> Schema:
-        """Get the schema of the specified table."""
+    # Descriptions
+    def set_table_description(self, table_name: str, description: Optional[str]) -> None:
+        """Set the description for a table."""
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            maybe_schema = self.system_tables.get_schema(
+            if not self._does_table_exist(self.db_conn.cursor(), table_identifier):
+                raise TableNotFoundError(table_identifier.table, table_identifier.db)
+            cursor = self.db_conn.cursor()
+            try:
+                self.system_tables.set_table_description(cursor, table_identifier.db, table_identifier.table, description)
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for table: `{table_identifier.db}.{table_identifier.table}`"
+                ) from e
+
+    def get_table_description(self, table_name: str) -> Optional[str]:
+        """Get description of the specified table."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
+
+    def describe_view(self, view_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            return self.system_tables.get_view_metadata(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
+
+    def describe_table(self, table_name: str) -> DatasetMetadata:
+        """Get the schema and description of the specified table."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(table_identifier)
+            maybe_table_metadata = self.system_tables.get_table_metadata(
                 self.db_conn.cursor(), table_identifier.db, table_identifier.table
             )
-            if maybe_schema is None:
+            if maybe_table_metadata is None:
                 raise TableNotFoundError(table_identifier.table, table_identifier.db)
-            return maybe_schema
+            return maybe_table_metadata
 
-    def describe_view(self, view_name: str) -> LogicalPlan:
-        """Get the schema of the specified view."""
+    def get_view_plan(self, view_name: str) -> LogicalPlan:
+        """Get the LogicalPlan for the specified view."""
         with self.lock:
             view_identifier = TableIdentifier.from_string(view_name).enrich(
                     self.get_current_catalog(),
@@ -373,7 +410,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
     def create_table(
-        self, table_name: str, schema: Schema, ignore_if_exists: bool = True
+        self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table."""
         temp_view_name = generate_unique_arrow_view_name()
@@ -401,8 +438,8 @@ class LocalCatalog(BaseCatalog):
                     cursor.execute(
                         f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name} WHERE 1=0"
                     )
-                    self.system_tables.save_schema(
-                        cursor, table_identifier.db, table_identifier.table, schema
+                    self.system_tables.save_table(
+                        cursor, table_identifier.db, table_identifier.table, schema, description
                     )
                 return True
             except Exception as e:
@@ -422,6 +459,7 @@ class LocalCatalog(BaseCatalog):
         view_name: str,
         logical_plan: LogicalPlan,
         ignore_if_exists: bool = True,
+        description: Optional[str] = None,
     ) -> bool:
         """Create a new view in the current database."""
         with self.lock:
@@ -441,11 +479,31 @@ class LocalCatalog(BaseCatalog):
                     raise ValueError(f"View {view_name} already exists!")
                 with DuckDBTransaction(cursor):
                     self.system_tables.save_view(
-                        cursor, view_identifier.db, view_identifier.table, logical_plan)
+                        cursor, view_identifier.db, view_identifier.table, logical_plan, description)
                     return True
             except Exception as e:
                 raise CatalogError(
                     f"Failed to create view: `{view_identifier.db}.{view_identifier.table}`"
+                ) from e
+
+    def set_view_description(self, view_name: str, description: Optional[str]) -> bool:
+        """Set the description for a view."""
+        with self.lock:
+            view_identifier = TableIdentifier.from_string(view_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+            _verify_table_catalog(view_identifier)
+            cursor = self.db_conn.cursor()
+            if not self._does_view_exist(cursor, view_identifier):
+                if description is None:
+                    return
+                raise TableNotFoundError(view_identifier.table, view_identifier.db)
+            try:
+                self.system_tables.set_view_description(cursor, view_identifier.db, view_identifier.table, description)
+                return True
+            except Exception as e:
+                raise CatalogError(
+                    f"Failed to set description for view: `{view_identifier.db}.{view_identifier.table}`"
                 ) from e
 
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
@@ -469,7 +527,7 @@ class LocalCatalog(BaseCatalog):
                     cursor.execute(
                         f"CREATE TABLE IF NOT EXISTS {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                     )
-                    self.system_tables.save_schema(
+                    self.system_tables.save_table(
                         cursor, table_identifier.db, table_identifier.table, schema
                     )
             except Exception as e:
@@ -497,7 +555,8 @@ class LocalCatalog(BaseCatalog):
             )
         cursor = self.db_conn.cursor()
         if self._does_table_exist(cursor, table_identifier):
-            existing_schema = self.system_tables.get_schema(cursor, table_identifier.db, table_identifier.table)
+            existing_table_metadata = self.system_tables.get_table_metadata(cursor, table_identifier.db, table_identifier.table)
+            existing_schema = existing_table_metadata.schema if existing_table_metadata else None
             if not existing_schema:
                 raise InternalError(f"Schema for table '{table_name}' does not exist, but table exists.")
             if existing_schema != schema:
@@ -544,7 +603,7 @@ class LocalCatalog(BaseCatalog):
                 cursor.execute(
                     f"CREATE OR REPLACE TABLE {table_identifier.build_qualified_table_name()} AS SELECT * FROM {temp_view_name}"
                 )
-                self.system_tables.save_schema(
+                self.system_tables.save_table(
                     cursor, table_identifier.db, table_identifier.table, schema
                 )
         except Exception as e:
@@ -578,12 +637,11 @@ class LocalCatalog(BaseCatalog):
 
     def insert_metrics(self, metrics: QueryMetrics) -> None:
         """Insert metrics into the metrics system read-only table."""
-        self.system_tables.insert_metrics(metrics)
+        self.system_tables.insert_metrics(self.db_conn.cursor(), metrics)
 
     def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
         """Get metrics for a specific session from the metrics system read-only table."""
-        return self.system_tables.get_metrics_for_session(session_id)
-
+        return self.system_tables.get_metrics_for_session(self.db_conn.cursor(), session_id)
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:

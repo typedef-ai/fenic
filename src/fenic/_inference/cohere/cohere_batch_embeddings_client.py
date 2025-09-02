@@ -1,5 +1,5 @@
 import hashlib
-import os
+import logging
 from typing import List, Optional, Union
 
 import cohere
@@ -7,6 +7,7 @@ import cohere
 from fenic._inference.cohere.cohere_profile_manager import (
     CohereEmbeddingsProfileManager,
 )
+from fenic._inference.cohere.cohere_provider import CohereModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -21,6 +22,8 @@ from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedCohereModelProfile
 from fenic.core.metrics import RMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
@@ -48,18 +51,14 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
         super().__init__(
             model=model,
             model_provider=ModelProvider.COHERE,
+            model_provider_class=CohereModelProvider(),
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=TiktokenTokenCounter(model_name=model),
         )
         
-        # Initialize Cohere client - reads COHERE_API_KEY from environment
-        api_key = os.environ.get("COHERE_API_KEY")
-        if not api_key:
-            raise ValueError("COHERE_API_KEY environment variable is required")
-        
-        self._client = cohere.ClientV2(api_key=api_key)
+        self._client = self.model_provider_class.create_aio_client()
         self.model = model
         
         self._model_parameters = model_catalog.get_embedding_model_parameters(
@@ -100,7 +99,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
                 embed_params["output_dimension"] = profile_config.output_dimensionality
             
             # Make the API call
-            response = self._client.embed(**embed_params)
+            response = await self._client.embed(**embed_params)
             embedding_values = response.embeddings.float[0]
 
             # Count tokens and update metrics

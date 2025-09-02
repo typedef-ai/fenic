@@ -164,7 +164,7 @@ class TableSource(LogicalPlan):
                 f"Use session.catalog.list_tables() to see available tables, "
                 f"or load data using session.csv() or session.parquet()."
             )
-        return session_state.catalog.describe_table(self._table_name)
+        return session_state.catalog.describe_table(self._table_name).schema
 
     def children(self) -> List[LogicalPlan]:
         return []

@@ -16,6 +16,7 @@ from fenic.core.types import (
     ColumnField,
     DataLike,
     DataLikeType,
+    DatasetMetadata,
     DataType,
     DocumentPathType,
     DoubleType,
@@ -85,4 +86,6 @@ __all__ = [
     "DataLike",
     "DataLikeType",
     "QueryResult",
+    # Catalog/Schema
+    "DatasetMetadata",
 ]

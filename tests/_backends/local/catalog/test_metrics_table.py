@@ -22,10 +22,10 @@ def test_metrics_table_created_automatically(local_session: Session):
 
 def test_metrics_table_schema(local_session: Session):
     """Test that metrics table has correct schema."""
-    schema = local_session.catalog.describe_table("fenic_system.metrics")
+    table_metadata = local_session.catalog.describe_table("fenic_system.metrics")
     
     # Check that all required columns exist
-    column_names = [field.name for field in schema.column_fields]
+    column_names = [field.name for field in table_metadata.schema.column_fields]
     expected_columns = [
         "index", "execution_id", "session_id", "execution_time_ms",
         "num_output_rows", "start_ts", "end_ts", "total_lm_cost",

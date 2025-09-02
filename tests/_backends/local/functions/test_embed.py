@@ -35,7 +35,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
     ]
 
     result = df.to_polars()
-    assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+    assert result.schema["embeddings"] == pl.Array(pl.Float32, embedding_model_name_and_dimensions[1])
     df = extract_data_df.select(
         semantic.embed(
             text.concat(
@@ -49,7 +49,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
         ColumnField(name="embeddings", data_type=EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name))
     ]
     result = df.to_polars()
-    assert result.schema["embeddings"] == pl.Array(pl.Float32, 1536)
+    assert result.schema["embeddings"] == pl.Array(pl.Float32, embedding_model_name_and_dimensions[1])
 
 def test_embedding_very_long_string(local_session, embedding_model_name_and_dimensions):
     embedding_model_name, _ = embedding_model_name_and_dimensions
