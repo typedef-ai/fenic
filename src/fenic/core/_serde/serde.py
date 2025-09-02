@@ -20,7 +20,7 @@ class LogicalPlanSerde(SupportsLogicalPlanSerde):
 
     @classmethod
     def serialize(cls, plan: LogicalPlan) -> bytes:
-        """Serialize a LogicalPlan to bytes."""
+        """Serialize a LogicalPlan to bytes. hey hey."""
         return cls._serde.serialize(plan)
 
     @classmethod
