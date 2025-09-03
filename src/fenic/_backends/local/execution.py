@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
 
 import polars as pl
@@ -46,24 +47,14 @@ class LocalExecution(BaseExecution):
         self, plan: LogicalPlan, n: Optional[int] = None
     ) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute a logical plan and return a Polars DataFrame and query metrics."""
-        self.session_state._check_active()
-        physical_plan = self.transpiler.transpile(plan)
-        try:
-            df, metrics = physical_plan.execute()
-        except Exception as e:
-            raise ExecutionError(f"Failed to execute query: {e}") from e
+        df, metrics = self._execute_query(plan)
         if n is not None:
             df = df.limit(n)
         return df, metrics
 
     def show(self, plan: LogicalPlan, n: int = 10) -> Tuple[str, QueryMetrics]:
         """Execute a logical plan and return a string representation of the sample rows of the DataFrame and query metrics."""
-        self.session_state._check_active()
-        physical_plan = self.transpiler.transpile(plan)
-        try:
-            df, metrics = physical_plan.execute()
-        except Exception as e:
-            raise ExecutionError(f"Failed to execute query: {e}") from e
+        df, metrics = self._execute_query(plan)
         with pl.Config(
             fmt_str_lengths=1000,
             set_tbl_hide_dataframe_shape=True,
@@ -75,12 +66,7 @@ class LocalExecution(BaseExecution):
 
     def count(self, plan: LogicalPlan) -> Tuple[int, QueryMetrics]:
         """Execute a logical plan and return the number of rows in the DataFrame and query metrics."""
-        self.session_state._check_active()
-        physical_plan = self.transpiler.transpile(plan)
-        try:
-            df, metrics = physical_plan.execute()
-        except Exception as e:
-            raise ExecutionError(f"Failed to execute query: {e}") from e
+        df, metrics = self._execute_query(plan)
         return df.shape[0], metrics
 
     def build_lineage(self, plan: LogicalPlan) -> LocalLineage:
@@ -99,43 +85,18 @@ class LocalExecution(BaseExecution):
         table_name: str,
         mode: Literal["error", "append", "overwrite", "ignore"],
     ) -> QueryMetrics:
-        """Execute the logical plan and save the result as a table in the current database."""
         self.session_state._check_active()
-        table_exists = self.session_state.catalog.does_table_exist(table_name)
+        execution_id = str(uuid.uuid4())
+        logger.info(f"Execution ID: {execution_id}")
+        plan_schema = logical_plan.schema()
 
-        if table_exists:
-            if mode == "error":
-                raise PlanError(
-                    f"Cannot save to table '{table_name}' - it already exists and mode is 'error'. "
-                    f"Choose a different approach: "
-                    f"1) Use mode='overwrite' to replace the existing table, "
-                    f"2) Use mode='append' to add data to the existing table, "
-                    f"3) Use mode='ignore' to skip saving if table exists, "
-                    f"4) Use a different table name."
-                )
-            if mode == "ignore":
-                logger.warning(f"Table {table_name} already exists, ignoring write.")
-                return QueryMetrics(session_id=self.session_state.session_id)
-            if mode == "append":
-                saved_table_metadata = self.session_state.catalog.describe_table(table_name)
-                saved_schema = saved_table_metadata.schema
-                plan_schema = logical_plan.schema()
-                if saved_schema != plan_schema:
-                    raise PlanError(
-                        f"Cannot append to table '{table_name}' - schema mismatch detected. "
-                        f"The existing table has a different schema than your DataFrame. "
-                        f"Existing schema: {saved_schema} "
-                        f"Your DataFrame schema: {plan_schema} "
-                        f"To fix this: "
-                        f"1) Use mode='overwrite' to replace the table with your DataFrame's schema, "
-                        f"2) Modify your DataFrame to match the existing table's schema, "
-                        f"3) Use a different table name."
-                    )
-        physical_plan = self.transpiler.transpile(logical_plan)
-        try:
-            _, metrics = physical_plan.execute()
-        except Exception as e:
-            raise ExecutionError(f"Failed to execute query: {e}") from e
+        should_write = self._should_write_table(table_name, plan_schema, mode)
+        if not should_write:
+            metrics = QueryMetrics(execution_id=execution_id, session_id=self.session_state.session_id)
+            self.session_state.catalog.insert_query_metrics(metrics)
+            return metrics
+
+        _, metrics = self._execute_query(logical_plan, execution_id)
         return metrics
 
     def save_as_view(
@@ -151,8 +112,6 @@ class LocalExecution(BaseExecution):
             raise CatalogError(f"View {view_name} already exists!")
         self.session_state.catalog.create_view(view_name, logical_plan, False, description=view_description)
 
-     # infer schema and save_to_file methods are overridden in the engine execution
-     # because the file IO is handled differently in cloud execution.
     def save_to_file(
         self,
         logical_plan: LogicalPlan,
@@ -160,26 +119,14 @@ class LocalExecution(BaseExecution):
         mode: Literal["error", "overwrite", "ignore"] = "error",
     ) -> QueryMetrics:
         """Execute the logical plan and save the result to a file."""
+        execution_id = str(uuid.uuid4())
+        logger.info(f"Execution ID: {execution_id}")
         self.session_state._check_active()
-
-        file_exists = does_path_exist(file_path, self.session_state.s3_session)
-        if mode == "error" and file_exists:
-            raise PlanError(
-                f"Cannot save to file '{file_path}' - it already exists and mode is 'error'. "
-                f"Choose a different approach: "
-                f"1) Use mode='overwrite' to replace the existing file, "
-                f"2) Use mode='ignore' to skip saving if file exists, "
-                f"3) Use a different file path."
-            )
-        if mode == "ignore" and file_exists:
-            logger.warning(f"File {file_path} already exists, ignoring write.")
-            return QueryMetrics(session_id=self.session_state.session_id)
-
-        physical_plan = self.transpiler.transpile(logical_plan)
-        try:
-            _, metrics = physical_plan.execute()
-        except Exception as e:
-            raise ExecutionError(f"Failed to execute query: {e}") from e
+        if not self._should_write_file(file_path, mode):
+            metrics = QueryMetrics(execution_id=execution_id, session_id=self.session_state.session_id)
+            self.session_state.catalog.insert_query_metrics(metrics)
+            return metrics
+        _, metrics = self._execute_query(logical_plan, execution_id)
         return metrics
 
     def infer_schema_from_csv(
@@ -262,3 +209,72 @@ class LocalExecution(BaseExecution):
             query = f"{query} WHERE 1=0"
         # trunk-ignore-end(bandit/B608)
         return query
+
+    def _should_write_table(
+        self, table_name: str, plan_schema: Schema, mode: Literal["error", "append", "overwrite", "ignore"]
+    ) -> bool:
+        """Validate if a table can be written. Returns False if write should be skipped."""
+        if not self.session_state.catalog.does_table_exist(table_name):
+            return True
+
+        if mode == "error":
+            raise PlanError(
+                f"Cannot save to table '{table_name}' - it already exists and mode is 'error'. "
+                f"Choose a different approach: "
+                f"1) Use mode='overwrite' to replace the existing table, "
+                f"2) Use mode='append' to add data to the existing table, "
+                f"3) Use mode='ignore' to skip saving if table exists, "
+                f"4) Use a different table name."
+            )
+
+        if mode == "ignore":
+            logger.warning(f"Table {table_name} already exists, ignoring write.")
+            return False
+
+        if mode == "append":
+            existing_schema = self.session_state.catalog.describe_table(table_name).schema
+            if existing_schema != plan_schema:
+                raise PlanError(
+                    f"Cannot append to table '{table_name}' - schema mismatch detected. "
+                    f"The existing table has a different schema than your DataFrame. "
+                    f"Existing schema: {existing_schema} "
+                    f"Your DataFrame schema: {plan_schema} "
+                    f"To fix this: "
+                    f"1) Use mode='overwrite' to replace the table with your DataFrame's schema, "
+                    f"2) Modify your DataFrame to match the existing table's schema, "
+                    f"3) Use a different table name."
+                )
+        return True
+
+    def _should_write_file(
+        self, file_path: str, mode: Literal["error", "overwrite", "ignore"]
+    ) -> bool:
+        """Validate if a file can be written. Returns False if write should be skipped (mode='ignore')."""
+        file_exists = does_path_exist(file_path, self.session_state.s3_session)
+
+        if mode == "error" and file_exists:
+            raise PlanError(
+                f"Cannot save to file '{file_path}' - it already exists and mode is 'error'. "
+                f"Choose a different approach: "
+                f"1) Use mode='overwrite' to replace the existing file, "
+                f"2) Use mode='ignore' to skip saving if file exists, "
+                f"3) Use a different file path."
+            )
+        if mode == "ignore" and file_exists:
+            logger.warning(f"File {file_path} already exists, ignoring write.")
+            return False
+        return True
+
+    def _execute_query(self, plan: LogicalPlan, execution_id: Optional[str] = None) -> Tuple[pl.DataFrame, QueryMetrics]:
+        """Execute a logical plan and return a Polars DataFrame and query metrics."""
+        self.session_state._check_active()
+        if execution_id is None:
+            execution_id = str(uuid.uuid4())
+            logger.info(f"Execution ID: {execution_id}")
+        physical_plan = self.transpiler.transpile(plan)
+        try:
+            df, metrics = physical_plan.execute(execution_id)
+        except Exception as e:
+            raise ExecutionError(f"Failed to execute query: {e}") from e
+        self.session_state.catalog.insert_query_metrics(metrics)
+        return df, metrics

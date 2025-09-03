@@ -63,7 +63,7 @@ class DuckDBTransaction:
         return self.connection
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Commit transaction if no exceptions, otherwise rollback and l error."""
+        """Commit transaction if no exceptions, otherwise rollback and log error."""
         if exc_type is None:
             # No exception occurred, commit the transaction
             logger.debug("Committing DuckDB transaction")
@@ -185,9 +185,9 @@ class LocalCatalog(BaseCatalog):
                 )
             cursor = self.db_conn.cursor()
             if not self._does_database_exist(cursor, db_identifier.db):
-                if not ignore_if_not_exists:
-                    raise DatabaseNotFoundError(database_name)
-                return False
+                if ignore_if_not_exists:
+                    return False
+                raise DatabaseNotFoundError(database_name)
             try:
                 with DuckDBTransaction(cursor):
                     if cascade:
@@ -683,9 +683,9 @@ class LocalCatalog(BaseCatalog):
                 f"Failed to read dataframe from table: `{table_identifier.db}.{table_identifier.table}`"
             ) from e
 
-    def insert_metrics(self, metrics: QueryMetrics) -> None:
+    def insert_query_metrics(self, metrics: QueryMetrics) -> None:
         """Insert metrics into the metrics system read-only table."""
-        self.system_tables.insert_metrics(self.db_conn.cursor(), metrics)
+        self.system_tables.insert_query_metrics(self.db_conn.cursor(), metrics)
 
     def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
         """Get metrics for a specific session from the metrics system read-only table."""

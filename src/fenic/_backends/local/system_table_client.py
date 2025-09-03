@@ -36,7 +36,7 @@ TOOLS_METADATA_TABLE = "mcp_tools"
 
 # Constants for read-only system schema and tables
 READ_ONLY_SYSTEM_SCHEMA_NAME = "fenic_system"
-METRICS_TABLE_NAME = "metrics"
+METRICS_TABLE_NAME = "query_metrics"
 
 logger = logging.getLogger(__name__)
 
@@ -564,11 +564,8 @@ class SystemTableClient:
                 "Failed to delete all tools"
             ) from e
 
-    def insert_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
+    def insert_query_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
         """Append query execution metrics to the metrics table.
-
-        Uses atomic SQL to determine the next index value to prevent race conditions
-        in parallel sessions.
 
         Args:
             cursor: The thread-safe DuckDB cursor to use to store the metrics.
@@ -583,16 +580,13 @@ class SystemTableClient:
             cursor.execute(
                 f"""
                 INSERT INTO "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}" (
-                    index, execution_id, session_id, execution_time_ms, num_output_rows,
+                    execution_id, session_id, execution_time_ms, num_output_rows,
                     start_ts, end_ts, total_lm_cost, total_lm_uncached_input_tokens,
                     total_lm_cached_input_tokens, total_lm_output_tokens, total_lm_requests,
                     total_rm_cost, total_rm_input_tokens, total_rm_requests
                 )
-                SELECT
-                    COALESCE(MAX(index), 0) + 1,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                FROM "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}"
-            """,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
                 (
                     metrics_dict["execution_id"],
                     metrics_dict["session_id"],
@@ -611,8 +605,7 @@ class SystemTableClient:
                 ),
             )
             # trunk-ignore-end(bandit/B608)
-
-            logger.debug(f"Appended metrics for execution {metrics.execution_id}")
+            logger.info(f"Appended metrics for execution {metrics.execution_id}")
         except Exception as e:
             raise CatalogError(
                 f"Failed to append metrics for execution {metrics.execution_id}: {e}"
@@ -716,8 +709,7 @@ class SystemTableClient:
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS "{READ_ONLY_SYSTEM_SCHEMA_NAME}"."{METRICS_TABLE_NAME}" (
-                    index INTEGER PRIMARY KEY,
-                    execution_id TEXT NOT NULL,
+                    execution_id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL,
                     execution_time_ms DOUBLE NOT NULL,
                     num_output_rows INTEGER NOT NULL,
@@ -737,7 +729,6 @@ class SystemTableClient:
 
             # Define the schema for the system tables
             metrics_schema = Schema(column_fields=[
-                ColumnField(name="index", data_type=IntegerType),
                 ColumnField(name="execution_id", data_type=StringType),
                 ColumnField(name="session_id", data_type=StringType),
                 ColumnField(name="execution_time_ms", data_type=DoubleType),

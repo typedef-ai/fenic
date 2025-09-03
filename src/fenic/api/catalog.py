@@ -13,79 +13,70 @@ from fenic.core.types import DatasetMetadata, Schema
 class Catalog:
     """Entry point for catalog operations.
 
-    The Catalog provides methods to interact with and manage database tables,
-    including listing available tables, describing table schemas, and dropping tables.
-    It also provides read-only access to tables in the `fenic_system` database, such as `metrics`.
+    Provides methods to manage catalogs, databases, and tables, as well as
+    read-only access to system tables such as `fenic_system.query_metrics`.
 
-
-    Example: Basic usage
+    ### Catalog and Database Management
+    Example:
         ```python
-        # Create a new catalog
-        session.catalog.create_catalog('my_catalog')
-        # Returns: True
+        # Create a catalog
+        session.catalog.create_catalog("my_catalog")  # → True
 
-        # Set the current catalog
-        session.catalog.set_current_catalog('my_catalog')
-        # Returns: None
+        # Set active catalog
+        session.catalog.set_current_catalog("my_catalog")
 
-        # Create a new database
-        session.catalog.create_database('my_database')
-        # Returns: True
+        # Create a database
+        session.catalog.create_database("my_database")  # → True
 
-        # Use the new database
-        session.catalog.set_current_database('my_database')
-        # Returns: None
+        # Set active database
+        session.catalog.set_current_database("my_database")
 
-        # Create a new table
-        session.catalog.create_table('my_table', Schema([
-            ColumnField('id', IntegerType),
-        ]))
-        # Returns: True
+        # Create a table
+        session.catalog.create_table(
+            "my_table",
+            Schema([ColumnField("id", IntegerType)])
+        )  # → True
         ```
 
-    ## Metrics Table:
+    ### Metrics Table (Local Sessions Only)
 
-    Fenic keeps track of system metrics and costs per session in your app.  It persists
-    in your local database, and you can load it into a dataframe for analysis.
-    A summary of your session's metrics will print once you stop your session.
+    Query metrics are recorded for each session and stored locally
+    in `fenic_system.query_metrics`. Metrics can be loaded into a DataFrame
+    for analysis.
 
-    Example: Basic Metrics Table queries
+    Example:
         ```python
-        # Get the metrics for a session
-        metrics_df = session.table("fenic_system.metrics")
+        # Load all metrics for the current application
+        metrics_df = session.table("fenic_system.query_metrics")
 
-        # Show metrics from the last 10 queries
-        metrics_df.order_by(fc.col("index").desc()).limit(10).show()
+        # Show the 10 most recent queries in the application
+        recent_queries = session.sql(\"\"\"
+            SELECT *
+            FROM {df}
+            ORDER BY CAST(end_ts AS TIMESTAMP) DESC
+            LIMIT 10
+        \"\"\", df=metrics_df)
+        recent_queries.show()
 
-        # Get metrics from a specific session that incurred LM costs
-        session_metrics_df = (metrics_df
-            .filter(fc.col("session_id") == "9e7e256f-fad9-4cd9-844e-399d795aaea0")
-            .where(fc.col("total_lm_cost") > 0)
-            .order_by(fc.col("index").desc())
-        )
+        # Find query metrics for a specific session with non-zero LM costs
+        specific_session_queries = session.sql(\"\"\"
+            SELECT *
+            FROM {df}
+            WHERE session_id = '9e7e256f-fad9-4cd9-844e-399d795aaea0'
+                AND total_lm_cost > 0
+            ORDER BY CAST(end_ts AS TIMESTAMP) ASC
+        \"\"\", df=metrics_df)
+        specific_session_queries.show()
 
-        # Get total costs from that session
-        session_metrics_df.agg(
-            fc.sum("total_lm_cost").alias("session_lm_costs"),
-            fc.sum("total_lm_requests").alias("session_lm_requests")
-        ).show()
-        ```
-
-    Example: Query metrics by timestamp
-        You can use the index column to order the metrics, or you can use the start_ts and end_ts columns.
-        Currently, fenic does not natively support timestamp types so these are strings. To query by timestamps,
-        CAST them to timestamp in a SQL query.
-
-        ```python
-        # Get total lm costs and requests from timewindow between 10:00:00 and 12:00:00
+        # Aggregate total LM costs and requests between a specific time window
         metrics_window = session.sql(\"\"\"
-        SELECT
-            CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
-            CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
-        FROM {df}
-        WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
-            CAST('2025-08-29 10:00:00' AS TIMESTAMP) AND
-            CAST('2025-08-29 12:00:00' AS TIMESTAMP)
+            SELECT
+                CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
+                CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
+            FROM {df}
+            WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
+                CAST('2025-08-29 10:00:00' AS TIMESTAMP)
+                AND CAST('2025-08-29 12:00:00' AS TIMESTAMP)
         \"\"\", df=metrics_df)
 
         metrics_window.show()

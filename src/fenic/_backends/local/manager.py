@@ -93,11 +93,12 @@ class LocalSessionManager:
                 logger.info(
                     "Session already exists for this app name. Returning existing session."
                 )
-                return self._live_session_states[app_name]
-
-            # Create and store the session
-            session_state = LocalSessionState(config)
-            self._live_session_states[app_name] = session_state
+                session_state = self._live_session_states[app_name]
+            else:
+                # Create and store the session
+                session_state = LocalSessionState(config)
+                self._live_session_states[app_name] = session_state
+            logger.info(f"Session ID: {session_state.session_id}")
             return session_state
 
     def get_existing_session_state(self, app_name: str) -> LocalSessionState:
