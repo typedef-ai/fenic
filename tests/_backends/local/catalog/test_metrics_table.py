@@ -1,6 +1,9 @@
+import os
+
 import pytest
 
 from fenic import (
+    DataFrame,
     Session,
     SessionConfig,
     col,
@@ -45,25 +48,33 @@ def test_metrics_table_read_only_protection(local_session: Session):
         local_session.catalog.drop_table("fenic_system.query_metrics")
 
 
-def test_metrics_collected_on_dataframe_operations(local_session: Session, sample_df):
+def test_metrics_collected_on_dataframe_operations(local_session: Session, sample_df: DataFrame):
     """Test that metrics are collected when DataFrames are executed."""
     # Get initial row count
     initial_metrics = local_session.table("fenic_system.query_metrics")
     initial_count = initial_metrics.count()
 
     # Execute some operations
-    sample_df.show()  # This should add 1 metric row
-    sample_df.count()  # This should add another metric row
-    sample_df.collect()  # This should add another metric row
-    sample_df.select("name").filter(col("name") == "Alice").show()  # This should add another metric row
+    sample_df.show()
+    sample_df.count()
+    sample_df.collect()
+    sample_df.select("name").filter(col("name") == "Alice").show()
+    sample_df.write.save_as_table("test_table")
+    sample_df.write.save_as_table("test_table", mode="ignore")
+    try:
+        sample_df.write.parquet("test_table.parquet")
+        sample_df.write.parquet("test_table.parquet", mode="ignore")
+    finally:
+        os.remove("test_table.parquet")
+
     # Check that metrics were added
     final_metrics = local_session.table("fenic_system.query_metrics")
-    final_count = final_metrics.count() # This adds a 5th entry
+    final_count = final_metrics.count() # This adds a 9th entry
 
-    assert final_count == initial_count + 5, f"Expected 5 new metrics, got {final_count - initial_count}"
+    assert final_count == initial_count + 9, f"Expected 9 new metrics, got {final_count - initial_count}"
 
 
-def test_metrics_session_id(local_session: Session, sample_df):
+def test_metrics_session_id(local_session: Session, sample_df: DataFrame):
     """Test that we can read metrics table as a DataFrame."""
     # Execute an operation to generate metrics
     sample_df.show()
@@ -81,7 +92,7 @@ def test_metrics_session_id(local_session: Session, sample_df):
     assert local_session._session_state.session_id == table_session_id
 
 
-def test_metrics_table_contains_execution_data(local_session: Session, sample_df):
+def test_metrics_table_contains_execution_data(local_session: Session, sample_df: DataFrame):
     """Test that metrics table contains expected execution data."""
     # Get initial state
     initial_metrics = local_session.table("fenic_system.query_metrics")
@@ -108,7 +119,7 @@ def test_metrics_table_contains_execution_data(local_session: Session, sample_df
     assert latest_metric["end_ts"][0] is not None
 
 
-def test_multiple_sessions_different_metrics(local_session_config):
+def test_multiple_sessions_different_metrics(local_session_config: SessionConfig):
     """Test that different sessions have separate metrics tracking."""
     # Create first session and run queries
     session1 = Session.get_or_create(local_session_config)

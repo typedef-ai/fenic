@@ -42,31 +42,33 @@ class Catalog:
 
     Query metrics are recorded for each session and stored locally
     in `fenic_system.query_metrics`. Metrics can be loaded into a DataFrame
-    for analysis, and a summary is printed when a session ends.
+    for analysis.
 
-    Example: Basic Metrics Table queries
+    Example:
         ```python
-        # Load all metrics for the current session
+        # Load all metrics for the current application
         metrics_df = session.table("fenic_system.query_metrics")
 
-        # Show the 10 most recent queries
-        session.sql(\"\"\"
+        # Show the 10 most recent queries in the application
+        recent_queries = session.sql(\"\"\"
             SELECT *
             FROM {df}
             ORDER BY CAST(end_ts AS TIMESTAMP) DESC
             LIMIT 10
         \"\"\", df=metrics_df)
+        recent_queries.show()
 
-        # Get metrics for queries in a specific session with non-zero LM costs
-        session.sql(\"\"\"
+        # Find query metrics for a specific session with non-zero LM costs
+        specific_session_queries = session.sql(\"\"\"
             SELECT *
             FROM {df}
             WHERE session_id = '9e7e256f-fad9-4cd9-844e-399d795aaea0'
                 AND total_lm_cost > 0
             ORDER BY CAST(end_ts AS TIMESTAMP) ASC
         \"\"\", df=metrics_df)
+        specific_session_queries.show()
 
-        # Total LM costs and requests between a specific time window
+        # Aggregate total LM costs and requests between a specific time window
         metrics_window = session.sql(\"\"\"
             SELECT
                 CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
