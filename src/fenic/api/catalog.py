@@ -57,11 +57,14 @@ class Catalog:
             LIMIT 10
         \"\"\", df=metrics_df)
 
-        # Aggregate costs and request counts for the entire application
-        metrics_df.agg(
-            fc.sum("total_lm_cost").alias("app_lm_costs"),
-            fc.sum("total_lm_requests").alias("app_lm_requests"),
-        ).show()
+        # Get metrics for queries in a specific session with non-zero LM costs
+        session.sql(\"\"\"
+            SELECT *
+            FROM {df}
+            WHERE session_id = '9e7e256f-fad9-4cd9-844e-399d795aaea0'
+                AND total_lm_cost > 0
+            ORDER BY CAST(end_ts AS TIMESTAMP) ASC
+        \"\"\", df=metrics_df)
 
         # Total LM costs and requests between a specific time window
         metrics_window = session.sql(\"\"\"
