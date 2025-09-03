@@ -41,34 +41,7 @@ class Catalog:
     ### Metrics Table (Local Sessions Only)
     Query metrics are recorded for each session and stored locally
     in `fenic_system.query_metrics`. Metrics can be loaded into a DataFrame
-    for analysis, and a summary is printed when a session ends.
-
-    Example:
-        ```python
-        # Load all metrics for the current session
-        metrics_df = session.table("fenic_system.query_metrics")
-
-        # Show the 10 most recent queries
-        metrics_df.order_by(fc.col("index").desc()).limit(10).show()
-
-        # Metrics from a specific session with LM costs
-        session_metrics_df = (
-            metrics_df
-            .filter(fc.col("session_id") == "9e7e256f-fad9-4cd9-844e-399d795aaea0")
-            .filter(fc.col("total_lm_cost") > 0)
-            .order_by(fc.col("index").desc())
-        )
-
-        # Aggregate costs and request counts for that session
-        session_metrics_df.agg(
-            fc.sum("total_lm_cost").alias("session_lm_costs"),
-            fc.sum("total_lm_requests").alias("session_lm_requests")
-        ).show()
-        ```
-
-    ### Querying by Timestamp
-    The `index` column provides ordering, while `start_ts` and `end_ts` can
-    be cast to timestamps for time-based queries.
+    for analysis.
 
     Example:
         ```python
