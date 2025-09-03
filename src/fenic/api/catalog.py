@@ -13,71 +13,66 @@ from fenic.core.types import DatasetMetadata, Schema
 class Catalog:
     """Entry point for catalog operations.
 
-    The Catalog provides methods to interact with and manage database tables,
-    including listing available tables, describing table schemas, and dropping tables.
-    It also provides read-only access to tables in the `fenic_system` database, such as `metrics`.
+    Provides methods to manage catalogs, databases, and tables, as well as
+    read-only access to system tables such as `fenic_system.query_metrics`.
 
-
-    Example: Basic usage
+    ### Catalog and Database Management
+    Example:
         ```python
-        # Create a new catalog
-        session.catalog.create_catalog('my_catalog')
-        # Returns: True
+        # Create a catalog
+        session.catalog.create_catalog("my_catalog")  # → True
 
-        # Set the current catalog
-        session.catalog.set_current_catalog('my_catalog')
-        # Returns: None
+        # Set active catalog
+        session.catalog.set_current_catalog("my_catalog")
 
-        # Create a new database
-        session.catalog.create_database('my_database')
-        # Returns: True
+        # Create a database
+        session.catalog.create_database("my_database")  # → True
 
-        # Use the new database
-        session.catalog.set_current_database('my_database')
-        # Returns: None
+        # Set active database
+        session.catalog.set_current_database("my_database")
 
-        # Create a new table
-        session.catalog.create_table('my_table', Schema([
-            ColumnField('id', IntegerType),
-        ]))
-        # Returns: True
+        # Create a table
+        session.catalog.create_table(
+            "my_table",
+            Schema([ColumnField("id", IntegerType)])
+        )  # → True
         ```
 
-    ## Metrics Table:
+    ### Metrics Table (Local Sessions Only)
+    Query metrics are recorded for each session and stored locally
+    in `fenic_system.query_metrics`. Metrics can be loaded into a DataFrame
+    for analysis, and a summary is printed when a session ends.
 
-    Fenic keeps track of system metrics and costs per session in your app.  It persists
-    in your local database, and you can load it into a dataframe for analysis.
-    A summary of your session's metrics will print once you stop your session.
-
-    Example: Basic Metrics Table queries
+    Example:
         ```python
-        # Get the metrics for a session
-        metrics_df = session.table("fenic_system.metrics")
+        # Load all metrics for the current session
+        metrics_df = session.table("fenic_system.query_metrics")
 
-        # Show metrics from the last 10 queries
+        # Show the 10 most recent queries
         metrics_df.order_by(fc.col("index").desc()).limit(10).show()
 
-        # Get metrics from a specific session that incurred LM costs
-        session_metrics_df = (metrics_df
+        # Metrics from a specific session with LM costs
+        session_metrics_df = (
+            metrics_df
             .filter(fc.col("session_id") == "9e7e256f-fad9-4cd9-844e-399d795aaea0")
-            .where(fc.col("total_lm_cost") > 0)
+            .filter(fc.col("total_lm_cost") > 0)
             .order_by(fc.col("index").desc())
         )
 
-        # Get total costs from that session
+        # Aggregate costs and request counts for that session
         session_metrics_df.agg(
             fc.sum("total_lm_cost").alias("session_lm_costs"),
             fc.sum("total_lm_requests").alias("session_lm_requests")
         ).show()
         ```
 
-    Example: Query metrics by timestamp
-        You can use the index column to order the metrics, or you can use the start_ts and end_ts columns.
-        Currently, fenic does not natively support timestamp types so these are strings. To query by timestamps,
-        CAST them to timestamp in a SQL query.
+    ### Querying by Timestamp
+    The `index` column provides ordering, while `start_ts` and `end_ts` can
+    be cast to timestamps for time-based queries.
 
+    Example:
         ```python
-        # Get total lm costs and requests from timewindow between 10:00:00 and 12:00:00
+        # Total LM costs and requests between 10:00 and 12:00
         metrics_window = session.sql(\"\"\"
         SELECT
             CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,

@@ -11,19 +11,19 @@ from fenic.core.error import CatalogError
 def test_metrics_table_created_automatically(local_session: Session):
     """Test that metrics table is automatically created and appears in catalog."""
     # Metrics table should be created automatically when session starts
-    assert local_session.catalog.does_table_exist("fenic_system.metrics")
+    assert local_session.catalog.does_table_exist("fenic_system.query_metrics")
 
     # Should be listed in tables in the fenic_system database
     current_db = local_session.catalog.get_current_database()
     local_session.catalog.set_current_database("fenic_system")
     tables = local_session.catalog.list_tables()
-    assert "metrics" in tables
+    assert "query_metrics" in tables
     local_session.catalog.set_current_database(current_db)
 
 
 def test_metrics_table_schema(local_session: Session):
     """Test that metrics table has correct schema."""
-    table_metadata = local_session.catalog.describe_table("fenic_system.metrics")
+    table_metadata = local_session.catalog.describe_table("fenic_system.query_metrics")
 
     # Check that all required columns exist
     column_names = [field.name for field in table_metadata.schema.column_fields]
@@ -42,13 +42,13 @@ def test_metrics_table_schema(local_session: Session):
 def test_metrics_table_read_only_protection(local_session: Session):
     """Test that metrics table cannot be modified by users."""
     with pytest.raises(CatalogError, match="Cannot drop table.*from read-only system database"):
-        local_session.catalog.drop_table("fenic_system.metrics")
+        local_session.catalog.drop_table("fenic_system.query_metrics")
 
 
 def test_metrics_collected_on_dataframe_operations(local_session: Session, sample_df):
     """Test that metrics are collected when DataFrames are executed."""
     # Get initial row count
-    initial_metrics = local_session.table("fenic_system.metrics")
+    initial_metrics = local_session.table("fenic_system.query_metrics")
     initial_count = initial_metrics.count()
 
     # Execute some operations
@@ -57,7 +57,7 @@ def test_metrics_collected_on_dataframe_operations(local_session: Session, sampl
     sample_df.collect()  # This should add another metric row
     sample_df.select("name").filter(col("name") == "Alice").show()  # This should add another metric row
     # Check that metrics were added
-    final_metrics = local_session.table("fenic_system.metrics")
+    final_metrics = local_session.table("fenic_system.query_metrics")
     final_count = final_metrics.count() # This adds a 5th entry
 
     assert final_count == initial_count + 5, f"Expected 5 new metrics, got {final_count - initial_count}"
@@ -69,7 +69,7 @@ def test_metrics_session_id(local_session: Session, sample_df):
     sample_df.show()
 
     # Read metrics table as DataFrame
-    metrics_df = local_session.table("fenic_system.metrics")
+    metrics_df = local_session.table("fenic_system.query_metrics")
     result = metrics_df.collect()
 
     assert len(result.data) > 0
@@ -84,7 +84,7 @@ def test_metrics_session_id(local_session: Session, sample_df):
 def test_metrics_table_contains_execution_data(local_session: Session, sample_df):
     """Test that metrics table contains expected execution data."""
     # Get initial state
-    initial_metrics = local_session.table("fenic_system.metrics")
+    initial_metrics = local_session.table("fenic_system.query_metrics")
     initial_metrics.count()
 
     # Execute operation
@@ -93,7 +93,7 @@ def test_metrics_table_contains_execution_data(local_session: Session, sample_df
     execution_id = result.metrics.execution_id
 
     # Get final state
-    metrics_data = local_session.table("fenic_system.metrics").collect().data
+    metrics_data = local_session.table("fenic_system.query_metrics").collect().data
 
     # Should have new metric row
     assert len(metrics_data) > 0
@@ -131,16 +131,16 @@ def test_multiple_sessions_different_metrics(local_session_config):
 
     try:
         # Check metrics for session1 - need to account for count() calls adding metrics
-        metrics1_data = session1.table("fenic_system.metrics").filter(
+        metrics1_data = session1.table("fenic_system.query_metrics").filter(
             col("session_id") == session1_id).collect().data
         count1 = len(metrics1_data)
-        session1.table("fenic_system.metrics").show()
+        session1.table("fenic_system.query_metrics").show()
 
         # Check metrics for session2 - need to account for collect() call adding metrics
-        metrics2_data = session2.table("fenic_system.metrics").filter(
+        metrics2_data = session2.table("fenic_system.query_metrics").filter(
             col("session_id") == session2_id).collect().data
         count2 = len(metrics2_data)
-        session2.table("fenic_system.metrics").show()
+        session2.table("fenic_system.query_metrics").show()
 
         # Session1 should have 2 metrics, for show and count
         assert count1 == 2, f"Session1 should have 2 metrics, got {count1}"

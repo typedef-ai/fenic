@@ -36,7 +36,7 @@ TOOLS_METADATA_TABLE = "mcp_tools"
 
 # Constants for read-only system schema and tables
 READ_ONLY_SYSTEM_SCHEMA_NAME = "fenic_system"
-METRICS_TABLE_NAME = "metrics"
+METRICS_TABLE_NAME = "query_metrics"
 
 logger = logging.getLogger(__name__)
 
@@ -564,7 +564,7 @@ class SystemTableClient:
                 "Failed to delete all tools"
             ) from e
 
-    def insert_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
+    def insert_query_metrics(self, cursor: duckdb.DuckDBPyConnection, metrics: QueryMetrics) -> None:
         """Append query execution metrics to the metrics table.
 
         Args:

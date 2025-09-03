@@ -93,7 +93,7 @@ class LocalExecution(BaseExecution):
         should_write = self._should_write_table(table_name, plan_schema, mode)
         if not should_write:
             metrics = QueryMetrics(execution_id=execution_id, session_id=self.session_state.session_id)
-            self.session_state.catalog.insert_metrics(metrics)
+            self.session_state.catalog.insert_query_metrics(metrics)
             return metrics
 
         _, metrics = self._execute_query(logical_plan, execution_id)
@@ -124,7 +124,7 @@ class LocalExecution(BaseExecution):
         self.session_state._check_active()
         if not self._should_write_file(file_path, mode):
             metrics = QueryMetrics(execution_id=execution_id, session_id=self.session_state.session_id)
-            self.session_state.catalog.insert_metrics(metrics)
+            self.session_state.catalog.insert_query_metrics(metrics)
             return metrics
         _, metrics = self._execute_query(logical_plan, execution_id)
         return metrics
@@ -276,5 +276,5 @@ class LocalExecution(BaseExecution):
             df, metrics = physical_plan.execute(execution_id)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
-        self.session_state.catalog.insert_metrics(metrics)
+        self.session_state.catalog.insert_query_metrics(metrics)
         return df, metrics
