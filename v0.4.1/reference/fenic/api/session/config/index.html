@@ -1,0 +1,5684 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../session/">
+      
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>fenic.api.session.config - fenic, by typedef</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#fenic.api.session.config" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="fenic, by typedef" class="md-header__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fenic, by typedef
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              fenic.api.session.config
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../.." class="md-tabs__link">
+          
+  
+  
+  Overview
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="fenic, by typedef" class="md-nav__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fenic, by typedef
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Overview
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    What is fenic?
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_1" id="__nav_1_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Introduction
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            Introduction
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/hello_world/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Hello World!
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/enrichment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Log Enrichment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_2" id="__nav_1_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Unstructured Data Clustering/Classification
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Unstructured Data Clustering/Classification
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/feedback_clustering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feedback Clustering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/news_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    News Bias Classification
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/semantic_joins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Semantic Joins on Unstructured Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_4" id="__nav_1_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Extracting Structured Data from Unstructured Text
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            Extracting Structured Data from Unstructured Text
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/document_extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Document Extraction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/named_entity_recognition/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Named Entity Recognition
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_5" id="__nav_1_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Semi-Structured Data Processing/Enrichment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            Semi-Structured Data Processing/Enrichment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/podcast_summarization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Podcast Summarization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/meeting_transcript_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Meeting Transcript Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/json_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../examples/markdown_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Markdown Processing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../topics/markdown-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Markdown -> JSON
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../topics/fenic-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Fenic MCP
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1" id="__nav_2_1_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1" id="__nav_2_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>catalog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../column/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>column
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../dataframe/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_3" id="__nav_2_1_1_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dataframe/dataframe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dataframe/grouped_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>grouped_data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dataframe/semantic_extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_extensions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../functions/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_4" id="__nav_2_1_1_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/builtin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>builtin
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>embedding
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>json
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/markdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>markdown
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functions/text/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>text
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../io/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_5" id="__nav_2_1_1_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../io/reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>reader
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../io/writer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>writer
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>lineage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_7" id="__nav_2_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mcp/server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_8" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_8" id="__nav_2_1_1_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1_1_8">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>config
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>config
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.AnthropicLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AnthropicLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" AnthropicLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.AnthropicLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CloudConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CloudConfig
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CloudExecutorSize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CloudExecutorSize
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CohereEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CohereEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" CohereEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CohereEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleDeveloperEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleDeveloperEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleDeveloperLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleDeveloperLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleVertexEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleVertexEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleVertexLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleVertexLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAIEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OpenAIEmbeddingModel
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAILanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OpenAILanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" OpenAILanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAILanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SemanticConfig
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SemanticConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig.model_post_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;model_post_init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig.validate_models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;validate_models
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SessionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SessionConfig
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SessionConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SessionConfig.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_json
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../core/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2" id="__nav_2_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>error
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../core/mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_2" id="__nav_2_1_2_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/mcp/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../core/types/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_4" id="__nav_2_1_2_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/classify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>classify
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/datatypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>datatypes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/enums/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>enums
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/query_result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>query_result
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/semantic_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_examples
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../core/types/summarize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>summarize
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>logging
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.AnthropicLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AnthropicLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" AnthropicLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.AnthropicLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CloudConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CloudConfig
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CloudExecutorSize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CloudExecutorSize
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CohereEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CohereEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" CohereEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.CohereEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleDeveloperEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleDeveloperEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleDeveloperLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleDeveloperLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleDeveloperLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleVertexEmbeddingModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleVertexEmbeddingModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexEmbeddingModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexLanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoogleVertexLanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" GoogleVertexLanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.GoogleVertexLanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAIEmbeddingModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OpenAIEmbeddingModel
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAILanguageModel" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;OpenAILanguageModel
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" OpenAILanguageModel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.OpenAILanguageModel.Profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Profile
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SemanticConfig
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SemanticConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig.model_post_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;model_post_init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SemanticConfig.validate_models" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;validate_models
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SessionConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SessionConfig
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SessionConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fenic.api.session.config.SessionConfig.to_json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_json
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h1 id="fenic.api.session.config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <span class="doc doc-object-name doc-module-name">fenic.api.session.config</span>
+
+
+</h1>
+
+    <div class="doc doc-contents first">
+
+        <p>Session configuration classes for Fenic.</p>
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;AnthropicLanguageModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.AnthropicLanguageModel&lt;/code&gt;)" href="#fenic.api.session.config.AnthropicLanguageModel">AnthropicLanguageModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Anthropic language models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;CloudConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CloudConfig&lt;/code&gt;)" href="#fenic.api.session.config.CloudConfig">CloudConfig</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for cloud-based execution.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;CloudExecutorSize&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CloudExecutorSize&lt;/code&gt;)" href="#fenic.api.session.config.CloudExecutorSize">CloudExecutorSize</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Enum defining available cloud executor sizes.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;CohereEmbeddingModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CohereEmbeddingModel&lt;/code&gt;)" href="#fenic.api.session.config.CohereEmbeddingModel">CohereEmbeddingModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Cohere embedding models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;GoogleDeveloperEmbeddingModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperEmbeddingModel&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel">GoogleDeveloperEmbeddingModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Google Developer embedding models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;GoogleDeveloperLanguageModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperLanguageModel&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperLanguageModel">GoogleDeveloperLanguageModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Gemini models accessible through Google Developer AI Studio.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;GoogleVertexEmbeddingModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexEmbeddingModel&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexEmbeddingModel">GoogleVertexEmbeddingModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Google Vertex AI embedding models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;GoogleVertexLanguageModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexLanguageModel&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexLanguageModel">GoogleVertexLanguageModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for Google Vertex AI models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;OpenAIEmbeddingModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.OpenAIEmbeddingModel&lt;/code&gt;)" href="#fenic.api.session.config.OpenAIEmbeddingModel">OpenAIEmbeddingModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for OpenAI embedding models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;OpenAILanguageModel&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.OpenAILanguageModel&lt;/code&gt;)" href="#fenic.api.session.config.OpenAILanguageModel">OpenAILanguageModel</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for OpenAI language models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SemanticConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SemanticConfig&lt;/code&gt;)" href="#fenic.api.session.config.SemanticConfig">SemanticConfig</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for semantic language and embedding models.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SessionConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SessionConfig&lt;/code&gt;)" href="#fenic.api.session.config.SessionConfig">SessionConfig</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Configuration for a user session.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.AnthropicLanguageModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">AnthropicLanguageModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Anthropic language models.</p>
+<p>This class defines the configuration settings for Anthropic language models,
+including model selection and separate rate limiting parameters for input and output tokens.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.AnthropicLanguageModelName">AnthropicLanguageModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Anthropic model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.input_tpm">input_tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Input tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.output_tpm">output_tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Output tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.AnthropicLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.AnthropicLanguageModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring an Anthropic model with separate input/output rate limits:</p>
+<pre><code class="language-python">config = AnthropicLanguageModel(
+    model_name=&quot;claude-3-5-haiku-latest&quot;,
+    rpm=100,
+    input_tpm=100,
+    output_tpm=100
+)
+</code></pre>
+<p>Configuring an Anthropic model with profiles:</p>
+<pre><code class="language-python">config = SessionConfig(
+    semantic=SemanticConfig(
+        language_models={
+            &quot;claude&quot;: AnthropicLanguageModel(
+                model_name=&quot;claude-opus-4-0&quot;,
+                rpm=100,
+                input_tpm=100,
+                output_tpm=100,
+                profiles={
+                    &quot;thinking_disabled&quot;: AnthropicLanguageModel.Profile(),
+                    &quot;fast&quot;: AnthropicLanguageModel.Profile(thinking_token_budget=1024),
+                    &quot;thorough&quot;: AnthropicLanguageModel.Profile(thinking_token_budget=4096)
+                },
+                default_profile=&quot;fast&quot;
+            )
+        },
+        default_language_model=&quot;claude&quot;
+)
+
+# Using the default &quot;fast&quot; profile for the &quot;claude&quot; model
+semantic.map(instruction=&quot;Construct a formal proof of the {hypothesis}.&quot;, model_alias=&quot;claude&quot;)
+
+# Using the &quot;thorough&quot; profile for the &quot;claude&quot; model
+semantic.map(instruction=&quot;Construct a formal proof of the {hypothesis}.&quot;, model_alias=ModelAlias(name=&quot;claude&quot;, profile=&quot;thorough&quot;))
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.AnthropicLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.AnthropicLanguageModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Anthropic-specific profile configurations.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.AnthropicLanguageModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Anthropic-specific profile configurations.</p>
+<p>This class defines profile configurations for Anthropic models, allowing
+different thinking token budget settings to be applied to the same model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.AnthropicLanguageModel.Profile.thinking_token_budget">thinking_token_budget</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Provide a default thinking budget in tokens. If not provided,
+thinking will be disabled for the profile. The minimum token budget supported by Anthropic is 1024 tokens.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ConfigurationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ConfigurationError">ConfigurationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If a profile is set with parameters that are not supported by the model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>If <code>thinking_token_budget</code> is set, <code>temperature</code> cannot be customized -- any changes to <code>temperature</code> will be ignored.</p>
+</details>
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with a thinking budget:</p>
+<pre><code class="language-python">profile = AnthropicLanguageModel.Profile(thinking_token_budget=2048)
+</code></pre>
+<p>Configuring a profile with a large thinking budget:</p>
+<pre><code class="language-python">profile = AnthropicLanguageModel.Profile(thinking_token_budget=8192)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.CloudConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">CloudConfig</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for cloud-based execution.</p>
+<p>This class defines settings for running operations in a cloud environment,
+allowing for scalable and distributed processing of language model operations.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CloudConfig.size">size</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;CloudExecutorSize&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CloudExecutorSize&lt;/code&gt;)" href="#fenic.api.session.config.CloudExecutorSize">CloudExecutorSize</a>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Size of the cloud executor instance.
+If None, the default size will be used.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring cloud execution with a specific size:</p>
+<pre><code class="language-python">config = CloudConfig(size=CloudExecutorSize.MEDIUM)
+</code></pre>
+<p>Using default cloud configuration:</p>
+<pre><code class="language-python">config = CloudConfig()
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.CloudExecutorSize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">CloudExecutorSize</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="str">str</span></code>, <code><span title="enum.Enum">Enum</span></code></p>
+
+
+        <p>Enum defining available cloud executor sizes.</p>
+<p>This enum represents the different size options available for cloud-based
+execution environments.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CloudExecutorSize.SMALL">SMALL</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Small instance size.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CloudExecutorSize.MEDIUM">MEDIUM</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Medium instance size.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CloudExecutorSize.LARGE">LARGE</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Large instance size.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CloudExecutorSize.XLARGE">XLARGE</span></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Extra large instance size.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.CohereEmbeddingModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">CohereEmbeddingModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Cohere embedding models.</p>
+<p>This class defines the configuration settings for Cohere embedding models,
+including model selection and rate limiting parameters.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.CohereEmbeddingModelName">CohereEmbeddingModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Cohere model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit for the model.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit for the model.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CohereEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.CohereEmbeddingModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional dictionary of profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Default profile name to use if none specified.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a Cohere embedding model with profiles:</p>
+<pre><code class="language-python">cohere_config = CohereEmbeddingModel(
+    model_name=&quot;embed-v4.0&quot;,
+    rpm=100,
+    tpm=50_000,
+    profiles={
+        &quot;high_dim&quot;: CohereEmbeddingModel.Profile(
+            embedding_dimensionality=1536,
+            embedding_task_type=&quot;search_document&quot;
+        ),
+        &quot;classification&quot;: CohereEmbeddingModel.Profile(
+            embedding_dimensionality=1024,
+            embedding_task_type=&quot;classification&quot;
+        )
+    },
+    default_profile=&quot;high_dim&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CohereEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.CohereEmbeddingModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Profile configurations for Cohere embedding models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.CohereEmbeddingModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Profile configurations for Cohere embedding models.</p>
+<p>This class defines profile configurations for Cohere embedding models, allowing
+different output dimensionality and task type settings to be applied to the same model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.Profile.output_dimensionality">output_dimensionality</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The dimensionality of the embedding created by this model.
+If not provided, the model will use its default dimensionality.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.CohereEmbeddingModel.Profile.input_type">input_type</span></code></b>
+              (<code><span title="fenic.api.session.config.CohereEmbeddingTaskType">CohereEmbeddingTaskType</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The type of input text (search_query, search_document, classification, clustering)</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with custom dimensionality:</p>
+<pre><code class="language-python">profile = CohereEmbeddingModel.Profile(output_dimensionality=1536)
+</code></pre>
+<p>Configuring a profile with default settings:</p>
+<pre><code class="language-python">profile = CohereEmbeddingModel.Profile()
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.GoogleDeveloperEmbeddingModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">GoogleDeveloperEmbeddingModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Google Developer embedding models.</p>
+<p>This class defines the configuration settings for Google embedding models available in Google Developer AI Studio,
+including model selection and rate limiting parameters. These models are accessible using a GOOGLE_API_KEY environment variable.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.GoogleDeveloperEmbeddingModelName">GoogleDeveloperEmbeddingModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Google Developer embedding model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a Google Developer embedding model with rate limits:</p>
+<pre><code class="language-python">config = GoogleDeveloperEmbeddingModelConfig(
+    model_name=&quot;gemini-embedding-001&quot;,
+    rpm=100,
+    tpm=1000
+)
+</code></pre>
+<p>Configuring a Google Developer embedding model with profiles:</p>
+<pre><code class="language-python">config = GoogleDeveloperEmbeddingModelConfig(
+    model_name=&quot;gemini-embedding-001&quot;,
+    rpm=100,
+    tpm=1000,
+    profiles={
+        &quot;default&quot;: GoogleDeveloperEmbeddingModelConfig.Profile(),
+        &quot;high_dim&quot;: GoogleDeveloperEmbeddingModelConfig.Profile(output_dimensionality=3072)
+    },
+    default_profile=&quot;default&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Profile configurations for Google Developer embedding models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Profile configurations for Google Developer embedding models.</p>
+<p>This class defines profile configurations for Google embedding models, allowing
+different output dimensionality and task type settings to be applied to the same model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile.output_dimensionality">output_dimensionality</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The dimensionality of the embedding created by this model.
+If not provided, the model will use its default dimensionality.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperEmbeddingModel.Profile.task_type">task_type</span></code></b>
+              (<code><span title="fenic.api.session.config.GoogleEmbeddingTaskType">GoogleEmbeddingTaskType</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The type of task for the embedding model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with custom dimensionality:</p>
+<pre><code class="language-python">profile = GoogleDeveloperEmbeddingModelConfig.Profile(output_dimensionality=3072)
+</code></pre>
+<p>Configuring a profile with default settings:</p>
+<pre><code class="language-python">profile = GoogleDeveloperEmbeddingModelConfig.Profile()
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.GoogleDeveloperLanguageModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">GoogleDeveloperLanguageModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Gemini models accessible through Google Developer AI Studio.</p>
+<p>This class defines the configuration settings for Google Gemini models available in Google Developer AI Studio,
+including model selection and rate limiting parameters. These models are accessible using a GOOGLE_API_KEY environment variable.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.GoogleDeveloperLanguageModelName">GoogleDeveloperLanguageModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Google Developer model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperLanguageModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a Google Developer model with rate limits:</p>
+<pre><code class="language-python">config = GoogleDeveloperLanguageModel(
+    model_name=&quot;gemini-2.0-flash&quot;,
+    rpm=100,
+    tpm=1000
+)
+</code></pre>
+<p>Configuring a reasoning Google Developer model with profiles:</p>
+<pre><code class="language-python">config = GoogleDeveloperLanguageModel(
+    model_name=&quot;gemini-2.5-flash&quot;,
+    rpm=100,
+    tpm=1000,
+    profiles={
+        &quot;thinking_disabled&quot;: GoogleDeveloperLanguageModel.Profile(),
+        &quot;fast&quot;: GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
+        &quot;thorough&quot;: GoogleDeveloperLanguageModel.Profile(thinking_token_budget=8192)
+    },
+    default_profile=&quot;fast&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleDeveloperLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleDeveloperLanguageModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Profile configurations for Google Developer models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.GoogleDeveloperLanguageModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Profile configurations for Google Developer models.</p>
+<p>This class defines profile configurations for Google Gemini models, allowing
+different thinking/reasoning settings to be applied to the same model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleDeveloperLanguageModel.Profile.thinking_token_budget">thinking_token_budget</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>If configuring a reasoning model, provide a thinking budget in tokens.
+If not provided, or if set to 0, thinking will be disabled for the profile (not supported on gemini-2.5-pro).
+To have the model automatically determine a thinking budget based on the complexity of
+the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
+It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
+model to generate reasoning tokens even if thinking is disabled.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ConfigurationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ConfigurationError">ConfigurationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If a profile is set with parameters that are not supported by the model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with a fixed thinking budget:</p>
+<pre><code class="language-python">profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096)
+</code></pre>
+<p>Configuring a profile with automatic thinking budget:</p>
+<pre><code class="language-python">profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1)
+</code></pre>
+<p>Configuring a profile with thinking disabled:</p>
+<pre><code class="language-python">profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.GoogleVertexEmbeddingModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">GoogleVertexEmbeddingModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Google Vertex AI embedding models.</p>
+<p>This class defines the configuration settings for Google embedding models available in Google Vertex AI,
+including model selection and rate limiting parameters. These models are accessible using Google Cloud credentials.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.GoogleVertexEmbeddingModelName">GoogleVertexEmbeddingModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Google Vertex embedding model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexEmbeddingModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a Google Vertex embedding model with rate limits:</p>
+<pre><code class="language-python">embedding_model = GoogleVertexEmbeddingModel(
+    model_name=&quot;gemini-embedding-001&quot;,
+    rpm=100,
+    tpm=1000
+)
+</code></pre>
+<p>Configuring a Google Vertex embedding model with profiles:</p>
+<pre><code class="language-python">embedding_model = GoogleVertexEmbeddingModel(
+    model_name=&quot;gemini-embedding-001&quot;,
+    rpm=100,
+    tpm=1000,
+    profiles={
+        &quot;default&quot;: GoogleVertexEmbeddingModel.Profile(),
+        &quot;high_dim&quot;: GoogleVertexEmbeddingModel.Profile(output_dimensionality=3072)
+    },
+    default_profile=&quot;default&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexEmbeddingModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexEmbeddingModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Profile configurations for Google Vertex embedding models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.GoogleVertexEmbeddingModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Profile configurations for Google Vertex embedding models.</p>
+<p>This class defines profile configurations for Google embedding models, allowing
+different output dimensionality and task type settings to be applied to the same model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.Profile.output_dimensionality">output_dimensionality</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The dimensionality of the embedding created by this model.
+If not provided, the model will use its default dimensionality.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexEmbeddingModel.Profile.task_type">task_type</span></code></b>
+              (<code><span title="fenic.api.session.config.GoogleEmbeddingTaskType">GoogleEmbeddingTaskType</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The type of task for the embedding model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with custom dimensionality:</p>
+<pre><code class="language-python">profile = GoogleVertexEmbeddingModelConfig.Profile(output_dimensionality=3072)
+</code></pre>
+<p>Configuring a profile with default settings:</p>
+<pre><code class="language-python">profile = GoogleVertexEmbeddingModelConfig.Profile()
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.GoogleVertexLanguageModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">GoogleVertexLanguageModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for Google Vertex AI models.</p>
+<p>This class defines the configuration settings for Google Gemini models available in Google Vertex AI,
+including model selection and rate limiting parameters. These models are accessible using Google Cloud credentials.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.GoogleVertexLanguageModelName">GoogleVertexLanguageModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the Google Vertex model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexLanguageModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a Google Vertex model with rate limits:</p>
+<pre><code class="language-python">config = GoogleVertexLanguageModel(
+    model_name=&quot;gemini-2.0-flash&quot;,
+    rpm=100,
+    tpm=1000
+)
+</code></pre>
+<p>Configuring a reasoning Google Vertex model with profiles:</p>
+<pre><code class="language-python">config = GoogleVertexLanguageModel(
+    model_name=&quot;gemini-2.5-flash&quot;,
+    rpm=100,
+    tpm=1000,
+    profiles={
+        &quot;thinking_disabled&quot;: GoogleVertexLanguageModel.Profile(),
+        &quot;fast&quot;: GoogleVertexLanguageModel.Profile(thinking_token_budget=1024),
+        &quot;thorough&quot;: GoogleVertexLanguageModel.Profile(thinking_token_budget=8192)
+    },
+    default_profile=&quot;fast&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.GoogleVertexLanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.GoogleVertexLanguageModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>Profile configurations for Google Vertex models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.GoogleVertexLanguageModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Profile configurations for Google Vertex models.</p>
+<p>This class defines profile configurations for Google Gemini models, allowing
+different thinking/reasoning settings to be applied to the same underlying model.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.GoogleVertexLanguageModel.Profile.thinking_token_budget">thinking_token_budget</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>If configuring a reasoning model, provide a thinking budget in tokens.
+If not provided, or if set to 0, thinking will be disabled for the profile (not supported on gemini-2.5-pro).
+To have the model automatically determine a thinking budget based on the complexity of
+the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
+It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
+model to generate reasoning tokens even if thinking is disabled.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ConfigurationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ConfigurationError">ConfigurationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If a profile is set with parameters that are not supported by the model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with a fixed thinking budget:</p>
+<pre><code class="language-python">profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=4096)
+</code></pre>
+<p>Configuring a profile with automatic thinking budget:</p>
+<pre><code class="language-python">profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=-1)
+</code></pre>
+<p>Configuring a profile with thinking disabled:</p>
+<pre><code class="language-python">profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=0)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.OpenAIEmbeddingModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">OpenAIEmbeddingModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for OpenAI embedding models.</p>
+<p>This class defines the configuration settings for OpenAI embedding models,
+including model selection and rate limiting parameters.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAIEmbeddingModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.OpenAIEmbeddingModelName">OpenAIEmbeddingModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the OpenAI embedding model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAIEmbeddingModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAIEmbeddingModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring an OpenAI embedding model with rate limits:</p>
+<pre><code class="language-python">config = OpenAIEmbeddingModel(
+    model_name=&quot;text-embedding-3-small&quot;,
+    rpm=100,
+    tpm=100
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.OpenAILanguageModel" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">OpenAILanguageModel</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for OpenAI language models.</p>
+<p>This class defines the configuration settings for OpenAI language models,
+including model selection and rate limiting parameters.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.model_name">model_name</span></code></b>
+              (<code><span title="fenic.core._inference.model_catalog.OpenAILanguageModelName">OpenAILanguageModelName</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the OpenAI model to use.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.rpm">rpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Requests per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.tpm">tpm</span></code></b>
+              (<code><span title="int">int</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Tokens per minute limit; must be greater than 0.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.profiles">profiles</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.OpenAILanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.OpenAILanguageModel.Profile">Profile</a>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of profile names to profile configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.default_profile">default_profile</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of the default profile to use if profiles are configured.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring an OpenAI language model with rate limits:</p>
+<pre><code class="language-python">config = OpenAILanguageModel(
+    model_name=&quot;gpt-4.1-nano&quot;,
+    rpm=100,
+    tpm=100
+)
+</code></pre>
+<p>Configuring an OpenAI model with profiles:</p>
+<pre><code class="language-python">config = OpenAILanguageModel(
+    model_name=&quot;o4-mini&quot;,
+    rpm=100,
+    tpm=100,
+    profiles={
+        &quot;fast&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;low&quot;),
+        &quot;thorough&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;high&quot;)
+    },
+    default_profile=&quot;fast&quot;
+)
+</code></pre>
+<p>Using a profile in a semantic operation:</p>
+<pre><code class="language-python">config = SemanticConfig(
+    language_models={
+        &quot;o4&quot;: OpenAILanguageModel(
+            model_name=&quot;o4-mini&quot;,
+            rpm=1_000,
+            tpm=1_000_000,
+            profiles={
+                &quot;fast&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;low&quot;),
+                &quot;thorough&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;high&quot;)
+            },
+            default_profile=&quot;fast&quot;
+        )
+    },
+    default_language_model=&quot;o4&quot;
+)
+
+# Will use the default &quot;fast&quot; profile for the &quot;o4&quot; model
+semantic.map(instruction=&quot;Construct a formal proof of the {hypothesis}.&quot;, model_alias=&quot;o4&quot;)
+
+# Will use the &quot;thorough&quot; profile for the &quot;o4&quot; model
+semantic.map(instruction=&quot;Construct a formal proof of the {hypothesis}.&quot;, model_alias=ModelAlias(name=&quot;o4&quot;, profile=&quot;thorough&quot;))
+</code></pre>
+</details>
+
+
+
+
+
+
+<p><span class="doc-section-title">Classes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;Profile&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.OpenAILanguageModel.Profile&lt;/code&gt;)" href="#fenic.api.session.config.OpenAILanguageModel.Profile">Profile</a></code></b>
+          –
+          <div class="doc-md-description">
+            <p>OpenAI-specific profile configurations.</p>
+          </div>
+        </li>
+    </ul>
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="fenic.api.session.config.OpenAILanguageModel.Profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">Profile</span>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>OpenAI-specific profile configurations.</p>
+<p>This class defines profile configurations for OpenAI models, allowing a user to reference
+the same underlying model in semantic operations with different settings.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.Profile.reasoning_effort">reasoning_effort</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="fenic.core._resolved_session_config.ReasoningEffort">ReasoningEffort</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Provide a reasoning effort. Only for gpt5 and o-series models.
+If reasoning effort is not provided, the <code>reasoning_effort</code> will be set to <code>low</code> (for o-series models) or <code>minimal</code> (for gpt5 models).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.OpenAILanguageModel.Profile.verbosity">verbosity</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="fenic.core._resolved_session_config.Verbosity">Verbosity</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Provide a verbosity level. Only for gpt5 models.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ConfigurationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ConfigurationError">ConfigurationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If a profile is set with parameters that are not supported by the model.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>When using an o-series reasoning model, the <code>temperature</code> cannot be customized -- any changes to <code>temperature</code> will be ignored.</p>
+</details>
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a profile with medium reasoning effort:</p>
+<pre><code class="language-python">profile = OpenAILanguageModel.Profile(reasoning_effort=&quot;medium&quot;)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.SemanticConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SemanticConfig</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for semantic language and embedding models.</p>
+<p>This class defines the configuration for both language models and optional
+embedding models used in semantic operations. It ensures that all configured
+models are valid and supported by their respective providers.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SemanticConfig.language_models">language_models</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="fenic.api.session.config.LanguageModel">LanguageModel</span>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Mapping of model aliases to language model configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SemanticConfig.default_language_model">default_language_model</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The alias of the default language model to use for semantic operations. Not required
+if only one language model is configured.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SemanticConfig.embedding_models">embedding_models</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="fenic.api.session.config.EmbeddingModel">EmbeddingModel</span>]]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional mapping of model aliases to embedding model configurations.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SemanticConfig.default_embedding_model">default_embedding_model</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>The alias of the default embedding model to use for semantic operations.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>The embedding model is optional and only required for operations that
+need semantic search or embedding capabilities.</p>
+</details>
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring semantic models with a single language model:</p>
+<pre><code class="language-python">config = SemanticConfig(
+    language_models={
+        &quot;gpt4&quot;: OpenAILanguageModel(
+            model_name=&quot;gpt-4.1-nano&quot;,
+            rpm=100,
+            tpm=100
+        )
+    }
+)
+</code></pre>
+<p>Configuring semantic models with multiple language models and an embedding model:</p>
+<pre><code class="language-python">config = SemanticConfig(
+    language_models={
+        &quot;gpt4&quot;: OpenAILanguageModel(
+            model_name=&quot;gpt-4.1-nano&quot;,
+            rpm=100,
+            tpm=100
+        ),
+        &quot;claude&quot;: AnthropicLanguageModel(
+            model_name=&quot;claude-3-5-haiku-latest&quot;,
+            rpm=100,
+            input_tpm=100,
+            output_tpm=100
+        ),
+        &quot;gemini&quot;: GoogleDeveloperLanguageModel(
+            model_name=&quot;gemini-2.0-flash&quot;,
+            rpm=100,
+            tpm=1000
+        )
+    },
+    default_language_model=&quot;gpt4&quot;,
+    embedding_models={
+        &quot;openai_embeddings&quot;: OpenAIEmbeddingModel(
+            model_name=&quot;text-embedding-3-small&quot;,
+            rpm=100,
+            tpm=100
+        )
+    },
+    default_embedding_model=&quot;openai_embeddings&quot;
+)
+</code></pre>
+<p>Configuring models with profiles:</p>
+<pre><code class="language-python">config = SemanticConfig(
+    language_models={
+        &quot;gpt4&quot;: OpenAILanguageModel(
+            model_name=&quot;gpt-4o-mini&quot;,
+            rpm=100,
+            tpm=100,
+            profiles={
+                &quot;fast&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;low&quot;),
+                &quot;thorough&quot;: OpenAILanguageModel.Profile(reasoning_effort=&quot;high&quot;)
+            },
+            default_profile=&quot;fast&quot;
+        ),
+        &quot;claude&quot;: AnthropicLanguageModel(
+            model_name=&quot;claude-3-5-haiku-latest&quot;,
+            rpm=100,
+            input_tpm=100,
+            output_tpm=100,
+            profiles={
+                &quot;fast&quot;: AnthropicLanguageModel.Profile(thinking_token_budget=1024),
+                &quot;thorough&quot;: AnthropicLanguageModel.Profile(thinking_token_budget=4096)
+            },
+            default_profile=&quot;fast&quot;
+        )
+    },
+    default_language_model=&quot;gpt4&quot;
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;model_post_init&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SemanticConfig.model_post_init&lt;/code&gt;)" href="#fenic.api.session.config.SemanticConfig.model_post_init">model_post_init</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Post initialization hook to set defaults.</p>
+            </div>
+          </li>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;validate_models&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SemanticConfig.validate_models&lt;/code&gt;)" href="#fenic.api.session.config.SemanticConfig.validate_models">validate_models</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Validates that the selected models are supported by the system.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.session.config.SemanticConfig.model_post_init" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">model_post_init</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">model_post_init</span><span class="p">(</span><span class="n">__context</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Post initialization hook to set defaults.</p>
+<p>This hook runs after the model is initialized and validated.
+It sets the default language and embedding models if they are not set
+and there is only one model available.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/session/config.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">810</span>
+<span class="normal">811</span>
+<span class="normal">812</span>
+<span class="normal">813</span>
+<span class="normal">814</span>
+<span class="normal">815</span>
+<span class="normal">816</span>
+<span class="normal">817</span>
+<span class="normal">818</span>
+<span class="normal">819</span>
+<span class="normal">820</span>
+<span class="normal">821</span>
+<span class="normal">822</span>
+<span class="normal">823</span>
+<span class="normal">824</span>
+<span class="normal">825</span>
+<span class="normal">826</span>
+<span class="normal">827</span>
+<span class="normal">828</span>
+<span class="normal">829</span>
+<span class="normal">830</span>
+<span class="normal">831</span>
+<span class="normal">832</span>
+<span class="normal">833</span>
+<span class="normal">834</span>
+<span class="normal">835</span>
+<span class="normal">836</span>
+<span class="normal">837</span>
+<span class="normal">838</span>
+<span class="normal">839</span>
+<span class="normal">840</span>
+<span class="normal">841</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post initialization hook to set defaults.</span>
+
+<span class="sd">    This hook runs after the model is initialized and validated.</span>
+<span class="sd">    It sets the default language and embedding models if they are not set</span>
+<span class="sd">    and there is only one model available.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="p">:</span>
+        <span class="c1"># Set default language model if not set and only one model exists</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Set default profile for each model if not set and only one profile exists</span>
+        <span class="k">for</span> <span class="n">model_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">model_config</span><span class="o">.</span><span class="n">profiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">profile_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model_config</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">model_config</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">profile_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">model_config</span><span class="o">.</span><span class="n">default_profile</span> <span class="o">=</span> <span class="n">profile_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Set default embedding model if not set and only one model exists</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Set default profile for each model if not set and only one preset exists</span>
+        <span class="k">for</span> <span class="n">model_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">model_config</span><span class="p">,</span> <span class="s2">&quot;profiles&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">model_config</span><span class="o">.</span><span class="n">profiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">preset_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model_config</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">model_config</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="kc">None</span>
+                    <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">preset_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="p">):</span>
+                    <span class="n">model_config</span><span class="o">.</span><span class="n">default_profile</span> <span class="o">=</span> <span class="n">preset_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.session.config.SemanticConfig.validate_models" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">validate_models</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">validate_models</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SemanticConfig</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Validates that the selected models are supported by the system.</p>
+<p>This validator checks that both the language model and embedding model (if provided)
+are valid and supported by their respective providers.</p>
+
+
+<p><span class="doc-section-title">Returns:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SemanticConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SemanticConfig&lt;/code&gt;)" href="#fenic.api.session.config.SemanticConfig">SemanticConfig</a></code>
+          –
+          <div class="doc-md-description">
+            <p>The validated SemanticConfig instance.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+              <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;ConfigurationError&lt;/span&gt; (&lt;code&gt;fenic.core.error.ConfigurationError&lt;/code&gt;)" href="../../../core/error/#fenic.core.error.ConfigurationError">ConfigurationError</a></code>
+            –
+          <div class="doc-md-description">
+            <p>If any of the models are not supported.</p>
+          </div>
+        </li>
+    </ul>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/session/config.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">843</span>
+<span class="normal">844</span>
+<span class="normal">845</span>
+<span class="normal">846</span>
+<span class="normal">847</span>
+<span class="normal">848</span>
+<span class="normal">849</span>
+<span class="normal">850</span>
+<span class="normal">851</span>
+<span class="normal">852</span>
+<span class="normal">853</span>
+<span class="normal">854</span>
+<span class="normal">855</span>
+<span class="normal">856</span>
+<span class="normal">857</span>
+<span class="normal">858</span>
+<span class="normal">859</span>
+<span class="normal">860</span>
+<span class="normal">861</span>
+<span class="normal">862</span>
+<span class="normal">863</span>
+<span class="normal">864</span>
+<span class="normal">865</span>
+<span class="normal">866</span>
+<span class="normal">867</span>
+<span class="normal">868</span>
+<span class="normal">869</span>
+<span class="normal">870</span>
+<span class="normal">871</span>
+<span class="normal">872</span>
+<span class="normal">873</span>
+<span class="normal">874</span>
+<span class="normal">875</span>
+<span class="normal">876</span>
+<span class="normal">877</span>
+<span class="normal">878</span>
+<span class="normal">879</span>
+<span class="normal">880</span>
+<span class="normal">881</span>
+<span class="normal">882</span>
+<span class="normal">883</span>
+<span class="normal">884</span>
+<span class="normal">885</span>
+<span class="normal">886</span>
+<span class="normal">887</span>
+<span class="normal">888</span>
+<span class="normal">889</span>
+<span class="normal">890</span>
+<span class="normal">891</span>
+<span class="normal">892</span>
+<span class="normal">893</span>
+<span class="normal">894</span>
+<span class="normal">895</span>
+<span class="normal">896</span>
+<span class="normal">897</span>
+<span class="normal">898</span>
+<span class="normal">899</span>
+<span class="normal">900</span>
+<span class="normal">901</span>
+<span class="normal">902</span>
+<span class="normal">903</span>
+<span class="normal">904</span>
+<span class="normal">905</span>
+<span class="normal">906</span>
+<span class="normal">907</span>
+<span class="normal">908</span>
+<span class="normal">909</span>
+<span class="normal">910</span>
+<span class="normal">911</span>
+<span class="normal">912</span>
+<span class="normal">913</span>
+<span class="normal">914</span>
+<span class="normal">915</span>
+<span class="normal">916</span>
+<span class="normal">917</span>
+<span class="normal">918</span>
+<span class="normal">919</span>
+<span class="normal">920</span>
+<span class="normal">921</span>
+<span class="normal">922</span>
+<span class="normal">923</span>
+<span class="normal">924</span>
+<span class="normal">925</span>
+<span class="normal">926</span>
+<span class="normal">927</span>
+<span class="normal">928</span>
+<span class="normal">929</span>
+<span class="normal">930</span>
+<span class="normal">931</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@model_validator</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;after&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_models</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SemanticConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validates that the selected models are supported by the system.</span>
+
+<span class="sd">    This validator checks that both the language model and embedding model (if provided)</span>
+<span class="sd">    are valid and supported by their respective providers.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The validated SemanticConfig instance.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ConfigurationError: If any of the models are not supported.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Skip validation if no models configured (embedding-only or empty config)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="c1"># Validate language models if provided</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="p">:</span>
+        <span class="n">available_language_model_aliases</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;default_language_model is not set, and multiple language models are configured. Please specify one of: </span><span class="si">{</span><span class="n">available_language_model_aliases</span><span class="si">}</span><span class="s2"> as a default_language_model.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;default_language_model </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">default_language_model</span><span class="si">}</span><span class="s2"> is not in configured map of language models. Available models: </span><span class="si">{</span><span class="n">available_language_model_aliases</span><span class="si">}</span><span class="s2"> .&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">model_alias</span><span class="p">,</span> <span class="n">language_model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">language_models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">language_model_name</span> <span class="o">=</span> <span class="n">language_model</span><span class="o">.</span><span class="n">model_name</span>
+            <span class="n">language_model_provider</span> <span class="o">=</span> <span class="n">_get_model_provider_for_model_config</span><span class="p">(</span><span class="n">language_model</span><span class="p">)</span>
+
+            <span class="n">completion_model_params</span> <span class="o">=</span> <span class="n">model_catalog</span><span class="o">.</span><span class="n">get_completion_model_parameters</span><span class="p">(</span><span class="n">language_model_provider</span><span class="p">,</span>
+                                                                             <span class="n">language_model_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">completion_model_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                    <span class="n">model_catalog</span><span class="o">.</span><span class="n">generate_unsupported_completion_model_error_message</span><span class="p">(</span>
+                        <span class="n">language_model_provider</span><span class="p">,</span>
+                        <span class="n">language_model_name</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">language_model</span><span class="o">.</span><span class="n">profiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">completion_model_params</span><span class="o">.</span><span class="n">supports_profiles</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Model &#39;</span><span class="si">{</span><span class="n">model_alias</span><span class="si">}</span><span class="s2">&#39; does not support parameter profiles. Please remove the Profile configuration.&quot;</span><span class="p">)</span>
+                <span class="n">profile_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">language_model</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">language_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">profile_names</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;default_profile is not set for model </span><span class="si">{</span><span class="n">model_alias</span><span class="si">}</span><span class="s2">, but multiple profiles are configured. Please specify one of: </span><span class="si">{</span><span class="n">profile_names</span><span class="si">}</span><span class="s2"> as a default_profile.&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">language_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">language_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">profile_names</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;default_profile </span><span class="si">{</span><span class="n">language_model</span><span class="o">.</span><span class="n">default_profile</span><span class="si">}</span><span class="s2"> is not in configured profiles for model </span><span class="si">{</span><span class="n">model_alias</span><span class="si">}</span><span class="s2">. Available profiles: </span><span class="si">{</span><span class="n">profile_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">profile_alias</span><span class="p">,</span> <span class="n">profile</span> <span class="ow">in</span> <span class="n">language_model</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">_validate_language_profile</span><span class="p">(</span><span class="n">language_model</span><span class="p">,</span> <span class="n">model_alias</span><span class="p">,</span> <span class="n">completion_model_params</span><span class="p">,</span> <span class="n">profile</span><span class="p">,</span> <span class="n">profile_alias</span><span class="p">)</span>
+
+
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">available_embedding_model_aliases</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;default_embedding_model is not set, and multiple embedding models are configured. Please specify one of: </span><span class="si">{</span><span class="n">available_embedding_model_aliases</span><span class="si">}</span><span class="s2"> as a default_embedding_model.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;default_embedding_model </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">default_embedding_model</span><span class="si">}</span><span class="s2"> is not in configured map of embedding models. Available models: </span><span class="si">{</span><span class="n">available_embedding_model_aliases</span><span class="si">}</span><span class="s2"> .&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">model_alias</span><span class="p">,</span> <span class="n">embedding_model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">embedding_model_provider</span> <span class="o">=</span> <span class="n">_get_model_provider_for_model_config</span><span class="p">(</span><span class="n">embedding_model</span><span class="p">)</span>
+            <span class="n">embedding_model_name</span> <span class="o">=</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">model_name</span>
+            <span class="n">embedding_model_parameters</span> <span class="o">=</span> <span class="n">model_catalog</span><span class="o">.</span><span class="n">get_embedding_model_parameters</span><span class="p">(</span><span class="n">embedding_model_provider</span><span class="p">,</span>
+                                                                                      <span class="n">embedding_model_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">embedding_model_parameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span><span class="n">model_catalog</span><span class="o">.</span><span class="n">generate_unsupported_embedding_model_error_message</span><span class="p">(</span>
+                    <span class="n">embedding_model_provider</span><span class="p">,</span>
+                    <span class="n">embedding_model_name</span>
+                <span class="p">))</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">embedding_model</span><span class="p">,</span> <span class="s2">&quot;profiles&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">profiles</span><span class="p">:</span>
+                <span class="n">profile_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">embedding_model</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">profile_names</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;default_profile is not set for model </span><span class="si">{</span><span class="n">model_alias</span><span class="si">}</span><span class="s2">, but multiple profiles are configured. Please specify one of: </span><span class="si">{</span><span class="n">profile_names</span><span class="si">}</span><span class="s2"> as a default_profile.&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">default_profile</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">profile_names</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;default_profile </span><span class="si">{</span><span class="n">embedding_model</span><span class="o">.</span><span class="n">default_profile</span><span class="si">}</span><span class="s2"> is not in configured profiles for model </span><span class="si">{</span><span class="n">model_alias</span><span class="si">}</span><span class="s2">. Available profiles: </span><span class="si">{</span><span class="n">profile_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+                <span class="k">for</span> <span class="n">profile_alias</span><span class="p">,</span> <span class="n">profile</span> <span class="ow">in</span> <span class="n">embedding_model</span><span class="o">.</span><span class="n">profiles</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">_validate_embedding_profile</span><span class="p">(</span><span class="n">embedding_model_parameters</span><span class="p">,</span> <span class="n">model_alias</span><span class="p">,</span> <span class="n">profile_alias</span><span class="p">,</span> <span class="n">profile</span><span class="p">)</span>
+
+
+    <span class="k">return</span> <span class="bp">self</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fenic.api.session.config.SessionConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <span class="doc doc-object-name doc-class-name">SessionConfig</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+        <p>Configuration for a user session.</p>
+<p>This class defines the complete configuration for a user session, including
+application settings, model configurations, and optional cloud settings.
+It serves as the central configuration object for all language model operations.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <ul>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SessionConfig.app_name">app_name</span></code></b>
+              (<code><span title="str">str</span></code>)
+          –
+          <div class="doc-md-description">
+            <p>Name of the application using this session. Defaults to "default_app".</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SessionConfig.db_path">db_path</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<span title="pathlib.Path">Path</span>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional path to a local database file for persistent storage.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SessionConfig.semantic">semantic</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;SemanticConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SemanticConfig&lt;/code&gt;)" href="#fenic.api.session.config.SemanticConfig">SemanticConfig</a>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Configuration for semantic models (optional).</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="fenic.api.session.config.SessionConfig.cloud">cloud</span></code></b>
+              (<code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-class-name&quot;&gt;CloudConfig&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.CloudConfig&lt;/code&gt;)" href="#fenic.api.session.config.CloudConfig">CloudConfig</a>]</code>)
+          –
+          <div class="doc-md-description">
+            <p>Optional configuration for cloud execution.</p>
+          </div>
+        </li>
+    </ul>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>The semantic configuration is optional. When not provided, only non-semantic operations
+are available. The cloud configuration is optional and only needed for
+distributed processing.</p>
+</details>
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>Configuring a basic session with a single language model:</p>
+<pre><code class="language-python">config = SessionConfig(
+    app_name=&quot;my_app&quot;,
+    semantic=SemanticConfig(
+        language_models={
+            &quot;gpt4&quot;: OpenAILanguageModel(
+                model_name=&quot;gpt-4.1-nano&quot;,
+                rpm=100,
+                tpm=100
+            )
+        }
+    )
+)
+</code></pre>
+<p>Configuring a session with multiple models and cloud execution:</p>
+<pre><code class="language-python">config = SessionConfig(
+    app_name=&quot;production_app&quot;,
+    db_path=Path(&quot;/path/to/database.db&quot;),
+    semantic=SemanticConfig(
+        language_models={
+            &quot;gpt4&quot;: OpenAILanguageModel(
+                model_name=&quot;gpt-4.1-nano&quot;,
+                rpm=100,
+                tpm=100
+            ),
+            &quot;claude&quot;: AnthropicLanguageModel(
+                model_name=&quot;claude-3-5-haiku-latest&quot;,
+                rpm=100,
+                input_tpm=100,
+                output_tpm=100
+            )
+        },
+        default_language_model=&quot;gpt4&quot;,
+        embedding_models={
+            &quot;openai_embeddings&quot;: OpenAIEmbeddingModel(
+                model_name=&quot;text-embedding-3-small&quot;,
+                rpm=100,
+                tpm=100
+            )
+        },
+        default_embedding_model=&quot;openai_embeddings&quot;
+    ),
+    cloud=CloudConfig(size=CloudExecutorSize.MEDIUM)
+)
+</code></pre>
+</details>
+
+
+
+
+
+
+
+
+<p><span class="doc-section-title">Methods:</span></p>
+    <ul>
+          <li class="doc-section-item field-body">
+            <b><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-method&quot;&gt;&lt;/code&gt;            &lt;span class=&quot;doc doc-object-name doc-function-name&quot;&gt;to_json&lt;/span&gt; (&lt;code&gt;fenic.api.session.config.SessionConfig.to_json&lt;/code&gt;)" href="#fenic.api.session.config.SessionConfig.to_json">to_json</a></code></b>
+            –
+            <div class="doc-md-description">
+              <p>Export the session config to a JSON string.</p>
+            </div>
+          </li>
+    </ul>
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fenic.api.session.config.SessionConfig.to_json" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <span class="doc doc-object-name doc-function-name">to_json</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">to_json</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Export the session config to a JSON string.</p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>src/fenic/api/session/config.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1053</span>
+<span class="normal">1054</span>
+<span class="normal">1055</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Export the session config to a JSON string.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_dump_json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../" class="md-footer__link md-footer__link--prev" aria-label="Previous: &lt;code class=&#34;doc-symbol doc-symbol-nav doc-symbol-module&#34;&gt;&lt;/code&gt;session">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../session/" class="md-footer__link md-footer__link--next" aria-label="Next: &lt;code class=&#34;doc-symbol doc-symbol-nav doc-symbol-module&#34;&gt;&lt;/code&gt;session">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["announce.dismiss", "content.action.edit", "content.action.view", "content.code.annotate", "content.code.copy", "content.tooltips", "navigation.footer", "navigation.instant", "navigation.path", "navigation.tracking", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
