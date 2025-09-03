@@ -95,7 +95,7 @@ class LocalSessionState(BaseSessionState):
         """Clean up the session state."""
         # Print session usage summary before stopping
         self._print_session_usage_summary()
-        
+
         from fenic._backends.local.manager import LocalSessionManager
 
         LocalSessionManager().remove_session(self.app_name)

@@ -5,7 +5,6 @@ including language model usage, embedding model usage, operator performance,
 and overall query statistics.
 """
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
@@ -120,8 +119,8 @@ class QueryMetrics:
         end_ts: Timestamp when query execution completed
     """
 
-    execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    session_id: str = ""
+    execution_id: str
+    session_id: str
     execution_time_ms: float = 0.0
     num_output_rows: int = 0
     total_lm_metrics: LMMetrics = field(default_factory=LMMetrics)
@@ -140,7 +139,7 @@ class QueryMetrics:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert QueryMetrics to a dictionary for table storage.
-        
+
         Returns:
             Dict containing all metrics fields suitable for database storage.
         """
