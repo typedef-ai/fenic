@@ -39,21 +39,39 @@ class Catalog:
         ```
 
     ### Metrics Table (Local Sessions Only)
+
     Query metrics are recorded for each session and stored locally
     in `fenic_system.query_metrics`. Metrics can be loaded into a DataFrame
-    for analysis.
+    for analysis, and a summary is printed when a session ends.
 
-    Example:
+    Example: Basic Metrics Table queries
         ```python
+        # Load all metrics for the current session
+        metrics_df = session.table("fenic_system.query_metrics")
+
+        # Show the 10 most recent queries
+        session.sql(\"\"\"
+            SELECT *
+            FROM {df}
+            ORDER BY CAST(end_ts AS TIMESTAMP) DESC
+            LIMIT 10
+        \"\"\", df=metrics_df)
+
+        # Aggregate costs and request counts for the session
+        session_metrics_df.agg(
+            fc.sum("total_lm_cost").alias("session_lm_costs"),
+            fc.sum("total_lm_requests").alias("session_lm_requests"),
+        ).show()
+
         # Total LM costs and requests between 10:00 and 12:00
         metrics_window = session.sql(\"\"\"
-        SELECT
-            CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
-            CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
-        FROM {df}
-        WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
-            CAST('2025-08-29 10:00:00' AS TIMESTAMP) AND
-            CAST('2025-08-29 12:00:00' AS TIMESTAMP)
+            SELECT
+                CAST(SUM(total_lm_cost) AS DOUBLE) AS total_lm_cost_in_window,
+                CAST(SUM(total_lm_requests) AS DOUBLE) AS total_lm_requests_in_window
+            FROM {df}
+            WHERE CAST(end_ts AS TIMESTAMP) BETWEEN
+                CAST('2025-08-29 10:00:00' AS TIMESTAMP)
+                AND CAST('2025-08-29 12:00:00' AS TIMESTAMP)
         \"\"\", df=metrics_df)
 
         metrics_window.show()
