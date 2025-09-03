@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/typedef-ai/fenic/compare/v0.4.0...v0.4.1) (2025-09-03)
+
+
+### Bug Fixes
+
+* write one metrics row per query not per operator to local fenic_system.query_metrics system table ([#177](https://github.com/typedef-ai/fenic/issues/177)) ([a37979c](https://github.com/typedef-ai/fenic/commit/a37979ce0ecfef47d04e02d427a9946120faf9f6))
+
 ## [0.4.0](https://github.com/typedef-ai/fenic/compare/v0.3.0...v0.4.0) (2025-09-02)
 
 
