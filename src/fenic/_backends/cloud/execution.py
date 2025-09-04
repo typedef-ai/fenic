@@ -43,7 +43,7 @@ from fenic.core.error import (
     InternalError,
     ValidationError,
 )
-from fenic.core.metrics import LMMetrics, PhysicalPlanRepr, QueryMetrics, RMMetrics
+from fenic.core.metrics import QueryMetrics
 from fenic.core.types import Schema
 
 if TYPE_CHECKING:
@@ -184,14 +184,8 @@ class CloudExecution(BaseExecution):
             ),
             self.session_state.asyncio_loop,
         )
-        _ = future.result()
-        return QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        execution_id = future.result()
+        return self._get_query_execution_metrics(execution_id)
 
     def save_as_view(
         self,
@@ -236,14 +230,8 @@ class CloudExecution(BaseExecution):
             ),
             self.session_state.asyncio_loop,
         )
-        _ = future.result()
-        return QueryMetrics(
-            execution_time_ms=0.0,
-            num_output_rows=0,
-            total_lm_metrics=LMMetrics(),
-            total_rm_metrics=RMMetrics(),
-            _plan_repr=PhysicalPlanRepr(operator_id="empty"),
-        )
+        execution_id = future.result()
+        return self._get_query_execution_metrics(execution_id)
 
     def infer_schema_from_csv(
         self, paths: list[str], **options: Dict[str, Any]
