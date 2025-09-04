@@ -23,7 +23,7 @@ class GoogleModelProvider(ModelProviderClass):
         client = self.create_client()
         aio_client = client.aio
         _ = await aio_client.models.list()
-        logger.debug(f"Google API key validation successful for {self._provider_type}")
+        logger.debug(f"Google API key validation successful for {self.name}")
 
     def create_aio_client(self):
         """Create a Google async client instance."""
