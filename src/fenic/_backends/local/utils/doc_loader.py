@@ -6,14 +6,19 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
+import fitz  # PyMuPDF
 import polars as pl
+from pydantic import ConfigDict, validate_call
 
 from fenic._backends.local.utils.io_utils import PathScheme, get_path_scheme
+from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import FileLoaderError, ValidationError
 from fenic.core.types import ColumnField, Schema
 from fenic.core.types.datatypes import (
+    BooleanType,
+    IntegerType,
     StringType,
 )
 
@@ -30,9 +35,10 @@ class DocFolderLoader:
     """
 
     @staticmethod
+    @validate_call(config=ConfigDict(strict=True))
     def load_docs_from_folder(
             paths: list[str],
-            valid_file_extension: str,
+            valid_file_extension: Literal["md", "json", "pdf"],
             exclude_pattern: Optional[str] = None,
             recursive: bool = False,
     ) -> pl.DataFrame:
@@ -65,28 +71,47 @@ class DocFolderLoader:
 
         if not files:
             logger.debug(f"No files found in {paths}")
-            return DocFolderLoader._build_no_files_dataframe()
+            return DocFolderLoader._build_no_files_dataframe(file_extension=valid_file_extension)
 
         # Calculate the batch size to ensure that each worker gets at least one file.
         max_workers = os.cpu_count() + 4
-        return DocFolderLoader._process_files(files, max_workers)
+        
+        # Process files with the appropriate handler based on extension
+        return DocFolderLoader._process_files(files, max_workers, valid_file_extension)
 
     @staticmethod
-    def get_schema() -> Schema:
+    def get_schema(file_extension: str = None) -> Schema:
         """Get the schema for the data type.
 
         Args:
-            data_type: The data type of the files to load
+            file_extension: The file extension to determine schema
 
         Returns:
             Schema: The schema for the data type
         """
+        column_fields = [
+            ColumnField(name="file_path", data_type=StringType),
+            ColumnField(name="error", data_type=StringType),
+        ]
+        if file_extension == "pdf":
+            column_fields.extend([
+                # additional file metadata fields
+                ColumnField(name="size", data_type=IntegerType),
+                # PDF metadata fields
+                ColumnField(name="title", data_type=StringType),
+                ColumnField(name="author", data_type=StringType),
+                ColumnField(name="creation_date", data_type=StringType),
+                ColumnField(name="mod_date", data_type=StringType),
+                ColumnField(name="page_count", data_type=IntegerType),
+                ColumnField(name="has_forms", data_type=BooleanType),
+                ColumnField(name="has_signature_fields", data_type=BooleanType),
+                ColumnField(name="image_count", data_type=IntegerType),
+                ColumnField(name="is_encrypted", data_type=BooleanType),
+            ])
+        else: # load file content directly
+            column_fields.append(ColumnField(name="content", data_type=StringType))
         return Schema(
-            column_fields=[
-                ColumnField(name="file_path", data_type=StringType),
-                ColumnField(name="error", data_type=StringType),
-                ColumnField(name="content", data_type=StringType),
-            ]
+            column_fields=column_fields
         )
 
     @staticmethod
@@ -143,19 +168,29 @@ class DocFolderLoader:
     def _process_files(
         files: List[str],
         max_workers: int,
+        file_extension: str = None,
     ) -> pl.DataFrame:
         """Process files in parallel using a thread pool.
 
         Args:
             files: List of file paths to process
             max_workers: Number of worker threads
+            file_extension: File extension to determine processing type
 
         Returns:
             DataFrame: A dataframe containing the files in the folder.
         """
+        # Determine which processing function and schema to use
+
+        schema = convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(file_extension=file_extension))
+        if file_extension == "pdf":
+            process_func = DocFolderLoader._process_single_pdf_metadata
+        else:
+            process_func = DocFolderLoader._process_single_file
+        
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             it = iter(files)
-            pending = {executor.submit(DocFolderLoader._process_single_file, f)
+            pending = {executor.submit(process_func, f)
                        for _, f in zip(range(max_workers), it, strict=False)}
 
             def results_generator():
@@ -164,12 +199,12 @@ class DocFolderLoader:
                         pending.remove(future)
                         yield future.result()
                         try:
-                            pending.add(executor.submit(DocFolderLoader._process_single_file, next(it)))
+                            pending.add(executor.submit(process_func, next(it)))
                         except StopIteration:
                             pass
 
             # Uses the iterator over the results to build the dataframe.
-            return pl.DataFrame(results_generator(), schema=DocFolderLoader._get_polars_schema())
+            return pl.DataFrame(results_generator(), schema=schema)
 
     @staticmethod
     def _process_single_file(
@@ -203,17 +238,9 @@ class DocFolderLoader:
         return file_path, string_error, file_content
 
     @staticmethod
-    def _get_polars_schema() -> pl.Schema:
-        return pl.Schema({
-            "file_path": pl.Utf8,
-            "error": pl.Utf8,
-            "content": pl.Utf8,
-        })
-
-    @staticmethod
-    def _build_no_files_dataframe() -> pl.DataFrame:
-        """Build a dataframe from the file content."""
-        return pl.DataFrame({}, schema=DocFolderLoader._get_polars_schema())
+    def _build_no_files_dataframe(file_extension: str) -> pl.DataFrame:
+        """Build an empty dataframe with the appropriate schema."""
+        return pl.DataFrame({}, schema=convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(file_extension=file_extension)))
 
     @staticmethod
     def _enumerate_files_s3(
@@ -302,3 +329,96 @@ class DocFolderLoader:
     def _load_file_hf(file_path: str) -> str:
         """Load a file from HuggingFace."""
         raise NotImplementedError("HF file loading is not implemented yet.")
+
+    @staticmethod
+    def _process_single_pdf_metadata(file_path: str) -> dict:
+        """Process a single PDF file to extract metadata.
+
+        Args:
+            file_path: The path to the PDF file to process
+
+        Returns:
+            dict: A dictionary containing PDF metadata and error information.
+        """
+        
+        path_scheme = get_path_scheme(file_path)
+        logger.debug(f"Processing PDF: {file_path} - {path_scheme}")
+        
+        # Initialize the flat result dict with default values
+        result = {
+            "file_path": file_path,
+            "error": None,
+            "size": 0,
+            "title": None,
+            "author": None,
+            "creation_date": None,
+            "mod_date": None,
+            "page_count": 0,
+            "has_forms": False,
+            "has_signature_fields": False,
+            "image_count": 0,
+            "is_encrypted": False,
+        }
+        
+        try:
+            if path_scheme == PathScheme.S3:
+                raise NotImplementedError("S3 PDF processing not implemented yet.")
+            elif path_scheme == PathScheme.HF:
+                raise NotImplementedError("HF PDF processing not implemented yet.")
+            else:
+                result["size"] = os.path.getsize(file_path)
+                doc = fitz.open(file_path)
+                
+                # Extract basic document info
+                doc_metadata = doc.metadata
+                result.update({
+                    "title": doc_metadata.get("title") or "",
+                    "author": doc_metadata.get("author") or "",
+                    "creation_date": doc_metadata.get("creationDate") or "",
+                    "mod_date": doc_metadata.get("modDate") or "",
+                    "page_count": len(doc),
+                    "is_encrypted": doc.needs_pass,
+                })
+                
+                # Analyze document structure
+                image_count = 0
+                has_forms = False
+                has_signature_fields = False
+                
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    
+                    # Count raster images
+                    page_images = page.get_images()
+                    if page_images:
+                        image_count += len(page_images)
+                    
+                    # Vector drawings are represented as drawings in PyMuPDF
+                    drawings = page.get_drawings()
+                    if drawings:
+                        image_count += len(drawings)
+                    
+                    # Check for forms and signature fields
+                    if not has_forms or not has_signature_fields:
+                        widgets = list(page.widgets())
+                        if len(widgets) > 0:
+                            has_forms = True
+                            for widget in widgets:
+                                if widget.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE:
+                                    has_signature_fields = True
+                                    break
+                
+                result.update({
+                    "has_forms": has_forms,
+                    "has_signature_fields": has_signature_fields,
+                    "image_count": image_count,
+                })
+                
+                doc.close()
+                logger.debug(f"PDF processed successfully: {file_path}")
+                
+        except Exception as e:
+            logger.warning(f"Error processing PDF {file_path}: {str(e)}")
+            result["error"] = str(e)
+        
+        return result

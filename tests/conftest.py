@@ -1,11 +1,14 @@
+import datetime
 import json
 import os
+import random
 import tempfile
 from pathlib import Path
 from typing import Protocol, Tuple
 from urllib.parse import urlparse
 
 import boto3
+import fitz  # PyMuPDF
 import pytest
 import requests
 
@@ -488,6 +491,86 @@ def large_text_df(local_session):
 
     return local_session.create_dataframe({"text": [pp_content, cap_content]})
 
+def _save_pdf_file(
+    path,
+    title="Test PDF",
+    author="UnitTest",
+    text_content=None,
+    page_count=5,
+    encrypt=False,
+    include_forms=False,
+    include_signatures=False,
+    include_images=False,
+    include_vectors=False,
+):
+    """Generate a PDF with optional features randomly assigned to pages."""
+    doc = fitz.open()
+    added_vectors = False
+    added_images = False
+    added_forms = False
+    added_signatures = False
+    for i in range(page_count):
+        page = doc.new_page()
+
+        # Always text
+
+        page_text = f"Page {i+1} of {page_count}\nRandom Number: {random.randint(0, 100)}",
+        if page_text is not None:
+            if isinstance(text_content, str):
+                page_text = page_text
+            elif isinstance(page_text, list):
+                page_text = text_content[i % len(text_content)]
+        page.insert_text(
+            (50,50),
+            page_text,
+            fontsize=12,
+        )
+
+        if include_vectors and (random.choice([True, False]) or (not added_vectors and i == page_count)):
+            rect = fitz.Rect(100, 100, 200, 200) # x0, y0, x1, y1
+            page.draw_rect(rect, color=(0, 0, 1), fill=(0.8, 0.8, 0.95))
+            added_vectors = True
+
+        if include_images and (random.choice([True, False]) or (not added_images and i == page_count)):
+            rect = fitz.Rect(100, 200, 200, 300) # x0, y0, x1, y1
+            page.insert_image(rect, pixmap=fitz.Pixmap(fitz.csRGB, fitz.IRect(0,0,100,100)))
+            added_images = True
+
+        if include_forms and (random.choice([True, False]) or (not added_forms and i == page_count)):
+            rect = fitz.Rect(100, 400, 200, 500) # x0, y0, x1, y1
+            widget = fitz.Widget()
+            widget.field_name = f"field_{i}"
+            widget.field_type = random.choice([fitz.PDF_WIDGET_TYPE_BUTTON, fitz.PDF_WIDGET_TYPE_TEXT])
+            widget.rect = rect
+            page.add_widget(widget)
+            added_forms = True
+
+        if include_signatures and (random.choice([True, False]) or (not added_signatures and i == page_count)):
+            rect = fitz.Rect(100, 500, 200, 600) # x0, y0, x1, y1
+            widget = fitz.Widget()
+            widget.field_name = f"sig_{i}"
+            widget.field_type = fitz.PDF_WIDGET_TYPE_SIGNATURE
+            widget.rect = rect
+            page.add_widget(widget)
+            added_signatures = True
+
+
+
+    # Metadata
+    now = datetime.datetime.now().strftime("D:%Y%m%d%H%M%S")
+    doc.set_metadata({
+        "title": title,
+        "author": author,
+        "creationDate": now,
+        "modDate": now,
+    })
+
+    # Save (optionally encrypted)
+    if encrypt:
+        doc.save(path, encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw="owner", user_pw="user")
+    else:
+        doc.save(path)
+
 @pytest.fixture
 def temp_dir_with_test_files():
     """Create a temporary directory with test files."""
@@ -504,9 +587,14 @@ def temp_dir_with_test_files():
             "file1.md",
             "file2.md",
             "file3.txy",
+            "file8.pdf",
+            "file9.pdf",
             "subdir1/file4.md",
             "subdir2/file5.md",
+            "subdir1/file6.pdf",
+            "subdir2/file7.pdf",
             "temp/temp_file.md",
+            "temp/temp_file.pdf",
             "backup.md.bak",
             "file.tmp",
             "file_json.json"
@@ -520,10 +608,13 @@ def temp_dir_with_test_files():
             elif file_name.endswith(".json"):
                 # TODO: Create a better sample json file.
                 file_path.write_text(json.dumps({"name": file_name, "content": "sample content"}))
+            elif file_name.endswith(".pdf"):
+                _save_pdf_file(file_path, page_count=1)
             else:
                 file_path.write_text(f"sample content for {file_name}")
 
         yield str(temp_path)
+
 
 @pytest.fixture
 def temp_dir_just_one_file():

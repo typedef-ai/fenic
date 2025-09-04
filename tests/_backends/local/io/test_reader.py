@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from typing import Literal, Union
@@ -17,6 +18,7 @@ from fenic import (
     DoubleType,
     FloatType,
     IntegerType,
+    JsonType,
     MarkdownType,
     Schema,
     StringType,
@@ -37,6 +39,7 @@ from fenic.core.error import (
     UnsupportedFileTypeError,
     ValidationError,
 )
+from tests.conftest import _save_pdf_file
 
 COLUMNS = {"name", "age", "city"}
 
@@ -1198,7 +1201,7 @@ David,33"""
 def test_read_docs(local_session, temp_dir_with_test_files):
     """Test that reading from a folder works."""
     df = local_session.read.docs(
-        get_globbed_path(temp_dir_with_test_files, "**/*.md"),
+        _get_globbed_path(temp_dir_with_test_files, "**/*.md"),
         data_type=MarkdownType,
         recursive=True)
     df.collect()
@@ -1232,11 +1235,37 @@ def test_read_docs_invalid_type(local_session, temp_dir_with_test_files):
     """Test that reading from an invalid path fails."""
     with pytest.raises(UnsupportedFileTypeError):
         local_session.read.docs(
-            get_globbed_path(temp_dir_with_test_files, "**/*.md"),
+            _get_globbed_path(temp_dir_with_test_files, "**/*.md"),
             data_type=StringType,
             recursive=True)
 
-def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_just_one_file):
+def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_test_files):
+    """Test that reading JSON files from a folder works."""
+    # Create a test JSON file
+    import json
+    json_path = Path(temp_dir_with_test_files) / "test.json"
+    with open(json_path, 'w') as f:
+        json.dump({"test": "data", "number": 42}, f)
+    
+    df = local_session.read.docs(
+        _get_globbed_path(temp_dir_with_test_files, "**/*.json"),
+        data_type=JsonType,
+        recursive=True)
+    df.collect()
+    assert df.schema == Schema(
+        [
+            ColumnField(name="file_path", data_type=StringType),
+            ColumnField(name="error", data_type=StringType),
+            ColumnField(name="content", data_type=JsonType),
+        ]
+    )
+    results = df.to_pydict()
+    # There might be other JSON files in the test directory
+    assert len(results["file_path"]) >= 1
+    # Verify our test file is in the results
+    assert any("test.json" in path for path in results["file_path"])
+
+def test_read_markdown_no_wildcard_only_valid_files(local_session, temp_dir_just_one_file):
     """Test that reading from a path with (and no wild card) only valid files works."""
     df = local_session.read.docs(
         [temp_dir_just_one_file],
@@ -1248,7 +1277,7 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_just_one
 def test_read_docs_no_files_valid_paths(local_session, temp_dir_with_test_files):
     """Test that if no files are found, we'll get a dataframe with the path and an error message."""
     df = local_session.read.docs(
-        get_globbed_path(temp_dir_with_test_files, "**/*.unknown_extension"),
+        _get_globbed_path(temp_dir_with_test_files, "**/*.unknown_extension"),
         data_type=MarkdownType,
         recursive=True)
     df.collect()
@@ -1265,5 +1294,133 @@ def test_read_docs_no_wildcard_path_is_file(local_session, temp_dir_just_one_fil
     assert len(dict["file_path"]) == 1
     assert "file1.md" in dict["file_path"][0]
 
-def get_globbed_path(path: str, file_extension: str) -> list[str]:
+
+def test_read_pdfs_invalid_path(local_session):
+    """Test that reading PDFs from an invalid path fails."""
+    with pytest.raises(ValidationError):
+        local_session.read.pdf_metadata(
+            "/invalid/path",
+            recursive=True)
+
+pdf_metadata_schema = Schema(
+        [
+            ColumnField(name="doc_path", data_type=StringType),
+            ColumnField(name="error", data_type=StringType),
+            ColumnField(name="size", data_type=IntegerType),
+            ColumnField(name="title", data_type=StringType),
+            ColumnField(name="author", data_type=StringType),
+            ColumnField(name="creation_date", data_type=StringType),
+            ColumnField(name="mod_date", data_type=StringType),
+            ColumnField(name="page_count", data_type=IntegerType),
+            ColumnField(name="has_forms", data_type=BooleanType),
+            ColumnField(name="has_signature_fields", data_type=BooleanType),
+            ColumnField(name="image_count", data_type=IntegerType),
+            ColumnField(name="is_encrypted", data_type=BooleanType),
+        ]
+)
+
+def _get_globbed_path(path: str, file_extension: str) -> list[str]:
     return [str(Path.joinpath(Path(path), file_extension))]
+
+def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
+    """Test that reading PDFs from a folder."""
+    start_time = datetime.now().replace(microsecond=0)
+    file1_pages = 3
+    file2_pages = 5
+    file3_pages = 7
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file1.pdf")),
+                   title="File 1 Title", author="File 1 Author", page_count=file1_pages)
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file2.pdf")),
+                   title="File 2 Title", author="File 2 Author", page_count=file2_pages)
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file3.pdf")),
+                   title="File 3 Title", author="File 3 Author", page_count=file3_pages)
+    df = local_session.read.pdf_metadata(
+        _get_globbed_path(temp_dir_just_one_file, "**/*.pdf"),
+        recursive=True)
+    assert df.schema == pdf_metadata_schema
+    assert df.count() == 3
+
+    # Verify that size field is populated with positive values
+    all_data = df.to_polars()
+    for i in range(3):
+        row = all_data.filter(pl.col("title") == f"File {i+1} Title").to_dicts()[0]
+        assert row["author"] == f"File {i+1} Author"
+        assert row["size"] > 0
+        creation_date = row["creation_date"]
+        mod_date = row["mod_date"]
+        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        assert creation_dt >= start_time
+        assert mod_dt >= start_time
+        assert not row["is_encrypted"]
+
+    for size_value in all_data["size"]:
+        assert size_value > 0, f"Size should be positive, got {size_value}"
+
+def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
+    """Test that reading PDFs with text and fields from a folder."""
+    start_time = datetime.now().replace(microsecond=0)
+    file1_pages = 3
+    file2_pages = 5
+    file3_pages = 7
+
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file1.pdf")),
+                   title="File 1 Title", author="File 1 Author",
+                   page_count=file1_pages,
+                   text_content="small amount of text")
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file2.pdf")),
+                   title="File 2 Title", author="File 2 Author",
+                   page_count=file2_pages,
+                   text_content=[
+                       "This is a very long text string that contains multiple sentences and should be long enough to test text wrapping and page splitting functionality. " * 10,
+                       "Another extremely long text string with different content that includes various words and phrases repeated many times to create substantial length. " * 15,
+                       "A third very long text string that demonstrates how text content can span multiple lines and pages when the content is extensive enough. " * 10,
+                   ],
+                   include_forms=True,
+                   include_vectors=True)
+    _save_pdf_file(Path(os.path.join(temp_dir_just_one_file, "file3.pdf")),
+                   title="File 3 Title", author="File 3 Author",
+                   page_count=file3_pages,
+                   text_content=[
+                       "This is a very long text string that contains multiple sentences and should be long enough to test text wrapping and page splitting functionality. " * 10,
+                       "Another extremely long text string with different content that includes various words and phrases repeated many times to create substantial length. " * 15,
+                       "A third very long text string that demonstrates how text content can span multiple lines and pages when the content is extensive enough. " * 10,
+                   ],
+                   include_signatures=True,
+                   include_images=True)
+    df = local_session.read.pdf_metadata(
+        _get_globbed_path(temp_dir_just_one_file, "**/*.pdf"),
+        recursive=True)
+
+    assert df.schema == pdf_metadata_schema
+    assert df.count() == 3
+    all_data = df.to_polars()
+    prev_doc_size = 0
+    for i in range(3):
+        row = all_data.filter(pl.col("title") == f"File {i+1} Title").to_dicts()[0]
+        assert row["author"] == f"File {i+1} Author"
+        assert row["size"] > 0
+        creation_date = row["creation_date"]
+        mod_date = row["mod_date"]
+        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        assert creation_dt >= start_time
+        assert mod_dt >= start_time
+        assert not row["is_encrypted"]
+        assert row["size"] > prev_doc_size
+        prev_doc_size = row["size"]
+        if i == 0:
+            assert not row["has_forms"]
+            assert not row["has_signature_fields"]
+            assert row["image_count"] == 0
+            assert row["page_count"] == file1_pages
+        elif i == 1:
+            assert row["has_forms"]
+            assert not row["has_signature_fields"]
+            assert row["image_count"] > 0
+            assert row["page_count"] == file2_pages
+        elif i == 2:
+            assert row["has_forms"]
+            assert row["has_signature_fields"]
+            assert row["image_count"] > 0
+            assert row["page_count"] == file3_pages

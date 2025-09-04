@@ -197,7 +197,7 @@ class DocSource(LogicalPlan):
     def __init__(
         self,
         paths: list[str],
-        valid_file_extension: Literal["md", "json"],
+        valid_file_extension: Literal["md", "json", "pdf"],
         exclude: Optional[str] = None,
         recursive: bool = False,
         session_state: Optional[BaseSessionState] = None,
@@ -212,7 +212,7 @@ class DocSource(LogicalPlan):
     def from_session_state(
         cls,
         paths: list[str],
-        valid_file_extension: Literal["md", "json"],
+        valid_file_extension: Literal["md", "json", "pdf"],
         exclude: Optional[str] = None,
         recursive: bool = False,
         session_state: Optional[BaseSessionState] = None,
@@ -223,7 +223,7 @@ class DocSource(LogicalPlan):
     def from_schema(
         cls,
         paths: list[str],
-        valid_file_extension: Literal["md", "json"],
+        valid_file_extension: Literal["md", "json", "pdf"],
         exclude: Optional[str] = None,
         recursive: bool = False,
         schema: Optional[Schema] = None,
@@ -232,7 +232,7 @@ class DocSource(LogicalPlan):
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         DocFolderLoader.validate_paths(self._paths)
-        return DocFolderLoader.get_schema()
+        return DocFolderLoader.get_schema(self._valid_file_extension)
 
     def children(self) -> List[LogicalPlan]:
         return []

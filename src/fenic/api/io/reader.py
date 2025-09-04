@@ -333,3 +333,85 @@ class DataFrameReader:
             col("content").cast(data_type).alias("content"),
         )
         return df
+
+    def pdf_metadata(
+            self,
+            paths: Union[str, list[str]],
+            exclude: Optional[str] = None,
+            recursive: bool = False,
+    ) -> DataFrame:
+        r"""Load a DataFrame with metadata from PDF files.
+
+        Args:
+            paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
+            exclude: A regex pattern to exclude files.
+                     If it is not provided no files will be excluded.
+            recursive: Whether to recursively load files from the folder.
+
+        Returns:
+            DataFrame: A dataframe with the metadata of all the PDF files found in the paths.
+                       the metadata from a single PDF document is a row in the dataframe.
+
+        Raises:
+            ValidationError: If any file does not have a `.pdf` extension.
+
+        Notes:
+            - Each row in the dataframe corresponds to a file in the list of paths.
+            - The metadata columns are:
+                - doc_path: The path to the document.
+                - error: The error message if the file failed to be loaded.
+                - size: Size of the PDF file in bytes.
+                - title: Title of the PDF document.
+                - author: Author of the PDF document.
+                - creation_date: Creation date of the PDF.
+                - mod_date: Modification date of the PDF.
+                - page_count: Number of pages in the PDF.
+                - has_forms: Whether the PDF contains form fields, or fields that accept user input.
+                - has_signature_fields: Whether the PDF contains signature fields.
+                - image_count: Number of images in the PDF.
+                - is_encrypted: Whether the PDF is encrypted.
+            - Recursive loading is supported in conjunction with the '**' glob pattern,
+              e.g. `data/**/*.pdf` will load all PDF files in the `data` folder and all subfolders
+                   when recursive is set to True.
+              Without recursive = True, then ** behaves like a single '*' pattern.
+
+        Example: Read the metadata of all the PDF files in a folder and all its subfolders.
+            ```python
+            df = session.read.pdf_metadata("data/docs/**/*.pdf", recursive=True)
+            ```
+
+        Example: Read a metadata of PDFS in a folder, excluding some files.
+            ```python
+            df = session.read.pdf_metadata("data/docs/*.pdf", exclude=r"\.backup.pdf$")
+            ```
+
+        """
+        if isinstance(paths, str):
+            paths = [paths]
+
+        logical_node = DocSource.from_session_state(
+            paths=paths,
+            valid_file_extension="pdf",
+            exclude=exclude,
+            recursive=recursive,
+            session_state=self._session_state,
+        )
+        from fenic.api.dataframe import DataFrame
+
+        df = DataFrame._from_logical_plan(logical_node, self._session_state)
+        # Rename file_path to doc_path for consistency with other doc readers
+        df = df.select(
+            col("file_path").alias("doc_path"),
+            col("error"),
+            col("size"),
+            col("title"),
+            col("author"),
+            col("creation_date"),
+            col("mod_date"),
+            col("page_count"),
+            col("has_forms"),
+            col("has_signature_fields"),
+            col("image_count"),
+            col("is_encrypted"),
+        )
+        return df

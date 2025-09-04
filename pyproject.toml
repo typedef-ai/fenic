@@ -37,6 +37,7 @@ dependencies = [
   "types-protobuf==5.29.1.20250403",
   "zstandard>=0.23.0",
   "jsonschema>=4.0.0",
+  "pymupdf>=1.26.4",
 ]
 
 [project.urls]
