@@ -1,0 +1,12 @@
+{
+"extract": {
+"transformers": {"title": "Transformers 101", "summary": "Intro to transformer models and RAG.", "score": 0.95},
+"vector stores": {"title": "Vector Stores Guide", "summary": "Chunking & embedding strategies.", "score": 0.88},
+"productionizing llms": {"title": "Prod LLMs", "summary": "Batching and cost-aware design.", "score": 0.9}
+},
+"similarity": {
+"transformers": 0.92,
+"vector stores": 0.87,
+"productionizing llms": 0.82
+}
+}
