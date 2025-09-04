@@ -15,7 +15,7 @@ class ModelProviderClass(ABC):
         pass
     
     @abstractmethod
-    def create_client():
+    def create_client(self):
         """Create a synchronous client for this provider.
         
         Returns the provider-specific synchronous client instance configured with the
@@ -24,7 +24,7 @@ class ModelProviderClass(ABC):
         pass
 
     @abstractmethod
-    def create_aio_client():
+    def create_aio_client(self):
         """Create an async client for this provider.
 
         Returns the provider-specific asynchronous client instance configured with the
@@ -33,7 +33,7 @@ class ModelProviderClass(ABC):
         pass
     
     @abstractmethod
-    async def validate_api_key() -> None:
+    async def validate_api_key(self) -> None:
         """Validate the API key for this provider.
         
         This method should create the appropriate client and perform a lightweight 
