@@ -30,10 +30,13 @@ class OpenAICompletionsProfileManager(
         additional_parameters = {}
         additional_reasoning_tokens = 0
         if self.model_parameters.supports_reasoning:
-            # OpenAI does not support disabling reasoning for o-series or gpt5 models, so we default to low
+            # OpenAI does not support disabling reasoning for o-series or gpt5 models, so we default to the lowest effort.
             reasoning_effort = profile.reasoning_effort
             if not reasoning_effort:
-                reasoning_effort = "low"
+                if self.model_parameters.supports_minimal_reasoning:
+                    reasoning_effort = "minimal"
+                else:
+                    reasoning_effort = "low"
             additional_parameters["reasoning_effort"] = reasoning_effort
             if reasoning_effort == "minimal":
                 additional_reasoning_tokens = 2048
@@ -53,4 +56,19 @@ class OpenAICompletionsProfileManager(
 
     def get_default_profile(self) -> OpenAICompletionProfileConfiguration:
         """Get default OpenAI configuration."""
-        return OpenAICompletionProfileConfiguration()
+        if self.model_parameters.supports_reasoning:
+            # OpenAI does not support disabling reasoning for o-series or gpt5 models, so we default to the lowest effort.
+            if self.model_parameters.supports_minimal_reasoning:
+                reasoning_effort = "minimal"
+                additional_reasoning_tokens = 2048
+            else:
+                reasoning_effort = "low"
+                additional_reasoning_tokens = 4096
+            return OpenAICompletionProfileConfiguration(
+                additional_parameters={
+                    "reasoning_effort": reasoning_effort
+                },
+                expected_additional_reasoning_tokens=additional_reasoning_tokens
+            )
+        else:
+            return OpenAICompletionProfileConfiguration()

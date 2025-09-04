@@ -404,6 +404,11 @@ class OpenAILanguageModel(BaseModel):
         profiles: Optional mapping of profile names to profile configurations.
         default_profile: The name of the default profile to use if profiles are configured.
 
+    Note:
+        When using an o-series or gpt5 reasoning model without specifying a reasoning effort in
+        a Profile, the `reasoning_effort` will default to `low` (for o-series models) or `minimal`
+        (for gpt5 models).
+
     Example:
         Configuring an OpenAI language model with rate limits:
 
@@ -470,14 +475,15 @@ class OpenAILanguageModel(BaseModel):
 
         Attributes:
             reasoning_effort: Provide a reasoning effort. Only for gpt5 and o-series models.
-                If reasoning effort is not provided, the `reasoning_effort` will be set to `low` (for o-series models) or `minimal` (for gpt5 models).
+                If reasoning effort is not provided, the `reasoning_effort` will default to `low`
+                (for o-series models) or `minimal` (for gpt5 models).
             verbosity: Provide a verbosity level. Only for gpt5 models.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
-            When using an o-series reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+            When using an o-series or gpt5 reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
 
         Example:
             Configuring a profile with medium reasoning effort:
