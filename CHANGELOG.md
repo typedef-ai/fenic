@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.2](https://github.com/typedef-ai/fenic/compare/v0.4.1...v0.4.2) (2025-09-04)
+
+
+### Bug Fixes
+
+* Add 'self' to model_provider abstract methods ([#183](https://github.com/typedef-ai/fenic/issues/183)) ([25e8319](https://github.com/typedef-ai/fenic/commit/25e83193ed3a70d6f31cf3ce85b4b6a709ac1b56))
+* cloud execution save_ methods should get metrics from backend ([#184](https://github.com/typedef-ai/fenic/issues/184)) ([4e32dd5](https://github.com/typedef-ai/fenic/commit/4e32dd52d28f518796d39170df9f576022738f59))
+* default openai reasoning models without profile need reasoning tokens ([#185](https://github.com/typedef-ai/fenic/issues/185)) ([e3a3e2a](https://github.com/typedef-ai/fenic/commit/e3a3e2aea29d03836bdd2af3c449363ee89eaecc))
+* regression when using google provider and logger level DEBUG ([#181](https://github.com/typedef-ai/fenic/issues/181)) ([c2d3045](https://github.com/typedef-ai/fenic/commit/c2d30459319357f0c66426a250f259de7e4cb0f9))
+
 ## [0.4.1](https://github.com/typedef-ai/fenic/compare/v0.4.0...v0.4.1) (2025-09-03)
 
 
