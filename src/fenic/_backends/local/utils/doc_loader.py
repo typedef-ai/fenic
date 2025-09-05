@@ -80,6 +80,13 @@ class DocFolderLoader:
         return DocFolderLoader._process_files(files, max_workers, valid_file_extension)
 
     @staticmethod
+    @validate_call(config=ConfigDict(strict=True))
+    def check_file_extensions(file_paths: List[str], valid_file_extension: Literal["md", "json", "pdf"]) -> bool:
+        """Check that the file extensions are valid."""
+        _ = DocFolderLoader._enumerate_files(file_paths, valid_file_extension, exclude_pattern=None, recursive=False)
+
+
+    @staticmethod
     def get_schema(file_extension: str = None) -> Schema:
         """Get the schema for the data type.
 
@@ -269,7 +276,16 @@ class DocFolderLoader:
             exclude_pattern: Optional[str],
             recursive: bool = False,
     ) -> List[str]:
-        """Enumerate files in a local fs folder based on include/exclude patterns."""
+        """Enumerate files in a local fs folder based on include/exclude patterns.
+
+        Returns:
+            List of file paths that match the include/exclude patterns.
+
+        Raises:
+            ValidationError: If the exclude pattern is invalid.
+            FileLoaderError: If the file extension is not supported.
+            ValueError: If the path does not exist.
+        """
         all_files = []
         for path_pattern in paths:
             split_path_pattern = path_pattern.split("*")

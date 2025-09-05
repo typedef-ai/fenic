@@ -18,7 +18,10 @@ from fenic._inference.google.google_provider import (
     GoogleDeveloperModelProvider,
     GoogleVertexModelProvider,
 )
-from fenic._inference.google.google_utils import convert_messages
+from fenic._inference.google.google_utils import (
+    convert_messages_and_upload_files,
+    delete_file,
+)
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -141,8 +144,10 @@ class GeminiNativeChatCompletionsClient(
         """
         return self._estimate_response_schema_tokens(response_format)
 
-    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
+    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> Optional[int]:
         """Get maximum output tokens including thinking budget.
+
+        If max_completion_tokens is not set, return None.
 
         Conservative estimate that includes both completion tokens and
         thinking token budget with a safety margin.
@@ -153,6 +158,8 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget with safety margin)
         """
+        if request.max_completion_tokens is None:
+            return None
         profile_config = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
@@ -201,8 +208,7 @@ class GeminiNativeChatCompletionsClient(
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
-        # Estimate output tokens
-        output_tokens = self._get_max_output_tokens(request)
+        output_tokens = self._get_max_output_tokens(request) or 0
 
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
@@ -222,21 +228,17 @@ class GeminiNativeChatCompletionsClient(
             Completion response, transient exception, or fatal exception
         """
 
-        # Get profile-specific configuration
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
-        )
-        max_output_tokens = request.max_completion_tokens + int(
-            1.5 * profile_config.thinking_token_budget
-        )
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        max_output_tokens = self._get_max_output_tokens(request)
 
         generation_config: GenerateContentConfigDict = {
             "temperature": request.temperature,
-            "max_output_tokens": max_output_tokens,
             "response_logprobs": request.top_logprobs is not None,
             "logprobs": request.top_logprobs,
             "system_instruction": request.messages.system,
         }
+        if max_output_tokens is not None:
+            generation_config["max_output_tokens"] = max_output_tokens
         generation_config.update(profile_config.additional_generation_config)
         if request.structured_output is not None:
             response_schema = self._prepare_schema(request.structured_output)
@@ -245,10 +247,11 @@ class GeminiNativeChatCompletionsClient(
                 response_schema=response_schema,
             )
 
-        # Build generation parameters
-        contents = convert_messages(request.messages)
-
+        file_obj = None
         try:
+            # Build generation parameters and upload any files to Google's file store
+            contents, file_obj = await convert_messages_and_upload_files(self._client, request.messages)
+
             response: GenerateContentResponse = (
                 await self._client.models.generate_content(
                     model=self.model,
@@ -351,6 +354,9 @@ class GeminiNativeChatCompletionsClient(
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
             return TransientException(e)
+        finally:
+            if file_obj:
+                await delete_file(self._client, file_obj.name)
 
     def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
         """Google Gemini does not support additionalProperties in JSON schemas, even if it is set to False.

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from fenic import MapExample, MapExampleCollection
 from fenic._backends.local.semantic_operators.map import Map
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 
 
@@ -44,7 +45,7 @@ class TestMap:
 
         result = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 sem_map.build_request_messages_batch(),
             )
         )
@@ -100,7 +101,7 @@ class TestMap:
         )
         prompts = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 sem_map.build_request_messages_batch(),
             )
         )
@@ -198,7 +199,7 @@ class TestMap:
         ]
         prompts = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 sem_map.build_request_messages_batch(),
             )
         )
