@@ -5,6 +5,7 @@ import polars as pl
 from pydantic import BaseModel, Field
 
 from fenic._backends.local.semantic_operators.extract import Extract
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 
 
@@ -55,7 +56,7 @@ class TestExtract:
 
         result = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 extract.build_request_messages_batch(),
             )
         )

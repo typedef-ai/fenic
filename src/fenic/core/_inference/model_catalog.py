@@ -49,6 +49,7 @@ class CompletionModelParameters:
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
+        supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
     """
 
     def __init__(
@@ -65,8 +66,9 @@ class CompletionModelParameters:
         supports_reasoning=False,
         supports_minimal_reasoning=False,
         supports_disabled_reasoning = True,
-        supports_custom_temperature=True,
-        supports_verbosity=False,
+        supports_custom_temperature = True,
+        supports_verbosity = False,
+        supports_pdf_parsing = False,
         supported_parameters: Optional[set[str]] = None,
     ):
         self.input_token_cost = input_token_cost
@@ -84,6 +86,7 @@ class CompletionModelParameters:
         self.supports_disabled_reasoning = supports_disabled_reasoning
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
+        self.supports_pdf_parsing = supports_pdf_parsing
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
 
@@ -703,6 +706,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.5-pro-preview-06-05"],
         )
@@ -718,6 +722,7 @@ class ModelCatalog:
                 max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -731,6 +736,7 @@ class ModelCatalog:
                 max_output_tokens=64_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -743,6 +749,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
         )
@@ -758,6 +765,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
@@ -820,6 +828,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.5-pro-preview-06-05"],
         )
@@ -835,6 +844,7 @@ class ModelCatalog:
                 max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -848,6 +858,7 @@ class ModelCatalog:
                 max_output_tokens=64_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -861,6 +872,7 @@ class ModelCatalog:
                 max_output_tokens=8_192,
                 max_temperature=2.0,
                 supports_profiles=False,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
         )
@@ -877,6 +889,7 @@ class ModelCatalog:
                 max_output_tokens=8_192,
                 max_temperature=2.0,
                 supports_profiles=False,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
@@ -1024,6 +1037,22 @@ class ModelCatalog:
         for model_provider in ModelProvider:
             for model in self._get_supported_completions_models_by_provider(model_provider).keys():
                 all_models.append(f"{model_provider.value}:{model}")
+        return ", ".join(sorted(all_models))
+
+    def get_models_for_criteria(self, criteria: Callable[[CompletionModelParameters], bool]) -> str:
+        """Returns a comma-separated string of all models that match the given criteria.
+
+        Args:
+            criteria: A function that takes CompletionModelParameters and returns True if the model matches
+
+        Returns:
+            Comma-separated string of model names
+        """
+        all_models = []
+        for model_provider in ModelProvider:
+            for model, model_params in self._get_supported_completions_models_by_provider(model_provider).items():
+                if criteria(model_params):
+                    all_models.append(f"{model_provider.value}:{model}")
         return ", ".join(sorted(all_models))
 
     def get_supported_embeddings_models_as_string(self) -> str:

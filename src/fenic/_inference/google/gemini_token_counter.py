@@ -1,11 +1,12 @@
 import logging
 
+import fitz  # PyMuPDF
 from google.genai.local_tokenizer import LocalTokenizer
 from google.genai.types import (
     CountTokensConfig,
 )
 
-from fenic._inference.google.google_utils import convert_messages
+from fenic._inference.google.google_utils import convert_text_messages
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -56,10 +57,20 @@ class GeminiLocalTokenCounter(TokenCounter):
 
     def _count_request_tokens(self, messages: LMRequestMessages) -> int:
         """Count tokens for an `LMRequestMessages` object."""
-        return self.google_tokenizer.count_tokens(
-            convert_messages(messages),
-            config=CountTokensConfig(system_instruction=messages.system)
-        ).total_tokens
+        contents = convert_text_messages(messages)
+        tokens = 0
+        if len(contents) > 0:
+            tokens += self.google_tokenizer.count_tokens(
+                convert_text_messages(messages),
+                config=CountTokensConfig(system_instruction=messages.system)
+            ).total_tokens
+
+        if messages.user_file_path:
+            # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
+            doc = fitz.open(messages.user_file_path)
+            tokens += len(doc) * 258
+        return tokens
+
 
     def _count_text_tokens(self, text: str) -> int:
         """Count tokens for a raw text string"""

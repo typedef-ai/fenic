@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from openai.types.chat import ChatCompletionTokenLogprob
 
@@ -15,17 +15,8 @@ class FewShotExample:
 class LMRequestMessages:
     system: str
     examples: List[FewShotExample]
-    user: str
-
-    def to_message_list(self) -> List[Dict[str, str]]:
-        messages = [{"role": "system", "content": self.system}]
-
-        for example in self.examples:
-            messages.append({"role": "user", "content": example.user})
-            messages.append({"role": "assistant", "content": example.assistant})
-
-        messages.append({"role": "user", "content": self.user})
-        return messages
+    user: Optional[str] = None
+    user_file_path: Optional[str] = None
 
 @dataclass
 class ResponseUsage:
@@ -46,7 +37,7 @@ class FenicCompletionsResponse:
 @dataclass
 class FenicCompletionsRequest:
     messages: LMRequestMessages
-    max_completion_tokens: int
+    max_completion_tokens: Optional[int]
     top_logprobs: Optional[int]
     structured_output: Optional[ResolvedResponseFormat]  # Resolved JSON schema
     temperature: Optional[float]

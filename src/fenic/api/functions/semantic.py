@@ -14,6 +14,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
+    SemanticParsePDFExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
@@ -586,4 +587,55 @@ def summarize(
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature,
                               model_alias=resolved_model_alias)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def parse_pdf(
+    column: ColumnOrName,
+    model_alias: Optional[Union[str, ModelAlias]] = None,
+	page_separator: Optional[str] = None,
+	describe_images: bool = False,  # for images that aren't tables
+) -> Column:
+    r"""Parses a column of PDF paths into markdown.
+
+    Returns:
+        Dataframe: a dataframe with markdown strings for each PDF file.
+
+    Args:
+        column: Column or column name containing the PDF to parse.
+        model_alias: Optional alias for the language model to use for the parsing. If None, will use the language model configured as the default.
+        page_separator: Optional page separator to use for the parsing.  If the separator includes the {page} placeholder, the model will replace it with the current page number.
+        describe_images:  Flag to describe images in the PDF. If True, the prompt will ask the model to include a description of the image in the markdown output.  If False, the prompt asks the model to ignore images that aren't tables or charts.
+
+    Raises:
+        ExecutionError: If paths in the column are not valid PDF files.
+
+    Example: Parse PDF paths in a column into markdown
+        ```python
+        semantic.parse_pdf(col("pdf_path")).show()
+        ```
+
+    Example: Parsing PDFs into markdown with a page separator and describing images larger than 50 pixels
+        ```python
+        pdf_markdown = semantic.parse_pdf(col("pdf_path"), page_separator="--- PAGE {page} ---", describe_images=True)
+        pdf_markdown.select(col("markdown_content")).show()
+        ```
+
+    Example: Grabbing PDFs from a glob pattern using pdf_metadata and parsing the PDF content
+        ```python
+        pdf_metadata = local_session.read.pdf_metadata("data/docs/**/*.pdf")
+        pdf_markdown = pdf_metadata.select(semantic.parse_pdf(col("file_path"), page_separator="--- PAGE BREAK ---")
+        pdf_markdown.select(col("markdown_content")).show()
+        ```
+    """
+    resolved_model_alias = _resolve_model_alias(model_alias)
+
+    return Column._from_logical_expr(
+        SemanticParsePDFExpr(
+            Column._from_col_or_name(column)._logical_expr,
+            model_alias=resolved_model_alias,
+            page_separator=page_separator,
+            describe_images=describe_images,
+        )
     )

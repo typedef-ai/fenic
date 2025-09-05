@@ -246,6 +246,23 @@ class BaseSingleColumnInputOperator(
         return input
 
 
+class BaseSingleColumnFilePathOperator(
+    BaseSingleColumnInputOperator[ModelResponseType, OperatorOutputType], ABC
+):
+    """Base class for operators that take a single column with file path strings as input."""
+
+    def build_request_messages(self, file_path: str) -> LMRequestMessages:
+        """Construct a request for file-based operations.
+        
+        This overrides the parent method to pass file_path instead of user message.
+        """
+        return LMRequestMessages(
+            system=self.build_system_message(),
+            user_file_path=file_path,  # Pass file path instead of user message
+            examples=self.build_examples() if self.examples else [],
+        )
+
+
 class BaseMultiColumnInputOperator(
     BaseOperator[ModelResponseType, OperatorOutputType], ABC
 ):

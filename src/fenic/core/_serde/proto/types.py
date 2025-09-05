@@ -305,6 +305,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticMapExpr as SemanticMapExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    SemanticParsePDFExpr as SemanticParsePDFExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticPredExpr as SemanticPredExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -516,6 +519,7 @@ __all__ = [
     "SemanticPredExprProto",
     "SemanticReduceExprProto",
     "SemanticClassifyExprProto",
+    "SemanticParsePDFExprProto",
     "AnalyzeSentimentExprProto",
     "EmbeddingsExprProto",
     "SemanticSummarizeExprProto",

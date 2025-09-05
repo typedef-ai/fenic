@@ -9,7 +9,10 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
-from fenic.core._logical_plan.utils import validate_completion_parameters
+from fenic.core._logical_plan.utils import (
+    validate_completion_parameters,
+    validate_model_support_for_pdf_parsing,
+)
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
 )
@@ -618,3 +621,46 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
 
     def _eq_specific(self, other: SemanticSummarizeExpr) -> bool:
         return self.temperature == other.temperature and self.model_alias == other.model_alias and self.format == other.format
+
+class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
+    function_name = "semantic.parse_pdf"
+
+    def __init__(
+        self,
+        expr: LogicalExpr,
+        model_alias: Optional[ResolvedModelAlias] = None,
+        page_separator: Optional[str] = None,
+        describe_images: bool = False,
+    ):
+        self.expr = expr
+        self.model_alias = model_alias
+        self.page_separator = page_separator
+        self.describe_images = describe_images
+
+        # Initialize validator for composition-based type validation
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        """Return the validator instance."""
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        """Return the child expressions."""
+        return [self.expr]
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        """Handle signature validation and completion parameter validation."""
+        self._validate_completion_parameters(session_state)
+        # Use mixin's implementation
+        return super().to_column_field(plan, session_state)
+
+    def _validate_completion_parameters(self, session_state: BaseSessionState):
+        """Validate model support for PDF parsing."""
+        validate_model_support_for_pdf_parsing(self.model_alias, session_state.session_config)
+
+    def __str__(self) -> str:
+        return f"semantic.parse_pdf({self.expr}, model:{self.model_alias})"
+
+    def _eq_specific(self, other: SemanticParsePDFExpr) -> bool:
+        return self.model_alias == other.model_alias and self.page_separator == other.page_separator and self.describe_images == other.describe_images
