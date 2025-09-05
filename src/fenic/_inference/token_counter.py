@@ -3,6 +3,7 @@ from typing import Protocol, Union
 import tiktoken
 
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE, TOKENS_PER_NAME
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic._inference.types import LMRequestMessages
 
 Tokenizable = Union[str | LMRequestMessages]
@@ -22,13 +23,19 @@ class TiktokenTokenCounter(TokenCounter):
         if isinstance(messages, str):
             return len(self.tokenizer.encode(messages))
         elif isinstance(messages, LMRequestMessages):
-            return self._count_message_tokens(messages.to_message_list())
+            return self._count_message_tokens(convert_messages(messages))
         else:
             raise TypeError(f"Expected str or LMRequestMessages, got {type(messages)}")
 
     def _count_message_tokens(self, messages: list[dict[str, str]]) -> int:
         num_tokens = 0
         for message in messages:
+            if "content" in message and isinstance(message["content"], list):
+                num_tokens += self._count_message_tokens(messages=message["content"])
+                continue
+            if "type" in message and message["type"] == "file":
+                # providers count file tokens differently, so we leave that up to the client
+                continue
             num_tokens += PREFIX_TOKENS_PER_MESSAGE  # Every message starts with <im_start>{role/name}\n{content}<im_end>\n
             for key, value in message.items():
                 num_tokens += len(self.tokenizer.encode(value))

@@ -3,6 +3,7 @@
 import hashlib
 import json
 
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic._inference.types import FenicCompletionsRequest
 
 
@@ -47,5 +48,5 @@ def generate_completion_request_key(request: FenicCompletionsRequest) -> str:
     Returns:
         10-character SHA256 hash of the messages
     """
-    messages_json = json.dumps(request.messages.to_message_list(), sort_keys=True)
+    messages_json = json.dumps(convert_messages(request.messages), sort_keys=True)
     return hashlib.sha256(messages_json.encode()).hexdigest()[:10]

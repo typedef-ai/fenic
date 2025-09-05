@@ -73,6 +73,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
+    SemanticParsePDFExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
@@ -406,6 +407,9 @@ expression_examples = {
             ],
             0.1,
         ),
+    ],
+    SemanticParsePDFExpr: [
+        SemanticParsePDFExpr(ColumnExpr("pdf_col"), page_separator="Page {page_number}", describe_images=True),
     ],
     AnalyzeSentimentExpr: [
         AnalyzeSentimentExpr(ColumnExpr("text_col"), 0.1),

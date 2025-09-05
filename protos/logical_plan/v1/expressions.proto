@@ -43,6 +43,7 @@ message LogicalExpr {
     AnalyzeSentimentExpr analyze_sentiment = 35;
     EmbeddingsExpr embeddings = 36;
     SemanticSummarizeExpr semantic_summarize = 37;
+    SemanticParsePDFExpr semantic_parse_pdf = 38;
 
     // Embedding expressions
     EmbeddingNormalizeExpr embedding_normalize = 40;
@@ -258,6 +259,13 @@ message SemanticSummarizeExpr {
   SummarizationFormat format = 2;
   double temperature = 3;
   optional ResolvedModelAlias model_alias = 4;
+}
+
+message SemanticParsePDFExpr {
+  LogicalExpr expr = 1;
+  optional ResolvedModelAlias model_alias = 2;
+  optional string page_separator = 3;
+  bool describe_images = 4;
 }
 
 // Embedding expressions

@@ -4,6 +4,7 @@ from fenic._backends.local.semantic_operators.analyze_sentiment import (
     EXAMPLES,
     AnalyzeSentiment,
 )
+from fenic._inference.common_openai.openai_utils import convert_messages
 
 
 class TestAnalyzeSentiment:
@@ -99,7 +100,7 @@ class TestAnalyzeSentiment:
 
         result = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 analyze_sentiment.build_request_messages_batch(),
             )
         )

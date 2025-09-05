@@ -6,7 +6,7 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import fitz  # PyMuPDF
 import polars as pl
@@ -83,6 +83,12 @@ class DocFolderLoader:
         
         # Process files with the appropriate handler based on extension
         return DocFolderLoader._process_files(files, max_workers, content_type)
+
+    @staticmethod
+    def check_file_extensions(file_paths: List[str], valid_file_extension: Literal["md", "json", "pdf"]):
+        """Check that the file extensions are valid."""
+        _ = DocFolderLoader._enumerate_files(file_paths, valid_file_extension, exclude_pattern=None, recursive=False)
+
 
     @staticmethod
     def get_schema(content_type: str = None) -> Schema:
@@ -278,7 +284,16 @@ class DocFolderLoader:
             exclude_pattern: Optional[str],
             recursive: bool = False,
     ) -> List[str]:
-        """Enumerate files in a local fs folder based on include/exclude patterns."""
+        """Enumerate files in a local fs folder based on include/exclude patterns.
+
+        Returns:
+            List of file paths that match the include/exclude patterns.
+
+        Raises:
+            ValidationError: If the exclude pattern is invalid.
+            FileLoaderError: If the file extension is not supported.
+            FileNotFoundError: If the path does not exist.
+        """
         all_files = []
         for path_pattern in paths:
             split_path_pattern = path_pattern.split("*")
@@ -297,7 +312,7 @@ class DocFolderLoader:
                 matched_files = glob.glob(path_pattern, recursive=recursive)
                 all_files.extend(matched_files)
             else:
-                raise ValueError(f"Path does not exist: {base_path}")
+                raise FileNotFoundError(f"Path does not exist: {base_path}")
 
         # Compile exclude regex if provided
         exclude_regex = None

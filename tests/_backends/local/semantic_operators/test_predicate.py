@@ -5,6 +5,7 @@ import polars as pl
 
 from fenic import PredicateExample, PredicateExampleCollection
 from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference.common_openai.openai_utils import convert_messages
 
 
 class TestPredicate:
@@ -55,7 +56,7 @@ class TestPredicate:
 
         result = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 sem_predicate.build_request_messages_batch(),
             )
         )
@@ -120,7 +121,7 @@ class TestPredicate:
         )
         prompts = list(
             map(
-                lambda x: x.to_message_list() if x else None,
+                lambda x: convert_messages(x) if x else None,
                 sem_predicate.build_request_messages_batch(),
             )
         )

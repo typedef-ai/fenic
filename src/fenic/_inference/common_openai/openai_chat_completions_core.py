@@ -16,6 +16,7 @@ from openai.types import CompletionUsage
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionProfileConfiguration,
 )
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
     FatalException,
@@ -88,7 +89,7 @@ class OpenAIChatCompletionsCore:
         try:
             common_params: dict[str, Any] = {
                 "model": self._model,
-                "messages": request.messages.to_message_list(),
+                "messages": convert_messages(request.messages),
                 "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }

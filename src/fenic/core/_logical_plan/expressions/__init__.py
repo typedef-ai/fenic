@@ -91,6 +91,9 @@ from fenic.core._logical_plan.expressions.semantic import (
     SemanticMapExpr as SemanticMapExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (
+    SemanticParsePDFExpr as SemanticParsePDFExpr,
+)
+from fenic.core._logical_plan.expressions.semantic import (
     SemanticPredExpr as SemanticPredExpr,
 )
 from fenic.core._logical_plan.expressions.semantic import (

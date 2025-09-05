@@ -42,12 +42,19 @@ def register_semantic_signatures():
         return_type=ReturnTypeStrategy.DYNAMIC  # Returns EmbeddingType with specific dimensions
     ))
 
+    # Summarize - summarize text
     FunctionRegistry.register("semantic.summarize", FunctionSignature(
         function_name="semantic.summarize",
         type_signature=Exact([StringType]),  # String input (model_alias is parameter)
         return_type=StringType
     ))
 
+    # Parse PDF - parse PDF files with OCR/VLMs
+    FunctionRegistry.register("semantic.parse_pdf", FunctionSignature(
+        function_name="semantic.parse_pdf",
+        type_signature=Exact([StringType]),
+        return_type=StringType
+    ))
 
 # Register all signatures when module is imported
 register_semantic_signatures()
