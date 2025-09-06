@@ -29,7 +29,7 @@ class OpenRouterCompletionProfileConfiguration(BaseProfileConfiguration):
     def extra_body(self) -> dict[str, Any]:
         params: dict[str, Any] = {}
         # Map OpenRouter params into request body
-        params["provider"] = {"require_parameters": True}
+        params["provider"] = {"require_parameters": True, "sort": "throughput"}
         if self.models:
             params["models"] = list(self.models)
         if self.provider_sort:

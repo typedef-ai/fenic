@@ -19,8 +19,9 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 import fenic as fc
-from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType
+from fenic import IntegerType, SemanticConfig, StringType
 from fenic.api.functions.core import tool_param
+from fenic.api.session.config import OpenRouterLanguageModel
 from fenic.core.mcp.types import ToolParam
 
 
@@ -30,31 +31,27 @@ def main() -> None:
         app_name="mcp_demo",
         semantic=SemanticConfig(
             language_models={
-                "gpt-4.1-nano": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
-                    rpm=2500,
-                    tpm=2_000_000
+                "gpt-4.1-nano": OpenRouterLanguageModel(
+                    model_name="openai/gpt-4.1-nano",
                 ),
-                "gpt-4.1-mini": OpenAILanguageModel(
-                    model_name="gpt-4.1-mini",
-                    rpm=2500,
-                    tpm=2_000_000
+                "gpt-4.1-mini": OpenRouterLanguageModel(
+                    model_name="openai/gpt-4.1-mini",
                 ),
-                "gpt-5-nano": OpenAILanguageModel(
-                    model_name="gpt-5-nano",
-                    rpm=2500,
-                    tpm=2_000_000,
-                    profiles={"default" : OpenAILanguageModel.Profile(
-                        reasoning_effort="minimal"
+                "gpt-5-nano": OpenRouterLanguageModel(
+                    model_name="openai/gpt-5-nano",
+                    profiles={"default" : OpenRouterLanguageModel.Profile(
+                        reasoning_effort="low"
                     )}
                 ),
-
-                "gpt-5-mini": OpenAILanguageModel(
-                    model_name="gpt-5-mini",
-                    rpm=2500,
-                    tpm=2_000_000,
-                    profiles={"default": OpenAILanguageModel.Profile(
-                        reasoning_effort="minimal"
+                "llama-cheap" : OpenRouterLanguageModel(
+                    model_name="meta-llama/llama-3.3-70b-instruct",
+                    profiles={"default" : OpenRouterLanguageModel.Profile(
+                    )}
+                ),
+                "gpt-5-mini": OpenRouterLanguageModel(
+                    model_name="openai/gpt-5-mini",
+                    profiles={"default": OpenRouterLanguageModel.Profile(
+                        reasoning_effort="low"
                     )}
                 )
             },
@@ -77,7 +74,7 @@ def main() -> None:
                 "Executive and General Management",
                 "Other"]
     try:
-        candidates_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/candidates.parquet")
+        candidates_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/candidates")
     except Exception:
         # Synthetic candidate dataset: (candidate_id, candidate_resume)
         raw_candidates = local_session.read.parquet("s3://typedef-assets/demo/mcp/raw_resumes.parquet").limit(1000)
@@ -104,12 +101,14 @@ def main() -> None:
                 "Legal and Compliance",
                 "Administrative",
                 "Executive and General Management",
-                "Other"]] = Field(description="Pick between 1 and 3 job categories that describe the candidate's work history.", max_length=3)
+                "Other"]] = Field(description="Pick between 1 and 3 job categories that describe the candidate's work history.")
 
         candidates_df = raw_candidates.with_column(
             "profile",
-            fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096)
+            fc.semantic.extract("candidate_resume", CandidateProfile, model_alias="llama-cheap", max_output_tokens=8192)
         ).unnest("profile").cache()
+
+        candidates_df.write.parquet("candidates.parquet")
 
     candidates_df.write.save_as_table("candidates", mode="overwrite")
     local_session.catalog.set_table_description("candidates", "Resumes for all candidates in our hiring pipeline")
