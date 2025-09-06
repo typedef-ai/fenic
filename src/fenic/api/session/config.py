@@ -654,7 +654,7 @@ class OpenRouterLanguageModel(BaseModel):
 
         reasoning_effort: Optional[Literal["high","medium","low"]] = Field(default=None, description="OpenAI-style reasoning effort")
         reasoning_max_tokens: Optional[int] = Field(default=None, gt=0, description="Non-OpenAI-style reasoning effort (max tokens)")
-        models: Optional[list[str]] = Field(default=None, description="Alternate models for routing overrides")
+        models: Optional[list[str]] = Field(default=None, description="Alternate models for routing overrides", max_length=3)
         provider_sort: Optional[ProviderSort] = Field(default=None, description="Sort providers by preference")
 
 CohereEmbeddingTaskType = Literal[

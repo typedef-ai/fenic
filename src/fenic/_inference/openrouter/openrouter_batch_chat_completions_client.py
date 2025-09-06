@@ -1,6 +1,8 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
 from typing import Optional, Union
 
+import instructor
+
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -56,6 +58,7 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             profile_configurations=profiles,
             default_profile_name=default_profile_name,
         )
+        # self._aio_client = instructor.from_openai(OpenRouterModelProvider().aio_client)
         self._aio_client = OpenRouterModelProvider().aio_client
         self._metrics = LMMetrics()
         self._metrics_lock = None
@@ -81,7 +84,6 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
                 "n": 1,
             }
 
-
             if request.top_logprobs:
                 common_params.update({"logprobs": True, "top_logprobs": request.top_logprobs})
             if request.temperature:
@@ -90,16 +92,33 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             # Enable native usage accounting so we don't need a follow-up generation fetch
             extra_body["usage"] = {"include": True}
             if request.structured_output:
-                if "structured_outputs" not in self._model_parameters.supported_parameters:
-                   return FatalException(ConfigurationError(f"Model {self.model} does not support structured output."))
-                common_params["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "fenic_response",
-                        "schema": request.structured_output.strict_schema,
-                        "strict": True,
-                    },
-                }
+                # todo fix
+                if ("structured_outputs" in self._model_parameters.supported_parameters):
+                    common_params["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "fenic_response",
+                            "schema": request.structured_output.strict_schema,
+                            "strict": True,
+                        },
+                    }
+                elif "tools" in self._model_parameters.supported_parameters:
+                    common_params["tools"] = [
+                        {
+                            "type": "function",
+                            "name": "output_formatter",
+                            "description": "Format the output of the model to correspond strictly to the provided schema.",
+                            "parameters": request.structured_output.strict_schema,
+                        }
+                    ]
+
+                elif "response_format" in self._model_parameters.supported_parameters:
+                    common_params["response_format"] = {
+                        "type": "json_object",
+                    }
+                else:
+                    return FatalException(
+                        ConfigurationError(f"Model {self.model} does not support structured outputs or json mode"))
                 response = await self._aio_client.beta.chat.completions.parse(**common_params, extra_body=extra_body)
                 if response.choices[0].message.refusal:
                     return None
@@ -148,8 +167,13 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
                 except Exception:
                     pass
 
+            # If the model supports tools and we used them, use the tool call arguments as the completion
+            if request.structured_output and response.choices[0].message.tool_calls:
+                completion = response.choices[0].message.tool_calls[0].function.arguments
+            else:
+                completion = response.choices[0].message.content
             return FenicCompletionsResponse(
-                completion=response.choices[0].message.content,
+                completion=completion,
                 logprobs=response.choices[0].logprobs,
                 usage=fenic_usage,
             )
@@ -191,5 +215,3 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
         if profile_config.reasoning_max_tokens:
             base_tokens += profile_config.reasoning_max_tokens
         return base_tokens
-
-
