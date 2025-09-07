@@ -573,31 +573,42 @@ def array_contains(
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def when(condition: Column, value: Column) -> Column:
-    """Evaluates a condition and returns a value if true.
+    """Evaluates a conditional expression (like if-then).
 
-    This function is used to create conditional expressions. If Column.otherwise() is not invoked,
-    None is returned for unmatched conditions.
+    Evaluates a condition for each row and returns a value when true.
+    Can be chained with more .when() calls or finished with .otherwise().
+    All branches must return the same type.
 
     Args:
-        condition: A boolean Column expression to evaluate.
-
-        value: A Column expression to return if the condition is true.
+        condition: Boolean expression to test
+        value: Value to return when condition is True
 
     Returns:
-        A Column expression that evaluates the condition and returns the specified value when true,
-        and None otherwise.
+        Column: A when expression that can be chained with more conditions
 
     Raises:
-        TypeError: If the condition is not a boolean Column expression.
+        TypeMismatchError: If the condition is not a boolean Column expression.
 
-    Example: Basic conditional expression
+    Example:
         ```python
-        # Basic usage
-        df.select(when(col("age") > 18, lit("adult")))
+        # Simple if-then (returns null when false)
+        df.select(fc.when(col("age") >= 18, fc.lit("adult")))
 
-        # With otherwise
-        df.select(when(col("age") > 18, lit("adult")).otherwise(lit("minor")))
+        # If-then-else
+        df.select(
+            fc.when(col("age") >= 18, fc.lit("adult")).otherwise(fc.lit("minor"))
+        )
+
+        # Multiple conditions (if-elif-else)
+        df.select(
+            when(col("score") >= 90, "A")
+            .when(col("score") >= 80, "B")
+            .when(col("score") >= 70, "C")
+            .otherwise("F")
+        )
         ```
+
+    Note: Without .otherwise(), unmatched rows return null
     """
     return Column._from_logical_expr(
         WhenExpr(None, condition._logical_expr, value._logical_expr)

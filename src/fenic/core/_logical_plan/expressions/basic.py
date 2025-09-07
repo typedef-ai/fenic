@@ -248,7 +248,7 @@ class StructExpr(ValidatedDynamicSignature, UnparameterizedExpr, LogicalExpr):
 
 class UDFExpr(LogicalExpr):
     """User-defined function expression.
-    
+
     Warning:
         UDFExpr cannot be serialized and is not supported in cloud execution.
         This expression contains arbitrary Python code that cannot be transmitted
@@ -285,7 +285,7 @@ class UDFExpr(LogicalExpr):
 
 class AsyncUDFExpr(LogicalExpr):
     """Expression for async user-defined functions with configurable concurrency and retries."""
-    
+
     def __init__(
         self,
         func: Callable,
@@ -317,7 +317,7 @@ class AsyncUDFExpr(LogicalExpr):
     def _eq_specific(self, other: AsyncUDFExpr) -> bool:
         # For dynamic UDFs, we can only check identity since its tricky to compare Callables
         return (
-            self.func is other.func 
+            self.func is other.func
             and self.return_type == other.return_type
             and self.max_concurrency == other.max_concurrency
             and self.timeout_seconds == other.timeout_seconds
@@ -335,6 +335,7 @@ class IsNullExpr(LogicalExpr):
         return f"{self.expr} IS {'' if self.is_null else 'NOT'} NULL"
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        _ = self.expr.to_column_field(plan, session_state)
         return ColumnField(str(self), BooleanType)
 
     def children(self) -> List[LogicalExpr]:

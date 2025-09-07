@@ -514,8 +514,8 @@ class TestCaseExpressions:
         assert when1 == when2
 
         # Both with non-None expr
-        when3 = WhenExpr(col, cond, val)
-        when4 = WhenExpr(col, cond, val)
+        when3 = WhenExpr(when1, cond, val)
+        when4 = WhenExpr(when2, cond, val)
         assert when3 == when4
 
         # One None, one not None

@@ -606,76 +606,86 @@ class Column:
         return Column._from_logical_expr(IsNullExpr(self._logical_expr, False))
 
     def when(self, condition: Column, value: Column) -> Column:
-        """Evaluates a list of conditions and returns one of multiple possible result expressions.
+        """Evaluates a condition for each row and returns a value when true.
 
-        If Column.otherwise() is not invoked, None is returned for unmatched conditions.
-        Otherwise() will return for rows with None inputs.
+        Can be chained with more .when() calls or finished with .otherwise().
+        All branches must return the same type.
 
         Args:
-            condition (Column): A boolean Column expression
-            value (Column): A literal value or Column expression to return if the condition is true
+            condition: Boolean expression to test
+            value: Value to return when condition is True
 
         Returns:
-            Column: A Column expression representing whether each element of Column matches the condition
+            Column: A new when expression with this condition added to the chain
 
         Raises:
-            TypeError: If the condition is not a boolean Column expression
+            ValidationError: If called on a non-when expression (e.g., regular columns)
 
-        Example: Use when/otherwise for conditional logic
+        Example:
             ```python
-            # Create a DataFrame with age and name columns
-            df = session.createDataFrame(
-                {"age": [2, 5]}, {"name": ["Alice", "Bob"]}
+            # Build a multi-condition expression:
+            result = (
+                fc.when(col("age") < 18, fc.lit("minor"))
+                .when(col("age") < 65, fc.lit("adult"))  # Add another condition
+                .when(col("age") >= 65, fc.lit("senior"))
+                .otherwise(fc.lit("unknown"))
             )
 
-            # Use when/otherwise to create a case result column
-            df.select(
-                col("name"),
-                when(col("age") > 3, 1).otherwise(0).alias("case_result")
-            ).show()
-            # Output:
-            # +-----+-----------+
-            # | name|case_result|
-            # +-----+-----------+
-            # |Alice|          0|
-            # |  Bob|          1|
-            # +-----+-----------+
+            # This evaluates like:
+            # if age < 18: return "minor"
+            # elif age < 65: return "adult"
+            # elif age >= 65: return "senior"
+            # else: return "unknown"
+
+            # ERROR - cannot call .when() on non-when expressions:
+            # col("age").when(...)  # ValidationError!
             ```
+
+        Note: Conditions are evaluated in order. The first True condition wins.
         """
         return Column._from_logical_expr(WhenExpr(self._logical_expr, condition._logical_expr, value._logical_expr))
 
     def otherwise(self, value: Column) -> Column:
-        """Evaluates a list of conditions and returns one of multiple possible result expressions.
+        """Returns a value when no prior conditions are True.
 
-        If Column.otherwise() is not invoked, None is returned for unmatched conditions.
-        Otherwise() will return for rows with None inputs.
+        This is the final part of a when-chain, like the 'else' in an if-elif-else.
+        All branches must return the same type.
 
         Args:
-            value (Column): A literal value or Column expression to return
+            value: Value to return when no prior conditions are True
 
         Returns:
-            Column: A Column expression representing whether each element of Column is not matched by any previous conditions
+            Column: The complete conditional expression chain
 
-        Example: Use when/otherwise for conditional logic
+        Raises:
+            ValidationError: If called on a non-when expression
+
+        Example:
             ```python
-            # Create a DataFrame with age and name columns
-            df = session.createDataFrame(
-                {"age": [2, 5]}, {"name": ["Alice", "Bob"]}
+            # Create age-based categories
+            df = session.createDataFrame({"age": [8, 25, 67]})
+
+            result = df.select(
+                fc.when(col("age") < 18, fc.lit("minor"))
+                .when(col("age") < 65, fc.lit("adult"))
+                .otherwise(fc.lit("senior"))
+                .alias("category")
             )
 
-            # Use when/otherwise to create a case result column
-            df.select(
-                col("name"),
-                when(col("age") > 3, 1).otherwise(0).alias("case_result")
-            ).show()
-            # Output:
-            # +-----+-----------+
-            # | name|case_result|
-            # +-----+-----------+
-            # |Alice|          0|
-            # |  Bob|          1|
-            # +-----+-----------+
+            result.show()
+            # +--------+
+            # |category|
+            # +--------+
+            # |   minor|
+            # |   adult|
+            # |  senior|
+            # +--------+
             ```
+
+        Note:
+            - If otherwise() is not called, unmatched rows return null
+            - Can only be called once per when-chain
+            - Typically the last method in the chain
         """
         return Column._from_logical_expr(OtherwiseExpr(self._logical_expr, value._logical_expr))
 

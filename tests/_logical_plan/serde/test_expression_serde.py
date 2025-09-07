@@ -305,7 +305,7 @@ expression_examples = {
     WhenExpr: [
         WhenExpr(expr=None,condition=ColumnExpr("condition"), value=LiteralExpr("result", StringType)),
         WhenExpr(
-            expr=ColumnExpr("expr"),
+            expr=WhenExpr(expr=None,condition=ColumnExpr("condition"), value=LiteralExpr("result", StringType)),
             condition=LiteralExpr(True, BooleanType),
             value=LiteralExpr("true_result", StringType),
         ),

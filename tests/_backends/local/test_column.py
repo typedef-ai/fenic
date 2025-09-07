@@ -384,7 +384,7 @@ def test_is_null(local_session):
         "str_col": [None, "hello", "world"],
         "bool_col": [True, None, False],
         "list_col": [[1, 2], None, [3, 4]],
-        "dict_col": [{"a": 1}, None, {"b": 2}],
+        "dict_col": [{"a": 1}, None, {"a": None}],
     }
     df = local_session.create_dataframe(data)
 
@@ -415,6 +415,9 @@ def test_is_null(local_session):
     result = df.filter(col("dict_col").is_null()).to_polars()
     assert len(result) == 1
 
+    result = df.filter(col("dict_col").get_item("a").is_not_null()).to_polars()
+    assert len(result) == 1
+    assert result["dict_col"][0] == {"a": 1}
 
 def test_is_not_null(local_session):
     # Create data with null values across different types
@@ -631,7 +634,7 @@ def test_not_df(local_session):
     assert result["age"][0] == 25
 
 
-def test_conditions(local_session):
+def test_case_expressions(local_session):
     data = {
         "first_age": [20, 25, 30, 40, None],
         "second_age": [40, 25, None, 10, None],
@@ -641,20 +644,18 @@ def test_conditions(local_session):
 
     # Test with default and None
     result = df.select(
-        col("first_age")
-        .when(col("first_age") > 20, lit("first_old"))
+        when(col("first_age") > 20, lit("first_old")).otherwise(lit("first_young"))
         .alias("age_group")
     ).to_polars()
-    assert result["age_group"][0] is None
+    assert result["age_group"][0] == "first_young"
     assert result["age_group"][1] == "first_old"
     assert result["age_group"][2] == "first_old"
     assert result["age_group"][3] == "first_old"
-    assert result["age_group"][4] is None
+    assert result["age_group"][4] == "first_young"
 
     # Test otherwise with None
     result = df.select(
-        col("first_age")
-        .when(col("first_age") > 20, lit("first_old"))
+        when(col("first_age") > 20, lit("first_old"))
         .otherwise(lit("first_young"))
         .alias("age_group")
     ).to_polars()
@@ -666,8 +667,7 @@ def test_conditions(local_session):
 
     # Test overlapping condition ordering - first met condition takes precedence
     result = df.select(
-        col("first_age")
-        .when(col("first_age") > 20, lit("first_old"))
+        when(col("first_age") > 20, lit("first_old"))
         .when(col("second_age") > 20, lit("second_old"))
         .alias("age_group")
     ).to_polars()
@@ -679,8 +679,7 @@ def test_conditions(local_session):
 
     # Test overlapping condition ordering with otherwise- first met condition takes precedence
     result = df.select(
-        col("first_age")
-        .when(col("first_age") > 25, lit("first_old"))
+        when(col("first_age") > 25, lit("first_old"))
         .when(col("second_age") > 25, lit("second_old"))
         .otherwise(lit("young"))
         .alias("age_group")
@@ -705,20 +704,35 @@ def test_conditions(local_session):
     assert result["age_group"][4] == "young"
 
 
-def test_conditions_errors(local_session):
+def test_case_expressions_errors(local_session):
     data = {
         "age": [20, 25, 30, 40, None],
         "name": ["Alice", "Bob", "Charlie", "Dave", "passed"],
     }
     df = local_session.create_dataframe(data)
-    with pytest.raises(TypeError, match="can only be called on when"):
+    with pytest.raises(ValidationError, match=re.escape("Column.otherwise() can only be called on when() expressions")):
         df.select(
             col("age").otherwise(lit("young")).alias("age_group")
         ).to_polars()
 
-    with pytest.raises(TypeError, match="condition must be a boolean expression."):
+    with pytest.raises(ValidationError, match=re.escape("Column.when() can only be called on when() expressions")):
         df.select(
-            col("age").when(col("age") + 3, lit("old")).alias("age_group")
+            col("age").when(col("age") > 25, lit("old")).otherwise(col("age") + 3).alias("age_group")
+        ).to_polars()
+
+    with pytest.raises(TypeMismatchError, match=re.escape("when() condition must be a boolean expression.  Got type: IntegerType")):
+        df.select(
+            when(col("age") + 3, lit("old")).alias("age_group")
+        ).to_polars()
+
+    with pytest.raises(TypeMismatchError, match=re.escape("Type mismatch in otherwise(): when/then expression has type StringType, but otherwise() value has type IntegerType. Both branches must return the same type.")):
+        df.select(
+            when(col("age") > 25, lit("old")).otherwise(lit(5)).alias("age_group")
+        ).to_polars()
+
+    with pytest.raises(TypeMismatchError, match=re.escape("Type mismatch in when(): all case branches must return the same type. Previous branch has type StringType, but this branch has type IntegerType.")):
+        df.select(
+            when(col("age") > 25, lit("old")).when(col("age") > 30, lit(5)).alias("age_group")
         ).to_polars()
 
 

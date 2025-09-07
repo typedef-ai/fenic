@@ -605,7 +605,7 @@ class SystemTableClient:
                 ),
             )
             # trunk-ignore-end(bandit/B608)
-            logger.info(f"Appended metrics for execution {metrics.execution_id}")
+            logger.debug(f"Appended metrics for execution {metrics.execution_id}")
         except Exception as e:
             raise CatalogError(
                 f"Failed to append metrics for execution {metrics.execution_id}: {e}"

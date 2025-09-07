@@ -438,7 +438,7 @@ class ExprConverter:
         elif logical.input_type == "struct":
             return base_expr.struct.field(logical.index.literal)
         else:
-            raise NotImplementedError(f"Unsupported index key type: {type(logical.index)}")
+            raise InternalError(f"Unsupported index key type: {logical.input_type}")
 
 
     @_convert_expr.register(TsParseExpr)
