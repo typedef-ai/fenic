@@ -39,12 +39,17 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelProfile,
     ResolvedOpenRouterModelConfig,
     ResolvedOpenRouterModelProfile,
+    ResolvedOpenRouterProviderRouting,
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
     Verbosity,
 )
 from fenic.core.error import ConfigurationError, InternalError
-from fenic.core.types.provider_routing import ProviderSort
+from fenic.core.types.provider_routing import (
+    DataCollection,
+    ModelQuantization,
+    ProviderSort,
+)
 
 profiles_desc = """
             Allow the same model configuration to be used with different profiles, currently used to set thinking budget/reasoning effort
@@ -642,20 +647,43 @@ class OpenRouterLanguageModel(BaseModel):
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
     default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
 
+    class Provider(BaseModel):
+        """Provider configuration for OpenRouter language models.
+
+        Attributes:
+            models: Alternate models for routing overrides
+            sort: Provider routing preference (price, throughput, latency)
+            quantizations: Allowed model quantizations (e.g. ['fp16', 'fp8'])
+            data_collection: Data collection preference. `allow`: allows the use of providers which store user data non-transiently and may train on it. `deny`: use only providers which do not collect/store user data.
+            only: Only include these providers when performing provider routing
+            exclude: Exclude these providers when performing provider routing
+            max_prompt_price: Maximum prompt price per 1M tokens.
+            max_completion_price: Maximum completion price per 1M tokens.
+        """
+        model_config = ConfigDict(extra='forbid')
+
+        sort: Optional[ProviderSort] = Field(default=None, description="Sort providers by preference")
+        quantizations: Optional[list[ModelQuantization]] = Field(default=None, description="Allowed model quantizations (e.g. ['fp16', 'fp8'])")
+        data_collection: Optional[DataCollection] = Field(default=None, description="Data collection preference. `allow`: allows the use of providers which store user data non-transiently and may train on it. `deny`: use only providers which do not collect/store user data.")
+        only: Optional[list[str]] = Field(default=None, description="Only include these providers when performing provider routing")
+        ignore: Optional[list[str]] = Field(default=None, description="Exclude these providers when performing provider routing")
+        max_prompt_price: Optional[float] = Field(default=None, description="Maximum prompt price per 1M tokens.")
+        max_completion_price: Optional[float] = Field(default=None, description="Maximum completion price per 1M tokens.")
+
     class Profile(BaseModel):
         """Profile configurations for OpenRouter language models.
 
         Pass-through of selected OpenRouter chat completion parameters for parity:
         - models: backup models for routing overrides
-        - provider_sort: provider routing preference (price, throughput, latency)
+        - provider: provider routing preferences
         - reasoning_effort / reasoning_max_tokens: reasoning config (OpenRouter fields)
         """
         model_config = ConfigDict(extra='forbid')
 
-        reasoning_effort: Optional[Literal["high","medium","low"]] = Field(default=None, description="OpenAI-style reasoning effort")
+        reasoning_effort: Optional[Literal["high", "medium", "low"]] = Field(default=None, description="OpenAI-style reasoning effort")
         reasoning_max_tokens: Optional[int] = Field(default=None, gt=0, description="Non-OpenAI-style reasoning effort (max tokens)")
-        models: Optional[list[str]] = Field(default=None, description="Alternate models for routing overrides", max_length=3)
-        provider_sort: Optional[ProviderSort] = Field(default=None, description="Sort providers by preference")
+        models: Optional[list[str]] = Field(default=None, description="Alternate models to fall back to if the primary model is not available", max_length=3)
+        provider: Optional[OpenRouterLanguageModel.Provider] = Field(default=None, description="Provider routing configuration")
 
 CohereEmbeddingTaskType = Literal[
     "search_document",
@@ -1170,7 +1198,11 @@ class SessionConfig(BaseModel):
                         reasoning_effort=profile_config.reasoning_effort,
                         reasoning_max_tokens=profile_config.reasoning_max_tokens,
                         models=profile_config.models,
-                        provider_sort=profile_config.provider_sort,
+                        provider=(
+                            ResolvedOpenRouterProviderRouting(**(profile_config.provider.model_dump()))
+                            if profile_config.provider is not None
+                            else None
+                        ),
                     ) for profile, profile_config in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedOpenRouterModelConfig(

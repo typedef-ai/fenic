@@ -1,7 +1,14 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
+import logging
+from json.decoder import JSONDecodeError
 from typing import Optional, Union
 
-import instructor
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    OpenAIError,
+    RateLimitError,
+)
 
 from fenic._inference.model_client import (
     FatalException,
@@ -11,17 +18,27 @@ from fenic._inference.model_client import (
 from fenic._inference.openrouter.openrouter_profile_manager import (
     OpenRouterCompletionsProfileManager,
 )
+from fenic._inference.openrouter.openrouter_provider import OpenRouterModelProvider
 from fenic._inference.rate_limit_strategy import (
     NoopRateLimitStrategy,
     TokenEstimate,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
-from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    ResponseUsage,
+)
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
 
-from ...core.error import ConfigurationError
-from .openrouter_provider import OpenRouterModelProvider
+TOOLS = "tools"
+
+STRUCTURED_OUTPUTS = "structured_outputs"
+
+RESPONSE_FORMAT = "response_format"
+logger = logging.getLogger(__name__)
 
 
 class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -58,7 +75,6 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             profile_configurations=profiles,
             default_profile_name=default_profile_name,
         )
-        # self._aio_client = instructor.from_openai(OpenRouterModelProvider().aio_client)
         self._aio_client = OpenRouterModelProvider().aio_client
         self._metrics = LMMetrics()
         self._metrics_lock = None
@@ -92,9 +108,8 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             # Enable native usage accounting so we don't need a follow-up generation fetch
             extra_body["usage"] = {"include": True}
             if request.structured_output:
-                # todo fix
-                if ("structured_outputs" in self._model_parameters.supported_parameters):
-                    common_params["response_format"] = {
+                if STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
+                    common_params[RESPONSE_FORMAT] = {
                         "type": "json_schema",
                         "json_schema": {
                             "name": "fenic_response",
@@ -102,30 +117,38 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
                             "strict": True,
                         },
                     }
-                elif "tools" in self._model_parameters.supported_parameters:
-                    common_params["tools"] = [
+                elif TOOLS in self._model_parameters.supported_parameters:
+                    common_params[TOOLS] = [
                         {
                             "type": "function",
-                            "name": "output_formatter",
-                            "description": "Format the output of the model to correspond strictly to the provided schema.",
-                            "parameters": request.structured_output.strict_schema,
+                            "function": {
+                                "name": "output_formatter",
+                                "description": "Format the output of the model to correspond strictly to the provided schema.",
+                                "parameters": request.structured_output.strict_schema,
+                                "strict": True,
+                            },
                         }
                     ]
 
-                elif "response_format" in self._model_parameters.supported_parameters:
-                    common_params["response_format"] = {
+                elif RESPONSE_FORMAT in self._model_parameters.supported_parameters:
+                    common_params[RESPONSE_FORMAT] = {
                         "type": "json_object",
                     }
                 else:
                     return FatalException(
-                        ConfigurationError(f"Model {self.model} does not support structured outputs or json mode"))
-                response = await self._aio_client.beta.chat.completions.parse(**common_params, extra_body=extra_body)
-                if response.choices[0].message.refusal:
-                    return None
-            else:
-
-                response = await self._aio_client.chat.completions.create(**common_params, extra_body=extra_body)
-
+                        ConfigurationError(f"Model {self.model} does not support structured outputs, json mode, or tool calling, but the current request requires an output format. Select a different model that supports `structured_outputs`, `response_format`, or `tools`"))
+            response = await self._aio_client.chat.completions.create(**common_params, extra_body=extra_body)
+            if not response:
+                logger.warning("No response from OpenRouter")
+                return TransientException(RuntimeError("No response from OpenRouter"))
+            if not response.choices:
+                logger.warning(f"No choices from OpenRouter, {response}")
+                return TransientException(RuntimeError(response.error['message']))
+            if response.choices[0].message.refusal:
+                return TransientException(RuntimeError(response.choices[0].message.refusal))
+            if response.choices[0].finish_reason == "error":
+                logger.error(response)
+                return TransientException(RuntimeError(response.choices[0].error["message"]))
             usage = response.usage
             cached_input_tokens = usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0
             uncached_input_tokens = usage.prompt_tokens - cached_input_tokens
@@ -136,7 +159,6 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             total_output_tokens = usage.completion_tokens
             completion_tokens = total_output_tokens - reasoning_tokens
 
-            from fenic._inference.types import FenicCompletionsResponse, ResponseUsage
             fenic_usage = ResponseUsage(
                 prompt_tokens=total_prompt_tokens,
                 completion_tokens=completion_tokens,
@@ -144,7 +166,6 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
                 cached_tokens=cached_input_tokens,
                 thinking_tokens=reasoning_tokens,
             )
-            # Update metrics synchronously using native counts and cost when available
             self._metrics.num_cached_input_tokens += cached_input_tokens
             self._metrics.num_uncached_input_tokens += uncached_input_tokens
             self._metrics.num_output_tokens += total_output_tokens
@@ -156,16 +177,13 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
             if isinstance(cost_value, (int, float)):
                 self._metrics.cost += float(cost_value)
             else:
-                try:
-                    self._metrics.cost += model_catalog.calculate_completion_model_cost(
-                        model_provider=self.model_provider,
-                        model_name=self.model,
-                        uncached_input_tokens=uncached_input_tokens,
-                        cached_input_tokens_read=cached_input_tokens,
-                        output_tokens=total_output_tokens,
-                    )
-                except Exception:
-                    pass
+                self._metrics.cost += model_catalog.calculate_completion_model_cost(
+                    model_provider=self.model_provider,
+                    model_name=self.model,
+                    uncached_input_tokens=uncached_input_tokens,
+                    cached_input_tokens_read=cached_input_tokens,
+                    output_tokens=total_output_tokens,
+                )
 
             # If the model supports tools and we used them, use the tool call arguments as the completion
             if request.structured_output and response.choices[0].message.tool_calls:
@@ -177,21 +195,15 @@ class OpenRouterBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, 
                 logprobs=response.choices[0].logprobs,
                 usage=fenic_usage,
             )
-        except Exception as e:
-            try:
-                from openai import (
-                    APIConnectionError,
-                    APITimeoutError,
-                    OpenAIError,
-                    RateLimitError,
-                )
-                if isinstance(e, (RateLimitError, APITimeoutError, APIConnectionError)):
-                    return TransientException(e)
-                if isinstance(e, OpenAIError):
-                    return FatalException(e)
-            except Exception:
-                pass
-            return FatalException(e)
+        except (RateLimitError, APITimeoutError, APIConnectionError, OpenAIError) as e:
+            if isinstance(e, (RateLimitError, APITimeoutError, APIConnectionError)):
+                logger.warning(e)
+                return TransientException(e)
+            if isinstance(e, OpenAIError):
+                return FatalException(e)
+        except JSONDecodeError as e:
+            logger.error(e)
+            return TransientException(e)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         from fenic._inference.request_utils import generate_completion_request_key

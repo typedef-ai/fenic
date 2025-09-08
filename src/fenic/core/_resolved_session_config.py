@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Literal, Optional, Union
 
 from fenic.core._inference.model_catalog import ModelProvider
-from fenic.core.types.provider_routing import ProviderSort
+from fenic.core.types.provider_routing import (
+    DataCollection,
+    ModelQuantization,
+    ProviderSort,
+)
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 Verbosity = Literal["low", "medium", "high"]
@@ -51,11 +55,21 @@ class ResolvedCohereModelProfile:
     embedding_task_type: Optional[str] = None
 
 @dataclass
+class ResolvedOpenRouterProviderRouting:
+    sort: Optional[ProviderSort] = None
+    quantizations: Optional[list[ModelQuantization]] = None
+    data_collection: Optional[DataCollection] = None
+    only: Optional[list[str]] = None
+    ignore: Optional[list[str]] = None
+    max_prompt_price: Optional[float] = None
+    max_completion_price: Optional[float] = None
+
+@dataclass
 class ResolvedOpenRouterModelProfile:
     reasoning_effort: Optional[Literal["high", "medium", "low"]] = None
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
-    provider_sort: Optional[ProviderSort] = None
+    provider: Optional[ResolvedOpenRouterProviderRouting] = None
 
 @dataclass
 class ResolvedOpenAIModelConfig:

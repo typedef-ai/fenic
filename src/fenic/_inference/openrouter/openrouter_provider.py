@@ -140,7 +140,7 @@ class OpenRouterModelProvider(ModelProviderClass):
         with self._models_lock:
             if self._models_loaded:
                 return
-            url = "https://openrouter.ai/api/v1/models"
+            url = "https://openrouter.ai/api/v1/models/user"
             resp = requests.get(url, headers=self._headers, timeout=30)
             if resp.status_code >= 400:
                 raise RuntimeError(
@@ -167,5 +167,10 @@ class OpenRouterModelProvider(ModelProviderClass):
             logger.info(f"OpenRouter model cache initialized with {loaded} models")
 
     async def validate_api_key(self) -> None:
-        self._load_models_once()
+        url = "https://openrouter.ai/api/v1/key"
+        resp = requests.get(url, headers=self._headers, timeout=30)
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                f"OpenRouter key request failed: {resp.status_code} {resp.text}"
+            )
         logger.debug("OpenRouter API key validation successful")
