@@ -391,7 +391,9 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
             model_name=model_name,
             profiles={
                 "default": OpenRouterLanguageModel.Profile(
-                    provider_sort="price",
+                    provider=OpenRouterLanguageModel.Provider(
+                        sort="price",
+                    )
                 ),
             },
             default_profile="default",

@@ -8,11 +8,16 @@ References:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Optional
+
+from pydantic.dataclasses import dataclass
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
+from fenic.core._resolved_session_config import (
+    ResolvedOpenRouterModelProfile,
+    ResolvedOpenRouterProviderRouting,
+)
 
 
 @dataclass
@@ -23,31 +28,44 @@ class OpenRouterCompletionProfileConfiguration(BaseProfileConfiguration):
     reasoning_effort: Optional[str] = None
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
-    provider_sort: Optional[str] = None
+    provider: Optional[ResolvedOpenRouterProviderRouting] = None
 
     @property
     def extra_body(self) -> dict[str, Any]:
         params: dict[str, Any] = {}
         # Map OpenRouter params into request body
-        params["provider"] = {"require_parameters": True, "sort": "throughput"}
+        params["provider"] = {"require_parameters": True}
         if self.models:
             params["models"] = list(self.models)
-        if self.provider_sort:
-            params["provider"]["sort"] = self.provider_sort
+        if self.provider:
+            params["provider"]["sort"] = self.provider.sort
+            params["provider"]["data_collection"] = self.provider.data_collection
+            if self.provider.quantizations:
+                params["provider"]["quantizations"] = self.provider.quantizations
+            if self.provider.only:
+                params["provider"]["only"] = self.provider.only
+            if self.provider.ignore:
+                params["provider"]["ignore"] = self.provider.ignore
+            price_config = {}
+            if self.provider.max_prompt_price is not None:
+                price_config["prompt"] = self.provider.max_prompt_price
+            if self.provider.max_completion_price is not None:
+                price_config["completion"] = self.provider.max_completion_price
+            if price_config:
+                params["provider"]["max_price"] = price_config
         reasoning_obj: dict[str, Any] = {}
         if self.reasoning_effort is not None:
             reasoning_obj["effort"] = self.reasoning_effort
-            reasoning_obj["exclude"] = True
         if self.reasoning_max_tokens is not None:
             reasoning_obj["max_tokens"] = int(self.reasoning_max_tokens)
-            reasoning_obj["exclude"] = True
         if reasoning_obj:
+            reasoning_obj["exclude"] = True
             params["reasoning"] = reasoning_obj
         return params
 
 
 class OpenRouterCompletionsProfileManager(
-    ProfileManager[OpenRouterCompletionProfileConfiguration, OpenRouterCompletionProfileConfiguration]
+    ProfileManager[ResolvedOpenRouterModelProfile, OpenRouterCompletionProfileConfiguration]
 ):
     """Constructs processed OpenRouter profile configurations per model/profile."""
 
@@ -64,29 +82,21 @@ class OpenRouterCompletionsProfileManager(
         )
 
     def _process_profile(
-        self, profile: OpenRouterCompletionProfileConfiguration
+        self, profile: ResolvedOpenRouterModelProfile
     ) -> OpenRouterCompletionProfileConfiguration:
         # Capability-based validation: only allow reasoning params if model supports reasoning
-        supports_reasoning = False
-        try:
-            supported = getattr(self._model_parameters, "supported_parameters", None)
-            if isinstance(supported, set):
-                supports_reasoning = any(
-                    key in supported for key in ("reasoning", "include_reasoning", "structured_outputs")
-                )
-        except Exception:
-            supports_reasoning = False
-
-        if not supports_reasoning:
+        if not self._model_parameters.supports_reasoning:
             if profile.reasoning_effort is not None or profile.reasoning_max_tokens is not None:
                 # Drop unsupported reasoning fields to avoid invalid API parameters
-                profile = OpenRouterCompletionProfileConfiguration(
+                profile = ResolvedOpenRouterModelProfile(
                     models=profile.models,
-                    provider_sort=profile.provider_sort,
+                    provider=profile.provider,
                 )
-
-        # Normalize provider_sort if present
-        # provider_sort is typed as a Literal via config/resolved types; no runtime validation needed here
+        else:
+            # If the model supports reasoning, but the profile doesn't have a reasoning effort or max tokens, set a default
+            # reasoning effort to low, so users don't hit weird issues with max tokens being hit before any completion tokens are output.
+            if profile.reasoning_effort is None and profile.reasoning_max_tokens is None:
+                profile.reasoning_effort = "low"
 
         # Ensure models is a list of strings if provided
         if profile.models is not None:
@@ -97,12 +107,24 @@ class OpenRouterCompletionsProfileManager(
 
         return OpenRouterCompletionProfileConfiguration(
             models=profile.models,
-            provider_sort=profile.provider_sort,
+            provider=profile.provider,
             reasoning_effort=profile.reasoning_effort,
             reasoning_max_tokens=profile.reasoning_max_tokens,
         )
 
     def get_default_profile(self) -> OpenRouterCompletionProfileConfiguration:
-        # Empty configuration; caller may compute derived behavior (e.g., extra_body) as needed
-        return OpenRouterCompletionProfileConfiguration()
+        return OpenRouterCompletionProfileConfiguration(
+            provider=ResolvedOpenRouterProviderRouting(
+                sort="throughput",
+                quantizations=[
+                    "fp4",
+                    "fp6",
+                    "fp8",
+                    "fp16",
+                    "bf16",
+                    "fp32",
+                    "unknown",
+                ],
+            )
+        )
 

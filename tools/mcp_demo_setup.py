@@ -44,8 +44,11 @@ def main() -> None:
                     )}
                 ),
                 "llama-cheap" : OpenRouterLanguageModel(
-                    model_name="meta-llama/llama-3.3-70b-instruct",
+                    model_name="mistralai/mistral-small-3.2-24b-instruct",
                     profiles={"default" : OpenRouterLanguageModel.Profile(
+                        provider=OpenRouterLanguageModel.Provider(
+                            sort="throughput",
+                        )
                     )}
                 ),
                 "gpt-5-mini": OpenRouterLanguageModel(
@@ -77,7 +80,7 @@ def main() -> None:
         candidates_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/candidates")
     except Exception:
         # Synthetic candidate dataset: (candidate_id, candidate_resume)
-        raw_candidates = local_session.read.parquet("s3://typedef-assets/demo/mcp/raw_resumes.parquet").limit(1000)
+        raw_candidates = local_session.read.parquet("s3://typedef-assets/demo/mcp/raw_resumes.parquet").limit(500)
 
         class CandidateProfile(BaseModel):
             first_name: Optional[str] = Field( description="Candidate's first name.")
