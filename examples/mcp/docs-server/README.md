@@ -1,8 +1,8 @@
-# fenic Documentation MCP Server
+# Fenic Documentation MCP Server (Native)
 
-**Dogfooding fenic to teach AI new APIs.**
+**Using Fenic's native MCP capabilities to serve API documentation.**
 
-This MCP server lets AI assistants explore fenic’s API docs and source like a power user, searching symbols, traversing the public API tree, and capturing “learnings” as Q&A for reuse. We built it with fenic itself, so the pipeline that organizes the docs is the same engine we use to build AI apps.
+This MCP server demonstrates Fenic's built-in MCP support, creating parameterized tools from DataFrame queries. The server exposes Fenic's API documentation through searchable, queryable tools that AI assistants can use to understand and work with the Fenic framework.
 
 **Why it matters:** when you’re developing in a codebase the model hasn’t “seen,” you either hand-craft prompts or burn tokens asking vague questions.
 
@@ -21,29 +21,77 @@ General models are great at Typescript and Python, not your private APIs. This s
 
 ## Features
 
-- **Search fenic API** - Search for functions, classes, methods across the codebase
-- **Project Overview** - Get high-level understanding of fenic's architecture
+- **Native MCP Support** - Uses Fenic's built-in `create_mcp_server` and parameterized tools
+- **Search Fenic API** - Search for functions, classes, methods using regex patterns
+- **Get Entity Details** - Fetch detailed documentation for specific API elements
+- **Project Overview** - Get high-level understanding of Fenic's architecture
 - **API Tree Navigation** - Explore the hierarchical structure of the public API
-- **Learning Storage** - Store and retrieve Q&A pairs from interactions
+- **Type-based Search** - Search for specific types of API elements
 
-## Setup
+## Quick Start with Hosted Server
 
-1. **(Optional) Set environment variables:**
+The easiest way to get started is using our hosted MCP server at https://mcp.fenic.ai. No setup required!
+
+### Using with Claude Code
+
+Simply add the fenic documentation server to Claude Code:
 
 ```bash
-  export GOOGLE_API_KEY="your-google-developer-api-key"
+claude mcp add -t http fenic-docs https://mcp.fenic.ai
+```
+
+That's it! The fenic documentation tools are now available in your Claude Code session.
+
+### Prompt Starter Pack
+
+Try these prompts to explore fenic's capabilities:
+
+#### Fit and Feasibility
+1. **"What is fenic?"** - Get an overview of the framework and its purpose
+2. **"What are some problems I can solve with fenic?"** - Explore use cases and applications
+3. **"How does fenic compare to langchain?"** - Understand the differences and when to use each
+
+#### Install and Initialize
+1. **"How do I install and use fenic?"** - Get started with installation and basic usage
+
+#### Concepts & Mental Model
+1. **"What are the core concepts and abstractions of fenic?"** - Understand the fundamental building blocks
+2. **"What is the purpose of the markdown data type in fenic?"** - Learn about unstructured data handling
+
+#### Recipes / How-to Guides
+1. **"How can I extract all the sections from a markdown document with fenic?"** - Practical example of document processing
+2. **"Can I use fenic to generate synthetic data to then fine tune a model with unsloth?"** - Explore advanced workflows
+
+#### Errors / Debugging
+1. **"I'm getting the following error on my fenic script: Candidate generation for request d79ff1db67 was truncated for stop reason MAX_TOKENS, what's the issue?"** - Get help with common errors
+
+## Self-Hosted Setup
+
+If you prefer to run the server locally:
+
+1. **Set environment variables:**
+
+```bash
+  export GEMINI_API_KEY="your-gemini-api-key"
   # Optional: Set custom data directory (defaults to ~/.fenic)
   export FENIC_WORK_DIR="/path/to/custom/directory"
 ```
 
-2. **Populate the documentation database:**
+2. **Install dependencies and populate the documentation database:**
 
 ```bash
-  cd /path/to/fenic/mcp/docs-server
+  cd /path/to/fenic/examples/mcp/docs-server
+  uv venv
+  source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+  uv pip install -e .
   python populate_tables.py
 ```
 
-3. **Configure Claude Desktop** :
+3. **Configure Claude Desktop**:
+
+   Edit your Claude Desktop configuration file:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
    ```json
    {
@@ -52,7 +100,8 @@ General models are great at Typescript and Python, not your private APIs. This s
          "command": "/path/to/fenic/examples/mcp/docs-server/.venv/bin/python",
          "args": ["/path/to/fenic/examples/mcp/docs-server/server.py"],
          "env": {
-           "GOOGLE_API_KEY":"your-google-developer-api-key",
+           "GEMINI_API_KEY": "your-gemini-api-key",
+           "FENIC_WORK_DIR": "/path/to/custom/directory"
          }
        }
      }
@@ -93,9 +142,20 @@ You can access this database directly with DuckDB tools for inspection and analy
 **Server fails to start with "Missing required tables" error:**
 
 - Run `python populate_tables.py` to create the documentation database
-- Ensure you have the required API keys set as environment variables
+- Ensure you have `GEMINI_API_KEY` set as an environment variable
+- Check that the script completed successfully (should show "Successfully created all required tables")
+
+**API key errors:**
+
+- Ensure `GEMINI_API_KEY` is set with a valid Google AI Studio API key
+- Get your API key from: https://aistudio.google.com/apikey
 
 **Permission errors:**
 
 - Check that the data directory (`~/.fenic` by default) is writable
 - Or set `FENIC_WORK_DIR` to a directory you have write access to
+
+**Import errors:**
+
+- Ensure you've activated the virtual environment: `source .venv/bin/activate`
+- Run `uv pip install -e .` to install all dependencies

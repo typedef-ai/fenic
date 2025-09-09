@@ -4,12 +4,7 @@ version = "0.1.0"
 description = "MCP documentation server for Fenic"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-  "fastmcp>=0.1.0",
-  "griffe>=0.42.0",
-  "fenic[anthropic,google]>=0.3.0",
-  "structlog>=25.4.0",
-]
+dependencies = ["griffe>=0.42.0", "fenic[mcp,google]>=0.4.2"]
 
 [project.scripts]
 fenic-docs-mcp = "server:main"
