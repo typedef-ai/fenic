@@ -17,6 +17,7 @@ from fenic import (
     DoubleType,
     FloatType,
     IntegerType,
+    JsonType,
     MarkdownType,
     Schema,
     StringType,
@@ -34,7 +35,6 @@ from fenic.core.error import (
     ConfigurationError,
     InternalError,
     PlanError,
-    UnsupportedFileTypeError,
     ValidationError,
 )
 
@@ -1195,75 +1195,87 @@ David,33"""
         local_session.view("df_csv_view")
 
 
-def test_read_docs(local_session, temp_dir_with_test_files):
-    """Test that reading from a folder works."""
-    df = local_session.read.docs(
+def test_read_markdown(local_session, temp_dir_with_test_files):
+    """Test that reading markdown files from a folder works."""
+    df = local_session.read.markdown(
         get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-        data_type=MarkdownType,
         recursive=True)
     df.collect()
     assert df.schema == Schema(
         [
-            ColumnField(name="file_path", data_type=StringType),
+            ColumnField(name="doc_path", data_type=StringType),
             ColumnField(name="error", data_type=StringType),
             ColumnField(name="content", data_type=MarkdownType),
         ]
     )
     # generate the toc
     df = df.select(
-        col("file_path"),
+        col("doc_path"),
         markdown.generate_toc(col("content")).alias("toc")
     )
     dict = df.to_pydict()
-    assert len(dict["file_path"]) == 5
+    assert len(dict["doc_path"]) == 5
     assert "2 Background" in dict["toc"][0]
 
 
-def test_read_docs_invalid_path(local_session):
-    """Test that reading from an invalid path fails."""
+def test_read_markdown_invalid_path(local_session):
+    """Test that reading markdown from an invalid path fails."""
     with pytest.raises(ValidationError):
-        local_session.read.docs(
+        local_session.read.markdown(
             "/invalid/path",
-            data_type=MarkdownType,
             recursive=True)
 
 
-def test_read_docs_invalid_type(local_session, temp_dir_with_test_files):
-    """Test that reading from an invalid path fails."""
-    with pytest.raises(UnsupportedFileTypeError):
-        local_session.read.docs(
-            get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-            data_type=StringType,
-            recursive=True)
+def test_read_json(local_session, temp_dir_with_test_files):
+    """Test that reading JSON files from a folder works."""
+    # Create a test JSON file
+    import json
+    json_path = Path(temp_dir_with_test_files) / "test.json"
+    with open(json_path, 'w') as f:
+        json.dump({"test": "data", "number": 42}, f)
+    
+    df = local_session.read.json(
+        get_globbed_path(temp_dir_with_test_files, "**/*.json"),
+        recursive=True)
+    df.collect()
+    assert df.schema == Schema(
+        [
+            ColumnField(name="doc_path", data_type=StringType),
+            ColumnField(name="error", data_type=StringType),
+            ColumnField(name="content", data_type=JsonType),
+        ]
+    )
+    results = df.to_pydict()
+    # There might be other JSON files in the test directory
+    assert len(results["doc_path"]) >= 1
+    # Verify our test file is in the results
+    assert any("test.json" in path for path in results["doc_path"])
 
-def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_just_one_file):
+def test_read_markdown_no_wildcard_only_valid_files(local_session, temp_dir_just_one_file):
     """Test that reading from a path with (and no wild card) only valid files works."""
-    df = local_session.read.docs(
-        [temp_dir_just_one_file],
-        data_type=MarkdownType)
+    df = local_session.read.markdown(
+        [temp_dir_just_one_file])
     df.collect()
     dict = df.to_pydict()
-    assert len(dict["file_path"]) == 1
+    assert len(dict["doc_path"]) == 1
 
-def test_read_docs_no_files_valid_paths(local_session, temp_dir_with_test_files):
+def test_read_markdown_no_files_valid_paths(local_session, temp_dir_with_test_files):
     """Test that if no files are found, we'll get a dataframe with the path and an error message."""
-    df = local_session.read.docs(
+    df = local_session.read.markdown(
         get_globbed_path(temp_dir_with_test_files, "**/*.unknown_extension"),
-        data_type=MarkdownType,
         recursive=True)
     df.collect()
     results = df.to_pydict()
-    assert len(results["file_path"]) == 0
+    assert len(results["doc_path"]) == 0
 
-def test_read_docs_no_wildcard_path_is_file(local_session, temp_dir_just_one_file):
+def test_read_markdown_no_wildcard_path_is_file(local_session, temp_dir_just_one_file):
     """Test that reading from a path to a file works."""
-    df = local_session.read.docs(
-        [str(Path.joinpath(Path(temp_dir_just_one_file), "file1.md"))],
-        data_type=MarkdownType)
+    df = local_session.read.markdown(
+        [str(Path.joinpath(Path(temp_dir_just_one_file), "file1.md"))])
     df.collect()
     dict = df.to_pydict()
-    assert len(dict["file_path"]) == 1
-    assert "file1.md" in dict["file_path"][0]
+    assert len(dict["doc_path"]) == 1
+    assert "file1.md" in dict["doc_path"][0]
 
 def get_globbed_path(path: str, file_extension: str) -> list[str]:
     return [str(Path.joinpath(Path(path), file_extension))]

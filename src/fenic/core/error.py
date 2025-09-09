@@ -263,14 +263,3 @@ class FileLoaderError(FenicError):
             exception: The exception that was raised.
         """
         super().__init__(f"File loader error: {exception}")
-
-class UnsupportedFileTypeError(FileLoaderError):
-    """Unsupported file type error."""
-
-    def __init__(self, file_type: DataType):
-        """Initialize a unsupported file type error.
-
-        Args:
-            file_type: The unsupported file type.
-        """
-        super().__init__(f"Unsupported file type for: {file_type}")
