@@ -9,8 +9,9 @@ import os
 import textwrap
 from typing import Any, Dict, List
 
-import fenic as fc
 import griffe
+
+import fenic as fc
 from fenic.api.dataframe import DataFrame
 
 logging.basicConfig(level=logging.INFO)
@@ -309,9 +310,9 @@ def _verify_tables(session: fc.Session):
             if table_name == "api_df":
                 schema = session.table(table_name).schema
                 if "api_element_summary" in str(schema):
-                    logger.info(f"  - api_element_summary column present")
+                    logger.info("  - api_element_summary column present")
                 else:
-                    logger.warning(f"  - api_element_summary column missing")
+                    logger.warning("  - api_element_summary column missing")
         else:
             logger.error(f"✗ {table_name}: NOT FOUND")
             raise ValueError(f"Table {table_name} not found")

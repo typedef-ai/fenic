@@ -6,10 +6,9 @@ import os
 import sys
 
 import fenic as fc
-from fenic.api.mcp import create_mcp_server, run_mcp_server_sync
+from fenic.api.mcp import create_mcp_server
 from fenic.core.mcp.types import ToolParam
-from fenic.core.types.datatypes import StringType, IntegerType
-
+from fenic.core.types.datatypes import StringType
 
 
 def setup_session():
@@ -225,7 +224,7 @@ def main():
         # Run the server using HTTP transport
         server.run(
             transport="http",
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=8000,
             stateless_http=True
         )
