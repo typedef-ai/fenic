@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from fenic.api.functions import col
 from fenic.core._logical_plan.plans import DocSource, FileSource
-from fenic.core.error import ValidationError
+from fenic.core.error import UnsupportedFileTypeError, ValidationError
 from fenic.core.types.datatypes import JsonType, MarkdownType
 
 
@@ -263,33 +263,37 @@ class DataFrameReader:
 
         return DataFrame._from_logical_plan(logical_node, self._session_state)
 
-    def markdown(
+    def docs(
             self,
             paths: Union[str, list[str]],
+            data_type: Union[MarkdownType, JsonType],
             exclude: Optional[str] = None,
             recursive: bool = False,
     ) -> DataFrame:
-        r"""Load a DataFrame from markdown files.
+        r"""Load a DataFrame from a list of paths of documents (markdown or json).
 
         Args:
             paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
+            data_type: Data type that will be used to cast the content of the files.
+                       One of MarkdownType or JsonType.
             exclude: A regex pattern to exclude files.
                      If it is not provided no files will be excluded.
             recursive: Whether to recursively load files from the folder.
 
         Returns:
-            DataFrame: A dataframe with all the markdown documents found in the paths.
+            DataFrame: A dataframe with all the documents found in the paths.
                        Each document is a row in the dataframe.
 
         Raises:
-            ValidationError: If any file does not have a `.md` extension.
+            ValidationError: If any file does not have a `.md` or `.json` depending on the data_type.
+            UnsupportedFileTypeError: If the data_type is not supported.
 
         Notes:
             - Each row in the dataframe corresponds to a file in the list of paths.
             - The dataframe has the following columns:
-                - doc_path: The path to the document.
+                - file_path: The path to the file.
                 - error: The error message if the file failed to be loaded.
-                - content: The content of the file casted to MarkdownType.
+                - content: The content of the file casted to the data_type.
             - Recursive loading is supported in conjunction with the '**' glob pattern,
               e.g. `data/**/*.md` will load all markdown files in the `data` folder and all subfolders
                    when recursive is set to True.
@@ -297,21 +301,25 @@ class DataFrameReader:
 
         Example: Read all the markdown files in a folder and all its subfolders.
             ```python
-            df = session.read.markdown("data/docs/**/*.md", recursive=True)
+            df = session.read.docs("data/docs/**/*.md", data_type=MarkdownType, recursive=True)
             ```
 
         Example: Read a folder of markdown files excluding some files.
             ```python
-            df = session.read.markdown("data/docs/*.md", exclude=r"\.bak.md$")
+            df = session.read.docs("data/docs/*.md", data_type=MarkdownType, exclude=r"\.bak.md$")
             ```
 
         """
+        if data_type not in [MarkdownType, JsonType]:
+            raise UnsupportedFileTypeError(f"Unsupported file type: {data_type}")
+
         if isinstance(paths, str):
             paths = [paths]
 
+        valid_file_extension = "md" if data_type == MarkdownType else "json"
         logical_node = DocSource.from_session_state(
             paths=paths,
-            valid_file_extension="md",
+            valid_file_extension=valid_file_extension,
             exclude=exclude,
             recursive=recursive,
             session_state=self._session_state,
@@ -320,71 +328,8 @@ class DataFrameReader:
 
         df = DataFrame._from_logical_plan(logical_node, self._session_state)
         df = df.select(
-            col("file_path").alias("doc_path"),
+            col("file_path"),
             col("error"),
-            col("content").cast(MarkdownType).alias("content"),
-        )
-        return df
-
-    def json(
-            self,
-            paths: Union[str, list[str]],
-            exclude: Optional[str] = None,
-            recursive: bool = False,
-    ) -> DataFrame:
-        r"""Load a DataFrame from JSON files.
-
-        Args:
-            paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
-            exclude: A regex pattern to exclude files.
-                     If it is not provided no files will be excluded.
-            recursive: Whether to recursively load files from the folder.
-
-        Returns:
-            DataFrame: A dataframe with all the JSON documents found in the paths.
-                       Each document is a row in the dataframe.
-
-        Raises:
-            ValidationError: If any file does not have a `.json` extension.
-
-        Notes:
-            - Each row in the dataframe corresponds to a file in the list of paths.
-            - The dataframe has the following columns:
-                - doc_path: The path to the document.
-                - error: The error message if the file failed to be loaded.
-                - content: The content of the file casted to JsonType.
-            - Recursive loading is supported in conjunction with the '**' glob pattern,
-              e.g. `data/**/*.json` will load all JSON files in the `data` folder and all subfolders
-                   when recursive is set to True.
-              Without recursive = True, then ** behaves like a single '*' pattern.
-
-        Example: Read all the JSON files in a folder and all its subfolders.
-            ```python
-            df = session.read.json("data/docs/**/*.json", recursive=True)
-            ```
-
-        Example: Read a folder of JSON files excluding some files.
-            ```python
-            df = session.read.json("data/docs/*.json", exclude=r"\.bak.json$")
-            ```
-
-        """
-        if isinstance(paths, str):
-            paths = [paths]
-
-        logical_node = DocSource.from_session_state(
-            paths=paths,
-            valid_file_extension="json",
-            exclude=exclude,
-            recursive=recursive,
-            session_state=self._session_state,
-        )
-        from fenic.api.dataframe import DataFrame
-
-        df = DataFrame._from_logical_plan(logical_node, self._session_state)
-        df = df.select(
-            col("file_path").alias("doc_path"),
-            col("error"),
-            col("content").cast(JsonType).alias("content"),
+            col("content").cast(data_type).alias("content"),
         )
         return df
