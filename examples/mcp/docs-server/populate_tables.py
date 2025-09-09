@@ -14,8 +14,9 @@ import griffe
 import fenic as fc
 from fenic.api.dataframe import DataFrame
 
-logging.basicConfig(level=logging.INFO)
+fc.logging.configure_logging()
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def _setup_session(work_dir: str) -> fc.Session:

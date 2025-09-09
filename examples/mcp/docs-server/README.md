@@ -1,4 +1,4 @@
-# Fenic Documentation MCP Server (Native)
+# Fenic Documentation MCP Server
 
 **Using Fenic's native MCP capabilities to serve API documentation.**
 
@@ -83,7 +83,7 @@ If you prefer to run the server locally:
   cd /path/to/fenic/examples/mcp/docs-server
   uv venv
   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-  uv pip install -e .
+  uv pip install fenic[mcp,google]
   python populate_tables.py
 ```
 
@@ -92,6 +92,7 @@ If you prefer to run the server locally:
    Edit your Claude Desktop configuration file:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Or specify your custom path: `/path/to/claude_desktop_config.json`
 
    ```json
    {

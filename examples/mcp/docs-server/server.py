@@ -2,6 +2,7 @@
 
 This server uses Fenic's built-in MCP support instead of FastMCP.
 """
+import logging
 import os
 import sys
 
@@ -10,33 +11,21 @@ from fenic.api.mcp import create_mcp_server
 from fenic.core.mcp.types import ToolParam
 from fenic.core.types.datatypes import StringType
 
+fc.logging.configure_logging()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 def setup_session():
     """Setup Fenic session with proper configuration."""
     work_dir = os.environ.get("FENIC_WORK_DIR", os.path.expanduser("~/.fenic"))
     os.makedirs(work_dir, exist_ok=True)
     os.chdir(work_dir)
+    logger.info(f"Working directory: {work_dir}")
     
     # Configure fenic session
-    semantic_config = None
-    if os.environ.get("GEMINI_API_KEY"):
-        semantic_config = fc.SemanticConfig(
-            language_models={
-                "flash": fc.GoogleDeveloperLanguageModel(
-                    api_key=os.environ.get("GEMINI_API_KEY"),
-                    model_name="gemini-2.0-flash-exp",
-                    rpm=2000,
-                    tpm=4_000_000,
-                ),
-            },
-            default_language_model="flash",
-        )
-    else:
-        pass
-    
     config = fc.SessionConfig(
         app_name="docs",  # Must match the app_name used in populate_tables.py
-        semantic=semantic_config
     )
     
     return fc.Session.get_or_create(config)
@@ -44,6 +33,7 @@ def setup_session():
 
 def register_search_tools(session: fc.Session):
     """Register search-related tools in the catalog."""
+    logger.info("Registering tools in catalog...")
     
     # Tool 1: Search API documentation
     search_query = (
@@ -70,7 +60,7 @@ def register_search_tools(session: fc.Session):
     
     session.catalog.create_tool(
         tool_name="search_fenic_api",
-        tool_description="Search Fenic API documentation using regex patterns",
+        tool_description="Search Fenic API documentation using regex patterns. Returns matching API elements including functions, classes, methods, and their docstrings.",
         tool_query=search_query,
         tool_params=[
             ToolParam(
@@ -106,7 +96,7 @@ def register_search_tools(session: fc.Session):
     
     session.catalog.create_tool(
         tool_name="get_entity",
-        tool_description="Get detailed information about a specific API entity",
+        tool_description="Get detailed information about a specific API entity by its fully qualified name. Returns complete documentation including parameters, returns, and implementation details.",
         tool_query=entity_query,
         tool_params=[
             ToolParam(
@@ -123,7 +113,7 @@ def register_search_tools(session: fc.Session):
     
     session.catalog.create_tool(
         tool_name="get_project_overview",
-        tool_description="Get a comprehensive overview of the Fenic project",
+        tool_description="Get a comprehensive overview of the Fenic project, including its purpose, key features, architecture, and main API components.",
         tool_query=overview_query,
         tool_params=[],
         result_limit=1,
@@ -144,7 +134,7 @@ def register_search_tools(session: fc.Session):
     
     session.catalog.create_tool(
         tool_name="get_api_tree",
-        tool_description="Get the hierarchical structure of Fenic's public API",
+        tool_description="Get the hierarchical tree structure of Fenic's public API, showing modules, classes, functions, and methods in their organizational hierarchy.",
         tool_query=tree_query,
         tool_params=[],
         result_limit=5000,
@@ -167,7 +157,7 @@ def register_search_tools(session: fc.Session):
     
     session.catalog.create_tool(
         tool_name="search_by_type",
-        tool_description="Search for specific types of API elements (class, function, method, etc.)",
+        tool_description="Search for specific types of API elements (class, function, method, module) with optional pattern matching. Useful for finding all classes, all methods of a certain type, etc.",
         tool_query=type_search_query,
         tool_params=[
             ToolParam(
@@ -185,6 +175,8 @@ def register_search_tools(session: fc.Session):
         result_limit=50,  # Use result_limit instead of dynamic limit
         ignore_if_exists=True
     )
+    
+    logger.info("Successfully registered 5 tools in catalog")
 
 
 def main():
@@ -201,7 +193,7 @@ def main():
                 missing_tables.append(table)
         
         if missing_tables:
-            print(
+            logger.error(
                 f"Missing required tables: {missing_tables}\n"
                 "Please run 'python populate_tables.py' to set up the documentation database."
             )
@@ -212,6 +204,9 @@ def main():
         
         # Get all tools from catalog
         tools = session.catalog.list_tools()
+        logger.info(f"Found {len(tools)} tools in catalog")
+        for tool in tools:
+            logger.info(f"  - {tool.name}: {tool.description}")
         
         # Create native MCP server
         server = create_mcp_server(
@@ -222,6 +217,7 @@ def main():
         )
         
         # Run the server using HTTP transport
+        logger.info("Starting Fenic MCP server on HTTP port 8000...")
         server.run(
             transport="http",
             host="127.0.0.1",
@@ -230,9 +226,9 @@ def main():
         )
         
     except KeyboardInterrupt:
-        print("Server stopped by user")
+        logger.info("Server stopped by user")
     except Exception as e:
-        print(f"Failed to start MCP server: {e}")
+        logger.error(f"Failed to start MCP server: {e}", exc_info=True)
         sys.exit(1)
 
 
