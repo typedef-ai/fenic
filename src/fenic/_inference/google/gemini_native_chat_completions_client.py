@@ -80,9 +80,7 @@ class GeminiNativeChatCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
         """
-        token_counter = GeminiLocalTokenCounter(
-            model_name=model, fallback_encoding="o200k_base"
-        )
+        token_counter = GeminiLocalTokenCounter(model_name=model)
         super().__init__(
             model=model,
             model_provider=model_provider,

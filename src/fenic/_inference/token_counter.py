@@ -10,7 +10,7 @@ Tokenizable = Union[list[dict[str, str]] | str | LMRequestMessages]
 class TokenCounter(Protocol):
     def count_tokens(self, messages: Tokenizable) -> int: ...
 
-class TiktokenTokenCounter:
+class TiktokenTokenCounter(TokenCounter):
 
     def __init__(self, model_name: str, fallback_encoding: str = "o200k_base"):
         try:

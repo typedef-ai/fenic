@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import ContentEmbedding
 
+from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
 from fenic._inference.google.google_profile_manager import (
     GoogleEmbeddingsProfileManager,
 )
@@ -20,7 +21,6 @@ from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
 )
-from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
@@ -45,7 +45,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
-            token_counter=TiktokenTokenCounter(model_name=model),
+            token_counter=GeminiLocalTokenCounter(model_name=model),
         )
         self.model = model
         self._client = self.model_provider_class.create_aio_client()

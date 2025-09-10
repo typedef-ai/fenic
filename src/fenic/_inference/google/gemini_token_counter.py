@@ -65,11 +65,10 @@ class GeminiLocalTokenCounter(TokenCounter):
 
     def _count_request_tokens(self, messages: LMRequestMessages) -> int:
         """Count tokens for an `LMRequestMessages` object."""
-        if not self.use_fallback_tokenizer:
-            google_messages = convert_messages(messages)
-            return self.google_tokenizer.count_tokens(google_messages).total_tokens
-        else:
+        if self.use_fallback_tokenizer:
             return self._count_message_tokens(messages.to_message_list())
+        google_messages = convert_messages(messages)
+        return self.google_tokenizer.count_tokens(google_messages).total_tokens
 
     def _count_message_tokens(self, messages: list[dict[str, str]]) -> int:
         """Count tokens for a list of message dicts with role/content keys."""
