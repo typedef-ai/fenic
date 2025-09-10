@@ -82,14 +82,14 @@ If you prefer to run the server locally:
 ```bash
   cd /path/to/fenic/examples/mcp/docs-server
   uv sync
-  uv run python populate_tables.py
+  uv run populate_tables.py
 ```
 
 3. **Start the MCP server**:
 
    ```bash
    cd /path/to/fenic/examples/mcp/docs-server
-   uv run python server.py
+   uv run server.py
    ```
 
    The server will start on `http://127.0.0.1:8000`.
@@ -154,7 +154,7 @@ You can access this database directly with DuckDB tools for inspection and analy
 
 **Server fails to start with "Missing required tables" error:**
 
-- Run `uv run python populate_tables.py` to create the documentation database
+- Run `uv run populate_tables.py` to create the documentation database
 - Ensure you have `GEMINI_API_KEY` set as an environment variable
 - Check that the script completed successfully (should show "Successfully created all required tables")
 
