@@ -96,7 +96,7 @@ class AnthropicBatchCompletionsClient(
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
-        self._sync_client = self.model_provider_class.client()
+        self._sync_client = self.model_provider_class.create_client()
         self._client = self.model_provider_class.create_aio_client()
         self._metrics = LMMetrics()
         self._output_formatter_tool_name = "output_formatter"

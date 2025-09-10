@@ -2,6 +2,7 @@
 
 Defines the allowed provider sorting strategies for OpenRouter provider routing.
 """
+
 from __future__ import annotations
 
 from typing import Literal
@@ -20,5 +21,3 @@ ModelQuantization = Literal[
     "fp32",
     "unknown",
 ]
-
-

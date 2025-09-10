@@ -16,14 +16,14 @@ class OpenAIModelProvider(ModelProviderClass):
     def name(self) -> str:
         return "openai"
 
-    def client(self):
+    def create_client(self):
         """Create an OpenAI client instance."""
         return OpenAI()
 
     def create_aio_client(self):
         """Create an OpenAI async client instance."""
         return AsyncOpenAI()
-    
+
     async def validate_api_key(self) -> None:
         """Validate OpenAI API key by listing models."""
         client = self.create_aio_client()

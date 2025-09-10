@@ -8,7 +8,6 @@ from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from fenic._inference.openrouter.openrouter_provider import OpenRouterModelProvider
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
     CohereEmbeddingModelName,
@@ -61,15 +60,16 @@ default_profiles_desc = """
         """
 
 GoogleEmbeddingTaskType = Literal[
-            "SEMANTIC_SIMILARITY",
-            "CLASSIFICATION",
-            "CLUSTERING",
-            "RETRIEVAL_DOCUMENT",
-            "RETRIEVAL_QUERY",
-            "CODE_RETRIEVAL_QUERY",
-            "QUESTION_ANSWERING",
-            "FACT_VERIFICATION"
+    "SEMANTIC_SIMILARITY",
+    "CLASSIFICATION",
+    "CLUSTERING",
+    "RETRIEVAL_DOCUMENT",
+    "RETRIEVAL_QUERY",
+    "CODE_RETRIEVAL_QUERY",
+    "QUESTION_ANSWERING",
+    "FACT_VERIFICATION",
 ]
+
 
 class GoogleDeveloperEmbeddingModel(BaseModel):
     """Configuration for Google Developer embedding models.
@@ -110,6 +110,7 @@ class GoogleDeveloperEmbeddingModel(BaseModel):
         )
         ```
     """
+
     model_name: GoogleDeveloperEmbeddingModelName
     model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_DEVELOPER)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
@@ -141,7 +142,7 @@ class GoogleDeveloperEmbeddingModel(BaseModel):
             profile = GoogleDeveloperEmbeddingModelConfig.Profile()
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
         output_dimensionality: Optional[int] = Field(default=None, gt=0, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
@@ -230,11 +231,13 @@ class GoogleDeveloperLanguageModel(BaseModel):
             profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+
+        model_config = ConfigDict(extra="forbid")
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
+
 
 class GoogleVertexEmbeddingModel(BaseModel):
     """Configuration for Google Vertex AI embedding models.
@@ -275,13 +278,13 @@ class GoogleVertexEmbeddingModel(BaseModel):
         )
         ```
     """
+
     model_name: GoogleVertexEmbeddingModelName
     model_provider: ModelProvider = Field(default=ModelProvider.GOOGLE_VERTEX)
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
     default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
-
 
     class Profile(BaseModel):
         """Profile configurations for Google Vertex embedding models.
@@ -307,7 +310,7 @@ class GoogleVertexEmbeddingModel(BaseModel):
             profile = GoogleVertexEmbeddingModelConfig.Profile()
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
         output_dimensionality: Optional[int] = Field(default=None, ge=768, le=3072, description="Dimensionality of the embedding created by this model")
         task_type: GoogleEmbeddingTaskType = Field(default="SEMANTIC_SIMILARITY", description="Type of the task")
@@ -352,6 +355,7 @@ class GoogleVertexLanguageModel(BaseModel):
         )
         ```
     """
+
     model_name: GoogleVertexLanguageModelName
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
@@ -394,11 +398,12 @@ class GoogleVertexLanguageModel(BaseModel):
             profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=0)
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
+
 
 class OpenAILanguageModel(BaseModel):
     """Configuration for OpenAI language models.
@@ -501,7 +506,8 @@ class OpenAILanguageModel(BaseModel):
             profile = OpenAILanguageModel.Profile(reasoning_effort="medium")
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+
+        model_config = ConfigDict(extra="forbid")
 
         reasoning_effort: Optional[ReasoningEffort] = Field(
             default=None, description="The reasoning effort level for the profile"
@@ -629,7 +635,7 @@ class AnthropicLanguageModel(BaseModel):
             profile = AnthropicLanguageModel.Profile(thinking_token_budget=8192)
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
         thinking_token_budget: Optional[int] = Field(
             default=None,
@@ -637,53 +643,162 @@ class AnthropicLanguageModel(BaseModel):
             ge=1024,
         )
 
+
 class OpenRouterLanguageModel(BaseModel):
     """Configuration for OpenRouter language models.
 
     This class defines the configuration settings for OpenRouter language models,
-    including model selection and rate limiting parameters.
+    including model selection and rate limiting parameters. When fetching available models from OpenRouter, results
+    will be filtered to only include models from providers that are not in the user’s ignored providers list and are either
+    in the user’s allowed providers list (if configured) or from any provider (if no allowed providers are specified).
+
+    Attributes:
+        model_name: `{family}/{model}` identifier (e.g., `anthropic/claude-3-5-sonnet`).
+        profiles: Mapping of profile names to profile configurations.
+        default_profile: The key in `profiles` to select by default.
+
+    Requirements:
+        - Set `OPENROUTER_API_KEY` in your environment.
+
+    Example:
+    ```python
+    OpenRouterLanguageModel(
+        model_name="openai/gpt-oss-20b",
+        profiles={
+            "default": OpenRouterLanguageModel.Profile(
+                provider=OpenRouterLanguageModel.Provider(
+                    sort="price" # Routes to the cheapest available provider
+                )
+            )
+        }
+    )
+    ```
+    Example:
+    ```python
+    OpenRouterLanguageModel(
+        model_name="anthropic/claude-sonnet-4-0-latest",
+        profiles={
+            "default": OpenRouterLanguageModel.Profile(
+                provider=OpenRouterLanguageModel.Provider(
+                    only=["Anthropic"] # ensures the request will only be routed to Anthropic and not AWS Bedrock or Google Vertex
+                )
+            )
+        }
+    )
+    ```
+    Example:
+    ```python
+    OpenRouterLanguageModel(
+        model_name="qwen/qwen3-next-80b-a3b-instruct",
+        profiles={
+            "default": OpenRouterLanguageModel.Profile(
+                provider=OpenRouterLanguageModel.Provider(
+                    sort="throughput", # routes to the provider with the highest overall throughput
+                    data_collection="deny" # eliminates providers that retain prompt data (would only route to DeepInfra/AtlasCloud, in this example)
+                    # Eliminate providers that offer an fp8 quantized version of the model, only allowing bf16.
+                    # Note that many providers have an `unknown` quantization, so you may be excluding more providers than you expect.
+                    quantizations=["bf16"]
+                )
+            )
+        }
+    )
+    ```
     """
-    model_name: str = Field(..., description="The name of the OpenRouter model to use, typically `{provider}/{model_name}`")
+
+    model_name: str = Field(
+        ...,
+        description="The name of the OpenRouter model to use, typically `{provider}/{model_name}`"
+    )
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
     default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
 
     class Provider(BaseModel):
-        """Provider configuration for OpenRouter language models.
+        """Provider routing configuration for OpenRouter language models.
+
+        [Provider Routing Documentation](https://openrouter.ai/docs/features/provider-routing)
 
         Attributes:
-            models: Alternate models for routing overrides
-            sort: Provider routing preference (price, throughput, latency)
-            quantizations: Allowed model quantizations (e.g. ['fp16', 'fp8'])
-            data_collection: Data collection preference. `allow`: allows the use of providers which store user data non-transiently and may train on it. `deny`: use only providers which do not collect/store user data.
-            only: Only include these providers when performing provider routing
-            exclude: Exclude these providers when performing provider routing
-            max_prompt_price: Maximum prompt price per 1M tokens.
-            max_completion_price: Maximum completion price per 1M tokens.
+            order: List of providers to try in order (e.g. ['Anthropic', 'Amazon Bedrock']).
+            sort: Provider routing preference (e.g. 'price', 'throughput', 'latency').
+                "price" will route to the cheapest available provider first, progressing through the list of providers in order of price.
+                "throughput" will route to the provider with the highest overall recent throughput, progressing through the list of providers in order of throughput.
+                "latency" will route to the provider with the lowest overall recent latency, progressing through the list of providers in order of latency.
+            quantizations: Allowed quantizations. Note: many providers report `unknown`.
+            data_collection: Data collection preference. `allow`: allows the use of providers which store prompt data
+                non-transiently and may train on it. `deny`: use only providers which do not collect/store prompt data.
+            only: Only include these providers when performing provider routing.
+            exclude: Exclude these providers when performing provider routing.
+            max_prompt_price: Maximum prompt price ($USD per 1M tokens).
+            max_completion_price: Maximum completion price ($USD per 1M tokens).
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
-        sort: Optional[ProviderSort] = Field(default=None, description="Sort providers by preference")
-        quantizations: Optional[list[ModelQuantization]] = Field(default=None, description="Allowed model quantizations (e.g. ['fp16', 'fp8'])")
-        data_collection: Optional[DataCollection] = Field(default=None, description="Data collection preference. `allow`: allows the use of providers which store user data non-transiently and may train on it. `deny`: use only providers which do not collect/store user data.")
-        only: Optional[list[str]] = Field(default=None, description="Only include these providers when performing provider routing")
-        ignore: Optional[list[str]] = Field(default=None, description="Exclude these providers when performing provider routing")
-        max_prompt_price: Optional[float] = Field(default=None, description="Maximum prompt price per 1M tokens.")
-        max_completion_price: Optional[float] = Field(default=None, description="Maximum completion price per 1M tokens.")
+        order: Optional[list[str]] = Field(
+            default=None,
+            description="List of providers to try in order",
+        )
+        sort: Optional[ProviderSort] = Field(
+            default=None, description="Sort providers by preference"
+        )
+        quantizations: Optional[list[ModelQuantization]] = Field(
+            default=None,
+            description="Allowed model quantizations (e.g. ['fp16', 'fp8'])",
+        )
+        data_collection: Optional[DataCollection] = Field(
+            default=None,
+            description="Data collection preference. `allow`: allows the use of providers which store user data non-transiently and may train on it. `deny`: use only providers which do not collect/store user data.",
+        )
+        only: Optional[list[str]] = Field(
+            default=None,
+            description="Only include these providers when performing provider routing",
+        )
+        ignore: Optional[list[str]] = Field(
+            default=None,
+            description="Exclude these providers when performing provider routing",
+        )
+        max_prompt_price: Optional[float] = Field(
+            default=None, description="Maximum prompt price per 1M tokens."
+        )
+        max_completion_price: Optional[float] = Field(
+            default=None, description="Maximum completion price per 1M tokens."
+        )
 
     class Profile(BaseModel):
         """Profile configurations for OpenRouter language models.
 
-        Pass-through of selected OpenRouter chat completion parameters for parity:
-        - models: backup models for routing overrides
-        - provider: provider routing preferences
-        - reasoning_effort / reasoning_max_tokens: reasoning config (OpenRouter fields)
+        Attributes:
+            models: A list of fallback models to use if the primary model is unavailable.
+                ([OpenRouter Documentation](https://openrouter.ai/docs/features/model-routing#the-models-parameter)).
+            provider: Provider routing preferences (include/exclude specific providers, set provider ranking method preference)
+                ([OpenRouter Documentation](https://openrouter.ai/docs/features/provider-routing)).
+            reasoning_effort: OpenAI Style reasoning effort configuration (low, medium, high).
+                If the model does support reasoning, but not `reasoning_effort`, a `reasoning_max_tokens` will be calculated
+                that is roughly equivalent as a percentage of the model's maximum output size
+                ([OpenRouter Documentation](https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level))
+            reasoning_max_tokens: Supported by Anthropic, Gemini, etc., sets a token budget for reasoning
+                If the model does support reasoning, but not `reasoning_max_tokens`, a `reasoning_effort_ will be automatically
+                calculated based on `reasoning_max_tokens` as a percentage of the model's maximum output size
+                ([OpenRouter Documentation](https://openrouter.ai/docs/use-cases/reasoning-tokens#max-tokens-for-reasoning))
         """
-        model_config = ConfigDict(extra='forbid')
+        model_config = ConfigDict(extra="forbid")
 
-        reasoning_effort: Optional[Literal["high", "medium", "low"]] = Field(default=None, description="OpenAI-style reasoning effort")
-        reasoning_max_tokens: Optional[int] = Field(default=None, gt=0, description="Non-OpenAI-style reasoning effort (max tokens)")
-        models: Optional[list[str]] = Field(default=None, description="Alternate models to fall back to if the primary model is not available", max_length=3)
-        provider: Optional[OpenRouterLanguageModel.Provider] = Field(default=None, description="Provider routing configuration")
+        reasoning_effort: Optional[Literal["high", "medium", "low"]] = Field(
+            default=None, description="OpenAI-style reasoning effort"
+        )
+        reasoning_max_tokens: Optional[int] = Field(
+            default=None,
+            gt=0,
+            description="Non-OpenAI-style reasoning effort (max tokens)",
+        )
+        models: Optional[list[str]] = Field(
+            default=None,
+            description="Alternate models to fall back to if the primary model is not available",
+            max_length=3,
+        )
+        provider: Optional[OpenRouterLanguageModel.Provider] = Field(
+            default=None, description="Provider routing configuration"
+        )
+
 
 CohereEmbeddingTaskType = Literal[
     "search_document",
@@ -691,6 +806,7 @@ CohereEmbeddingTaskType = Literal[
     "classification",
     "clustering",
 ]
+
 
 class CohereEmbeddingModel(BaseModel):
     """Configuration for Cohere embedding models.
@@ -758,14 +874,28 @@ class CohereEmbeddingModel(BaseModel):
             profile = CohereEmbeddingModel.Profile()
             ```
         """
-        model_config = ConfigDict(extra='forbid')
+
+        model_config = ConfigDict(extra="forbid")
 
         output_dimensionality: Optional[int] = Field(default=None, gt=0, le=1536, description="Dimensionality of the embedding created by this model")
         input_type: CohereEmbeddingTaskType = Field(default="search_document", description="Type of input")
 
-EmbeddingModel = Union[OpenAIEmbeddingModel, GoogleVertexEmbeddingModel, GoogleDeveloperEmbeddingModel, CohereEmbeddingModel]
-LanguageModel = Union[OpenAILanguageModel, AnthropicLanguageModel, GoogleDeveloperLanguageModel, GoogleVertexLanguageModel, OpenRouterLanguageModel]
+
+EmbeddingModel = Union[
+    OpenAIEmbeddingModel,
+    GoogleVertexEmbeddingModel,
+    GoogleDeveloperEmbeddingModel,
+    CohereEmbeddingModel,
+]
+LanguageModel = Union[
+    OpenAILanguageModel,
+    AnthropicLanguageModel,
+    GoogleDeveloperLanguageModel,
+    GoogleVertexLanguageModel,
+    OpenRouterLanguageModel,
+]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
+
 
 class SemanticConfig(BaseModel):
     """Configuration for semantic language and embedding models.
@@ -865,6 +995,7 @@ class SemanticConfig(BaseModel):
         )
         ```
     """
+
     language_models: Optional[dict[str, LanguageModel]] = None
     default_language_model: Optional[str] = None
     embedding_models: Optional[dict[str, EmbeddingModel]] = None
@@ -934,8 +1065,7 @@ class SemanticConfig(BaseModel):
             for model_alias, language_model in self.language_models.items():
                 language_model_name = language_model.model_name
                 language_model_provider = _get_model_provider_for_model_config(language_model)
-                if language_model_provider == ModelProvider.OPENROUTER:
-                    _ = OpenRouterModelProvider()
+
                 completion_model_params = model_catalog.get_completion_model_parameters(language_model_provider,
                                                                                  language_model_name)
                 if completion_model_params is None:
@@ -1007,6 +1137,7 @@ class CloudExecutorSize(str, Enum):
         LARGE: Large instance size.
         XLARGE: Extra large instance size.
     """
+
     SMALL = "INSTANCE_SIZE_S"
     MEDIUM = "INSTANCE_SIZE_M"
     LARGE = "INSTANCE_SIZE_L"
@@ -1036,6 +1167,7 @@ class CloudConfig(BaseModel):
         config = CloudConfig()
         ```
     """
+
     size: Optional[CloudExecutorSize] = None
 
 
@@ -1109,6 +1241,7 @@ class SessionConfig(BaseModel):
         )
         ```
     """
+
     app_name: str = "default_app"
     db_path: Optional[Path] = None
     semantic: Optional[SemanticConfig] = None
@@ -1169,8 +1302,8 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, AnthropicLanguageModel):
                 profiles = {
-                    profile: ResolvedAnthropicModelProfile(thinking_token_budget=profile_config.thinking_token_budget) for
-                    profile, profile_config in model.profiles.items()
+                    profile_name: ResolvedAnthropicModelProfile(thinking_token_budget=profile.thinking_token_budget) for
+                    profile_name, profile in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedAnthropicModelConfig(
                     model_name=model.model_name,
@@ -1182,8 +1315,8 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, CohereEmbeddingModel):
                 profiles = {
-                    profile: ResolvedCohereModelProfile(output_dimensionality=profile.output_dimensionality, input_type=profile.input_type) for
-                    profile, profile_config in model.profiles.items()
+                    profile_name: ResolvedCohereModelProfile(output_dimensionality=profile.output_dimensionality, input_type=profile.input_type) for
+                    profile_name, profile in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedCohereModelConfig(
                     model_name=model.model_name,
@@ -1193,18 +1326,25 @@ class SessionConfig(BaseModel):
                     default_profile=model.default_profile
                 )
             elif isinstance(model, OpenRouterLanguageModel):
-                profiles = {
-                    profile: ResolvedOpenRouterModelProfile(
-                        reasoning_effort=profile_config.reasoning_effort,
-                        reasoning_max_tokens=profile_config.reasoning_max_tokens,
-                        models=profile_config.models,
-                        provider=(
-                            ResolvedOpenRouterProviderRouting(**(profile_config.provider.model_dump()))
-                            if profile_config.provider is not None
-                            else None
-                        ),
-                    ) for profile, profile_config in model.profiles.items()
-                } if model.profiles else None
+                profiles = (
+                    {
+                        profile_name: ResolvedOpenRouterModelProfile(
+                            reasoning_effort=profile.reasoning_effort,
+                            reasoning_max_tokens=profile.reasoning_max_tokens,
+                            models=profile.models,
+                            provider=(
+                                ResolvedOpenRouterProviderRouting(
+                                    **(profile.provider.model_dump())
+                                )
+                                if profile.provider is not None
+                                else None
+                            ),
+                        )
+                        for profile_name, profile in model.profiles.items()
+                    }
+                    if model.profiles
+                    else None
+                )
                 return ResolvedOpenRouterModelConfig(
                     model_name=model.model_name,
                     profiles=profiles,
@@ -1215,18 +1355,26 @@ class SessionConfig(BaseModel):
 
         language_models = (
             ResolvedLanguageModelConfig(
-                model_configs={alias: resolve_model(cfg) for alias, cfg in self.semantic.language_models.items()},
+                model_configs={
+                    alias: resolve_model(cfg)
+                    for alias, cfg in self.semantic.language_models.items()
+                },
                 default_model=self.semantic.default_language_model,
             )
-            if self.semantic and self.semantic.language_models else None
+            if self.semantic and self.semantic.language_models
+            else None
         )
 
         embedding_models = (
             ResolvedEmbeddingModelConfig(
-                model_configs={alias: resolve_model(cfg) for alias, cfg in self.semantic.embedding_models.items()},
+                model_configs={
+                    alias: resolve_model(cfg)
+                    for alias, cfg in self.semantic.embedding_models.items()
+                },
                 default_model=self.semantic.default_embedding_model,
             )
-            if self.semantic and self.semantic.embedding_models else None
+            if self.semantic and self.semantic.embedding_models
+            else None
         )
 
         resolved_semantic = ResolvedSemanticConfig(
@@ -1235,18 +1383,24 @@ class SessionConfig(BaseModel):
         )
 
         resolved_cloud = (
-            ResolvedCloudConfig(size=self.cloud.size)
-            if self.cloud else None
+            ResolvedCloudConfig(size=self.cloud.size) if self.cloud else None
         )
 
         return ResolvedSessionConfig(
             app_name=self.app_name,
             db_path=self.db_path,
             semantic=resolved_semantic,
-            cloud=resolved_cloud
+            cloud=resolved_cloud,
         )
 
-def _validate_language_profile(language_model: LanguageModel, model_alias: str, completion_model_params: CompletionModelParameters, profile:Any, profile_alias: str) -> None:
+
+def _validate_language_profile(
+    language_model: LanguageModel,
+    model_alias: str,
+    completion_model_params: CompletionModelParameters,
+    profile: Any,
+    profile_alias: str,
+) -> None:
     """Validate the language profile against the language model."""
     if isinstance(language_model, OpenAILanguageModel):
         if not completion_model_params.supports_minimal_reasoning and profile.reasoning_effort == "minimal":
@@ -1258,14 +1412,19 @@ def _validate_language_profile(language_model: LanguageModel, model_alias: str, 
             raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
     elif isinstance(language_model, OpenRouterLanguageModel):
         # For OpenRouter, validate pass-through parameters against capabilities
-        if (profile.reasoning_effort or profile.reasoning_max_tokens) and not completion_model_params.supports_reasoning:
-            raise ConfigurationError(f"Model '{model_alias}' does not support reasoning. Remove 'reasoning' from '{profile_alias}'.")
+        if (
+            profile.reasoning_effort or profile.reasoning_max_tokens
+        ) and not completion_model_params.supports_reasoning:
+            raise ConfigurationError(
+                f"Model '{model_alias}' does not support reasoning. Remove 'reasoning' from '{profile_alias}'."
+            )
+
 
 def _validate_embedding_profile(
     embedding_model_parameters: EmbeddingModelParameters,
     model_alias: str,
     profile_alias: str,
-    profile: EmbeddingModel.Profile
+    profile: EmbeddingModel.Profile,
 ):
     """Validate Embedding profile against embedding model parameters."""
     if hasattr(profile, "output_dimensionality") and profile.output_dimensionality is not None and not embedding_model_parameters.supports_dimensions(profile.output_dimensionality):
@@ -1273,6 +1432,7 @@ def _validate_embedding_profile(
             f"The dimensionality of the Embeddings model profile {profile_alias} is invalid. "
             f"Requested dimensionality: {profile.output_dimensionality}. "
             f"Available Options: {embedding_model_parameters.get_possible_dimensions()}")
+
 
 def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
     """Determine the ModelProvider for the given model configuration."""
@@ -1288,5 +1448,5 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.COHERE
     elif isinstance(model_config, OpenRouterLanguageModel):
         return ModelProvider.OPENROUTER
-    else :
+    else:
         raise InternalError(f"Unknown model type: {type(model_config)}")

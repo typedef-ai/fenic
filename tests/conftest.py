@@ -151,6 +151,13 @@ def pytest_addoption(parser):
         default=None,
         help="If set, will run reader tests that read from HuggingFace.",
     )
+    parser.addoption(
+        "--test-openrouter-models",
+        action="store_true",
+        default=False,
+        help="Run OpenRouter model catalog tests (requires OPENROUTER_API_KEY)",
+    )
+
 
 @pytest.fixture
 def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:
@@ -261,6 +268,7 @@ def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
     Notes:
         We mock the api key validation to avoid the noticeable delay of validating our api key in every test.
     """
+
     async def mock_validate_provider_api_keys(providers: set[ModelProviderClass]):
         return
     monkeypatch.setattr("fenic._backends.local.model_registry._validate_provider_api_keys", mock_validate_provider_api_keys)

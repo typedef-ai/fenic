@@ -1,3 +1,4 @@
+import logging
 import math
 import threading
 import time
@@ -5,7 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from fenic._constants import MINUTE_IN_SECONDS
-from fenic.core.error import ExecutionError
+from fenic.core.error import ValidationError, ExecutionError
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,7 +66,7 @@ class RateLimitStrategy(ABC):
     """
     def __init__(self, rpm: int):
         if rpm <= 0:
-            raise ValueError("rpm must be greater than 0")
+            raise ValidationError("rpm must be greater than 0")
         self.rpm = rpm
         self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
         self.mutex = threading.Lock()
@@ -107,29 +109,82 @@ class RateLimitStrategy(ABC):
         pass
 
 
-class NoopRateLimitStrategy(RateLimitStrategy):
-    """Rate limit strategy that effectively allows all requests through.
+class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
+    """Simple RPM limiter that multiplicatively reduces RPM on backoff.
 
-    Behavior:
-    - check_and_consume_rate_limit always returns True (no token accounting)
-    - backoff zeros request capacity to briefly pause on provider 429s
-    - context_tokens_per_minute returns a very large sentinel value
+    - Uses a single requests bucket; no token accounting.
+    - On backoff(), reduce rpm by multiplier and zero capacity to remove burst.
+    - Optionally accepts provider hints via register_openrouter_rate_limit to clamp rpm.
     """
 
-    def __init__(self, rpm: int = 50_000_000):
+    def __init__(
+        self, rpm: int = 10_000, min_rpm: int = 50, backoff_multiplier: float = 0.75
+    ):
         super().__init__(rpm=rpm)
+        self._min_rpm = max(1, min_rpm)
+        self._backoff_multiplier = (
+            backoff_multiplier if 0 < backoff_multiplier < 1 else 0.75
+        )
+        self._rpm_hint: int | None = None
+        self._cooldown_until: float = 0.0
+        self._on_cooldown = False
+        self._lock = threading.Lock()
+
+    def register_rate_limit_hint(
+        self, rpm_hint: int | None, retry_at_epoch_seconds: float | None
+    ) -> None:
+        """Register provider-processed hints: rpm limit and absolute retry time.
+
+        Args:
+            rpm_hint: Max requests per minute allowed by provider (if known)
+            retry_at_epoch_seconds: Unix epoch seconds we should not send before (if known)
+        """
+        with self._lock:
+            if isinstance(rpm_hint, int) and rpm_hint > 0:
+                self._rpm_hint = rpm_hint
+            if (
+                isinstance(retry_at_epoch_seconds, (int, float))
+                and retry_at_epoch_seconds > 0
+            ):
+                self._cooldown_until = float(retry_at_epoch_seconds)
+                if not self._on_cooldown:
+                    self._on_cooldown = True
+                    logger.info(
+                        f"Provider is throttling requests -- pausing for {retry_at_epoch_seconds - time.time():.2f}s before resuming at the provider specified limit of {rpm_hint} requests per minute"
+                    )
 
     def backoff(self, curr_time: float) -> int:
-        # Minimal backoff: drop request bucket capacity to 0 to yield scheduling
-        self.requests_bucket._set_capacity(0, curr_time)
+        with self._lock:
+            # Reduce rpm multiplicatively; clamp by hint and min
+            new_rpm = max(self._min_rpm, int(self.rpm * self._backoff_multiplier))
+            if self._rpm_hint:
+                new_rpm = min(new_rpm, self._rpm_hint)
+            if new_rpm != self.rpm:
+                self.rpm = new_rpm
+                # Replace bucket: drop burst capacity
+                self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
+            # Zero capacity to yield scheduling immediately after sleep completes
+            self.requests_bucket._set_capacity(0, curr_time)
+        return 0
 
     def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
-        # Always allow; no token accounting
-        return True
+        now = time.time()
+        # Cooldown gate: do not allow any requests until reset time
+        if now < self._cooldown_until:
+            return False
+        available_requests = self.requests_bucket._get_available_capacity(now)
+        if available_requests >= 1:
+            self._on_cooldown = False
+            self.requests_bucket._set_capacity(available_requests - 1, now)
+            return True
+        return False
 
     def context_tokens_per_minute(self) -> int:
-        # Effectively unlimited for scheduling purposes
+        # Not used; return large sentinel
         return 1_000_000_000
+
+    def __str__(self):
+        return f"AdaptiveBackoffRateLimitStrategy(rpm={self.rpm}, min_rpm={self._min_rpm}, backoff_multiplier={self._backoff_multiplier})"
 
 
 class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
@@ -284,5 +339,3 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
             str: A string showing the RPM, input TPM, and output TPM limits.
         """
         return f"SeparatedTokenRateLimitStrategy(rpm={self.rpm}, input_tpm={self.input_tpm}, output_tpm={self.output_tpm})"
-
-

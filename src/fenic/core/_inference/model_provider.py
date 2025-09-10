@@ -15,7 +15,7 @@ class ModelProviderClass(ABC):
         pass
     
     @abstractmethod
-    def client(self):
+    def create_client(self):
         """Create a synchronous client for this provider.
         
         Returns the provider-specific synchronous client instance configured with the

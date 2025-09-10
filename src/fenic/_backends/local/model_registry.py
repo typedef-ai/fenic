@@ -14,7 +14,7 @@ from fenic._inference.openrouter.openrouter_batch_chat_completions_client import
     OpenRouterBatchChatCompletionsClient,
 )
 from fenic._inference.rate_limit_strategy import (
-    NoopRateLimitStrategy,
+    AdaptiveBackoffRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
@@ -93,8 +93,6 @@ class SessionModelRegistry:
             with EventLoopManager().loop_context() as loop:
                 future = asyncio.run_coroutine_threadsafe(_validate_provider_api_keys(validate_providers), loop)
                 future.result()
-
-
 
     def get_language_model_metrics(self) -> LMMetrics:
         """Get aggregated metrics for all language models.
@@ -190,8 +188,6 @@ class SessionModelRegistry:
                     embedding_model.client.shutdown()
                 except Exception as e:
                     logger.warning(f"Failed graceful shutdown of embedding model client {alias}: {e}")
-
-
 
     def _initialize_embedding_model(self, model_config: ResolvedModelConfig) -> EmbeddingModel:
         """Initialize an embedding model with the given configuration.
@@ -310,14 +306,14 @@ class SessionModelRegistry:
                     ) from err
                 rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=model_config.tpm)
                 client = GeminiNativeChatCompletionsClient(
-                        model=model_config.model_name,
-                        model_provider=model_config.model_provider,
-                        rate_limit_strategy=rate_limit_strategy,
-                        profiles=model_config.profiles,
-                        default_profile_name=model_config.default_profile,
-                    )
+                    model=model_config.model_name,
+                    model_provider=model_config.model_provider,
+                    rate_limit_strategy=rate_limit_strategy,
+                    profiles=model_config.profiles,
+                    default_profile_name=model_config.default_profile
+                )
             elif isinstance(model_config, ResolvedOpenRouterModelConfig):
-                rate_limit_strategy = NoopRateLimitStrategy()
+                rate_limit_strategy = AdaptiveBackoffRateLimitStrategy()
                 client = OpenRouterBatchChatCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,
@@ -344,5 +340,5 @@ async def _validate_provider_api_keys(providers: set[ModelProviderClass]):
         raise ConfigurationError(f"Error during API key validation: {e}") from e
     finally:
         for task in tasks:
-            if not task.done(): 
+            if not task.done():
                 task.cancel()
