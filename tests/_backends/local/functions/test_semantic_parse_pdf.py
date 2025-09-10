@@ -4,9 +4,10 @@ from textwrap import wrap
 from typing import List, Optional
 
 import pytest
+from pydantic import BaseModel
 
 from fenic import SemanticConfig, Session, SessionConfig, col, semantic
-from fenic.api.session.config import GoogleDeveloperLanguageModel
+from fenic.api.session.config import GoogleDeveloperLanguageModel, OpenAILanguageModel
 from fenic.core.error import ValidationError
 from tests.conftest import _save_pdf_file
 
@@ -32,77 +33,97 @@ def make_test_pdf_paths(text_content: list[str], temp_dir: str, include_images:O
 
     return pdf_paths
 
-@pytest.fixture
-def google_genai_session_config():
+def setup_session_with_vlm(provider: BaseModel, model_name: str):
     config = SessionConfig(
-        app_name="test_app_google",
+        app_name="test_pdf_parsing_with_vlms",
         semantic=SemanticConfig(
-            language_models={"gemini_2.0_flash": GoogleDeveloperLanguageModel(model_name="gemini-2.0-flash", rpm=1000, tpm=1000)}
+            language_models={"vlm": provider(model_name=model_name, rpm=1000, tpm=100000, thinking_token_budget=1024)}
         ),
     )
     return Session.get_or_create(config)
 
-def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, google_genai_session_config):
+vlms_to_test = [
+    (GoogleDeveloperLanguageModel, "gemini-2.5-flash"),
+    #(GoogleDeveloperLanguageModel, "gemini-2.5-pro"), # TODO: fix bug where gemini-2.5-pro requires reasoning to be enabled
+    (GoogleDeveloperLanguageModel, "gemini-2.0-flash"),
+    (OpenAILanguageModel, "o3"),
+    (OpenAILanguageModel, "o1"),
+    (OpenAILanguageModel, "o4-mini"),
+    (OpenAILanguageModel, "o3-mini"),
+    #(OpenAILanguageModel, "o1-mini"), # TODO: fix bug where o1-mini doesn't support system messages
+]
+
+@pytest.mark.parametrize("test_provider, test_model_name", vlms_to_test)
+def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test_provider, test_model_name):
     """Test basic PDF parsing functionality with different page lengths."""
-    pytest.importorskip("google.genai")
+    if test_provider == GoogleDeveloperLanguageModel:
+        pytest.importorskip("google.genai")
     evaluate_response = False
     if request.config.getoption("--test-model-evaluation"):
         evaluate_response = True
 
     include_images = [True, False]
-
     pdf_paths = make_test_pdf_paths(basic_text_content, temp_dir_just_one_file, include_images=include_images)
-    
-    df = google_genai_session_config.create_dataframe({"pdf_path": pdf_paths})
-    markdown_result = df.select(
-        semantic.parse_pdf(col("pdf_path")).alias("markdown_content")
-    ).collect()
+    local_session = setup_session_with_vlm(provider=test_provider, model_name=test_model_name)
+    try:
+        df = local_session.create_dataframe({"pdf_path": pdf_paths})
+        markdown_result = df.select(
+            semantic.parse_pdf(col("pdf_path")).alias("markdown_content")
+        ).collect()
 
-    for i in range(2):
-        markdown_content = markdown_result.data["markdown_content"][i]
-        assert markdown_content is not None and markdown_content != ""
-        assert isinstance(markdown_content, str)
-        if evaluate_response:
-            for text in basic_text_content:
-                text_wrapped = wrap(text, 80)
-                for line in text_wrapped:
-                    assert line in markdown_result.data["markdown_content"][i]
-            assert "Image" not in markdown_result.data["markdown_content"][i]
+        for i in range(2):
+            markdown_content = markdown_result.data["markdown_content"][i]
+            assert markdown_content is not None and markdown_content != ""
+            assert isinstance(markdown_content, str)
+            if evaluate_response:
+                for text in basic_text_content:
+                    text_wrapped = wrap(text, 80)
+                    for line in text_wrapped:
+                        assert line in markdown_result.data["markdown_content"][i]
+                assert "Image" not in markdown_result.data["markdown_content"][i]
+    finally:
+        local_session.stop()
 
-def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request,temp_dir_just_one_file, google_genai_session_config):
+@pytest.mark.parametrize("test_provider, test_model_name", vlms_to_test)
+def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request,temp_dir_just_one_file, test_provider, test_model_name):
     """Test basic PDF parsing functionality with different page lengths."""
-    pytest.importorskip("google.genai")
+    if test_provider == GoogleDeveloperLanguageModel:
+        pytest.importorskip("google.genai")
     evaluate_response = False
     if request.config.getoption("--test-model-evaluation"):
         evaluate_response = True
 
     include_images = [True, False]
     include_small_images = [True, True]
-    pdf_paths = make_test_pdf_paths(basic_text_content, temp_dir_just_one_file, include_images=include_images, include_small_images=include_small_images)
-    df = google_genai_session_config.create_dataframe({"pdf_path": pdf_paths})
-    markdown_result = df.select(
-        semantic.parse_pdf(col("pdf_path"),
-            page_separator="--- PAGE {page} ---",
-            describe_images=True,
-        ).alias("markdown_content")
-    ).collect()
+    local_session = setup_session_with_vlm(provider=test_provider, model_name=test_model_name)
+    try:
+        pdf_paths = make_test_pdf_paths(basic_text_content, temp_dir_just_one_file, include_images=include_images, include_small_images=include_small_images)
+        df = local_session.create_dataframe({"pdf_path": pdf_paths})
+        markdown_result = df.select(
+            semantic.parse_pdf(col("pdf_path"),
+                page_separator="--- PAGE {page} ---",
+                describe_images=True,
+            ).alias("markdown_content")
+        ).collect()
 
-    for i in range(2):
-        markdown_content = markdown_result.data["markdown_content"][i]
-        assert markdown_content is not None and markdown_content != ""
-        assert isinstance(markdown_content, str)
-        if evaluate_response:
-            for text in basic_text_content:
-                text_wrapped = wrap(text, 80)
-                for line in text_wrapped:
-                    assert line in markdown_result.data["markdown_content"][i]
-            assert "--- PAGE 1 ---" in markdown_result.data["markdown_content"][i]
-            assert "--- PAGE 2 ---" in markdown_result.data["markdown_content"][i]
-            # The model is very hit or miss on adding the image section
-            #if not include_images[i]:
-            #    assert "Image" not in markdown_result.data["markdown_content"][i]
-            #else:
-            #    assert "Image" in markdown_result.data["markdown_content"][i]
+        for i in range(2):
+            markdown_content = markdown_result.data["markdown_content"][i]
+            assert markdown_content is not None and markdown_content != ""
+            assert isinstance(markdown_content, str)
+            if evaluate_response:
+                for text in basic_text_content:
+                    text_wrapped = wrap(text, 80)
+                    for line in text_wrapped:
+                        assert line in markdown_result.data["markdown_content"][i]
+                assert "--- PAGE 1 ---" in markdown_result.data["markdown_content"][i]
+                assert "--- PAGE 2 ---" in markdown_result.data["markdown_content"][i]
+                # The model is very hit or miss on adding the image section
+                #if not include_images[i]:
+                #    assert "Image" not in markdown_result.data["markdown_content"][i]
+                #else:
+                #    assert "Image" in markdown_result.data["markdown_content"][i]
+    finally:
+        local_session.stop()
 
 def test_semantic_parse_pdf_without_models():
     """Test that an error is raised if no language models are configured."""

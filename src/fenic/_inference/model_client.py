@@ -504,7 +504,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     estimated_input_tokens=total_token_estimate.input_tokens,
                     estimated_output_tokens=total_token_estimate.output_tokens,
                 )
-
         return request_futures, num_unique_requests, total_token_estimate
 
     def _collect_batch_responses(self, request_futures: List[Future], batch_id: str) -> List[ResponseT]:

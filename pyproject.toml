@@ -38,6 +38,7 @@ dependencies = [
   "zstandard>=0.23.0",
   "jsonschema>=4.0.0",
   "pymupdf>=1.26.4",
+  "image-token>=0.1.5",
 ]
 
 [project.urls]

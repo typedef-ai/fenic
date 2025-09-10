@@ -103,6 +103,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
 
         if self.model_parameters.supports_reasoning:
             if profile.thinking_token_budget is None or profile.thinking_token_budget == 0:
+                breakpoint()
                 # Thinking disabled
                 thinking_enabled = False
                 thinking_config: ThinkingConfigDict = {
@@ -111,6 +112,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 }
                 additional_generation_config.update({"thinking_config": thinking_config})
             else:
+                breakpoint()
                 # Thinking enabled
                 thinking_enabled = True
                 thinking_config: ThinkingConfigDict = {

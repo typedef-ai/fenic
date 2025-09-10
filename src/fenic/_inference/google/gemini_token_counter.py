@@ -7,6 +7,7 @@ from google.genai.types import (
 )
 
 from fenic._inference.google.google_utils import convert_text_messages
+from fenic._inference.request_utils import get_pdf_text_and_image_sizes
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -14,7 +15,6 @@ from fenic._inference.token_counter import (
 from fenic._inference.types import LMRequestMessages
 
 logger = logging.getLogger(__name__)
-
 
 class GeminiLocalTokenCounter(TokenCounter):
     """Token counter for Google Gemini models using native local tokenization.
@@ -41,7 +41,7 @@ class GeminiLocalTokenCounter(TokenCounter):
             self.google_tokenizer = LocalTokenizer(model_name=fallback_encoding)
 
     def count_tokens(self, messages: Tokenizable) -> int:
-        """Count tokens for a string, message list, or `LMRequestMessages`.
+        """Count tokens for a string or `LMRequestMessages`.
 
         Args:
             messages: Either a raw string, a list of role/content dicts, or an
@@ -66,12 +66,24 @@ class GeminiLocalTokenCounter(TokenCounter):
             ).total_tokens
 
         if messages.user_file_path:
-            # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
-            doc = fitz.open(messages.user_file_path)
-            tokens += len(doc) * 258
+            tokens += self.count_tokens_pdf(messages, for_input=True)
         return tokens
 
 
     def _count_text_tokens(self, text: str) -> int:
         """Count tokens for a raw text string"""
         return self.google_tokenizer.count_tokens(text).total_tokens
+
+    def count_tokens_pdf(self, messages: LMRequestMessages, for_input:bool = False) -> int:
+        """Count tokens for a PDF file."""
+        tokens = 0
+        if for_input:
+            # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
+            doc = fitz.open(messages.user_file_path)
+            tokens += len(doc) * 258
+        else:
+            text, _ = get_pdf_text_and_image_sizes(messages.user_file_path)
+            tokens += self.google_tokenizer.count_tokens(text).total_tokens
+            # Note: we currently aren't counting any text tokens for describing images, since that defaults to False.
+            # TODO: figure out how to tell whether we're prompting the model to describe images
+        return tokens
