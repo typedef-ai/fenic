@@ -4,20 +4,20 @@
 
 This MCP server demonstrates Fenic's built-in MCP support, creating parameterized tools from DataFrame queries. The server exposes Fenic's API documentation through searchable, queryable tools that AI assistants can use to understand and work with the Fenic framework.
 
-**Why it matters:** when you’re developing in a codebase the model hasn’t “seen,” you either hand-craft prompts or burn tokens asking vague questions.
+**Why it matters:** when you're developing in a codebase the model hasn't "seen," you either hand-craft prompts or burn tokens asking vague questions.
 
-Here, the assistant gets a curated, queryable view of the repo and evolves a private memory as you work. Because fenic blends batch semantic processing with cheap non-semantic tools (regex, AST, indexes), you get better answers with fewer tokens and lower latency.
+Here, the assistant gets a curated, queryable view of the repo. Because fenic blends batch semantic processing with cheap non-semantic tools (regex, AST, indexes), you get better answers with fewer tokens and lower latency.
 
 ## Why this exists
 
-General models are great at Typescript and Python, not your private APIs. This server gives them a grounded, evolving knowledge base of fenic, so they answer with the right symbols, types, and patterns, instead of guessing. It turns “where do I start?” into “jump to fc.text.recursive_word_chunk and show usage.”
+General models are great at Typescript and Python, not your private APIs. This server gives them a grounded knowledge base of fenic, so they answer with the right symbols, types, and patterns, instead of guessing. It turns "where do I start?" into "jump to fc.text.recursive_word_chunk and show usage."
 
 ## How it works
 
 1. Ingest fenic docs + source
 2. Build a fenic knowledge store with fenic pipelines (batch semantic where needed, non-semantic everywhere else)
-3. Expose tools via MCP (search, get_api_tree, etc.)
-4. Your assistant queries, learns, and stores Q&A for next time.
+3. Expose tools via MCP (search_fenic_api, get_api_tree, etc.)
+4. Your assistant queries the documentation to provide accurate answers.
 
 ## Features
 
@@ -81,9 +81,8 @@ If you prefer to run the server locally:
 
 ```bash
   cd /path/to/fenic/examples/mcp/docs-server
-  uv venv
+  uv sync
   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-  uv pip install fenic[mcp,google]
   python populate_tables.py
 ```
 
@@ -113,9 +112,9 @@ If you prefer to run the server locally:
 
 ## Tools Provided
 
-### search(query, max_results=30)
+### search_fenic_api(query)
 
-Search the fenic codebase and stored learnings for relevant information. Supports regex patterns.
+Search Fenic API documentation using regex patterns. Returns matching API elements including functions, classes, methods, and their docstrings.
 
 ### get_project_overview()
 
@@ -125,9 +124,13 @@ Get a comprehensive overview of the fenic project with its API structure.
 
 Get the hierarchical tree structure of fenic's public API.
 
-### store_learning(question, answer, ...)
+### get_entity(qualified_name)
 
-Store Q&A pairs from interactions for future search retrieval.
+Get detailed information about a specific API entity by its fully qualified name.
+
+### search_by_type(element_type, pattern)
+
+Search for specific types of API elements (class, function, method, module) with optional pattern matching.
 
 ## Database Location
 
@@ -159,4 +162,4 @@ You can access this database directly with DuckDB tools for inspection and analy
 **Import errors:**
 
 - Ensure you've activated the virtual environment: `source .venv/bin/activate`
-- Run `uv pip install -e .` to install all dependencies
+- Run `uv sync` to install all dependencies
