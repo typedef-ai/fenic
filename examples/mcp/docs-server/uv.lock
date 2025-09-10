@@ -339,24 +339,6 @@ wheels = [
 ]
 
 [[package]]
-name = "docs-server"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "fenic", extra = ["google", "mcp"] },
-    { name = "griffe" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fenic", extras = ["mcp", "google"], specifier = ">=0.4.2" },
-    { name = "griffe", specifier = ">=0.42.0" },
-]
-
-[package.metadata.requires-dev]
-dev = []
-
-[[package]]
 name = "docstring-parser"
 version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -496,6 +478,24 @@ google = [
 mcp = [
     { name = "fastmcp" },
 ]
+
+[[package]]
+name = "fenic-docs-server"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fenic", extra = ["google", "mcp"] },
+    { name = "griffe" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fenic", extras = ["mcp", "google"], specifier = ">=0.4.2" },
+    { name = "griffe", specifier = ">=0.42.0" },
+]
+
+[package.metadata.requires-dev]
+dev = []
 
 [[package]]
 name = "google-auth"
