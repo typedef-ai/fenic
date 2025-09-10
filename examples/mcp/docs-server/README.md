@@ -6,7 +6,7 @@ This MCP server demonstrates Fenic's built-in MCP support, creating parameterize
 
 **Why it matters:** when you’re developing in a codebase the model hasn’t “seen,” you either hand-craft prompts or burn tokens asking vague questions.
 
-Here, the assistant gets a curated, queryable view of the repo and evolves a private memory as you work. Because fenic blends batch semantic processing with cheap non-semantic tools (regex, AST, indexes), you get better answers with fewer tokens and lower latency.
+Here, the assistant gets a curated, queryable view of the repo and evolves as you work. Because fenic blends batch semantic processing with cheap non-semantic tools (regex, AST, indexes), you get better answers with fewer tokens and lower latency.
 
 ## Why this exists
 
@@ -158,10 +158,11 @@ You can access this database directly with DuckDB tools for inspection and analy
 - Ensure you have `GEMINI_API_KEY` set as an environment variable
 - Check that the script completed successfully (should show "Successfully created all required tables")
 
-**API key errors:**
+**API key errors during populate_tables:**
 
 - Ensure `GEMINI_API_KEY` is set with a valid Google AI Studio API key
 - Get your API key from: https://aistudio.google.com/apikey
+
 
 **Permission errors:**
 
