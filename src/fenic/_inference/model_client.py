@@ -26,7 +26,10 @@ from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
 )
-from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
+from fenic._inference.token_counter import (
+    TokenCounter,
+    Tokenizable,
+)
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -99,7 +102,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             model_provider: ModelProvider,
             model_provider_class: ModelProviderClass,
             rate_limit_strategy: RateLimitStrategy,
-            token_counter: TiktokenTokenCounter,
+            token_counter: TokenCounter,
             queue_size: int = 100,
             initial_backoff_seconds: float = 1,
             backoff_factor: float = 2,

@@ -3,7 +3,6 @@ import logging
 from functools import cache
 from typing import Any, Optional, Union
 
-from google import genai
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
     FinishReason,
@@ -11,6 +10,7 @@ from google.genai.types import (
     GenerateContentResponse,
 )
 
+from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
 from fenic._inference.google.google_profile_manager import (
     GoogleCompletionsProfileManager,
 )
@@ -18,6 +18,7 @@ from fenic._inference.google.google_provider import (
     GoogleDeveloperModelProvider,
     GoogleVertexModelProvider,
 )
+from fenic._inference.google.google_utils import convert_messages
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -28,11 +29,10 @@ from fenic._inference.rate_limit_strategy import (
     UnifiedTokenRateLimitStrategy,
 )
 from fenic._inference.request_utils import generate_completion_request_key
-from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
+from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
-    LMRequestMessages,
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
@@ -80,7 +80,7 @@ class GeminiNativeChatCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
         """
-        token_counter = TiktokenTokenCounter(
+        token_counter = GeminiLocalTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
         )
         super().__init__(
@@ -117,42 +117,6 @@ class GeminiNativeChatCompletionsClient(
             Current language model metrics
         """
         return self._metrics
-
-    def _convert_messages(
-        self, messages: LMRequestMessages
-    ) -> list[genai.types.ContentUnion]:
-        """Convert Fenic LMRequestMessages → list of google-genai `Content` objects.
-
-        Converts Fenic message format to Google's Content format, including
-        few-shot examples and the final user prompt.
-
-        Args:
-            messages: Fenic message format
-
-        Returns:
-            List of Google Content objects
-        """
-        contents: list[genai.types.ContentUnion] = []
-        # few-shot examples
-        for example in messages.examples:
-            contents.append(
-                genai.types.Content(
-                    role="user", parts=[genai.types.Part(text=example.user)]
-                )
-            )
-            contents.append(
-                genai.types.Content(
-                    role="model", parts=[genai.types.Part(text=example.assistant)]
-                )
-            )
-
-        # final user prompt
-        contents.append(
-            genai.types.Content(
-                role="user", parts=[genai.types.Part(text=messages.user)]
-            )
-        )
-        return contents
 
     def count_tokens(self, messages: Tokenizable) -> int:  # type: ignore[override]
         """Count tokens in messages.
@@ -284,7 +248,7 @@ class GeminiNativeChatCompletionsClient(
             )
 
         # Build generation parameters
-        contents = self._convert_messages(request.messages)
+        contents = convert_messages(request.messages)
 
         try:
             response: GenerateContentResponse = (
