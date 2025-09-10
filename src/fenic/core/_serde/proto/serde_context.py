@@ -50,6 +50,9 @@ from fenic.core._serde.proto.types import (
     ToolDefinitionProto,
     ToolParameterProto,
 )
+from fenic.core._utils.structured_outputs import (
+    check_if_model_uses_unserializable_features,
+)
 from fenic.core.mcp.types import BoundToolParam, ParameterizedToolDefinition
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
@@ -610,8 +613,9 @@ class SerdeContext:
         """
         with self.path_context(field_name):
             try:
+                check_if_model_uses_unserializable_features(resolved_response_format.pydantic_model)
                 return ResolvedResponseFormatProto(
-                    schema=json.dumps(resolved_response_format.raw_schema),
+                    schema=json.dumps(resolved_response_format.json_schema),
                     struct_type=self.serialize_data_type(
                         "struct_type", resolved_response_format.struct_type
                     ) if resolved_response_format.struct_type is not None else None,
