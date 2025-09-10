@@ -56,6 +56,7 @@ def convert_text_messages(messages: LMRequestMessages) -> Tuple[List[ContentUnio
         List of Google Content objects with text content
     """
     contents: List[ContentUnion] = []
+
     # few-shot examples
     for example in messages.examples:
         contents.append(

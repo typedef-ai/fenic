@@ -7,6 +7,7 @@ from google.genai.types import (
 )
 
 from fenic._inference.google.google_utils import convert_text_messages
+from fenic._inference.request_utils import get_pdf_text_and_image_sizes
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -14,7 +15,6 @@ from fenic._inference.token_counter import (
 from fenic._inference.types import LMRequestMessages
 
 logger = logging.getLogger(__name__)
-
 
 class GeminiLocalTokenCounter(TokenCounter):
     """Token counter for Google Gemini models using native local tokenization.
@@ -41,7 +41,7 @@ class GeminiLocalTokenCounter(TokenCounter):
             self.google_tokenizer = LocalTokenizer(model_name=fallback_encoding)
 
     def count_tokens(self, messages: Tokenizable) -> int:
-        """Count tokens for a string, message list, or `LMRequestMessages`.
+        """Count tokens for a string or `LMRequestMessages`.
 
         Args:
             messages: Either a raw string, a list of role/content dicts, or an
@@ -55,6 +55,19 @@ class GeminiLocalTokenCounter(TokenCounter):
         elif isinstance(messages, LMRequestMessages):
             return self._count_request_tokens(messages)
 
+    def count_file_input_tokens(self, messages: LMRequestMessages) -> int:
+        # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
+        tokens = 0
+        doc = fitz.open(messages.user_file_path)
+        tokens += len(doc) * 258
+        return tokens
+
+    def count_file_output_tokens(self, messages: LMRequestMessages) -> int:
+        text, _ = get_pdf_text_and_image_sizes(messages.user_file_path)
+        # Note: we currently aren't counting any text tokens for describing images, since that defaults to False.
+        # TODO: figure out how to tell whether we're prompting the model to describe images
+        return self.google_tokenizer.count_tokens(text).total_tokens
+
     def _count_request_tokens(self, messages: LMRequestMessages) -> int:
         """Count tokens for an `LMRequestMessages` object."""
         contents = convert_text_messages(messages)
@@ -66,9 +79,7 @@ class GeminiLocalTokenCounter(TokenCounter):
             ).total_tokens
 
         if messages.user_file_path:
-            # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
-            doc = fitz.open(messages.user_file_path)
-            tokens += len(doc) * 258
+            tokens += self.count_file_input_tokens(messages)
         return tokens
 
 

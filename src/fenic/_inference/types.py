@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -17,6 +18,18 @@ class LMRequestMessages:
     examples: List[FewShotExample]
     user: Optional[str] = None
     user_file_path: Optional[str] = None
+
+    def encode(self) -> bytes:
+        # Convert examples to a serializable format
+        examples_data = [{"user": ex.user, "assistant": ex.assistant} for ex in self.examples]
+        data = {
+            "system": self.system,
+            "examples": examples_data,
+            "user": self.user,
+            "user_file_path": self.user_file_path
+        }
+        return json.dumps(data, sort_keys=True).encode('utf-8')
+
 
 @dataclass
 class ResponseUsage:

@@ -7,6 +7,7 @@ import pytest
 
 from fenic._backends.local.semantic_operators.parse_pdf import ParsePDF
 from fenic._inference.common_openai.openai_utils import convert_messages
+from fenic._inference.request_utils import pdf_to_base64
 from fenic.core.error import FileLoaderError
 
 
@@ -59,9 +60,9 @@ class TestParsePDF:
                     "content": [
                     {
                         "type": "file",
-                        "content": {
+                        "file": {
                             "filename": file_path_1,
-                            "file_data": file_path_1,
+                            "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path_1)}",
                         },
                     }
                 ]}
@@ -76,9 +77,9 @@ class TestParsePDF:
                     "content": [
                     {
                         "type": "file",
-                        "content": {
+                        "file": {
                             "filename": file_path_2,
-                            "file_data": file_path_2,
+                            "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path_2)}",
                         },
                     }
                 ]}
@@ -117,9 +118,9 @@ class TestParsePDF:
                     "content": [
                         {
                             "type": "file",
-                            "content": {
+                            "file": {
                                 "filename": file_path,
-                                "file_data": file_path,
+                                "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path)}",
                             },
                         }
                     ],
@@ -159,9 +160,9 @@ class TestParsePDF:
                     "content": [
                         {
                             "type": "file",
-                            "content": {
+                            "file": {
                                 "filename": file_path,
-                                "file_data": file_path,
+                                "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path)}",
                             },
                         }
                     ],
@@ -200,9 +201,9 @@ class TestParsePDF:
                     "content": [
                         {
                             "type": "file",
-                            "content": {
+                            "file": {
                                 "filename": file_path,
-                                "file_data": file_path,
+                                "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path)}",
                             },
                         }
                     ],
@@ -243,9 +244,9 @@ class TestParsePDF:
                     "content": [
                         {
                             "type": "file",
-                            "content": {
+                            "file": {
                                 "filename": file_path,
-                                "file_data": file_path,
+                                "file_data": f"data:application/pdf;base64,{pdf_to_base64(file_path)}",
                             },
                         }
                     ],

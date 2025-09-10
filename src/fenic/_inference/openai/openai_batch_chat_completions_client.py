@@ -108,7 +108,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """
         return TokenEstimate(
             input_tokens=self.token_counter.count_tokens(request.messages),
-            output_tokens=self._get_max_output_tokens(request)
+            output_tokens=self._estimate_output_tokens(request)
         )
 
     def reset_metrics(self):
@@ -123,10 +123,25 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """
         return self._core.get_metrics()
 
-    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
-        """Conservative estimate: max_completion_tokens + reasoning effort-based thinking tokens."""
-        base_tokens = request.max_completion_tokens
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of output tokens for a request.
+
+        Args:
+            request: The completion request
+
+        Returns:
+            Estimated number of output tokens
+        """
+        base_tokens = request.max_completion_tokens or 0
+        if request.messages.user_file_path:
+            base_tokens += self.token_counter.count_file_output_tokens(messages=request.messages)
 
         # Get profile-specific reasoning effort
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
         return base_tokens + profile_config.expected_additional_reasoning_tokens
+
+    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Conservative estimate: max_completion_tokens + reasoning effort-based thinking tokens."""
+        if request.max_completion_tokens is None:
+            return None
+        return self._estimate_output_tokens(request)

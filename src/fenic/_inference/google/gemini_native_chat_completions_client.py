@@ -143,6 +143,26 @@ class GeminiNativeChatCompletionsClient(
         """
         return self._estimate_response_schema_tokens(response_format)
 
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of output tokens for a request.
+
+        Args:
+            request: The completion request
+
+        Returns:
+            Estimated number of output tokens
+        """
+        max_output_tokens = request.max_completion_tokens or 0
+        if request.messages.user_file_path:
+            max_output_tokens += self.token_counter.count_file_output_tokens(messages=request.messages)
+
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return max_output_tokens + int(
+            1.5 * profile_config.thinking_token_budget
+        )
+
     def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> Optional[int]:
         """Get maximum output tokens including thinking budget.
 
@@ -159,12 +179,8 @@ class GeminiNativeChatCompletionsClient(
         """
         if request.max_completion_tokens is None:
             return None
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
-        )
-        return request.max_completion_tokens + int(
-            1.5 * profile_config.thinking_token_budget
-        )
+        return self._estimate_output_tokens(request)
+
 
     @cache  # noqa: B019 – builtin cache OK here.
     def _estimate_response_schema_tokens(self, response_format: ResolvedResponseFormat) -> int:
@@ -207,7 +223,8 @@ class GeminiNativeChatCompletionsClient(
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
-        output_tokens = self._get_max_output_tokens(request) or self._model_parameters.max_output_tokens
+        # Estimate output tokens
+        output_tokens = self._estimate_output_tokens(request)
 
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
@@ -228,7 +245,6 @@ class GeminiNativeChatCompletionsClient(
         """
 
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
-        max_output_tokens = self._get_max_output_tokens(request)
 
         generation_config: GenerateContentConfigDict = {
             "temperature": request.temperature,
@@ -236,8 +252,8 @@ class GeminiNativeChatCompletionsClient(
             "logprobs": request.top_logprobs,
             "system_instruction": request.messages.system,
         }
-        if max_output_tokens is not None:
-            generation_config["max_output_tokens"] = max_output_tokens
+        if request.max_completion_tokens is not None:
+            generation_config["max_output_tokens"] = self._get_max_output_tokens(request)
         generation_config.update(profile_config.additional_generation_config)
         if request.structured_output is not None:
             generation_config.update(
@@ -249,7 +265,6 @@ class GeminiNativeChatCompletionsClient(
         try:
             # Build generation parameters and upload any files to Google's file store
             contents, file_obj = await convert_messages_and_upload_files(self._client, request.messages)
-
             response: GenerateContentResponse = (
                 await self._client.models.generate_content(
                     model=self.model,

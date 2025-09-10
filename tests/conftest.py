@@ -297,7 +297,7 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     )
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
-        if model_parameters.supports_reasoning and model_parameters.supports_verbosity:
+        if model_parameters.supports_minimal_reasoning and model_parameters.supports_verbosity:
             language_model = OpenAILanguageModel(
                 model_name=model_name,
                 rpm=500,

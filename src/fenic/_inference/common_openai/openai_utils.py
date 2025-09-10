@@ -1,9 +1,13 @@
 from typing import Dict, List
 
+from fenic._inference.request_utils import pdf_to_base64
 from fenic._inference.types import LMRequestMessages
 
 
 def convert_messages(lm_request_messages: LMRequestMessages) -> List[Dict[str, str]]:
+    """Convert Fenic messages to OpenAI format.
+
+    Any files are converted to base64 encoded strings."""
     messages = [{"role": "system", "content": lm_request_messages.system}]
 
     for example in lm_request_messages.examples:
@@ -19,9 +23,9 @@ def convert_messages(lm_request_messages: LMRequestMessages) -> List[Dict[str, s
         user_message = {"role": "user", "content": [
             {
                 "type": "file",
-                "content": {
+                "file": {
                     "filename": lm_request_messages.user_file_path,
-                    "file_data": lm_request_messages.user_file_path
+                    "file_data": f"data:application/pdf;base64,{pdf_to_base64(lm_request_messages.user_file_path)}",
                 }
             }
         ]}

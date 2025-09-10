@@ -22,7 +22,9 @@ from fenic._inference.model_client import (
     FatalException,
     TransientException,
 )
-from fenic._inference.request_utils import generate_completion_request_key
+from fenic._inference.request_utils import (
+    generate_completion_request_key,
+)
 from fenic._inference.token_counter import TokenCounter
 from fenic._inference.types import (
     FenicCompletionsRequest,
@@ -36,7 +38,6 @@ from fenic.core._inference.model_catalog import (
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
-
 
 class OpenAIChatCompletionsCore:
     """Core functionality for OpenAI chat completions clients."""
@@ -90,11 +91,12 @@ class OpenAIChatCompletionsCore:
             common_params: dict[str, Any] = {
                 "model": self._model,
                 "messages": convert_messages(request.messages),
-                "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
             if request.temperature:
                 common_params.update({"temperature": request.temperature})
+            if request.max_completion_tokens:
+                common_params["max_completion_tokens"] = request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens
 
             # Determine if we need logprobs
             if request.top_logprobs:
