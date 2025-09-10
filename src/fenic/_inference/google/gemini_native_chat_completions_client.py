@@ -1,7 +1,6 @@
-import copy
 import logging
 from functools import cache
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (

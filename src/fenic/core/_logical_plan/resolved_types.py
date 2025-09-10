@@ -9,10 +9,6 @@ from typing import Any, Dict, Optional, Union
 from json_schema_to_pydantic import create_model as create_pydantic_model
 from pydantic import BaseModel, ValidationError
 
-from fenic.core._utils.json_schema_utils import (
-    to_strict_json_schema,
-    unwrap_optional_union,
-)
 from fenic.core._utils.schema import convert_pydantic_type_to_custom_struct_type
 from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
