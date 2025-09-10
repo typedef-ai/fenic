@@ -4,6 +4,7 @@ This module defines internal configuration classes that represent the fully reso
 state of a session after processing user-provided configuration. These classes are
 used internally after the user creates a SessionConfig in the API layer.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ Verbosity = Literal["low", "medium", "high"]
 
 # --- Enums ---
 
+
 class CloudExecutorSize(str, Enum):
     SMALL = "INSTANCE_SIZE_S"
     MEDIUM = "INSTANCE_SIZE_M"
@@ -32,9 +34,11 @@ class CloudExecutorSize(str, Enum):
 
 # --- Model Configs ---
 
+
 @dataclass
 class ResolvedAnthropicModelProfile:
     thinking_token_budget: Optional[int] = None
+
 
 @dataclass
 class ResolvedGoogleModelProfile:
@@ -43,19 +47,21 @@ class ResolvedGoogleModelProfile:
     embedding_task_type: Optional[str] = None
 
 
-
 @dataclass
 class ResolvedOpenAIModelProfile:
     reasoning_effort: Optional[ReasoningEffort] = None
     verbosity: Optional[Verbosity] = None
+
 
 @dataclass
 class ResolvedCohereModelProfile:
     embedding_dimensionality: Optional[int] = None
     embedding_task_type: Optional[str] = None
 
+
 @dataclass
 class ResolvedOpenRouterProviderRouting:
+    order: Optional[list[str]] = None
     sort: Optional[ProviderSort] = None
     quantizations: Optional[list[ModelQuantization]] = None
     data_collection: Optional[DataCollection] = None
@@ -64,12 +70,14 @@ class ResolvedOpenRouterProviderRouting:
     max_prompt_price: Optional[float] = None
     max_completion_price: Optional[float] = None
 
+
 @dataclass
 class ResolvedOpenRouterModelProfile:
     reasoning_effort: Optional[Literal["high", "medium", "low"]] = None
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
     provider: Optional[ResolvedOpenRouterProviderRouting] = None
+
 
 @dataclass
 class ResolvedOpenAIModelConfig:
@@ -91,6 +99,7 @@ class ResolvedAnthropicModelConfig:
     profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
     default_profile: Optional[str] = None
 
+
 @dataclass
 class ResolvedGoogleModelConfig:
     model_name: str
@@ -99,6 +108,7 @@ class ResolvedGoogleModelConfig:
     tpm: int
     profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None
     default_profile: Optional[str] = None
+
 
 @dataclass
 class ResolvedCohereModelConfig:
@@ -109,12 +119,14 @@ class ResolvedCohereModelConfig:
     profiles: Optional[dict[str, ResolvedCohereModelProfile]] = None
     default_profile: Optional[str] = None
 
+
 @dataclass
 class ResolvedOpenRouterModelConfig:
     model_name: str
     profiles: Optional[dict[str, ResolvedOpenRouterModelProfile]] = None
     model_provider: ModelProvider = ModelProvider.OPENROUTER
     default_profile: Optional[str] = None
+
 
 ResolvedModelConfig = Union[
     ResolvedOpenAIModelConfig,
@@ -127,20 +139,24 @@ ResolvedModelConfig = Union[
 
 # --- Semantic / Cloud / Session Configs ---
 
+
 @dataclass
 class ResolvedSemanticConfig:
     language_models: Optional[ResolvedLanguageModelConfig] = None
     embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
+
 
 @dataclass
 class ResolvedLanguageModelConfig:
     model_configs: dict[str, ResolvedModelConfig]
     default_model: str
 
+
 @dataclass
 class ResolvedEmbeddingModelConfig:
     model_configs: dict[str, ResolvedModelConfig]
     default_model: str
+
 
 @dataclass
 class ResolvedCloudConfig:

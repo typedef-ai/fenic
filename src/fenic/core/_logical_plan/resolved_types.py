@@ -26,15 +26,14 @@ class ResolvedModelAlias:
         name: The name of the model.
         profile: The optional name of a profile configuration to use for the model.
     """
+
     name: str
     profile: Optional[str] = None
-
 
 @dataclass
 class ResolvedClassDefinition:
     label: str
     description: Optional[str] = None
-
 
 @dataclass
 class ResolvedResponseFormat:
@@ -84,6 +83,7 @@ class ResolvedResponseFormat:
         raw_schema = model.model_json_schema()
         prompt_schema_definition = convert_pydantic_model_to_key_descriptions(model)
         struct_type = convert_pydantic_type_to_custom_struct_type(model) if generate_struct_type else None
+
         return cls(
             pydantic_model=model,
             json_schema=raw_schema,

@@ -5,6 +5,8 @@ from typing import Callable, Dict, Literal, Optional, TypeAlias, Union
 
 from fenic.core.error import InternalError
 
+logger = logging.getLogger(__name__)
+
 
 class ModelProvider(Enum):
     """Enum representing different model providers supported by the system."""
@@ -15,6 +17,7 @@ class ModelProvider(Enum):
     GOOGLE_VERTEX = "google-vertex"
     COHERE = "cohere"
     OPENROUTER = "openrouter"
+
 
 class TieredTokenCost:
     def __init__(
@@ -58,12 +61,12 @@ class CompletionModelParameters:
         cached_input_token_write_cost: float = 0.0,
         cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
-        supports_profiles = True,
-        supports_reasoning = False,
-        supports_minimal_reasoning = False,
+        supports_profiles=True,
+        supports_reasoning=False,
+        supports_minimal_reasoning=False,
         supports_disabled_reasoning = True,
-        supports_custom_temperature = True,
-        supports_verbosity = False,
+        supports_custom_temperature=True,
+        supports_verbosity=False,
         supported_parameters: Optional[set[str]] = None,
     ):
         self.input_token_cost = input_token_cost
@@ -119,7 +122,6 @@ class EmbeddingModelParameters:
                 raise InternalError(f"Cannot create EmbeddingModelParameters with default output dimensions: {default_dimensionality}."
                                     f" Allowed output dimensions: {allowed_output_dimensions}")
             self.default_dimensions = default_dimensionality
-
 
     def get_possible_dimensions(self) -> list[int]:
         """Get the possible dimensions for the model."""
@@ -227,6 +229,7 @@ GoogleDeveloperLanguageModelName = Literal[
 ]
 GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
+
 class ProviderModelCollection:
     """A collection of models for a specific provider.
 
@@ -286,15 +289,18 @@ class ModelCatalog:
     """
 
     def __init__(self):
-        self.provider_model_collections: dict[ModelProvider, ProviderModelCollection] = {}
+        self.provider_model_collections: dict[
+            ModelProvider, ProviderModelCollection
+        ] = {}
         # Ensure all providers have an initialized collection, even if empty (e.g., OpenRouter)
         for provider in ModelProvider:
-            self.provider_model_collections[provider] = ProviderModelCollection(provider)
+            self.provider_model_collections[provider] = ProviderModelCollection(
+                provider
+            )
         # Dynamic provider loaders
         self._dynamic_loaders: dict[ModelProvider, Callable[[], None]] = {}
         self._dynamic_loaded: set[ModelProvider] = set()
         self._loader_mutex = threading.Lock()
-        self._logger = logging.getLogger(__name__)
         self._initialize_models()
 
     def _initialize_models(self):
@@ -462,9 +468,9 @@ class ModelCatalog:
             ModelProvider.OPENAI,
             "gpt-4o-mini",
             CompletionModelParameters(
-                input_token_cost=0.300 / 1_000_000,  # $0.300 per 1M tokens
-                cached_input_token_read_cost=0.150 / 1_000_000,  # $0.150 per 1M tokens
-                output_token_cost=1.200 / 1_000_000,  # $1.200 per 1M tokens
+                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.150 per 1M tokens
+                output_token_cost=0.60 / 1_000_000,  # $1.200 per 1M tokens
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
@@ -477,9 +483,9 @@ class ModelCatalog:
             ModelProvider.OPENAI,
             "gpt-4o",
             CompletionModelParameters(
-                input_token_cost=3.750 / 1_000_000,  # $3.750 per 1M tokens
-                cached_input_token_read_cost=1.875 / 1_000_000,  # $1.875 per 1M tokens
-                output_token_cost=15.00 / 1_000_000,  # $15.00 per 1M tokens
+                input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
+                cached_input_token_read_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
@@ -597,7 +603,8 @@ class ModelCatalog:
             "gpt-5",
             CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
-                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens (90% discount)
+                cached_input_token_read_cost=0.125
+                / 1_000_000,  # $0.125 per 1M tokens (90% discount)
                 output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
                 context_window_length=400_000,
                 max_output_tokens=128_000,
@@ -957,27 +964,7 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        models = self._get_supported_completions_models_by_provider(model_provider)
-        params = models.get(model_name)
-        if params is not None:
-            return params
-        # Lazy load for dynamic providers
-        loader = self._dynamic_loaders.get(model_provider)
-        if loader and model_provider not in self._dynamic_loaded:
-            with self._loader_mutex:
-                if model_provider not in self._dynamic_loaded:
-                    try:
-                        self._logger.info(f"Dynamically loading models for provider: {model_provider.value}")
-                        loader()
-                        self._dynamic_loaded.add(model_provider)
-                    except Exception as exc:
-                        self._logger.error(
-                            f"Failed dynamic load for provider {model_provider.value}: {exc}",
-                            exc_info=True,
-                        )
-            models = self._get_supported_completions_models_by_provider(model_provider)
-            return models.get(model_name)
-        return None
+        return self._get_supported_completions_models_by_provider(model_provider).get(model_name)
 
     def get_embedding_model_parameters(self, model_provider: ModelProvider, model_name: str) -> EmbeddingModelParameters | None:
         """Gets the parameters for a specific embedding model.
@@ -1002,7 +989,8 @@ class ModelCatalog:
         Returns:
             Error message string
         """
-        return f"Model '{model_name}' is not supported for {model_provider.value}. Supported Models: {self._get_supported_completions_models_by_provider_as_string(model_provider)}"
+        return (f"Model '{model_name}' is not supported for {model_provider.value}. "
+                f"Supported Models: {self._get_supported_completions_models_by_provider_as_string(model_provider)}")
 
     def generate_unsupported_embedding_model_error_message(self, model_provider: ModelProvider, model_name: str) -> str:
         """Generates an error message for unsupported embedding models.
@@ -1081,10 +1069,11 @@ class ModelCatalog:
                     output_token_cost = tier_costs.output_token_cost
                     break
         return (
-                uncached_input_tokens * input_token_cost
-                + cached_input_tokens_read * cached_input_tokens_read_cost
-                + cached_input_tokens_written * model_parameters.cached_input_token_write_cost
-                + output_tokens * output_token_cost
+            uncached_input_tokens * input_token_cost
+            + cached_input_tokens_read * cached_input_tokens_read_cost
+            + cached_input_tokens_written
+            * model_parameters.cached_input_token_write_cost
+            + output_tokens * output_token_cost
         )
 
     def calculate_embedding_model_cost(
@@ -1147,10 +1136,14 @@ class ModelCatalog:
         try:
             self._add_model_to_catalog(model_provider, name, parameters, snapshots)
         except InternalError:
-            # Ignore duplicates from providers
-            pass
+            logger.warning(
+                f"Failed to add model to catalog: {name} for provider {model_provider.value}",
+                exc_info=True,
+            )
 
-    def register_dynamic_provider(self, model_provider: ModelProvider, loader: Callable[[], None]) -> None:
+    def register_dynamic_provider(
+        self, model_provider: ModelProvider, loader: Callable[[], None]
+    ) -> None:
         """Register a one-time loader that populates models on first request.
 
         The loader should synchronously call add_model() for each model to register.
@@ -1168,7 +1161,25 @@ class ModelCatalog:
         Returns:
             Collection of completion models for the specified provider, including snapshots
         """
-        return self.provider_model_collections[model_provider].completion_models
+        completion_models = self.provider_model_collections[model_provider].completion_models
+        if not completion_models:
+            # Lazy load for dynamic providers
+            loader = self._dynamic_loaders.get(model_provider)
+            if loader and model_provider not in self._dynamic_loaded:
+                with self._loader_mutex:
+                    if model_provider not in self._dynamic_loaded:
+                        try:
+                            logger.debug(
+                                f"Dynamically loading models for provider: {model_provider.value}"
+                            )
+                            loader()
+                            self._dynamic_loaded.add(model_provider)
+                        except Exception as exc:
+                            logger.error(
+                                f"Failed dynamic load for provider {model_provider.value}: {exc}",
+                                exc_info=True,
+                            )
+        return completion_models
 
     def _get_supported_embeddings_models_by_provider(
         self, model_provider: ModelProvider

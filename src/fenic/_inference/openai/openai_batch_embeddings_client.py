@@ -57,7 +57,6 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             model_provider=self.model_provider,
             token_counter=TiktokenTokenCounter(model_name=model),
             client=self.model_provider_class.create_aio_client()
-
         )
 
     async def make_single_request(
