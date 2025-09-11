@@ -204,8 +204,12 @@ class Column:
 
         - Numeric types (IntegerType, FloatType, DoubleType) can be cast between each other
         - Numeric types can be cast to/from StringType
+        - DateType and TimestampType can be cast between each other
+        - DateType and TimestampType can be cast to/from numeric types and StringType
         - BooleanType can be cast to/from numeric types and StringType
         - StringType cannot be directly cast to BooleanType (will raise TypeError)
+        - BooleanType cannot be cast to DateType or TimestampType (will raise TypeError)
+        - DateType and TimestampType cannot be cast to BooleanType (will raise TypeError)
 
         Complex type casting:
 

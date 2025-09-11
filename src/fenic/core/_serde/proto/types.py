@@ -77,6 +77,9 @@ from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
     DataType as DataTypeProto,
 )
 from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
+    DateType as DateTypeProto,
+)
+from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
     DocumentPathType as DocumentPathTypeProto,
 )
 from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
@@ -108,6 +111,9 @@ from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
     StructType as StructTypeProto,
+)
+from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
+    TimestampType as TimestampTypeProto,
 )
 from fenic._gen.protos.logical_plan.v1.datatypes_pb2 import (
     TranscriptType as TranscriptTypeProto,
@@ -182,6 +188,21 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     CountTokensExpr as CountTokensExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    DateAddExpr as DateAddExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    DateDiffExpr as DateDiffExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    DateFormatExpr as DateFormatExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    DateTruncExpr as DateTruncExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    DayExpr as DayExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Embedding expressions
     EmbeddingNormalizeExpr as EmbeddingNormalizeExprProto,
 )
@@ -211,6 +232,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     GreatestExpr as GreatestExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    HourExpr as HourExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ILikeExpr as ILikeExprProto,
@@ -271,10 +295,22 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     MdToJsonExpr as MdToJsonExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    MilliSecondExpr as MilliSecondExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     MinExpr as MinExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    MinuteExpr as MinuteExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    MonthExpr as MonthExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     NotExpr as NotExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    NowExpr as NowExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     NumericComparisonExpr as NumericComparisonExprProto,
@@ -293,6 +329,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     RLikeExpr as RLikeExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    SecondExpr as SecondExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticClassifyExpr as SemanticClassifyExprProto,
@@ -353,6 +392,18 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     TextractExpr as TextractExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    TimestampAddExpr as TimestampAddExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    TimestampDiffExpr as TimestampDiffExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ToDateExpr as ToDateExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ToTimestampExpr as ToTimestampExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     TsParseExpr as TsParseExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -361,6 +412,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Case expressions
     WhenExpr as WhenExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    YearExpr as YearExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     SQL as SQLProto,
@@ -464,6 +518,8 @@ __all__ = [
     "MarkdownTypeProto",
     "HTMLTypeProto",
     "JSONTypeProto",
+    "DateTypeProto",
+    "TimestampTypeProto",
     # Enum classes
     "OperatorProto",
     "ChunkLengthFunctionProto",
@@ -604,5 +660,22 @@ __all__ = [
     "TableSinkProto",
     # Tools
     "ToolParameterProto",
-    "ToolDefinitionProto"
+    "ToolDefinitionProto",
+    # Date time related classes
+    "YearExprProto",
+    "MonthExprProto",
+    "DayExprProto",
+    "HourExprProto",
+    "MinuteExprProto",
+    "SecondExprProto",
+    "MilliSecondExprProto",
+    "DateAddExprProto",
+    "TimestampAddExprProto",
+    "DateTruncExprProto",
+    "NowExprProto",
+    "ToDateExprProto",
+    "ToTimestampExprProto",
+    "DateFormatExprProto",
+    "DateDiffExprProto",
+    "TimestampDiffExprProto",
 ]

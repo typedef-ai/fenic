@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import polars as pl
@@ -7,6 +8,7 @@ from fenic import (
     ArrayType,
     BooleanType,
     ColumnField,
+    DateType,
     EmbeddingType,
     FloatType,
     IntegerType,
@@ -14,6 +16,7 @@ from fenic import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     col,
 )
 from fenic.core.error import PlanError
@@ -25,6 +28,11 @@ def test_cast_primitive(local_session):
         "string_col": ["2"],
         "boolean_col": [True],
         "float_col": [3.0],
+        "str_date_col": ["2025-01-01"],
+        "str_timestamp_col": ["2025-01-01T10:20:00.000"],
+        "int_date_col": [20000],
+        "dt_col": [datetime.date(2025, 1, 1)],
+        "ts_col": [datetime.datetime(2025, 1, 1, 10, 20, 0)],
     }
     df = local_session.create_dataframe(data)
     result = df.select(
@@ -39,6 +47,14 @@ def test_cast_primitive(local_session):
         col("boolean_col").cast(StringType).alias("cast_col10"),
         col("boolean_col").cast(FloatType).alias("cast_col11"),
         col("boolean_col").cast(IntegerType).alias("cast_col12"),
+        col("str_date_col").cast(DateType).alias("cast_col13"),
+        col("str_timestamp_col").cast(TimestampType).alias("cast_col14"),
+        col("int_date_col").cast(DateType).alias("cast_col15"),
+        col("dt_col").cast(StringType).alias("cast_col16"),
+        col("ts_col").cast(StringType).alias("cast_col17"),
+        col("ts_col").cast(IntegerType).alias("cast_col18"),
+        col("dt_col").cast(TimestampType).alias("cast_col19"),
+        col("ts_col").cast(DateType).alias("cast_col20"),
     ).to_polars()
 
     assert result["cast_col"][0] == "8"
@@ -52,10 +68,26 @@ def test_cast_primitive(local_session):
     assert result["cast_col10"][0] == "true"
     assert result["cast_col11"][0] == 1.0
     assert result["cast_col12"][0] == 1
+    assert result["cast_col13"][0] == datetime.date(2025, 1, 1)
+    assert result["cast_col14"][0] == datetime.datetime(2025, 1, 1, 10, 20, 0)
+    assert result["cast_col15"][0] == datetime.date(2024, 10, 4)
+    assert result["cast_col16"][0] == "2025-01-01"
+    assert result["cast_col17"][0] == "2025-01-01 10:20:00.000000"
+    assert result["cast_col18"][0] == 1735726800000000
+    assert result["cast_col19"][0] == datetime.datetime(2025, 1, 1, 0, 0, 0)
+    assert result["cast_col20"][0] == datetime.date(2025, 1, 1)
 
     # test that cast to boolean from string fails
     with pytest.raises(PlanError):
         df.select(col("string_col").cast(BooleanType))
+
+    # test that cast to boolean from date fails
+    with pytest.raises(PlanError):
+        df.select(col("dt_col").cast(BooleanType))
+
+    # test that cast to boolean from timestamp fails
+    with pytest.raises(PlanError):
+        df.select(col("ts_col").cast(BooleanType))
 
 
 def test_cast_array_basic(local_session):
@@ -452,6 +484,7 @@ def test_cast_invalid_types(local_session):
         "my_array_col": [[1, 2, 3], [4, 5, 6]],
         "my_struct_col": [{"a": 1, "b": 2}, {"a": 3, "b": 4}],
         "my_string_col": ["1", "2"],
+        "my_boolean_col": [True, False],
     }
     df = local_session.create_dataframe(data)
     with pytest.raises(PlanError):
@@ -482,4 +515,16 @@ def test_cast_invalid_types(local_session):
         df.with_column(
             "cast_col",
             col("my_array_col").cast(StructType([StructField("a", StringType)])),
+        )
+
+    with pytest.raises(PlanError):
+        df.with_column(
+            "cast_col",
+            col("my_boolean_col").cast(DateType),
+        )
+
+    with pytest.raises(PlanError):
+        df.with_column(
+            "cast_col",
+            col("my_boolean_col").cast(TimestampType),
         )

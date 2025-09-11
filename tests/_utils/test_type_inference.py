@@ -1,3 +1,4 @@
+import datetime
 import re
 
 import pytest
@@ -9,6 +10,7 @@ from fenic.core._utils.type_inference import (
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
+    DateType,
     FloatType,
     IntegerType,
     StringType,
@@ -21,6 +23,7 @@ def test_infer_primitives():
     assert infer_dtype_from_pyobj(42) == IntegerType
     assert infer_dtype_from_pyobj(3.14) == FloatType
     assert infer_dtype_from_pyobj("hello") == StringType
+    assert infer_dtype_from_pyobj(datetime.date(2025, 1, 1)) == DateType
 
 
 def test_infer_none_raises():
@@ -51,13 +54,14 @@ def test_infer_list_with_incompatible_types_raises():
 
 
 def test_infer_dict_simple():
-    dt = infer_dtype_from_pyobj({"a": 1, "b": True})
+    dt = infer_dtype_from_pyobj({"a": 1, "b": True, "c": datetime.date(2025, 1, 1)})
     assert isinstance(dt, StructType)
-    assert len(dt.struct_fields) == 2
+    assert len(dt.struct_fields) == 3
     # assert fields and their types
     field_map = {f.name: f.data_type for f in dt.struct_fields}
     assert field_map["a"] == IntegerType
     assert field_map["b"] == BooleanType
+    assert field_map["c"] == DateType
 
 
 def test_infer_dict_nested():

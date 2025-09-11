@@ -52,6 +52,54 @@ from fenic.core._logical_plan.expressions.comparison import (
 from fenic.core._logical_plan.expressions.comparison import (
     NumericComparisonExpr as NumericComparisonExpr,
 )
+from fenic.core._logical_plan.expressions.dt import (
+    DateAddExpr as DateAddExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    DateDiffExpr as DateDiffExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    DateFormatExpr as DateFormatExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    DateTruncExpr as DateTruncExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    DayExpr as DayExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    HourExpr as HourExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    MilliSecondExpr as MilliSecondExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    MinuteExpr as MinuteExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    MonthExpr as MonthExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    NowExpr as NowExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    SecondExpr as SecondExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    TimestampAddExpr as TimestampAddExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    TimestampDiffExpr as TimestampDiffExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    ToDateExpr as ToDateExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    ToTimestampExpr as ToTimestampExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    YearExpr as YearExpr,
+)
 from fenic.core._logical_plan.expressions.embedding import (
     EmbeddingNormalizeExpr as EmbeddingNormalizeExpr,
 )

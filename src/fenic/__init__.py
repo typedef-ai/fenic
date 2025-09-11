@@ -41,6 +41,7 @@ from fenic.api import (
     desc,
     desc_nulls_first,
     desc_nulls_last,
+    dt,
     embedding,
     empty,
     first,
@@ -78,6 +79,7 @@ from fenic.core import (
     DataLikeType,
     DatasetMetadata,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -109,6 +111,7 @@ from fenic.core import (
     StructType,
     StructuredOutputStrategy,
     SystemTool,
+    TimestampType,
     ToolParam,
     TranscriptType,
     UserDefinedTool,
@@ -244,4 +247,9 @@ __all__ = [
     "run_mcp_server_asgi",
     "run_mcp_server_async",
     "run_mcp_server_sync",
+    # Date types
+    "DateType",
+    "TimestampType",
+    # Date and time functions
+    "dt",
 ]

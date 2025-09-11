@@ -1,6 +1,6 @@
 """Functions for working with DataFrame columns."""
 
-from fenic.api.functions import embedding, json, markdown, semantic, text
+from fenic.api.functions import dt, embedding, json, markdown, semantic, text
 from fenic.api.functions.builtin import (
     array,
     array_agg,
@@ -74,4 +74,5 @@ __all__ = [
     "empty",
     "null",
     "tool_param",
+    "dt",
 ]

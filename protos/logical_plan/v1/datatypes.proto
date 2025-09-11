@@ -17,6 +17,8 @@ message DataType {
     MarkdownType markdown = 11;
     HTMLType html = 12;
     JSONType json = 13;
+    DateType date = 14;
+    TimestampType timestamp = 15;
   }
 }
 message StringType {}
@@ -24,6 +26,8 @@ message IntegerType {}
 message FloatType {}
 message DoubleType {}
 message BooleanType {}
+message DateType {}
+message TimestampType {}
 
 message ArrayType {
   DataType element_type = 1;

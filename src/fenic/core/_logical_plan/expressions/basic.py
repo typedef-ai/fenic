@@ -19,6 +19,7 @@ from fenic.core.types import (
     BooleanType,
     ColumnField,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -29,6 +30,7 @@ from fenic.core.types import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
 )
 from fenic.core.types.datatypes import (
@@ -545,6 +547,13 @@ def _can_cast(src: DataType, dst: DataType) -> bool:
     if isinstance(src, _PrimitiveType) and isinstance(dst, _PrimitiveType):
         # Disallow string → bool
         if src == StringType and dst == BooleanType:
+            return False
+        if src == BooleanType and (dst == DateType or dst == TimestampType):
+            # Disallow bool → date or timestamp
+            # The results are confusing and not useful.
+            # e.g. True -> 1970-01-02 (Jan 2, 1970)
+            return False
+        if (src == DateType or src == TimestampType) and (dst == BooleanType):
             return False
         return True
 

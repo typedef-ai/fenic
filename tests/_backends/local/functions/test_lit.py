@@ -1,15 +1,19 @@
+import datetime
+
 import pytest
 
 from fenic import (
     ArrayType,
     BooleanType,
     ColumnField,
+    DateType,
     FloatType,
     IntegerType,
     Schema,
     StringType,
     StructField,
     StructType,
+    TimestampType,
     col,
     lit,
 )
@@ -26,6 +30,8 @@ def test_lit_primitive(local_session):
         lit(True).alias("c"),
         lit(1.0).alias("d"),
         lit("foo").alias("e"),
+        lit(datetime.date(2025, 1, 1)).alias("f"),
+        lit(datetime.datetime(2025, 1, 1, 1, 1, 1)).alias("g"),
     )
     expected_schema = Schema(
         [
@@ -34,6 +40,8 @@ def test_lit_primitive(local_session):
             ColumnField(name="c", data_type=BooleanType),
             ColumnField(name="d", data_type=FloatType),
             ColumnField(name="e", data_type=StringType),
+            ColumnField(name="f", data_type=DateType),
+            ColumnField(name="g", data_type=TimestampType),
         ]
     )
     assert df.schema == expected_schema
@@ -43,6 +51,8 @@ def test_lit_primitive(local_session):
     assert result["c"][0]
     assert result["d"][0] == 1.0
     assert result["e"][0] == "foo"
+    assert result["f"][0] == datetime.date(2025, 1, 1)
+    assert result["g"][0] == datetime.datetime(2025, 1, 1, 1, 1, 1)
 
 
 def test_lit_array(local_session):

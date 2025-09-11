@@ -1,6 +1,7 @@
 """Tests for logical expression serialization and deserialization."""
 
 import asyncio
+import datetime
 from typing import List, Literal, Optional, Type
 
 import pytest
@@ -32,6 +33,11 @@ from fenic.core._logical_plan.expressions import (
     ContainsExpr,
     CountExpr,
     CountTokensExpr,
+    DateAddExpr,
+    DateDiffExpr,
+    DateFormatExpr,
+    DateTruncExpr,
+    DayExpr,
     # Embedding expressions
     EmbeddingNormalizeExpr,
     EmbeddingsExpr,
@@ -42,6 +48,7 @@ from fenic.core._logical_plan.expressions import (
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
+    HourExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -60,8 +67,12 @@ from fenic.core._logical_plan.expressions import (
     MdGenerateTocExpr,
     MdGetCodeBlocksExpr,
     MdToJsonExpr,
+    MilliSecondExpr,
     MinExpr,
+    MinuteExpr,
+    MonthExpr,
     NotExpr,
+    NowExpr,
     NumericComparisonExpr,
     # Case expressions
     OtherwiseExpr,
@@ -70,6 +81,7 @@ from fenic.core._logical_plan.expressions import (
     ReplaceExpr,
     ResolvedClassDefinition,
     RLikeExpr,
+    SecondExpr,
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
@@ -88,10 +100,15 @@ from fenic.core._logical_plan.expressions import (
     SumExpr,
     TextChunkExpr,
     TextractExpr,
+    TimestampAddExpr,
+    TimestampDiffExpr,
+    ToDateExpr,
+    ToTimestampExpr,
     TsParseExpr,
     UDFExpr,
     UnresolvedLiteralExpr,
     WhenExpr,
+    YearExpr,
 )
 from fenic.core._logical_plan.expressions.base import (
     LogicalExpr,
@@ -114,10 +131,12 @@ from fenic.core._serde.proto.expression_serde import (
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core.types import (
     BooleanType,
+    DateType,
     FloatType,
     IntegerType,
     JsonType,
     StringType,
+    TimestampType,
 )
 from fenic.core.types.datatypes import ArrayType, StructField, StructType
 from fenic.core.types.semantic_examples import (
@@ -164,6 +183,8 @@ expression_examples = {
         LiteralExpr(42, IntegerType),
         LiteralExpr(3.14, FloatType),
         LiteralExpr(True, BooleanType),
+        LiteralExpr(datetime.date.today(), DateType),
+        LiteralExpr(datetime.datetime.now(), TimestampType),
     ],
     UnresolvedLiteralExpr: [
         UnresolvedLiteralExpr(StringType, "test_param_1"),
@@ -569,6 +590,59 @@ expression_examples = {
     LeastExpr: [
         LeastExpr([ColumnExpr("a"), ColumnExpr("b"), LiteralExpr(1, IntegerType)]),
     ],
+    # date time expressions
+    YearExpr: [
+        YearExpr(LiteralExpr(datetime.date.today(), DateType)),
+    ],
+    MonthExpr: [
+        MonthExpr(LiteralExpr(datetime.date.today(), DateType)),
+    ],
+    DayExpr: [
+        DayExpr(LiteralExpr(datetime.date.today(), DateType)),
+    ],
+    HourExpr: [
+        HourExpr(LiteralExpr(datetime.datetime.now(), TimestampType)),
+    ],
+    MinuteExpr: [
+        MinuteExpr(LiteralExpr(datetime.datetime.now(), TimestampType)),
+    ],
+    SecondExpr: [
+        SecondExpr(LiteralExpr(datetime.datetime.now(), TimestampType)),
+    ],
+    MilliSecondExpr: [
+        MilliSecondExpr(LiteralExpr(datetime.datetime.now(), TimestampType)),
+    ],
+    NowExpr: [
+        NowExpr(),
+    ],
+    DateAddExpr: [
+        DateAddExpr(LiteralExpr(datetime.date.today(), DateType), LiteralExpr(1, IntegerType)),
+    ],
+    DateTruncExpr: [
+        DateTruncExpr(LiteralExpr(datetime.date.today(), DateType), "month"),
+    ],
+    TimestampAddExpr: [
+        TimestampAddExpr(LiteralExpr(datetime.datetime.now(), TimestampType), LiteralExpr(1, IntegerType), "second"),
+    ],
+    ToDateExpr: [
+        ToDateExpr(LiteralExpr(datetime.datetime.now(), TimestampType), "YYYY-MM-DD"),
+    ],
+    ToTimestampExpr: [
+        ToTimestampExpr(LiteralExpr(datetime.date.today(), DateType), "YYYY-MM-DD HH:MM:SS"),
+    ],
+    DateFormatExpr: [
+        DateFormatExpr(LiteralExpr(datetime.date.today(), DateType), "YYYY-MM-DD"),
+    ],
+    DateDiffExpr: [
+        DateDiffExpr(LiteralExpr(datetime.date.today(), DateType), LiteralExpr(datetime.date.today(), DateType)),
+    ],
+    TimestampDiffExpr: [
+        TimestampDiffExpr(
+            LiteralExpr(datetime.datetime.now(), TimestampType),
+            LiteralExpr(datetime.datetime.now(), TimestampType),
+            "second",
+        ),
+    ],
 }
 
 class TestExpressionSerde:
@@ -703,6 +777,7 @@ class TestExpressionSerde:
             "fenic.core._logical_plan.expressions.arithmetic",
             "fenic.core._logical_plan.expressions.comparison",
             "fenic.core._logical_plan.expressions.case",
+            "fenic.core._logical_plan.expressions.dt",
             "fenic.core._logical_plan.expressions.embedding",
             "fenic.core._logical_plan.expressions.json",
             "fenic.core._logical_plan.expressions.markdown",

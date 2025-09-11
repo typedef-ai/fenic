@@ -1,5 +1,5 @@
 
-from datetime import date
+from datetime import date, datetime
 
 import polars as pl
 import pytest
@@ -7,12 +7,15 @@ import pytest
 from fenic import (
     ArrayType,
     ColumnField,
+    DateType,
     EmbeddingType,
     FloatType,
     IntegerType,
     Session,
     StringType,
+    TimestampType,
     col,
+    dt,
     text,
 )
 from fenic.core.error import PlanError, ValidationError
@@ -150,7 +153,7 @@ def test_sql_union(local_session_config):
     expected = pl.DataFrame({"id": [1, 1, 2, 2], "name1": ["Alice", "Alice", "Bob", "Bob"]})
     assert df.equals(expected)
 
-def test_sql_coerce_datetype(local_session_config):
+def test_sql_datetype(local_session_config):
     session = Session.get_or_create(local_session_config)
     df = session.create_dataframe(pl.DataFrame({
         "id": [1, 2],
@@ -167,11 +170,10 @@ def test_sql_coerce_datetype(local_session_config):
         ORDER BY id
     """, df1=df)
 
-    # Should be coerced back to string and list in fenic schema
     assert df.schema.column_fields == [
         ColumnField("id", IntegerType),
-        ColumnField("parsed_date", StringType),  # Date coerced back to string
-        ColumnField("date_array", ArrayType(StringType)),
+        ColumnField("parsed_date", DateType),  # Date coerced back to string
+        ColumnField("date_array", ArrayType(DateType)),
         ColumnField("embeddings", ArrayType(FloatType)),
     ]
 
@@ -179,8 +181,8 @@ def test_sql_coerce_datetype(local_session_config):
     df = df.to_polars()
     expected = pl.DataFrame({
         "id": [1, 2],
-        "parsed_date": ["2023-12-25", "2024-01-01"],
-        "date_array": [["2023-12-25", "2024-01-01"], ["2024-01-02", "2024-01-03"]],
+        "parsed_date": [date(2023, 12, 25), date(2024, 1, 1)],
+        "date_array": [[date(2023, 12, 25), date(2024, 1, 1)], [date(2024, 1, 2), date(2024, 1, 3)]],
         "embeddings": [[1.0, 2.0], [3.0, 4.0]]
     })
     assert df.equals(expected)
@@ -269,3 +271,45 @@ def test_sql_drop_table(local_session_config):
     session.create_dataframe(pl.DataFrame({"id": [1, 2], "name1": ["Alice", "Bob"]}))
     with pytest.raises(PlanError, match="Only read-only queries are supported"):
         session.sql("DROP TABLE foobar")
+
+def test_sql_temporal_types(local_session_config):
+    session = Session.get_or_create(local_session_config)
+    df1 = session.create_dataframe(pl.DataFrame({
+        "id": [1, 2],
+        "date_col": [date(2023, 12, 25), date(2024, 1, 1)],
+        "timestamp_col": [datetime(2023, 12, 25, 10, 20, 0), datetime(2024, 1, 1, 10, 20, 0)],
+    }))
+    df = session.sql("SELECT * FROM {df1}", df1=df1)
+    assert df.schema.column_fields == [
+        ColumnField("id", IntegerType),
+        ColumnField("date_col", DateType),
+        ColumnField("timestamp_col", TimestampType),
+    ]
+
+    df = df.to_polars()
+    expected = pl.DataFrame({
+        "id": [1, 2],
+        "date_col": [date(2023, 12, 25), date(2024, 1, 1)],
+        "timestamp_col": [datetime(2023, 12, 25, 10, 20, 0), datetime(2024, 1, 1, 10, 20, 0)],
+    })
+    assert df.equals(expected)
+
+    df = session.sql("SELECT * FROM {df1} WHERE date_col > '2023-12-25'", df1=df1)
+    result = df.to_pydict()
+    assert result["id"] == [2]
+
+    df = session.sql("SELECT * FROM {df1} WHERE timestamp_col < '2023-12-25 10:21:00'", df1=df1)
+    result = df.to_pydict()
+    assert result["id"] == [1]
+
+    df = session.sql("SELECT DATE_TRUNC('year', timestamp_col) as date_trunc FROM {df1}", df1=df1)
+    result = df.to_pydict()
+    assert result["date_trunc"] == [date(2023, 1, 1), date(2024, 1, 1)]
+
+    df = df.with_column("year", dt.year(dt.timestamp_add(col("date_trunc"), 1, "year")))
+    result = df.to_pydict()
+    assert result["year"] == [2024, 2025]
+
+    df = session.sql("SELECT DATE_PART('day', timestamp_col - INTERVAL '1 day') as day FROM {df1}", df1=df1)
+    result = df.to_pydict()
+    assert result["day"] == [24, 31]

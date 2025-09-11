@@ -20,10 +20,12 @@ from fenic.core.error import (
 )
 from fenic.core.types.datatypes import (
     BooleanType,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
     StringType,
+    TimestampType,
 )
 from fenic.core.types.schema import Schema
 
@@ -289,7 +291,9 @@ def _convert_schema_to_duckdb_dict(schema: Schema) -> Dict[str, str]:
         IntegerType: "BIGINT",
         FloatType: "FLOAT",
         DoubleType: "DOUBLE",
-        BooleanType: "BOOLEAN"
+        BooleanType: "BOOLEAN",
+        DateType: "DATE",
+        TimestampType: "TIMESTAMP",
     }
 
     duckdb_schema = {}

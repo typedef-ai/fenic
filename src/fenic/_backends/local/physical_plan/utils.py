@@ -10,8 +10,6 @@ def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
     that may produce types unsupported or inconsistently handled by Fenic.
 
     Coercion rules:
-    - `Date` and `Datetime` are cast to `String` to preserve formatting and avoid
-      incompatibilities with backends that lack full date/time support.
     - `Array` and `List` types are recursively coerced to ensure their inner types
       are normalized.
     - `Struct` types are coerced field-by-field to apply the same normalization logic.
@@ -37,9 +35,7 @@ def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _build_target_dtype(dtype: pl.DataType) -> pl.DataType:
-    if dtype in [pl.Date, pl.Datetime]:
-        return pl.String
-    elif isinstance(dtype, pl.Array):
+    if isinstance(dtype, pl.Array):
         return pl.List(_build_target_dtype(dtype.inner))
     elif isinstance(dtype, pl.List):
         return pl.List(_build_target_dtype(dtype.inner))

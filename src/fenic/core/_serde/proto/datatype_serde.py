@@ -13,6 +13,7 @@ from fenic.core._serde.proto.types import (
     ArrayTypeProto,
     BooleanTypeProto,
     DataTypeProto,
+    DateTypeProto,
     DocumentPathTypeProto,
     DoubleTypeProto,
     EmbeddingTypeProto,
@@ -24,12 +25,14 @@ from fenic.core._serde.proto.types import (
     StringTypeProto,
     StructFieldProto,
     StructTypeProto,
+    TimestampTypeProto,
     TranscriptTypeProto,
 )
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -41,8 +44,10 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
     _BooleanType,
+    _DateType,
     _DoubleType,
     _FloatType,
     _HtmlType,
@@ -50,6 +55,7 @@ from fenic.core.types.datatypes import (
     _JsonType,
     _MarkdownType,
     _StringType,
+    _TimestampType,
 )
 
 # =============================================================================
@@ -406,3 +412,31 @@ def _serialize_json_type(_: _JsonType, context: SerdeContext) -> DataTypeProto:
 def _deserialize_json_type(_: JSONTypeProto, context: SerdeContext) -> DataType:
     """Deserialize a JSON type."""
     return JsonType
+
+# =============================================================================
+# DateType
+# =============================================================================
+
+@serialize_data_type.register
+def _serialize_date_type(_: _DateType, context: SerdeContext) -> DataTypeProto:
+    """Serialize a date type."""
+    return DataTypeProto(date=DateTypeProto())
+
+@_deserialize_data_type_helper.register
+def _deserialize_date_type(_: DateTypeProto, context: SerdeContext) -> DataType:
+    """Deserialize a date type."""
+    return DateType
+
+# =============================================================================
+# TimestampType
+# =============================================================================
+
+@serialize_data_type.register
+def _serialize_timestamp_type(_: _TimestampType, context: SerdeContext) -> DataTypeProto:
+    """Serialize a timestamp type."""
+    return DataTypeProto(timestamp=TimestampTypeProto())
+
+@_deserialize_data_type_helper.register
+def _deserialize_timestamp_type(_: TimestampTypeProto, context: SerdeContext) -> DataType:
+    """Deserialize a timestamp type."""
+    return TimestampType

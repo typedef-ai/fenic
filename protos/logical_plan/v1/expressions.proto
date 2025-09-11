@@ -101,6 +101,29 @@ message LogicalExpr {
     ListExpr list = 116;
     StdDevExpr std_dev = 117;
 
+    // Date part expressions
+    YearExpr year = 130;
+    MonthExpr month = 131;
+    DayExpr day = 132;
+    HourExpr hour = 133;
+    MinuteExpr minute = 134;
+    SecondExpr second = 135;
+    MilliSecondExpr millisecond = 136;
+
+    // Date arithmetic expressions
+    DateAddExpr date_add = 140;
+    TimestampAddExpr timestamp_add = 141;
+    DateTruncExpr date_trunc = 142;
+    DateDiffExpr date_diff = 143;
+    TimestampDiffExpr timestamp_diff = 144;
+
+    // Current date/time expressions
+    NowExpr now = 150;
+
+    // Date conversion expressions
+    ToDateExpr to_date = 160;
+    ToTimestampExpr to_timestamp = 161;
+    DateFormatExpr date_format = 162;
   }
 }
 
@@ -532,4 +555,79 @@ message LeastExpr {
 message UnresolvedLiteralExpr {
   DataType data_type = 1;
   string parameter_name = 2;
+}
+
+message YearExpr {
+  LogicalExpr expr = 1;
+}
+
+message MonthExpr {
+  LogicalExpr expr = 1;
+}
+
+message DayExpr {
+  LogicalExpr expr = 1;
+}
+
+message HourExpr {
+  LogicalExpr expr = 1;
+}
+
+message MinuteExpr {
+  LogicalExpr expr = 1;
+}
+
+message SecondExpr {
+  LogicalExpr expr = 1;
+}
+
+message MilliSecondExpr {
+  LogicalExpr expr = 1;
+}
+
+message DateAddExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr days = 2;
+  bool sub = 3;
+}
+
+message TimestampAddExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr quantity = 2;
+  string unit = 3;
+}
+
+message DateDiffExpr {
+  LogicalExpr end = 1;
+  LogicalExpr start = 2;
+}
+
+message TimestampDiffExpr {
+  LogicalExpr start = 1;
+  LogicalExpr end = 2;
+  string unit = 3;
+}
+
+message DateTruncExpr {
+  LogicalExpr expr = 1;
+  string unit = 2;
+}
+
+message NowExpr {
+  bool as_date = 1;
+}
+
+message ToDateExpr {
+  LogicalExpr expr = 1;
+  string format = 2;
+}
+
+message ToTimestampExpr {
+  LogicalExpr expr = 1;
+  string format = 2;
+}
+
+message DateFormatExpr {
+  LogicalExpr expr = 1;
+  string format = 2;
 }

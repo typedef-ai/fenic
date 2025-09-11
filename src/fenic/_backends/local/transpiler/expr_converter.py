@@ -8,6 +8,7 @@ from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
+import datetime
 import json
 import logging
 
@@ -55,6 +56,11 @@ from fenic.core._logical_plan.expressions import (
     ContainsExpr,
     CountExpr,
     CountTokensExpr,
+    DateAddExpr,
+    DateDiffExpr,
+    DateFormatExpr,
+    DateTruncExpr,
+    DayExpr,
     EmbeddingNormalizeExpr,
     EmbeddingsExpr,
     EmbeddingSimilarityExpr,
@@ -65,6 +71,7 @@ from fenic.core._logical_plan.expressions import (
     FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
     GreatestExpr,
+    HourExpr,
     ILikeExpr,
     IndexExpr,
     InExpr,
@@ -83,8 +90,12 @@ from fenic.core._logical_plan.expressions import (
     MdGenerateTocExpr,
     MdGetCodeBlocksExpr,
     MdToJsonExpr,
+    MilliSecondExpr,
     MinExpr,
+    MinuteExpr,
+    MonthExpr,
     NotExpr,
+    NowExpr,
     NumericComparisonExpr,
     Operator,
     OtherwiseExpr,
@@ -92,6 +103,7 @@ from fenic.core._logical_plan.expressions import (
     RegexpSplitExpr,
     ReplaceExpr,
     RLikeExpr,
+    SecondExpr,
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
@@ -110,9 +122,14 @@ from fenic.core._logical_plan.expressions import (
     SumExpr,
     TextChunkExpr,
     TextractExpr,
+    TimestampAddExpr,
+    TimestampDiffExpr,
+    ToDateExpr,
+    ToTimestampExpr,
     TsParseExpr,
     UDFExpr,
     WhenExpr,
+    YearExpr,
 )
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 from fenic.core._utils.schema import (
@@ -124,6 +141,7 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DateType,
     EmbeddingType,
     IntegerType,
     JsonType,
@@ -1234,6 +1252,109 @@ class ExprConverter:
     def _convert_least_expr(self, logical: LeastExpr) -> pl.Expr:
         return pl.min_horizontal([self._convert_expr(expr) for expr in logical.exprs])
 
+    @_convert_expr.register(YearExpr)
+    def _convert_year_expr(self, logical: YearExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).dt.year()
+
+    @_convert_expr.register(MonthExpr)
+    def _convert_month_expr(self, logical: MonthExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).dt.month()
+
+    @_convert_expr.register(DayExpr)
+    def _convert_day_expr(self, logical: DayExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).dt.day()
+
+    @_convert_expr.register(HourExpr)
+    def _convert_hour_expr(self, logical: HourExpr) -> pl.Expr:
+        converted_expr = self._convert_expr(logical.expr)
+        if logical.temporal_type == DateType:
+            return _get_zero_ts_part_from_date(converted_expr)
+        return converted_expr.dt.hour()
+
+    @_convert_expr.register(MinuteExpr)
+    def _convert_minute_expr(self, logical: MinuteExpr) -> pl.Expr:
+        converted_expr = self._convert_expr(logical.expr)
+        if logical.temporal_type == DateType:
+            return _get_zero_ts_part_from_date(converted_expr)
+        return converted_expr.dt.minute()
+
+    @_convert_expr.register(SecondExpr)
+    def _convert_second_expr(self, logical: SecondExpr) -> pl.Expr:
+        converted_expr = self._convert_expr(logical.expr)
+        if logical.temporal_type == DateType:
+            return _get_zero_ts_part_from_date(converted_expr)
+        return converted_expr.dt.second()
+
+    @_convert_expr.register(MilliSecondExpr)
+    def _convert_milli_second_expr(self, logical: MilliSecondExpr) -> pl.Expr:
+        converted_expr = self._convert_expr(logical.expr)
+        if logical.temporal_type == DateType:
+            return _get_zero_ts_part_from_date(converted_expr)
+        return converted_expr.dt.millisecond()
+
+    @_convert_expr.register(ToDateExpr)
+    def _convert_to_date_expr(self, logical: ToDateExpr) -> pl.Expr:
+        """Convert a string into a date."""
+        # logical.format should be a chrono format.
+        return self._convert_expr(logical.expr).str.strptime(dtype=pl.Date, format=logical.format)
+
+    @_convert_expr.register(ToTimestampExpr)
+    def _convert_to_timestamp_expr(self, logical: ToTimestampExpr) -> pl.Expr:
+        """Convert a string into a timestamp."""
+        # logical.format should be a chrono format.
+        return self._convert_expr(logical.expr).str.strptime(dtype=pl.Datetime, format=logical.format)
+
+    @_convert_expr.register(NowExpr)
+    def _convert_now_expr(self, logical: NowExpr) -> pl.Expr:
+        """Convert a string into a timestamp."""
+        return pl.lit(datetime.datetime.now(), dtype=pl.Date if logical.as_date else pl.Datetime)
+
+    @_convert_expr.register(DateTruncExpr)
+    def _convert_date_trunc_expr(self, logical: DateTruncExpr) -> pl.Expr:
+        # Note: truncating a date to 1h is a no-op in this case as the date is already truncated to the hour.
+        return self._convert_expr(logical.expr).dt.truncate(logical.unit)
+
+    @_convert_expr.register(DateAddExpr)
+    def _convert_date_add_expr(self, logical: DateAddExpr) -> pl.Expr:
+        if logical.sub:
+            # Must substact the days from the date/timestamp column.
+            return self._convert_expr(logical.expr) - pl.duration(days=self._convert_expr(logical.days))
+        return self._convert_expr(logical.expr) + pl.duration(days=self._convert_expr(logical.days))
+
+    @_convert_expr.register(TimestampAddExpr)
+    def _convert_timestamp_add_expr(self, logical: TimestampAddExpr) -> pl.Expr:
+        quantity_expr = self._convert_expr(logical.quantity)
+        return self._convert_expr(logical.expr).dt.offset_by(pl.format("{}{}", quantity_expr, pl.lit(logical.unit)))
+
+    @_convert_expr.register(DateFormatExpr)
+    def _convert_date_format_expr(self, logical: DateFormatExpr) -> pl.Expr:
+        # logical.format should be a chrono format.
+        return self._convert_expr(logical.expr).dt.to_string(format=logical.format)
+
+    @_convert_expr.register(DateDiffExpr)
+    def _convert_date_diff_expr(self, logical: DateDiffExpr) -> pl.Expr:
+        return (self._convert_expr(logical.end) - self._convert_expr(logical.start)).dt.total_days()
+
+    @_convert_expr.register(TimestampDiffExpr)
+    def _convert_timestamp_diff_expr(self, logical: TimestampDiffExpr) -> pl.Expr:
+        duration_expr = self._convert_expr(logical.end) - self._convert_expr(logical.start)
+        if logical.unit == "year":
+            return (duration_expr.dt.total_days() / 365).cast(pl.Int64)
+        elif logical.unit == "month":
+            return (duration_expr.dt.total_days() / 30).cast(pl.Int64)
+        elif logical.unit == "day":
+            return duration_expr.dt.total_days()
+        elif logical.unit == "hour":
+            return duration_expr.dt.total_hours()
+        elif logical.unit == "minute":
+            return duration_expr.dt.total_minutes()
+        elif logical.unit == "second":
+            return duration_expr.dt.total_seconds()
+        elif logical.unit == "millisecond":
+            return duration_expr.dt.total_milliseconds()
+        else:
+            raise InternalError(f"Unknown timestamp diff unit: {logical.unit}. Invalid state.")
+
 def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
     if method == "indel":
         return expr.fuzz.normalized_indel_similarity(other)
@@ -1309,3 +1430,6 @@ def _like_to_regex(pattern_expr: pl.Expr, case_insensitive: bool = False) -> pl.
         return (pl.lit("(?i)") + regex_expr)
 
     return regex_expr
+
+def _get_zero_ts_part_from_date(expr: pl.Expr) -> pl.Expr:
+    return (expr.dt.year() * pl.lit(0, dtype=pl.Int32))

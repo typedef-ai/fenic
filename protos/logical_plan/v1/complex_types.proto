@@ -13,6 +13,8 @@ message ScalarValue {
     bytes bytes_value = 5;
     ScalarArray array_value = 6;
     ScalarStruct struct_value = 7;
+    int32 date_value = 8;
+    double timestamp_value = 9;
     //all types we support for LiteralExpr
   }
 }

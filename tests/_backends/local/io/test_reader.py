@@ -1,5 +1,5 @@
+import datetime
 import os
-from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from typing import Literal, Union
@@ -14,6 +14,7 @@ from fenic import (
     ArrayType,
     BooleanType,
     ColumnField,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -21,6 +22,7 @@ from fenic import (
     MarkdownType,
     Schema,
     StringType,
+    TimestampType,
     col,
     markdown,
 )
@@ -888,16 +890,16 @@ Francis
 
 
 def test_ingest_date_type(local_session, temp_dir):
-    """Test automatic conversion of date columns to strings.
+    """Test ingestion of date columns.
 
     This tests:
-    - Date column representation as strings
-    - Filtering on date string values
+    - Filtering on date values
     - Consistency across read methods (parquet vs in-memory)
     """
     PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
     DATE_COLUMN_NAME = "some_date"
     CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATE = datetime.date(2024, 1, 4)
 
     # Create a dataframe with a date column
     df = pl.DataFrame(
@@ -913,43 +915,43 @@ def test_ingest_date_type(local_session, temp_dir):
 
     # Test 1: Reading from Parquet file
     fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
 
     # Verify schema and type conversion
     expected_schema = pl.Schema(
-        {"month": pl.Int64, "day": pl.Int64, DATE_COLUMN_NAME: pl.String}
+        {"month": pl.Int64, "day": pl.Int64, DATE_COLUMN_NAME: pl.Date}
     )
-    assert result.schema == expected_schema, "Date should be converted to String"
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
     # Test 2: Using in-memory dataframe
     fenic_df = local_session.create_dataframe(polars_df)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
     # Test 3: CSV file
     polars_df.write_csv(CSV_FILE_NAME)
     fenic_df = local_session.read.csv(CSV_FILE_NAME)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
-
-    assert result.schema == expected_schema, "Date should be converted to String"
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
 
 def test_ingest_datetime_type(local_session, temp_dir):
-    """Test automatic conversion of datetime columns to strings.
+    """Test ingestion of datetime columns.
 
     This tests:
-    - Datetime column representation as strings
-    - Filtering on datetime string values
+    - Filtering on datetime values
     - Consistency across read methods (parquet vs in-memory)
     """
     PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
     DATETIME_COLUMN_NAME = "some_datetime"
     CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13)
 
     # Create a dataframe with a datetime column
     df = pl.DataFrame(
@@ -975,9 +977,7 @@ def test_ingest_datetime_type(local_session, temp_dir):
 
     # Test 1: Reading from Parquet file
     fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
-    fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
-    )
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
     result = fenic_df.to_polars()
 
     expected_schema = pl.Schema(
@@ -987,34 +987,62 @@ def test_ingest_datetime_type(local_session, temp_dir):
             "hour": pl.Int64,
             "minute": pl.Int64,
             "second": pl.Int64,
-            DATETIME_COLUMN_NAME: pl.String,
+            DATETIME_COLUMN_NAME: pl.Datetime(),
         }
     )
-    assert (
-            result.schema == expected_schema
-    ), "Datetime should be converted to String"
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
     # Test 2: Using in-memory dataframe
     fenic_df = local_session.create_dataframe(polars_df)
     fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
+        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
     )
     result = fenic_df.to_polars()
-
-    assert (
-            result.schema == expected_schema
-    ), "Datetime should be converted to String"
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
     # Test 3: CSV file
     write_test_file(CSV_FILE_NAME, polars_df, local_session, "csv")
     fenic_df = local_session.read.csv(CSV_FILE_NAME)
     fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
+        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
     )
     result = fenic_df.to_polars()
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+
+    # Test 4: Override Schema w/ TimestampType
+    fenic_df = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=TimestampType),
+            ]))
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    result = fenic_df.to_polars()
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+
+    # Test 5: Override Schema w/ DateType
+    fenic_df = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=DateType),
+            ]))
+    result = fenic_df.to_pydict()
+    result["some_datetime"] = [datetime.date(2024, 1, 4), datetime.date(2024, 2, 5), datetime.date(2024, 3, 6)]
 
 
 def test_ingest_array_type(local_session, temp_dir):
@@ -1256,7 +1284,7 @@ def _get_globbed_path(path: str, file_extension: str) -> list[str]:
 
 def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
     """Test that reading PDFs from a folder."""
-    start_time = datetime.now().replace(microsecond=0)
+    start_time = datetime.datetime.now().replace(microsecond=0)
     file1_pages = 3
     file2_pages = 5
     file3_pages = 7
@@ -1280,8 +1308,8 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]
-        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
-        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        creation_dt = datetime.datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
         assert creation_dt >= start_time
         assert mod_dt >= start_time
         assert not row["is_encrypted"]
@@ -1292,7 +1320,7 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
 
 def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
     """Test that reading PDFs with text and fields from a folder."""
-    start_time = datetime.now().replace(microsecond=0)
+    start_time = datetime.datetime.now().replace(microsecond=0)
     file1_pages = 3
     file2_pages = 5
     file3_pages = 7
@@ -1335,8 +1363,8 @@ def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]
-        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
-        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        creation_dt = datetime.datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
         assert creation_dt >= start_time, f"PDF {i+1} expected to have a creation date after {start_time}"
         assert mod_dt >= start_time, f"PDF {i+1} expected to have a modification date after {start_time}"
         assert not row["is_encrypted"] , "PDF expected to be not encrypted"

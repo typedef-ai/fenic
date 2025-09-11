@@ -1,9 +1,11 @@
+import datetime
 from typing import Any
 
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -15,6 +17,7 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
 )
 
@@ -34,6 +37,10 @@ def infer_pytype_from_dtype(dtype: DataType) -> type:
         return float
     elif dtype == StringType:
         return str
+    elif dtype == DateType:
+        return datetime.date
+    elif dtype == TimestampType:
+        return datetime.datetime
     elif dtype == JsonType or dtype == MarkdownType or dtype == HtmlType:
         return str
     elif isinstance(dtype, (TranscriptType, DocumentPathType)):
@@ -56,6 +63,10 @@ def infer_dtype_from_pyobj(value: Any, path="") -> DataType:
         return FloatType
     elif isinstance(value, str):
         return StringType
+    elif isinstance(value, datetime.datetime):
+        return TimestampType
+    elif isinstance(value, datetime.date):
+        return DateType
     elif value is None:
         raise TypeInferenceError("Null value; please provide a concrete type", path)
 

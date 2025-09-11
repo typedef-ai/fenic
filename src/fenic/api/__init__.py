@@ -20,6 +20,7 @@ from fenic.api.functions import (
     desc,
     desc_nulls_first,
     desc_nulls_last,
+    dt,
     embedding,
     empty,
     first,
@@ -138,4 +139,6 @@ __all__ = [
     "run_mcp_server_async",
     "run_mcp_server_asgi",
     "SystemToolConfig",
+    # Date and time functions
+    "dt",
 ]

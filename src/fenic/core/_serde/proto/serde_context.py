@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 from contextlib import contextmanager
 from enum import Enum
@@ -723,6 +724,12 @@ class SerdeContext:
                     return ScalarValueProto(double_value=value)
                 elif isinstance(value, bytes):
                     return ScalarValueProto(bytes_value=value)
+                elif isinstance(value, datetime.datetime):
+                    # since datetime is a subclass of date, check it first so it doesn't
+                    # match to a date.
+                    return ScalarValueProto(timestamp_value=value.timestamp())
+                elif isinstance(value, datetime.date):
+                    return ScalarValueProto(date_value=value.toordinal())
                 elif isinstance(value, list):
                     # Serialize arrays recursively
                     elements = [
@@ -785,6 +792,10 @@ class SerdeContext:
                     return scalar_value.bool_value
                 elif which_oneof == "bytes_value":
                     return scalar_value.bytes_value
+                elif which_oneof == "date_value":
+                    return datetime.date.fromordinal(scalar_value.date_value)
+                elif which_oneof == "timestamp_value":
+                    return datetime.datetime.fromtimestamp(scalar_value.timestamp_value)
                 elif which_oneof == "array_value":
                     # Deserialize arrays recursively
                     return [

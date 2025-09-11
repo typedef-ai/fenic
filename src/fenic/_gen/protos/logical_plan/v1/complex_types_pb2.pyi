@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ScalarValue(_message.Message):
-    __slots__ = ("string_value", "int_value", "double_value", "bool_value", "bytes_value", "array_value", "struct_value")
+    __slots__ = ("string_value", "int_value", "double_value", "bool_value", "bytes_value", "array_value", "struct_value", "date_value", "timestamp_value")
     STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
     INT_VALUE_FIELD_NUMBER: _ClassVar[int]
     DOUBLE_VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -15,6 +15,8 @@ class ScalarValue(_message.Message):
     BYTES_VALUE_FIELD_NUMBER: _ClassVar[int]
     ARRAY_VALUE_FIELD_NUMBER: _ClassVar[int]
     STRUCT_VALUE_FIELD_NUMBER: _ClassVar[int]
+    DATE_VALUE_FIELD_NUMBER: _ClassVar[int]
+    TIMESTAMP_VALUE_FIELD_NUMBER: _ClassVar[int]
     string_value: str
     int_value: int
     double_value: float
@@ -22,7 +24,9 @@ class ScalarValue(_message.Message):
     bytes_value: bytes
     array_value: ScalarArray
     struct_value: ScalarStruct
-    def __init__(self, string_value: _Optional[str] = ..., int_value: _Optional[int] = ..., double_value: _Optional[float] = ..., bool_value: bool = ..., bytes_value: _Optional[bytes] = ..., array_value: _Optional[_Union[ScalarArray, _Mapping]] = ..., struct_value: _Optional[_Union[ScalarStruct, _Mapping]] = ...) -> None: ...
+    date_value: int
+    timestamp_value: float
+    def __init__(self, string_value: _Optional[str] = ..., int_value: _Optional[int] = ..., double_value: _Optional[float] = ..., bool_value: bool = ..., bytes_value: _Optional[bytes] = ..., array_value: _Optional[_Union[ScalarArray, _Mapping]] = ..., struct_value: _Optional[_Union[ScalarStruct, _Mapping]] = ..., date_value: _Optional[int] = ..., timestamp_value: _Optional[float] = ...) -> None: ...
 
 class ScalarArray(_message.Message):
     __slots__ = ("elements",)
