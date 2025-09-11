@@ -10,7 +10,6 @@ from google.genai.types import (
 
 from fenic._inference.google.google_utils import convert_messages
 from fenic._inference.token_counter import (
-    TiktokenTokenCounter,
     TokenCounter,
     Tokenizable,
 )
@@ -36,18 +35,11 @@ class GeminiLocalTokenCounter(TokenCounter):
             does not recognize `model_name`.
     """
 
-    def __init__(self, model_name: str, fallback_encoding: str = "o200k_base") -> None:
-        # Always build a tiktoken tokenizer as a reliable fallback path
-        self.tiktoken_tokenizer = TiktokenTokenCounter(model_name, fallback_encoding)
-
+    def __init__(self, model_name: str, fallback_encoding: str = "gemini-2.5-flash") -> None:
         try:
-            self.use_fallback_tokenizer: bool = False
             self.google_tokenizer: LocalTokenizer = LocalTokenizer(model_name=model_name)
         except ValueError:
-            # If LocalTokenizer cannot be constructed (e.g., unsupported model),
-            # use tiktoken as a best-effort fallback for estimation.
-            self.use_fallback_tokenizer = True
-            self.google_tokenizer = None
+            self.google_tokenizer = LocalTokenizer(model_name=fallback_encoding)
 
     def count_tokens(self, messages: Tokenizable) -> int:
         """Count tokens for a string, message list, or `LMRequestMessages`.
@@ -68,25 +60,21 @@ class GeminiLocalTokenCounter(TokenCounter):
 
     def _count_request_tokens(self, messages: LMRequestMessages) -> int:
         """Count tokens for an `LMRequestMessages` object."""
-        if self.use_fallback_tokenizer:
-            return self.tiktoken_tokenizer.count_tokens(messages)
-        google_messages = convert_messages(messages)
-        return self.google_tokenizer.count_tokens(google_messages, config=CountTokensConfig(system_instruction=messages.system)).total_tokens
+        return self.google_tokenizer.count_tokens(
+            convert_messages(messages),
+            config=CountTokensConfig(system_instruction=messages.system)
+        ).total_tokens
 
     def _count_message_tokens(self, messages: list[dict[str, str]]) -> int:
         """Count tokens for a list of message dicts with role/content keys.
 
-        If the Google local tokenizer is available, convert the messages into
-        google-genai `Content` objects (equivalent to `convert_messages`) and
-        delegate counting to the native tokenizer with a `system_instruction`.
-        Otherwise, fall back to the legacy heuristic using `tiktoken` and
-        OpenAI-style prefix/name adjustments.
+        Convert the messages into google-genai `Content` objects
+        (equivalent to `convert_messages`) and delegate counting to the native tokenizer
         """
-        if self.use_fallback_tokenizer:
-            return self.tiktoken_tokenizer.count_tokens(messages)
         contents, system_instruction = self._convert_message_list_to_google(messages)
         return self.google_tokenizer.count_tokens(
-            contents, config=CountTokensConfig(system_instruction=system_instruction)
+            contents,
+            config=CountTokensConfig(system_instruction=system_instruction)
         ).total_tokens
 
     def _convert_message_list_to_google(
@@ -114,11 +102,5 @@ class GeminiLocalTokenCounter(TokenCounter):
         return contents, system_instruction
 
     def _count_text_tokens(self, text: str) -> int:
-        """Count tokens for a raw text string using the best available tokenizer.
-
-        Prefers the Google local tokenizer when available, falling back to
-        `tiktoken` if not.
-        """
-        if self.use_fallback_tokenizer:
-            return self.tiktoken_tokenizer.count_tokens(text)
+        """Count tokens for a raw text string"""
         return self.google_tokenizer.count_tokens(text).total_tokens

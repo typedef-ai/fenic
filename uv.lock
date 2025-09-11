@@ -602,8 +602,7 @@ cohere = [
     { name = "cohere" },
 ]
 google = [
-    { name = "google-genai" },
-    { name = "sentencepiece" },
+    { name = "google-genai", extra = ["local-tokenizer"] },
 ]
 mcp = [
     { name = "fastmcp" },
@@ -635,7 +634,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.1.3" },
     { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.11.3" },
     { name = "fenic-cloud", marker = "extra == 'cloud'", specifier = ">=0.1.3" },
-    { name = "google-genai", marker = "extra == 'google'", specifier = ">=1.35.0" },
+    { name = "google-genai", extras = ["local-tokenizer"], marker = "extra == 'google'", specifier = ">=1.36.0" },
     { name = "grpcio", marker = "extra == 'cloud'", specifier = ">=1.60.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "jsonschema", specifier = ">=4.0.0" },
@@ -648,7 +647,6 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'cloud'", specifier = ">=19.0.0,<20.0.0" },
     { name = "pydantic-settings", marker = "extra == 'cloud'" },
     { name = "scikit-learn", specifier = ">=1.7.1" },
-    { name = "sentencepiece", marker = "extra == 'google'", specifier = ">=0.2.0" },
     { name = "sqlglot", specifier = ">=26.25.3" },
     { name = "tiktoken", specifier = ">=0.11.0" },
     { name = "types-protobuf", specifier = "==5.29.1.20250403" },
@@ -735,7 +733,7 @@ wheels = [
 
 [[package]]
 name = "google-genai"
-version = "1.35.0"
+version = "1.36.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -747,9 +745,15 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ba/e4/9a493c16c8b7ecc9faa73e5dba026e34c7c4acdfa4ae10008503ad4e1def/google_genai-1.35.0.tar.gz", hash = "sha256:08b7f663dd7ff38e2c5b9574cba9016cad1503e7f2ddaa9c234deaf0e8d5b609", size = 243703 }
+sdist = { url = "https://files.pythonhosted.org/packages/11/31/e4f6a049ce92ee4a961c37727c9c8ea68f3ab72f2a1880abc7dc309ea670/google_genai-1.36.0.tar.gz", hash = "sha256:6501f18cbf44488becab6fbff09529ff77e856f1baa65d55686261e4677cec3f", size = 243681 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/f2/19999caa9bcdb808ee510434da7c5591bfc805e6436113deff0e350fe7fe/google_genai-1.35.0-py3-none-any.whl", hash = "sha256:c2671a20655ee700704c98dcc6d2742eb8ee71a04ea112dc47e338444de8da8a", size = 244299 },
+    { url = "https://files.pythonhosted.org/packages/a1/7a/61a9a98d09bc507d1c7e089a65b260cafd22f62b250d8e34acacc996f01d/google_genai-1.36.0-py3-none-any.whl", hash = "sha256:bd48d800547cb90e40648178620c89474807305b03f6cd147fb3cc7faab27670", size = 244345 },
+]
+
+[package.optional-dependencies]
+local-tokenizer = [
+    { name = "protobuf" },
+    { name = "sentencepiece" },
 ]
 
 [[package]]
