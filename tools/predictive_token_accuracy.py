@@ -1,9 +1,10 @@
 # noqa: D100
 # Safely import Anthropic packages
 import anthropic
-from anthropic.types import MessageParam
 
+from fenic._inference.anthropic.anthropic_utils import convert_messages
 from fenic._inference.token_counter import TiktokenTokenCounter
+from fenic._inference.types import LMRequestMessages
 
 
 def anthropic_tokenizer_compatibility(): # noqa: D103
@@ -60,14 +61,15 @@ def anthropic_tokenizer_compatibility(): # noqa: D103
     cl100k_fudge_factors = {}
     for label, corpus in corpora.items():
         trimmed_corpus = corpus.strip()
-        messages = [
-            {"role": "user", "content": trimmed_corpus},
-            {"role": "assistant", "content": trimmed_corpus},
-        ]
+        messages = LMRequestMessages(
+            system=trimmed_corpus,
+            user=trimmed_corpus,
+            examples=[],
+        )
         o200k_tokenizer_count = float(o200k_token_counter.count_tokens(messages))
         cl100k_tokenizer_count = float(cl100k_token_counter.count_tokens(messages))
-        haiku_token_count = reference_token_counter.messages.count_tokens(messages=convert_messages_anthropic(messages),
-                                                                          model=haiku_model_name)
+        system_prompt, messages = convert_messages(messages)
+        haiku_token_count = reference_token_counter.messages.count_tokens(system=[system_prompt], messages=messages, model=haiku_model_name)
         o200k_fudge_factor = haiku_token_count.input_tokens / o200k_tokenizer_count
         cl100k_fudge_factor = haiku_token_count.input_tokens / cl100k_tokenizer_count
 
@@ -77,5 +79,6 @@ def anthropic_tokenizer_compatibility(): # noqa: D103
     print(
         f"o200k: {sum(o200k_fudge_factors.values()) / len(o200k_fudge_factors)} -- {o200k_fudge_factors}, cl100k: {sum(cl100k_fudge_factors.values()) / len(cl100k_fudge_factors)} -- {cl100k_fudge_factors}")
 
-def convert_messages_anthropic(messages: list[dict[str, str]]) -> list[MessageParam]: # noqa: D103
-    return [MessageParam(content=message["content"], role=message["role"]) for message in messages]
+
+if __name__ == "__main__":
+    anthropic_tokenizer_compatibility()

@@ -17,7 +17,7 @@ def test_local_token_counter_falls_back_to_gemma3():
     counter = GeminiLocalTokenCounter(model_name=model)
     assert counter.count_tokens("This is a longer string of text with characters: 那只敏捷的棕色狐狸跳过了懒惰的狗") == 25
 
-def test_google_tokenizer_counts_lm_request_messages_matches_convert_messages():
+def test_google_tokenizer_counts_tokens_for_message_list():
     model = "gemini-2.5-flash"
 
     counter = GeminiLocalTokenCounter(model_name=model)
@@ -26,7 +26,4 @@ def test_google_tokenizer_counts_lm_request_messages_matches_convert_messages():
         examples=[FewShotExample(user="ping", assistant="pong")],
         user="Summarize: The quick brown fox jumps over the lazy dog.",
     )
-
-    expected = counter.count_tokens(messages)
-    assert counter.count_tokens(messages.to_message_list()) == expected
-
+    assert counter.count_tokens(messages) == 21

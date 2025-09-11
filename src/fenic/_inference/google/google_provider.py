@@ -2,9 +2,11 @@
 
 import logging
 import os
+import warnings
 from abc import abstractmethod
 
 from google import genai
+from google.genai._common import ExperimentalWarning as _GoogleExperimentalWarning
 
 from fenic.core._inference.model_provider import ModelProviderClass
 
@@ -13,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 class GoogleModelProvider(ModelProviderClass):
     """Google implementation of ModelProvider."""
+
+    def __init__(self):
+        _suppress_google_experimental_warnings()
 
     @abstractmethod
     def create_client(self):
@@ -58,3 +63,8 @@ class GoogleVertexModelProvider(GoogleModelProvider):
         Passing `vertexai=True` automatically routes traffic through Vertex-AI if the environment is configured for it.
         """
         return genai.Client(vertexai=True)
+
+
+def _suppress_google_experimental_warnings() -> None:
+    """Silence ExperimentalWarning from google-genai local tokenizer."""
+    warnings.filterwarnings("ignore", category=_GoogleExperimentalWarning)

@@ -45,10 +45,11 @@ class Reduce:
         {% endif -%}
         {% endfor %}"""))
 
-    SYSTEM_MESSAGE = {
-        "role": "system",
-        "content": SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
-    }
+    SYSTEM_MESSAGE = LMRequestMessages(
+        system=SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
+        examples=[],
+        user=""
+    )
 
     def __init__(
             self,
@@ -69,7 +70,7 @@ class Reduce:
         self.temperature = temperature
         self.model_profile = model_alias.profile if model_alias else None
         self.prefix_tokens = (
-            self.model.count_tokens([self.SYSTEM_MESSAGE])
+            self.model.count_tokens(self.SYSTEM_MESSAGE)
             + PREFIX_TOKENS_PER_MESSAGE
         )
         self.group_context_names = group_context_names

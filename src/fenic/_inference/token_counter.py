@@ -5,7 +5,7 @@ import tiktoken
 from fenic._constants import PREFIX_TOKENS_PER_MESSAGE, TOKENS_PER_NAME
 from fenic._inference.types import LMRequestMessages
 
-Tokenizable = Union[list[dict[str, str]] | str | LMRequestMessages]
+Tokenizable = Union[str | LMRequestMessages]
 
 class TokenCounter(Protocol):
     def count_tokens(self, messages: Tokenizable) -> int: ...
@@ -22,12 +22,9 @@ class TiktokenTokenCounter(TokenCounter):
         if isinstance(messages, str):
             return len(self.tokenizer.encode(messages))
         elif isinstance(messages, LMRequestMessages):
-            return self._count_request_tokens(messages)
+            return self._count_message_tokens(messages.to_message_list())
         else:
-            return self._count_message_tokens(messages)
-
-    def _count_request_tokens(self, messages: LMRequestMessages) -> int:
-        return self._count_message_tokens(messages.to_message_list())
+            raise TypeError(f"Expected str or LMRequestMessages, got {type(messages)}")
 
     def _count_message_tokens(self, messages: list[dict[str, str]]) -> int:
         num_tokens = 0

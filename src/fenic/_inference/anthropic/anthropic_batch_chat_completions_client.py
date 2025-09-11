@@ -10,9 +10,7 @@ from anthropic import (
     RateLimitError,
 )
 from anthropic.types import (
-    CacheControlEphemeralParam,
     MessageParam,
-    TextBlockParam,
     ToolChoiceToolParam,
     ToolParam,
 )
@@ -21,6 +19,14 @@ from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
 )
 from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
+from fenic._inference.anthropic.anthropic_utils import (
+    CONTENT_BLOCK_DELTA,
+    EPHEMERAL_CACHE_CONTROL,
+    INPUT_JSON_DELTA,
+    MESSAGE_STOP,
+    TEXT_DELTA,
+    convert_messages,
+)
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -35,7 +41,6 @@ from fenic._inference.token_counter import TiktokenTokenCounter, Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
-    LMRequestMessages,
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import (
@@ -47,16 +52,6 @@ from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
 from fenic.core.metrics import LMMetrics
-
-TEXT_DELTA = "text_delta"
-
-MESSAGE_STOP = "message_stop"
-
-INPUT_JSON_DELTA = "input_json_delta"
-
-CONTENT_BLOCK_DELTA = "content_block_delta"
-
-EPHEMERAL_CACHE_CONTROL = CacheControlEphemeralParam(type="ephemeral")
 
 
 class AnthropicBatchCompletionsClient(
@@ -129,7 +124,7 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Completion response, transient exception, or fatal exception
         """
-        system_prompt, message_params = self.convert_messages(request.messages)
+        system_prompt, message_params = convert_messages(request.messages)
         profile_configuration = self._profile_manager.get_profile_by_name(request.model_profile)
         request_max_tokens = request.max_completion_tokens + profile_configuration.thinking_token_budget
         messages_creation_payload: dict[str, Any] = {
@@ -372,32 +367,3 @@ class AnthropicBatchCompletionsClient(
             cache_control=EPHEMERAL_CACHE_CONTROL
         )
         return tool_param
-
-    def convert_messages(self, messages: LMRequestMessages) -> tuple[TextBlockParam, list[MessageParam]]:
-        """Convert Fenic messages to Anthropic format.
-
-        Converts Fenic LMRequestMessages to Anthropic's TextBlockParam and
-        MessageParam format, including system prompt and conversation history.
-
-        Args:
-            messages: Fenic message format
-
-        Returns:
-            Tuple of (system_prompt, message_params)
-        """
-        system_prompt = TextBlockParam(
-            text=messages.system,
-            type="text",
-            cache_control=EPHEMERAL_CACHE_CONTROL
-        )
-        message_params: list[anthropic.types.MessageParam] = []
-        for example in messages.examples:
-            message_params.append(MessageParam(content=example.user, role="user"))
-            message_params.append(MessageParam(content=example.assistant, role="assistant"))
-        user_prompt = TextBlockParam(
-            text=messages.user,
-            type="text",
-            cache_control=EPHEMERAL_CACHE_CONTROL
-        )
-        message_params.append(MessageParam(content=[user_prompt], role="user"))
-        return system_prompt, message_params
