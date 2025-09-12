@@ -47,6 +47,8 @@ Once connected, you can ask questions like:
 
 The AI assistant will have direct access to fenic's complete API documentation and architectural details to provide accurate, helpful responses specific to fenic rather than generic Python advice.
 
+For self-hosting, see the [docs-server example](examples/mcp/docs-server/).
+
 ## Install
 
 fenic supports Python `[3.10, 3.11, 3.12]`
