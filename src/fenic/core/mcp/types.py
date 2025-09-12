@@ -72,7 +72,7 @@ class ParameterizedToolDefinition:
     name: str
     description: str
     params: list[BoundToolParam]
-    result_limit: int
+    max_result_limit: int
     _parameterized_view: LogicalPlan
 
 
@@ -86,4 +86,5 @@ class DynamicToolDefinition:
     name: str
     description: str
     func: Callable[..., LogicalPlan]
-    result_limit: Optional[int]
+    max_result_limit: Optional[int]
+    default_table_format: TableFormat = "markdown"

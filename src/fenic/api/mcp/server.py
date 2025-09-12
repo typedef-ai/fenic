@@ -30,7 +30,7 @@ def create_mcp_server(
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
         tools: Tools to register (optional).
-        automated_tool_generation: Generate automated tools for one or more Dataframes
+        automated_tool_generation: Generate automated tools for one or more Dataframes.
         concurrency_limit: Maximum number of concurrent tool executions.
     """
     dynamic_tools: List[DynamicToolDefinition] = []
@@ -43,7 +43,7 @@ def create_mcp_server(
             tool_group_name=automated_tool_generation.tool_group_name,
             sql_max_rows=automated_tool_generation.sql_max_rows)
         )
-    if not tools and not dynamic_tools:
+    if not (tools or dynamic_tools):
         raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")
     return FenicMCPServer(session._session_state, tools, dynamic_tools, server_name, concurrency_limit)
 

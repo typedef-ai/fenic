@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from typing import Optional
 
 from pydantic import BaseModel, Field, create_model
 from typing_extensions import Literal
@@ -18,6 +19,9 @@ from fenic.core.mcp.types import (
     ToolParam,
 )
 from fenic.core.types.datatypes import ArrayType
+
+LIMIT_DESCRIPTION = "The number of rows to return in the result set. Omit to return the maximum number of rows allowed by the tool."
+TABLE_FORMAT_DESCRIPTION = "The format of the table to return in the response. If `structured`, the rows will be returned as a list of JSON objects. If `markdown`, the rows will be returned as a markdown-formatted table."
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +94,7 @@ def bind_tool(
         description=description,
         params=resolved_params,
         _parameterized_view=query,
-        result_limit=result_limit,
+        max_result_limit=result_limit,
     )
 
 
@@ -106,7 +110,7 @@ def create_pydantic_model_for_tool(tool: ParameterizedToolDefinition) -> type[Ba
                 literal_type = list[literal_type]  # type: ignore[valid-type]
             if param.has_default:
                 model_fields[param.name] = (
-                    literal_type,
+                    Optional[literal_type],
                     Field(default=param.default_value, description=param.description),
                 )
             else:
@@ -115,7 +119,7 @@ def create_pydantic_model_for_tool(tool: ParameterizedToolDefinition) -> type[Ba
             py_type = infer_pytype_from_dtype(param.data_type)
             if param.has_default:
                 model_fields[param.name] = (
-                    py_type,
+                    Optional[py_type],
                     Field(default=param.default_value, description=param.description),
                 )
             else:
@@ -123,11 +127,11 @@ def create_pydantic_model_for_tool(tool: ParameterizedToolDefinition) -> type[Ba
 
     model_fields["table_format"] = (
         TableFormat,
-        Field(default="markdown", description="The format of the table to return in the response. If `structured`, the rows will be returned as a list of JSON objects. If `markdown`, the rows will be returned as a markdown-formatted table."),
+        Field(default="markdown", description=TABLE_FORMAT_DESCRIPTION),
     )
     model_fields["limit"] = (
         int,
-        Field(default=tool.result_limit, description="The number of rows to return in the result set."),
+        Field(default=tool.max_result_limit, description=LIMIT_DESCRIPTION),
     )
 
     return create_model(model_name, **model_fields)

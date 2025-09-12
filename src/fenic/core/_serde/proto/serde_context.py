@@ -932,7 +932,7 @@ class SerdeContext:
                     params=serialized_params,
                     parameterized_view=self.serialize_logical_plan("parameterized_view",
                                                                    tool_definition._parameterized_view),
-                    result_limit=tool_definition.result_limit,
+                    result_limit=tool_definition.max_result_limit,
                 )
             except Exception as e:
                 self._handle_serde_error(e)
@@ -951,7 +951,7 @@ class SerdeContext:
                     params=[self.deserialize_tool_parameter(tool_param) for tool_param in tool_definition_proto.params],
                     _parameterized_view=self.deserialize_logical_plan("parameterized_view",
                                                                       tool_definition_proto.parameterized_view),
-                    result_limit=tool_definition_proto.result_limit,
+                    max_result_limit=tool_definition_proto.result_limit,
                 )
             except Exception as e:
                 self._handle_serde_error(e)

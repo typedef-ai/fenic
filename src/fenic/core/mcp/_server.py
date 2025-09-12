@@ -10,21 +10,26 @@ Install with:
     pip install fastmcp
 """
 import asyncio
+import inspect
 import logging
 import re
 from functools import wraps
-from typing import Any, Dict, List, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pydantic import BaseModel
-from typing_extensions import Literal
+from typing_extensions import Annotated, Literal
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
 )
+from fenic.core._utils.type_inference import infer_pytype_from_dtype
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp._binder import bind_parameters
 from fenic.core.mcp._tools import (
+    LIMIT_DESCRIPTION,
+    TABLE_FORMAT_DESCRIPTION,
+    BoundToolParam,
     create_pydantic_model_for_tool,
 )
 from fenic.core.mcp.types import (
@@ -32,10 +37,10 @@ from fenic.core.mcp.types import (
     ParameterizedToolDefinition,
     TableFormat,
 )
+from fenic.core.types.datatypes import ArrayType
 from fenic.logging import configure_logging
 
 logger = logging.getLogger(__name__)
-
 
 class MCPResultSet(BaseModel):
     """Structured result returned to the MCP client."""
@@ -125,28 +130,39 @@ class FenicMCPServer:
         return self.mcp.http_app(**kwargs)
 
     def _build_parameterized_tool(self, tool: ParameterizedToolDefinition):
-        """Build a Pydantic single-parameter tool function for ResolvedTool."""
+        """Build a keyword-argument tool function with per-field schema for FastMCP.
+
+        We still validate/coerce using a generated Pydantic model under the hood,
+        but expose individual keyword-only parameters in the function signature so
+        FastMCP generates a clean per-argument schema (no single params model).
+        """
         ParamsModel = create_pydantic_model_for_tool(tool)
 
-        async def tool_fn(params: Union[ParamsModel, str]) -> MCPResultSet:  # type: ignore[name-defined]
-            # https://github.com/anthropics/claude-code/issues/3084
-            # Claude Code will pass structured json parameters as a string
-            if isinstance(params, str):
-                params = ParamsModel.model_validate_json(params)
-            payload = params.model_dump(exclude_none=True)
-            table_format: TableFormat = payload.pop("table_format", "markdown")
-            requested_limit = payload.pop("limit", None)
-            effective_limit: int = tool.result_limit if requested_limit is None else min(int(requested_limit), tool.result_limit)
+        # Names of bound parameters for filtering out helper args
+        param_names = {p.name for p in tool.params}
+
+        async def tool_fn_wrapper(*args, **kwargs) -> MCPResultSet:
+            # Extract UI/runtime-only flags
+            table_format: TableFormat = kwargs.pop("table_format", "markdown")
+            # Compute effective limit: cap by tool.result_limit when provided
+            effective_limit = _calculate_effective_limit(tool, kwargs.pop("limit", None))
+
+            # Validate/coerce only the bound parameters using the ParamsModel
+            payload_only_tool_params = {k: v for k, v in kwargs.items() if k in param_names}
+            params_obj = ParamsModel.model_validate(payload_only_tool_params, strict=False)
+            payload = params_obj.model_dump(exclude_none=True)
+
             try:
                 bound_plan = bind_parameters(tool._parameterized_view, payload, tool.params)
                 async with self._collect_semaphore:
-                    pl_df, metrics = await asyncio.to_thread(lambda: self.session_state.execution.collect(bound_plan, n=effective_limit))
+                    pl_df, metrics = await asyncio.to_thread(
+                        lambda: self.session_state.execution.collect(bound_plan, n=effective_limit)
+                    )
                     logger.info(f"Completed query for {tool.name}")
                     logger.info(metrics.get_summary())
-                    logger.debug(f"Query Details: {params.model_dump_json()}")
+                    logger.debug(f"Query Details: {params_obj.model_dump_json()}")
 
                 rows_list = pl_df.to_dicts()
-
                 schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
                 result_set = MCPResultSet(
                     table_schema=schema_fields,
@@ -160,9 +176,65 @@ class FenicMCPServer:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
 
+
+        try:
+            params: list[inspect.Parameter] = []
+            annotations: Dict[str, object] = {}
+            # Add one keyword-only parameter per tool param
+            for p in tool.params:
+                param_type = _type_for_param(p)
+                param_annotation = _annotate_with_description(param_type, p.description)
+                default = p.default_value if p.has_default else inspect._empty
+                params.append(
+                    inspect.Parameter(
+                        name=p.name,
+                        kind=inspect.Parameter.KEYWORD_ONLY,
+                        default=default,
+                        annotation=param_annotation,
+                    )
+                )
+                annotations[p.name] = param_annotation
+
+            # Add table_format and limit just like dynamic tools
+            tf_ann = Annotated[TableFormat, (
+                TABLE_FORMAT_DESCRIPTION
+            )]
+            lim_ann = Annotated[Optional[Union[str, int]], LIMIT_DESCRIPTION]
+            params.append(
+                inspect.Parameter(
+                    name="table_format",
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default="markdown",
+                    annotation=tf_ann,
+                )
+            )
+            params.append(
+                inspect.Parameter(
+                    name="limit",
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=tool.max_result_limit,
+                    annotation=lim_ann,
+                )
+            )
+            annotations["table_format"] = tf_ann
+            annotations["limit"] = lim_ann
+
+            tool_fn_wrapper.__signature__ = inspect.Signature(parameters=params, return_annotation=MCPResultSet)  # type: ignore[attr-defined]
+            # Update annotations for Pydantic
+            try:
+                existing = getattr(tool_fn_wrapper, "__annotations__", {}) or {}
+                existing.update(annotations)
+                tool_fn_wrapper.__annotations__ = existing
+            except Exception:
+                pass
+        except Exception:
+            # If signature construction fails, we still have a working tool.
+            pass
+
+        # Docstring includes schema from the Pydantic model
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
-        tool_fn.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
-        return tool_fn
+        tool_fn_wrapper.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
+        return tool_fn_wrapper
 
     def _register_dynamic_callable(self, tool: DynamicToolDefinition):
         # Dynamic function must return a LogicalPlan. This registrar wraps the callable so
@@ -175,23 +247,25 @@ class FenicMCPServer:
         #   original function signature for tool schema generation.
 
         async def wrapper(*args, **kwargs) -> MCPResultSet:
+            # Extract table_format from kwargs if provided, otherwise use tool default
+            table_format = kwargs.pop("table_format", tool.default_table_format)
+            # Extract optional limit and compute effective_limit against tool.result_limit
+            effective_limit = _calculate_effective_limit(tool, kwargs.pop("limit", None))
             # Obtain the plan by invoking the dynamic tool. No session is injected here;
             # the callable is expected to derive any context it needs from inputs.
             try:
                 bound_plan = tool.func(*args, **kwargs)
-                n_rows = tool.result_limit
                 # Collect on a thread to avoid blocking the event loop, and gate concurrent
                 # collections with a semaphore to protect the backend executor.
                 async with self._collect_semaphore:
                     pl_df, metrics = await asyncio.to_thread(
-                        lambda: self.session_state.execution.collect(bound_plan, n=n_rows)
+                        lambda: self.session_state.execution.collect(bound_plan, n=effective_limit)
                     )
                     logger.info(f"Completed query for {tool.name}")
                     logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {args if args else kwargs}")
                 rows_list = pl_df.to_dicts()
                 schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
-                table_format = "structured"
                 out = MCPResultSet(table_schema=schema_fields, rows=rows_list, row_count=len(rows_list))
                 if table_format == "markdown":
                     out.rows = _render_markdown_preview(rows_list)
@@ -206,8 +280,83 @@ class FenicMCPServer:
             # FastMCP can generate a clean tool schema from annotations.
             return await wrapper(*args, **kwargs)
 
+        # Expose `table_format` and `limit` to the schema without requiring user functions to accept them
+        _expose_keyword_param(
+            "table_format",
+            wrapped=wrapped,
+            default_value=tool.default_table_format,
+            py_type=TableFormat,
+            description=(
+                TABLE_FORMAT_DESCRIPTION
+            ),
+        )
+        _expose_keyword_param(
+            "limit",
+            wrapped=wrapped,
+            default_value=tool.max_result_limit,
+            py_type=Optional[Union[int, str]],
+            description=LIMIT_DESCRIPTION,
+        )
+
         return wrapped
 
+# Helper to expose extra keyword-only parameters to FastMCP without changing the
+# user function's implementation surface area. Ensures both signature and
+# annotations are updated for Pydantic schema generation.
+def _expose_keyword_param(
+    param_name: str,
+    wrapped: Callable,
+    py_type: object,
+    description: str | None = None,
+    *,
+    default_value: object,
+) -> None:
+    try:
+        original_sig = inspect.signature(wrapped)
+        if param_name not in original_sig.parameters:
+            # Build final annotation, augmenting with a description when provided
+            ann = Annotated[py_type, description] if description is not None else py_type
+            new_params = list(original_sig.parameters.values())
+            new_params.append(
+                inspect.Parameter(
+                    name=param_name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=default_value,
+                    annotation=ann,
+                )
+            )
+            wrapped.__signature__ = original_sig.replace(parameters=new_params)  # type: ignore[attr-defined]
+            # Ensure Pydantic can resolve the added parameter by updating annotations
+            annotations = getattr(wrapped, "__annotations__", {}) or {}
+            if param_name not in annotations:
+                annotations[param_name] = ann
+                wrapped.__annotations__ = annotations
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Failed to add parameter {param_name} to function {wrapped.__name__}") from e
+
+# Build a synthetic signature and annotations for FastMCP schema generation
+def _type_for_param(p: BoundToolParam) -> type:
+    # allowed_values -> Literal[...] (or list[Literal[...]] for arrays)
+    if p.allowed_values:
+        literal_values = tuple(p.allowed_values)
+        literal_type = Literal[literal_values]  # type: ignore[valid-type]
+        if isinstance(p.data_type, ArrayType):
+            return list[literal_type]  # type: ignore[valid-type]
+        if p.has_default:
+            literal_type = Optional[literal_type]
+        return literal_type
+    # Otherwise infer py type and wrap list for arrays
+    base_py = infer_pytype_from_dtype(p.data_type)
+    if isinstance(p.data_type, ArrayType):
+        base_py = list[base_py]  # type: ignore[valid-type]
+    if p.has_default:
+        base_py = Optional[base_py]
+    return base_py
+
+def _annotate_with_description(base_ann: type, description: Optional[str] = None) -> Annotated:
+    if description:
+        return Annotated[base_ann, description]
+    return Annotated[base_ann]
 
 def _to_snake_case(name: str) -> str:
     result = name
@@ -229,3 +378,18 @@ def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     for row in rows:
         lines.append("| " + " | ".join(str(row.get(col, "")) for col in columns) + " |")
     return "\n".join(lines)
+
+def _calculate_effective_limit(
+    tool: Union[ParameterizedToolDefinition, DynamicToolDefinition],
+    requested_limit: Optional[Union[int, str]]
+) -> Optional[int]:
+    if requested_limit:
+        if isinstance(requested_limit, str):
+            requested_limit = int(requested_limit)
+        if tool.max_result_limit:
+            effective_limit = min(int(requested_limit), tool.max_result_limit)
+        else:
+            effective_limit = int(requested_limit)
+    else:
+        effective_limit = tool.max_result_limit
+    return effective_limit

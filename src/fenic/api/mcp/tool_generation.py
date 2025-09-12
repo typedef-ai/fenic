@@ -110,13 +110,13 @@ def _auto_generate_read_tool(
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending for all order_by columns"] = True,
     ) -> LogicalPlan:
 
+        if df_name not in name_to_df:
+            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
+        df = name_to_df[df_name]
         limit = int(limit) if isinstance(limit, str) else limit
         offset = int(offset) if isinstance(offset, str) else offset
         sort_ascending = bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
         order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
-        if df_name not in name_to_df:
-            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
-        df = name_to_df[df_name]
 
         # order_by when not paginating via OFFSET (to avoid double sorting)
         if order_by and offset is None:
@@ -141,7 +141,7 @@ def _auto_generate_read_tool(
         name=tool_name,
         description=tool_description,
         func=read_func,
-        result_limit=result_limit,
+        max_result_limit=result_limit,
     )
 
 """
@@ -186,7 +186,7 @@ def _auto_generate_search_summary_tool(
         name=tool_name,
         description=tool_description,
         func=search_summary,
-        result_limit=None,
+        max_result_limit=None,
     )
 
 def auto_generate_search_content_tool(
@@ -255,7 +255,7 @@ def auto_generate_search_content_tool(
         name=tool_name,
         description=tool_description,
         func=search_rows,
-        result_limit=result_limit,
+        max_result_limit=result_limit,
     )
 
 
@@ -322,7 +322,8 @@ def _auto_generate_schema_tool(
         name=tool_name,
         description=enhanced_description,
         func=schema_func,
-        result_limit=None,
+        max_result_limit=None,
+        default_table_format="structured"
     )
 
 
@@ -387,7 +388,7 @@ def _auto_generate_sql_tool(
         name=tool_name,
         description=enhanced_description,
         func=analyze_func,
-        result_limit=result_limit,
+        max_result_limit=result_limit,
     )
     return tool
 
@@ -606,7 +607,8 @@ def _auto_generate_profile_tool(
         name=tool_name,
         description=enhanced_description,
         func=profile_func,
-        result_limit=None,
+        max_result_limit=None,
+        default_table_format="structured"
     )
 
 

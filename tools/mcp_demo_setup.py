@@ -435,21 +435,17 @@ def main() -> None:
             ),
         ],
     )
-
     # Launch MCP server with our custom tools, along with the auto-generated tools.
-    # server = fc.create_mcp_server(
-    #     session=local_session,
-    #     server_name="Fenic Semantic Demo",
-    #     tools=local_session.catalog.list_tools(),
-    #     automated_tool_generation=fc.ToolGenerationConfig(
-    #        table_names=["candidates"],
-    #        tool_group_name="Candidate Information"
-    #     )
-    # )
-    # fc.run_mcp_server_sync(server)
-
-    # Testing an issue with event loop shutdown
-    local_session.stop()
+    server = fc.create_mcp_server(
+        session=local_session,
+        server_name="Fenic Semantic Demo",
+        tools=local_session.catalog.list_tools(),
+        automated_tool_generation=fc.ToolGenerationConfig(
+           table_names=["candidates"],
+           tool_group_name="Candidate Information"
+        )
+    )
+    fc.run_mcp_server_sync(server)
 
 
 if __name__ == "__main__":
