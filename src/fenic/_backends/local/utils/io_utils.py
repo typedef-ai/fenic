@@ -115,14 +115,18 @@ def _build_query_with_httpfs_extensions(query: str) -> str:
 
 def _build_query_with_s3_creds(query: str, s3_session: BotoSession) -> str:
     """Helper method to add AWS credentials to a DuckDB query."""
-    frozen_creds, region = _fetch_and_validate_s3_credentials(s3_session)
-    s3_setup_query = f"SET s3_region='{region}'; "
-    s3_setup_query += f"SET s3_access_key_id='{frozen_creds.access_key}'; "
-    s3_setup_query += f"SET s3_secret_access_key='{frozen_creds.secret_key}'; "
-    if frozen_creds.token:
-        s3_setup_query += f"SET s3_session_token='{frozen_creds.token}'; "
-    query = f"{s3_setup_query} {query}"
-    return query
+    try:
+        frozen_creds, region = _fetch_and_validate_s3_credentials(s3_session)
+        s3_setup_query = f"SET s3_region='{region}'; "
+        s3_setup_query += f"SET s3_access_key_id='{frozen_creds.access_key}'; "
+        s3_setup_query += f"SET s3_secret_access_key='{frozen_creds.secret_key}'; "
+        if frozen_creds.token:
+            s3_setup_query += f"SET s3_session_token='{frozen_creds.token}'; "
+        query = f"{s3_setup_query} {query}"
+    except ConfigurationError:
+        logger.warning("Unable to locate AWS credentials for fetching data from S3 -- will still attempt to do so,"
+                        "but the query will fail unless the data is in a public accessible bucket.")
+        return query
 
 
 def _build_query_with_hf_creds(query: str) -> str:
