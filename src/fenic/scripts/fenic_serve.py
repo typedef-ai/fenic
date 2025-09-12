@@ -121,7 +121,7 @@ def main() -> None:
     server = create_mcp_server(
         session,
         server_name=args.server_name,
-        tools=tools if tools else None,
+        parameterized_tools=tools if tools else None,
         automated_tool_generation=auto_cfg,
         concurrency_limit=args.concurrency_limit,
     )

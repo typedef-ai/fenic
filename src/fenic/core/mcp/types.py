@@ -78,13 +78,13 @@ class ParameterizedToolDefinition:
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class DynamicToolDefinition:
-    """A tool implemented as a regular Python callable with explicit parameters.
+    """A tool implemented as a regular Python function with explicit parameters.
 
-    The callable must return a LogicalPlan. Collection/formatting is handled by
+    The function must be a `Callable[..., LogicalPlan]`. Collection/formatting is handled by
     the MCP generator wrapper.
     """
     name: str
     description: str
-    func: Callable[..., LogicalPlan]
     max_result_limit: Optional[int]
-    default_table_format: TableFormat = "markdown"
+    _func: Callable[..., LogicalPlan]
+    default_table_format: TableFormat = "structured"

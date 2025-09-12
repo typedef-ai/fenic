@@ -181,19 +181,19 @@ class FenicMCPServer:
             params: list[inspect.Parameter] = []
             annotations: Dict[str, object] = {}
             # Add one keyword-only parameter per tool param
-            for p in tool.params:
-                param_type = _type_for_param(p)
-                param_annotation = _annotate_with_description(param_type, p.description)
-                default = p.default_value if p.has_default else inspect._empty
+            for param in tool.params:
+                param_type = _type_for_param(param)
+                param_annotation = _annotate_with_description(param_type, param.description)
+                default = param.default_value if param.has_default else inspect._empty
                 params.append(
                     inspect.Parameter(
-                        name=p.name,
+                        name=param.name,
                         kind=inspect.Parameter.KEYWORD_ONLY,
                         default=default,
                         annotation=param_annotation,
                     )
                 )
-                annotations[p.name] = param_annotation
+                annotations[param.name] = param_annotation
 
             # Add table_format and limit just like dynamic tools
             tf_ann = Annotated[TableFormat, (
@@ -221,15 +221,11 @@ class FenicMCPServer:
 
             tool_fn_wrapper.__signature__ = inspect.Signature(parameters=params, return_annotation=MCPResultSet)  # type: ignore[attr-defined]
             # Update annotations for Pydantic
-            try:
-                existing = getattr(tool_fn_wrapper, "__annotations__", {}) or {}
-                existing.update(annotations)
-                tool_fn_wrapper.__annotations__ = existing
-            except Exception:
-                pass
-        except Exception:
-            # If signature construction fails, we still have a working tool.
-            pass
+            existing = getattr(tool_fn_wrapper, "__annotations__", {}) or {}
+            existing.update(annotations)
+            tool_fn_wrapper.__annotations__ = existing
+        except (ValueError, TypeError) as e:
+            raise ConfigurationError(f"Failed to add parameters to function {tool_fn_wrapper.__name__}") from e
 
         # Docstring includes schema from the Pydantic model
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
@@ -254,7 +250,7 @@ class FenicMCPServer:
             # Obtain the plan by invoking the dynamic tool. No session is injected here;
             # the callable is expected to derive any context it needs from inputs.
             try:
-                bound_plan = tool.func(*args, **kwargs)
+                bound_plan = tool._func(*args, **kwargs)
                 # Collect on a thread to avoid blocking the event loop, and gate concurrent
                 # collections with a semaphore to protect the backend executor.
                 async with self._collect_semaphore:
@@ -274,7 +270,7 @@ class FenicMCPServer:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
 
-        @wraps(tool.func)
+        @wraps(tool._func)
         async def wrapped(*args, **kwargs):
             # Delegate to the inner wrapper; @wraps preserves the original signature so
             # FastMCP can generate a clean tool schema from annotations.
@@ -332,7 +328,7 @@ def _expose_keyword_param(
                 annotations[param_name] = ann
                 wrapped.__annotations__ = annotations
     except (ValueError, TypeError) as e:
-        raise ValueError(f"Failed to add parameter {param_name} to function {wrapped.__name__}") from e
+        raise ConfigurationError(f"Failed to add parameter {param_name} to function {wrapped.__name__}") from e
 
 # Build a synthetic signature and annotations for FastMCP schema generation
 def _type_for_param(p: BoundToolParam) -> type:
@@ -346,17 +342,18 @@ def _type_for_param(p: BoundToolParam) -> type:
             literal_type = Optional[literal_type]
         return literal_type
     # Otherwise infer py type and wrap list for arrays
-    base_py = infer_pytype_from_dtype(p.data_type)
     if isinstance(p.data_type, ArrayType):
-        base_py = list[base_py]  # type: ignore[valid-type]
+        base_py = list[infer_pytype_from_dtype(p.data_type.element_type)]  # type: ignore[valid-type]
+    else:
+        base_py = infer_pytype_from_dtype(p.data_type)
     if p.has_default:
         base_py = Optional[base_py]
     return base_py
 
-def _annotate_with_description(base_ann: type, description: Optional[str] = None) -> Annotated:
+def _annotate_with_description(base_ann: type, description: Optional[str] = None):
     if description:
         return Annotated[base_ann, description]
-    return Annotated[base_ann]
+    return base_ann
 
 def _to_snake_case(name: str) -> str:
     result = name

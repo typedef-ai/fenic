@@ -91,7 +91,7 @@ def auto_generate_core_tools_from_tables(
         sql_max_rows=sql_max_rows,
     )
 
-def dynamic_tool(
+def fenic_tool(
     tool_name: str,
     tool_description: str,
     max_result_limit: Optional[int] = None,
@@ -103,15 +103,24 @@ def dynamic_tool(
         @dynamic_tool(tool_name="find_rust", tool_description="...")
         def find_rust(
             query: Annotated[str, "Natural language query"],
-            limit: Annotated[int, "Max rows"] = 50,
         ) -> DataFrame:
-            pred = fc.semantic.predicate("Matches: {{q}}", q=query, bio=fc.col("bio"))
-            return df.filter(pred).limit(limit)
+            pred = fc.semantic.predicate("Matches: {{q}} Data: {{bio}}", q=query, bio=fc.col("bio"))
+            return df.filter(pred)
+
+        mcp_server = fc.create_mcp_server(
+            local_session,
+            "...",
+            dynamic_tools=[find_rust],
+        )
+        fc.run_mcp_server_sync(mcp_server)
 
     Notes:
-    - The decorated function MUST NOT use *args/**kwargs, and should annotate parameters with Annotated descriptions.
+    - The decorated function MUST NOT use *args/**kwargs
     - The decorated function MUST return a fenic DataFrame.
+    - The decorated function SHOULD annotate parameters with `Annotated` types and descriptions.
     - The returned object is a DynamicTool ready for registration.
+    - A `limit` parameter is automatically added to the function signature, which can be used to limit the number of rows returned up to the tool's `max_result_limit`.
+    - A `table_format` parameter is automatically added to the function signature, which can be used to specify the format of the returned data (markdown, structured)
     """
 
     def decorator(func: Callable[..., DataFrame]) -> DynamicToolDefinition:
@@ -125,9 +134,9 @@ def dynamic_tool(
         return DynamicToolDefinition(
             name=tool_name,
             description=tool_description,
-            func=wrapper,
             max_result_limit=max_result_limit,
             default_table_format=default_table_format,
+            _func=wrapper,
         )
 
     return decorator
@@ -192,7 +201,7 @@ def _auto_generate_read_tool(
     return DynamicToolDefinition(
         name=tool_name,
         description=tool_description,
-        func=read_func,
+        _func=read_func,
         max_result_limit=result_limit,
     )
 
@@ -237,7 +246,7 @@ def _auto_generate_search_summary_tool(
     return DynamicToolDefinition(
         name=tool_name,
         description=tool_description,
-        func=search_summary,
+        _func=search_summary,
         max_result_limit=None,
     )
 
@@ -306,7 +315,7 @@ def auto_generate_search_content_tool(
     return DynamicToolDefinition(
         name=tool_name,
         description=tool_description,
-        func=search_rows,
+        _func=search_rows,
         max_result_limit=result_limit,
     )
 
@@ -373,9 +382,8 @@ def _auto_generate_schema_tool(
     return DynamicToolDefinition(
         name=tool_name,
         description=enhanced_description,
-        func=schema_func,
+        _func=schema_func,
         max_result_limit=None,
-        default_table_format="structured"
     )
 
 
@@ -439,7 +447,7 @@ def _auto_generate_sql_tool(
     tool = DynamicToolDefinition(
         name=tool_name,
         description=enhanced_description,
-        func=analyze_func,
+        _func=analyze_func,
         max_result_limit=result_limit,
     )
     return tool
@@ -658,9 +666,8 @@ def _auto_generate_profile_tool(
     return DynamicToolDefinition(
         name=tool_name,
         description=enhanced_description,
-        func=profile_func,
+        _func=profile_func,
         max_result_limit=None,
-        default_table_format="structured"
     )
 
 
