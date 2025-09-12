@@ -19,6 +19,34 @@
 
 fenic is an opinionated, PySpark-inspired DataFrame framework from typedef.ai for building AI and agentic applications. Transform unstructured and structured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
 
+## Quick Start with AI-Guided Learning & Development
+
+fenic provides an MCP server that gives AI assistants deep understanding of the fenic API. This enables AI tools to provide accurate, context-aware assistance with:
+
+- Learning fenic's API and features
+- Understanding usage patterns and best practices
+- Writing code using the correct functions and patterns
+- Debugging issues with real knowledge of the codebase
+
+### Connect Your AI Assistant
+
+The easiest way to get started is using our hosted MCP server at https://mcp.fenic.ai.
+
+**Example with Claude Code:**
+
+```bash
+claude mcp add -t http fenic-docs https://mcp.fenic.ai
+```
+
+Once connected, you can ask questions like:
+
+- "How do I use semantic.extract() to parse JSON from text?"
+- "Show me how to implement a custom async UDF"
+- "What's the difference between semantic.map() and semantic.filter()?"
+- "How do I set up batch inference with multiple LLM providers?"
+
+The AI assistant will have direct access to fenic's complete API documentation and architectural details to provide accurate, helpful responses specific to fenic rather than generic Python advice.
+
 ## Install
 
 fenic supports Python `[3.10, 3.11, 3.12]`
