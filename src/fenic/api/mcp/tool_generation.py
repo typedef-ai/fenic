@@ -11,11 +11,13 @@ execution and result formatting.
 
 from __future__ import annotations
 
+import functools
 import hashlib
+import inspect
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import polars as pl
 from typing_extensions import Annotated
@@ -34,7 +36,7 @@ from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core.error import ConfigurationError, ValidationError
-from fenic.core.mcp.types import DynamicToolDefinition
+from fenic.core.mcp.types import DynamicToolDefinition, TableFormat
 from fenic.core.types.datatypes import (
     BooleanType,
     DoubleType,
@@ -88,6 +90,56 @@ def auto_generate_core_tools_from_tables(
         tool_group_name=tool_group_name,
         sql_max_rows=sql_max_rows,
     )
+
+def dynamic_tool(
+    tool_name: str,
+    tool_description: str,
+    max_result_limit: Optional[int] = None,
+    default_table_format: TableFormat = "markdown",
+):
+    """Decorator to bind a DataFrame to a user-authored tool function.
+
+    Example:
+        @dynamic_tool(tool_name="find_rust", tool_description="...")
+        def find_rust(
+            query: Annotated[str, "Natural language query"],
+            limit: Annotated[int, "Max rows"] = 50,
+        ) -> DataFrame:
+            pred = fc.semantic.predicate("Matches: {{q}}", q=query, bio=fc.col("bio"))
+            return df.filter(pred).limit(limit)
+
+    Notes:
+    - The decorated function MUST NOT use *args/**kwargs, and should annotate parameters with Annotated descriptions.
+    - The decorated function MUST return a fenic DataFrame.
+    - The returned object is a DynamicTool ready for registration.
+    """
+
+    def decorator(func: Callable[..., DataFrame]) -> DynamicToolDefinition:
+        _ensure_no_var_args(func, func_label=tool_name)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> LogicalPlan:
+            result_df = func(*args, **kwargs)
+            return result_df._logical_plan
+
+        return DynamicToolDefinition(
+            name=tool_name,
+            description=tool_description,
+            func=wrapper,
+            max_result_limit=max_result_limit,
+            default_table_format=default_table_format,
+        )
+
+    return decorator
+
+def _ensure_no_var_args(func: Callable[..., object], *, func_label: str) -> None:
+    sig = inspect.signature(func)
+    for p in sig.parameters.values():
+        if p.kind.name in {"VAR_POSITIONAL", "VAR_KEYWORD"}:
+            raise ValueError(
+                f"{func_label} must not use *args or **kwargs for MCP tool introspection."
+            )
+
 
 def _auto_generate_read_tool(
     datasets: List[DatasetSpec],
