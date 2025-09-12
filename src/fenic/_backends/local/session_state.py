@@ -11,8 +11,10 @@ import duckdb
 
 import fenic._backends.local.utils.io_utils
 from fenic._backends.local.catalog import LocalCatalog
+from fenic._backends.local.db_client import DBClient
 from fenic._backends.local.execution import LocalExecution
 from fenic._backends.local.model_registry import SessionModelRegistry
+from fenic._backends.local.physical_plan.optimizer import PhysicalPlanOptimizer
 from fenic._backends.local.temp_df_db_client import TempDFDBClient
 from fenic._inference import EmbeddingModel, LanguageModel
 from fenic.core._interfaces.session_state import BaseSessionState
@@ -32,6 +34,9 @@ class LocalSessionState(BaseSessionState):
     and indices.
     """
 
+    db_client: DBClient
+    physical_optimizer: PhysicalPlanOptimizer
+    # Keep for backward compatibility during migration
     duckdb_conn: duckdb.DuckDBPyConnection
     s3_session: Optional[boto3.Session] = None
     _model_registry: SessionModelRegistry
@@ -47,6 +52,15 @@ class LocalSessionState(BaseSessionState):
             db_path = Path(config.db_path) / f"{config.app_name}.duckdb"
         else:
             db_path = Path(f"{config.app_name}.duckdb")
+        
+        # Create and connect DBClient
+        self.db_client = DBClient(db_path, self.app_name)
+        self.db_client.connect()
+        
+        # Create PhysicalPlanOptimizer (no rules for now)
+        self.physical_optimizer = PhysicalPlanOptimizer(self)
+        
+        # Keep for backward compatibility during migration
         self.duckdb_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(db_path)
         self._model_registry = self._configure_models(config.semantic)
         self.intermediate_df_client = TempDFDBClient(self.app_name)
@@ -95,6 +109,10 @@ class LocalSessionState(BaseSessionState):
         """Clean up the session state."""
         # Print session usage summary before stopping
         self._print_session_usage_summary()
+        
+        # Close DBClient connection
+        if hasattr(self, 'db_client'):
+            self.db_client.close()
 
         from fenic._backends.local.manager import LocalSessionManager
 
