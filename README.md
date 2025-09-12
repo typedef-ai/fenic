@@ -30,7 +30,7 @@ fenic provides an MCP server that gives AI assistants deep understanding of the 
 
 ### Connect Your AI Assistant
 
-The easiest way to get started is using our hosted MCP server at https://mcp.fenic.ai.
+The easiest way to get started is using our hosted MCP server at <https://mcp.fenic.ai>.
 
 **Example with Claude Code:**
 
