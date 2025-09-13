@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/typedef-ai-fenic-badge.png)](https://mseep.ai/app/typedef-ai-fenic)
+
 <!-- markdownlint-disable MD041 MD033 -->
 <div align="center">
     <picture>
