@@ -11,7 +11,7 @@ from pydantic import ValidationError as PydanticValidationError
 from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
     FatalException,
-    ModelClient,
+    LanguageModelClient,
     TransientException,
 )
 from fenic._inference.openrouter.openrouter_profile_manager import (
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenRouterBatchChatCompletionsClient(
-    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+    LanguageModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Client for making batch requests to OpenRouter's chat completions API.
 

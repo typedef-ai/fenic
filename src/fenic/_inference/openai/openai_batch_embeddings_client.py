@@ -7,8 +7,8 @@ from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
 from fenic._inference.model_client import (
+    EmbeddingsModelClient,
     FatalException,
-    ModelClient,
     RequestT,
     TransientException,
 )
@@ -25,7 +25,7 @@ from fenic.core.metrics import RMMetrics
 logger = logging.getLogger(__name__)
 
 
-class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float]]):
+class OpenAIBatchEmbeddingsClient(EmbeddingsModelClient[FenicEmbeddingsRequest, list[float]]):
     """Client for making batch requests to OpenAI's embeddings API."""
 
     def __init__(

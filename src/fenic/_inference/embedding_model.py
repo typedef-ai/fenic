@@ -2,7 +2,7 @@ from typing import Optional
 
 import pyarrow as pa
 
-from fenic._inference.model_client import ModelClient
+from fenic._inference.model_client import EmbeddingsModelClient
 from fenic._inference.types import FenicEmbeddingsRequest
 from fenic.core._inference.model_catalog import model_catalog
 from fenic.core._logical_plan.resolved_types import (
@@ -12,7 +12,7 @@ from fenic.core.metrics import RMMetrics
 
 
 class EmbeddingModel:
-    def __init__(self, client: ModelClient[FenicEmbeddingsRequest, list[float]]):
+    def __init__(self, client: EmbeddingsModelClient[FenicEmbeddingsRequest, list[float]]):
         self.client = client
         self.model = client.model
         self.model_provider = client.model_provider

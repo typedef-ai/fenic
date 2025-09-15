@@ -13,8 +13,8 @@ from fenic._inference.google.google_provider import (
     GoogleVertexModelProvider,
 )
 from fenic._inference.model_client import (
+    EmbeddingsModelClient,
     FatalException,
-    ModelClient,
     TransientException,
 )
 from fenic._inference.rate_limit_strategy import (
@@ -27,7 +27,7 @@ from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.metrics import RMMetrics
 
 
-class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
+class GoogleBatchEmbeddingsClient(EmbeddingsModelClient[FenicEmbeddingsRequest, List[float]]):
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,

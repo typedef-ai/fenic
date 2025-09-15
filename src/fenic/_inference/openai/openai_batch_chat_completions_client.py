@@ -10,7 +10,7 @@ from fenic._inference.common_openai.openai_profile_manager import (
 )
 from fenic._inference.model_client import (
     FatalException,
-    ModelClient,
+    LanguageModelClient,
     TransientException,
 )
 from fenic._inference.openai.openai_provider import OpenAIModelProvider
@@ -25,7 +25,7 @@ from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 
 
-class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
+class OpenAIBatchChatCompletionsClient(LanguageModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
     """Client for making batch requests to OpenAI's chat completions API."""
 
     def __init__(

@@ -29,7 +29,7 @@ from fenic._inference.anthropic.anthropic_utils import (
 )
 from fenic._inference.model_client import (
     FatalException,
-    ModelClient,
+    LanguageModelClient,
     TransientException,
 )
 from fenic._inference.rate_limit_strategy import (
@@ -55,7 +55,7 @@ from fenic.core.metrics import LMMetrics
 
 
 class AnthropicBatchCompletionsClient(
-    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+    LanguageModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Anthropic batch chat completions client.
 

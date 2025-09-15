@@ -30,7 +30,7 @@ from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
 )
-from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
@@ -483,6 +483,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
                 # Only enqueue if this is a new, unique request
                 if estimated_tokens is not None:
+                    self._check_token_estimate_against_model_limits(estimated_tokens)
                     num_unique_requests += 1
                     total_token_estimate += estimated_tokens
                     queue_item = QueueItem(
@@ -708,3 +709,36 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         for task in self.inflight_requests:
             task.cancel()
         await asyncio.gather(*self.inflight_requests, return_exceptions=True)
+
+    @abstractmethod
+    def _check_token_estimate_against_model_limits(self, token_estimate: TokenEstimate) -> int:
+        """Check if the token estimate exceeds the model limits."""
+        pass
+
+class LanguageModelClient(ModelClient[RequestT, ResponseT]):
+    """A model client for language models."""
+    def __init__(self, model: str, model_provider: ModelProvider, model_provider_class: ModelProviderClass, rate_limit_strategy: RateLimitStrategy, token_counter: TokenCounter, queue_size: int = 100, initial_backoff_seconds: float = 1, backoff_factor: float = 2, max_backoffs: int = 10):
+        super().__init__(model, model_provider, model_provider_class, rate_limit_strategy, token_counter, queue_size, initial_backoff_seconds, backoff_factor, max_backoffs)
+        self.model_parameters = model_catalog.get_completion_model_parameters(model_provider, model)
+
+    def _check_token_estimate_against_model_limits(self, token_estimate: TokenEstimate):
+        """Check if the token estimate exceeds the model limits."""
+        # Check the context window length
+        if token_estimate.total_tokens > self.model_parameters.context_window_length:
+            logger.warning(f"Request may exceed model {self.model}'s maximum context window length of {self.model_parameters.context_window_length}. Estimated Tokens: {token_estimate}")
+        elif token_estimate.input_tokens > self.model_parameters.context_window_length:
+            logger.warning(f"Request input tokens may exceed model {self.model}'s maximum context window length of {self.model_parameters.context_window_length}. Consider chunking the input. Estimated Tokens: {token_estimate}")
+        # Check the output tokens
+        if token_estimate.output_tokens > self.model_parameters.max_output_tokens:
+            logger.warning(f"Request output tokens may exceed model {self.model}'s maximum output tokens of {self.model_parameters.max_output_tokens}. Estimated output tokens: {token_estimate.output_tokens}")
+
+class EmbeddingsModelClient(ModelClient[RequestT, ResponseT]):
+    """A model client for embedding models."""
+    def __init__(self, model: str, model_provider: ModelProvider, model_provider_class: ModelProviderClass, rate_limit_strategy: RateLimitStrategy, token_counter: TokenCounter, queue_size: int = 100, initial_backoff_seconds: float = 1, backoff_factor: float = 2, max_backoffs: int = 10):
+        super().__init__(model, model_provider, model_provider_class, rate_limit_strategy, token_counter, queue_size, initial_backoff_seconds, backoff_factor, max_backoffs)
+        self.model_parameters = model_catalog.get_embedding_model_parameters(model_provider, model)
+
+    def _check_token_estimate_against_model_limits(self, token_estimate: TokenEstimate) -> int:
+        """Check if the token estimate exceeds the model limits."""
+        if token_estimate.input_tokens > self.model_parameters.max_input_size:
+            logger.warning(f"Request input tokens may exceed model {self.model}'s maximum input size of {self.model_parameters.max_input_size}. Estimated Tokens: {token_estimate}")

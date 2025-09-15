@@ -20,7 +20,7 @@ from fenic._inference.google.google_provider import (
 from fenic._inference.google.google_utils import convert_messages
 from fenic._inference.model_client import (
     FatalException,
-    ModelClient,
+    LanguageModelClient,
     TransientException,
 )
 from fenic._inference.rate_limit_strategy import (
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiNativeChatCompletionsClient(
-    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+    LanguageModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Native (google-genai) Google Gemini chat-completions client.
 

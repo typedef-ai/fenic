@@ -9,8 +9,8 @@ from fenic._inference.cohere.cohere_profile_manager import (
 )
 from fenic._inference.cohere.cohere_provider import CohereModelProvider
 from fenic._inference.model_client import (
+    EmbeddingsModelClient,
     FatalException,
-    ModelClient,
     TransientException,
 )
 from fenic._inference.rate_limit_strategy import (
@@ -26,7 +26,7 @@ from fenic.core.metrics import RMMetrics
 logger = logging.getLogger(__name__)
 
 
-class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
+class CohereBatchEmbeddingsClient(EmbeddingsModelClient[FenicEmbeddingsRequest, List[float]]):
     """Client for making batch requests to Cohere's embeddings API."""
 
     def __init__(

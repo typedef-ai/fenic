@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from fenic._inference.model_client import (
-    ModelClient,
+    LanguageModelClient,
 )
 from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
@@ -29,7 +29,7 @@ class InferenceConfiguration:
     model_profile: Optional[str] = None
 
 class LanguageModel:
-    def __init__(self, client: ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
+    def __init__(self, client: LanguageModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
         self.provider = client.model_provider
         self.model = client.model
         self.model_parameters = model_catalog.get_completion_model_parameters(self.provider, self.model)
