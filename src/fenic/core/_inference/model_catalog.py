@@ -63,6 +63,7 @@ class CompletionModelParameters:
         supports_custom_temperature = True,
         supports_verbosity = False,
         supports_pdf_parsing = False,
+        supports_system_messages = True,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -80,7 +81,7 @@ class CompletionModelParameters:
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
-
+        self.supports_system_messages = supports_system_messages
 class EmbeddingModelParameters:
     """Parameters for embedding models including costs and output dimensions.
 
@@ -537,20 +538,6 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_custom_temperature=False,
                 supports_pdf_parsing=True,
-            ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "o1-mini",
-            CompletionModelParameters(
-                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
-                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
-                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
-                context_window_length=128_000,
-                max_output_tokens=65_536,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
             ),
         )
 

@@ -4,11 +4,15 @@ from fenic._inference.request_utils import pdf_to_base64
 from fenic._inference.types import LMRequestMessages
 
 
-def convert_messages(lm_request_messages: LMRequestMessages) -> List[Dict[str, str]]:
+def convert_messages(lm_request_messages: LMRequestMessages, supports_system_messages: bool) -> List[Dict[str, str]]:
     """Convert Fenic messages to OpenAI format.
 
     Any files are converted to base64 encoded strings."""
-    messages = [{"role": "system", "content": lm_request_messages.system}]
+    messages = []
+    if supports_system_messages:
+        messages.append({"role": "system", "content": lm_request_messages.system})
+    else:
+        messages.append({"role": "user", "content": lm_request_messages.system})
 
     for example in lm_request_messages.examples:
         messages.append({"role": "user", "content": example.user})

@@ -89,7 +89,7 @@ class OpenAIChatCompletionsCore:
         try:
             common_params: dict[str, Any] = {
                 "model": self._model,
-                "messages": convert_messages(request.messages),
+                "messages": convert_messages(request.messages, self._model_parameters.supports_system_messages),
                 "n": 1,
             }
             if request.max_completion_tokens:

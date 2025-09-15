@@ -50,7 +50,7 @@ vlms_to_test = [
     (OpenAILanguageModel, "o1"),
     (OpenAILanguageModel, "o4-mini"),
     (OpenAILanguageModel, "o3-mini"),
-    #(OpenAILanguageModel, "o1-mini"), # TODO: fix bug where o1-mini doesn't support system messages
+    (OpenAILanguageModel, "o1-mini"),
 ]
 
 @pytest.mark.parametrize("test_provider, test_model_name", vlms_to_test)
