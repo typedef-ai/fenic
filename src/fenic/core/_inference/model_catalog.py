@@ -155,7 +155,6 @@ OpenAILanguageModelName = Literal[
     "gpt-4-0314",
     "gpt-4-0613",
     "o1",
-    "o1-mini",
     "o3",
     "o3-mini",
     "o4-mini",
@@ -530,20 +529,6 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
-            ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "o1-mini",
-            CompletionModelParameters(
-                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
-                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
-                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
-                context_window_length=128_000,
-                max_output_tokens=65_536,
                 supports_reasoning=True,
                 supports_custom_temperature=False,
             ),
