@@ -135,17 +135,30 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         """Get default Google configuration.
 
         Returns:
-            Default configuration with thinking disabled
+            Default configuration with thinking disabled if supported, otherwise default to low reasoning
         """
         if self.model_parameters.supports_reasoning:
-            return GoogleCompletionsProfileConfig(
-                thinking_enabled=False,
-                thinking_token_budget=0,
-                additional_generation_config=GenerateContentConfigDict(
-                    thinking_config=ThinkingConfigDict(
-                        include_thoughts=False,
-                        thinking_budget=0
+            if self.model_parameters.supports_disabled_reasoning:
+                return GoogleCompletionsProfileConfig(
+                    thinking_enabled=False,
+                    thinking_token_budget=0,
+                    additional_generation_config=GenerateContentConfigDict(
+                        thinking_config=ThinkingConfigDict(
+                            include_thoughts=False,
+                            thinking_budget=0
+                        )
                     )
                 )
-            )
+            else:
+                # default to low reasoning
+                return GoogleCompletionsProfileConfig(
+                    thinking_enabled=True,
+                    thinking_token_budget=1024,
+                    additional_generation_config=GenerateContentConfigDict(
+                        thinking_config=ThinkingConfigDict(
+                            include_thoughts=True,
+                            thinking_budget=1024
+                        )
+                    )
+                )
         return GoogleCompletionsProfileConfig()
