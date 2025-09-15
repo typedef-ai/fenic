@@ -18,6 +18,24 @@ class ModelProvider(Enum):
     COHERE = "cohere"
     OPENROUTER = "openrouter"
 
+class ModelCapability(Enum):
+    """Enum representing different capabilities of a model."""
+    # OpenRouter parameters
+    TOOLS = "tools"
+    TOOL_CHOICE = "tool_choice"
+    MAX_TOKENS = "max_tokens"
+    CUSTOM_TEMPERATURE = "temperature"
+    REASONING = "reasoning"
+    INCLUDE_REASONING = "include_reasoning"
+    STRUCTURED_OUTPUTS = "structured_outputs"
+    JSON_RESPONSE_FORMAT = "response_format"
+    LOGPROBS = "logprobs"
+    TOP_LOGPROBS = "top_logprobs"
+    VERBOSITY = "verbosity"
+    # Internal Fenic parameters
+    PROFILES = "profiles"
+    MINIMAL_REASONING = "minimal_reasoning"
+    DISABLED_REASONING = "disabled_reasoning"
 
 class TieredTokenCost:
     def __init__(
@@ -57,18 +75,16 @@ class CompletionModelParameters:
         output_token_cost: float,
         context_window_length: int,
         max_output_tokens: int,
+        base_capabilities: set[ModelCapability],
         max_temperature: float = 1,
         cached_input_token_write_cost: float = 0.0,
         cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
-        supports_profiles=True,
-        supports_reasoning=False,
-        supports_minimal_reasoning=False,
-        supports_disabled_reasoning = True,
-        supports_custom_temperature=True,
-        supports_verbosity=False,
-        supported_parameters: Optional[set[str]] = None,
+        additional_capabilities: Optional[set[ModelCapability]] = None,
     ):
+        if additional_capabilities is None:
+            additional_capabilities = set()
+        self.all_capabilities = base_capabilities | additional_capabilities
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
         self.cached_input_token_write_cost = cached_input_token_write_cost
@@ -78,14 +94,14 @@ class CompletionModelParameters:
         self.tiered_input_token_costs = tiered_token_costs
         self.max_output_tokens = max_output_tokens
         self.max_temperature = max_temperature
-        self.supports_profiles = supports_profiles
-        self.supports_reasoning = supports_reasoning
-        self.supports_minimal_reasoning = supports_minimal_reasoning
-        self.supports_disabled_reasoning = supports_disabled_reasoning
-        self.supports_custom_temperature = supports_custom_temperature
-        self.supports_verbosity = supports_verbosity
-        # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
-        self.supported_parameters: set[str] = supported_parameters or set()
+        self.supports_profiles = ModelCapability.PROFILES in self.all_capabilities
+        self.supports_reasoning = ModelCapability.REASONING in self.all_capabilities
+        self.supports_minimal_reasoning = ModelCapability.MINIMAL_REASONING in self.all_capabilities
+        self.supports_disabled_reasoning = ModelCapability.DISABLED_REASONING in self.all_capabilities
+        self.supports_custom_temperature = ModelCapability.CUSTOM_TEMPERATURE in self.all_capabilities
+        self.supports_verbosity = ModelCapability.VERBOSITY in self.all_capabilities
+        self.supports_structured_outputs = ModelCapability.STRUCTURED_OUTPUTS in self.all_capabilities
+        self.supports_tool_calling = ModelCapability.TOOLS in self.all_capabilities
 
     def __str__(self):
         repr = (
@@ -238,6 +254,82 @@ GoogleDeveloperLanguageModelName = Literal[
 ]
 GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
+DefaultAnthropicCapabilities = {
+    ModelCapability.REASONING,
+    ModelCapability.DISABLED_REASONING,
+    ModelCapability.INCLUDE_REASONING,
+    ModelCapability.PROFILES,
+    ModelCapability.CUSTOM_TEMPERATURE,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+}
+
+DefaultOpenAICapabilities = {
+    ModelCapability.PROFILES,
+    ModelCapability.CUSTOM_TEMPERATURE,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+    ModelCapability.TOP_LOGPROBS,
+    ModelCapability.LOGPROBS,
+    ModelCapability.STRUCTURED_OUTPUTS,
+    ModelCapability.JSON_RESPONSE_FORMAT,
+}
+
+DefaultOpenAIReasoningCapabilities = {
+    ModelCapability.REASONING,
+    ModelCapability.PROFILES,
+    ModelCapability.INCLUDE_REASONING,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+    ModelCapability.LOGPROBS,
+    ModelCapability.TOP_LOGPROBS,
+    ModelCapability.JSON_RESPONSE_FORMAT,
+    ModelCapability.STRUCTURED_OUTPUTS,
+}
+
+# gpt-5 models cannot use custom temperature or logprobs, but can support minimal reasoning and verbosity
+DefaultOpenAIGpt5Capabilities = {
+    ModelCapability.REASONING,
+    ModelCapability.PROFILES,
+    ModelCapability.INCLUDE_REASONING,
+    ModelCapability.MINIMAL_REASONING,
+    ModelCapability.VERBOSITY,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+    ModelCapability.JSON_RESPONSE_FORMAT,
+    ModelCapability.STRUCTURED_OUTPUTS,
+}
+
+DefaultGeminiCapabilities = {
+    ModelCapability.PROFILES,
+    ModelCapability.CUSTOM_TEMPERATURE,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+    ModelCapability.LOGPROBS,
+    ModelCapability.TOP_LOGPROBS,
+    ModelCapability.JSON_RESPONSE_FORMAT,
+    ModelCapability.STRUCTURED_OUTPUTS,
+}
+
+DefaultGeminiReasoningCapabilities = {
+    ModelCapability.REASONING,
+    ModelCapability.PROFILES,
+    ModelCapability.INCLUDE_REASONING,
+    ModelCapability.CUSTOM_TEMPERATURE,
+    ModelCapability.TOOLS,
+    ModelCapability.TOOL_CHOICE,
+    ModelCapability.MAX_TOKENS,
+    ModelCapability.LOGPROBS,
+    ModelCapability.TOP_LOGPROBS,
+    ModelCapability.JSON_RESPONSE_FORMAT,
+    ModelCapability.STRUCTURED_OUTPUTS,
+}
+
 
 class ProviderModelCollection:
     """A collection of models for a specific provider.
@@ -332,7 +424,7 @@ class ModelCatalog:
                 output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=32_000,
-                supports_reasoning=True,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-opus-4-1-20250805"],
         )
@@ -347,7 +439,7 @@ class ModelCatalog:
                 output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=32_000,
-                supports_reasoning=True,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-opus-4-20250514", "claude-4-opus-20250514"],
         )
@@ -362,7 +454,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=64_000,
-                supports_reasoning=True,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-sonnet-4-20250514", "claude-4-sonnet-20250514"],
         )
@@ -377,7 +469,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=128_000,
-                supports_reasoning=True,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-3-7-sonnet-20250219"],
         )
@@ -392,7 +484,7 @@ class ModelCatalog:
                 output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=8_192,
-                supports_profiles=False,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-3-5-sonnet-20241022", "claude-3-5-sonnet-20240620"],
         )
@@ -407,7 +499,7 @@ class ModelCatalog:
                 output_token_cost=4.00 / 1_000_000,  # $4 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=8_000,
-                supports_profiles=False,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-3-5-haiku-20241022"],
         )
@@ -422,7 +514,7 @@ class ModelCatalog:
                 output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=4_096,
-                supports_profiles=False,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
             snapshots=["claude-3-opus-20240229"],
         )
@@ -437,7 +529,7 @@ class ModelCatalog:
                 output_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
                 context_window_length=200_000,
                 max_output_tokens=4_096,
-                supports_profiles=False,
+                base_capabilities=DefaultAnthropicCapabilities,
             ),
         )
 
@@ -453,7 +545,7 @@ class ModelCatalog:
                 context_window_length=8_192,
                 max_output_tokens=8_192,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4-0314", "gpt-4-0613"],
         )
@@ -468,7 +560,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=4_096,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4-turbo-2024-04-09"],
         )
@@ -483,7 +575,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4o-mini-2024-07-18"],
         )
@@ -498,7 +590,7 @@ class ModelCatalog:
                 context_window_length=128_000,
                 max_output_tokens=16_384,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
         )
@@ -513,7 +605,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4.1-nano-2025-04-14"],
         )
@@ -528,7 +620,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4.1-mini-2025-04-14"],
         )
@@ -543,7 +635,7 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=32_768,
                 max_temperature=2,
-                supports_profiles=False,
+                base_capabilities=DefaultOpenAICapabilities,
             ),
             snapshots=["gpt-4.1-2025-04-14"],
         )
@@ -558,8 +650,20 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
+                base_capabilities=DefaultOpenAIReasoningCapabilities,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "o1-mini",
+            CompletionModelParameters(
+                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
+                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
+                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
+                context_window_length=128_000,
+                max_output_tokens=65_536,
+                base_capabilities=DefaultOpenAIReasoningCapabilities,
             ),
         )
 
@@ -573,8 +677,7 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
+                base_capabilities=DefaultOpenAIReasoningCapabilities,
             ),
         )
 
@@ -588,8 +691,7 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
+                base_capabilities=DefaultOpenAIReasoningCapabilities,
             ),
         )
 
@@ -603,7 +705,7 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=100_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultOpenAIReasoningCapabilities,
             ),
         )
 
@@ -617,10 +719,7 @@ class ModelCatalog:
                 output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
                 context_window_length=400_000,
                 max_output_tokens=128_000,
-                supports_reasoning=True,
-                supports_minimal_reasoning=True,
-                supports_custom_temperature=False,
-                supports_verbosity=True,
+                base_capabilities=DefaultOpenAIGpt5Capabilities,
             ),
             snapshots=["gpt-5-2025-08-07"],
         )
@@ -634,10 +733,7 @@ class ModelCatalog:
                 output_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
                 context_window_length=400_000,
                 max_output_tokens=128_000,
-                supports_reasoning=True,
-                supports_minimal_reasoning=True,
-                supports_custom_temperature=False,
-                supports_verbosity=True,
+                base_capabilities=DefaultOpenAIGpt5Capabilities,
             ),
             snapshots=["gpt-5-mini-2025-08-07"],
         )
@@ -651,10 +747,7 @@ class ModelCatalog:
                 output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
                 context_window_length=400_000,
                 max_output_tokens=128_000,
-                supports_reasoning=True,
-                supports_minimal_reasoning=True,
-                supports_verbosity=True,
-                supports_custom_temperature=False,
+                base_capabilities=DefaultOpenAIGpt5Capabilities,
             ),
             snapshots=["gpt-5-nano-2025-08-07"],
         )
@@ -692,8 +785,6 @@ class ModelCatalog:
                 output_token_cost=10 / 1_000_000,  # $10 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                supports_reasoning=True,
-                supports_disabled_reasoning=False,
                 max_temperature=2.0,
                 tiered_token_costs={
                     200_000: TieredTokenCost(
@@ -703,6 +794,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                base_capabilities=DefaultGeminiReasoningCapabilities,
             ),
             snapshots=["gemini-2.5-pro-preview-06-05"],
         )
@@ -717,7 +809,10 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultGeminiReasoningCapabilities,
+                additional_capabilities={
+                    ModelCapability.DISABLED_REASONING,
+                }
             ),
         )
 
@@ -730,7 +825,10 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=64_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultGeminiReasoningCapabilities,
+                additional_capabilities={
+                    ModelCapability.DISABLED_REASONING,
+                }
             ),
         )
 
@@ -743,6 +841,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                base_capabilities=DefaultGeminiCapabilities,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
         )
@@ -758,6 +857,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
+                base_capabilities=DefaultGeminiCapabilities,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
@@ -810,7 +910,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultGeminiReasoningCapabilities,
                 supports_disabled_reasoning=False,
                 tiered_token_costs={
                     200_000: TieredTokenCost(
@@ -834,7 +934,10 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultGeminiReasoningCapabilities,
+                additional_capabilities={
+                    ModelCapability.DISABLED_REASONING,
+                }
             ),
         )
 
@@ -847,7 +950,10 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=64_000,
                 max_temperature=2.0,
-                supports_reasoning=True,
+                base_capabilities=DefaultGeminiReasoningCapabilities,
+                additional_capabilities={
+                    ModelCapability.DISABLED_REASONING,
+                }
             ),
         )
 
@@ -860,7 +966,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
-                supports_profiles=False,
+                base_capabilities=DefaultGeminiCapabilities,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
         )
@@ -876,7 +982,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
-                supports_profiles=False,
+                base_capabilities=DefaultGeminiCapabilities,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )

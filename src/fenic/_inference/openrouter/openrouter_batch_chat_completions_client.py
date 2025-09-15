@@ -32,13 +32,16 @@ from fenic._inference.types import (
     FenicCompletionsResponse,
     ResponseUsage,
 )
-from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_catalog import (
+    ModelCapability,
+    ModelProvider,
+    model_catalog,
+)
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
 
 TOOLS = "tools"
 
-STRUCTURED_OUTPUTS = "structured_outputs"
 
 RESPONSE_FORMAT = "response_format"
 logger = logging.getLogger(__name__)
@@ -97,15 +100,22 @@ class OpenRouterBatchChatCompletionsClient(
             }
 
         if request.top_logprobs:
-            common_params.update(
-                {"logprobs": True, "top_logprobs": request.top_logprobs}
-            )
+            if ModelCapability.TOP_LOGPROBS in self._model_parameters.all_capabilities:
+                    common_params.update(
+                            {"logprobs": True, "top_logprobs": request.top_logprobs}
+                        )
+                else:
+                    return FatalException(
+                        ConfigurationError(
+                            f"Model {self.model} does not support top_logprobs, but the current request requires an output format. Select a different model that supports `top_logprobs`"
+                        )
+                    )
 
         if request.temperature and self._model_parameters.supports_custom_temperature:
             common_params.update({"temperature": request.temperature})
 
         if request.structured_output:
-            if STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
+            if self._model_parameters.supports_structured_outputs:
                 common_params[RESPONSE_FORMAT] = {
                     "type": "json_schema",
                     "json_schema": {
@@ -114,7 +124,7 @@ class OpenRouterBatchChatCompletionsClient(
                         "strict": True,
                     },
                 }
-            elif TOOLS in self._model_parameters.supported_parameters:
+            elif self._model_parameters.supports_tool_calling:
                 common_params[TOOLS] = [
                     {
                         "type": "function",

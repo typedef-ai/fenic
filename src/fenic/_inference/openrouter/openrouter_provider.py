@@ -9,6 +9,7 @@ from openai import AsyncOpenAI, OpenAI
 
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
+    ModelCapability,
     ModelProvider,
     model_catalog,
 )
@@ -107,11 +108,13 @@ class OpenRouterModelProvider(ModelProviderClass):
             max_tokens = min(8192, context_len)
 
         supported_params = set(model_obj.get("supported_parameters") or [])
-        supports_reasoning = ("reasoning" in supported_params) or (
-            "include_reasoning" in supported_params
-        )
-        supports_custom_temperature = "temperature" in supported_params
-        supports_verbosity = "verbosity" in supported_params
+        capabilities: set[ModelCapability] = set()
+        for param in supported_params:
+            try:
+                capabilities.add(ModelCapability(param))
+            except ValueError:
+                continue
+        capabilities.add(ModelCapability.PROFILES)
 
         return CompletionModelParameters(
             input_token_cost=input_cost,
@@ -119,11 +122,7 @@ class OpenRouterModelProvider(ModelProviderClass):
             context_window_length=context_len,
             max_output_tokens=max_tokens,
             cached_input_token_read_cost=cached_read_cost,
-            supports_profiles=True,
-            supports_reasoning=supports_reasoning,
-            supports_custom_temperature=supports_custom_temperature,
-            supports_verbosity=supports_verbosity,
-            supported_parameters=supported_params,
+            base_capabilities=capabilities,
         )
 
     def _load_models_once(self):
