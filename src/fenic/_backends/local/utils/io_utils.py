@@ -67,7 +67,7 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
             query, has_hf_creds = _build_query_with_hf_creds(query)
             if not has_hf_creds:
                 logger.warning(
-                    "HuggingFace token not found. Will attempt to read dataset, this will fail if the dataset is private or gated."
+                    "HuggingFace token not found. Will attempt to read dataset, this will fail if the dataset is private or gated. "
                     "Set HF_TOKEN environment variable to authenticate to HuggingFace."
                 )
     try:
@@ -80,9 +80,9 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
                 message = "Failed to read from S3. The object does not exist."
             elif e.status_code == 401 or e.status_code == 403:
                 if has_s3_creds:
-                    message = ("Failed to read from S3. The provided credentials do not have the required permissions.")
+                    message = f"Failed to read from S3. The provided credentials do not have the required permissions. (Status code: {e.status_code})"
                 else:
-                    message = ("Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable.")
+                    message = f"Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: {e.status_code})"
             else:
                 message = f"Failed to read from S3. {e}"
         elif has_hf_paths:
@@ -90,9 +90,9 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
                 message = "Failed to read from Hugging Face. The object does not exist."
             elif e.status_code == 401 or e.status_code == 403:
                 if has_hf_creds:
-                    message = "Failed to read from Hugging Face. Ensure the path exists and that the provided credentials have the required permissions."
+                    message = f"Failed to read from Hugging Face -- the provided credentials do not have the required permissions. (Status code: {e.status_code})"
                 else:
-                    message = "Failed to read from Hugging Face. Credentials were not found. Set HF_TOKEN environment variable."
+                    message = f"Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. (Status code: {e.status_code})"
             else:
                 message = f"Failed to read from Hugging Face. {e}"
         else:
@@ -179,10 +179,6 @@ def _build_query_with_hf_creds(query: str) -> tuple[str, bool]:
     """Helper method to add HuggingFace credentials to a DuckDB query."""
     hf_token = _fetch_hf_token()
     if not hf_token:
-        logger.warning(
-            "HuggingFace token not found. Will attempt to read dataset, this will fail if the dataset is private or gated."
-            "Set HF_TOKEN environment variable to authenticate to HuggingFace."
-        )
         return query, False
 
     return f"CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN '{hf_token}'); {query}", True

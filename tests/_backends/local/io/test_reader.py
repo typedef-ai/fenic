@@ -9,7 +9,6 @@ import boto3
 import polars as pl
 import pytest
 from botocore.session import get_session
-from duckdb import HTTPException
 
 from fenic import (
     ArrayType,
@@ -33,7 +32,7 @@ from fenic._backends.local.utils.io_utils import (
 )
 from fenic.api.session import Session
 from fenic.core.error import (
-    ConfigurationError,
+    FileLoaderError,
     InternalError,
     PlanError,
     UnsupportedFileTypeError,
@@ -766,7 +765,8 @@ def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch
         infer_schema =True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    assert has_s3_creds
     assert "http"
     assert f"SET s3_access_key_id='{access_key}'" in query
     assert f"SET s3_secret_access_key='{secret_key}'" in query
@@ -801,13 +801,13 @@ def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
     # Test that read queries to s3 will fail without credentials
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv("s3://test-bucket/test-file.csv")
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "Unable to locate AWS credentials."
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert str(exc_info.value.__cause__) == "File loader error: Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: 403)"
 
     with pytest.raises(PlanError, match="Failed to infer schema from Parquet files") as exc_info:
         session.read.parquet("s3://test-bucket/test-file.parquet")
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "Unable to locate AWS credentials."
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert str(exc_info.value.__cause__) == "File loader error: Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: 403)"
 
     session.stop()
 
@@ -820,22 +820,12 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     session = Session.get_or_create(local_session_config)
     paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
 
-    # Test with no token
-    if os.getenv("HF_TOKEN"):
-        monkeypatch.delenv("HF_TOKEN")
-
-    with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
-        session.read.csv(paths[0])
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "HuggingFace token not found. Set HF_TOKEN environment variable."
-
     # Test with invalid token
     monkeypatch.setenv("HF_TOKEN", "invalid_token")
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
-    assert isinstance(exc_info.value.__cause__, HTTPException)
-    assert str(exc_info.value.__cause__) == "HTTP Error: HTTP GET error on 'https://huggingface.co/datasets/typedef-ai/fenic-test-datasets-private/resolve/main/last_names_1.csv' (HTTP 401)"
-
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert str(exc_info.value.__cause__) == "File loader error: Failed to read from Hugging Face -- the provided credentials do not have the required permissions. (Status code: 401)"
 
 def test_read_query_setup_with_huggingface_credentials(local_session_config, monkeypatch):
     """Test that read queries to huggingface datasets will succeed with hf credentials."""
@@ -849,7 +839,8 @@ def test_read_query_setup_with_huggingface_credentials(local_session_config, mon
         infer_schema=True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_hf_creds(query)
+    query, has_hf_creds = _build_query_with_hf_creds(query)
+    assert has_hf_creds
     assert "INSTALL httpfs; LOAD httpfs;" in query
     assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
 
@@ -879,8 +870,10 @@ def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_
         infer_schema=True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    query = _build_query_with_hf_creds(query)
+    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    assert has_s3_creds
+    query, has_hf_creds = _build_query_with_hf_creds(query)
+    assert has_hf_creds
     assert "INSTALL httpfs; LOAD httpfs;" in query
     assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
     assert f"SET s3_access_key_id='{access_key}'" in query
@@ -1246,7 +1239,7 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_tes
     json_path = Path(temp_dir_with_test_files) / "test.json"
     with open(json_path, 'w') as f:
         json.dump({"test": "data", "number": 42}, f)
-    
+
     df = local_session.read.docs(
         _get_globbed_path(temp_dir_with_test_files, "**/*.json"),
         data_type=JsonType,
