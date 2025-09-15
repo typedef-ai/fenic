@@ -100,8 +100,9 @@ class CompletionModelParameters:
         self.supports_disabled_reasoning = ModelCapability.DISABLED_REASONING in self.all_capabilities
         self.supports_custom_temperature = ModelCapability.CUSTOM_TEMPERATURE in self.all_capabilities
         self.supports_verbosity = ModelCapability.VERBOSITY in self.all_capabilities
-        self.supports_structured_outputs = ModelCapability.STRUCTURED_OUTPUTS in self.all_capabilities
-        self.supports_tool_calling = ModelCapability.TOOLS in self.all_capabilities
+
+    def has_capability(self, capability: ModelCapability):
+        return capability in self.all_capabilities
 
     def __str__(self):
         repr = (

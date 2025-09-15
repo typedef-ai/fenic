@@ -3,7 +3,7 @@
 import logging
 import math
 from json.decoder import JSONDecodeError
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from openai import APIConnectionError, APITimeoutError, OpenAIError, RateLimitError
 
@@ -92,7 +92,7 @@ class OpenRouterBatchChatCompletionsClient(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         profile = self._profile_manager.get_profile_by_name(request.model_profile)
-        common_params = {
+        common_params: dict[str, Any]  = {
                 "model": self.model,
                 "messages": request.messages.to_message_list(),
                 "max_completion_tokens": self._get_max_output_tokens(request),
@@ -100,22 +100,22 @@ class OpenRouterBatchChatCompletionsClient(
             }
 
         if request.top_logprobs:
-            if ModelCapability.TOP_LOGPROBS in self._model_parameters.all_capabilities:
-                    common_params.update(
-                            {"logprobs": True, "top_logprobs": request.top_logprobs}
-                        )
-                else:
-                    return FatalException(
-                        ConfigurationError(
-                            f"Model {self.model} does not support top_logprobs, but the current request requires an output format. Select a different model that supports `top_logprobs`"
-                        )
+            if self._model_parameters.has_capability(ModelCapability.TOP_LOGPROBS):
+                common_params.update(
+                        {"logprobs": True, "top_logprobs": request.top_logprobs}
                     )
+            else:
+                return FatalException(
+                    ConfigurationError(
+                        f"Model {self.model} does not support top_logprobs, but the current request requires an output format. Select a different model that supports `top_logprobs`"
+                    )
+                )
 
-        if request.temperature and self._model_parameters.supports_custom_temperature:
-            common_params.update({"temperature": request.temperature})
+        if request.temperature and self._model_parameters.has_capability(ModelCapability.CUSTOM_TEMPERATURE):
+            common_params["temperature"] = request.temperature
 
         if request.structured_output:
-            if self._model_parameters.supports_structured_outputs:
+            if self._model_parameters.has_capability(ModelCapability.STRUCTURED_OUTPUTS):
                 common_params[RESPONSE_FORMAT] = {
                     "type": "json_schema",
                     "json_schema": {
@@ -124,7 +124,7 @@ class OpenRouterBatchChatCompletionsClient(
                         "strict": True,
                     },
                 }
-            elif self._model_parameters.supports_tool_calling:
+            elif self._model_parameters.has_capability(ModelCapability.TOOLS):
                 common_params[TOOLS] = [
                     {
                         "type": "function",
