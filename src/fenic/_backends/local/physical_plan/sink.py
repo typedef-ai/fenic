@@ -9,11 +9,12 @@ if TYPE_CHECKING:
 import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
-from fenic._backends.local.physical_plan import PhysicalPlan
-from fenic._backends.local.utils.io_utils import does_path_exist, write_file
+from fenic._backends.local.physical_plan import PhysicalPlan, DuckDBNodeMixin
+from fenic._backends.local.utils.io_utils import does_path_exist, build_write_sql_query
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
+from fenic.core._utils.misc import generate_unique_arrow_view_name
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,8 @@ class FileSinkExec(PhysicalPlan):
             logger.warning(f"File {self.path} already exists, ignoring write.")
             return pl.DataFrame()
         df = child_dfs[0]
-        write_file(df=df, path=self.path, s3_session=self.session_state.s3_session, file_type=self.file_type)
+        query = build_write_sql_query(df=df, path=self.path, s3_session=self.session_state.s3_session, file_type=self.file_type)
+        self.session_state.db_client.execute(query)
         return pl.DataFrame()
 
     def _build_lineage(
@@ -69,14 +71,14 @@ class FileSinkExec(PhysicalPlan):
         raise InternalError("FileSink does not support lineage")
 
 
-class DuckDBTableSinkExec(PhysicalPlan):
+class DuckDBTableSinkExec(PhysicalPlan, DuckDBNodeMixin):
     """Physical plan node for DuckDB table sink operations."""
 
     def __init__(
         self,
         child: PhysicalPlan,
         table_name: str,
-        mode: Literal["error", "overwrite", "ignore"],
+        mode: Literal["append", "overwrite"],
         cache_info: CacheInfo,
         session_state: LocalSessionState,
         schema: Schema,
@@ -91,37 +93,26 @@ class DuckDBTableSinkExec(PhysicalPlan):
     def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise InternalError("TableSink expects exactly one child DataFrame")
-        df = child_dfs[0]
-        table_exists = self.session_state.catalog.does_table_exist(self.table_name)
-        if table_exists:
-            if self.mode == "error":
-                raise PlanError(
-                    f"Cannot save to table '{self.table_name}' - it already exists and mode is 'error'. "
-                    f"Choose a different approach: "
-                    f"1) Use mode='overwrite' to replace the existing table, "
-                    f"2) Use mode='append' to add data to the existing table, "
-                    f"3) Use mode='ignore' to skip saving if table exists, "
-                    f"4) Use a different table name."
-                )
-            if self.mode == "ignore":
-                logger.warning(
-                    f"Table {self.table_name} already exists, ignoring write."
-                )
-                return pl.DataFrame()
-            if self.mode == "append":
-                self.session_state.catalog.insert_df_to_table(
-                    df, self.table_name, self.schema
-                )
-            elif self.mode == "overwrite":
-                self.session_state.catalog.replace_table_with_df(
-                    df, self.table_name, self.schema
-                )
-        else:
-            self.session_state.catalog.write_df_to_table(
-                df, self.table_name, self.schema
-            )
-
+        view_name = generate_unique_arrow_view_name()
+        self.session_state.db_client.register(view_name, child_dfs[0])
+        query = self.get_sql_query([view_name])
+        self.session_state.db_client.execute(query)
         return pl.DataFrame()
+
+    def get_sql_query(self, view_names: List[str]) -> str:
+        if len(view_names) != 1:
+            raise InternalError("Unreachable: DuckDBTableSinkExec expects exactly one view name")
+        view_name = view_names[0]
+        table_name = self.session_state.catalog.get_fully_qualified_table_name(self.table_name)
+        if self.mode == "append":
+            if self.session_state.catalog.does_table_exist(self.table_name):
+                return f"INSERT INTO {table_name} SELECT * FROM {view_name}"
+            else:
+                return f"CREATE TABLE {table_name} AS SELECT * FROM {view_name}"
+        elif self.mode == "overwrite":
+            return f"CREATE OR REPLACE TABLE {table_name} AS SELECT * FROM {view_name}"
+        else:
+            raise InternalError(f"Unreachable: DuckDBTableSinkExec mode {self.mode} not supported")
 
     def _build_lineage(
         self,
@@ -133,3 +124,15 @@ class DuckDBTableSinkExec(PhysicalPlan):
             A LineageGraph representing the operation
         """
         raise InternalError("TableSink does not support lineage")
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: TableSink expects 1 child")
+        return DuckDBTableSinkExec(
+            child=children[0],
+            table_name=self.table_name,
+            mode=self.mode,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+            schema=self.schema
+        )

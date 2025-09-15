@@ -6,6 +6,7 @@ import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
 from fenic.core._logical_plan.plans import CacheInfo
+from fenic.core.error import InternalError
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -73,3 +74,14 @@ class AggregateExec(PhysicalPlan):
             child=(child_operator, backwards_df),
         )
         return operator, materialize_df
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: AggregateExec expects 1 child")
+        return AggregateExec(
+            child=children[0],
+            group_exprs=self.group_exprs,
+            agg_exprs=self.agg_exprs,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )

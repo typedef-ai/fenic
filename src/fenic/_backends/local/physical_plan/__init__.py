@@ -5,6 +5,7 @@ the actual execution logic for query operations. These classes are not
 part of the public API and should not be used directly.
 """
 
+from fenic._backends.local.physical_plan.base import DuckDBNodeMixin as DuckDBNodeMixin
 from fenic._backends.local.physical_plan.aggregate import (
     AggregateExec as AggregateExec,
 )
@@ -30,6 +31,9 @@ from fenic._backends.local.physical_plan.source import (
     FileSourceExec as FileSourceExec,
 )
 from fenic._backends.local.physical_plan.source import (
+    CacheReadExec as CacheReadExec,
+)
+from fenic._backends.local.physical_plan.source import (
     InMemorySourceExec as InMemorySourceExec,
 )
 from fenic._backends.local.physical_plan.transform import (
@@ -50,6 +54,7 @@ from fenic._backends.local.physical_plan.transform import UnionExec as UnionExec
 from fenic._backends.local.physical_plan.transform import UnnestExec as UnnestExec
 
 __all__ = [
+    "DuckDBNodeMixin",
     "AggregateExec",
     "SemanticClusterExec",
     "PhysicalPlan",
@@ -60,6 +65,7 @@ __all__ = [
     "FileSinkExec",
     "DuckDBTableSourceExec",
     "FileSourceExec",
+    "CacheReadExec",
     "DocSourceExec",
     "InMemorySourceExec",
     "DropDuplicatesExec",

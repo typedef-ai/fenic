@@ -47,7 +47,7 @@ def does_path_exist(path: str, s3_session: BotoSession) -> bool:
         raise ValidationError(f"Unsupported file type: {scheme} for path: {path}.  Please use s3 scheme ('s3://'), hf scheme ('hf://'), or local scheme ('file://' or no prefix).")
 
 
-def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.DataFrame:
+def build_read_sql_query(query: str, paths: List[str], s3_session: BotoSession) -> str:
     """Execute a DuckDB query with s3 and/or hf credentials."""
     duckdb_conn = _configure_duckdb_conn(duckdb.connect())
 
@@ -61,16 +61,15 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
         if has_hf_paths:
             query = _build_query_with_hf_creds(query)
 
-    arrow_result = duckdb_conn.execute(query).arrow()
-    return pl.from_arrow(arrow_result)
+    return query
 
 
-def write_file(
+def build_write_sql_query(
     df: pl.DataFrame,
     path: str,
     s3_session: BotoSession,
     file_type: Literal["csv", "parquet"],
-):
+) -> str:
     """Write file to local, s3, or hf path using duckdb."""
     duckdb_conn = _configure_duckdb_conn(duckdb.connect())
     arrow_table = df.to_arrow()
@@ -87,7 +86,7 @@ def write_file(
         query = _build_query_with_httpfs_extensions(query)
         query = _build_query_with_s3_creds(query, s3_session)
 
-    duckdb_conn.execute(query)
+    return query
 
 
 def _fetch_and_validate_s3_credentials(s3_session: BotoSession) -> Tuple[ReadOnlyCredentials, str]:

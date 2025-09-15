@@ -1,5 +1,19 @@
-"""Physical plan optimizer framework."""
+"""Physical plan optimization module."""
 
-from .base import PhysicalPlanOptimizer, PhysicalPlanOptimizerRule, OptimizationResult
+from fenic._backends.local.physical_plan.optimizer.base import (
+    PhysicalPlanOptimizationResult,
+    PhysicalPlanOptimizer,
+    PhysicalPlanRule,
+)
+from fenic._backends.local.physical_plan.optimizer.merge_duckdb_nodes import (
+    MergeDuckDBNodesRule,
+)
+from fenic._backends.local.physical_plan.transform import DuckDBSubtree
 
-__all__ = ["PhysicalPlanOptimizer", "PhysicalPlanOptimizerRule", "OptimizationResult"]
+__all__ = [
+    "PhysicalPlanOptimizer",
+    "PhysicalPlanOptimizationResult",
+    "PhysicalPlanRule",
+    "DuckDBSubtree",
+    "MergeDuckDBNodesRule",
+]

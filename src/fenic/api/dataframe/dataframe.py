@@ -404,7 +404,7 @@ class DataFrame:
             ```
         """
         table_name = f"cache_{uuid.uuid4().hex}"
-        cache_info = CacheInfo(duckdb_table_name=table_name)
+        cache_info = CacheInfo(cache_key=table_name)
         self._logical_plan.set_cache_info(cache_info)
         return self._from_logical_plan(
             self._logical_plan,

@@ -27,7 +27,7 @@ from fenic._backends.local.utils.io_utils import (
     _build_query_with_hf_creds,
     _build_query_with_httpfs_extensions,
     _build_query_with_s3_creds,
-    write_file,
+    build_write_sql_query,
 )
 from fenic.api.session import Session
 from fenic.core.error import (
@@ -54,7 +54,7 @@ def write_test_file(
             raise InternalError("Writing parquet test files expects a polars DataFrame")
     else:
         df = content
-    write_file(df=df, path=path, s3_session=local_session._session_state.s3_session, file_type=file_type)
+    build_write_sql_query(df=df, path=path, s3_session=local_session._session_state.s3_session, file_type=file_type)
 
 
 # =============================================================================
@@ -755,7 +755,7 @@ def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch
     secret_key = frozen_credentials.secret_key
     token = frozen_credentials.token
     region = session._session_state.s3_session.region_name
- 
+
     # Test that read queries to s3 have the configured credentials
     paths = ["s3://test-bucket/test-file.csv"]
     query = session._session_state.execution._build_read_csv_query(
@@ -868,7 +868,7 @@ def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_
     secret_key = frozen_credentials.secret_key
     token = frozen_credentials.token
     region = session._session_state.s3_session.region_name
-    
+
     # Test that read queries to s3 have the configured credentials
     paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
     query = session._session_state.execution._build_read_csv_query(
@@ -934,13 +934,13 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test multiple parquet files with glob 
+    # Test multiple parquet files with glob
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public/names_and_occupations_*.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test with a parquet file at commit 
+    # Test with a parquet file at commit
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public@58138e6c12e70033f6e36307c7a149a1c13dfc38/names_and_occupations_2.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 10

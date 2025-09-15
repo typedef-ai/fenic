@@ -1,76 +1,104 @@
 """Unified DuckDB client managing both main and intermediate databases."""
 
+from __future__ import annotations
 from pathlib import Path
 from typing import Optional
-
+import polars as pl
+import os
 import duckdb
 
 import fenic._backends.local.utils.io_utils
-
+from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core.error import InternalError
 
 class DBClient:
     """Unified DuckDB client managing both main and intermediate databases."""
 
-    def __init__(self, main_db_path: Path, app_name: str):
+    _connection: Optional[duckdb.DuckDBPyConnection] = None
+
+    def __init__(self, db_path: Path, app_name: str):
         """Initialize DBClient with database paths.
-        
+
         Args:
-            main_db_path: Path to the main database file
+            db_path: Path to the main database file
             app_name: Application name for intermediate database naming
         """
-        self.main_db_path = main_db_path
-        self.app_name = app_name
-        self._connection: Optional[duckdb.DuckDBPyConnection] = None
-
-    def connect(self) -> None:
-        """Create connection and attach intermediate database."""
-        # Create main database connection using existing configuration
         self._connection = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(
-            self.main_db_path
+            db_path
         )
-        
+
         # Attach intermediate database
-        intermediate_path = self.main_db_path.parent / f"__{self.app_name}_tmp_dfs.duckdb"
-        self._connection.execute(f"ATTACH '{intermediate_path}' AS __intermediate__")
+        self._intermediate_path = db_path.parent / f"__{app_name}_tmp_dfs.duckdb"
+        self._connection.execute(f"ATTACH '{self._intermediate_path}' AS __intermediate__")
 
     def cursor(self) -> duckdb.DuckDBPyConnection:
         """Get cursor from the unified connection.
-        
+
         Returns:
             Cursor from the unified connection
-            
+
         Raises:
             RuntimeError: If connection hasn't been established
         """
         if self._connection is None:
-            raise RuntimeError("DBClient connection not established. Call connect() first.")
+            raise InternalError("DBClient connection is closed.")
         return self._connection.cursor()
 
-    def close(self) -> None:
+    def cleanup(self) -> None:
         """Close the unified connection."""
-        if self._connection:
+        if self._connection is None:
             self._connection.close()
-            self._connection = None
+            self.intermediate.cleanup()
 
     @property
-    def is_connected(self) -> bool:
-        """Check if the connection is established."""
-        return self._connection is not None
+    def connection(self) -> duckdb.DuckDBPyConnection:
+        """Get the unified connection."""
+        if self._connection is None:
+            raise InternalError("DBClient connection is closed.")
+        return self._connection
 
+    @property
+    def intermediate(self) -> IntermediateDBClient:
+        return IntermediateDBClient(self)
 
-def is_df_cached(db_client: DBClient, table_name: str) -> bool:
-    """Check if a DataFrame is cached in the intermediate database.
-    
-    Args:
-        db_client: DBClient instance
-        table_name: Name of the table to check
-        
-    Returns:
-        True if table exists in intermediate database, False otherwise
-    """
-    cursor = db_client.cursor()
-    result = cursor.execute(
-        "SELECT COUNT(*) FROM __intermediate__.information_schema.tables WHERE table_name = ?",
-        [table_name]
-    ).fetchone()[0]
-    return result > 0
+class IntermediateDBClient:
+    """Client for the intermediate database."""
+
+    def __init__(self, db_client: DBClient):
+        self.db_client = db_client
+
+    def is_df_cached(self, cache_name: str) -> bool:
+        """Check if a Polars dataframe is stored in a DuckDB table in the 'main' schema."""
+        # trunk-ignore-begin(bandit/B608)
+        result = self.db_client.cursor().execute(
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{cache_name}'"
+        )
+        return len(result.fetchall()) > 0
+        # trunk-ignore-end(bandit/B608)
+
+    def write_df(self, df: pl.DataFrame, table_name: str):
+        """Write a Polars dataframe to a DuckDB table in the current DuckDB schema."""
+        # trunk-ignore-begin(bandit/B608)
+        view_name = generate_unique_arrow_view_name()
+        cursor = self.db_client.cursor()
+        cursor.register(view_name, df)
+        cursor.execute(f"CREATE TABLE {table_name} AS SELECT * FROM __intermediate__.{view_name}")
+        cursor.execute(f"DROP VIEW IF EXISTS {view_name}")
+        # trunk-ignore-end(bandit/B608)
+
+    def read_df(self, table_name: str) -> pl.DataFrame:
+        """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
+        # trunk-ignore-begin(bandit/B608)
+        result = self.db_client.cursor().execute(f"SELECT * FROM __intermediate__.{table_name}")
+        arrow_table = result.arrow()
+        return pl.from_arrow(arrow_table)
+        # trunk-ignore-end(bandit/B608)
+
+    def get_read_df_query(self, table_name: str) -> str:
+        """Get a SQL query to read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
+        return f"SELECT * FROM __intermediate__.{table_name}"
+
+    def cleanup(self) -> None:
+        """Clean up the intermediate database."""
+        if os.path.exists(self.db_client._intermediate_path):
+            os.remove(self.db_client._intermediate_path)

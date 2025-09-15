@@ -18,6 +18,7 @@ from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
+from fenic.core.error import InternalError
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -95,6 +96,17 @@ class JoinExec(PhysicalPlan):
             right_child=(right_operator, backwards_df_right),
         )
         return operator, materialize_df
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: JoinExec expects 2 children")
+        return JoinExec(
+            left=children[0],
+            right=children[1],
+            left_on_exprs=self.left_on_exprs,
+            right_on_exprs=self.right_on_exprs,
+            how=self.how,
+        )
 
 
 class SemanticJoinExec(PhysicalPlan):
@@ -187,6 +199,17 @@ class SemanticJoinExec(PhysicalPlan):
 
         return operator, materialize_df
 
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: SemanticJoinExec expects 2 children")
+        return JoinExec(
+            left=children[0],
+            right=children[1],
+            left_on_exprs=self.left_on_exprs,
+            right_on_exprs=self.right_on_exprs,
+            how=self.how,
+        )
+
 
 class SemanticSimilarityJoinExec(PhysicalPlan):
     def __init__(
@@ -271,3 +294,14 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
             right_child=(right_operator, backwards_df_right),
         )
         return operator, materialize_df
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: SemanticSimilarityJoinExec expects 2 children")
+        return JoinExec(
+            left=children[0],
+            right=children[1],
+            left_on_exprs=self.left_on_exprs,
+            right_on_exprs=self.right_on_exprs,
+            how=self.how,
+        )

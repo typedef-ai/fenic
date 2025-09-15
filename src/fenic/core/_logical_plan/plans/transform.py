@@ -10,7 +10,6 @@ import polars as pl
 import sqlglot.errors
 import sqlglot.expressions as sqlglot_exprs
 
-from fenic._constants import SQL_PLACEHOLDER_RE
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
     ColumnExpr,
@@ -19,7 +18,7 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.utils import validate_scalar_expr
-from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core._utils.misc import replace_sql_query_placeholders
 from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
     convert_polars_schema_to_custom_schema,
@@ -514,34 +513,27 @@ class Unnest(LogicalPlan):
 class SQL(LogicalPlan):
     def __init__(
             self,
-            inputs: List[LogicalPlan],
-            template_names: List[str],
+            template_name_to_logical_plan: Dict[str, LogicalPlan],
             templated_query: str,
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
-        # Note: inputs[i] corresponds to template_names[i]
-        if len(inputs) != len(template_names):
-            raise InternalError("inputs and template_names must have the same length")
-        self._inputs = inputs
-        self._template_names = template_names
+        self._template_name_to_plan = template_name_to_logical_plan
         self._templated_query = templated_query
-        self.resolved_query, self.view_names = self._replace_query_placeholders()
         super().__init__(session_state, schema)
 
     @classmethod
-    def from_schema(cls, inputs: List[LogicalPlan], template_names: List[str], templated_query: str, schema: Schema) -> SQL:
-        return SQL(inputs, template_names, templated_query, None, schema)
+    def from_schema(cls, input_map: Dict[str, LogicalPlan], templated_query: str, schema: Schema) -> SQL:
+        return SQL(input_map, templated_query, None, schema)
 
     @classmethod
     def from_session_state(cls,
-        inputs: List[LogicalPlan],
-        template_names: List[str],
+        template_name_to_plan: Dict[str, LogicalPlan],
         templated_query: str,
         session_state: BaseSessionState) -> SQL:
-        return SQL(inputs, template_names, templated_query, session_state, None)
+        return SQL(template_name_to_plan, templated_query, session_state, None)
 
     def children(self) -> List[LogicalPlan]:
-        return self._inputs
+        return list(self._template_name_to_plan.values())
 
     def exprs(self) -> List[LogicalExpr]:
         return []
@@ -549,47 +541,37 @@ class SQL(LogicalPlan):
     def _repr(self) -> str:
         return f"SQL(query={self._templated_query})"
 
-    def _replace_query_placeholders(self) -> Tuple[str, Dict[str, str]]:
-        template_name_to_view_name: Dict[str, str] = {}
 
-        def replace_placeholder(match: re.Match) -> str:
-            placeholder = match.group(1)
-            if placeholder not in template_name_to_view_name:
-                view_name = generate_unique_arrow_view_name()
-                template_name_to_view_name[placeholder] = view_name
-            return template_name_to_view_name[placeholder]
-
-        replaced_sql = SQL_PLACEHOLDER_RE.sub(replace_placeholder, self._templated_query)
-        view_names = [template_name_to_view_name[name] for name in self._template_names]
-        return replaced_sql, view_names
-
-    def _build_schema(self, session_state: BaseSessionState) -> Schema:
-        self._validate_query()
+    def _build_schema(self, _session_state: BaseSessionState) -> Schema:
+        resolved_query, template_name_to_view_name = replace_sql_query_placeholders(self._templated_query, list(self._template_name_to_plan.keys()))
+        self._validate_query(resolved_query)
+        view_name_to_schema = {template_name_to_view_name[template_name]: plan.schema() for template_name, plan in self._template_name_to_plan.items()}
         db_conn = duckdb.connect()
-        for view_name, input in zip(self.view_names, self._inputs, strict=True):
-            polars_schema = convert_custom_schema_to_polars_schema(input.schema())
+        for view_name, schema in view_name_to_schema.items():
+            polars_schema = convert_custom_schema_to_polars_schema(schema)
             db_conn.register(view_name, pl.DataFrame(schema=polars_schema))
         try:
-            arrow_result = db_conn.execute(self.resolved_query).arrow()
+            arrow_result = db_conn.execute(resolved_query).arrow()
             return convert_polars_schema_to_custom_schema(pl.from_arrow(arrow_result).schema)
         except Exception as e:
             raise PlanError(f"Failed to plan SQL query: {self._templated_query}") from e
 
 
-    def _validate_query(self) -> None:
+    @staticmethod
+    def _validate_query(query: str) -> None:
         try:
-            statements = sqlglot.parse(self.resolved_query, read="duckdb")
+            statements = sqlglot.parse(query, read="duckdb")
         except sqlglot.ParseError as e:
             raise PlanError(
                 f"SQL parsing failed. "
                 f"Check your SQL syntax for missing commas, unmatched parentheses, "
                 f"incorrect keywords, or invalid table/column names. "
-                f"Query: {self._templated_query}"
+                f"Query: {query}"
             ) from e
 
         if not statements:
             raise PlanError(
-                f"Failed to parse SQL query: `{self._templated_query}`. Make sure the query is syntactically valid and non-empty."
+                f"Failed to parse SQL query: `{query}`. Make sure the query is syntactically valid and non-empty."
             )
 
         if len(statements) != 1:
@@ -605,14 +587,19 @@ class SQL(LogicalPlan):
         """Create and return a new instance of the SQL plan with the given children."""
         if len(children) == 0:
             raise InternalError("SQL node must have at least one child")
-        # The list of input session states is empty because the session state has already been validated.
-        result = SQL.from_session_state(children, self._template_names, self._templated_query, session_state)
+        result = SQL.from_session_state(self._template_name_to_plan, self._templated_query, session_state)
         result.set_cache_info(self.cache_info)
         return result
 
+    def template_name_to_plan(self) -> Dict[str, LogicalPlan]:
+        return self._template_name_to_plan
+
+    def templated_query(self) -> str:
+        return self._templated_query
+
     def _eq_specific(self, other: SQL) -> bool:
         return (
-            self._template_names == other._template_names
+            self._template_name_to_plan == other._template_name_to_plan
             and self._templated_query == other._templated_query
         )
 

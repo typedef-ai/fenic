@@ -212,17 +212,16 @@ class LocalCatalog(BaseCatalog):
 
     def list_databases(self) -> List[str]:
         """Get a list of all databases in the current catalog."""
-        with self.lock:
-            try:
-                cursor = self.db_conn.cursor()
-                schemas = cursor.execute(
-                    "SELECT schema_name FROM duckdb_schemas();"
-                ).fetchall()
-                return [
-                    schema[0] for schema in schemas if schema[0] not in DB_IGNORE_LIST
-                ]
-            except Exception as e:
-                raise CatalogError("Failed to list databases") from e
+        try:
+            cursor = self.db_conn.cursor()
+            schemas = cursor.execute(
+                "SELECT schema_name FROM duckdb_schemas();"
+            ).fetchall()
+            return [
+                schema[0] for schema in schemas if schema[0] not in DB_IGNORE_LIST
+            ]
+        except Exception as e:
+            raise CatalogError("Failed to list databases") from e
 
     def set_current_database(self, database_name: str) -> None:
         """Set the current database in the current catalog."""
@@ -259,41 +258,44 @@ class LocalCatalog(BaseCatalog):
 
     def list_tables(self) -> List[str]:
         """Get a list of all tables in the current database."""
-        with self.lock:
-            cursor = self.db_conn.cursor()
-            try:
-                result = cursor.execute(
-                    """
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_schema = ?
-                      AND table_type = 'BASE TABLE'
-                    """,
-                    (self.get_current_database(),),
-                )
-                result_list = result.fetchall()
 
-                if len(result_list) > 0:
-                    return [str(element[0]) for element in result_list]
-                return []
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to list tables in database '{self.get_current_database()}'"
-                ) from e
+        with self.lock:
+            db_name = self.get_current_database()
+        try:
+            cursor = self.db_conn.cursor()
+            result = cursor.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = ?
+                    AND table_type = 'BASE TABLE'
+                """,
+                (db_name,),
+            )
+            result_list = result.fetchall()
+
+            if len(result_list) > 0:
+                return [str(element[0]) for element in result_list]
+            return []
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to list tables in database '{db_name}'"
+            ) from e
 
     def list_views(self) -> List[str]:
         """Get a list of all views in the current database."""
         with self.lock:
-            try:
-                result_list = self.system_tables.list_views(self.db_conn.cursor(), self.get_current_database())
+            db_name = self.get_current_database()
+        try:
+            result_list = self.system_tables.list_views(self.db_conn.cursor(), db_name)
 
-                if len(result_list) > 0:
-                    return [str(element[0]) for element in result_list]
-                return []
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to list views in database '{self.get_current_database()}'"
-                ) from e
+            if len(result_list) > 0:
+                return [str(element[0]) for element in result_list]
+            return []
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to list views in database '{db_name}'"
+            ) from e
 
     # Descriptions
     def set_table_description(self, table_name: str, description: Optional[str]) -> None:
@@ -303,9 +305,9 @@ class LocalCatalog(BaseCatalog):
                 self.get_current_catalog(),
                 self.get_current_database())
             _verify_table_catalog(table_identifier)
-            if not self._does_table_exist(self.db_conn.cursor(), table_identifier):
-                raise TableNotFoundError(table_identifier.table, table_identifier.db)
             cursor = self.db_conn.cursor()
+            if not self._does_table_exist(cursor, table_identifier):
+                raise TableNotFoundError(table_identifier.table, table_identifier.db)
             try:
                 self.system_tables.set_table_description(cursor, table_identifier.db, table_identifier.table, description)
             except Exception as e:
@@ -690,6 +692,14 @@ class LocalCatalog(BaseCatalog):
     def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
         """Get metrics for a specific session from the metrics system read-only table."""
         return self.system_tables.get_metrics_for_session(self.db_conn.cursor(), session_id)
+
+    def get_fully_qualified_table_name(self, table_name: str) -> str:
+        """Get the fully qualified table name for a table in the current database."""
+        with self.lock:
+            table_identifier = TableIdentifier.from_string(table_name).enrich(
+                self.get_current_catalog(),
+                self.get_current_database())
+        return table_identifier.build_qualified_table_name()
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:

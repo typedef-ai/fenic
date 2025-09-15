@@ -11,7 +11,7 @@ from fenic._backends.local.lineage import LocalLineage
 from fenic._backends.local.transpiler.transpiler import LocalTranspiler
 from fenic._backends.local.utils.io_utils import (
     does_path_exist,
-    query_files,
+    build_read_sql_query,
 )
 from fenic.core._interfaces.execution import BaseExecution
 from fenic.core._logical_plan.plans.base import LogicalPlan
@@ -150,7 +150,7 @@ class LocalExecution(BaseExecution):
     ) -> Schema:
         """Helper method to infer schema from a DuckDB file scan query."""
         query = f"PRAGMA disable_optimizer; {query}"
-        df = query_files(query=query, paths=paths, s3_session=self.session_state.s3_session)
+        df = build_read_sql_query(query=query, paths=paths, s3_session=self.session_state.s3_session)
         polars_schema = df.schema
         return convert_polars_schema_to_custom_schema(polars_schema)
 

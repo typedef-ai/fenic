@@ -319,18 +319,16 @@ class Session:
                 f"Make sure to pass them as keyword arguments, e.g., sql(..., {next(iter(missing))}=df)."
             )
 
-        logical_plans = []
-        template_names = []
+        template_name_to_plan = {}
         input_session_states = []
         for name, table in tables.items():
             if name in placeholders:
-                template_names.append(name)
-                logical_plans.append(table._logical_plan)
+                template_name_to_plan[name] = table._logical_plan
                 input_session_states.append(table._session_state)
 
         DataFrame._ensure_same_session(self._session_state, input_session_states)
         return DataFrame._from_logical_plan(
-            SQL.from_session_state(logical_plans, template_names, query, self._session_state),
+            SQL.from_session_state(template_name_to_plan, query, self._session_state),
             self._session_state,
         )
 
@@ -342,9 +340,6 @@ class Session:
         self._session_state.stop()
 
 
-# Session.create_dataframe = validate_call(
-#     config=ConfigDict(strict=True, arbitrary_types_allowed=True)
-# )(Session.create_dataframe)
 Session.createDataFrame = Session.create_dataframe
 Session.get_or_create = validate_call(config=ConfigDict(strict=True))(
     Session.get_or_create

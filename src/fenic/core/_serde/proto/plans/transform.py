@@ -274,8 +274,7 @@ def _serialize_sql(sql: SQL, context: SerdeContext) -> LogicalPlanProto:
 def _deserialize_sql(sql: SQLProto, context: SerdeContext, schema: Schema) -> SQL:
     """Deserialize a SQL LogicalPlan Node."""
     return SQL.from_schema(
-        inputs=context.deserialize_logical_plan_list(SerdeContext.INPUTS, sql.inputs),
-        template_names=sql.template_names,
+        input_map = dict(zip(sql.template_names, context.deserialize_logical_plan_list(SerdeContext.INPUTS, sql.inputs)), strict=True),
         templated_query=sql.templated_query,
         schema=schema,
     )

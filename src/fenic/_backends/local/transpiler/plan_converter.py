@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from fenic._backends.local.physical_plan import (
     AggregateExec,
+    CacheReadExec,
     DocSourceExec,
     DropDuplicatesExec,
     DuckDBTableSinkExec,
@@ -24,6 +25,10 @@ from fenic._backends.local.physical_plan import (
     SQLExec,
     UnionExec,
     UnnestExec,
+)
+from fenic._backends.local.physical_plan.optimizer import (
+    MergeDuckDBNodesRule,
+    PhysicalPlanOptimizer,
 )
 from fenic.core._logical_plan.expressions import (
     ColumnExpr,
@@ -64,31 +69,65 @@ if TYPE_CHECKING:
 from fenic._backends.local.transpiler.expr_converter import (
     ExprConverter,
 )
+from fenic.core.error import InternalError
 
 
 class PlanConverter:
     def __init__(self, session_state: LocalSessionState):
         self.session_state = session_state
         self.expr_converter = ExprConverter(session_state)
+        self.logical_optimizer = LogicalPlanOptimizer(session_state, [
+            NotFilterPushdownRule(),
+            MergeFiltersRule(),
+            SemanticFilterRewriteRule(),
+        ])
+        self.physical_optimizer = PhysicalPlanOptimizer(
+            session_state,
+            [MergeDuckDBNodesRule()]
+        )
+
+    def _optimize_physical_plan(self, physical_plan: PhysicalPlan) -> PhysicalPlan:
+        """Apply physical plan optimizations."""
+        result = self.physical_optimizer.optimize(physical_plan)
+        return result.plan
 
     def convert(
         self,
         logical: LogicalPlan,
     ) -> PhysicalPlan:
+        """Convert logical plan to optimized physical plan."""
+
+        # Apply logical optimizations
         # Note the order of the rules is important here.
         # NotFilterPushdownRule() and MergeFiltersRule() can be applied
         # in any order, but both must be applied before SemanticFilterRewriteRule()
         # for SemanticFilterRewriteRule() to produce optimal plans.
         logical = (
-            LogicalPlanOptimizer(
-                self.session_state,
-                [NotFilterPushdownRule(), MergeFiltersRule(), SemanticFilterRewriteRule()]
-            )
+            self.logical_optimizer
             .optimize(logical)
             .plan
         )
+
+        # Convert to physical plan
+        physical = self._convert_to_physical(logical)
+
+        # Apply physical optimizations (always enabled)
+        optimized_result = self.physical_optimizer.optimize(physical)
+
+        return optimized_result.plan
+
+    def _convert_to_physical(
+        self,
+        logical: LogicalPlan,
+    ) -> PhysicalPlan:
+        if logical.cache_info and self.session_state.db_client.intermediate.is_df_cached(logical.cache_info.cache_key):
+            return CacheReadExec(
+                cache_key=logical.cache_info.cache_key,
+                session_state=self.session_state,
+            )
+
         if isinstance(logical, Projection):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.children()[0]
             )
             physical_exprs = [
@@ -103,7 +142,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Filter):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.children()[0]
             )
             physical_expr = self.expr_converter.convert(
@@ -119,7 +158,7 @@ class PlanConverter:
 
         elif isinstance(logical, Union):
             children_physical = [
-                self.convert(child)
+                self._convert_to_physical(child)
                 for child in logical.children()
             ]
             return UnionExec(
@@ -154,7 +193,7 @@ class PlanConverter:
                 session_state=self.session_state,
             )
         elif isinstance(logical, Limit):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.children()[0]
             )
             return LimitExec(
@@ -165,7 +204,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Aggregate):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.children()[0]
             )
             physical_group_exprs = [
@@ -188,10 +227,10 @@ class PlanConverter:
             left_logical = logical.children()[0]
             right_logical = logical.children()[1]
 
-            left_physical = self.convert(
+            left_physical = self._convert_to_physical(
                 left_logical
             )
-            right_physical = self.convert(
+            right_physical = self._convert_to_physical(
                 right_logical
             )
             left_on_exprs = [
@@ -213,10 +252,10 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticJoin):
-            left_physical = self.convert(
+            left_physical = self._convert_to_physical(
                 logical.children()[0]
             )
-            right_physical = self.convert(
+            right_physical = self._convert_to_physical(
                 logical.children()[1]
             )
 
@@ -247,10 +286,10 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticSimilarityJoin):
-            left_physical = self.convert(
+            left_physical = self._convert_to_physical(
                 logical.children()[0]
             )
-            right_physical = self.convert(
+            right_physical = self._convert_to_physical(
                 logical.children()[1]
             )
             return SemanticSimilarityJoinExec(
@@ -278,7 +317,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticCluster):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.children()[0]
             )
             physical_by_expr = self.expr_converter.convert(
@@ -302,7 +341,7 @@ class PlanConverter:
             physical_expr = self.expr_converter.convert(
                 logical._expr
             )
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 child_logical
             )
             target_field = logical._expr.to_column_field(child_logical, self.session_state)
@@ -316,7 +355,7 @@ class PlanConverter:
 
         elif isinstance(logical, DropDuplicates):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 child_logical
             )
 
@@ -329,7 +368,7 @@ class PlanConverter:
 
         elif isinstance(logical, Sort):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 child_logical
             )
 
@@ -360,7 +399,7 @@ class PlanConverter:
 
         elif isinstance(logical, Unnest):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 child_logical
             )
             return UnnestExec(
@@ -371,7 +410,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, FileSink):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.child
             )
             return FileSinkExec(
@@ -384,7 +423,7 @@ class PlanConverter:
             )
 
         elif isinstance(logical, TableSink):
-            child_physical = self.convert(
+            child_physical = self._convert_to_physical(
                 logical.child
             )
             return DuckDBTableSinkExec(
@@ -398,9 +437,11 @@ class PlanConverter:
 
         elif isinstance(logical, SQL):
             return SQLExec(
-                children=[self.convert(child) for child in logical.children()],
-                query=logical.resolved_query,
+                template_name_to_plan={template_name: self._convert_to_physical(plan) for template_name, plan in logical.template_name_to_plan.items()},
+                templated_query=logical.templated_query,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
-                arrow_view_names=logical.view_names,
             )
+
+        else:
+            raise InternalError(f"Unsupported logical plan type: {type(logical)}")

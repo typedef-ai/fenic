@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CacheInfo:
-    duckdb_table_name: Optional[str] = None
+    cache_key: Optional[str] = None
 
 class LogicalPlan(ABC):
     def __init__(self,

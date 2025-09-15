@@ -1,68 +1,52 @@
-"""Base classes for physical plan optimization."""
+"""Physical plan optimization framework base classes."""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from fenic._backends.local.physical_plan.base import PhysicalPlan
-from fenic.core._interfaces.session_state import BaseSessionState
+
+if TYPE_CHECKING:
+    from fenic._backends.local.session_state import LocalSessionState
 
 
 @dataclass
-class OptimizationResult:
-    """Holds the result of an optimization pass.
-
-    Includes both the optimized plan and whether any changes were made.
-    """
-
+class PhysicalPlanOptimizationResult:
+    """Result of applying a physical plan optimization rule."""
     plan: PhysicalPlan
-    was_modified: bool
+    optimized: bool
 
 
-class PhysicalPlanOptimizerRule(ABC):
-    """Base class for physical plan optimization rules."""
+class PhysicalPlanRule(ABC):
+    """Abstract base class for physical plan optimization rules."""
 
     @abstractmethod
-    def apply(self, physical_plan: PhysicalPlan, session_state: BaseSessionState) -> OptimizationResult:
-        """Apply the optimization rule to the physical plan.
-
-        Args:
-            physical_plan: The physical plan to optimize
-            session_state: The session state to use for the optimization
-
-        Returns:
-            OptimizationResult: The optimized plan and whether any changes were made
-        """
+    def apply(self, plan: PhysicalPlan, session_state: LocalSessionState) -> PhysicalPlanOptimizationResult:
+        """Apply the optimization rule to the entire plan and return the result."""
         pass
 
 
 class PhysicalPlanOptimizer:
-    """Optimizer for physical plans using a list of optimization rules."""
+    """Optimizer for physical execution plans."""
 
-    def __init__(self, session_state: BaseSessionState, rules: List[PhysicalPlanOptimizerRule] = None):
-        """Initialize the optimizer.
-        
-        Args:
-            session_state: The session state to use for optimization
-            rules: List of optimization rules to apply (defaults to empty list)
-        """
+    def __init__(self, session_state: LocalSessionState, rules: List[PhysicalPlanRule]):
         self.session_state = session_state
-        self.rules = rules or []
+        self.rules = rules
 
-    def optimize(self, physical_plan: PhysicalPlan, session_state: BaseSessionState) -> PhysicalPlan:
-        """Optimize the physical plan using all rules.
-
-        Args:
-            physical_plan: The physical plan to optimize
-            session_state: The session state to use for the optimization
-
-        Returns:
-            PhysicalPlan: The optimized plan
-        """
-        optimized_plan = physical_plan
+    def optimize(self, plan: PhysicalPlan) -> PhysicalPlanOptimizationResult:
+        """Apply optimization rules to the physical plan."""
+        current_plan = plan
+        overall_optimized = False
 
         for rule in self.rules:
-            result = rule.apply(optimized_plan, session_state)
-            optimized_plan = result.plan
+            result = rule.apply(current_plan, self.session_state)
+            current_plan = result.plan
+            if result.optimized:
+                overall_optimized = True
 
-        return optimized_plan
+        return PhysicalPlanOptimizationResult(
+            plan=current_plan,
+            optimized=overall_optimized
+        )

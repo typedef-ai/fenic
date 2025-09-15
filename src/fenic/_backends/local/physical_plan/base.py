@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import polars as pl
@@ -22,9 +23,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+class DuckDBNodeMixin(ABC):
+    @abstractmethod
+    def get_sql_query(self, view_names: List[str]) -> str:
+        pass
+
 # TODO(rohitrastogi): Consider using a visitor pattern to traverse logical and physical plans. This can help
 # with separating the traversal logic from the node processing logic.
-class PhysicalPlan:
+class PhysicalPlan(ABC):
     def __init__(
         self,
         children: List[PhysicalPlan],
@@ -64,13 +70,13 @@ class PhysicalPlan:
 
         # Step 2: If the table is cached, read from cache.
         if self.cache_info:
-            is_df_cached = self.session_state.intermediate_df_client.is_df_cached(
-                self.cache_info.duckdb_table_name
+            is_df_cached = self.session_state.db_client.intermediate.is_df_cached(
+                self.cache_info.cache_key
             )
 
             if is_df_cached:
-                df = self.session_state.intermediate_df_client.read_df(
-                    self.cache_info.duckdb_table_name
+                df = self.session_state.db_client.intermediate.read_df(
+                    self.cache_info.cache_key
                 )
                 curr_operator_metrics.is_cache_hit = True
                 curr_operator_metrics.num_output_rows = df.height
@@ -117,8 +123,8 @@ class PhysicalPlan:
 
         # Step 5: Write to cache if applicable.
         if self.cache_info:
-            self.session_state.intermediate_df_client.write_df(
-                result_df, self.cache_info.duckdb_table_name
+            self.session_state.db_client.intermediate.write_df(
+                result_df, self.cache_info.cache_key
             )
 
         # Calculate total execution time for the query metrics
@@ -186,7 +192,7 @@ class PhysicalPlan:
         materialize_df: pl.DataFrame,
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             materialize_df, materialize_table_name
         )
 
@@ -203,13 +209,13 @@ class PhysicalPlan:
         child: Tuple[OperatorLineage, pl.DataFrame],
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             materialize_df, materialize_table_name
         )
         child_operator, backwards_df = child
 
         backwards_table_name = f"backwards_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             backwards_df, backwards_table_name
         )
 
@@ -232,7 +238,7 @@ class PhysicalPlan:
         right_child: Tuple[OperatorLineage, pl.DataFrame],
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             materialize_df, materialize_table_name
         )
         left_operator, left_backwards_df = left_child
@@ -240,10 +246,10 @@ class PhysicalPlan:
 
         left_backwards_table_name = f"backwards_{self.operator_id}_left"
         right_backwards_table_name = f"backwards_{self.operator_id}_right"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             left_backwards_df, left_backwards_table_name
         )
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.intermediate.write_df(
             right_backwards_df, right_backwards_table_name
         )
 
@@ -303,6 +309,10 @@ class PhysicalPlan:
             child=(child_operator, backwards_df),
         )
         return operator, materialize_df
+
+    @abstractmethod
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        pass
 
 
 def _with_lineage_uuid(df: pl.DataFrame) -> pl.DataFrame:
