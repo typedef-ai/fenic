@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from fenic._constants import MINUTE_IN_SECONDS
-from fenic.core.error import ValidationError, ExecutionError
+from fenic.core.error import InternalError, ValidationError, ExecutionError
 logger = logging.getLogger(__name__)
 
 
@@ -110,21 +110,45 @@ class RateLimitStrategy(ABC):
 
 
 class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
-    """Simple RPM limiter that multiplicatively reduces RPM on backoff.
+    """Adaptive RPM limiter with multiplicative backoff and optional additive increase.
 
-    - Uses a single requests bucket; no token accounting.
-    - On backoff(), reduce rpm by multiplier and zero capacity to remove burst.
-    - Optionally accepts provider hints via register_openrouter_rate_limit to clamp rpm.
+    On backoff, reduces RPM by a multiplier and clears burst capacity. When no
+    provider RPM hint is active and no cooldown is in effect, increases RPM
+    additively after a configurable number of consecutive successful requests,
+    up to a configurable maximum. Provider hints (RPM limit and retry-at time)
+    clamp RPM and gate scheduling until the cooldown expires. Uses a single
+    requests bucket and does not perform token accounting.
+
+    Attributes:
+        rpm: The starting RPM.
+        min_rpm: The minimum RPM.
+        backoff_multiplier: The multiplier to use when backoff is called.
+        max_rpm: The maximum RPM.
+        additive_increment: The amount to increment the RPM by after a certain number of consecutive successes.
+        increase_after_successes: The number of consecutive successes required to increment the RPM.
     """
 
     def __init__(
-        self, rpm: int = 10_000, min_rpm: int = 50, backoff_multiplier: float = 0.75
+        self,
+        rpm: int = 25_000,
+        min_rpm: int = 50,
+        backoff_multiplier: float = 0.75,
+        *,
+        max_rpm: int | None = None,
+        additive_increment: int = 50,
+        increase_after_successes: int = 30,
     ):
         super().__init__(rpm=rpm)
         self._min_rpm = max(1, min_rpm)
-        self._backoff_multiplier = (
-            backoff_multiplier if 0 < backoff_multiplier < 1 else 0.75
-        )
+        if not (0 < backoff_multiplier < 1):
+            raise InternalError("backoff multiplier must be between 0 and 1")
+        self._backoff_multiplier = backoff_multiplier
+        # Cap upward growth; default to the starting rpm
+        self._max_rpm = max(rpm, self._min_rpm) if max_rpm is None else max(max_rpm, self._min_rpm)
+        # Additive increase controls (only when no provider hint is present)
+        self._additive_increment = max(1, additive_increment)
+        self._increase_after_successes = max(1, increase_after_successes)
+        self._consecutive_successes = 0
         self._rpm_hint: int | None = None
         self._cooldown_until: float = 0.0
         self._on_cooldown = False
@@ -142,6 +166,8 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
         with self._lock:
             if isinstance(rpm_hint, int) and rpm_hint > 0:
                 self._rpm_hint = rpm_hint
+                self.rpm = min(self.rpm, rpm_hint)
+                self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
             if (
                 isinstance(retry_at_epoch_seconds, (int, float))
                 and retry_at_epoch_seconds > 0
@@ -154,17 +180,18 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
                     )
 
     def backoff(self, curr_time: float) -> int:
+        """Backoff the request rate limit bucket."""
         with self._lock:
             # Reduce rpm multiplicatively; clamp by hint and min
-            new_rpm = max(self._min_rpm, int(self.rpm * self._backoff_multiplier))
-            if self._rpm_hint:
-                new_rpm = min(new_rpm, self._rpm_hint)
+            new_rpm = self._rpm_hint if self._rpm_hint else max(self._min_rpm, int(self.rpm * self._backoff_multiplier))
             if new_rpm != self.rpm:
                 self.rpm = new_rpm
                 # Replace bucket: drop burst capacity
                 self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
             # Zero capacity to yield scheduling immediately after sleep completes
             self.requests_bucket._set_capacity(0, curr_time)
+            # Reset growth tracking after backoff
+            self._consecutive_successes = 0
         return 0
 
     def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
@@ -176,6 +203,8 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
         if available_requests >= 1:
             self._on_cooldown = False
             self.requests_bucket._set_capacity(available_requests - 1, now)
+            # Track successful scheduling and consider additive growth
+            self._record_success_and_maybe_grow(now)
             return True
         return False
 
@@ -185,6 +214,32 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
 
     def __str__(self):
         return f"AdaptiveBackoffRateLimitStrategy(rpm={self.rpm}, min_rpm={self._min_rpm}, backoff_multiplier={self._backoff_multiplier})"
+
+    # Internal helpers
+    def _record_success_and_maybe_grow(self, now: float) -> None:
+        with self._lock:
+            # Do not grow if provider supplied an explicit rpm hint
+            if self._rpm_hint is not None or self._on_cooldown:
+                self._consecutive_successes = 0
+                return
+            self._consecutive_successes += 1
+            if (
+                self._consecutive_successes >= self._increase_after_successes
+                and self.rpm < self._max_rpm
+            ):
+                new_rpm = min(self._max_rpm, self.rpm + self._additive_increment)
+                if new_rpm != self.rpm:
+                    # Preserve current available capacity proportionally when resizing
+                    available = self.requests_bucket._get_available_capacity(now)
+                    self.rpm = new_rpm
+                    new_bucket = RateLimitBucket(max_capacity=self.rpm)
+                    # Clamp carried capacity to new max
+                    new_bucket._set_capacity(min(available, self.rpm), now)
+                    self.requests_bucket = new_bucket
+                    logger.info(
+                        f"AdaptiveBackoff: increasing rpm additively to {self.rpm} after {self._consecutive_successes} consecutive successes"
+                    )
+                self._consecutive_successes = 0
 
 
 class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
