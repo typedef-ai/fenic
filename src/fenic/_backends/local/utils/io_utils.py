@@ -10,7 +10,7 @@ import polars as pl
 from boto3.session import Session as BotoSession
 from botocore.credentials import ReadOnlyCredentials
 
-from fenic.core.error import ConfigurationError, ValidationError
+from fenic.core.error import ConfigurationError, FileLoaderError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +57,50 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
     if has_s3_paths or has_hf_paths:
         query = _build_query_with_httpfs_extensions(query)
         if has_s3_paths:
-            query = _build_query_with_s3_creds(query, s3_session)
+            query, has_s3_creds = _build_query_with_s3_creds(query, s3_session)
+            if not has_s3_creds:
+                logger.warning(
+                    "Unable to locate AWS credentials for fetching data from S3 -- will still attempt to do so, "
+                    "but the query will fail unless the data is in a public bucket."
+                )
         if has_hf_paths:
-            query = _build_query_with_hf_creds(query)
-
-    arrow_result = duckdb_conn.execute(query).arrow()
-    return pl.from_arrow(arrow_result)
+            query, has_hf_creds = _build_query_with_hf_creds(query)
+            if not has_hf_creds:
+                logger.warning(
+                    "HuggingFace token not found. Will attempt to read dataset, this will fail if the dataset is private or gated. "
+                    "Set HF_TOKEN environment variable to authenticate to HuggingFace."
+                )
+    try:
+        arrow_result = duckdb_conn.execute(query).arrow()
+        return pl.from_arrow(arrow_result)
+    except duckdb.HTTPException as e:
+        logger.debug("DuckDB read query failed for paths=%s: %s", paths, e, exc_info=True)
+        if has_s3_paths:
+            if e.status_code == 404:
+                message = "Failed to read from S3. The object does not exist."
+            elif e.status_code == 401 or e.status_code == 403:
+                if has_s3_creds:
+                    message = f"Failed to read from S3. The provided credentials do not have the required permissions. (Status code: {e.status_code})"
+                else:
+                    message = f"Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: {e.status_code})"
+            else:
+                message = f"Failed to read from S3. {e}"
+        elif has_hf_paths:
+            if e.status_code == 404:
+                message = "Failed to read from Hugging Face. The object does not exist."
+            elif e.status_code == 401 or e.status_code == 403:
+                if has_hf_creds:
+                    message = f"Failed to read from Hugging Face -- the provided credentials do not have the required permissions. (Status code: {e.status_code})"
+                else:
+                    message = f"Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. Set HF_TOKEN environment variable. (Status code: {e.status_code})"
+            else:
+                message = f"Failed to read from Hugging Face. {e}"
+        else:
+            message = "Failed to read from HTTPFS. Verify the path(s) exist and are readable."
+        raise FileLoaderError(message) from e
+    except duckdb.Error as e:
+        logger.debug("DuckDB read query failed for paths=%s: %s", paths, e, exc_info=True)
+        raise FileLoaderError(e) from e
 
 
 def write_file(
@@ -85,9 +123,18 @@ def write_file(
     scheme = urlparse(path).scheme
     if scheme == "s3":
         query = _build_query_with_httpfs_extensions(query)
-        query = _build_query_with_s3_creds(query, s3_session)
-
-    duckdb_conn.execute(query)
+        query, has_s3_creds = _build_query_with_s3_creds(query, s3_session)
+        if not has_s3_creds:
+            raise ConfigurationError("AWS credentials were not found. Configure AWS credentials (env/aws_config) to write to S3.")
+    try:
+        duckdb_conn.execute(query)
+    except duckdb.Error as e:
+        logger.debug("DuckDB write query failed for path=%s: %s", path, e, exc_info=True)
+        if scheme == "s3":
+            message = f"Failed to write to S3. Ensure AWS credentials permit write access and the bucket/path exist. {e}"
+        else:
+            message = "Failed to write file. Verify the destination path exists and is writable."
+        raise FileLoaderError(message) from e
 
 
 def _fetch_and_validate_s3_credentials(s3_session: BotoSession) -> Tuple[ReadOnlyCredentials, str]:
@@ -113,25 +160,28 @@ def _build_query_with_httpfs_extensions(query: str) -> str:
     """Helper method to add httpfs extensions to a DuckDB query."""
     return f"INSTALL httpfs; LOAD httpfs; {query}"
 
-def _build_query_with_s3_creds(query: str, s3_session: BotoSession) -> str:
+def _build_query_with_s3_creds(query: str, s3_session: BotoSession) -> tuple[str, bool]:
     """Helper method to add AWS credentials to a DuckDB query."""
-    frozen_creds, region = _fetch_and_validate_s3_credentials(s3_session)
-    s3_setup_query = f"SET s3_region='{region}'; "
-    s3_setup_query += f"SET s3_access_key_id='{frozen_creds.access_key}'; "
-    s3_setup_query += f"SET s3_secret_access_key='{frozen_creds.secret_key}'; "
-    if frozen_creds.token:
-        s3_setup_query += f"SET s3_session_token='{frozen_creds.token}'; "
-    query = f"{s3_setup_query} {query}"
-    return query
+    try:
+        frozen_creds, region = _fetch_and_validate_s3_credentials(s3_session)
+        s3_setup_query = f"SET s3_region='{region}'; "
+        s3_setup_query += f"SET s3_access_key_id='{frozen_creds.access_key}'; "
+        s3_setup_query += f"SET s3_secret_access_key='{frozen_creds.secret_key}'; "
+        if frozen_creds.token:
+            s3_setup_query += f"SET s3_session_token='{frozen_creds.token}'; "
+        query = f"{s3_setup_query} {query}"
+        return query, True
+    except ConfigurationError:
+        return query, False
 
 
-def _build_query_with_hf_creds(query: str) -> str:
+def _build_query_with_hf_creds(query: str) -> tuple[str, bool]:
     """Helper method to add HuggingFace credentials to a DuckDB query."""
     hf_token = _fetch_hf_token()
     if not hf_token:
-        raise ConfigurationError("HuggingFace token not found. Set HF_TOKEN environment variable.")
+        return query, False
 
-    return f"CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN '{hf_token}'); {query}"
+    return f"CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN '{hf_token}'); {query}", True
 
 def configure_duckdb_conn_for_path(db_path: Path) -> duckdb.DuckDBPyConnection:
     """Create a duckdb connection for a given path, applying common configuration."""
