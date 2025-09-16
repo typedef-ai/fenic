@@ -131,7 +131,7 @@ def write_file(
     except duckdb.Error as e:
         logger.debug("DuckDB write query failed for path=%s: %s", path, e, exc_info=True)
         if scheme == "s3":
-            message = "Failed to write to S3. Ensure AWS credentials permit write access and the bucket/path exist."
+            message = f"Failed to write to S3. Ensure AWS credentials permit write access and the bucket/path exist. {e}"
         else:
             message = "Failed to write file. Verify the destination path exists and is writable."
         raise FileLoaderError(message) from e
