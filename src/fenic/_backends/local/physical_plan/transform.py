@@ -392,7 +392,7 @@ class SQLExec(PhysicalPlan):
         self.arrow_view_names = arrow_view_names
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        cursor = self.session_state.intermediate_df_client.db_conn.cursor()
+        cursor = self.session_state.db_client.cursor()
         for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
             cursor.register(arrow_view_name, child_df)
         try:

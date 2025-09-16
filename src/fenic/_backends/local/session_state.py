@@ -7,13 +7,11 @@ from pathlib import Path
 from typing import Optional
 
 import boto3
-import duckdb
 
-import fenic._backends.local.utils.io_utils
 from fenic._backends.local.catalog import LocalCatalog
+from fenic._backends.local.db_client import FenicDuckDBClient
 from fenic._backends.local.execution import LocalExecution
 from fenic._backends.local.model_registry import SessionModelRegistry
-from fenic._backends.local.temp_df_db_client import TempDFDBClient
 from fenic._inference import EmbeddingModel, LanguageModel
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
@@ -32,7 +30,6 @@ class LocalSessionState(BaseSessionState):
     and indices.
     """
 
-    duckdb_conn: duckdb.DuckDBPyConnection
     s3_session: Optional[boto3.Session] = None
     _model_registry: SessionModelRegistry
 
@@ -47,9 +44,8 @@ class LocalSessionState(BaseSessionState):
             db_path = Path(config.db_path) / f"{config.app_name}.duckdb"
         else:
             db_path = Path(f"{config.app_name}.duckdb")
-        self.duckdb_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(db_path)
         self._model_registry = self._configure_models(config.semantic)
-        self.intermediate_df_client = TempDFDBClient(self.app_name)
+        self.db_client = FenicDuckDBClient(db_path, self.app_name)
         self.s3_session = boto3.Session()
 
     def _configure_models(
@@ -89,7 +85,7 @@ class LocalSessionState(BaseSessionState):
     @cached_property
     def catalog(self) -> LocalCatalog:
         """Get the catalog object."""
-        return LocalCatalog(self.duckdb_conn)
+        return LocalCatalog(self.db_client)
 
     def stop(self):
         """Clean up the session state."""

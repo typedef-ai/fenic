@@ -178,7 +178,7 @@ class CacheReadExec(PhysicalPlan):
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: CacheReadExec expects 0 children")
-        return self.session_state.intermediate_df_client.read_df(self.cache_key)
+        return self.session_state.db_client.read_intermediate_df(self.cache_key)
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:

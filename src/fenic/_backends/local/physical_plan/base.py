@@ -88,8 +88,8 @@ class PhysicalPlan(ABC):
         self.session_state.reset_model_metrics()
 
         # Step 4: Write to cache if applicable.
-        if self.cache_info and not self.session_state.intermediate_df_client.is_df_cached(self.cache_info.cache_key):
-            self.session_state.intermediate_df_client.write_df(
+        if self.cache_info and not self.session_state.db_client.does_intermediate_df_exist(self.cache_info.cache_key):
+            self.session_state.db_client.write_intermediate_df(
                 result_df, self.cache_info.cache_key
             )
 
@@ -165,7 +165,7 @@ class PhysicalPlan(ABC):
         materialize_df: pl.DataFrame,
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             materialize_df, materialize_table_name
         )
 
@@ -182,13 +182,13 @@ class PhysicalPlan(ABC):
         child: Tuple[OperatorLineage, pl.DataFrame],
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             materialize_df, materialize_table_name
         )
         child_operator, backwards_df = child
 
         backwards_table_name = f"backwards_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             backwards_df, backwards_table_name
         )
 
@@ -211,7 +211,7 @@ class PhysicalPlan(ABC):
         right_child: Tuple[OperatorLineage, pl.DataFrame],
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             materialize_df, materialize_table_name
         )
         left_operator, left_backwards_df = left_child
@@ -219,10 +219,10 @@ class PhysicalPlan(ABC):
 
         left_backwards_table_name = f"backwards_{self.operator_id}_left"
         right_backwards_table_name = f"backwards_{self.operator_id}_right"
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             left_backwards_df, left_backwards_table_name
         )
-        self.session_state.intermediate_df_client.write_df(
+        self.session_state.db_client.write_intermediate_df(
             right_backwards_df, right_backwards_table_name
         )
 

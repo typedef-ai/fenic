@@ -96,7 +96,7 @@ class LocalLineage(BaseLineage):
         ):
             raise ValueError("The row_ids must be a list of strings.")
         parent_operator = self.curr_operator.parent
-        parent_backwards_df = self.session_state.intermediate_df_client.read_df(
+        parent_backwards_df = self.session_state.db_client.read_intermediate_df(
             parent_operator.children[0].mapping_table
         )
         parent_backwards_df = parent_backwards_df.filter(
@@ -106,7 +106,7 @@ class LocalLineage(BaseLineage):
         forwards_uuid_list = (
             parent_backwards_df.unique(subset="_uuid").to_series(0).to_list()
         )
-        parent_df = self.session_state.intermediate_df_client.read_df(
+        parent_df = self.session_state.db_client.read_intermediate_df(
             parent_operator.materialize_table
         )
         result = parent_df.filter(pl.col("_uuid").is_in(forwards_uuid_list))
@@ -158,26 +158,26 @@ class LocalLineage(BaseLineage):
         """Trace backwards through a single child operator."""
         self.curr_operator = child_link.child_operator
 
-        backwards_df = self.session_state.intermediate_df_client.read_df(
+        backwards_df = self.session_state.db_client.read_intermediate_df(
             child_link.mapping_table
         )
         backwards_df = backwards_df.filter(pl.col("_uuid").is_in(ids)).drop("_uuid")
         backwards_uuid_list = (
             backwards_df.unique(subset="_backwards_uuid").to_series(0).to_list()
         )
-        child_df = self.session_state.intermediate_df_client.read_df(
+        child_df = self.session_state.db_client.read_intermediate_df(
             self.curr_operator.materialize_table
         )
         return child_df.filter(pl.col("_uuid").is_in(backwards_uuid_list))
 
     def get_result_df(self) -> pl.DataFrame:
         """Get the result of the query as a Polars DataFrame."""
-        return self.session_state.intermediate_df_client.read_df(
+        return self.session_state.db_client.read_intermediate_df(
             self.curr_operator.materialize_table
         )
 
     def get_source_df(self, source_name: str) -> pl.DataFrame:
         """Get a query source by name as a Polars DataFrame."""
-        return self.session_state.intermediate_df_client.read_df(
+        return self.session_state.db_client.read_intermediate_df(
             f"materialize_{source_name}"
         )

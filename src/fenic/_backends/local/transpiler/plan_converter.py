@@ -94,7 +94,7 @@ class PlanConverter:
     def _convert_to_physical_plan(self, logical: LogicalPlan, cache_keys: set[str]) -> PhysicalPlan:
         if logical.cache_info:
             cache_key = logical.cache_info.cache_key
-            if cache_key in cache_keys or self.session_state.intermediate_df_client.is_df_cached(cache_key):
+            if cache_key in cache_keys or self.session_state.db_client.does_intermediate_df_exist(cache_key):
                 return CacheReadExec(
                     cache_key=logical.cache_info.cache_key,
                     session_state=self.session_state,

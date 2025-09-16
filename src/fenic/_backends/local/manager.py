@@ -52,9 +52,7 @@ class LocalSessionManager:
                 app_name
             ]
 
-            session_state.intermediate_df_client.cleanup()
-            session_state.duckdb_conn.close()
-
+            session_state.db_client.close()
             session_state.shutdown_models()
 
             # Remove LanceDB index directory
