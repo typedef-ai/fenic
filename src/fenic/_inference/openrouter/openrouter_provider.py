@@ -42,14 +42,8 @@ class OpenRouterModelProvider(ModelProviderClass):
             return
         self._initialized = True
         self._models_loaded = False
-        self._models_lock = threading.Lock()
         # Register dynamic loader with model_catalog
-        try:
-            model_catalog.register_dynamic_provider(
-                ModelProvider.OPENROUTER, self._load_models_once
-            )
-        except Exception:
-            logger.error("Failed to register OpenRouter dynamic loader", exc_info=True)
+        model_catalog.register_dynamic_provider(ModelProvider.OPENROUTER, self._load_models_once)
 
     @property
     def name(self) -> str:
@@ -135,42 +129,39 @@ class OpenRouterModelProvider(ModelProviderClass):
     def _load_models_once(self):
         if self._models_loaded:
             return
-        with self._models_lock:
-            if self._models_loaded:
-                return
-            url = f"{OPENROUTER_BASE_URL}/models/user"
-            if not self._headers.get("Authorization"):
-                url = f"{OPENROUTER_BASE_URL}/models"
-            resp = requests.get(url, headers=self._headers, timeout=30)
-            if resp.status_code >= 400:
-                raise RuntimeError(
-                    f"OpenRouter models request failed: {resp.status_code} {resp.text}"
+        url = f"{OPENROUTER_BASE_URL}/models/user"
+        if not self._headers.get("Authorization"):
+            url = f"{OPENROUTER_BASE_URL}/models"
+        resp = requests.get(url, headers=self._headers, timeout=30)
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                f"OpenRouter models request failed: {resp.status_code} {resp.text}"
+            )
+        payload = resp.json() or {}
+        models = payload.get("data") or []
+        if not models:
+            raise SessionError("No OpenRouter models found. Ensure the OpenRouter account is configured to include at least one provider.")
+        added_models = []
+        untranslated_models = []
+        for model in models:
+            params = self._translate_model(model)
+            if not params:
+                logging.warning(
+                    f"Could not extract Completion Parameters from OpenRouter model: {model}"
                 )
-            payload = resp.json() or {}
-            models = payload.get("data") or []
-            if not models:
-                raise SessionError("No OpenRouter models found. Ensure the OpenRouter account is configured to include at least one provider.")
-            added_models = []
-            untranslated_models = []
-            for model in models:
-                params = self._translate_model(model)
-                if not params:
-                    logging.warning(
-                        f"Could not extract Completion Parameters from OpenRouter model: {model}"
-                    )
-                    untranslated_models.append(model)
-                    continue
-                model_id = model.get("id")
-                if isinstance(model_id, str):
-                    # Register into global catalog so standard lookups succeed
-                    model_catalog.add_model(ModelProvider.OPENROUTER, model_id, params)
-                    added_models.append(model_id)
-            if not added_models:
-                raise SessionError("Failed to process and load OpenRouter models")
-            self._models_loaded = True
-            logger.info(f"OpenRouter model cache initialized with {len(added_models)} models")
-            if untranslated_models:
-                logger.info(f"Failed to process and load OpenRouter models: {untranslated_models}")
+                untranslated_models.append(model)
+                continue
+            model_id = model.get("id")
+            if isinstance(model_id, str):
+                # Register into global catalog so standard lookups succeed
+                model_catalog.add_model(ModelProvider.OPENROUTER, model_id, params)
+                added_models.append(model_id)
+        if not added_models:
+            raise SessionError("Failed to process and load OpenRouter models")
+        self._models_loaded = True
+        logger.info(f"OpenRouter model cache initialized with {len(added_models)} models")
+        if untranslated_models:
+            logger.info(f"Failed to process and load OpenRouter models: {untranslated_models}")
 
     async def validate_api_key(self) -> None:
         url = f"{OPENROUTER_BASE_URL}/key"
