@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from fenic._backends.local.physical_plan import (
     AggregateExec,
+    CacheReadExec,
     DocSourceExec,
     DropDuplicatesExec,
     DuckDBTableSinkExec,
@@ -87,9 +88,22 @@ class PlanConverter:
             .optimize(logical)
             .plan
         )
+        cache_keys = set()
+        return self._convert_to_physical_plan(logical, cache_keys)
+
+    def _convert_to_physical_plan(self, logical: LogicalPlan, cache_keys: set[str]) -> PhysicalPlan:
+        if logical.cache_info:
+            cache_key = logical.cache_info.cache_key
+            if cache_key in cache_keys or self.session_state.intermediate_df_client.is_df_cached(cache_key):
+                return CacheReadExec(
+                    cache_key=logical.cache_info.cache_key,
+                    session_state=self.session_state,
+                )
+            cache_keys.add(cache_key)
         if isinstance(logical, Projection):
-            child_physical = self.convert(
-                logical.children()[0]
+            child_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
             physical_exprs = [
                 self.expr_converter.convert(log_expr)
@@ -103,8 +117,9 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Filter):
-            child_physical = self.convert(
-                logical.children()[0]
+            child_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
             physical_expr = self.expr_converter.convert(
                 logical.predicate()
@@ -119,7 +134,7 @@ class PlanConverter:
 
         elif isinstance(logical, Union):
             children_physical = [
-                self.convert(child)
+                self._convert_to_physical_plan(child, cache_keys)
                 for child in logical.children()
             ]
             return UnionExec(
@@ -154,8 +169,9 @@ class PlanConverter:
                 session_state=self.session_state,
             )
         elif isinstance(logical, Limit):
-            child_physical = self.convert(
-                logical.children()[0]
+            child_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
             return LimitExec(
                 child_physical,
@@ -165,8 +181,9 @@ class PlanConverter:
             )
 
         elif isinstance(logical, Aggregate):
-            child_physical = self.convert(
-                logical.children()[0]
+            child_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
             physical_group_exprs = [
                 self.expr_converter.convert(log_expr)
@@ -188,11 +205,13 @@ class PlanConverter:
             left_logical = logical.children()[0]
             right_logical = logical.children()[1]
 
-            left_physical = self.convert(
-                left_logical
+            left_physical = self._convert_to_physical_plan(
+                left_logical,
+                cache_keys,
             )
-            right_physical = self.convert(
-                right_logical
+            right_physical = self._convert_to_physical_plan(
+                right_logical,
+                cache_keys,
             )
             left_on_exprs = [
                 self.expr_converter.convert(log_expr, with_alias=False)
@@ -213,11 +232,13 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticJoin):
-            left_physical = self.convert(
-                logical.children()[0]
+            left_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
-            right_physical = self.convert(
-                logical.children()[1]
+            right_physical = self._convert_to_physical_plan(
+                logical.children()[1],
+                cache_keys,
             )
 
             return SemanticJoinExec(
@@ -247,11 +268,13 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticSimilarityJoin):
-            left_physical = self.convert(
-                logical.children()[0]
+            left_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
-            right_physical = self.convert(
-                logical.children()[1]
+            right_physical = self._convert_to_physical_plan(
+                logical.children()[1],
+                cache_keys,
             )
             return SemanticSimilarityJoinExec(
                 left_physical,
@@ -278,8 +301,9 @@ class PlanConverter:
             )
 
         elif isinstance(logical, SemanticCluster):
-            child_physical = self.convert(
-                logical.children()[0]
+            child_physical = self._convert_to_physical_plan(
+                logical.children()[0],
+                cache_keys,
             )
             physical_by_expr = self.expr_converter.convert(
                 logical.by_expr()
@@ -302,8 +326,9 @@ class PlanConverter:
             physical_expr = self.expr_converter.convert(
                 logical._expr
             )
-            child_physical = self.convert(
-                child_logical
+            child_physical = self._convert_to_physical_plan(
+                child_logical,
+                cache_keys,
             )
             target_field = logical._expr.to_column_field(child_logical, self.session_state)
             return ExplodeExec(
@@ -316,8 +341,9 @@ class PlanConverter:
 
         elif isinstance(logical, DropDuplicates):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
-                child_logical
+            child_physical = self._convert_to_physical_plan(
+                child_logical,
+                cache_keys,
             )
 
             return DropDuplicatesExec(
@@ -329,8 +355,9 @@ class PlanConverter:
 
         elif isinstance(logical, Sort):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
-                child_logical
+            child_physical = self._convert_to_physical_plan(
+                child_logical,
+                cache_keys,
             )
 
             descending_list = []
@@ -360,8 +387,9 @@ class PlanConverter:
 
         elif isinstance(logical, Unnest):
             child_logical = logical.children()[0]
-            child_physical = self.convert(
-                child_logical
+            child_physical = self._convert_to_physical_plan(
+                child_logical,
+                cache_keys,
             )
             return UnnestExec(
                 child_physical,
@@ -371,8 +399,9 @@ class PlanConverter:
             )
 
         elif isinstance(logical, FileSink):
-            child_physical = self.convert(
-                logical.child
+            child_physical = self._convert_to_physical_plan(
+                logical.child,
+                cache_keys,
             )
             return FileSinkExec(
                 child=child_physical,
@@ -384,8 +413,9 @@ class PlanConverter:
             )
 
         elif isinstance(logical, TableSink):
-            child_physical = self.convert(
-                logical.child
+            child_physical = self._convert_to_physical_plan(
+                logical.child,
+                cache_keys,
             )
             return DuckDBTableSinkExec(
                 child=child_physical,
@@ -398,7 +428,7 @@ class PlanConverter:
 
         elif isinstance(logical, SQL):
             return SQLExec(
-                children=[self.convert(child) for child in logical.children()],
+                children=[self._convert_to_physical_plan(child, cache_keys) for child in logical.children()],
                 query=logical.resolved_query,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
