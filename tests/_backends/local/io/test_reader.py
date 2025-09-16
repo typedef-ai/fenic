@@ -91,7 +91,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Collect the full DataFrame and verify data
@@ -111,7 +111,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
 
@@ -152,7 +152,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     collected = df.to_polars()
@@ -163,7 +163,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
     collected = df.to_polars()
     assert collected.height == 11, f"Expected 11 rows, got {collected.height}"
@@ -198,7 +198,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Collect the full DataFrame and verify data
@@ -218,7 +218,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
 
@@ -264,7 +264,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Verify row count
@@ -279,7 +279,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-            actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Verify row count
@@ -725,7 +725,7 @@ Bob,30,Chicago"""
     write_test_file(test_file_path, csv_data, local_session, "csv")
 
     with pytest.raises(
-            ValidationError, match="Cannot specify both 'schema' and 'merge_schemas=True' - these options conflict."
+        ValidationError, match="Cannot specify both 'schema' and 'merge_schemas=True' - these options conflict."
     ):
         schema = {"name": StringType, "age": IntegerType}
         local_session.read.csv(test_file_path, schema=schema, merge_schemas=True)
@@ -826,13 +826,28 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     session = Session.get_or_create(local_session_config)
     paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
 
+    # Test with no token
+    if os.getenv("HF_TOKEN"):
+        monkeypatch.delenv("HF_TOKEN")
+    with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
+        session.read.csv(paths[0])
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert (
+        str(exc_info.value.__cause__) ==
+        "File loader error: Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. "
+        "Set HF_TOKEN environment variable. (Status code: 401)"
+    )
+
     # Test with invalid token
     monkeypatch.setenv("HF_TOKEN", "invalid_token")
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
-    assert str(
-        exc_info.value.__cause__) == "File loader error: Failed to read from Hugging Face -- the provided credentials do not have the required permissions. (Status code: 401)"
+    assert (
+        str(exc_info.value.__cause__) ==
+        "File loader error: Failed to read from Hugging Face -- the provided credentials do not have the required "
+        "permissions. (Status code: 401)"
+    )
 
     session.stop()
 
@@ -1039,7 +1054,6 @@ def test_ingest_datetime_type(local_session, temp_dir):
     - Filtering on datetime string values
     - Consistency across read methods (parquet vs in-memory)
     """
-    print(local_session._session_state.s3_session)
     PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
     DATETIME_COLUMN_NAME = "some_datetime"
     CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
@@ -1360,8 +1374,8 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
     # Verify that size field is populated with positive values
     all_data = df.to_polars()
     for i in range(3):
-        row = all_data.filter(pl.col("title") == f"File {i + 1} Title").to_dicts()[0]
-        assert row["author"] == f"File {i + 1} Author"
+        row = all_data.filter(pl.col("title") == f"File {i+1} Title").to_dicts()[0]
+        assert row["author"] == f"File {i+1} Author"
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]
@@ -1415,8 +1429,8 @@ def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
     all_data = df.to_polars()
     prev_doc_size = 0
     for i in range(3):
-        row = all_data.filter(pl.col("title") == f"File {i + 1} Title").to_dicts()[0]
-        assert row["author"] == f"File {i + 1} Author"
+        row = all_data.filter(pl.col("title") == f"File {i+1} Title").to_dicts()[0]
+        assert row["author"] == f"File {i+1} Author"
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]

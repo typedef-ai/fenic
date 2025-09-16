@@ -43,7 +43,6 @@ def test_multiple_sessions(local_session_config):
     session4 = Session.get_or_create(local_session_config)
 
     assert session != session4
-    session4.stop()
 
 def test_combining_dataframes_from_different_sessions_raises():
     config1 = SessionConfig(

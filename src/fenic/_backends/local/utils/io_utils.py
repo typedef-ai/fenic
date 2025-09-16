@@ -92,7 +92,7 @@ def query_files(query: str, paths: List[str], s3_session: BotoSession) -> pl.Dat
                 if has_hf_creds:
                     message = f"Failed to read from Hugging Face -- the provided credentials do not have the required permissions. (Status code: {e.status_code})"
                 else:
-                    message = f"Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. (Status code: {e.status_code})"
+                    message = f"Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. Set HF_TOKEN environment variable. (Status code: {e.status_code})"
             else:
                 message = f"Failed to read from Hugging Face. {e}"
         else:
