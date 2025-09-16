@@ -24,12 +24,17 @@ class InMemorySourceExec(PhysicalPlan):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.df = df
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
         return apply_ingestion_coercions(self.df)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 0:
+            raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
+        return InMemorySourceExec(self.df, self.session_state)
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -53,7 +58,7 @@ class FileSourceExec(PhysicalPlan):
         self.file_format = file_format
         self.options = options or {}
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if child_dfs:
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
@@ -69,11 +74,21 @@ class FileSourceExec(PhysicalPlan):
         df = query_files(query=query, paths=self.paths, s3_session=self.session_state.s3_session)
         return apply_ingestion_coercions(df)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 0:
+            raise InternalError("Unreachable: FileSourceExec expects 0 children")
+        return FileSourceExec(
+            paths=self.paths,
+            file_format=self.file_format,
+            session_state=self.session_state,
+            options=self.options,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self._execute([])
+        df = self.execute_node([])
         materialize_df = _with_lineage_uuid(df)
         source_operator = self._build_source_operator_lineage(materialize_df)
         leaf_nodes.append(source_operator)
@@ -85,16 +100,24 @@ class DuckDBTableSourceExec(PhysicalPlan):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.table_name = table_name
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: TableSourceExec expects 0 children")
         return self.session_state.catalog.read_df_from_table(self.table_name)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 0:
+            raise InternalError("Unreachable: TableSourceExec expects 0 children")
+        return DuckDBTableSourceExec(
+            table_name=self.table_name,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self._execute([])
+        df = self.execute_node([])
         materialize_df = _with_lineage_uuid(df)
         source_operator = self._build_source_operator_lineage(materialize_df)
         leaf_nodes.append(source_operator)
@@ -116,7 +139,7 @@ class DocSourceExec(PhysicalPlan):
         self.exclude = exclude
         self.recursive = recursive
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: DocSourceExec expects 0 children")
         df = DocFolderLoader.load_docs_from_folder(
@@ -126,11 +149,22 @@ class DocSourceExec(PhysicalPlan):
             self.recursive)
         return apply_ingestion_coercions(df)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 0:
+            raise InternalError("Unreachable: DocSourceExec expects 0 children")
+        return DocSourceExec(
+            paths=self.paths,
+            valid_file_extension=self.valid_file_extension,
+            exclude=self.exclude,
+            recursive=self.recursive,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self._execute([])
+        df = self.execute_node([])
         materialize_df = _with_lineage_uuid(df)
         source_operator = self._build_source_operator_lineage(materialize_df)
         leaf_nodes.append(source_operator)

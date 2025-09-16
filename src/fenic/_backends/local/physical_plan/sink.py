@@ -37,7 +37,7 @@ class FileSinkExec(PhysicalPlan):
         self.file_type = file_type.lower()
         self.mode = mode
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise InternalError("FileSink expects exactly one child DataFrame")
 
@@ -57,7 +57,20 @@ class FileSinkExec(PhysicalPlan):
         write_file(df=df, path=self.path, s3_session=self.session_state.s3_session, file_type=self.file_type)
         return pl.DataFrame()
 
-    def _build_lineage(
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: FileSinkExec expects 1 child")
+        return FileSinkExec(
+            child=children[0],
+            path=self.path,
+            file_type=self.file_type,
+            mode=self.mode,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -88,7 +101,7 @@ class DuckDBTableSinkExec(PhysicalPlan):
         self.mode = mode
         self.schema = schema
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise InternalError("TableSink expects exactly one child DataFrame")
         df = child_dfs[0]
@@ -123,7 +136,19 @@ class DuckDBTableSinkExec(PhysicalPlan):
 
         return pl.DataFrame()
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: DuckDBTableSinkExec expects 1 child")
+        return DuckDBTableSinkExec(
+            child=children[0],
+            table_name=self.table_name,
+            mode=self.mode,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+            schema=self.schema,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:

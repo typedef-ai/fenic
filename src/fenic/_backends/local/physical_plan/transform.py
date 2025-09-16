@@ -34,16 +34,27 @@ class ProjectionExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.projections = projections
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ProjectionExec expects 1 child")
         return child_dfs[0].select(self.projections)
 
-    def _build_lineage(
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: ProjectionExec expects 1 child")
+        return ProjectionExec(
+            child=children[0],
+            projections=self.projections,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
-        leaf_nodes: List["OperatorLineage"],
-    ) -> Tuple["OperatorLineage", pl.DataFrame]:
-        child_operator, child_df = self.children[0]._build_lineage(leaf_nodes)
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
 
         materialize_df = child_df.select([*self.projections, pl.col("_uuid")])
 
@@ -70,12 +81,22 @@ class FilterExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.predicate = predicate
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: FilterExec expects 1 child")
         return child_dfs[0].filter(self.predicate)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: FilterExec expects 1 child")
+        return FilterExec(
+            child=children[0],
+            predicate=self.predicate,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -91,7 +112,7 @@ class UnionExec(PhysicalPlan):
     ):
         super().__init__(children, cache_info=cache_info, session_state=session_state)
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: UnionExec expects exactly two children")
 
@@ -103,15 +124,24 @@ class UnionExec(PhysicalPlan):
         combined = pl.concat([left_df, right_df_aligned], how="vertical")
         return combined
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: UnionExec expects exactly two children")
+        return UnionExec(
+            children=children,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         if len(self.children) != 2:
             raise ValueError("Unreachable: UnionExec expects exactly two children")
 
-        left_operator, left_df = self.children[0]._build_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1]._build_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
         new_uuids = [uuid.uuid4().hex for _ in range(left_df.height + right_df.height)]
 
@@ -124,7 +154,7 @@ class UnionExec(PhysicalPlan):
             pl.Series("_uuid", new_uuids[left_df.height :]),
         )
 
-        materialize_df = self._execute([left_df, right_df])
+        materialize_df = self.execute_node([left_df, right_df])
 
         left_backwards = left_df.select(["_uuid", "_backwards_uuid"])
         right_backwards = right_df.select(["_uuid", "_backwards_uuid"])
@@ -151,7 +181,7 @@ class ExplodeExec(PhysicalPlan):
         self.physical_expr = physical_expr
         self.col_name = col_name
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ExplodeExec expects 1 child")
         child_df = child_dfs[0]
@@ -160,11 +190,22 @@ class ExplodeExec(PhysicalPlan):
         # Optionally filter out rows where the exploded column is null.
         return exploded_df.filter(pl.col(self.col_name).is_not_null())
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: ExplodeExec expects 1 child")
+        return ExplodeExec(
+            child=children[0],
+            physical_expr=self.physical_expr,
+            col_name=self.col_name,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        child_operator, child_df = self.children[0]._build_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
         exploded_df = child_df.explode(self.col_name)
         exploded_df = exploded_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
@@ -192,7 +233,7 @@ class LimitExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.n = n
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: LimitExec expects 1 child")
 
@@ -202,7 +243,17 @@ class LimitExec(PhysicalPlan):
         else:
             return pl.DataFrame(schema=df.schema)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: LimitExec expects 1 child")
+        return LimitExec(
+            child=children[0],
+            n=self.n,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -220,7 +271,7 @@ class DropDuplicatesExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.subset = subset
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: DropDuplicates expects 1 child")
 
@@ -232,7 +283,17 @@ class DropDuplicatesExec(PhysicalPlan):
 
         return df.unique(subset=current_subset)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: DropDuplicatesExec expects 1 child")
+        return DropDuplicatesExec(
+            child=children[0],
+            subset=self.subset,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -254,7 +315,7 @@ class SortExec(PhysicalPlan):
         self.descending = descending
         self.nulls_last = nulls_last
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: Sort expects 1 child")
 
@@ -264,7 +325,19 @@ class SortExec(PhysicalPlan):
             self.cols, descending=self.descending, nulls_last=self.nulls_last
         )
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: SortExec expects 1 child")
+        return SortExec(
+            child=children[0],
+            cols=self.cols,
+            descending=self.descending,
+            nulls_last=self.nulls_last,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -282,12 +355,22 @@ class UnnestExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.col_names = col_names
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: UnnestExec expects 1 child")
         return child_dfs[0].unnest(self.col_names)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: UnnestExec expects 1 child")
+        return UnnestExec(
+            child=children[0],
+            col_names=self.col_names,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -308,7 +391,7 @@ class SQLExec(PhysicalPlan):
         self.query = query
         self.arrow_view_names = arrow_view_names
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         cursor = self.session_state.intermediate_df_client.db_conn.cursor()
         for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
             cursor.register(arrow_view_name, child_df)
@@ -323,7 +406,18 @@ class SQLExec(PhysicalPlan):
                     logger.error(f"Failed to drop view: {arrow_view_name}")
                     pass
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != len(self.children):
+            raise InternalError("Unreachable: SQLExec expects 1 child")
+        return SQLExec(
+            children=children,
+            query=self.query,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+            arrow_view_names=self.arrow_view_names,
+        )
+
+    def build_node_lineage(
         self,
         _leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -354,7 +448,7 @@ class SemanticClusterExec(PhysicalPlan):
         self.label_column = label_column
         self.centroid_info = centroid_info
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: SemanticClusterExec expects 1 child")
         child_df = child_dfs[0]
@@ -377,8 +471,62 @@ class SemanticClusterExec(PhysicalPlan):
 
         return clustered_df
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: SemanticClusterExec expects 1 child")
+        return SemanticClusterExec(
+            child=children[0],
+            by_expr=self.by_expr,
+            by_expr_name=self.by_expr_name,
+            num_clusters=self.num_clusters,
+            max_iter=self.max_iter,
+            num_init=self.num_init,
+            label_column=self.label_column,
+            centroid_info=self.centroid_info,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         return self._build_row_subset_lineage(leaf_nodes)
+
+
+class MergedDuckDBExec(PhysicalPlan):
+    def __init__(
+        self,
+        merge_root: PhysicalPlan,
+        children: List[PhysicalPlan],
+        cache_info: Optional[CacheInfo],
+        session_state: LocalSessionState,
+    ):
+        super().__init__(children, cache_info=cache_info, session_state=session_state)
+        self.merge_root = merge_root
+
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        """
+        Execute the merged DuckDB plan.
+        Note: child_dfs contains the DataFrame results from executing all leaf nodes
+        in the subtree rooted at merge_root, in the same order they would be
+        encountered during a depth-first traversal. This ordering guarantee allows
+        us to consume DataFrames sequentially as we traverse the tree.
+        """
+        pass
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != len(self.children):
+            raise InternalError("Inconsistent number of children for MergedDuckDBExec")
+        return MergedDuckDBExec(
+            merge_root=self.merge_root,
+            children=children,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        raise NotImplementedError("Lineage not supported for SQLExec")

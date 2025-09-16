@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import polars as pl
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # TODO(rohitrastogi): Consider using a visitor pattern to traverse logical and physical plans. This can help
 # with separating the traversal logic from the node processing logic.
-class PhysicalPlan:
+class PhysicalPlan(ABC):
     def __init__(
         self,
         children: List[PhysicalPlan],
@@ -104,7 +105,7 @@ class PhysicalPlan:
 
         # Step 4: Execute the current operator - measure only the time spent in this operator
         operator_start_time = time.time()
-        result_df = self._execute(child_dfs)
+        result_df = self.execute_node(child_dfs)
         operator_execution_time = (time.time() - operator_start_time) * 1000
 
         curr_operator_metrics.num_output_rows = result_df.height
@@ -138,7 +139,8 @@ class PhysicalPlan:
 
         return result_df, query_metrics
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    @abstractmethod
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         """Execute the specific operation for this physical plan node.
 
         This method contains the core execution logic for each operator in the physical plan.
@@ -153,15 +155,21 @@ class PhysicalPlan:
         Returns:
             pl.DataFrame: The resulting DataFrame after applying this operator's logic.
         """
-        raise NotImplementedError
+        pass
+
+    @abstractmethod
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        """Construct a new physical plan, replacing the current children with the new children."""
+        pass
 
     def build_lineage(self) -> LineageGraph:
         """Return the lineage of the physical plan."""
         leaf_nodes = []
-        root_node, _ = self._build_lineage(leaf_nodes)
+        root_node, _ = self.build_node_lineage(leaf_nodes)
         return LineageGraph(root_node, leaf_nodes)
 
-    def _build_lineage(
+    @abstractmethod
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
@@ -179,7 +187,7 @@ class PhysicalPlan:
         Returns:
             Tuple of (OperatorLineage for this operator, materialized DataFrame)
         """
-        raise NotImplementedError
+        pass
 
     def _build_source_operator_lineage(
         self,
@@ -286,10 +294,10 @@ class PhysicalPlan:
             raise ValueError(f"Unreachable: {self.__class__.__name__} expects 1 child")
 
         # Get lineage from child
-        child_operator, child_df = self.children[0]._build_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
 
         # Apply the operator-specific transformation
-        materialize_df = self._execute([child_df])
+        materialize_df = self.execute_node([child_df])
 
         # Create the trivial backwards mapping dataframe
         backwards_df = materialize_df.select(["_uuid"])

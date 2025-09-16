@@ -14,6 +14,7 @@ from fenic._backends.local.physical_plan.base import (
     PhysicalPlan,
     _with_lineage_uuid,
 )
+from fenic.core.error import InternalError
 
 
 class AggregateExec(PhysicalPlan):
@@ -29,7 +30,7 @@ class AggregateExec(PhysicalPlan):
         self.group_exprs = group_exprs
         self.agg_exprs = agg_exprs
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: AggregateExec expects 1 child")
         child_df = child_dfs[0]
@@ -42,11 +43,22 @@ class AggregateExec(PhysicalPlan):
         else:
             return child_df.group_by(self.group_exprs).agg(self.agg_exprs)
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: AggregateExec expects 1 child")
+        return AggregateExec(
+            child=children[0],
+            group_exprs=self.group_exprs,
+            agg_exprs=self.agg_exprs,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        child_operator, child_df = self.children[0]._build_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
         agg_exprs_with_uuid = self.agg_exprs + [
             pl.col("_uuid").alias("_backwards_uuid")
         ]
