@@ -1,6 +1,7 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
 
 import logging
+import math
 from json.decoder import JSONDecodeError
 from typing import Optional, Union
 
@@ -88,66 +89,53 @@ class OpenRouterBatchChatCompletionsClient(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         profile = self._profile_manager.get_profile_by_name(request.model_profile)
-        try:
-            additional_reasoning_tokens = 0
-            if profile.reasoning_max_tokens:
-                additional_reasoning_tokens = profile.reasoning_max_tokens
-            if profile.reasoning_effort == "low":
-                additional_reasoning_tokens = 1024
-            if profile.reasoning_effort == "medium":
-                additional_reasoning_tokens = 2048
-            if profile.reasoning_effort == "high":
-                additional_reasoning_tokens = 4096
-            common_params = {
+        common_params = {
                 "model": self.model,
                 "messages": request.messages.to_message_list(),
-                "max_completion_tokens": request.max_completion_tokens + additional_reasoning_tokens,
+                "max_completion_tokens": self._get_max_output_tokens(request),
                 "n": 1,
             }
 
-            if request.top_logprobs:
-                common_params.update(
-                    {"logprobs": True, "top_logprobs": request.top_logprobs}
-                )
+        if request.top_logprobs:
+            common_params.update(
+                {"logprobs": True, "top_logprobs": request.top_logprobs}
+            )
 
-            if request.temperature:
-                common_params.update({"temperature": request.temperature})
+        if request.temperature and self._model_parameters.supports_custom_temperature:
+            common_params.update({"temperature": request.temperature})
 
-            if request.structured_output:
-                if STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
-                    common_params[RESPONSE_FORMAT] = {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "fenic_response",
-                            "schema": request.structured_output.strict_schema,
+        if request.structured_output:
+            if STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
+                common_params[RESPONSE_FORMAT] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "fenic_response",
+                        "schema": request.structured_output.json_schema,
+                        "strict": True,
+                    },
+                }
+            elif TOOLS in self._model_parameters.supported_parameters:
+                common_params[TOOLS] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "output_formatter",
+                            "description": "Format the output of the model to correspond strictly to the provided schema.",
+                            "parameters": request.structured_output.json_schema,
                             "strict": True,
                         },
                     }
-                elif TOOLS in self._model_parameters.supported_parameters:
-                    common_params[TOOLS] = [
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "output_formatter",
-                                "description": "Format the output of the model to correspond strictly to the provided schema.",
-                                "parameters": request.structured_output.strict_schema,
-                                "strict": True,
-                            },
-                        }
-                    ]
-                else:
-                    return FatalException(
-                        ConfigurationError(
-                            f"Model {self.model} does not support structured outputs, or tool calling, but the current request requires an output format. Select a different model that supports `structured_outputs`, or `tools`"
-                        )
-                    )
-                response = await self._aio_client.chat.completions.parse(
-                    **common_params, extra_body=profile.extra_body
-                )
+                ]
             else:
-                response = await self._aio_client.chat.completions.create(
-                    **common_params, extra_body=profile.extra_body
+                return FatalException(
+                    ConfigurationError(
+                        f"Model {self.model} does not support structured outputs, or tool calling, but the current request requires an output format. Select a different model that supports `structured_outputs`, or `tools`"
+                    )
                 )
+        try:
+            response = await self._aio_client.chat.completions.create(
+                **common_params, extra_body=profile.extra_body
+            )
 
             completion_choice, maybe_exception = handle_openai_compatible_response(
                 model_provider=ModelProvider.OPENROUTER,
@@ -219,7 +207,8 @@ class OpenRouterBatchChatCompletionsClient(
             return TransientException(e)
         except (APITimeoutError, APIConnectionError) as e:
             return TransientException(e)
-        # encountered when the response is not valid JSON. can sometimes be fixed with a retry.
+        # encountered when the response is not valid JSON. can sometimes be fixed with a retry
+        # sending the request to a different provider.
         except JSONDecodeError as e:
             return TransientException(e)
         except OpenAIError as e:
@@ -244,10 +233,21 @@ class OpenRouterBatchChatCompletionsClient(
         return self._metrics
 
     def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
-        base_tokens = request.max_completion_tokens
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
-        )
+        return request.max_completion_tokens + self._get_expected_additional_reasoning_tokens(request)
+
+    # This is a slightly less conservative estimate than the OpenRouter documentation on how reasoning_effort is used to
+    # generate a reasoning.max_tokens for models that only support reasoning.max_tokens.
+    # These percentages are slightly lower, since our use-cases generally require fewer reasoning tokens.
+    # https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level
+    def _get_expected_additional_reasoning_tokens(self, request: FenicCompletionsRequest) -> int:
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        additional_reasoning_tokens = 0
         if profile_config.reasoning_max_tokens:
-            base_tokens += profile_config.reasoning_max_tokens
-        return base_tokens
+            additional_reasoning_tokens = profile_config.reasoning_max_tokens
+        elif profile_config.reasoning_effort == "low":
+            additional_reasoning_tokens = math.ceil(0.15 * self._model_parameters.max_output_tokens)
+        elif profile_config.reasoning_effort == "medium":
+            additional_reasoning_tokens = math.ceil(0.30 * self._model_parameters.max_output_tokens)
+        elif profile_config.reasoning_effort == "high":
+            additional_reasoning_tokens = math.ceil(0.60 * self._model_parameters.max_output_tokens)
+        return additional_reasoning_tokens

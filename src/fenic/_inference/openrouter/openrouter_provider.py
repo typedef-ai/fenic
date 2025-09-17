@@ -161,10 +161,13 @@ class OpenRouterModelProvider(ModelProviderClass):
         self._models_loaded = True
         logger.info(f"OpenRouter model cache initialized with {len(added_models)} models")
         if untranslated_models:
-            logger.info(f"Failed to process and load OpenRouter models: {untranslated_models}")
+            logger.warning(f"Failed to process and load OpenRouter models: {untranslated_models}")
 
     async def validate_api_key(self) -> None:
         url = f"{OPENROUTER_BASE_URL}/key"
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValidationError("OpenRouter API Key is not set. Ensure the `OPENROUTER_API_KEY` is populated to use OpenRouter models.")
         resp = requests.get(url, headers=self._headers, timeout=30)
         if resp.status_code >= 400:
             raise ValidationError(
@@ -182,8 +185,6 @@ class OpenRouterModelProvider(ModelProviderClass):
         }
         if key:
             headers["Authorization"] = f"Bearer {key}"
-        else:
-            raise ValidationError("OPENROUTER_API_KEY is not set")
         return headers
 
 

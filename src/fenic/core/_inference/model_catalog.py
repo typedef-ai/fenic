@@ -87,6 +87,15 @@ class CompletionModelParameters:
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
 
+    def __str__(self):
+        repr = (
+            f"CompletionModelParameters(input_token_cost=${self.input_token_cost}, output_token_cost=${self.output_token_cost}, context_window_length={self.context_window_length}, max_output_tokens={self.max_output_tokens}, "
+            f"max_temperature={self.max_temperature}, cached_input_token_write_cost=${self.cached_input_token_write_cost}, cached_input_token_read_cost=${self.cached_input_token_read_cost}, tiered_input_token_costs={self.tiered_input_token_costs}, "
+            f"supports_profiles={self.supports_profiles}, supports_reasoning={self.supports_reasoning}, supports_minimal_reasoning={self.supports_minimal_reasoning}, supports_custom_temperature={self.supports_custom_temperature}, "
+            f"supports_verbosity={self.supports_verbosity}, supported_parameters={self.supported_parameters})"
+        )
+        return repr
+
 
 class EmbeddingModelParameters:
     """Parameters for embedding models including costs and output dimensions.
