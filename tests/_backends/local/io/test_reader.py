@@ -9,7 +9,6 @@ import boto3
 import polars as pl
 import pytest
 from botocore.session import get_session
-from duckdb import HTTPException
 
 from fenic import (
     ArrayType,
@@ -33,7 +32,7 @@ from fenic._backends.local.utils.io_utils import (
 )
 from fenic.api.session import Session
 from fenic.core.error import (
-    ConfigurationError,
+    FileLoaderError,
     InternalError,
     PlanError,
     UnsupportedFileTypeError,
@@ -42,6 +41,7 @@ from fenic.core.error import (
 from tests.conftest import _save_pdf_file
 
 COLUMNS = {"name", "age", "city"}
+
 
 def write_test_file(
     path: str,
@@ -91,7 +91,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Collect the full DataFrame and verify data
@@ -111,7 +111,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
 
@@ -152,7 +152,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     collected = df.to_polars()
@@ -163,11 +163,10 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+      actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
     collected = df.to_polars()
     assert collected.height == 11, f"Expected 11 rows, got {collected.height}"
-
 
 
 def test_parquet_single_file(local_session, temp_dir):
@@ -199,7 +198,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Collect the full DataFrame and verify data
@@ -219,7 +218,7 @@ David,33,Seattle"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
 
@@ -265,7 +264,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Verify row count
@@ -280,7 +279,7 @@ Emma,36,Phoenix"""
     schema = df.schema
     actual_columns = {field.name for field in schema.column_fields}
     assert (
-        actual_columns == COLUMNS
+          actual_columns == COLUMNS
     ), f"Expected columns {COLUMNS}, got {actual_columns}"
 
     # Verify row count
@@ -363,7 +362,6 @@ Carol,28,91.7"""
             ]
         )
         df = local_session.read.csv(test_file_path, schema=schema)
-
 
 
 def test_csv_merge_schemas_true_union_columns(local_session, temp_dir):
@@ -533,6 +531,7 @@ dog, 1.2"""
         ColumnField("id2", DoubleType),
     ]
 
+
 def test_parquet_merge_schemas_true_union_columns(local_session, temp_dir):
     """Test Parquet schema merging with merge_schemas=True.
 
@@ -637,7 +636,6 @@ def test_parquet_merge_schemas_false_first_file_determines_schema(local_session,
         ColumnField("id2", StringType),
     ]
 
-
     data1 = {"id": [1, 2], "id2": ["1", "2"]}
     data2 = {"id": ["cat", "dog"], "id2": [3, 4]}
 
@@ -649,7 +647,6 @@ def test_parquet_merge_schemas_false_first_file_determines_schema(local_session,
 
     with pytest.raises(PlanError, match="Failed to infer schema"):
         df = local_session.read.parquet([file1_path, file2_path])
-
 
     data1 = {"id": [1, 2], "id2": ["1", "2"]}
     data2 = {"id2": [3, 4]}
@@ -758,15 +755,16 @@ def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch
     secret_key = frozen_credentials.secret_key
     token = frozen_credentials.token
     region = session._session_state.s3_session.region_name
- 
+
     # Test that read queries to s3 have the configured credentials
     paths = ["s3://test-bucket/test-file.csv"]
     query = session._session_state.execution._build_read_csv_query(
         paths,
-        infer_schema =True,
+        infer_schema=True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    assert has_s3_creds
     assert "http"
     assert f"SET s3_access_key_id='{access_key}'" in query
     assert f"SET s3_secret_access_key='{secret_key}'" in query
@@ -774,6 +772,7 @@ def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch
     assert f"SET s3_region='{region}'" in query
 
     session.stop()
+
 
 def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
     """Test that local read queries work and that read queries to s3 will fail without aws credentials."""
@@ -801,15 +800,22 @@ def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
     # Test that read queries to s3 will fail without credentials
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv("s3://test-bucket/test-file.csv")
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "Unable to locate AWS credentials."
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert (
+            str(exc_info.value.__cause__) ==
+            "File loader error: Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: 403)"
+    )
 
     with pytest.raises(PlanError, match="Failed to infer schema from Parquet files") as exc_info:
         session.read.parquet("s3://test-bucket/test-file.parquet")
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "Unable to locate AWS credentials."
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert (
+            str(exc_info.value.__cause__) ==
+            "File loader error: Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: 403)"
+    )
 
     session.stop()
+
 
 # =============================================================================
 # HuggingFace Credentials Tests
@@ -823,19 +829,27 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     # Test with no token
     if os.getenv("HF_TOKEN"):
         monkeypatch.delenv("HF_TOKEN")
-
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
-    assert isinstance(exc_info.value.__cause__, ConfigurationError)
-    assert str(exc_info.value.__cause__) == "HuggingFace token not found. Set HF_TOKEN environment variable."
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert (
+        str(exc_info.value.__cause__) ==
+        "File loader error: Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. "
+        "Set HF_TOKEN environment variable. (Status code: 401)"
+    )
 
     # Test with invalid token
     monkeypatch.setenv("HF_TOKEN", "invalid_token")
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
-    assert isinstance(exc_info.value.__cause__, HTTPException)
-    assert str(exc_info.value.__cause__) == "HTTP Error: HTTP GET error on 'https://huggingface.co/datasets/typedef-ai/fenic-test-datasets-private/resolve/main/last_names_1.csv' (HTTP 401)"
+    assert isinstance(exc_info.value.__cause__, FileLoaderError)
+    assert (
+        str(exc_info.value.__cause__) ==
+        "File loader error: Failed to read from Hugging Face -- the provided credentials do not have the required "
+        "permissions. (Status code: 401)"
+    )
 
+    session.stop()
 
 def test_read_query_setup_with_huggingface_credentials(local_session_config, monkeypatch):
     """Test that read queries to huggingface datasets will succeed with hf credentials."""
@@ -849,10 +863,12 @@ def test_read_query_setup_with_huggingface_credentials(local_session_config, mon
         infer_schema=True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_hf_creds(query)
+    query, has_hf_creds = _build_query_with_hf_creds(query)
+    assert has_hf_creds
     assert "INSTALL httpfs; LOAD httpfs;" in query
     assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
 
+    session.stop()
 
 def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_session_config, monkeypatch):
     """Test that read queries to huggingface datasets will succeed with hf credentials."""
@@ -871,7 +887,6 @@ def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_
     secret_key = frozen_credentials.secret_key
     token = frozen_credentials.token
     region = session._session_state.s3_session.region_name
-    
     # Test that read queries to s3 have the configured credentials
     paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
     query = session._session_state.execution._build_read_csv_query(
@@ -879,14 +894,19 @@ def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_
         infer_schema=True,
     )
     query = _build_query_with_httpfs_extensions(query)
-    query = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    query = _build_query_with_hf_creds(query)
+    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
+    assert has_s3_creds
+    query, has_hf_creds = _build_query_with_hf_creds(query)
+    assert has_hf_creds
     assert "INSTALL httpfs; LOAD httpfs;" in query
     assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
     assert f"SET s3_access_key_id='{access_key}'" in query
     assert f"SET s3_secret_access_key='{secret_key}'" in query
     assert f"SET s3_session_token='{token}'" in query
     assert f"SET s3_region='{region}'" in query
+
+    session.stop()
+
 
 # =============================================================================
 # HuggingFace Test Reads on Public Datasets
@@ -907,6 +927,7 @@ TEST_PARQUET_SCHEMA = Schema(column_fields=[
     ColumnField(name="location_type", data_type=StringType),
 ])
 
+
 def test_read_public_huggingface_datasets(request, local_session_config, temp_dir):
     """Test that read queries to public huggingface datasets will succeed without hf credentials."""
     if not request.config.getoption("--test-huggingface-reads"):
@@ -919,7 +940,6 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     df = session.read.csv(csv_path)
     assert df.schema == TEST_CSV_SCHEMA, f"Expected {TEST_CSV_SCHEMA}, got {df.schema}"
     assert df.count() == 10
-
 
     # Test with single parquet file
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public/names_and_occupations_3.parquet"
@@ -949,6 +969,7 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     assert df.count() == 10
     assert df.schema == TEST_PARQUET_SCHEMA
 
+    session.stop()
 
 def test_read_public_huggingface_datasets_with_other_sources(request, local_session_config, temp_dir):
     """Test that read queries to public huggingface datasets will succeed with other schemes."""
@@ -967,6 +988,7 @@ Francis
     assert df.count() == 13
     assert df.schema == TEST_CSV_SCHEMA
 
+    session.stop()
 # =============================================================================
 # Ingestion Type Coercions Tests
 # =============================================================================
@@ -1076,7 +1098,7 @@ def test_ingest_datetime_type(local_session, temp_dir):
         }
     )
     assert (
-        result.schema == expected_schema
+            result.schema == expected_schema
     ), "Datetime should be converted to String"
     assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
 
@@ -1088,7 +1110,7 @@ def test_ingest_datetime_type(local_session, temp_dir):
     result = fenic_df.to_polars()
 
     assert (
-        result.schema == expected_schema
+            result.schema == expected_schema
     ), "Datetime should be converted to String"
     assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
 
@@ -1100,6 +1122,7 @@ def test_ingest_datetime_type(local_session, temp_dir):
     )
     result = fenic_df.to_polars()
     assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+
 
 def test_ingest_array_type(local_session, temp_dir):
     """Test automatic conversion of array columns to lists."""
@@ -1158,7 +1181,7 @@ David,33,Seattle"""
 
     table_name = "test_overwrite_table"
     df = local_session.create_dataframe([{"name": "Alice", "age": 30, "city": "SF"},
-                                          {"name": "Carol", "age": 34, "city": "Boston"}])
+                                         {"name": "Carol", "age": 34, "city": "Boston"}])
     df.write.save_as_table(table_name, mode="overwrite")
     df_table = local_session.table(table_name)
     df_table.write.save_as_view("df_view")
@@ -1174,6 +1197,7 @@ David,33,Seattle"""
     result_name = df_view_union.select(col("name")).collect("polars").data
     values_name = result_name["name"].to_list()
     assert values_name == ["John", "David", "Alice", "Carol"]
+
 
 def test_view_schema_validation(local_session, temp_dir):
     """Test that views are validated against the current state of the source."""
@@ -1239,6 +1263,7 @@ def test_read_docs_invalid_type(local_session, temp_dir_with_test_files):
             data_type=StringType,
             recursive=True)
 
+
 def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_test_files):
     """Test that reading JSON files from a folder works."""
     # Create a test JSON file
@@ -1246,7 +1271,7 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_tes
     json_path = Path(temp_dir_with_test_files) / "test.json"
     with open(json_path, 'w') as f:
         json.dump({"test": "data", "number": 42}, f)
-    
+
     df = local_session.read.docs(
         _get_globbed_path(temp_dir_with_test_files, "**/*.json"),
         data_type=JsonType,
@@ -1265,6 +1290,7 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_tes
     # Verify our test file is in the results
     assert any("test.json" in path for path in results["file_path"])
 
+
 def test_read_markdown_no_wildcard_only_valid_files(local_session, temp_dir_just_one_file):
     """Test that reading from a path with (and no wild card) only valid files works."""
     df = local_session.read.docs(
@@ -1273,6 +1299,7 @@ def test_read_markdown_no_wildcard_only_valid_files(local_session, temp_dir_just
     df.collect()
     dict = df.to_pydict()
     assert len(dict["file_path"]) == 1
+
 
 def test_read_docs_no_files_valid_paths(local_session, temp_dir_with_test_files):
     """Test that if no files are found, we'll get a dataframe with the path and an error message."""
@@ -1283,6 +1310,7 @@ def test_read_docs_no_files_valid_paths(local_session, temp_dir_with_test_files)
     df.collect()
     results = df.to_pydict()
     assert len(results["file_path"]) == 0
+
 
 def test_read_docs_no_wildcard_path_is_file(local_session, temp_dir_just_one_file):
     """Test that reading from a path to a file works."""
@@ -1302,25 +1330,28 @@ def test_read_pdfs_invalid_path(local_session):
             "/invalid/path",
             recursive=True)
 
+
 pdf_metadata_schema = Schema(
-        [
-            ColumnField(name="doc_path", data_type=StringType),
-            ColumnField(name="error", data_type=StringType),
-            ColumnField(name="size", data_type=IntegerType),
-            ColumnField(name="title", data_type=StringType),
-            ColumnField(name="author", data_type=StringType),
-            ColumnField(name="creation_date", data_type=StringType),
-            ColumnField(name="mod_date", data_type=StringType),
-            ColumnField(name="page_count", data_type=IntegerType),
-            ColumnField(name="has_forms", data_type=BooleanType),
-            ColumnField(name="has_signature_fields", data_type=BooleanType),
-            ColumnField(name="image_count", data_type=IntegerType),
-            ColumnField(name="is_encrypted", data_type=BooleanType),
-        ]
+    [
+        ColumnField(name="doc_path", data_type=StringType),
+        ColumnField(name="error", data_type=StringType),
+        ColumnField(name="size", data_type=IntegerType),
+        ColumnField(name="title", data_type=StringType),
+        ColumnField(name="author", data_type=StringType),
+        ColumnField(name="creation_date", data_type=StringType),
+        ColumnField(name="mod_date", data_type=StringType),
+        ColumnField(name="page_count", data_type=IntegerType),
+        ColumnField(name="has_forms", data_type=BooleanType),
+        ColumnField(name="has_signature_fields", data_type=BooleanType),
+        ColumnField(name="image_count", data_type=IntegerType),
+        ColumnField(name="is_encrypted", data_type=BooleanType),
+    ]
 )
+
 
 def _get_globbed_path(path: str, file_extension: str) -> list[str]:
     return [str(Path.joinpath(Path(path), file_extension))]
+
 
 def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
     """Test that reading PDFs from a folder."""
@@ -1356,6 +1387,7 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
 
     for size_value in all_data["size"]:
         assert size_value > 0, f"Size should be positive, got {size_value}"
+
 
 def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
     """Test that reading PDFs with text and fields from a folder."""

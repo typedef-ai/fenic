@@ -1178,7 +1178,7 @@ def _validate_language_profile(language_model: LanguageModel, model_alias: str, 
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
-        if not profile.thinking_token_budget or profile.thinking_token_budget == 0 and model_alias == "gemini-2.5-pro":
+        if (not profile.thinking_token_budget or profile.thinking_token_budget == 0) and not completion_model_params.supports_disabled_reasoning:
             raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
 
 def _validate_embedding_profile(

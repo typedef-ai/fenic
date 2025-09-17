@@ -283,7 +283,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 self._register_thread_exception(queue_item, exception)
             except asyncio.QueueEmpty:
                 break
-
         cancel_future = asyncio.run_coroutine_threadsafe(
             self._cancel_in_flight_requests(), self._event_loop
         )
@@ -562,6 +561,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             raise
         except Exception as e:
             logger.error(f"Error in worker for model {self.model}: {e}", exc_info=True)
+            for task in self.pending_requests:
+                self._register_thread_exception(task, e)
+            self.pending_requests = []
+            self.request_queue.cancel()
+            self.retry_queue.cancel()
+            self.shutdown()
 
 
     async def _process_single_request(self, queue_item: QueueItem[RequestT]):
