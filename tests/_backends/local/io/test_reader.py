@@ -25,9 +25,6 @@ from fenic import (
     markdown,
 )
 from fenic._backends.local.utils.io_utils import (
-    _build_query_with_hf_creds,
-    _build_query_with_httpfs_extensions,
-    _build_query_with_s3_creds,
     write_file,
 )
 from fenic.api.session import Session
@@ -735,45 +732,6 @@ Bob,30,Chicago"""
 # AWS Credentials Tests
 # =============================================================================
 
-def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch):
-    """Test that a local session can be created with AWS credentials.
-
-    test that our read queries are setup with the credentials.
-    test that we error out if we don't have credentials.
-    """
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test_access_key_id")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test_secret_access_key")
-    monkeypatch.setenv("AWS_SESSION_TOKEN", "test_session_token")
-    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-2")
-
-    session = Session.get_or_create(local_session_config)
-
-    # Get configured credentials from session
-    aws_credentials = session._session_state.s3_session.get_credentials()
-    frozen_credentials = aws_credentials.get_frozen_credentials()
-    access_key = frozen_credentials.access_key
-    secret_key = frozen_credentials.secret_key
-    token = frozen_credentials.token
-    region = session._session_state.s3_session.region_name
-
-    # Test that read queries to s3 have the configured credentials
-    paths = ["s3://test-bucket/test-file.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    assert has_s3_creds
-    assert "http"
-    assert f"SET s3_access_key_id='{access_key}'" in query
-    assert f"SET s3_secret_access_key='{secret_key}'" in query
-    assert f"SET s3_session_token='{token}'" in query
-    assert f"SET s3_region='{region}'" in query
-
-    session.stop()
-
-
 def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
     """Test that local read queries work and that read queries to s3 will fail without aws credentials."""
     session = Session.get_or_create(local_session_config)
@@ -851,62 +809,6 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
 
     session.stop()
 
-def test_read_query_setup_with_huggingface_credentials(local_session_config, monkeypatch):
-    """Test that read queries to huggingface datasets will succeed with hf credentials."""
-    monkeypatch.setenv("HF_TOKEN", "test_token")
-    session = Session.get_or_create(local_session_config)
-
-    # Test that read queries to s3 have the configured credentials
-    paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_hf_creds = _build_query_with_hf_creds(query)
-    assert has_hf_creds
-    assert "INSTALL httpfs; LOAD httpfs;" in query
-    assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
-
-    session.stop()
-
-def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_session_config, monkeypatch):
-    """Test that read queries to huggingface datasets will succeed with hf credentials."""
-    monkeypatch.setenv("HF_TOKEN", "test_token")
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test_access_key_id")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test_secret_access_key")
-    monkeypatch.setenv("AWS_SESSION_TOKEN", "test_session_token")
-    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-2")
-
-    session = Session.get_or_create(local_session_config)
-
-    # Get configured credentials from session
-    aws_credentials = session._session_state.s3_session.get_credentials()
-    frozen_credentials = aws_credentials.get_frozen_credentials()
-    access_key = frozen_credentials.access_key
-    secret_key = frozen_credentials.secret_key
-    token = frozen_credentials.token
-    region = session._session_state.s3_session.region_name
-    # Test that read queries to s3 have the configured credentials
-    paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    assert has_s3_creds
-    query, has_hf_creds = _build_query_with_hf_creds(query)
-    assert has_hf_creds
-    assert "INSTALL httpfs; LOAD httpfs;" in query
-    assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
-    assert f"SET s3_access_key_id='{access_key}'" in query
-    assert f"SET s3_secret_access_key='{secret_key}'" in query
-    assert f"SET s3_session_token='{token}'" in query
-    assert f"SET s3_region='{region}'" in query
-
-    session.stop()
-
 
 # =============================================================================
 # HuggingFace Test Reads on Public Datasets
@@ -957,13 +859,13 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test multiple parquet files with glob 
+    # Test multiple parquet files with glob
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public/names_and_occupations_*.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test with a parquet file at commit 
+    # Test with a parquet file at commit
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public@58138e6c12e70033f6e36307c7a149a1c13dfc38/names_and_occupations_2.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 10

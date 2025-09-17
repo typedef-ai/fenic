@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
@@ -18,15 +17,8 @@ from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import (
     convert_polars_schema_to_custom_schema,
 )
-from fenic.core.error import CatalogError, ExecutionError, PlanError, ValidationError
+from fenic.core.error import CatalogError, ExecutionError, PlanError
 from fenic.core.metrics import QueryMetrics
-from fenic.core.types.datatypes import (
-    BooleanType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    StringType,
-)
 from fenic.core.types.schema import Schema
 
 logger = logging.getLogger(__name__)
@@ -134,81 +126,18 @@ class LocalExecution(BaseExecution):
     ) -> Schema:
         """Infer the schema of a CSV file."""
         self.session_state._check_active()
-        query = self._build_read_csv_query(paths, True, **options)
-        return self._infer_schema_from_file_scan_query(paths, query)
+        df = query_files(paths=paths, file_type="csv", s3_session=self.session_state.s3_session, **options)
+        polars_schema = df.schema
+        return convert_polars_schema_to_custom_schema(polars_schema)
 
     def infer_schema_from_parquet(
         self, paths: list[str], **options: Dict[str, Any]
     ) -> Schema:
         """Infer the schema of a Parquet file."""
         self.session_state._check_active()
-        query = self._build_read_parquet_query(paths, True, **options)
-        return self._infer_schema_from_file_scan_query(paths, query)
-
-    def _infer_schema_from_file_scan_query(
-        self, paths: list[str], query: str
-    ) -> Schema:
-        """Helper method to infer schema from a DuckDB file scan query."""
-        query = f"PRAGMA disable_optimizer; {query}"
-        df = query_files(query=query, paths=paths, s3_session=self.session_state.s3_session)
+        df = query_files(paths=paths, file_type="parquet", s3_session=self.session_state.s3_session, **options)
         polars_schema = df.schema
         return convert_polars_schema_to_custom_schema(polars_schema)
-
-    def _build_read_csv_query(
-        self, paths: list[str], infer_schema: bool, **options: Dict[str, Any]
-    ) -> str:
-        """Helper method to build a DuckDB read CSV query."""
-        merge_schemas = options.get("merge_schemas", False)
-        schema: Optional[Schema] = options.get("schema", None)
-        duckdb_schema: Dict[str, str] = {}
-        paths_str = "', '".join(paths)
-        # trunk-ignore-begin(bandit/B608)
-        if schema:
-            for col_field in schema.column_fields:
-                duckdb_type: str | None = None
-                if col_field.data_type == StringType:
-                    duckdb_type = "VARCHAR"
-                elif col_field.data_type == IntegerType:
-                    duckdb_type = "BIGINT"
-                elif col_field.data_type == FloatType:
-                    duckdb_type = "FLOAT"
-                elif col_field.data_type == DoubleType:
-                    duckdb_type = "DOUBLE"
-                elif col_field.data_type == BooleanType:
-                    duckdb_type = "BOOLEAN"
-                else:
-                    raise ValidationError(
-                        f"Invalid column type for csv Schema: ColumnField(name='{col_field.name}', data_type={type(col_field.data_type).__name__}). "
-                        f"Expected one of: IntegerType, FloatType, DoubleType, BooleanType, or StringType. as data_type"
-                        f"Example: Schema([ColumnField(name='id', data_type=IntegerType), ColumnField(name='name', data_type=StringType)])"
-                    )
-                duckdb_schema[col_field.name] = duckdb_type
-            duckdb_schema_string = json.dumps(duckdb_schema).replace('"', "'")
-            query = f"SELECT * FROM read_csv(['{paths_str}'], columns = {duckdb_schema_string})"
-        elif merge_schemas:
-            query = f"SELECT * FROM read_csv(['{paths_str}'], union_by_name=true)"
-        else:
-            query = f"SELECT * FROM read_csv(['{paths_str}'])"
-        if infer_schema:
-            query = f"{query} WHERE 1=0"
-        # trunk-ignore-end(bandit/B608)
-        return query
-
-    def _build_read_parquet_query(
-        self, paths: list[str], infer_schema: bool, **options: Dict[str, Any]
-    ) -> str:
-        """Helper method to build a DuckDB read Parquet query."""
-        merge_schemas = options.get("merge_schemas", False)
-        paths_str = "', '".join(paths)
-        # trunk-ignore-begin(bandit/B608)
-        if merge_schemas:
-            query = f"SELECT * FROM read_parquet(['{paths_str}'], union_by_name=true)"
-        else:
-            query = f"SELECT * FROM read_parquet(['{paths_str}'])"
-        if infer_schema:
-            query = f"{query} WHERE 1=0"
-        # trunk-ignore-end(bandit/B608)
-        return query
 
     def _should_write_table(
         self, table_name: str, plan_schema: Schema, mode: Literal["error", "append", "overwrite", "ignore"]

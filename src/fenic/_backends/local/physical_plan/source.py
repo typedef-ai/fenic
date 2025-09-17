@@ -58,15 +58,7 @@ class FileSourceExec(PhysicalPlan):
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
         file_format = self.file_format.lower()
-        build_query_fn = {
-            "csv": self.session_state.execution._build_read_csv_query,
-            "parquet": self.session_state.execution._build_read_parquet_query,
-        }.get(file_format)
-
-        if build_query_fn is None:
-            raise InternalError(f"Unsupported file format: {self.file_format}")
-        query = build_query_fn(self.paths, False, **self.options)
-        df = query_files(query=query, paths=self.paths, s3_session=self.session_state.s3_session)
+        df = query_files(paths=self.paths, file_type=file_format, s3_session=self.session_state.s3_session, **self.options)
         return apply_ingestion_coercions(df)
 
     def _build_lineage(
