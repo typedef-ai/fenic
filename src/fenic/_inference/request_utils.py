@@ -1,11 +1,14 @@
 """Utilities for request processing and deduplication."""
 
+import base64
 import hashlib
-import json
+import logging
 
-from fenic._inference.common_openai.openai_utils import convert_messages
-from fenic._inference.types import FenicCompletionsRequest
+import fitz  # PyMuPDF
 
+from fenic._inference.types import FenicCompletionsRequest, LMRequestFile
+
+logger = logging.getLogger(__name__)
 
 def parse_openrouter_rate_limit_headers(
     headers: dict | None,
@@ -48,5 +51,54 @@ def generate_completion_request_key(request: FenicCompletionsRequest) -> str:
     Returns:
         10-character SHA256 hash of the messages
     """
-    messages_json = json.dumps(convert_messages(request.messages), sort_keys=True)
-    return hashlib.sha256(messages_json.encode()).hexdigest()[:10]
+    return hashlib.sha256(request.messages.encode()).hexdigest()[:10]
+
+
+def pdf_to_base64(file: LMRequestFile) -> bytes:
+    """Encode PDF file content to base64.
+
+    Args:
+        file: LMRequestFile object
+
+    Returns:
+        Base64 encoded string of the PDF content (full file from disk or chunk in memory)
+
+    Raises:
+        FileNotFoundError: If the PDF file doesn't exist
+        IOError: If there's an error reading the file
+    """
+    if file.pdf_chunk_bytes is None:
+        # Return full PDF as before
+        with open(file.path, 'rb') as pdf_file:
+            pdf_content = pdf_file.read()
+            return base64.b64encode(pdf_content).decode('utf-8')
+    else:
+        pdf_chunk = fitz.open(stream=file.pdf_chunk_bytes, filetype="pdf")
+        pdf_bytes = pdf_chunk.tobytes()
+        pdf_chunk.close()
+        return base64.b64encode(pdf_bytes).decode('utf-8')
+
+def get_pdf_page_count(file: LMRequestFile) -> int:
+    """Get the page count of a PDF file."""
+    return file.page_range[1] - file.page_range[0] + 1
+
+def get_pdf_text(file: LMRequestFile) -> str:
+    """Extract text content from a PDF file."""
+    text_content = []
+    # Open the PDF
+    if file.pdf_chunk_bytes is None:
+        pdf_document = fitz.open(file.path)
+    else:
+        pdf_document = fitz.open(stream=file.pdf_chunk_bytes, filetype="pdf")
+    
+    for page_num in range(pdf_document.page_count):
+        # Extract text from the page
+        text_content.append(pdf_document[page_num].get_text())
+
+    # Close the PDF
+    pdf_document.close()
+
+    # Combine all text content
+    full_text = "\n".join(text_content)
+
+    return full_text

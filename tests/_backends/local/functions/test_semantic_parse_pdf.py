@@ -4,9 +4,11 @@ from textwrap import wrap
 from typing import List, Optional
 
 import pytest
+from pydantic import BaseModel
 
 from fenic import SemanticConfig, Session, SessionConfig, col, semantic
-from fenic.api.session.config import GoogleDeveloperLanguageModel
+from fenic.api.session.config import GoogleDeveloperLanguageModel, OpenAILanguageModel
+from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core.error import ValidationError
 from tests.conftest import _save_pdf_file
 
@@ -16,39 +18,20 @@ basic_text_content = [
     "Content about war and peace, examining the complex relationship between conflict and harmony throughout human history. This analysis covers major historical conflicts, their causes and consequences, as well as the various peace movements and diplomatic efforts that have shaped our world. The discussion includes philosophical perspectives on violence, justice, and the pursuit of lasting peace.",
 ]
 
-def make_test_pdf_paths(text_content: list[str],
-                        temp_dir: str,
-                        pdf_count: int,
-                        page_count: int,
-                        include_images:Optional[List[bool]] = None,
-                        include_small_images: Optional[List[bool]] = None,
-                        include_signatures: Optional[List[bool]] = None):
-    """Create PDFs with varying content in the given temporary directory."""
-    pdf_paths = []
-    for i in range(pdf_count):
-        path = os.path.join(temp_dir, f"file{i}.pdf")
-        _save_pdf_file(Path(path),
-                   title=f"File {i} Title", author=f"File {i} Author", page_count=page_count,
-                   text_content=text_content,
-                   include_headers_and_footers=True,
-                   include_images=False if not include_images else include_images[i],
-                   include_small_images=False if not include_small_images else include_small_images[i],
-                   include_signatures=False if not include_signatures else include_signatures[i])
-        pdf_paths.append(path)
+vlms_to_test = [
+    # TODO: add openai tests when adding openai parse_pdf support
+    #(OpenAILanguageModel, "gpt-5-nano"),
+    #(OpenAILanguageModel, "gpt-4o-mini"),
+    #(OpenAILanguageModel, "o3-mini"),
+    (GoogleDeveloperLanguageModel, "gemini-2.5-pro"),
+    (GoogleDeveloperLanguageModel, "gemini-2.0-flash-lite"),
+    (GoogleDeveloperLanguageModel, "gemini-2.5-flash-lite"),
+]
 
-    return pdf_paths
 
-@pytest.fixture
-def google_genai_session_config():
-    config = SessionConfig(
-        app_name="test_app_google",
-        semantic=SemanticConfig(
-            language_models={"gemini_2.0_flash-lite": GoogleDeveloperLanguageModel(model_name="gemini-2.0-flash-lite", rpm=1000, tpm=100000)}
-        ),
-    )
-    return Session.get_or_create(config)
-
-def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, google_genai_session_config):
+@pytest.mark.parametrize("pdf_chunk_size", [1, 0])
+@pytest.mark.parametrize("test_model_class, test_model_name", vlms_to_test)
+def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test_model_class, test_model_name, pdf_chunk_size, monkeypatch):
     """Test basic PDF parsing functionality.
 
     By default, just parse the PDFS and make sure non-empty markdown is returned.
@@ -60,13 +43,18 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, goog
     if request.config.getoption("--test-model-evaluation"):
         evaluate_response = True
 
-    pdf_paths = make_test_pdf_paths(basic_text_content,
+    if pdf_chunk_size > 0:
+        # Mock PDF_MAX_PAGES_CHUNK
+        monkeypatch.setattr("fenic._backends.local.semantic_operators.parse_pdf.PDF_MAX_PAGES_CHUNK", pdf_chunk_size)
+
+    local_session = _setup_session_with_vlm(test_model_class=test_model_class, model_name=test_model_name)
+    pdf_paths = _make_test_pdf_paths(basic_text_content,
                                     temp_dir_just_one_file,
                                     pdf_count=pdf_count,
                                     page_count=page_count,
                                     include_images=[True, False])
     try:
-        df = google_genai_session_config.create_dataframe({"pdf_path": pdf_paths})
+        df = local_session.create_dataframe({"pdf_path": pdf_paths})
         markdown_result = df.select(
             semantic.parse_pdf(col("pdf_path")).alias("markdown_content")
         ).collect()
@@ -82,9 +70,12 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, goog
                         assert line in markdown_result.data["markdown_content"][i]
                 assert "Image" not in markdown_result.data["markdown_content"][i]
     finally:
-        google_genai_session_config.stop()
+        local_session.stop()
 
-def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request,temp_dir_just_one_file, google_genai_session_config):
+
+@pytest.mark.parametrize("pdf_chunk_size", [1, 0])
+@pytest.mark.parametrize("test_model_class, test_model_name", vlms_to_test)
+def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request, temp_dir_just_one_file, test_model_class, test_model_name, pdf_chunk_size, monkeypatch):
     """Test basic PDF parsing functionality with page separators and image descriptions.
 
     By default, just parse the PDFS and make sure non-empty markdown is returned.
@@ -96,14 +87,19 @@ def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request,t
     if request.config.getoption("--test-model-evaluation"):
         evaluate_response = True
 
-    pdf_paths = make_test_pdf_paths(basic_text_content,
+    if pdf_chunk_size > 0:
+        # Mock PDF_MAX_PAGES_CHUNK
+        monkeypatch.setattr("fenic._backends.local.semantic_operators.parse_pdf.PDF_MAX_PAGES_CHUNK", pdf_chunk_size)
+
+    local_session = _setup_session_with_vlm(test_model_class=test_model_class, model_name=test_model_name)
+    pdf_paths = _make_test_pdf_paths(basic_text_content,
                                     temp_dir_just_one_file,
                                     pdf_count=pdf_count,
                                     page_count=page_count,
                                     include_images=[True, False],
                                     include_small_images=[True, True])
     try:
-        df = google_genai_session_config.create_dataframe({"pdf_path": pdf_paths})
+        df = local_session.create_dataframe({"pdf_path": pdf_paths})
         markdown_result = df.select(
             semantic.parse_pdf(col("pdf_path"),
                 page_separator="--- PAGE {page} ---",
@@ -128,7 +124,8 @@ def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request,t
                 #else:
                 #    assert "Image" in markdown_result.data["markdown_content"][i]
     finally:
-        google_genai_session_config.stop()
+        local_session.stop()
+
 
 def test_semantic_parse_pdf_without_models():
     """Test that an error is raised if no language models are configured."""
@@ -139,3 +136,57 @@ def test_semantic_parse_pdf_without_models():
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"pdf_path": ["test.pdf"]}).select(semantic.parse_pdf(col("pdf_path")).alias("markdown_content"))
     session.stop()
+
+def _make_test_pdf_paths(text_content: list[str],
+                        temp_dir: str,
+                        pdf_count: int,
+                        page_count: int,
+                        include_images:Optional[List[bool]] = None,
+                        include_small_images: Optional[List[bool]] = None,
+                        include_signatures: Optional[List[bool]] = None):
+    """Create PDFs with varying content in the given temporary directory."""
+    pdf_paths = []
+    for i in range(pdf_count):
+        path = os.path.join(temp_dir, f"file{i}.pdf")
+        _save_pdf_file(Path(path),
+                   title=f"File {i} Title", author=f"File {i} Author", page_count=page_count,
+                   text_content=text_content,
+                   include_headers_and_footers=True,
+                   include_images=False if not include_images else include_images[i],
+                   include_small_images=False if not include_small_images else include_small_images[i],
+                   include_signatures=False if not include_signatures else include_signatures[i])
+        pdf_paths.append(path)
+
+    return pdf_paths
+
+# Test Utility Functions
+def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str):
+    # Lookup the model provider and parameters
+
+    model_parameters = model_catalog.get_completion_model_parameters(
+        ModelProvider("openai" if test_model_class == OpenAILanguageModel else "google-developer"), model_name
+    )
+    # Set up the profile with the lowest reasoning effort allowed by the model
+    if test_model_class == GoogleDeveloperLanguageModel:
+        if model_parameters.supports_disabled_reasoning:
+            profile = test_model_class.Profile(thinking_token_budget=0)
+        else:
+            # gemini-2.5-pro doesn't support disabled reasoning and needs a minimum of 128 tokens
+            profile = test_model_class.Profile(thinking_token_budget=128)
+    elif test_model_class == OpenAILanguageModel and model_parameters.supports_profiles:
+        if model_parameters.supports_minimal_reasoning:
+            profile = test_model_class.Profile(reasoning_effort="minimal")
+        else:
+            profile = test_model_class.Profile(reasoning_effort="low")
+    config = SessionConfig(
+        app_name="test_app_google",
+        semantic=SemanticConfig(
+            language_models={"vlm": test_model_class(
+                model_name=model_name,
+                rpm=500,
+                tpm=1_000_000,
+                profiles={"low_reasoning": profile} if model_parameters.supports_profiles else None,
+            )}
+        ),
+    )
+    return Session.get_or_create(config)

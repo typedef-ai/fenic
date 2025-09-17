@@ -1,17 +1,35 @@
+import io
 import logging
 from typing import List, Optional, Tuple
 
 from google.genai import Client
 from google.genai.types import Content, ContentUnion, File, Part
 
-from fenic._inference.types import LMRequestMessages
+from fenic._inference.types import LMRequestFile, LMRequestMessages
 
 logger = logging.getLogger(__name__)
 
-async def _upload_file(client: Client, file_path: str) -> File:
-    """Upload a file to Google's file store."""
-    file_obj = await client.files.upload(file=file_path)
-    logger.info(f"Uploaded file {file_path} to Google file store: {file_obj.name}")
+async def _upload_file(client: Client, file: LMRequestFile) -> File:
+    """Upload a file to Google's file store.
+
+    Args:
+        client: Google genai client
+        file_path: Path to the file to upload
+        page_range: Optional page range for PDF files (start, end) inclusive, 0-indexed
+
+    Returns:
+        Uploaded file object
+    """
+    if file.pdf_chunk_bytes:
+        # We keep pdf chunks in memory
+        buffer = io.BytesIO(file.pdf_chunk_bytes)
+        logger.debug(f"Uploading file {file.path} size {len(file.pdf_chunk_bytes)} pages {file.page_range[0]}-{file.page_range[1]+1} to Google file store")
+        file_obj = await client.files.upload(file=buffer, config={"mime_type": "application/pdf"})
+        logger.debug(f"Uploaded file {file.path} pages {file.page_range[0]}-{file.page_range[1]+1} to Google file store: {file_obj.name}")
+    else:
+        logger.debug(f"Uploading file {file.path} to Google file store: {file.path}")
+        file_obj = await client.files.upload(file=file.path, config={"mime_type": "application/pdf"})
+        logger.debug(f"Uploaded file {file.path} to Google file store: {file_obj.name}")
     return file_obj
 
 async def delete_file(client: Client, file_name: str) -> None:
@@ -35,8 +53,8 @@ async def convert_messages_and_upload_files(client: Client, messages: LMRequestM
     """
     contents = convert_text_messages(messages)
     file_obj = None
-    if messages.user_file_path:
-        file_obj = await _upload_file(client, messages.user_file_path)
+    if messages.user_file:
+        file_obj = await _upload_file(client, messages.user_file)
         contents.append(file_obj)
     return contents, file_obj
 

@@ -578,6 +578,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         try:
             try:
+                # TODO: make the timeout configurable, or dynamic based on request size.
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
                     timeout=120.0,

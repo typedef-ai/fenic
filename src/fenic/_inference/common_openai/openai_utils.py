@@ -1,5 +1,6 @@
 from typing import Dict, List
 
+from fenic._inference.request_utils import pdf_to_base64
 from fenic._inference.types import LMRequestMessages
 
 
@@ -14,14 +15,14 @@ def convert_messages(lm_request_messages: LMRequestMessages) -> List[Dict[str, s
     if lm_request_messages.user:
         # text - use simple string content
         messages.append({"role": "user", "content": lm_request_messages.user})
-    if lm_request_messages.user_file_path:
+    if lm_request_messages.user_file:
         # file - use structured content with file
         user_message = {"role": "user", "content": [
             {
                 "type": "file",
-                "content": {
-                    "filename": lm_request_messages.user_file_path,
-                    "file_data": lm_request_messages.user_file_path
+                "file": {
+                    "filename": lm_request_messages.user_file.path,
+                    "file_data": f"data:application/pdf;base64,{pdf_to_base64(lm_request_messages.user_file)}",
                 }
             }
         ]}

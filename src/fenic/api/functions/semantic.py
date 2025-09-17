@@ -608,6 +608,9 @@ def parse_pdf(
         page_separator: Optional page separator to use for the parsing.  If the separator includes the {page} placeholder, the model will replace it with the current page number.
         describe_images:  Flag to describe images in the PDF. If True, the prompt will ask the model to include a description of the image in the markdown output.  If False, the prompt asks the model to ignore images that aren't tables or charts.
 
+    Note:
+        For Gemini models, this function uses the google file API, uploading PDF files to Google's file store and deleting them after each request.
+
     Raises:
         ExecutionError: If paths in the column are not valid PDF files.
 

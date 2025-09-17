@@ -1,5 +1,6 @@
+import json
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from openai.types.chat import ChatCompletionTokenLogprob
 
@@ -12,11 +13,37 @@ class FewShotExample:
     assistant: str
 
 @dataclass
+class LMRequestFile:
+    path: str
+    page_range: Tuple[int, int]
+    pdf_chunk_bytes: Optional[bytes] = None
+    def encode(self) -> bytes:
+        data = {
+            "path": self.path,
+            "page_range": self.page_range
+        }
+        return json.dumps(data, sort_keys=True).encode('utf-8')
+
+@dataclass
 class LMRequestMessages:
     system: str
     examples: List[FewShotExample]
     user: Optional[str] = None
-    user_file_path: Optional[str] = None
+    user_file: Optional[LMRequestFile] = None
+
+    def encode(self) -> bytes:
+        # Convert examples to a serializable format
+        examples_data = [{"user": ex.user, "assistant": ex.assistant} for ex in self.examples]
+        data = {
+            "system": self.system,
+            "examples": examples_data,
+            "user": self.user,
+        }
+        if self.user_file:
+            data["user_file_path"] = self.user_file.path
+            data["user_file_page_range"] = self.user_file.page_range
+        return json.dumps(data, sort_keys=True).encode('utf-8')
+
 
 @dataclass
 class ResponseUsage:

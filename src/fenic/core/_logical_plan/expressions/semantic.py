@@ -663,4 +663,6 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         return f"semantic.parse_pdf({self.expr}, model:{self.model_alias})"
 
     def _eq_specific(self, other: SemanticParsePDFExpr) -> bool:
-        return self.model_alias == other.model_alias and self.page_separator == other.page_separator and self.describe_images == other.describe_images
+        return (self.model_alias == other.model_alias
+                and self.page_separator == other.page_separator
+                and self.describe_images == other.describe_images)
