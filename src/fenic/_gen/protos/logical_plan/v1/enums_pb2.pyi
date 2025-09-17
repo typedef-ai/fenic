@@ -47,6 +47,12 @@ class FuzzySimilarityMethod(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     JARO_WINKLER: _ClassVar[FuzzySimilarityMethod]
     JARO: _ClassVar[FuzzySimilarityMethod]
     HAMMING: _ClassVar[FuzzySimilarityMethod]
+
+class DocContentType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    MARKDOWN: _ClassVar[DocContentType]
+    JSON: _ClassVar[DocContentType]
+    PDF: _ClassVar[DocContentType]
 EQ: Operator
 NOT_EQ: Operator
 LT: Operator
@@ -76,3 +82,6 @@ DAMERAU_LEVENSHTEIN: FuzzySimilarityMethod
 JARO_WINKLER: FuzzySimilarityMethod
 JARO: FuzzySimilarityMethod
 HAMMING: FuzzySimilarityMethod
+MARKDOWN: DocContentType
+JSON: DocContentType
+PDF: DocContentType

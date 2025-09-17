@@ -54,3 +54,9 @@ enum FuzzySimilarityMethod {
   JARO = 4;
   HAMMING = 5;
 }
+
+enum DocContentType {
+  MARKDOWN = 0;
+  JSON = 1;
+  PDF = 2;
+}

@@ -16,12 +16,14 @@ from fenic.core._serde.proto.plan_serde import (
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import (
+    DocContentTypeProto,
     DocSourceProto,
     FileSourceProto,
     InMemorySourceProto,
     LogicalPlanProto,
     TableSourceProto,
 )
+from fenic.core.types.enums import DocContentType
 from fenic.core.types.schema import Schema
 
 # =============================================================================
@@ -141,7 +143,11 @@ def _serialize_doc_source(
     return LogicalPlanProto(
         doc_source=DocSourceProto(
             paths=doc_source._paths,
-            valid_file_extension=doc_source._valid_file_extension,
+            content_type=context.serialize_python_literal(
+                "content_type",
+                doc_source._content_type,
+                DocContentTypeProto,
+            ),
             exclude=doc_source._exclude,
             recursive=doc_source._recursive,
         )
@@ -155,7 +161,12 @@ def _deserialize_doc_source(
     """Deserialize a DocSource LogicalPlan Node."""
     doc_source = DocSource.from_schema(
         paths=list(doc_source.paths),
-        valid_file_extension=doc_source.valid_file_extension,
+        content_type=context.deserialize_python_literal(
+            "content_type",
+            doc_source.content_type,
+            DocContentType,
+            DocContentTypeProto,
+        ),
         exclude=doc_source.exclude if doc_source.HasField("exclude") else None,
         recursive=doc_source.recursive,
         schema=schema,

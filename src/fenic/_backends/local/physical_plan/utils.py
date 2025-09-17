@@ -24,7 +24,6 @@ def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
         A new Polars DataFrame with all coercions applied to conform to Fenic-compatible types.
     """
     expressions = []
-
     for col_name in df.columns:
         dtype = df[col_name].dtype
         target_dtype = _build_target_dtype(dtype)

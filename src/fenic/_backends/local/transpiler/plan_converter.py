@@ -163,7 +163,7 @@ class PlanConverter:
         elif isinstance(logical, DocSource):
             return DocSourceExec(
                 paths=logical._paths,
-                valid_file_extension=logical._valid_file_extension,
+                content_type=logical._content_type,
                 exclude=logical._exclude,
                 recursive=logical._recursive,
                 session_state=self.session_state,

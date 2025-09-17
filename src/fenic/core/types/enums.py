@@ -98,3 +98,14 @@ Valid values:
 - "right": Strip characters from the right side.
 - "both": Strip characters from both sides.
 """
+
+DocContentType = Literal["markdown", "json", "pdf"]
+"""
+Type alias representing the type of document content.
+
+Valid values:
+
+- "markdown": Markdown format.
+- "json": JSON format.
+- "pdf": PDF format.
+"""

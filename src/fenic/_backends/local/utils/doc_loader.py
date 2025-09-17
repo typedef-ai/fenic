@@ -6,11 +6,10 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import fitz  # PyMuPDF
 import polars as pl
-from pydantic import ConfigDict, validate_call
 
 from fenic._backends.local.utils.io_utils import PathScheme, get_path_scheme
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
@@ -19,8 +18,11 @@ from fenic.core.types import ColumnField, Schema
 from fenic.core.types.datatypes import (
     BooleanType,
     IntegerType,
+    JsonType,
+    MarkdownType,
     StringType,
 )
+from fenic.core.types.enums import DocContentType
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +37,9 @@ class DocFolderLoader:
     """
 
     @staticmethod
-    @validate_call(config=ConfigDict(strict=True))
     def load_docs_from_folder(
             paths: list[str],
-            valid_file_extension: Literal["md", "json", "pdf"],
+            content_type: DocContentType,
             exclude_pattern: Optional[str] = None,
             recursive: bool = False,
     ) -> pl.DataFrame:
@@ -46,7 +47,7 @@ class DocFolderLoader:
 
         Args:
             paths: list of paths to the folders to load files from, the paths will be glob patterns.
-            valid_file_extension: Valid file extension for the files to be processed.
+            content_type: Content type of the files.
             exclude_pattern: A regex pattern to exclude files.
             recursive: Whether to recursively load files from the folder.
 
@@ -62,25 +63,29 @@ class DocFolderLoader:
             raise ValidationError("No paths provided")
 
         logger.debug(f"Attempting to load files from: {paths}")
+        if content_type == "markdown":
+            file_extension = "md"
+        else:
+            file_extension = content_type
 
         files = DocFolderLoader._enumerate_files(
             paths,
-            valid_file_extension,
+            file_extension,
             exclude_pattern,
             recursive)
 
         if not files:
             logger.debug(f"No files found in {paths}")
-            return DocFolderLoader._build_no_files_dataframe(file_extension=valid_file_extension)
+            return DocFolderLoader._build_no_files_dataframe(content_type=content_type)
 
         # Calculate the batch size to ensure that each worker gets at least one file.
         max_workers = os.cpu_count() + 4
         
         # Process files with the appropriate handler based on extension
-        return DocFolderLoader._process_files(files, max_workers, valid_file_extension)
+        return DocFolderLoader._process_files(files, max_workers, content_type)
 
     @staticmethod
-    def get_schema(file_extension: str = None) -> Schema:
+    def get_schema(content_type: str = None) -> Schema:
         """Get the schema for the data type.
 
         Args:
@@ -93,7 +98,7 @@ class DocFolderLoader:
             ColumnField(name="file_path", data_type=StringType),
             ColumnField(name="error", data_type=StringType),
         ]
-        if file_extension == "pdf":
+        if content_type == "pdf":
             column_fields.extend([
                 # additional file metadata fields
                 ColumnField(name="size", data_type=IntegerType),
@@ -109,7 +114,11 @@ class DocFolderLoader:
                 ColumnField(name="is_encrypted", data_type=BooleanType),
             ])
         else: # load file content directly
-            column_fields.append(ColumnField(name="content", data_type=StringType))
+            if content_type == "markdown":
+                dest_type = MarkdownType
+            else:
+                dest_type = JsonType
+            column_fields.append(ColumnField(name="content", data_type=dest_type))
         return Schema(
             column_fields=column_fields
         )
@@ -168,7 +177,7 @@ class DocFolderLoader:
     def _process_files(
         files: List[str],
         max_workers: int,
-        file_extension: str = None,
+        content_type: str = None,
     ) -> pl.DataFrame:
         """Process files in parallel using a thread pool.
 
@@ -182,8 +191,8 @@ class DocFolderLoader:
         """
         # Determine which processing function and schema to use
 
-        schema = convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(file_extension=file_extension))
-        if file_extension == "pdf":
+        schema = convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(content_type=content_type))
+        if content_type == "pdf":
             process_func = DocFolderLoader._process_single_pdf_metadata
         else:
             process_func = DocFolderLoader._process_single_file
@@ -238,9 +247,9 @@ class DocFolderLoader:
         return file_path, string_error, file_content
 
     @staticmethod
-    def _build_no_files_dataframe(file_extension: str) -> pl.DataFrame:
+    def _build_no_files_dataframe(content_type: str) -> pl.DataFrame:
         """Build an empty dataframe with the appropriate schema."""
-        return pl.DataFrame({}, schema=convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(file_extension=file_extension)))
+        return pl.DataFrame({}, schema=convert_custom_schema_to_polars_schema(DocFolderLoader.get_schema(content_type=content_type)))
 
     @staticmethod
     def _enumerate_files_s3(
@@ -296,7 +305,7 @@ class DocFolderLoader:
             try:
                 exclude_regex = re.compile(exclude_pattern)
             except re.error as e:
-                raise ValidationError(f"Invalid exclude pattern regex: {exclude_pattern}") from e
+                raise ValidationError(f"Invalid exclude pattern regex: '{exclude_pattern}'") from e
 
         # Filter out directories and apply exclude pattern
         matching_files = []
@@ -307,7 +316,7 @@ class DocFolderLoader:
             if exclude_regex and exclude_regex.search(file_str):
                 continue
             if not file_str.endswith(valid_file_extension):
-                raise FileLoaderError(f"Only files with the extension {valid_file_extension} are supported in this plan.")
+                raise FileLoaderError(f"Only files with the extension '{valid_file_extension}' are supported in this plan.")
             matching_files.append(file_str)
 
         return matching_files

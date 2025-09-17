@@ -73,7 +73,7 @@ message TableSource {
 
 message DocSource {
   repeated string paths = 1;
-  string valid_file_extension = 2;
+  DocContentType content_type = 2;
   optional string exclude = 3;
   optional bool recursive = 4;
 }

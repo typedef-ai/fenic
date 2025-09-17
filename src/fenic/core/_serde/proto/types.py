@@ -119,6 +119,9 @@ from fenic._gen.protos.logical_plan.v1.enums_pb2 import (
     ChunkLengthFunction as ChunkLengthFunctionProto,
 )
 from fenic._gen.protos.logical_plan.v1.enums_pb2 import (
+    DocContentType as DocContentTypeProto,
+)
+from fenic._gen.protos.logical_plan.v1.enums_pb2 import (
     FuzzySimilarityMethod as FuzzySimilarityMethodProto,
 )
 from fenic._gen.protos.logical_plan.v1.enums_pb2 import (
@@ -462,6 +465,7 @@ __all__ = [
     "OperatorProto",
     "ChunkLengthFunctionProto",
     "ChunkCharacterSetProto",
+    "DocContentTypeProto",
     # Complex type classes
     "NumpyArrayProto",
     "KeyPointsProto",
