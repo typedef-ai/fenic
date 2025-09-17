@@ -96,15 +96,29 @@ def fenic_tool(
     tool_description: str,
     max_result_limit: Optional[int] = None,
     default_table_format: TableFormat = "markdown",
-):
+    read_only: bool = True,
+    idempotent: bool = True,
+    destructive: bool = False,
+    open_world: bool = False,
+) -> Callable[[Callable[..., DataFrame]], DynamicToolDefinition]:
     """Decorator to bind a DataFrame to a user-authored tool function.
+
+    Args:
+        tool_name: The name of the tool.
+        tool_description: The description of the tool.
+        max_result_limit: The maximum number of results to return.
+        default_table_format: The default table format to return.
+        read_only: A hint to provide to the model that the tool does not modify its environment.
+        idempotent: A hint to provide to the model that calling the tool multiple times with the same input will always return the same result (redundant if read_only is True).
+        destructive: A hint to provide to the model that the tool may destructively modify its environment.
+        open_world: A hint to provide to the model that the tool may interact with an "open world" of external entities outside of the MCP server's environment.
 
     Example:
         @dynamic_tool(tool_name="find_rust", tool_description="...")
         def find_rust(
             query: Annotated[str, "Natural language query"],
         ) -> DataFrame:
-            pred = fc.semantic.predicate("Matches: {{q}} Data: {{bio}}", q=query, bio=fc.col("bio"))
+            pred = fc.semantic.predicate("Matches: {{q}} Data: {{bio}}", q=fc.lit(query), bio=fc.col("bio"))
             return df.filter(pred)
 
         mcp_server = fc.create_mcp_server(
@@ -113,6 +127,14 @@ def fenic_tool(
             dynamic_tools=[find_rust],
         )
         fc.run_mcp_server_sync(mcp_server)
+
+    Example: Creating an open-world tool that reaches out to an external API. The open_world flag indicates to the model that the tool may interact with an "open world" of external entities
+        @fenic_tool(tool_name="search_knowledge_base", tool_description="...", open_world=True)
+        def search_knowledge_base(
+            query: Annotated[str, "Knowledge base search query"],
+        ) -> DataFrame:
+            results = requests.get(...)
+            return fc.create_dataframe(results)
 
     Notes:
     - The decorated function MUST NOT use *args/**kwargs
@@ -136,6 +158,10 @@ def fenic_tool(
             description=tool_description,
             max_result_limit=max_result_limit,
             default_table_format=default_table_format,
+            read_only=read_only,
+            idempotent=idempotent,
+            destructive=destructive,
+            open_world=open_world,
             _func=wrapper,
         )
 
@@ -165,10 +191,12 @@ def _auto_generate_read_tool(
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
     def read_func(
         df_name: Annotated[str, "Dataset name to read rows from."],
-        limit: Annotated[Optional[Union[int, str]], "Max rows to read"] = None,
+        limit: Annotated[Optional[Union[int, str]], "Max rows to read within a page"] = result_limit,
         offset: Annotated[Optional[Union[int, str]], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[Optional[str], "Comma separated list of columns to order by (required for offset)"] = None,
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending for all order_by columns"] = True,
+        include_columns: Annotated[Optional[str], "Comma separated list of columns to include in the result"] = None,
+        exclude_columns: Annotated[Optional[str], "Comma separated list of columns to exclude from the result"] = None,
     ) -> LogicalPlan:
 
         if df_name not in name_to_df:
@@ -178,16 +206,12 @@ def _auto_generate_read_tool(
         offset = int(offset) if isinstance(offset, str) else offset
         sort_ascending = bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
         order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
-
-        # order_by when not paginating via OFFSET (to avoid double sorting)
-        if order_by and offset is None:
-            missing_order = [c for c in order_by if c not in df.columns]
-            if missing_order:
-                raise ValidationError(
-                    f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
-                )
-            df = df.order_by(order_by, ascending=sort_ascending)
-
+        include_columns = [c.strip() for c in include_columns.split(",") if c.strip()] if include_columns else None
+        exclude_columns = [c.strip() for c in exclude_columns.split(",") if c.strip()] if exclude_columns else None
+        if include_columns:
+            df = df.select(*include_columns)
+        if exclude_columns:
+            df = df.select(*[c for c in df.columns if c not in exclude_columns])
         # Apply paging (handles offset+order_by via SQL and optional limit)
         return _apply_paging(
             df,
@@ -203,13 +227,8 @@ def _auto_generate_read_tool(
         description=tool_description,
         _func=read_func,
         max_result_limit=result_limit,
+        add_limit_parameter=False,
     )
-
-"""
-Replace single search generator with two split generators:
-- auto_generate_search_summary_tool
-- auto_generate_search_content_tool
-"""
 
 def _auto_generate_search_summary_tool(
     datasets: List[DatasetSpec],
@@ -266,18 +285,17 @@ def auto_generate_search_content_tool(
 
     def _string_columns(df: DataFrame, selected: Optional[List[str]]) -> List[str]:
         if selected:
-            selected_columns = [c.strip() for c in selected.split(",") if c.strip()]
-            missing = [c for c in selected_columns if c not in df.columns]
+            missing = [c for c in selected if c not in df.columns]
             if missing:
                 raise ValidationError(f"Column(s) {missing} not found. Available: {', '.join(df.columns)}")
-            return selected_columns
+            return selected
         return [f.name for f in df.schema.column_fields if f.data_type == StringType]
 
     def search_rows(
         df_name: Annotated[str, "Dataset name to search (single dataset)"],
         pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
-        limit: Annotated[Optional[Union[int, str]], "Max rows to return (accepts number or numeric string)"] = None,
-        offset: Optional[Union[int, str]] = None,
+        limit: Annotated[Optional[Union[int, str]], "Max rows to read within a page of search results"] = result_limit,
+        offset: Annotated[Optional[Union[int, str]], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[Optional[str], "Comma separated list of column names to order by (required with offset)"] = None,
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending"] = True,
         search_columns: Annotated[Optional[str], "Comma separated list of column names search within; if omitted, matches in any string coluumn will be returned. Use this to query only specific columns in the search as needed."] = None,
@@ -317,8 +335,8 @@ def auto_generate_search_content_tool(
         description=tool_description,
         _func=search_rows,
         max_result_limit=result_limit,
+        add_limit_parameter=False,
     )
-
 
 def _auto_generate_schema_tool(
     datasets: List[DatasetSpec],
@@ -386,8 +404,6 @@ def _auto_generate_schema_tool(
         max_result_limit=None,
     )
 
-
-
 def _auto_generate_sql_tool(
     datasets: List[DatasetSpec],
     session: Session,
@@ -405,17 +421,10 @@ def _auto_generate_sql_tool(
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create SQL tool: no datasets provided.")
 
-    def _assert_full_sql_shape(sql_text: str) -> None:
-        text = sql_text.strip().lower()
-        if not text.startswith("select"):
-            raise ValidationError("Only SELECT is allowed in full_sql")
-
     def analyze_func(
         full_sql: Annotated[str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., {orders}."]
     ) -> LogicalPlan:
-        sql_text = full_sql.strip()
-        _assert_full_sql_shape(sql_text)
-        return session.sql(sql_text, **{spec.table_name: spec.df for spec in datasets})._logical_plan
+        return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets})._logical_plan
 
     # Enhanced description with dataset names and descriptions
     lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
@@ -430,16 +439,15 @@ def _auto_generate_sql_tool(
         example_name = "data"
     lines.extend(
         [
-            "",
-            "Notes:",
-            "- SQL dialect: DuckDB.",
-            "- For text search, prefer regular expressions using REGEXP_MATCHES().",
-            "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
-            "",
-            "Examples:",  # nosec B608 - example text only
-            f"- SELECT * FROM {{{example_name}}} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT 100",  # nosec B608 - example text only
-            f"- SELECT dept, COUNT(*) AS n FROM {{{example_name}}} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT 100",  # nosec B608 - example text only
-            f"- -- Paging: page 2 of size 50\n  SELECT * FROM {{{example_name}}} ORDER BY created_at DESC LIMIT 50 OFFSET 50",  # nosec B608 - example text only
+            "\n\nNotes:\n",
+            "- SQL dialect: DuckDB.\n",
+            "- For text search, prefer regular expressions using REGEXP_MATCHES().\n",
+            "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.\n",
+            f"- Returns a maximum of {result_limit} rows.\n",
+            "Examples:\n",  # nosec B608 - example text only
+            f"- SELECT * FROM {example_name} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT {result_limit}",  # nosec B608 - example text only
+            f"- SELECT dept, COUNT(*) AS n FROM {example_name} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT {result_limit}",  # nosec B608 - example text only
+            f"- Paging: page 2 of size {result_limit}\n  SELECT * FROM {example_name} ORDER BY created_at DESC LIMIT {result_limit} OFFSET {result_limit}",  # nosec B608 - example text only
         ]
     )
     enhanced_description = "\n".join(lines)
@@ -449,6 +457,7 @@ def _auto_generate_sql_tool(
         description=enhanced_description,
         _func=analyze_func,
         max_result_limit=result_limit,
+        add_limit_parameter=False,
     )
     return tool
 
@@ -473,35 +482,41 @@ def _apply_paging(
     order_by: list[str] | None,
     sort_ascending: bool | None,
 ) -> LogicalPlan:
-    """Apply deterministic paging semantics: ORDER BY + LIMIT/OFFSET via SQL fallback.
+    """Apply ordering, limit, and offset via a single SQL statement.
 
-    - If offset is provided, order_by must also be provided; performs SQL-based ORDER BY LIMIT OFFSET.
-    - If only limit is provided, uses DataFrame.limit.
-    - Otherwise, returns the original plan.
+    - If offset is provided, order_by must also be provided to ensure deterministic paging.
+    - Validates that all order_by columns exist.
+    - Builds: SELECT * FROM {src} [ORDER BY ...] [LIMIT N] [OFFSET M]
+    - When no ordering/limit/offset are provided, returns the original plan.
     """
-    if offset is not None:
-        if not order_by:
-            raise ValidationError("offset requires order_by to ensure deterministic paging.")
+    if order_by:
         missing_order = [c for c in order_by if c not in df.columns]
         if missing_order:
             raise ValidationError(
                 f"order_by column(s) {missing_order} do not exist in DataFrame. Available columns: {', '.join(df.columns)}"
             )
-        direction = "ASC" if (sort_ascending is None or sort_ascending) else "DESC"
+
+    if offset is not None and not order_by:
+        raise ValidationError("offset requires order_by to ensure deterministic paging.")
+
+    if order_by is None and limit is None and offset is None:
+        return df._logical_plan
+
+    direction = "ASC" if (sort_ascending is None or sort_ascending) else "DESC"
+    lim_val = None if limit is None else int(str(limit))
+    off_val = None if offset is None else int(str(offset))
+
+    base_sql = "SELECT * FROM {src}"
+    if order_by:
         safe_order_by = ", ".join(order_by)
-        lim_val = None if limit is None else int(str(limit))
-        off_val = int(str(offset))
-        base_sql = "SELECT * FROM {src} ORDER BY " + safe_order_by + f" {direction}"  #nosec B608: little to no SQL injection risk as this is running on limited user-provided dataframe.
-        if lim_val is not None:
-            base_sql += f" LIMIT {lim_val}"
+        base_sql += " ORDER BY " + safe_order_by + f" {direction}"  #nosec B608
+    if lim_val is not None:
+        base_sql += f" LIMIT {lim_val}"
+    if off_val is not None:
         base_sql += f" OFFSET {off_val}"
-        df_with_paging = session.sql(base_sql, src=df)
-        return df_with_paging._logical_plan
 
-    if limit is not None:
-        return df.limit(int(str(limit)))._logical_plan
-
-    return df._logical_plan
+    df_with_paging = session.sql(base_sql, src=df)
+    return df_with_paging._logical_plan
 
 
 def _auto_generate_profile_tool(
@@ -682,6 +697,9 @@ def _auto_generate_core_tools(
 
     - Schema: list columns/types for any or all datasets
     - Profile: dataset statistics for any or all datasets
+    - Read: read rows from a single dataset to sample the data
+    - Search Summary: regex search across all datasets and return a summary of the number of matches per dataset
+    - Search Content: return matching rows from a single dataset using regex matching across string columns
     - Analyze: DuckDB SELECT-only SQL across datasets
     """
     group_desc = "; ".join(
@@ -715,7 +733,7 @@ def _auto_generate_core_tools(
         session,
         tool_name=f"{tool_group_name} - Read",
         tool_description="\n\n".join([
-            "Read single dataset rows: subset columns, limit, offset, order_by, sort_ascending. ",
+            "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
             "Available datasets:\n",
             group_desc,
         ]),
@@ -727,7 +745,7 @@ def _auto_generate_core_tools(
         session,
         tool_name=f"{tool_group_name} - Search Summary",
         tool_description="\n\n".join([
-            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset. ",
+            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
             "Available datasets:\n",
             group_desc,
         ]),
@@ -738,7 +756,7 @@ def _auto_generate_core_tools(
         tool_name=f"{tool_group_name} - Search Content",
         tool_description="\n\n".join([
             "Return matching rows from a single dataset using substring/regex across string columns.",
-            "Available datasets:\n",
+            "Available datasets:",
             group_desc,
         ]),
         result_limit=sql_max_rows,

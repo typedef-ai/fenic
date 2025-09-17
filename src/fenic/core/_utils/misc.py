@@ -1,3 +1,4 @@
+import re
 import uuid
 
 
@@ -34,3 +35,13 @@ def generate_unique_arrow_view_name() -> str:
         'temp_arrow_view_1a2b3c4d5e6f...'
     """
     return f"temp_arrow_view_{uuid.uuid4().hex}"
+
+def to_snake_case(name: str) -> str:
+    result = name
+    return "_".join(
+        re.sub(
+            "([A-Z][a-z]+)",
+            r" \1",
+            re.sub("([A-Z]+)", r" \1", result.replace("-", " ")),
+        ).split()
+    ).lower()

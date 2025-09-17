@@ -1,19 +1,15 @@
+import inspect
+
 import pytest
 
-from fenic import ColumnField, IntegerType, Schema
-from fenic.api.mcp.tool_generation import auto_generate_core_tools_from_tables
+from fenic.api.mcp.tool_generation import (
+    auto_generate_core_tools_from_tables,
+    fenic_tool,
+)
+from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
-
-
-def _create_table_with_rows(session, name: str, values: list[int], description: str | None = None) -> None:
-    df = session.create_dataframe({"id": values})
-    # Persist table and optional description through writer (threads description into TableSink)
-    if description is not None:
-        df.write.save_as_table(name, mode="overwrite")
-        session.catalog.set_table_description(name, description)
-    else:
-        # No description: create an empty table with schema only
-        session.catalog.create_table(name, Schema([ColumnField("id", IntegerType)]))
+from fenic.core.mcp.types import DynamicToolDefinition
+from tests.api.mcp.utils import _create_table_with_rows
 
 
 def test_auto_generate_core_tools_from_tables_missing_table_raises(local_session):
@@ -43,6 +39,15 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     assert any(name.endswith("Search Content") for name in names)
     assert any(name.endswith("Analyze") for name in names)
 
+    for tool in tools:
+        assert isinstance(tool, DynamicToolDefinition)
+        assert callable(tool._func)
+        func_signature = inspect.signature(tool._func)
+        # limit and table_format are added by the MCP server wrapper
+        assert "table_format" not in func_signature.parameters
+        if tool.add_limit_parameter:
+            assert "limit" not in func_signature.parameters
+
     # Sanity check: the Schema tool's callable returns a LogicalPlan we can collect
     schema_tool = next(t for t in tools if t.name.endswith("Schema"))
     plan = schema_tool._func()  # type: ignore[call-arg]
@@ -50,4 +55,18 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     assert set(pl_df.columns) == {"dataset", "schema"}
     assert sorted(pl_df.get_column("dataset").to_list()) == ["t1", "t2"]
 
+def test_fenic_tool_decorator(local_session: Session):
+    @fenic_tool(tool_name="test", tool_description="test", max_result_limit=100, default_table_format="markdown")
+    def test(numbers: list[int]):
+        return local_session.create_dataframe({"numbers": numbers})
 
+    assert test.max_result_limit == 100
+    assert test.default_table_format == "markdown"
+    assert isinstance(test, DynamicToolDefinition)
+    assert callable(test._func)
+    func_signature = inspect.signature(test._func)
+    assert len(func_signature.parameters) == 1
+    assert "numbers" in func_signature.parameters
+    # limit/table_format are added by the MCP server wrapper, so should not be in the raw function signature
+    assert "limit" not in func_signature.parameters
+    assert "table_format" not in func_signature.parameters

@@ -12,7 +12,6 @@ Install with:
 import asyncio
 import inspect
 import logging
-import re
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -20,6 +19,7 @@ from pydantic import BaseModel
 from typing_extensions import Annotated, Literal
 
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._utils.misc import to_snake_case
 from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
 )
@@ -85,20 +85,24 @@ class FenicMCPServer:
                 "To use fenic MCP server generation, install the 'mcp' extra: pip install \"fenic[mcp]\""
             ) from None
         self.mcp = FastMCP(self.server_name)
-        annotations = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
         for tool in self.paramaterized_tools:
             tool_fn = self._build_parameterized_tool(tool)
             self.mcp.tool(
-                annotations=annotations,
-                name=_to_snake_case(tool.name),
+                annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+                name=to_snake_case(tool.name),
                 title=tool.name
             )(tool_fn)
 
         for tool in self.dynamic_tools:
             tool_fn = self._register_dynamic_callable(tool)
             self.mcp.tool(
-                annotations=annotations,
-                name=_to_snake_case(tool.name),
+                annotations=ToolAnnotations(
+                    readOnlyHint=tool.read_only,
+                    openWorldHint=tool.open_world,
+                    destructiveHint=tool.destructive,
+                    idempotentHint=tool.idempotent,
+                ),
+                name=to_snake_case(tool.name),
                 title=tool.name,
                 description=tool.description
             )(tool_fn)
@@ -184,12 +188,12 @@ class FenicMCPServer:
             for param in tool.params:
                 param_type = _type_for_param(param)
                 param_annotation = _annotate_with_description(param_type, param.description)
-                default = param.default_value if param.has_default else inspect._empty
+                default_value = param.default_value if param.has_default else inspect._empty
                 params.append(
                     inspect.Parameter(
                         name=param.name,
                         kind=inspect.Parameter.KEYWORD_ONLY,
-                        default=default,
+                        default=default_value,
                         annotation=param_annotation,
                     )
                 )
@@ -286,13 +290,14 @@ class FenicMCPServer:
                 TABLE_FORMAT_DESCRIPTION
             ),
         )
-        _expose_keyword_param(
-            "limit",
-            wrapped=wrapped,
-            default_value=tool.max_result_limit,
-            py_type=Optional[Union[int, str]],
-            description=LIMIT_DESCRIPTION,
-        )
+        if tool.max_result_limit and tool.add_limit_parameter:
+            _expose_keyword_param(
+                "limit",
+                wrapped=wrapped,
+                default_value=tool.max_result_limit,
+                py_type=Optional[Union[int, str]],
+                description=LIMIT_DESCRIPTION,
+            )
 
         return wrapped
 
@@ -354,16 +359,6 @@ def _annotate_with_description(base_ann: type, description: Optional[str] = None
     if description:
         return Annotated[base_ann, description]
     return base_ann
-
-def _to_snake_case(name: str) -> str:
-    result = name
-    return "_".join(
-        re.sub(
-            "([A-Z][a-z]+)",
-            r" \1",
-            re.sub("([A-Z]+)", r" \1", result.replace("-", " ")),
-        ).split()
-    ).lower()
 
 def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     if not rows:
