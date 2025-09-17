@@ -525,15 +525,14 @@ class LocalCatalog(BaseCatalog):
     ) -> bool:
         """Create a new tool in the current catalog."""
         # Ensure the tool is valid by resolving it.
-        with self.lock:
-            tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
-            cursor = self.db_conn.cursor()
-            if self.system_tables.describe_tool(cursor, tool_name):
-                if ignore_if_exists:
-                    return False
-                raise ToolAlreadyExistsError(tool_name)
-            self.system_tables.save_tool(cursor, tool_definition)
-            return True
+        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+        cursor = self.db_conn.cursor()
+        if self._does_tool_exist(cursor, tool_name):
+            if ignore_if_exists:
+                return False
+            raise ToolAlreadyExistsError(tool_name)
+        self.system_tables.save_tool(cursor, tool_definition)
+        return True
 
     def list_tools(self) -> List[ParameterizedToolDefinition]:
         """List all tools in the current catalog."""
@@ -686,6 +685,14 @@ class LocalCatalog(BaseCatalog):
     def get_metrics_for_session(self, session_id: str) -> Dict[str, float]:
         """Get metrics for a specific session from the metrics system read-only table."""
         return self.system_tables.get_metrics_for_session(self.db_conn.cursor(), session_id)
+
+    def _does_tool_exist(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> bool:
+        try:
+            return self.system_tables.describe_tool(cursor, tool_name) is not None
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to check if tool: {tool_name} exists"
+            ) from e
 
     def _does_table_exist(self, cursor: duckdb.DuckDBPyConnection, table_identifier: TableIdentifier) -> bool:
         try:

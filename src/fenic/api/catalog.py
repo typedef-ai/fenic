@@ -661,7 +661,7 @@ class Catalog:
             tool_name (str): The name of the tool to get.
 
         Raises:
-            ToolNotFoundError: If the tool doesn't exist and ignore_if_not_exists is False
+            ToolNotFoundError: If the tool doesn't exist.
 
         Returns:
             Tool: The tool with the specified name.

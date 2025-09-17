@@ -42,7 +42,7 @@ from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync
 from fenic.api.mcp.tool_generation import ToolGenerationConfig
 from fenic.api.session.config import SessionConfig
 from fenic.api.session.session import Session
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, ToolNotFoundError
 
 
 def _parse_args() -> argparse.Namespace:
@@ -101,7 +101,10 @@ def main() -> None:
     tools = []
     if args.tools:
         for tool_name in args.tools:
-            tools.append(session.catalog.describe_tool(tool_name))
+            try:
+                tools.append(session.catalog.describe_tool(tool_name))
+            except ToolNotFoundError as e:
+                raise ConfigurationError(f"Tool {tool_name} not found in the catalog.") from e
     else:
         tools = session.catalog.list_tools()
 
