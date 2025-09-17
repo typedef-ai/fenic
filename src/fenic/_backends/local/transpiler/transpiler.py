@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import duckdb
+
 from fenic._backends.local.transpiler.base import BaseTranspiler
 from fenic._backends.local.transpiler.plan_converter import (
     PlanConverter,
@@ -19,5 +21,5 @@ class LocalTranspiler(BaseTranspiler):
     def __init__(self, session_state: LocalSessionState):
         self.plan_converter = PlanConverter(session_state)
 
-    def transpile(self, logical_plan: LogicalPlan) -> PhysicalPlan:
-        return self.plan_converter.convert(logical_plan)
+    def transpile(self, logical_plan: LogicalPlan, duckdb_conn: duckdb.DuckDBPyConnection) -> PhysicalPlan:
+        return self.plan_converter.convert(logical_plan, duckdb_conn)

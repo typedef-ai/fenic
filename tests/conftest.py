@@ -402,14 +402,14 @@ def configure_embedding_model(model_provider: ModelProvider, model_name: str) ->
 
 
 @pytest.fixture
-def local_session(local_session_config, request):
+def local_session(local_session_config):
     """Creates a test session."""
     configure_logging()
     session = Session.get_or_create(local_session_config)
     yield session
     session.stop()
-    if os.path.exists(f"{local_session_config.app_name}.duckdb"):
-        os.remove(f"{local_session_config.app_name}.duckdb")
+    # if os.path.exists(f"{local_session_config.app_name}.duckdb"):
+    os.remove(f"{local_session_config.app_name}.duckdb")
 
 
 @pytest.fixture

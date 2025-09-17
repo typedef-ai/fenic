@@ -72,12 +72,13 @@ class LocalExecution(BaseExecution):
     def build_lineage(self, plan: LogicalPlan) -> LocalLineage:
         """Build a lineage graph from a logical plan."""
         self.session_state._check_active()
-        physical_plan = self.transpiler.transpile(plan)
+        duckdb_conn = self.session_state.db_session.create_connection()
+        physical_plan = self.transpiler.transpile(plan, duckdb_conn)
         try:
-            lineage_graph = physical_plan.build_lineage()
+            lineage_graph = physical_plan.build_lineage(duckdb_conn)
         except Exception as e:
             raise ExecutionError(f"Failed to build lineage: {e}") from e
-        return LocalLineage(lineage_graph, self.session_state)
+        return LocalLineage(lineage_graph, self.session_state, duckdb_conn)
 
     def save_as_table(
         self,
@@ -271,9 +272,10 @@ class LocalExecution(BaseExecution):
         if execution_id is None:
             execution_id = str(uuid.uuid4())
             logger.info(f"Execution ID: {execution_id}")
-        physical_plan = self.transpiler.transpile(plan)
+        duckdb_conn = self.session_state.db_session.create_connection()
+        physical_plan = self.transpiler.transpile(plan, duckdb_conn)
         try:
-            df, metrics = physical_plan.execute(execution_id)
+            df, metrics = physical_plan.execute(execution_id, duckdb_conn)
         except Exception as e:
             raise ExecutionError(f"Failed to execute query: {e}") from e
         self.session_state.catalog.insert_query_metrics(metrics)

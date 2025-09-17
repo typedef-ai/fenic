@@ -6,8 +6,10 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
+import duckdb
 import polars as pl
 
+from fenic._backends.local.duckdb_session import IntermediateTableOps
 from fenic._backends.local.lineage import ChildEdge, LineageGraph, OperatorLineage
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core.metrics import (
@@ -39,7 +41,7 @@ class PhysicalPlan(ABC):
         short_uuid = str(uuid.uuid4().hex)[:8]
         self.operator_id = f"{self.__class__.__name__}_{short_uuid}"
 
-    def execute(self, execution_id: str) -> Tuple[pl.DataFrame, QueryMetrics]:
+    def execute(self, execution_id: str, duckdb_conn: duckdb.DuckDBPyConnection) -> Tuple[pl.DataFrame, QueryMetrics]:
         """Execute the physical plan and return the result DataFrame along with execution metrics.
 
         This method handles:
@@ -66,7 +68,7 @@ class PhysicalPlan(ABC):
         child_dfs = []
         child_execution_time = 0
         for child in self.children:
-            child_df, child_metrics = child.execute(execution_id)
+            child_df, child_metrics = child.execute(execution_id, duckdb_conn)
             child_dfs.append(child_df)
             plan_repr.children.append(child_metrics._plan_repr)
             all_operator_metrics.update(child_metrics._operator_metrics)
@@ -76,7 +78,7 @@ class PhysicalPlan(ABC):
 
         # Step 3: Execute the current operator - measure only the time spent in this operator
         operator_start_time = time.time()
-        result_df = self.execute_node(child_dfs)
+        result_df = self.execute_node(child_dfs, duckdb_conn)
         operator_execution_time = (time.time() - operator_start_time) * 1000
 
         curr_operator_metrics.num_output_rows = result_df.height
@@ -88,10 +90,8 @@ class PhysicalPlan(ABC):
         self.session_state.reset_model_metrics()
 
         # Step 4: Write to cache if applicable.
-        if self.cache_info and not self.session_state.db_client.does_intermediate_df_exist(self.cache_info.cache_key):
-            self.session_state.db_client.write_intermediate_df(
-                result_df, self.cache_info.cache_key
-            )
+        if self.cache_info and not IntermediateTableOps.exists(duckdb_conn, self.cache_info.cache_key):
+            IntermediateTableOps.write_df(duckdb_conn, result_df, self.cache_info.cache_key)
 
         # Calculate total execution time for the query metrics
         total_execution_time = child_execution_time + operator_execution_time
@@ -111,7 +111,7 @@ class PhysicalPlan(ABC):
         return result_df, query_metrics
 
     @abstractmethod
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         """Execute the specific operation for this physical plan node.
 
         This method contains the core execution logic for each operator in the physical plan.
@@ -133,16 +133,17 @@ class PhysicalPlan(ABC):
         """Construct a new physical plan, replacing the current children with the new children."""
         pass
 
-    def build_lineage(self) -> LineageGraph:
+    def build_lineage(self, duckdb_conn: duckdb.DuckDBPyConnection) -> LineageGraph:
         """Return the lineage of the physical plan."""
         leaf_nodes = []
-        root_node, _ = self.build_node_lineage(leaf_nodes)
+        root_node, _ = self.build_node_lineage(leaf_nodes, duckdb_conn)
         return LineageGraph(root_node, leaf_nodes)
 
     @abstractmethod
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         """Build lineage for this operator and its children.
 
@@ -163,11 +164,10 @@ class PhysicalPlan(ABC):
     def _build_source_operator_lineage(
         self,
         materialize_df: pl.DataFrame,
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.db_client.write_intermediate_df(
-            materialize_df, materialize_table_name
-        )
+        IntermediateTableOps.write_df(duckdb_conn, materialize_df, materialize_table_name)
 
         source_operator = OperatorLineage(
             operator_name=f"{self.operator_id}",
@@ -180,17 +180,14 @@ class PhysicalPlan(ABC):
         self,
         materialize_df: pl.DataFrame,
         child: Tuple[OperatorLineage, pl.DataFrame],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.db_client.write_intermediate_df(
-            materialize_df, materialize_table_name
-        )
+        IntermediateTableOps.write_df(duckdb_conn, materialize_df, materialize_table_name)
         child_operator, backwards_df = child
 
         backwards_table_name = f"backwards_{self.operator_id}"
-        self.session_state.db_client.write_intermediate_df(
-            backwards_df, backwards_table_name
-        )
+        IntermediateTableOps.write_df(duckdb_conn, backwards_df, backwards_table_name)
 
         operator = OperatorLineage(
             operator_name=f"{self.operator_id}",
@@ -209,22 +206,17 @@ class PhysicalPlan(ABC):
         materialize_df: pl.DataFrame,
         left_child: Tuple[OperatorLineage, pl.DataFrame],
         right_child: Tuple[OperatorLineage, pl.DataFrame],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> OperatorLineage:
         materialize_table_name = f"materialize_{self.operator_id}"
-        self.session_state.db_client.write_intermediate_df(
-            materialize_df, materialize_table_name
-        )
+        IntermediateTableOps.write_df(duckdb_conn, materialize_df, materialize_table_name)
         left_operator, left_backwards_df = left_child
         right_operator, right_backwards_df = right_child
 
         left_backwards_table_name = f"backwards_{self.operator_id}_left"
         right_backwards_table_name = f"backwards_{self.operator_id}_right"
-        self.session_state.db_client.write_intermediate_df(
-            left_backwards_df, left_backwards_table_name
-        )
-        self.session_state.db_client.write_intermediate_df(
-            right_backwards_df, right_backwards_table_name
-        )
+        IntermediateTableOps.write_df(duckdb_conn, left_backwards_df, left_backwards_table_name)
+        IntermediateTableOps.write_df(duckdb_conn, right_backwards_df, right_backwards_table_name)
 
         operator = OperatorLineage(
             operator_name=f"{self.operator_id}",
@@ -247,6 +239,7 @@ class PhysicalPlan(ABC):
     def _build_row_subset_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         """Implementation of _build_lineage for operators that preserve row identity.
 
@@ -265,10 +258,10 @@ class PhysicalPlan(ABC):
             raise ValueError(f"Unreachable: {self.__class__.__name__} expects 1 child")
 
         # Get lineage from child
-        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
 
         # Apply the operator-specific transformation
-        materialize_df = self.execute_node([child_df])
+        materialize_df = self.execute_node([child_df], duckdb_conn)
 
         # Create the trivial backwards mapping dataframe
         backwards_df = materialize_df.select(["_uuid"])
@@ -280,6 +273,7 @@ class PhysicalPlan(ABC):
         operator = self._build_unary_operator_lineage(
             materialize_df=materialize_df,
             child=(child_operator, backwards_df),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df
 

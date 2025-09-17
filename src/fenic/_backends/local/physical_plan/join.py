@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
+import duckdb
 import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
@@ -53,7 +54,7 @@ class JoinExec(PhysicalPlan):
         self.right_on_exprs = right_on_exprs
         self.how = how
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: JoinExec expects 2 children")
         left_df = child_dfs[0]
@@ -86,14 +87,15 @@ class JoinExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes, duckdb_conn)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self.execute_node([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df], duckdb_conn)
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(
             {"_left_uuid": "_backwards_uuid"}
@@ -107,6 +109,7 @@ class JoinExec(PhysicalPlan):
             materialize_df=materialize_df,
             left_child=(left_operator, backwards_df_left),
             right_child=(right_operator, backwards_df_right),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df
 
@@ -137,7 +140,7 @@ class SemanticJoinExec(PhysicalPlan):
         self.temperature = temperature
         self.model_alias = model_alias
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: SemanticJoinExec expects 2 children")
 
@@ -193,14 +196,15 @@ class SemanticJoinExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes, duckdb_conn)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self.execute_node([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df], duckdb_conn)
 
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(
@@ -215,6 +219,7 @@ class SemanticJoinExec(PhysicalPlan):
             materialize_df=materialize_df,
             left_child=(left_operator, backwards_df_left),
             right_child=(right_operator, backwards_df_right),
+            duckdb_conn=duckdb_conn,
         )
 
         return operator, materialize_df
@@ -242,7 +247,7 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         self.similarity_metric = similarity_metric
         self.similarity_score_column = similarity_score_column
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError(
                 "Unreachable: SemanticSimilarityJoinExec expects 2 children"
@@ -294,14 +299,15 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes, duckdb_conn)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self.execute_node([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df], duckdb_conn)
 
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(
@@ -316,5 +322,6 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
             materialize_df=materialize_df,
             left_child=(left_operator, backwards_df_left),
             right_child=(right_operator, backwards_df_right),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df

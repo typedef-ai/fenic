@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
+import duckdb
 import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
@@ -30,7 +31,7 @@ class AggregateExec(PhysicalPlan):
         self.group_exprs = group_exprs
         self.agg_exprs = agg_exprs
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: AggregateExec expects 1 child")
         child_df = child_dfs[0]
@@ -57,8 +58,9 @@ class AggregateExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
         agg_exprs_with_uuid = self.agg_exprs + [
             pl.col("_uuid").alias("_backwards_uuid")
         ]
@@ -83,5 +85,6 @@ class AggregateExec(PhysicalPlan):
         operator = self._build_unary_operator_lineage(
             materialize_df=materialize_df,
             child=(child_operator, backwards_df),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df

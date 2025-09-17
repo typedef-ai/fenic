@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Literal, Tuple
 
+import duckdb
+
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
 
@@ -37,7 +39,7 @@ class FileSinkExec(PhysicalPlan):
         self.file_type = file_type.lower()
         self.mode = mode
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise InternalError("FileSink expects exactly one child DataFrame")
 
@@ -73,6 +75,7 @@ class FileSinkExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         """Build the lineage graph for this sink operation.
 
@@ -101,7 +104,7 @@ class DuckDBTableSinkExec(PhysicalPlan):
         self.mode = mode
         self.schema = schema
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise InternalError("TableSink expects exactly one child DataFrame")
         df = child_dfs[0]
@@ -151,6 +154,7 @@ class DuckDBTableSinkExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         """Build the lineage graph for this sink operation.
 

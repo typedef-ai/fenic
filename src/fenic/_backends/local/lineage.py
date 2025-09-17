@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import duckdb
 import polars as pl
+
+from fenic._backends.local.duckdb_session import IntermediateTableOps
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -70,25 +73,30 @@ class LineageGraph:
 class LocalLineage(BaseLineage):
     """A class for traversing a lineage graph in a local session using intermediate lineage tables backed by DuckDB."""
 
-    def __init__(self, lineage_graph: LineageGraph, session_state: LocalSessionState):
+    def __init__(self, lineage_graph: LineageGraph, session_state: LocalSessionState, duckdb_conn: duckdb.DuckDBPyConnection):
         self.lineage_graph = lineage_graph
         self.session_state = session_state
+        self.duckdb_conn = duckdb_conn
         self.curr_operator = self.lineage_graph.get_root_node()
 
     def get_source_names(self) -> List[str]:
         """Get the names of all sources in the query plan."""
+        self.session_state._check_active()
         return list(self.lineage_graph.get_leaf_nodes().keys())
 
     def stringify_graph(self) -> str:
         """Print the operator tree of the query."""
+        self.session_state._check_active()
         return str(self.lineage_graph.get_root_node())
 
     def start_from_source(self, source_name: str) -> None:
         """Set the current position to a specific source in the query plan."""
+        self.session_state._check_active()
         self.curr_operator = self.lineage_graph.get_leaf_nodes()[source_name]
 
     def forwards(self, row_ids: List[str]) -> pl.DataFrame:
         """Trace rows forward to see how they are transformed by the next operation."""
+        self.session_state._check_active()
         if self.curr_operator.parent is None:
             raise ValueError("Cannot step forward from the root operator.")
         if not isinstance(row_ids, list) or not all(
@@ -96,7 +104,7 @@ class LocalLineage(BaseLineage):
         ):
             raise ValueError("The row_ids must be a list of strings.")
         parent_operator = self.curr_operator.parent
-        parent_backwards_df = self.session_state.db_client.read_intermediate_df(
+        parent_backwards_df = IntermediateTableOps.read_df(self.duckdb_conn,
             parent_operator.children[0].mapping_table
         )
         parent_backwards_df = parent_backwards_df.filter(
@@ -106,7 +114,7 @@ class LocalLineage(BaseLineage):
         forwards_uuid_list = (
             parent_backwards_df.unique(subset="_uuid").to_series(0).to_list()
         )
-        parent_df = self.session_state.db_client.read_intermediate_df(
+        parent_df = IntermediateTableOps.read_df(self.duckdb_conn,
             parent_operator.materialize_table
         )
         result = parent_df.filter(pl.col("_uuid").is_in(forwards_uuid_list))
@@ -117,6 +125,7 @@ class LocalLineage(BaseLineage):
         self, ids: List[str], branch_side: Optional[BranchSide] = None
     ) -> pl.DataFrame:
         """Trace rows backwards to see which input rows produced them."""
+        self.session_state._check_active()
         self._validate_backwards_trace_inputs(ids, branch_side)
         if not branch_side or branch_side == "left":
             res = self._backwards(ids, self.curr_operator.children[0])
@@ -158,26 +167,28 @@ class LocalLineage(BaseLineage):
         """Trace backwards through a single child operator."""
         self.curr_operator = child_link.child_operator
 
-        backwards_df = self.session_state.db_client.read_intermediate_df(
+        backwards_df = IntermediateTableOps.read_df(self.duckdb_conn,
             child_link.mapping_table
         )
         backwards_df = backwards_df.filter(pl.col("_uuid").is_in(ids)).drop("_uuid")
         backwards_uuid_list = (
             backwards_df.unique(subset="_backwards_uuid").to_series(0).to_list()
         )
-        child_df = self.session_state.db_client.read_intermediate_df(
+        child_df = IntermediateTableOps.read_df(self.duckdb_conn,
             self.curr_operator.materialize_table
         )
         return child_df.filter(pl.col("_uuid").is_in(backwards_uuid_list))
 
     def get_result_df(self) -> pl.DataFrame:
         """Get the result of the query as a Polars DataFrame."""
-        return self.session_state.db_client.read_intermediate_df(
+        self.session_state._check_active()
+        return IntermediateTableOps.read_df(self.duckdb_conn,
             self.curr_operator.materialize_table
         )
 
     def get_source_df(self, source_name: str) -> pl.DataFrame:
         """Get a query source by name as a Polars DataFrame."""
-        return self.session_state.db_client.read_intermediate_df(
+        self.session_state._check_active()
+        return IntermediateTableOps.read_df(self.duckdb_conn,
             f"materialize_{source_name}"
         )

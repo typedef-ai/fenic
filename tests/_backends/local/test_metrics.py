@@ -181,6 +181,8 @@ def test_metrics_from_view(local_session, sales_data, product_data, customer_dat
     )
 
     final_result = premium_electronics.union(premium_electronics).limit(5)
+    print("list of views", local_session.catalog.list_views())
+    assert False
     final_result.write.save_as_view("premium_electronics")
 
     # retrieve view
@@ -253,6 +255,8 @@ def test_metrics_from_view_with_cache(local_session, sales_data, product_data, c
     ).cache()
 
     final_result = premium_electronics.union(premium_electronics).limit(5)
+    print("list of views", local_session.catalog.list_views())
+    assert False
     final_result.write.save_as_view("premium_electronics")
 
     # retrieve view

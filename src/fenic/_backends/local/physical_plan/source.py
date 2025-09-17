@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
+import duckdb
 import polars as pl
 
+from fenic._backends.local.duckdb_session import IntermediateTableOps
 from fenic._backends.local.lineage import OperatorLineage
 from fenic.core.error import InternalError
 
@@ -24,7 +26,7 @@ class InMemorySourceExec(PhysicalPlan):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.df = df
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
         return apply_ingestion_coercions(self.df)
@@ -37,9 +39,10 @@ class InMemorySourceExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         materialize_df = _with_lineage_uuid(self.df)
-        source_operator = self._build_source_operator_lineage(materialize_df)
+        source_operator = self._build_source_operator_lineage(materialize_df, duckdb_conn)
         leaf_nodes.append(source_operator)
         return source_operator, materialize_df
 
@@ -58,7 +61,7 @@ class FileSourceExec(PhysicalPlan):
         self.file_format = file_format
         self.options = options or {}
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if child_dfs:
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
@@ -87,10 +90,11 @@ class FileSourceExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self.execute_node([])
+        df = self.execute_node([], duckdb_conn)
         materialize_df = _with_lineage_uuid(df)
-        source_operator = self._build_source_operator_lineage(materialize_df)
+        source_operator = self._build_source_operator_lineage(materialize_df, duckdb_conn)
         leaf_nodes.append(source_operator)
         return source_operator, materialize_df
 
@@ -100,7 +104,7 @@ class DuckDBTableSourceExec(PhysicalPlan):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.table_name = table_name
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: TableSourceExec expects 0 children")
         return self.session_state.catalog.read_df_from_table(self.table_name)
@@ -116,10 +120,11 @@ class DuckDBTableSourceExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self.execute_node([])
+        df = self.execute_node([], duckdb_conn)
         materialize_df = _with_lineage_uuid(df)
-        source_operator = self._build_source_operator_lineage(materialize_df)
+        source_operator = self._build_source_operator_lineage(materialize_df, duckdb_conn)
         leaf_nodes.append(source_operator)
         return source_operator, materialize_df
 
@@ -139,7 +144,7 @@ class DocSourceExec(PhysicalPlan):
         self.exclude = exclude
         self.recursive = recursive
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: DocSourceExec expects 0 children")
         df = DocFolderLoader.load_docs_from_folder(
@@ -163,10 +168,11 @@ class DocSourceExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self.execute_node([])
+        df = self.execute_node([], duckdb_conn)
         materialize_df = _with_lineage_uuid(df)
-        source_operator = self._build_source_operator_lineage(materialize_df)
+        source_operator = self._build_source_operator_lineage(materialize_df, duckdb_conn)
         leaf_nodes.append(source_operator)
         return source_operator, materialize_df
 
@@ -175,10 +181,10 @@ class CacheReadExec(PhysicalPlan):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.cache_key = cache_key
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: CacheReadExec expects 0 children")
-        return self.session_state.db_client.read_intermediate_df(self.cache_key)
+        return IntermediateTableOps.read_df(duckdb_conn, self.cache_key)
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:
@@ -191,9 +197,10 @@ class CacheReadExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        df = self.execute_node([])
+        df = self.execute_node([], duckdb_conn)
         materialize_df = _with_lineage_uuid(df)
-        source_operator = self._build_source_operator_lineage(materialize_df)
+        source_operator = self._build_source_operator_lineage(materialize_df, duckdb_conn)
         leaf_nodes.append(source_operator)
         return source_operator, materialize_df

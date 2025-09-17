@@ -52,7 +52,7 @@ class LocalSessionManager:
                 app_name
             ]
 
-            session_state.db_client.close()
+            session_state.db_session.close()
             session_state.shutdown_models()
 
             # Remove LanceDB index directory

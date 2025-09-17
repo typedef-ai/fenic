@@ -5,6 +5,7 @@ import uuid
 from typing import TYPE_CHECKING, List, Optional, Tuple
 from typing import Union as TypeUnion
 
+import duckdb
 import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
@@ -34,7 +35,7 @@ class ProjectionExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.projections = projections
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ProjectionExec expects 1 child")
         return child_dfs[0].select(self.projections)
@@ -53,8 +54,9 @@ class ProjectionExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
 
         materialize_df = child_df.select([*self.projections, pl.col("_uuid")])
 
@@ -66,6 +68,7 @@ class ProjectionExec(PhysicalPlan):
         operator = self._build_unary_operator_lineage(
             materialize_df=materialize_df,
             child=(child_operator, backwards_df),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df
 
@@ -81,7 +84,7 @@ class FilterExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.predicate = predicate
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: FilterExec expects 1 child")
         return child_dfs[0].filter(self.predicate)
@@ -99,8 +102,9 @@ class FilterExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 
 class UnionExec(PhysicalPlan):
@@ -112,7 +116,7 @@ class UnionExec(PhysicalPlan):
     ):
         super().__init__(children, cache_info=cache_info, session_state=session_state)
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: UnionExec expects exactly two children")
 
@@ -136,12 +140,13 @@ class UnionExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         if len(self.children) != 2:
             raise ValueError("Unreachable: UnionExec expects exactly two children")
 
-        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes, duckdb_conn)
 
         new_uuids = [uuid.uuid4().hex for _ in range(left_df.height + right_df.height)]
 
@@ -154,7 +159,7 @@ class UnionExec(PhysicalPlan):
             pl.Series("_uuid", new_uuids[left_df.height :]),
         )
 
-        materialize_df = self.execute_node([left_df, right_df])
+        materialize_df = self.execute_node([left_df, right_df], duckdb_conn)
 
         left_backwards = left_df.select(["_uuid", "_backwards_uuid"])
         right_backwards = right_df.select(["_uuid", "_backwards_uuid"])
@@ -164,6 +169,7 @@ class UnionExec(PhysicalPlan):
             materialize_df=materialize_df,
             left_child=(left_operator, left_backwards),
             right_child=(right_operator, right_backwards),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df
 
@@ -181,7 +187,7 @@ class ExplodeExec(PhysicalPlan):
         self.physical_expr = physical_expr
         self.col_name = col_name
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ExplodeExec expects 1 child")
         child_df = child_dfs[0]
@@ -204,8 +210,9 @@ class ExplodeExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes, duckdb_conn)
         exploded_df = child_df.explode(self.col_name)
         exploded_df = exploded_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
@@ -218,6 +225,7 @@ class ExplodeExec(PhysicalPlan):
         operator = self._build_unary_operator_lineage(
             materialize_df=materialize_df,
             child=(child_operator, backwards_df),
+            duckdb_conn=duckdb_conn,
         )
         return operator, materialize_df
 
@@ -233,7 +241,7 @@ class LimitExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.n = n
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: LimitExec expects 1 child")
 
@@ -256,8 +264,9 @@ class LimitExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 
 class DropDuplicatesExec(PhysicalPlan):
@@ -271,7 +280,7 @@ class DropDuplicatesExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.subset = subset
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: DropDuplicates expects 1 child")
 
@@ -296,8 +305,9 @@ class DropDuplicatesExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 
 class SortExec(PhysicalPlan):
@@ -315,7 +325,7 @@ class SortExec(PhysicalPlan):
         self.descending = descending
         self.nulls_last = nulls_last
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: Sort expects 1 child")
 
@@ -340,8 +350,9 @@ class SortExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 
 class UnnestExec(PhysicalPlan):
@@ -355,7 +366,7 @@ class UnnestExec(PhysicalPlan):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.col_names = col_names
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: UnnestExec expects 1 child")
         return child_dfs[0].unnest(self.col_names)
@@ -373,8 +384,9 @@ class UnnestExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 class SQLExec(PhysicalPlan):
     def __init__(
@@ -391,8 +403,8 @@ class SQLExec(PhysicalPlan):
         self.query = query
         self.arrow_view_names = arrow_view_names
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        cursor = self.session_state.db_client.cursor()
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
+        cursor = duckdb_conn.cursor()
         for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
             cursor.register(arrow_view_name, child_df)
         try:
@@ -420,6 +432,7 @@ class SQLExec(PhysicalPlan):
     def build_node_lineage(
         self,
         _leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         # Lineage can work with SQLExec, but the traversal API needs to support more than two children.
         # Currently, when traversing the plan backwards, the API only allows traversing left or right children.
@@ -448,7 +461,7 @@ class SemanticClusterExec(PhysicalPlan):
         self.label_column = label_column
         self.centroid_info = centroid_info
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: SemanticClusterExec expects 1 child")
         child_df = child_dfs[0]
@@ -490,8 +503,9 @@ class SemanticClusterExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        return self._build_row_subset_lineage(leaf_nodes)
+        return self._build_row_subset_lineage(leaf_nodes, duckdb_conn)
 
 
 class MergedDuckDBExec(PhysicalPlan):
@@ -505,7 +519,7 @@ class MergedDuckDBExec(PhysicalPlan):
         super().__init__(children, cache_info=cache_info, session_state=session_state)
         self.merge_root = merge_root
 
-    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame], duckdb_conn: duckdb.DuckDBPyConnection) -> pl.DataFrame:
         """
         Execute the merged DuckDB plan.
         Note: child_dfs contains the DataFrame results from executing all leaf nodes
@@ -528,5 +542,6 @@ class MergedDuckDBExec(PhysicalPlan):
     def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
+        duckdb_conn: duckdb.DuckDBPyConnection,
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        raise NotImplementedError("Lineage not supported for SQLExec")
+        raise NotImplementedError("Lineage not supported for MergedDuckDBExec")

@@ -9,7 +9,7 @@ from typing import Optional
 import boto3
 
 from fenic._backends.local.catalog import LocalCatalog
-from fenic._backends.local.db_client import FenicDuckDBClient
+from fenic._backends.local.duckdb_session import DuckDBSession
 from fenic._backends.local.execution import LocalExecution
 from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic._inference import EmbeddingModel, LanguageModel
@@ -45,7 +45,7 @@ class LocalSessionState(BaseSessionState):
         else:
             db_path = Path(f"{config.app_name}.duckdb")
         self._model_registry = self._configure_models(config.semantic)
-        self.db_client = FenicDuckDBClient(db_path, self.app_name)
+        self.db_session = DuckDBSession(db_path, self.app_name)
         self.s3_session = boto3.Session()
 
     def _configure_models(
@@ -85,7 +85,8 @@ class LocalSessionState(BaseSessionState):
     @cached_property
     def catalog(self) -> LocalCatalog:
         """Get the catalog object."""
-        return LocalCatalog(self.db_client)
+        print("creating catalog connection")
+        return LocalCatalog(self.db_session.create_connection())
 
     def stop(self):
         """Clean up the session state."""
