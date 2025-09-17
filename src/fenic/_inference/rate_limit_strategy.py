@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from fenic._constants import MINUTE_IN_SECONDS
-from fenic.core.error import InternalError, ValidationError, ExecutionError
+from fenic.core.error import ExecutionError, InternalError, ValidationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -152,7 +153,6 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
         self._rpm_hint: int | None = None
         self._cooldown_until: float = 0.0
         self._on_cooldown = False
-        self._lock = threading.Lock()
 
     def register_rate_limit_hint(
         self, rpm_hint: int | None, retry_at_epoch_seconds: float | None
@@ -163,7 +163,7 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
             rpm_hint: Max requests per minute allowed by provider (if known)
             retry_at_epoch_seconds: Unix epoch seconds we should not send before (if known)
         """
-        with self._lock:
+        with self.mutex:
             if isinstance(rpm_hint, int) and rpm_hint > 0:
                 self._rpm_hint = rpm_hint
                 self.rpm = min(self.rpm, rpm_hint)
@@ -175,16 +175,23 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
                 self._cooldown_until = float(retry_at_epoch_seconds)
                 if not self._on_cooldown:
                     self._on_cooldown = True
-                    logger.info(
-                        f"Provider is throttling requests -- pausing for {retry_at_epoch_seconds - time.time():.2f}s before resuming at the provider specified limit of {rpm_hint} requests per minute"
+                    logger.warning(
+                        f"Provider is throttling requests. Pausing for {retry_at_epoch_seconds - time.time():.2f}s before resuming at the provider specified limit of {rpm_hint} requests per minute."
+                    )
+            else:
+                logger.warning(
+                        f"Provider is throttling requests. Resetting RPM to {rpm_hint} requests per minute as specified by the provider."
                     )
 
     def backoff(self, curr_time: float) -> int:
         """Backoff the request rate limit bucket."""
-        with self._lock:
+        with self.mutex:
             # Reduce rpm multiplicatively; clamp by hint and min
             new_rpm = self._rpm_hint if self._rpm_hint else max(self._min_rpm, int(self.rpm * self._backoff_multiplier))
             if new_rpm != self.rpm:
+                logger.debug(
+                    f"AdaptiveBackoff: reducing rpm multiplicatively from {self.rpm} to {new_rpm} after backoff"
+                )
                 self.rpm = new_rpm
                 # Replace bucket: drop burst capacity
                 self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
@@ -217,7 +224,7 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
 
     # Internal helpers
     def _record_success_and_maybe_grow(self, now: float) -> None:
-        with self._lock:
+        with self.mutex:
             # Do not grow if provider supplied an explicit rpm hint
             if self._rpm_hint is not None or self._on_cooldown:
                 self._consecutive_successes = 0
@@ -236,7 +243,7 @@ class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
                     # Clamp carried capacity to new max
                     new_bucket._set_capacity(min(available, self.rpm), now)
                     self.requests_bucket = new_bucket
-                    logger.info(
+                    logger.debug(
                         f"AdaptiveBackoff: increasing rpm additively to {self.rpm} after {self._consecutive_successes} consecutive successes"
                     )
                 self._consecutive_successes = 0

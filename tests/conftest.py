@@ -151,13 +151,6 @@ def pytest_addoption(parser):
         default=None,
         help="If set, will run reader tests that read from HuggingFace.",
     )
-    parser.addoption(
-        "--test-openrouter-models",
-        action="store_true",
-        default=False,
-        help="Run OpenRouter model catalog tests (requires OPENROUTER_API_KEY)",
-    )
-
 
 @pytest.fixture
 def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:

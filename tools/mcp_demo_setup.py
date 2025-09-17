@@ -85,7 +85,7 @@ def main() -> None:
     ]
     try:
         candidates_df = local_session.read.parquet(
-            "s3://typedef-assets/demo/mcp/candidates"
+            "s3://typedef-assets/demo/mcp/candidates.parquet"
         )
     except Exception:
         # Synthetic candidate dataset: (candidate_id, candidate_resume)
