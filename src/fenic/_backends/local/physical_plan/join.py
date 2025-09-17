@@ -16,6 +16,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
 from fenic._constants import LEFT_ON_KEY, RIGHT_ON_KEY
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core.error import InternalError
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
 
@@ -52,7 +53,7 @@ class JoinExec(PhysicalPlan):
         self.right_on_exprs = right_on_exprs
         self.how = how
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: JoinExec expects 2 children")
         left_df = child_dfs[0]
@@ -69,17 +70,30 @@ class JoinExec(PhysicalPlan):
             how=self.how
         )
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: JoinExec expects 2 children")
+        return JoinExec(
+            left=children[0],
+            right=children[1],
+            left_on_exprs=self.left_on_exprs,
+            right_on_exprs=self.right_on_exprs,
+            how=self.how,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0]._build_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1]._build_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self._execute([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df])
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(
             {"_left_uuid": "_backwards_uuid"}
@@ -123,7 +137,7 @@ class SemanticJoinExec(PhysicalPlan):
         self.temperature = temperature
         self.model_alias = model_alias
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError("Unreachable: SemanticJoinExec expects 2 children")
 
@@ -158,17 +172,35 @@ class SemanticJoinExec(PhysicalPlan):
 
         return result
 
-    def _build_lineage(
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: SemanticJoinExec expects 2 children")
+        return SemanticJoinExec(
+            left=children[0],
+            right=children[1],
+            left_on=self.left_on,
+            right_on=self.right_on,
+            jinja_template=self.jinja_template,
+            strict=self.strict,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+            model_alias=self.model_alias,
+            temperature=self.temperature,
+            examples=self.examples,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0]._build_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1]._build_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self._execute([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df])
 
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(
@@ -210,7 +242,7 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         self.similarity_metric = similarity_metric
         self.similarity_score_column = similarity_score_column
 
-    def _execute(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 2:
             raise ValueError(
                 "Unreachable: SemanticSimilarityJoinExec expects 2 children"
@@ -244,17 +276,32 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
 
         return result
 
-    def _build_lineage(
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 2:
+            raise InternalError("Unreachable: SemanticSimilarityJoinExec expects 2 children")
+        return SemanticSimilarityJoinExec(
+            left=children[0],
+            right=children[1],
+            left_on=self.left_on,
+            right_on=self.right_on,
+            k=self.k,
+            similarity_metric=self.similarity_metric,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+            similarity_score_column=self.similarity_score_column,
+        )
+
+    def build_node_lineage(
         self,
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
-        left_operator, left_df = self.children[0]._build_lineage(leaf_nodes)
-        right_operator, right_df = self.children[1]._build_lineage(leaf_nodes)
+        left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
+        right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
-        joined_df = self._execute([left_df, right_df])
+        joined_df = self.execute_node([left_df, right_df])
 
         materialize_df = _with_lineage_uuid(joined_df)
         backwards_df_left = materialize_df.select(["_uuid", "_left_uuid"]).rename(

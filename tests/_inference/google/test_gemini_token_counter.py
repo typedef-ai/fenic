@@ -1,3 +1,6 @@
+import pytest
+
+pytest.importorskip("google.genai")
 
 import pytest
 
