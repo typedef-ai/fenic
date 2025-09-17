@@ -58,6 +58,7 @@ class CompletionModelParameters:
         supports_profiles = True,
         supports_reasoning = False,
         supports_minimal_reasoning = False,
+        supports_disabled_reasoning = True,
         supports_custom_temperature = True,
         supports_verbosity = False,
     ):
@@ -73,6 +74,7 @@ class CompletionModelParameters:
         self.supports_profiles = supports_profiles
         self.supports_reasoning = supports_reasoning
         self.supports_minimal_reasoning = supports_minimal_reasoning
+        self.supports_disabled_reasoning = supports_disabled_reasoning
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
 
@@ -663,6 +665,7 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 supports_reasoning=True,
+                supports_disabled_reasoning=False,
                 max_temperature=2.0,
                 tiered_token_costs={
                     200_000: TieredTokenCost(
@@ -780,6 +783,7 @@ class ModelCatalog:
                 max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_disabled_reasoning=False,
                 tiered_token_costs={
                     200_000: TieredTokenCost(
                         input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens

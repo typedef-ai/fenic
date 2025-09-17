@@ -350,7 +350,7 @@ class GeminiNativeChatCompletionsClient(
             else:
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
-            return TransientException(e)
+            return FatalException(e)
 
     def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
         """Google Gemini does not support additionalProperties in JSON schemas, even if it is set to False.
