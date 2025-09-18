@@ -6,6 +6,7 @@ from json.decoder import JSONDecodeError
 from typing import Optional, Union
 
 from openai import APIConnectionError, APITimeoutError, OpenAIError, RateLimitError
+from pydantic import ValidationError as PydanticValidationError
 
 from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
@@ -104,38 +105,46 @@ class OpenRouterBatchChatCompletionsClient(
         if request.temperature and self._model_parameters.supports_custom_temperature:
             common_params.update({"temperature": request.temperature})
 
-        if request.structured_output:
-            if STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
-                common_params[RESPONSE_FORMAT] = {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "fenic_response",
-                        "schema": request.structured_output.json_schema,
-                        "strict": True,
-                    },
-                }
-            elif TOOLS in self._model_parameters.supported_parameters:
-                common_params[TOOLS] = [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "output_formatter",
-                            "description": "Format the output of the model to correspond strictly to the provided schema.",
-                            "parameters": request.structured_output.json_schema,
-                            "strict": True,
-                        },
-                    }
-                ]
-            else:
-                return FatalException(
-                    ConfigurationError(
-                        f"Model {self.model} does not support structured outputs, or tool calling, but the current request requires an output format. Select a different model that supports `structured_outputs`, or `tools`"
-                    )
-                )
         try:
-            response = await self._aio_client.chat.completions.create(
-                **common_params, extra_body=profile.extra_body
-            )
+            if request.structured_output:
+                # Theoretically, it makes more sense to prefer using `structured_outputs` over `tools` if one is using
+                # a model that supports both, since we can defer to the openai library the complexity of strictifying
+                # the json schema and implementing the Structured Output support how the provider pleases. However, there are many models
+                # available in OpenRouter where perhaps only 1 provider out of 6 for a model supports structured outputs, and
+                # that provider might be terrible (at latency/throughput/uptime) but will always be routed to, since it is the only
+                # one that supports structured outputs. Preferring tools allows for OpenRouter to much more effectively load-balance
+                # between multiple providers.
+                if TOOLS in self._model_parameters.supported_parameters:
+                    common_params[TOOLS] = [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "output_formatter",
+                                "description": "Format the output of the model to correspond strictly to the provided schema.",
+                                "parameters": request.structured_output.json_schema,
+                                "strict": True,
+                            },
+                        }
+                    ]
+                    response = await self._aio_client.chat.completions.create(
+                        **common_params, extra_body=profile.extra_body
+                    )
+                elif STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
+                    common_params[RESPONSE_FORMAT] = request.structured_output.pydantic_model
+                    response = await self._aio_client.chat.completions.parse(
+                        **common_params, extra_body=profile.extra_body
+                    )
+                else:
+                    return FatalException(
+                        ConfigurationError(
+                            f"Model {self.model} does not support structured outputs, or tool calling, but the current "
+                            f"request requires an output format. Select a different model that supports `structured_outputs`, or `tools`"
+                        )
+                    )
+            else:
+                response = await self._aio_client.chat.completions.create(
+                    **common_params, extra_body=profile.extra_body
+                )
 
             completion_choice, maybe_exception = handle_openai_compatible_response(
                 model_provider=ModelProvider.OPENROUTER,
@@ -209,7 +218,7 @@ class OpenRouterBatchChatCompletionsClient(
             return TransientException(e)
         # encountered when the response is not valid JSON. can sometimes be fixed with a retry
         # sending the request to a different provider.
-        except JSONDecodeError as e:
+        except (JSONDecodeError, PydanticValidationError) as e:
             return TransientException(e)
         except OpenAIError as e:
             return FatalException(e)

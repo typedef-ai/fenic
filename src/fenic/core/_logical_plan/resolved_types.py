@@ -139,7 +139,7 @@ class ResolvedResponseFormat:
             return None
         except ValidationError as e:
             logger.warning(
-                f"Pydantic validation failed for {operator_name}: {e.message} at {e.path}",
+                f"Pydantic validation failed for {json_resp} for {operator_name}: {e}",
                 exc_info=True,
             )
             return None
