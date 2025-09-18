@@ -341,11 +341,7 @@ class CloudCatalog(BaseCatalog):
             "Set view description not implemented for cloud catalog"
         )
 
-    def get_tool(
-        self,
-        tool_name: str,
-        ignore_if_not_exists: bool = True,
-    ) -> ParameterizedToolDefinition:
+    def describe_tool(self, tool_name: str) -> ParameterizedToolDefinition:
         """Find and return the tool from the current database."""
         # TODO: Implement get tool for the cloud
         raise NotImplementedError(

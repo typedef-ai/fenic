@@ -132,8 +132,8 @@ List, fetch, or drop tools:
 
 ```python
 all_tools = session.catalog.list_tools()
-age_tool = session.catalog.get_tool("users_by_age_range")
-search_tool = session.catalog.get_tool("users_by_name_regex")
+age_tool = session.catalog.describe_tool("users_by_age_range")
+search_tool = session.catalog.describe_tool("users_by_name_regex")
 session.catalog.drop_tool("users_by_age_range", ignore_if_not_exists=True)
 session.catalog.drop_tool("users_by_name_regex", ignore_if_not_exists=True)
 ```
