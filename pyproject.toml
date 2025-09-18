@@ -36,7 +36,7 @@ dependencies = [
   "protobuf>=5.29.5",
   "types-protobuf>=5.29.1.20250403",
   "zstandard>=0.23.0",
-  "jsonschema>=4.0.0",
+  "json-schema-to-pydantic>=0.4.1",
   "pymupdf>=1.26.4",
 ]
 

@@ -4,15 +4,16 @@ from pydantic import BaseModel, Field
 
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.logging import configure_logging
 
 
 def test_resolved_response_format_serde():
 
     class Participant(BaseModel):
         name: str = Field(..., description="Name of participant")
-        age: int = Field(..., description="Age of participant")
+        age: int = Field(..., description="Age of participant", gt=0, lt=150)
         is_active: bool = Field(..., description="Is participant active?")
-        tags: List[str] = Field(..., description="Tags associated with participant")
+        tags: List[str] = Field(..., description="Tags associated with participant", max_length=10)
         address: str = Field(..., description="Address associated with participant")
 
     class DocumentMetadata(BaseModel):
@@ -22,8 +23,8 @@ def test_resolved_response_format_serde():
         date: str = Field(description="Any date mentioned in the document (publication date, meeting date, etc.)")
         keywords: List[str] = Field(description="List of key topics, technologies, or important terms mentioned in the document")
         summary: str = Field(description="Brief one-sentence summary of the document's main purpose or content")
-        participants: List[Participant] = Field(description="List of participants in the document")
-
+        participants: List[Participant] = Field(default_factory=Participant, description="List of participants in the document")
+    configure_logging()
     resolved_response_format = ResolvedResponseFormat.from_pydantic_model(DocumentMetadata)
     assert resolved_response_format.schema_fingerprint == ResolvedResponseFormat.from_pydantic_model(DocumentMetadata).schema_fingerprint
     serde_context = SerdeContext()

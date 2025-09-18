@@ -1,7 +1,6 @@
-import copy
 import logging
 from functools import cache
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
@@ -239,10 +238,9 @@ class GeminiNativeChatCompletionsClient(
         }
         generation_config.update(profile_config.additional_generation_config)
         if request.structured_output is not None:
-            response_schema = self._prepare_schema(request.structured_output)
             generation_config.update(
                 response_mime_type="application/json",
-                response_schema=response_schema,
+                response_schema=request.structured_output.pydantic_model,
             )
 
         # Build generation parameters
@@ -351,46 +349,3 @@ class GeminiNativeChatCompletionsClient(
                 return FatalException(e)
         except Exception as e:  # noqa: BLE001 – catch-all mapped to Fatal
             return FatalException(e)
-
-    def _prepare_schema(self, response_format: ResolvedResponseFormat) -> dict[str, Any]:
-        """Google Gemini does not support additionalProperties in JSON schemas, even if it is set to False.
-
-        This function copies the original schema and recursively removes all additionalProperties from its objects.
-        If additionalProperties is not removed, the genai service will reject the schema and return a 400 error.
-
-        Args:
-            response_format: The response format to prepare
-
-        Returns:
-            The prepared schema
-        """
-        def remove_additional_properties(result: Any) -> Any:
-            if not isinstance(result, dict):
-                return result
-
-            # Remove additionalProperties from this level
-            if "additionalProperties" in result:
-                del result["additionalProperties"]
-
-            # Recursively process nested objects
-            if result.get("type") == "object" and "properties" in result:
-                for key, prop_schema in result["properties"].items():
-                    result["properties"][key] = remove_additional_properties(prop_schema)
-
-            # Recursively process array items
-            if result.get("type") == "array" and "items" in result:
-                result["items"] = remove_additional_properties(result["items"])
-
-            # Recursively process anyOf/oneOf branches
-            for union_key in ["anyOf", "oneOf"]:
-                if union_key in result:
-                    result[union_key] = [remove_additional_properties(branch) for branch in result[union_key]]
-
-            # Recursively process $defs
-            if "$defs" in result:
-                for def_name, def_schema in result["$defs"].items():
-                    result["$defs"][def_name] = remove_additional_properties(def_schema)
-
-            return result
-
-        return remove_additional_properties(copy.deepcopy(response_format.strict_schema))

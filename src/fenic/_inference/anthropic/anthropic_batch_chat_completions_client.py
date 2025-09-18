@@ -362,7 +362,7 @@ class AnthropicBatchCompletionsClient(
         """
         tool_param = ToolParam(
             name=self._output_formatter_tool_name,
-            input_schema=response_format.strict_schema,
+            input_schema=response_format.json_schema,
             description=self._output_formatter_tool_description,
             cache_control=EPHEMERAL_CACHE_CONTROL
         )

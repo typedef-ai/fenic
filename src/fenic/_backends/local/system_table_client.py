@@ -486,7 +486,7 @@ class SystemTableClient:
                 f"Failed to save tool metadata for {tool.name}"
             ) from e
 
-    def get_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> Optional[ParameterizedToolDefinition]:
         """Get a tool's metadata from the system table.
         Raises:
             CatalogError: If the tool metadata cannot be retrieved.

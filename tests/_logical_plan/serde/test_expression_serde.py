@@ -134,9 +134,9 @@ class NestedResponseFormat(BaseModel):
 
 class BasicResponseFormat(BaseModel):
     name: str
-    age: int
-    email: str
-    nicknames: list[str] = Field(...)
+    age: int = Field(default=18, gt=0, lt=150)
+    email: str = Field(..., max_length=100)
+    nicknames: list[str] = Field(..., max_length=5)
     valid: bool
     state: Literal["active", "inactive"]
     explanation: Optional[str] = None

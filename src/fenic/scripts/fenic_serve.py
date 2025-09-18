@@ -95,7 +95,7 @@ def main() -> None:
     tools = []
     if args.tools:
         for tool_name in args.tools:
-            tools.append(session.catalog.get_tool(tool_name))
+            tools.append(session.catalog.describe_tool(tool_name))
     else:
         tools = session.catalog.list_tools()
 
