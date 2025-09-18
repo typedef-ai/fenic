@@ -59,7 +59,7 @@ class FileSourceExec(PhysicalPlan):
         self.options = options or {}
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        if child_dfs:
+        if len(child_dfs) != 0:
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
         file_format = self.file_format.lower()

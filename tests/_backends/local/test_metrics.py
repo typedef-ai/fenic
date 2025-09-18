@@ -113,7 +113,7 @@ def test_simple_metrics(local_session, sales_data, product_data, customer_data):
     # Verify we have the expected operator types
     assert len(limit_ops) == 1, "Should have exactly one limit operator"
     assert len(union_ops) == 1, "Should have exactly one union operator"
-    assert len(agg_ops) == 1, "Should have exactly two aggregate operators"
+    assert len(agg_ops) == 1, "Should have exactly one aggregate operator"
     assert len(filter_ops) == 1, "Should have exactly one filter operator"
     assert len(join_ops) == 2, "Should have exactly two join operators"
     assert len(source_ops) == 3, "Should have exactly three source operators"
@@ -299,7 +299,7 @@ def test_metrics_from_view_with_cache(local_session, sales_data, product_data, c
     # Verify we have the expected operator types
     assert len(limit_ops) == 1, "Should have exactly one limit operator"
     assert len(union_ops) == 1, "Should have exactly one union operator"
-    assert len(agg_ops) == 1, "Should have exactly two aggregate operators"
+    assert len(agg_ops) == 1, "Should have exactly one aggregate operator"
     assert len(filter_ops) == 1, "Should have exactly one filter operator"
     assert len(join_ops) == 2, "Should have exactly two join operators"
     assert len(source_ops) == 3, "Should have exactly three source operators"

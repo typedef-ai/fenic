@@ -62,7 +62,7 @@ class PhysicalPlan(ABC):
         total_lm_metrics = LMMetrics()
         total_rm_metrics = RMMetrics()
 
-        # Step 3: Execute child operators and collect their metrics
+        # Step 2: Execute child operators and collect their metrics
         child_dfs = []
         child_execution_time = 0
         for child in self.children:
