@@ -506,13 +506,11 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
 
-    def get_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, tool_name: str) -> Optional[ParameterizedToolDefinition]:
         """Get a tool's metadata from the system table."""
         cursor = self.db_conn.cursor()
-        existing_tool = self.system_tables.get_tool(cursor, tool_name)
-        if existing_tool:
-            if ignore_if_not_exists:
-                return None
+        existing_tool = self.system_tables.describe_tool(cursor, tool_name)
+        if not existing_tool:
             raise ToolNotFoundError(tool_name)
         return existing_tool
 
@@ -530,7 +528,7 @@ class LocalCatalog(BaseCatalog):
         with self.lock:
             tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
             cursor = self.db_conn.cursor()
-            if self.system_tables.get_tool(cursor, tool_name):
+            if self.system_tables.describe_tool(cursor, tool_name):
                 if ignore_if_exists:
                     return False
                 raise ToolAlreadyExistsError(tool_name)
@@ -546,7 +544,7 @@ class LocalCatalog(BaseCatalog):
         """Drop a tool from the current catalog."""
         with self.lock:
             cursor = self.db_conn.cursor()
-            if not self.system_tables.get_tool(cursor, tool_name):
+            if not self.system_tables.describe_tool(cursor, tool_name):
                 if ignore_if_not_exists:
                     return False
                 raise ToolNotFoundError(tool_name)

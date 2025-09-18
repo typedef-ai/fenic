@@ -9,6 +9,9 @@ from fenic import (
     StringType,
     StructField,
     StructType,
+    ToolParam,
+    col,
+    tool_param,
 )
 from fenic._backends.local.catalog import (
     DEFAULT_CATALOG_NAME,
@@ -24,6 +27,8 @@ from fenic.core.error import (
     ExecutionError,
     TableAlreadyExistsError,
     TableNotFoundError,
+    ToolAlreadyExistsError,
+    ToolNotFoundError,
 )
 
 NON_EXISTING_CATALOG_NAME = "non_existing_catalog"
@@ -430,3 +435,122 @@ def test_create_table(local_session: Session):
         match="Invalid catalog name 'not_typedef_default'",
     ):
         local_session.catalog.create_table(TABLE_NAME_WITH_CATALOG, SIMPLE_TABLE_SCHEMA)
+
+
+def test_create_tool(local_session: Session):
+    df = local_session.create_dataframe({"city": ["SF", "SEA"], "age": [25, 30]})
+    parameterized = df.filter(
+        (col("city") == tool_param("city_name", StringType))
+        & (col("age") >= tool_param("min_age", IntegerType))
+    )
+
+    created = local_session.catalog.create_tool(
+        tool_name="users_by_city",
+        tool_description="Filter users by city and min age",
+        tool_query=parameterized,
+        tool_params=[
+            ToolParam(name="city_name", description="City name"),
+            ToolParam(name="min_age", description="Minimum age"),
+        ],
+        result_limit=10,
+        ignore_if_exists=False,
+    )
+    assert created is True
+
+    # Creating again with ignore_if_exists=True should return False
+    assert (
+        local_session.catalog.create_tool(
+            tool_name="users_by_city",
+            tool_description="Filter users by city and min age",
+            tool_query=parameterized,
+            tool_params=[
+                ToolParam(name="city_name", description="City name"),
+                ToolParam(name="min_age", description="Minimum age"),
+            ],
+            result_limit=10,
+            ignore_if_exists=True,
+        )
+        is False
+    )
+
+    # Creating again with ignore_if_exists=False should raise
+    with pytest.raises(ToolAlreadyExistsError, match="Tool 'users_by_city' already exists"):
+        local_session.catalog.create_tool(
+            tool_name="users_by_city",
+            tool_description="Filter users by city and min age",
+            tool_query=parameterized,
+            tool_params=[
+                ToolParam(name="city_name", description="City name"),
+                ToolParam(name="min_age", description="Minimum age"),
+            ],
+            result_limit=10,
+            ignore_if_exists=False,
+        )
+
+
+def test_describe_tool(local_session: Session):
+    df = local_session.create_dataframe({"city": ["SF"], "age": [10]})
+    parameterized = df.filter(col("city") == tool_param("city_name", StringType))
+
+    local_session.catalog.create_tool(
+        tool_name="tool_desc",
+        tool_description="Desc test",
+        tool_query=parameterized,
+        tool_params=[ToolParam(name="city_name", description="City name")],
+        result_limit=7,
+        ignore_if_exists=False,
+    )
+
+    tool = local_session.catalog.describe_tool("tool_desc")
+    assert tool.name == "tool_desc"
+    assert [p.name for p in tool.params] == ["city_name"]
+    assert tool.result_limit == 7
+
+
+def test_list_tools(local_session: Session):
+    df = local_session.create_dataframe({"city": ["SF", "SEA"]})
+    p = df.filter(col("city") == tool_param("city_name", StringType))
+
+    local_session.catalog.create_tool(
+        tool_name="tool_a",
+        tool_description="A",
+        tool_query=p,
+        tool_params=[ToolParam(name="city_name", description="City name")],
+        result_limit=5,
+        ignore_if_exists=False,
+    )
+    local_session.catalog.create_tool(
+        tool_name="tool_b",
+        tool_description="B",
+        tool_query=p,
+        tool_params=[ToolParam(name="city_name", description="City name")],
+        result_limit=5,
+        ignore_if_exists=False,
+    )
+
+    tools = local_session.catalog.list_tools()
+    names = {t.name for t in tools}
+    assert {"tool_a", "tool_b"} == names
+
+
+def test_drop_tool(local_session: Session):
+    df = local_session.create_dataframe({"city": ["SF"], "age": [10]})
+    parameterized = df.filter(col("city") == tool_param("city_name", StringType))
+
+    local_session.catalog.create_tool(
+        tool_name="tool_to_drop",
+        tool_description="",
+        tool_query=parameterized,
+        tool_params=[ToolParam(name="city_name", description="City name")],
+        result_limit=3,
+        ignore_if_exists=False,
+    )
+
+    assert local_session.catalog.drop_tool("tool_to_drop") is True
+    assert local_session.catalog.drop_tool("tool_to_drop", ignore_if_not_exists=True) is False
+
+    with pytest.raises(ToolNotFoundError, match="Tool 'tool_to_drop' does not exist"):
+        local_session.catalog.describe_tool("tool_to_drop")
+
+    with pytest.raises(ToolNotFoundError, match="Tool 'tool_to_drop' does not exist"):
+        local_session.catalog.drop_tool("tool_to_drop", ignore_if_not_exists=False)

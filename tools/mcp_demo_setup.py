@@ -122,7 +122,7 @@ def main() -> None:
     job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
     merged_filter = education_match & seniority_match & skills_match & experience_match & job_category_match
     search_candidates = candidates_df.filter(merged_filter).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
-    if local_session.catalog.get_tool("search_candidates"):
+    if local_session.catalog.describe_tool("search_candidates"):
         local_session.catalog.drop_tool("search_candidates")
     local_session.catalog.create_tool(
         "search_candidates",
@@ -140,7 +140,7 @@ def main() -> None:
 
     # Tool 2: candidate_resumes_by_candidate_ids -- given a list of candidate ids, return the raw resumes for each candidate
     candidate_resumes = candidates_df.filter(fc.col("candidate_id").is_in(fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType)))).select("candidate_id", "candidate_resume")
-    if local_session.catalog.get_tool("candidate_resumes_by_candidate_ids"):
+    if local_session.catalog.describe_tool("candidate_resumes_by_candidate_ids"):
         local_session.catalog.drop_tool("candidate_resumes_by_candidate_ids")
     local_session.catalog.create_tool(
         "candidate_resumes_by_candidate_ids",
@@ -208,7 +208,7 @@ def main() -> None:
     )
     job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
     candidates_for_job = candidates_df.filter(job_category_match).filter(fit_pred).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
-    if local_session.catalog.get_tool("candidates_for_job_description"):
+    if local_session.catalog.describe_tool("candidates_for_job_description"):
         local_session.catalog.drop_tool("candidates_for_job_description")
     local_session.catalog.create_tool(
         "candidates_for_job_description",
@@ -279,7 +279,7 @@ def main() -> None:
         ).alias("email"),
     )
     # Filter to a single candidate_id at runtime
-    if local_session.catalog.get_tool("create_outreach_for_candidate"):
+    if local_session.catalog.describe_tool("create_outreach_for_candidate"):
         local_session.catalog.drop_tool("create_outreach_for_candidate")
     local_session.catalog.create_tool(
         "create_outreach_for_candidate",
