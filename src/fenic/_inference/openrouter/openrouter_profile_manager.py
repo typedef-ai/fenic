@@ -19,6 +19,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenRouterModelProfile,
     ResolvedOpenRouterProviderRouting,
 )
+from fenic.core.types.provider_routing import StructuredOutputStrategy
 
 
 @dataclass
@@ -30,6 +31,7 @@ class OpenRouterCompletionProfileConfiguration(BaseProfileConfiguration):
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
     provider: Optional[ResolvedOpenRouterProviderRouting] = None
+    structured_output_strategy: Optional[StructuredOutputStrategy] = None
 
     @property
     def extra_body(self) -> dict[str, Any]:
@@ -120,6 +122,7 @@ class OpenRouterCompletionsProfileManager(
             provider=profile.provider,
             reasoning_effort=profile.reasoning_effort,
             reasoning_max_tokens=profile.reasoning_max_tokens,
+            structured_output_strategy=profile.structured_output_strategy,
         )
 
     def get_default_profile(self) -> OpenRouterCompletionProfileConfiguration:

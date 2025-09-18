@@ -48,6 +48,7 @@ from fenic.core.types.provider_routing import (
     DataCollection,
     ModelQuantization,
     ProviderSort,
+    StructuredOutputStrategy,
 )
 
 profiles_desc = """
@@ -656,6 +657,10 @@ class OpenRouterLanguageModel(BaseModel):
         model_name: `{family}/{model}` identifier (e.g., `anthropic/claude-3-5-sonnet`).
         profiles: Mapping of profile names to profile configurations.
         default_profile: The key in `profiles` to select by default.
+        structured_output_strategy: The strategy to use for structured output if a model supports both tool calling and structured outputs.
+
+            - `prefer_tools`: prefer using tools over response format.
+            - `prefer_response_format`: prefer using response format over tools.
 
     Requirements:
         - Set `OPENROUTER_API_KEY` in your environment.
@@ -711,6 +716,10 @@ class OpenRouterLanguageModel(BaseModel):
     )
     profiles: Optional[dict[str, Profile]] = Field(default=None, description=profiles_desc)
     default_profile: Optional[str] = Field(default=None, description=default_profiles_desc)
+    structured_output_strategy: Optional[StructuredOutputStrategy] = Field(
+        default=None,
+        description="The strategy to use for structured output if a model supports both tool calling and structured outputs. `prefer_tools`: prefer using tools over response format. `prefer_response_format`: prefer using response format over tools."
+    )
 
     class Provider(BaseModel):
         """Provider routing configuration for OpenRouter language models.
@@ -1339,6 +1348,7 @@ class SessionConfig(BaseModel):
                                 if profile.provider is not None
                                 else None
                             ),
+                            structured_output_strategy=model.structured_output_strategy,
                         )
                         for profile_name, profile in model.profiles.items()
                     }

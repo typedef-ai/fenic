@@ -46,7 +46,7 @@ def main() -> None:
                     },
                 ),
                 "testing_model": OpenRouterLanguageModel(
-                    model_name="mistralai/mistral-small-3.2-24b-instruct",
+                    model_name="meta-llama/llama-4-maverick",
                     profiles={
                         "default": OpenRouterLanguageModel.Profile(
                             provider=OpenRouterLanguageModel.Provider(

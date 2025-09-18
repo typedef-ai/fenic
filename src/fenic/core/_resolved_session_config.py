@@ -17,6 +17,7 @@ from fenic.core.types.provider_routing import (
     DataCollection,
     ModelQuantization,
     ProviderSort,
+    StructuredOutputStrategy,
 )
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
@@ -77,6 +78,7 @@ class ResolvedOpenRouterModelProfile:
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
     provider: Optional[ResolvedOpenRouterProviderRouting] = None
+    structured_output_strategy: Optional[StructuredOutputStrategy] = None
 
 
 @dataclass

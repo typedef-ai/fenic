@@ -107,14 +107,25 @@ class OpenRouterBatchChatCompletionsClient(
 
         try:
             if request.structured_output:
-                # Theoretically, it makes more sense to prefer using `structured_outputs` over `tools` if one is using
-                # a model that supports both, since we can defer to the openai library the complexity of strictifying
-                # the json schema and implementing the Structured Output support how the provider pleases. However, there are many models
-                # available in OpenRouter where perhaps only 1 provider out of 6 for a model supports structured outputs, and
-                # that provider might be terrible (at latency/throughput/uptime) but will always be routed to, since it is the only
-                # one that supports structured outputs. Preferring tools allows for OpenRouter to much more effectively load-balance
-                # between multiple providers.
-                if TOOLS in self._model_parameters.supported_parameters:
+                strategy = (
+                    self._profile_manager.get_profile_by_name(request.model_profile).structured_output_strategy
+                    or "prefer_response_format"
+                )
+                supports_structured = STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters
+                supports_tools = TOOLS in self._model_parameters.supported_parameters
+                if supports_structured and supports_tools:
+                    use_tools = strategy == "prefer_tools"
+                else:
+                    use_tools = supports_tools and not supports_structured
+
+                if supports_structured and not use_tools:
+                    common_params[RESPONSE_FORMAT] = request.structured_output.pydantic_model
+                    response = await self._aio_client.chat.completions.parse(
+                        **common_params, extra_body=profile.extra_body
+                    )
+                elif supports_tools:
+                    response_schema = request.structured_output.json_schema
+                    response_schema["additionalProperties"] = False
                     common_params[TOOLS] = [
                         {
                             "type": "function",
@@ -127,11 +138,6 @@ class OpenRouterBatchChatCompletionsClient(
                         }
                     ]
                     response = await self._aio_client.chat.completions.create(
-                        **common_params, extra_body=profile.extra_body
-                    )
-                elif STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters:
-                    common_params[RESPONSE_FORMAT] = request.structured_output.pydantic_model
-                    response = await self._aio_client.chat.completions.parse(
                         **common_params, extra_body=profile.extra_body
                     )
                 else:

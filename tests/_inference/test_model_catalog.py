@@ -41,10 +41,15 @@ def mock_openrouter_models(monkeypatch):
         OpenRouterModelProvider,
     )
 
-    # Reset catalog/provider so dynamic load happens fresh each test
+    # Snapshot and reset state so dynamic load happens fresh for this test
     provider = OpenRouterModelProvider()
+    openrouter_collection = model_catalog.provider_model_collections[ModelProvider.OPENROUTER]
+    snapshot_completion_models = dict(openrouter_collection.completion_models)
+    snapshot_dynamic_loaded = set(getattr(model_catalog, "_dynamic_loaded", set()))
+    snapshot_models_loaded = getattr(provider, "_models_loaded", None)
+
     provider._models_loaded = False
-    model_catalog.provider_model_collections[ModelProvider.OPENROUTER].completion_models.clear()
+    openrouter_collection.completion_models.clear()
     if hasattr(model_catalog, "_dynamic_loaded"):
         model_catalog._dynamic_loaded.discard(ModelProvider.OPENROUTER)
 
@@ -125,7 +130,18 @@ def mock_openrouter_models(monkeypatch):
     import requests  # noqa: WPS433 (import inside function in tests)
 
     monkeypatch.setattr(requests, "get", _fake_get)
-    return None
+
+    # Hand control to the test
+    yield None
+
+    # Teardown: restore global singleton state to prevent cross-test pollution
+    openrouter_collection.completion_models.clear()
+    openrouter_collection.completion_models.update(snapshot_completion_models)
+    if hasattr(model_catalog, "_dynamic_loaded"):
+        model_catalog._dynamic_loaded.clear()
+        model_catalog._dynamic_loaded.update(snapshot_dynamic_loaded)
+    if snapshot_models_loaded is not None:
+        provider._models_loaded = snapshot_models_loaded
 
 @pytest.mark.parametrize("models,provider", [
     (OpenAILanguageModelName, ModelProvider.OPENAI),

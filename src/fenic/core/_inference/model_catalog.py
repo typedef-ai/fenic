@@ -1183,6 +1183,7 @@ class ModelCatalog:
                             )
                             loader()
                             self._dynamic_loaded.add(model_provider)
+                            return self.provider_model_collections[model_provider].completion_models
                         except Exception as exc:
                             logger.error(
                                 f"Failed dynamic load for provider {model_provider.value}: {exc}",
