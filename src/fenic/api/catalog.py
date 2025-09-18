@@ -654,14 +654,11 @@ class Catalog:
         return self.catalog.drop_view(view_name, ignore_if_not_exists)
 
     @validate_call(config=ConfigDict(strict=True))
-    def get_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> ParameterizedToolDefinition:
+    def describe_tool(self, tool_name: str) -> ParameterizedToolDefinition:
         """Returns the tool with the specified name from the current catalog.
 
         Args:
             tool_name (str): The name of the tool to get.
-            ignore_if_not_exists (bool): If True, return None when the tool doesn't exist.
-                If False, raise an error when the tool doesn't exist.
-                Defaults to True.
 
         Raises:
             ToolNotFoundError: If the tool doesn't exist and ignore_if_not_exists is False
@@ -669,7 +666,7 @@ class Catalog:
         Returns:
             Tool: The tool with the specified name.
         """
-        return self.catalog.get_tool(tool_name, ignore_if_not_exists)
+        return self.catalog.describe_tool(tool_name)
 
     @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
     def create_tool(
@@ -771,6 +768,6 @@ class Catalog:
     listViews = list_views
     doesViewExist = does_view_exist
     dropView = drop_view
-    getTool = get_tool
+    describeTool = describe_tool
     createTool = create_tool
     dropTool = drop_tool

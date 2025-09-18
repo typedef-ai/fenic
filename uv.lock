@@ -573,7 +573,7 @@ dependencies = [
     { name = "cloudpickle" },
     { name = "duckdb" },
     { name = "jinja2" },
-    { name = "jsonschema" },
+    { name = "json-schema-to-pydantic" },
     { name = "lancedb" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -638,7 +638,7 @@ requires-dist = [
     { name = "google-genai", extras = ["local-tokenizer"], marker = "extra == 'google'", specifier = ">=1.36.0" },
     { name = "grpcio", marker = "extra == 'cloud'", specifier = ">=1.60.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
+    { name = "json-schema-to-pydantic", specifier = ">=0.4.1" },
     { name = "lancedb", specifier = ">=0.22.0" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "openai", specifier = ">=1.101.0" },
@@ -1108,6 +1108,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/dc/fe/0f5a938c54105553436dbff7a61dc4fed4b1b2c98852f8833beaf4d5968f/joblib-1.5.1.tar.gz", hash = "sha256:f4f86e351f39fe3d0d32a9f2c3d8af1ee4cec285aafcb27003dda5205576b444", size = 330475 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/4f/1195bbac8e0c2acc5f740661631d8d750dc38d4a32b23ee5df3cde6f4e0d/joblib-1.5.1-py3-none-any.whl", hash = "sha256:4719a31f054c7d766948dcd83e9613686b27114f190f717cec7eaa2084f8a74a", size = 307746 },
+]
+
+[[package]]
+name = "json-schema-to-pydantic"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/25/c9d8590a698a1cef53859b9a6ff32c79a758f16af4ab37118e4529503b2b/json_schema_to_pydantic-0.4.1.tar.gz", hash = "sha256:218df347563ce91d6214614310723db986e9de38f2bd0f683368a78fd0761a7a", size = 40975 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/65/54ac92e3d1346ff21bb7e5b15078046fea552517c2d5d0184e5643074f36/json_schema_to_pydantic-0.4.1-py3-none-any.whl", hash = "sha256:83ecc23c4f44ad013974bd9dfef6475097ea130dc83872d0152f93a953f56564", size = 12969 },
 ]
 
 [[package]]
@@ -2862,11 +2874,11 @@ wheels = [
 
 [[package]]
 name = "types-protobuf"
-version = "6.30.2.20250822"
+version = "5.29.1.20250403"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/61/68/0c7144be5c6dc16538e79458839fc914ea494481c7e64566de4ecc0c3682/types_protobuf-6.30.2.20250822.tar.gz", hash = "sha256:faacbbe87bd8cba4472361c0bd86f49296bd36f7761e25d8ada4f64767c1bde9", size = 62379 }
+sdist = { url = "https://files.pythonhosted.org/packages/78/6d/62a2e73b966c77609560800004dd49a926920dd4976a9fdd86cf998e7048/types_protobuf-5.29.1.20250403.tar.gz", hash = "sha256:7ff44f15022119c9d7558ce16e78b2d485bf7040b4fadced4dd069bb5faf77a2", size = 59413 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/64/b926a6355993f712d7828772e42b9ae942f2d306d25072329805c374e729/types_protobuf-6.30.2.20250822-py3-none-any.whl", hash = "sha256:5584c39f7e36104b5f8bdfd31815fa1d5b7b3455a79ddddc097b62320f4b1841", size = 76523 },
+    { url = "https://files.pythonhosted.org/packages/69/e3/b74dcc2797b21b39d5a4f08a8b08e20369b4ca250d718df7af41a60dd9f0/types_protobuf-5.29.1.20250403-py3-none-any.whl", hash = "sha256:c71de04106a2d54e5b2173d0a422058fae0ef2d058d70cf369fb797bf61ffa59", size = 73874 },
 ]
 
 [[package]]
