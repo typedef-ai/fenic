@@ -8,6 +8,7 @@ import pydantic
 import pytest
 
 import fenic as fc
+from fenic.api.session import Session
 from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.types import IntegerType, JsonType, StringType, StructField, StructType
 
@@ -15,7 +16,7 @@ from fenic.core.types import IntegerType, JsonType, StringType, StructField, Str
 class TestAsyncUDF:
     """Test cases for async UDF functionality."""
 
-    def test_basic_async_udf(self):
+    def test_basic_async_udf(self, local_session: Session):
         """Test basic async UDF with simple addition."""
 
         @fc.async_udf(
@@ -28,15 +29,13 @@ class TestAsyncUDF:
             await asyncio.sleep(0.1)
             return x + y
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_basic"))
-
         data = [
             {"a": 1, "b": 2},
             {"a": 3, "b": 4},
             {"a": 5, "b": 6},
         ]
 
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
         result = df.select(
             fc.col("a"),
             fc.col("b"),
@@ -51,7 +50,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_concurrency(self):
+    def test_async_udf_concurrency(self, local_session: Session):
         """Test that async UDF respects concurrency limits."""
         call_times = []
 
@@ -69,12 +68,10 @@ class TestAsyncUDF:
             call_times.append(("end", end, x))
             return x * 2
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_concurrency"))
-
         # With 5 items and max_concurrency=2, should take ~0.6 seconds
         # (3 batches: 2, 2, 1)
         data = [{"x": i} for i in range(1, 6)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         start_time = time.time()
         result = df.select(
@@ -91,7 +88,7 @@ class TestAsyncUDF:
         assert elapsed >= 0.5, f"Expected at least 0.5s, got {elapsed:.2f}s"
         assert elapsed < 1.0, f"Expected less than 1.0s, got {elapsed:.2f}s"
 
-    def test_async_udf_with_failures(self):
+    def test_async_udf_with_failures(self, local_session: Session):
         """Test async UDF handling of individual failures."""
 
         @fc.async_udf(
@@ -106,10 +103,8 @@ class TestAsyncUDF:
             await asyncio.sleep(0.05)
             return x * 10
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_failures"))
-
         data = [{"x": i} for i in range(1, 6)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -127,7 +122,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_with_retries(self):
+    def test_async_udf_with_retries(self, local_session: Session):
         """Test async UDF retry logic."""
         attempt_counts = {}
 
@@ -149,10 +144,8 @@ class TestAsyncUDF:
             await asyncio.sleep(0.02)
             return x * 100
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_retries"))
-
         data = [{"x": i} for i in range(1, 5)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -174,7 +167,7 @@ class TestAsyncUDF:
         assert attempt_counts[3] == 2  # One retry
         assert attempt_counts[4] == 2  # One retry
 
-    def test_async_udf_with_timeout(self):
+    def test_async_udf_with_timeout(self, local_session: Session):
         """Test async UDF timeout handling."""
 
         @fc.async_udf(
@@ -190,10 +183,8 @@ class TestAsyncUDF:
                 await asyncio.sleep(0.05)  # Won't timeout
             return x * 1000
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_timeout"))
-
         data = [{"x": i} for i in range(1, 5)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -210,7 +201,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_with_struct_return(self):
+    def test_async_udf_with_struct_return(self, local_session: Session):
         """Test async UDF returning struct types."""
 
         @fc.async_udf(
@@ -231,10 +222,8 @@ class TestAsyncUDF:
                 "status": "even" if x % 2 == 0 else "odd"
             }
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_struct"))
-
         data = [{"x": i} for i in range(1, 4)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -249,7 +238,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_multiple_async_udfs(self):
+    def test_multiple_async_udfs(self, local_session: Session):
         """Test multiple async UDFs in the same query."""
 
         @fc.async_udf(
@@ -272,10 +261,8 @@ class TestAsyncUDF:
             await asyncio.sleep(0.02)
             return x * 3
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_multiple_async_udfs"))
-
         data = [{"x": i} for i in range(1, 4)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -291,7 +278,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_with_none_handling(self):
+    def test_async_udf_with_none_handling(self, local_session: Session):
         """Test async UDF handling of None inputs."""
 
         @fc.async_udf(
@@ -306,8 +293,6 @@ class TestAsyncUDF:
             await asyncio.sleep(0.02)
             return x + 100
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_none"))
-
         data = [
             {"x": 1},
             {"x": None},
@@ -316,7 +301,7 @@ class TestAsyncUDF:
             {"x": 5},
         ]
 
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
         result = df.select(
             fc.col("x"),
             handle_none(fc.col("x")).alias("result")
@@ -332,7 +317,7 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_single_argument(self):
+    def test_async_udf_single_argument(self, local_session: Session):
         """Test async UDF with single argument."""
 
         @fc.async_udf(
@@ -345,10 +330,8 @@ class TestAsyncUDF:
             await asyncio.sleep(0.02)
             return f"Number: {x}"
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_single_arg"))
-
         data = [{"x": i} for i in range(1, 4)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         result = df.select(
             fc.col("x"),
@@ -363,18 +346,17 @@ class TestAsyncUDF:
 
         assert result == expected
 
-    def test_async_udf_without_decorator(self):
+    def test_async_udf_without_decorator(self, local_session: Session):
         """Test @async_udf without decorator syntax."""
         async def simple_func(x: int) -> int:
             return x * 2
         async_udf = fc.async_udf(simple_func, return_type=IntegerType)
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_without_decorator"))
-        df = session.create_dataframe([{"x": i} for i in range(1, 4)])
+        df = local_session.create_dataframe([{"x": i} for i in range(1, 4)])
         result = df.select(fc.col("x"), async_udf(fc.col("x")).alias("result")).to_pylist()
         expected = [{"x": 1, "result": 2}, {"x": 2, "result": 4}, {"x": 3, "result": 6}]
         assert result == expected
 
-    def test_async_udf_concurrency_performance_comparison(self):
+    def test_async_udf_concurrency_performance_comparison(self, local_session: Session):
         """Test that higher concurrency is faster than serial execution."""
 
         @fc.async_udf(
@@ -397,11 +379,9 @@ class TestAsyncUDF:
             await asyncio.sleep(0.1)  # Same 100ms per call
             return x * 10
 
-        session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_performance"))
-
         # Test data - 10 items
         data = [{"x": i} for i in range(1, 11)]
-        df = session.create_dataframe(data)
+        df = local_session.create_dataframe(data)
 
         # Test serial execution (concurrency=1)
         start_time = time.time()
@@ -452,12 +432,11 @@ class TestAsyncUDF:
             def simple_func(x: int) -> int:
                 return x * 2
 
-    def test_async_udf_with_wrong_return_type_errors(self):
+    def test_async_udf_with_wrong_return_type_errors(self, local_session: Session):
         """Test @async_udf with wrong return type errors."""
 
         with pytest.raises(ExecutionError):
-            session = fc.Session.get_or_create(fc.SessionConfig(app_name="test_async_udf_with_wrong_return_type_errors"))
-            df = session.create_dataframe([{"x": i} for i in range(1, 4)])
+            df = local_session.create_dataframe([{"x": i} for i in range(1, 4)])
             @fc.async_udf(return_type=IntegerType)
             async def simple_func(x: int) -> str:
                 return "hello"

@@ -10,7 +10,7 @@ from fenic.api.session.config import OpenAILanguageModel
 from fenic.core.error import SessionError
 
 
-def test_multiple_sessions(local_session_config):
+def test_multiple_sessions(tmp_path, local_session_config):
     session = Session.get_or_create(local_session_config)
     session2 = Session.get_or_create(local_session_config)
 
@@ -21,6 +21,7 @@ def test_multiple_sessions(local_session_config):
             language_models={"mini": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000)},
             default_language_model="mini"
         ),
+        db_path=tmp_path,
     )
     session3 = Session.get_or_create(session_config3)
 
@@ -28,13 +29,13 @@ def test_multiple_sessions(local_session_config):
     session.stop()
     session3.stop()
 
-    with pytest.raises(SessionError):
+    with pytest.raises(SessionError, match="This session 'test_app' has been stopped"):
         df = session.create_dataframe(
             pl.DataFrame({"name": ["Alice", "Bob"], "age": [25, 30]})
         )
         df.to_polars()
 
-    with pytest.raises(SessionError):
+    with pytest.raises(SessionError, match="This session 'semantic_test2' has been stopped"):
         df = session3.create_dataframe(
             pl.DataFrame({"name": ["Alice", "Bob"], "age": [25, 30]})
         )
@@ -44,7 +45,7 @@ def test_multiple_sessions(local_session_config):
 
     assert session != session4
 
-def test_combining_dataframes_from_different_sessions_raises():
+def test_combining_dataframes_from_different_sessions_raises(tmp_path):
     config1 = SessionConfig(
         app_name="test_session_1",
         semantic=SemanticConfig(
@@ -52,6 +53,7 @@ def test_combining_dataframes_from_different_sessions_raises():
                 "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
+        db_path=tmp_path,
     )
     config2 = SessionConfig(
         app_name="test_session_2",
@@ -60,6 +62,7 @@ def test_combining_dataframes_from_different_sessions_raises():
                 "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
+        db_path=tmp_path,
     )
     session1 = Session.get_or_create(config1)
     session2 = Session.get_or_create(config2)
@@ -84,12 +87,12 @@ def test_combining_dataframes_from_different_sessions_raises():
                     "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
                 },
             ),
+            db_path=tmp_path,
         )
         session3 = Session.get_or_create(config3)
         session3.sql("SELECT * FROM {df1} inner join {df2} on {df1}.name = {df2}.name", df1=df1, df2=df2)
 
-
-def test_stopped_session_remains_stopped_after_new_session_same_name():
+def test_stopped_session_remains_stopped_after_new_session_same_name(tmp_path):
     """Test that a stopped session remains stopped even when a new session with the same app_name is created."""
     config = SessionConfig(
         app_name="reused_app_name",
@@ -98,6 +101,7 @@ def test_stopped_session_remains_stopped_after_new_session_same_name():
                 "test_model": OpenAILanguageModel(model_name="gpt-4.1-mini", rpm=500, tpm=200_000),
             },
         ),
+        db_path=tmp_path,
     )
 
     # Create first session and keep a reference to it

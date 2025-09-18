@@ -36,20 +36,18 @@ class LocalSessionState(BaseSessionState):
     s3_session: Optional[boto3.Session] = None
     _model_registry: SessionModelRegistry
 
-    def __init__(
-            self,
-            config: ResolvedSessionConfig,
-    ):
+    def __init__(self, config: ResolvedSessionConfig):
         super().__init__(config)
         self.app_name = config.app_name
-        self.session_id = str(uuid.uuid4())  # Generate unique session ID
-        if config.db_path:
-            db_path = Path(config.db_path) / f"{config.app_name}.duckdb"
-        else:
-            db_path = Path(f"{config.app_name}.duckdb")
+        self.session_id = str(uuid.uuid4())
+
+        base_path = Path(config.db_path) if config.db_path else Path(".")
+        db_path = base_path / f"{config.app_name}.duckdb"
+        intermediate_db_path = base_path / f"_{config.app_name}_tmp_dfs.duckdb"
+
         self.duckdb_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(db_path)
         self._model_registry = self._configure_models(config.semantic)
-        self.intermediate_df_client = TempDFDBClient(self.app_name)
+        self.intermediate_df_client = TempDFDBClient(intermediate_db_path)
         self.s3_session = boto3.Session()
 
     def _configure_models(

@@ -957,13 +957,13 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test multiple parquet files with glob 
+    # Test multiple parquet files with glob
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public/names_and_occupations_*.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 30
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    # Test with a parquet file at commit 
+    # Test with a parquet file at commit
     parquet_path = "hf://datasets/typedef-ai/fenic-test-datasets-public@58138e6c12e70033f6e36307c7a149a1c13dfc38/names_and_occupations_2.parquet"
     df = session.read.parquet(parquet_path)
     assert df.count() == 10

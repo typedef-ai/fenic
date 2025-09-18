@@ -160,7 +160,7 @@ def embedding_model_name_and_dimensions(local_session) -> Tuple[str, int]:
     return embedding_model_name, embedding_dimensions
 
 @pytest.fixture
-def examples_session_config(app_name, request) -> SessionConfig:
+def examples_session_config(tmp_path, app_name, request) -> SessionConfig:
     """Creates a test session config."""
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
@@ -169,6 +169,7 @@ def examples_session_config(app_name, request) -> SessionConfig:
 
     return SessionConfig(
         app_name=app_name,
+        db_path=tmp_path,
         semantic=SemanticConfig(
             language_models={
                 "default": language_model,
@@ -179,7 +180,7 @@ def examples_session_config(app_name, request) -> SessionConfig:
 
 
 @pytest.fixture
-def multi_model_local_session_config(app_name, request) -> SessionConfig:
+def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConfig:
     """Creates a test session config."""
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
@@ -226,6 +227,7 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
         raise ValueError(f"Unsupported language model provider: {language_model_provider}")
     return SessionConfig(
         app_name=app_name,
+        db_path=tmp_path,
         semantic=SemanticConfig(
             language_models=language_models,
             default_language_model="model_1",
@@ -236,18 +238,16 @@ def multi_model_local_session_config(app_name, request) -> SessionConfig:
 
 
 @pytest.fixture
-def multi_model_local_session(multi_model_local_session_config, request):
+def multi_model_local_session(multi_model_local_session_config):
     """Creates a test session."""
     configure_logging()
     session = Session.get_or_create(multi_model_local_session_config)
     yield session
     session.stop()
-    if os.path.exists(f"{multi_model_local_session_config.app_name}.duckdb"):
-        os.remove(f"{multi_model_local_session_config.app_name}.duckdb")
 
 
 @pytest.fixture
-def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
+def local_session_config(tmp_path, app_name, request, monkeypatch) -> SessionConfig:
     """Creates a test session config.
 
     Notes:
@@ -263,6 +263,7 @@ def local_session_config(app_name, request, monkeypatch) -> SessionConfig:
     embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
     return SessionConfig(
         app_name=app_name,
+        db_path=tmp_path,
         semantic=SemanticConfig(
             language_models={
                 "test_model": language_model,
@@ -404,15 +405,12 @@ def configure_embedding_model(model_provider: ModelProvider, model_name: str) ->
 
 
 @pytest.fixture
-def local_session(local_session_config, request):
+def local_session(local_session_config):
     """Creates a test session."""
     configure_logging()
     session = Session.get_or_create(local_session_config)
     yield session
     session.stop()
-    if os.path.exists(f"{local_session_config.app_name}.duckdb"):
-        os.remove(f"{local_session_config.app_name}.duckdb")
-
 
 @pytest.fixture
 def temp_dir(request):
