@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from fenic._constants import MINUTE_IN_SECONDS
+from fenic.core.error import ExecutionError
 
 
 @dataclass
@@ -86,8 +87,12 @@ class RateLimitStrategy(ABC):
 
         Returns:
             bool: True if there was enough capacity and it was consumed, False otherwise.
+
+        Raises:
+            ConfigurationError: If there is insufficient capacity to handle the request.
         """
         pass
+
 
     @abstractmethod
     def context_tokens_per_minute(self) -> int:
@@ -137,6 +142,7 @@ class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
             bool: True if there was enough capacity and it was consumed, False otherwise.
         """
         now = time.time()
+        self._check_max_rate_limits(token_estimate)
         available_tokens = self.unified_tokens_bucket._get_available_capacity(now)
         available_requests = self.requests_bucket._get_available_capacity(now)
         has_request_capacity = available_requests >= 1
@@ -149,6 +155,12 @@ class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
             self.requests_bucket._set_capacity(available_requests, now)
 
         return has_capacity
+
+    def _check_max_rate_limits(self, token_estimate: TokenEstimate):
+        """Checks if the strategy is configured with enough capacity to handle the request.
+        """
+        if self.tpm < token_estimate.total_tokens:
+            raise ExecutionError(f"Insufficient capacity to handle the request. TPM limit is {self.tpm} but request requires an estimated {token_estimate.total_tokens} tokens.  Please configure the model with more capacity.")
 
     def context_tokens_per_minute(self) -> int:
         """Returns the total token rate limit per minute.
@@ -207,6 +219,7 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
             bool: True if there was enough capacity and it was consumed, False otherwise.
         """
         now = time.time()
+        self._check_max_rate_limits(token_estimate)
         available_input_tokens = self.input_tokens_bucket._get_available_capacity(now)
         available_requests = self.requests_bucket._get_available_capacity(now)
         available_output_tokens = self.output_tokens_bucket._get_available_capacity(now)
@@ -222,6 +235,14 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
             self.output_tokens_bucket._set_capacity(available_output_tokens, now)
             self.requests_bucket._set_capacity(available_requests, now)
         return has_capacity
+
+    def _check_max_rate_limits(self, token_estimate: TokenEstimate):
+        """Checks if the strategy is configured with enough capacity to handle the request.
+        """
+        if self.input_tpm < token_estimate.input_tokens:
+            raise ExecutionError(f"Insufficient capacity to handle the request. Input TPM limit is {self.input_tpm} but request requires an estimated {token_estimate.input_tokens} input tokens.  Please configure the model with more capacity.")
+        if self.output_tpm < token_estimate.output_tokens:
+            raise ExecutionError(f"Insufficient capacity to handle the request. Output TPM limit is {self.output_tpm} but request requires an estimated {token_estimate.output_tokens} output tokens.  Please configure the model with more capacity.")
 
     def context_tokens_per_minute(self) -> int:
         """Returns the total token rate limit per minute.

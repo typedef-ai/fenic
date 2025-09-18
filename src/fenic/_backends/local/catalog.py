@@ -84,8 +84,11 @@ class LocalCatalog(BaseCatalog):
     All table reads and writes go through this class for unified table name canonicalization.
 
     Thread Safety:
-    - Catalog metadata operations (e.g., current database access) are protected by locks
     - DuckDB handles concurrent table read/write access internally via MVCC and optimistic concurrency control
+    - Locking Rules:
+    * Write operations (create/drop/update) are locked to prevent race conditions in check-then-act patterns
+    * Read operations do NOT require locks (DuckDB handles concurrent reads via MVCC)
+    * Catalog metadata operations (e.g., current database access/modification) are protected by locks
     - Each thread must use its own cursor for concurrent operations to avoid segfaults
     See: https://duckdb.org/docs/stable/guides/python/multiple_threads.html#reader-and-writer-functions
     """
@@ -212,17 +215,16 @@ class LocalCatalog(BaseCatalog):
 
     def list_databases(self) -> List[str]:
         """Get a list of all databases in the current catalog."""
-        with self.lock:
-            try:
-                cursor = self.db_conn.cursor()
-                schemas = cursor.execute(
-                    "SELECT schema_name FROM duckdb_schemas();"
-                ).fetchall()
-                return [
-                    schema[0] for schema in schemas if schema[0] not in DB_IGNORE_LIST
-                ]
-            except Exception as e:
-                raise CatalogError("Failed to list databases") from e
+        try:
+            cursor = self.db_conn.cursor()
+            schemas = cursor.execute(
+                "SELECT schema_name FROM duckdb_schemas();"
+            ).fetchall()
+            return [
+                schema[0] for schema in schemas if schema[0] not in DB_IGNORE_LIST
+            ]
+        except Exception as e:
+            raise CatalogError("Failed to list databases") from e
 
     def set_current_database(self, database_name: str) -> None:
         """Set the current database in the current catalog."""
@@ -235,65 +237,63 @@ class LocalCatalog(BaseCatalog):
 
     def does_table_exist(self, table_name: str) -> bool:
         """Checks if a table with the specified name exists."""
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            return self._does_table_exist(self.db_conn.cursor(), table_identifier)
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        return self._does_table_exist(self.db_conn.cursor(), table_identifier)
 
     def does_view_exist(self, view_name: str) -> bool:
         """Checks if a view with the specified name exists in the current database."""
-        with self.lock:
-            view_identifier = TableIdentifier.from_string(view_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(view_identifier)
-            try:
-                views = self.system_tables.get_view(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
-                return views is not None
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
-                ) from e
+        view_identifier = TableIdentifier.from_string(view_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(view_identifier)
+        try:
+            views = self.system_tables.get_view(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
+            return views is not None
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
+            ) from e
 
     def list_tables(self) -> List[str]:
         """Get a list of all tables in the current database."""
-        with self.lock:
-            cursor = self.db_conn.cursor()
-            try:
-                result = cursor.execute(
-                    """
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_schema = ?
-                      AND table_type = 'BASE TABLE'
-                    """,
-                    (self.get_current_database(),),
-                )
-                result_list = result.fetchall()
+        current_db = self.get_current_database()
+        cursor = self.db_conn.cursor()
+        try:
+            result = cursor.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = ?
+                    AND table_type = 'BASE TABLE'
+                """,
+                (current_db,),
+            )
+            result_list = result.fetchall()
 
-                if len(result_list) > 0:
-                    return [str(element[0]) for element in result_list]
-                return []
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to list tables in database '{self.get_current_database()}'"
-                ) from e
+            if len(result_list) > 0:
+                return [str(element[0]) for element in result_list]
+            return []
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to list tables in database '{current_db}'"
+            ) from e
 
     def list_views(self) -> List[str]:
         """Get a list of all views in the current database."""
-        with self.lock:
-            try:
-                result_list = self.system_tables.list_views(self.db_conn.cursor(), self.get_current_database())
+        current_db = self.get_current_database()
+        try:
+            result_list = self.system_tables.list_views(self.db_conn.cursor(), current_db)
 
-                if len(result_list) > 0:
-                    return [str(element[0]) for element in result_list]
-                return []
-            except Exception as e:
-                raise CatalogError(
-                    f"Failed to list views in database '{self.get_current_database()}'"
-                ) from e
+            if len(result_list) > 0:
+                return [str(element[0]) for element in result_list]
+            return []
+        except Exception as e:
+            raise CatalogError(
+                f"Failed to list views in database '{self.get_current_database()}'"
+            ) from e
 
     # Descriptions
     def set_table_description(self, table_name: str, description: Optional[str]) -> None:
@@ -315,52 +315,48 @@ class LocalCatalog(BaseCatalog):
 
     def get_table_description(self, table_name: str) -> Optional[str]:
         """Get description of the specified table."""
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        return self.system_tables.get_table_description(self.db_conn.cursor(), table_identifier.db, table_identifier.table)
 
     def describe_view(self, view_name: str) -> DatasetMetadata:
         """Get the schema and description of the specified view."""
-        with self.lock:
-            view_identifier = TableIdentifier.from_string(view_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(view_identifier)
-            return self.system_tables.get_view_metadata(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
+        view_identifier = TableIdentifier.from_string(view_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(view_identifier)
+        return self.system_tables.get_view_metadata(self.db_conn.cursor(), view_identifier.db, view_identifier.table)
 
     def describe_table(self, table_name: str) -> DatasetMetadata:
         """Get the schema and description of the specified table."""
-        with self.lock:
-            table_identifier = TableIdentifier.from_string(table_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(table_identifier)
-            maybe_table_metadata = self.system_tables.get_table_metadata(
-                self.db_conn.cursor(), table_identifier.db, table_identifier.table
-            )
-            if maybe_table_metadata is None:
-                raise TableNotFoundError(table_identifier.table, table_identifier.db)
-            return maybe_table_metadata
+        table_identifier = TableIdentifier.from_string(table_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(table_identifier)
+        maybe_table_metadata = self.system_tables.get_table_metadata(
+            self.db_conn.cursor(), table_identifier.db, table_identifier.table
+        )
+        if maybe_table_metadata is None:
+            raise TableNotFoundError(table_identifier.table, table_identifier.db)
+        return maybe_table_metadata
 
     def get_view_plan(self, view_name: str) -> LogicalPlan:
         """Get the LogicalPlan for the specified view."""
-        with self.lock:
-            view_identifier = TableIdentifier.from_string(view_name).enrich(
-                self.get_current_catalog(),
-                self.get_current_database())
-            _verify_table_catalog(view_identifier)
-            try:
-                maybe_views = self.system_tables.get_view(
-                    self.db_conn.cursor(), view_identifier.db, view_identifier.table
-                )
-                if maybe_views is None:
-                    raise TableNotFoundError(view_identifier.table, view_identifier.db)
-                return maybe_views
-            except Exception as e:
-                raise CatalogError(f"Failed to describe view: {view_name}") from e
+        view_identifier = TableIdentifier.from_string(view_name).enrich(
+            self.get_current_catalog(),
+            self.get_current_database())
+        _verify_table_catalog(view_identifier)
+        try:
+            maybe_views = self.system_tables.get_view(
+                self.db_conn.cursor(), view_identifier.db, view_identifier.table
+            )
+            if maybe_views is None:
+                raise TableNotFoundError(view_identifier.table, view_identifier.db)
+            return maybe_views
+        except Exception as e:
+            raise CatalogError(f"Failed to describe view: {view_name}") from e
 
     def drop_table(self, table_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a table."""
@@ -531,14 +527,15 @@ class LocalCatalog(BaseCatalog):
     ) -> bool:
         """Create a new tool in the current catalog."""
         # Ensure the tool is valid by resolving it.
-        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
-        cursor = self.db_conn.cursor()
-        if self.system_tables.get_tool(cursor, tool_name):
-            if ignore_if_exists:
-                return False
-            raise ToolAlreadyExistsError(tool_name)
-        self.system_tables.save_tool(cursor, tool_definition)
-        return True
+        with self.lock:
+            tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+            cursor = self.db_conn.cursor()
+            if self.system_tables.get_tool(cursor, tool_name):
+                if ignore_if_exists:
+                    return False
+                raise ToolAlreadyExistsError(tool_name)
+            self.system_tables.save_tool(cursor, tool_definition)
+            return True
 
     def list_tools(self) -> List[ParameterizedToolDefinition]:
         """List all tools in the current catalog."""
@@ -547,12 +544,13 @@ class LocalCatalog(BaseCatalog):
 
     def drop_tool(self, tool_name: str, ignore_if_not_exists: bool = True) -> bool:
         """Drop a tool from the current catalog."""
-        cursor = self.db_conn.cursor()
-        if not self.system_tables.get_tool(cursor, tool_name):
-            if ignore_if_not_exists:
-                return False
-            raise ToolNotFoundError(tool_name)
-        return self.system_tables.delete_tool(cursor, tool_name)
+        with self.lock:
+            cursor = self.db_conn.cursor()
+            if not self.system_tables.get_tool(cursor, tool_name):
+                if ignore_if_not_exists:
+                    return False
+                raise ToolNotFoundError(tool_name)
+            return self.system_tables.delete_tool(cursor, tool_name)
 
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""

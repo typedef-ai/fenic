@@ -335,18 +335,20 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
             )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
         if model_parameters.supports_reasoning:
+            profiles = {
+                "auto": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1),
+                "low": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
+                "medium": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096),
+                "high": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=8192),
+            }
+            if model_parameters.supports_disabled_reasoning:
+                profiles["thinking_disabled"] = GoogleDeveloperLanguageModel.Profile()
             language_model = GoogleDeveloperLanguageModel(
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
-                profiles={
-                    "thinking_disabled": GoogleDeveloperLanguageModel.Profile(),
-                    "auto": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1),
-                    "low": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
-                    "medium": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096),
-                    "high": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=8192),
-                },
-                default_profile="auto",
+                profiles=profiles,
+                default_profile="thinking_disabled" if "thinking_disabled" in profiles else "auto",
             )
         else:
             language_model = GoogleDeveloperLanguageModel(

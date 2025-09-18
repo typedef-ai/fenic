@@ -341,10 +341,6 @@ class Session:
         """
         self._session_state.stop()
 
-
-# Session.create_dataframe = validate_call(
-#     config=ConfigDict(strict=True, arbitrary_types_allowed=True)
-# )(Session.create_dataframe)
 Session.createDataFrame = Session.create_dataframe
 Session.get_or_create = validate_call(config=ConfigDict(strict=True))(
     Session.get_or_create
