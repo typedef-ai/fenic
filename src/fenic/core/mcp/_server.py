@@ -16,7 +16,7 @@ from functools import wraps
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
 
 import polars as pl
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Annotated, Literal
 
 from fenic.core._interfaces.session_state import BaseSessionState
@@ -38,6 +38,7 @@ from fenic.core.mcp.types import (
     SystemTool,
     TableFormat,
     UserDefinedTool,
+    ToolParamConstraints,
 )
 from fenic.core.types.datatypes import ArrayType
 from fenic.logging import configure_logging
@@ -216,28 +217,39 @@ class FenicMCPServer:
             # Add one keyword-only parameter per tool param
             for param in tool_definition.params:
                 param_type = _type_for_param(param)
-                param_annotation = _annotate_with_description(param_type, param.description)
                 default_value = param.default_value if param.has_default else inspect._empty
+                param_annotation = _annotate_with_description(param_type, param.description, param.constraints)
                 params.append(
                     inspect.Parameter(
                         name=param.name,
                         kind=inspect.Parameter.KEYWORD_ONLY,
-                        default=default_value,
                         annotation=param_annotation,
+                        default=default_value,
                     )
                 )
                 annotations[param.name] = param_annotation
 
             # Add table_format and limit just like system tools
-            tf_ann = Annotated[TableFormat, (
-                TABLE_FORMAT_DESCRIPTION
-            )]
-            lim_ann = Annotated[Optional[Union[str, int]], LIMIT_DESCRIPTION]
+            tf_ann = Annotated[
+                TableFormat,
+                Field(
+                    description=TABLE_FORMAT_DESCRIPTION,
+                    default="markdown"
+                )
+            ]
+            lim_ann = Annotated[
+                Optional[Union[str, int]],
+                Field(
+                    description=LIMIT_DESCRIPTION,
+                    gt=0,
+                    le=tool_definition.max_result_limit,
+                    default=tool_definition.max_result_limit
+                )
+            ]
             params.append(
                 inspect.Parameter(
                     name="table_format",
                     kind=inspect.Parameter.KEYWORD_ONLY,
-                    default="markdown",
                     annotation=tf_ann,
                 )
             )
@@ -384,10 +396,15 @@ def _type_for_param(p: BoundToolParam) -> type:
         base_py = Optional[base_py]
     return base_py
 
-def _annotate_with_description(base_ann: type, description: Optional[str] = None):
-    if description:
-        return Annotated[base_ann, description]
-    return base_ann
+def _annotate_with_description(
+    py_type: type,
+    description: Optional[str] = None,
+    constraints: Optional[ToolParamConstraints] = None
+) -> Union[type, Annotated[type, Field]]:
+    if description or constraints:
+        constraints_dict = constraints.model_dump() if constraints else {}
+        return Annotated[py_type, Field(description=description, **constraints_dict)]
+    return py_type
 
 def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     if not rows:

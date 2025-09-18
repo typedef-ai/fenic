@@ -4,7 +4,8 @@ import logging
 from collections import defaultdict
 from typing import Optional
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import AfterValidator, BaseModel, Field, create_model
+from typing_extensions import Annotated as TypingAnnotated
 from typing_extensions import Literal
 
 from fenic.core._logical_plan import walker
@@ -12,6 +13,7 @@ from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.type_inference import infer_pytype_from_dtype
 from fenic.core.error import PlanError
+from fenic.core.mcp._validators import get_param_validator, maybe_get_param_validator
 from fenic.core.mcp.types import (
     BoundToolParam,
     TableFormat,
@@ -76,6 +78,24 @@ def bind_tool(
                 raise PlanError(
                     f"Allowed values {tool_param_model.allowed_values} must all be the same type as the default value {type(tool_param_model.default_value).__name__}"
                 )
+        validators = []
+        if tool_param_model.validator_names:
+            missing_validators = []
+            for validator_name in tool_param_model.validator_names:
+                try:
+                    validator = get_param_validator(validator_name)
+                    if unresolved_expr.data_type not in validator.data_types():
+                        raise PlanError(
+                            f"Param Validator {validator_name} supports data types {validator.data_types()}, "
+                            f"but the parameter {unresolved_expr_name} has data type {unresolved_expr.data_type}."
+                        )
+                    validators.append(validator)
+                except KeyError:
+                    missing_validators.append(validator_name)
+            if missing_validators:
+                raise PlanError(
+                    f"Could not find a ParamValidator for the following validator names: {missing_validators}"
+                )
 
         resolved_params.append(
             BoundToolParam(
@@ -86,6 +106,8 @@ def bind_tool(
                 has_default=tool_param_model.has_default,
                 default_value=tool_param_model.default_value,
                 allowed_values=tool_param_model.allowed_values,
+                constraints=tool_param_model.constraints,
+                validators=validators,
             )
         )
 
@@ -102,28 +124,70 @@ def create_pydantic_model_for_tool(tool: UserDefinedTool) -> type[BaseModel]:
     """Create a Pydantic model for a tool."""
     model_name = f"{tool.name}_Params"
     model_fields = {}
-    for param in tool.params:
-        if param.allowed_values:
-            literal_values = tuple(param.allowed_values)
+
+    def _infer_base_type(p: BoundToolParam):
+        if p.allowed_values:
+            literal_values = tuple(p.allowed_values)
             literal_type = Literal[literal_values]  # type: ignore[valid-type]
-            if isinstance(param.data_type, ArrayType):
-                literal_type = list[literal_type]  # type: ignore[valid-type]
-            if param.has_default:
-                model_fields[param.name] = (
-                    Optional[literal_type],
-                    Field(default=param.default_value, description=param.description),
-                )
-            else:
-                model_fields[param.name] = (literal_type, Field(..., description=param.description))
+            if isinstance(p.data_type, ArrayType):
+                return list[literal_type]  # type: ignore[valid-type]
+            return literal_type
+        return infer_pytype_from_dtype(p.data_type)
+
+    def _wrap_with_validator(base_t, validator_name: Optional[str]):
+        if not validator_name:
+            return base_t
+        pv = maybe_get_param_validator(validator_name)
+        if pv is None:
+            return base_t
+        def _wrap(v, _pv=pv):
+            _pv.validate(v)
+            return v
+        return TypingAnnotated[base_t, AfterValidator(_wrap)]  # type: ignore[valid-type]
+
+    def _field_kwargs(p: BoundToolParam, include_default: bool) -> dict:
+        kwargs: dict = {"description": p.description}
+        constraints = p.constraints
+        if constraints is not None:
+            if constraints.gt is not None:
+                kwargs["gt"] = constraints.gt
+            if constraints.ge is not None:
+                kwargs["ge"] = constraints.ge
+            if constraints.lt is not None:
+                kwargs["lt"] = constraints.lt
+            if constraints.le is not None:
+                kwargs["le"] = constraints.le
+            if constraints.multiple_of is not None:
+                kwargs["multiple_of"] = constraints.multiple_of
+            if constraints.min_length is not None:
+                kwargs["min_length"] = constraints.min_length
+            if constraints.max_length is not None:
+                kwargs["max_length"] = constraints.max_length
+            if constraints.pattern is not None:
+                kwargs["pattern"] = constraints.pattern
+        if include_default:
+            kwargs["default"] = p.default_value
+        return kwargs
+
+    for param in tool.params:
+
+        def validate_param(input, param=param):
+            for validator in param.validators:
+                validator.validate(input)
+            return input
+
+        base_type = _infer_base_type(param)
+        annotated_type = TypingAnnotated[base_type, AfterValidator(validate_param)]
+        if param.has_default:
+            model_fields[param.name] = (
+                Optional[annotated_type],
+                Field(**_field_kwargs(param, include_default=True)),
+            )
         else:
-            py_type = infer_pytype_from_dtype(param.data_type)
-            if param.has_default:
-                model_fields[param.name] = (
-                    Optional[py_type],
-                    Field(default=param.default_value, description=param.description),
-                )
-            else:
-                model_fields[param.name] = (py_type, Field(..., description=param.description))
+            model_fields[param.name] = (
+                annotated_type,
+                Field(..., **_field_kwargs(param, include_default=False)),
+            )
 
     model_fields["table_format"] = (
         TableFormat,

@@ -3,16 +3,39 @@ from __future__ import annotations
 
 from typing import Annotated, Callable, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.dataclasses import dataclass
 from typing_extensions import Literal
 
 from fenic.core._logical_plan.plans.base import LogicalPlan
+from fenic.core.mcp._validators import ParamValidator
 from fenic.core.types.datatypes import DataType
 
 ToolParameterType = Union[str, int, float, bool, list, dict]
 TableFormat = Literal["structured", "markdown"]
 
+
+class ToolParamConstraints(BaseModel):
+    """Serializable constraints to validate values supplied for this parameter.
+
+    These map directly to common Pydantic Field validators so they can be
+    serialized and later applied when constructing the Pydantic model used
+    to validate tool inputs.
+
+    Attributes:
+        gt, ge, lt, le: Numeric bounds.
+        multiple_of: Value must be a multiple of this number.
+        min_length, max_length: Length constraints for strings and sequences.
+        pattern: Regex pattern that input must match.
+    """
+    gt: Optional[float | int] = None
+    ge: Optional[float | int] = None
+    lt: Optional[float | int] = None
+    le: Optional[float | int] = None
+    multiple_of: Optional[float] = Field(default=None, gt=0)
+    min_length: Optional[int] = Field(default=None, ge=0)
+    max_length: Optional[int] = Field(default=None, ge=0)
+    pattern: Optional[str] = None
 
 class ToolParam(BaseModel):
     """A parameter for a parameterized view tool.
@@ -32,6 +55,8 @@ class ToolParam(BaseModel):
     allowed_values: Optional[List[ToolParameterType]] = None
     has_default: bool = False
     default_value: Optional[ToolParameterType] = None
+    constraints: Optional[ToolParamConstraints] = None
+    validator_names: Optional[List[str]] = None
 
     @model_validator(mode='after')
     def _check_default_value(self):
@@ -64,6 +89,8 @@ class BoundToolParam:
     has_default: bool
     default_value: Optional[ToolParameterType]
     allowed_values: Optional[List[ToolParameterType]]
+    constraints: Optional[ToolParamConstraints]
+    validators: List[ParamValidator]
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))

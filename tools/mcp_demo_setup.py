@@ -197,24 +197,28 @@ def main() -> None:
                 description="Regex pattern to match against education.",
                 has_default=True,
                 default_value=None,
+                validator_names=["regex"]
             ),
             ToolParam(
                 name="seniority_query",
                 description="Regex pattern to match against seniority.",
                 has_default=True,
                 default_value=None,
+                validator_names=["regex"]
             ),
             ToolParam(
                 name="skills_query",
                 description="Regex pattern to match against skills.",
                 has_default=True,
                 default_value=None,
+                validator_names=["regex"]
             ),
             ToolParam(
                 name="experience_query",
                 description="Regex pattern to match against experience.",
                 has_default=True,
                 default_value=None,
+                validator_names=["regex"]
             ),
             ToolParam(
                 name="job_category_query",
@@ -222,6 +226,7 @@ def main() -> None:
                 has_default=True,
                 default_value=None,
                 allowed_values=job_category_list,
+                validator_names=["regex"]
             ),
         ],
         result_limit=100,

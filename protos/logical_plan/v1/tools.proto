@@ -6,6 +6,24 @@ import "logical_plan/v1/datatypes.proto";
 import "logical_plan/v1/complex_types.proto";
 import "logical_plan/v1/plans.proto";
 
+message NumericConstraint {
+  oneof kind {
+    sint32 int_value = 1;
+    float float_value = 2;
+  }
+}
+
+message ToolParameterConstraints {
+  optional NumericConstraint gt = 1;
+  optional NumericConstraint ge = 2;
+  optional NumericConstraint lt = 3;
+  optional NumericConstraint le = 4;
+  optional NumericConstraint multiple_of = 5;
+
+  optional uint32 min_length = 6;
+  optional uint32 max_length = 7;
+  optional string pattern = 8;
+}
 
 message ToolParameter {
   string name = 1;
@@ -15,6 +33,8 @@ message ToolParameter {
   bool has_default = 5;
   optional ScalarValue default_value = 6;
   repeated ScalarValue allowed_values = 7;
+  optional ToolParameterConstraints constraints = 8;
+  repeated string validator_names = 9;
 }
 
 message ToolDefinition {

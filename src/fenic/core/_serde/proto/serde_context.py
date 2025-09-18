@@ -40,6 +40,7 @@ from fenic.core._serde.proto.types import (
     FenicSchemaProto,
     LogicalExprProto,
     LogicalPlanProto,
+    NumericConstraintProto,
     NumpyArrayProto,
     ResolvedClassDefinitionProto,
     ResolvedModelAliasProto,
@@ -49,12 +50,18 @@ from fenic.core._serde.proto.types import (
     ScalarStructProto,
     ScalarValueProto,
     ToolDefinitionProto,
+    ToolParameterConstraintsProto,
     ToolParameterProto,
 )
 from fenic.core._utils.structured_outputs import (
     check_if_model_uses_unserializable_features,
 )
-from fenic.core.mcp.types import BoundToolParam, UserDefinedTool
+from fenic.core.mcp._validators import get_param_validator
+from fenic.core.mcp.types import (
+    BoundToolParam,
+    UserDefinedTool,
+    ToolParamConstraints,
+)
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
@@ -884,6 +891,20 @@ class SerdeContext:
         """Serialize a ToolParameter."""
         with self.path_context(field_name):
             try:
+                c = tool_param.constraints
+                if c is not None:
+                    constraints = ToolParameterConstraintsProto(
+                        gt=_to_numeric_constraint(c.gt) if c.gt is not None else None,
+                        ge=_to_numeric_constraint(c.ge) if c.ge is not None else None,
+                        lt=_to_numeric_constraint(c.lt) if c.lt is not None else None,
+                        le=_to_numeric_constraint(c.le) if c.le is not None else None,
+                        multiple_of=_to_numeric_constraint(c.multiple_of) if c.multiple_of is not None else None,
+                        min_length=c.min_length,
+                        max_length=c.max_length,
+                        pattern=c.pattern,
+                    )
+                else:
+                    constraints = None
                 allowed_values = None
                 if tool_param.allowed_values:
                     allowed_values = [
@@ -898,6 +919,8 @@ class SerdeContext:
                     has_default=tool_param.has_default,
                     default_value=self.serialize_scalar_value("default_value", tool_param.default_value),
                     allowed_values=allowed_values,
+                    constraints=constraints,
+                    validator_names=[validator.name() for validator in tool_param.validators],
                 )
             except Exception as e:
                 self._handle_serde_error(e)
@@ -915,6 +938,20 @@ class SerdeContext:
                     allowed_values = [
                         self.deserialize_scalar_value("allowed_values", allowed_value) for allowed_value in
                         tool_param_proto.allowed_values]
+
+                constraints = None
+                if tool_param_proto.constraints is not None:
+                    c = tool_param_proto.constraints
+                    constraints = ToolParamConstraints(
+                        gt=_from_numeric_constraint(c.gt) if c.HasField("gt") else None,
+                        ge=_from_numeric_constraint(c.ge) if c.HasField("ge") else None,
+                        lt=_from_numeric_constraint(c.lt) if c.HasField("lt") else None,
+                        le=_from_numeric_constraint(c.le) if c.HasField("le") else None,
+                        multiple_of=_from_numeric_constraint(c.multiple_of) if c.HasField("multiple_of") else None,
+                        min_length=c.min_length if c.HasField("min_length") else None,
+                        max_length=c.max_length if c.HasField("max_length") else None,
+                        pattern=c.pattern if c.HasField("pattern") else None,
+                    )
                 return BoundToolParam(
                     name=tool_param_proto.name,
                     description=tool_param_proto.description,
@@ -923,6 +960,8 @@ class SerdeContext:
                     has_default=tool_param_proto.has_default,
                     default_value=self.deserialize_scalar_value("default_value", tool_param_proto.default_value),
                     allowed_values=allowed_values,
+                    constraints=constraints,
+                    validators=[get_param_validator(validator_name) for validator_name in tool_param_proto.validator_names],
                 )
             except Exception as e:
                 self._handle_serde_error(e)
@@ -1004,3 +1043,20 @@ class PathTracker:
     def clear(self) -> None:
         """Clear the entire path stack."""
         self._path_stack.clear()
+
+def _to_numeric_constraint(value):
+    if isinstance(value, int):
+        return NumericConstraintProto(int_value=value)
+    if isinstance(value, float):
+        return NumericConstraintProto(float_value=value)
+    return None
+
+def _from_numeric_constraint(nc: Optional[NumericConstraintProto]):
+    if nc is None:
+        return None
+    which = nc.WhichOneof("kind")
+    if which == "int_value":
+        return nc.int_value
+    if which == "float_value":
+        return nc.float_value
+    return None

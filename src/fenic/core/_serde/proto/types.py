@@ -575,10 +575,16 @@ from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     Unnest as UnnestProto,
 )
 from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
+    NumericConstraint as NumericConstraintProto,
+)
+from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
     ToolDefinition as ToolDefinitionProto,
 )
 from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
     ToolParameter as ToolParameterProto,
+)
+from fenic._gen.protos.logical_plan.v1.tools_pb2 import (
+    ToolParameterConstraints as ToolParameterConstraintsProto,
 )
 
 # Export all protobuf classes for easy importing
@@ -766,6 +772,9 @@ __all__ = [
     "TableSinkProto",
     # Tools
     "ToolParameterProto",
+    "ToolDefinitionProto",
+    "ToolParameterConstraintsProto",
+    "NumericConstraintProto",
     "ToolDefinitionProto",
     # Date time related classes
     "YearExprProto",
