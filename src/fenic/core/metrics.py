@@ -84,7 +84,6 @@ class OperatorMetrics:
         num_output_rows: Number of rows output by this operator
         execution_time_ms: Execution time in milliseconds
         lm_metrics: Language model usage metrics for this operator
-        is_cache_hit: Whether results were retrieved from cache
     """
 
     operator_id: str
@@ -92,7 +91,6 @@ class OperatorMetrics:
     execution_time_ms: float = 0.0
     lm_metrics: LMMetrics = field(default_factory=LMMetrics)
     rm_metrics: RMMetrics = field(default_factory=RMMetrics)
-    is_cache_hit: bool = False
 
 
 @dataclass
@@ -191,7 +189,6 @@ class QueryMetrics:
                 f"{indent_str}{op.operator_id}",
                 f"{indent_str}  Output Rows: {op.num_output_rows:,}",
                 f"{indent_str}  Execution Time: {op.execution_time_ms:.2f}ms",
-                f"{indent_str}  Cached: {op.is_cache_hit}",
             ]
 
             if op.lm_metrics.cost > 0:

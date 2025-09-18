@@ -59,7 +59,7 @@ class FileSourceExec(PhysicalPlan):
         self.options = options or {}
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        if child_dfs:
+        if len(child_dfs) != 0:
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
         file_format = self.file_format.lower()
@@ -157,6 +157,34 @@ class DocSourceExec(PhysicalPlan):
             valid_file_extension=self.valid_file_extension,
             exclude=self.exclude,
             recursive=self.recursive,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        df = self.execute_node([])
+        materialize_df = _with_lineage_uuid(df)
+        source_operator = self._build_source_operator_lineage(materialize_df)
+        leaf_nodes.append(source_operator)
+        return source_operator, materialize_df
+
+class CacheReadExec(PhysicalPlan):
+    def __init__(self, cache_key: str, session_state: LocalSessionState):
+        super().__init__(children=[], cache_info=None, session_state=session_state)
+        self.cache_key = cache_key
+
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        if len(child_dfs) != 0:
+            raise InternalError("Unreachable: CacheReadExec expects 0 children")
+        return self.session_state.intermediate_df_client.read_df(self.cache_key)
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 0:
+            raise InternalError("Unreachable: CacheReadExec expects 0 children")
+        return CacheReadExec(
+            cache_key=self.cache_key,
             session_state=self.session_state,
         )
 

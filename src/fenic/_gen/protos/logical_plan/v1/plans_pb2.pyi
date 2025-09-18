@@ -25,10 +25,10 @@ class ColumnField(_message.Message):
     def __init__(self, name: _Optional[str] = ..., data_type: _Optional[_Union[_datatypes_pb2.DataType, _Mapping]] = ...) -> None: ...
 
 class CacheInfo(_message.Message):
-    __slots__ = ("duckdb_table_name",)
-    DUCKDB_TABLE_NAME_FIELD_NUMBER: _ClassVar[int]
-    duckdb_table_name: str
-    def __init__(self, duckdb_table_name: _Optional[str] = ...) -> None: ...
+    __slots__ = ("cache_key",)
+    CACHE_KEY_FIELD_NUMBER: _ClassVar[int]
+    cache_key: str
+    def __init__(self, cache_key: _Optional[str] = ...) -> None: ...
 
 class LogicalPlan(_message.Message):
     __slots__ = ("schema", "cache_info", "in_memory_source", "file_source", "table_source", "doc_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")

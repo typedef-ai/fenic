@@ -403,8 +403,7 @@ class DataFrame:
             result2 = filtered_df.select("name", "salary")
             ```
         """
-        table_name = f"cache_{uuid.uuid4().hex}"
-        cache_info = CacheInfo(duckdb_table_name=table_name)
+        cache_info = CacheInfo(cache_key=f"cache_{uuid.uuid4().hex}")
         self._logical_plan.set_cache_info(cache_info)
         return self._from_logical_plan(
             self._logical_plan,

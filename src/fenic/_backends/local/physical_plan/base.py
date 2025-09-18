@@ -54,7 +54,6 @@ class PhysicalPlan(ABC):
                 - QueryMetrics object with execution statistics and LM usage metrics
         """
         # Step 1: Initialize query metrics state.
-        start_time = time.time()
         curr_operator_metrics = OperatorMetrics(operator_id=self.operator_id)
         plan_repr = PhysicalPlanRepr(operator_id=self.operator_id)
         all_operator_metrics: Dict[str, OperatorMetrics] = {
@@ -63,35 +62,7 @@ class PhysicalPlan(ABC):
         total_lm_metrics = LMMetrics()
         total_rm_metrics = RMMetrics()
 
-        # Step 2: If the table is cached, read from cache.
-        if self.cache_info:
-            is_df_cached = self.session_state.intermediate_df_client.is_df_cached(
-                self.cache_info.duckdb_table_name
-            )
-
-            if is_df_cached:
-                df = self.session_state.intermediate_df_client.read_df(
-                    self.cache_info.duckdb_table_name
-                )
-                curr_operator_metrics.is_cache_hit = True
-                curr_operator_metrics.num_output_rows = df.height
-                curr_operator_metrics.execution_time_ms = (
-                    time.time() - start_time
-                ) * 1000
-                cached_query_metrics = QueryMetrics(
-                    execution_id=execution_id,
-                    session_id=self.session_state.session_id,
-                    execution_time_ms=curr_operator_metrics.execution_time_ms,
-                    num_output_rows=curr_operator_metrics.num_output_rows,
-                    total_lm_metrics=total_lm_metrics,
-                    total_rm_metrics=total_rm_metrics,
-                    _plan_repr=plan_repr,
-                    _operator_metrics=all_operator_metrics,
-                )
-
-                return df, cached_query_metrics
-
-        # Step 3: Execute child operators and collect their metrics
+        # Step 2: Execute child operators and collect their metrics
         child_dfs = []
         child_execution_time = 0
         for child in self.children:
@@ -103,7 +74,7 @@ class PhysicalPlan(ABC):
             total_rm_metrics += child_metrics.total_rm_metrics
             child_execution_time += child_metrics.execution_time_ms
 
-        # Step 4: Execute the current operator - measure only the time spent in this operator
+        # Step 3: Execute the current operator - measure only the time spent in this operator
         operator_start_time = time.time()
         result_df = self.execute_node(child_dfs)
         operator_execution_time = (time.time() - operator_start_time) * 1000
@@ -116,10 +87,10 @@ class PhysicalPlan(ABC):
         curr_operator_metrics.rm_metrics = rm_metrics
         self.session_state.reset_model_metrics()
 
-        # Step 5: Write to cache if applicable.
-        if self.cache_info:
+        # Step 4: Write to cache if applicable.
+        if self.cache_info and not self.session_state.intermediate_df_client.is_df_cached(self.cache_info.cache_key):
             self.session_state.intermediate_df_client.write_df(
-                result_df, self.cache_info.duckdb_table_name
+                result_df, self.cache_info.cache_key
             )
 
         # Calculate total execution time for the query metrics
