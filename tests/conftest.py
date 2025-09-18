@@ -528,17 +528,17 @@ def _save_pdf_file(
             fontsize=12,
         )
 
-        if include_vectors and (random.choice([True, False]) or (not added_vectors and i == page_count)):
+        if include_vectors and (random.choice([True, False]) or (not added_vectors and i == page_count-1)):
             rect = fitz.Rect(100, 100, 200, 200) # x0, y0, x1, y1
             page.draw_rect(rect, color=(0, 0, 1), fill=(0.8, 0.8, 0.95))
             added_vectors = True
 
-        if include_images and (random.choice([True, False]) or (not added_images and i == page_count)):
+        if include_images and (random.choice([True, False]) or (not added_images and i == page_count-1)):
             rect = fitz.Rect(100, 200, 200, 300) # x0, y0, x1, y1
             page.insert_image(rect, pixmap=fitz.Pixmap(fitz.csRGB, fitz.IRect(0,0,100,100)))
             added_images = True
 
-        if include_forms and (random.choice([True, False]) or (not added_forms and i == page_count)):
+        if include_forms and (random.choice([True, False]) or (not added_forms and i == page_count-1)):
             rect = fitz.Rect(100, 400, 200, 500) # x0, y0, x1, y1
             widget = fitz.Widget()
             widget.field_name = f"field_{i}"
@@ -547,7 +547,7 @@ def _save_pdf_file(
             page.add_widget(widget)
             added_forms = True
 
-        if include_signatures and (random.choice([True, False]) or (not added_signatures and i == page_count)):
+        if include_signatures and (random.choice([True, False]) or (not added_signatures and i == page_count-1)):
             rect = fitz.Rect(100, 500, 200, 600) # x0, y0, x1, y1
             widget = fitz.Widget()
             widget.field_name = f"sig_{i}"
@@ -555,8 +555,6 @@ def _save_pdf_file(
             widget.rect = rect
             page.add_widget(widget)
             added_signatures = True
-
-
 
     # Metadata
     now = datetime.datetime.now().strftime("D:%Y%m%d%H%M%S")
