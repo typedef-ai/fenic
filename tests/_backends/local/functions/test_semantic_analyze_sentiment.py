@@ -71,10 +71,11 @@ def test_semantic_analyze_sentiment_with_none(local_session):
     for result in result_list[:4]:
         assert result in ["positive", "negative", "neutral"]
 
-def test_semantic_analyze_sentiment_without_models():
+def test_semantic_analyze_sentiment_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(
         app_name="semantic_analyze_sentiment_without_models",
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
@@ -86,6 +87,7 @@ def test_semantic_analyze_sentiment_without_models():
         semantic=SemanticConfig(
             embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):

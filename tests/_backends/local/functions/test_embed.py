@@ -64,10 +64,11 @@ def test_embedding_very_long_string(local_session, embedding_model_name_and_dime
             df.to_polars()
 
 
-def test_embedding_without_models():
+def test_embedding_without_models(tmp_path):
     """Test that an error is raised if no embedding models are configured."""
     session_config = SessionConfig(
         app_name="embedding_without_models",
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No embedding models configured."):
@@ -79,6 +80,7 @@ def test_embedding_without_models():
         semantic=SemanticConfig(
             language_models={"mini" :OpenAILanguageModel(model_name="gpt-4o-mini", rpm=500, tpm=200_000)},
         ),
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No embedding models configured."):

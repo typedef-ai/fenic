@@ -172,7 +172,7 @@ class TestMergeDuckDBNodesRule:
         sql1 = SQLExec(
             children=[source],
             query="SELECT * FROM source_table",
-            cache_info=CacheInfo(duckdb_table_name="cached_table"),  # Cache here
+            cache_info=CacheInfo(cache_key="cached_table"),  # Cache here
             session_state=session_state,
             arrow_view_names=["view1"]
         )
@@ -235,7 +235,7 @@ class TestMergeDuckDBNodesRule:
         sql3 = SQLExec(
             children=[sql2],
             query="SELECT * FROM sql2",
-            cache_info=CacheInfo(duckdb_table_name="cached_table"),  # Cache here
+            cache_info=CacheInfo(cache_key="cached_table"),  # Cache here
             session_state=session_state,
             arrow_view_names=["view3"]
         )

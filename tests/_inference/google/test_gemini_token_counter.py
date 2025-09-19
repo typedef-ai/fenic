@@ -2,10 +2,6 @@ import pytest
 
 pytest.importorskip("google.genai")
 
-import pytest
-
-pytest.importorskip("google.genai")
-
 from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
 from fenic._inference.types import FewShotExample, LMRequestMessages
 

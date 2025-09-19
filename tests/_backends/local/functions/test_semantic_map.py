@@ -163,10 +163,11 @@ def test_semantic_map_with_nulls(local_session):
     assert result_list[1] is not None
 
 
-def test_semantic_map_without_models():
+def test_semantic_map_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(
         app_name="semantic_map_without_models",
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
@@ -182,6 +183,7 @@ def test_semantic_map_without_models():
         semantic=SemanticConfig(
             embedding_models={"oai-small" :OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):

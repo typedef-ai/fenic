@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import polars as pl
@@ -12,17 +11,15 @@ class TempDFDBClient:
     Used for cached dataframes and intermediate dataframes used in lineage graphs.
     """
 
-    def __init__(self, app_name: str):
-        self.duckdb_path = Path(f"__{app_name}_tmp_dfs.duckdb")
-        if os.path.exists(self.duckdb_path):
-            os.remove(self.duckdb_path)
-        self.db_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(Path(self.duckdb_path))
+    def __init__(self, duckdb_path: Path):
+        self.duckdb_path = duckdb_path
+        self._delete_intermediate_files()
+        self.db_conn = fenic._backends.local.utils.io_utils.configure_duckdb_conn_for_path(self.duckdb_path)
 
     def cleanup(self):
         """Clean up the ephemeral DuckDB database."""
         self.db_conn.close()
-        if os.path.exists(self.duckdb_path):
-            os.remove(self.duckdb_path)
+        self._delete_intermediate_files()
 
     def read_df(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
@@ -50,3 +47,8 @@ class TempDFDBClient:
         )
         return len(result.fetchall()) > 0
         # trunk-ignore-end(bandit/B608)
+
+    def _delete_intermediate_files(self):
+        """Delete the intermediate files for the DuckDB database."""
+        self.duckdb_path.unlink(missing_ok=True)
+        self.duckdb_path.with_suffix(".wal").unlink(missing_ok=True)

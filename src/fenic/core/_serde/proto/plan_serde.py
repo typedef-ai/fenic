@@ -51,8 +51,8 @@ def serialize_logical_plan(
     # Add cache_info if present
     if logical_plan.cache_info is not None:
         cache_info_proto = CacheInfoProto()
-        if logical_plan.cache_info.duckdb_table_name is not None:
-            cache_info_proto.duckdb_table_name = logical_plan.cache_info.duckdb_table_name
+        if logical_plan.cache_info.cache_key is not None:
+            cache_info_proto.cache_key = logical_plan.cache_info.cache_key
         wrapper.cache_info.CopyFrom(cache_info_proto)
 
     return wrapper
@@ -92,7 +92,7 @@ def deserialize_logical_plan(
     # Set cache_info if present
     if logical_plan_proto.HasField("cache_info"):
         cache_info = CacheInfo(
-            duckdb_table_name=logical_plan_proto.cache_info.duckdb_table_name if logical_plan_proto.cache_info.HasField("duckdb_table_name") else None
+            cache_key=logical_plan_proto.cache_info.cache_key if logical_plan_proto.cache_info.HasField("cache_key") else None
         )
         plan.set_cache_info(cache_info)
 

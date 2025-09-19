@@ -268,13 +268,14 @@ def test_extract_schema_validation_errors(extract_data_df):
         ).to_polars()
 
 
-def test_semantic_extract_without_models():
+def test_semantic_extract_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     class ExtractSchema(BaseModel):
         first_character: str = Field(description="The first character of the input text")
 
     session_config = SessionConfig(
         app_name="semantic_extract_without_models",
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(FenicValidationError, match="No language models configured."):
@@ -286,6 +287,7 @@ def test_semantic_extract_without_models():
         semantic=SemanticConfig(
             embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(FenicValidationError, match="No language models configured."):

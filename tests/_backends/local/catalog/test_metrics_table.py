@@ -119,7 +119,7 @@ def test_metrics_table_contains_execution_data(local_session: Session, sample_df
     assert latest_metric["end_ts"][0] is not None
 
 
-def test_multiple_sessions_different_metrics(local_session_config: SessionConfig):
+def test_multiple_sessions_different_metrics(tmp_path, local_session_config: SessionConfig):
     """Test that different sessions have separate metrics tracking."""
     # Create first session and run queries
     session1 = Session.get_or_create(local_session_config)
@@ -132,7 +132,8 @@ def test_multiple_sessions_different_metrics(local_session_config: SessionConfig
     # Create second session with different config
     session_config2 = SessionConfig(
         app_name="metrics_test_2",
-        semantic=local_session_config.semantic
+        semantic=local_session_config.semantic,
+        db_path=tmp_path,
     )
     session2 = Session.get_or_create(session_config2)
     df2 = session2.create_dataframe({"a": [1, 2, 3]})

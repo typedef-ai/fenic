@@ -20,6 +20,7 @@ from fenic._backends.local.physical_plan.sink import (
     DuckDBTableSinkExec as DuckDBTableSinkExec,
 )
 from fenic._backends.local.physical_plan.sink import FileSinkExec as FileSinkExec
+from fenic._backends.local.physical_plan.source import CacheReadExec as CacheReadExec
 from fenic._backends.local.physical_plan.source import (
     DocSourceExec as DocSourceExec,
 )
@@ -71,4 +72,5 @@ __all__ = [
     "UnionExec",
     "UnnestExec",
     "SQLExec",
+    "CacheReadExec",
 ]

@@ -106,15 +106,18 @@ def test_simple_metrics(local_session, sales_data, product_data, customer_data):
     source_ops = [
         op for op_id, op in metrics._operator_metrics.items() if "SourceExec" in op_id
     ]
+    cache_ops = [
+        op for op_id, op in metrics._operator_metrics.items() if "CacheReadExec" in op_id
+    ]
 
     # Verify we have the expected operator types
     assert len(limit_ops) == 1, "Should have exactly one limit operator"
     assert len(union_ops) == 1, "Should have exactly one union operator"
-    assert len(agg_ops) == 2, "Should have exactly two aggregate operators"
+    assert len(agg_ops) == 1, "Should have exactly one aggregate operator"
     assert len(filter_ops) == 1, "Should have exactly one filter operator"
     assert len(join_ops) == 2, "Should have exactly two join operators"
     assert len(source_ops) == 3, "Should have exactly three source operators"
-
+    assert len(cache_ops) == 1, "Should have exactly one cache operator"
     # Verify operator metrics content
     limit_op = limit_ops[0]
     assert limit_op.num_output_rows == metrics.num_output_rows
@@ -289,15 +292,18 @@ def test_metrics_from_view_with_cache(local_session, sales_data, product_data, c
     source_ops = [
         op for op_id, op in metrics._operator_metrics.items() if "SourceExec" in op_id
     ]
+    cache_ops = [
+        op for op_id, op in metrics._operator_metrics.items() if "CacheReadExec" in op_id
+    ]
 
     # Verify we have the expected operator types
     assert len(limit_ops) == 1, "Should have exactly one limit operator"
     assert len(union_ops) == 1, "Should have exactly one union operator"
-    assert len(agg_ops) == 2, "Should have exactly two aggregate operators"
+    assert len(agg_ops) == 1, "Should have exactly one aggregate operator"
     assert len(filter_ops) == 1, "Should have exactly one filter operator"
     assert len(join_ops) == 2, "Should have exactly two join operators"
     assert len(source_ops) == 3, "Should have exactly three source operators"
-
+    assert len(cache_ops) == 1, "Should have exactly one cache operator"
     # Verify operator metrics content
     limit_op = limit_ops[0]
     assert limit_op.num_output_rows == metrics.num_output_rows

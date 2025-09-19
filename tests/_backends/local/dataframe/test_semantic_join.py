@@ -19,7 +19,7 @@ from fenic.api.session import (
 from fenic.core.error import InvalidExampleCollectionError, PlanError, ValidationError
 
 
-def _create_semantic_join_dataframe(local_session):
+def _create_semantic_join_dataframe(local_session: Session):
     left = local_session.create_dataframe(
         {
             "course_id": [1, 2, 3, 4, 5, 6],
@@ -44,7 +44,7 @@ def _create_semantic_join_dataframe(local_session):
     return left, right
 
 
-def _create_semantic_join_dataframe_with_none(local_session):
+def _create_semantic_join_dataframe_with_none(local_session: Session):
     left = local_session.create_dataframe(
         {
             "course_id": [1, 2, 3, 4, 5, 6, 7],
@@ -70,7 +70,7 @@ def _create_semantic_join_dataframe_with_none(local_session):
     return left, right
 
 
-def _create_semantic_join_dataframe_with_right_none(local_session):
+def _create_semantic_join_dataframe_with_right_none(local_session: Session):
     left = local_session.create_dataframe(
         {
             "course_id": [1, 2, 3, 4, 5, 6],
@@ -95,7 +95,7 @@ def _create_semantic_join_dataframe_with_right_none(local_session):
     return left, right
 
 
-def test_semantic_join(local_session):
+def test_semantic_join(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
     result = left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
@@ -118,7 +118,7 @@ def test_semantic_join(local_session):
     }
 
 
-def test_semantic_join_with_none(local_session):
+def test_semantic_join_with_none(local_session: Session):
     """Test that we can join a dataframe with a None value.
     Note: this will produce the same result as the test above, but we'll evaluate
           2 additional rows (None, Computer Science) and (None, Math) which should
@@ -146,7 +146,7 @@ def test_semantic_join_with_none(local_session):
     }
 
 
-def test_semantic_join_with_right_none(local_session):
+def test_semantic_join_with_right_none(local_session: Session):
     """Test that we can join a dataframe a none value on the right of the joint.
     In this case although there are 3 rows in the right dataframe, only 2 will be
     used for the join.
@@ -165,7 +165,7 @@ def test_semantic_join_with_right_none(local_session):
     }
 
 
-def test_semantic_join_duplicate_columns(local_session):
+def test_semantic_join_duplicate_columns(local_session: Session):
     left = local_session.create_dataframe(
         {
             "id": [1, 2, 3, 4, 5, 6],
@@ -192,7 +192,7 @@ def test_semantic_join_duplicate_columns(local_session):
         left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
 
 
-def test_semantic_join_with_examples(local_session):
+def test_semantic_join_with_examples(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     collection = JoinExampleCollection()
     collection.create_example(
@@ -229,7 +229,7 @@ def test_semantic_join_with_examples(local_session):
         left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"), examples=bad_examples)
 
 
-def test_semantic_join_empty_result(local_session):
+def test_semantic_join_empty_result(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     empty_left = left.filter(col("course_name").is_null())
     join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
@@ -258,7 +258,7 @@ def test_semantic_join_empty_result(local_session):
         "other_col_right": pl.String,
     }
 
-def test_semantic_join_with_derived_columns(local_session):
+def test_semantic_join_with_derived_columns(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
     result = left.semantic.join(right, join_instruction, left_on=text.upper(col("course_name")), right_on=text.upper(col("skill")).alias("skill"))
@@ -275,10 +275,11 @@ def test_semantic_join_with_derived_columns(local_session):
         assert skill_not_all_upper
 
 
-def test_semantic_join_without_models():
+def test_semantic_join_without_models(tmp_path):
     """Test semantic.join() method without models."""
     session_config = SessionConfig(
         app_name="semantic_join_without_models",
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
@@ -289,13 +290,14 @@ def test_semantic_join_without_models():
         semantic=SemanticConfig(
             embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)},
         ),
+        db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
     session.stop()
 
-def test_semantic_join_invalid_prompt(local_session):
+def test_semantic_join_invalid_prompt(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "", left_on=col("course_name"), right_on=col("skill"))
