@@ -191,8 +191,8 @@ def _auto_generate_read_tool(
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
     def read_func(
         df_name: Annotated[str, "Dataset name to read rows from."],
-        limit: Annotated[Optional[Union[int, str]], "Max rows to read within a page"] = result_limit,
-        offset: Annotated[Optional[Union[int, str]], "Row offset to start from (requires order_by)"] = None,
+        limit: Annotated[Optional[int], "Max rows to read within a page"] = result_limit,
+        offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[Optional[str], "Comma separated list of columns to order by (required for offset)"] = None,
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending for all order_by columns"] = True,
         include_columns: Annotated[Optional[str], "Comma separated list of columns to include in the result"] = None,
@@ -294,8 +294,8 @@ def auto_generate_search_content_tool(
     def search_rows(
         df_name: Annotated[str, "Dataset name to search (single dataset)"],
         pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
-        limit: Annotated[Optional[Union[int, str]], "Max rows to read within a page of search results"] = result_limit,
-        offset: Annotated[Optional[Union[int, str]], "Row offset to start from (requires order_by)"] = None,
+        limit: Annotated[Optional[int], "Max rows to read within a page of search results"] = result_limit,
+        offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[Optional[str], "Comma separated list of column names to order by (required with offset)"] = None,
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending"] = True,
         search_columns: Annotated[Optional[str], "Comma separated list of column names search within; if omitted, matches in any string coluumn will be returned. Use this to query only specific columns in the search as needed."] = None,
@@ -359,7 +359,7 @@ def _auto_generate_schema_tool(
         df_name: Annotated[str | None, "Optional DataFrame name to return a single schema for. To return schemas for all datasets, OMIT this parameter."] = None,
     ) -> LogicalPlan:
          # sometimes the models get...very confused, and pass the null string instead of `null` or omitting the field entirely
-        if df_name == "null":
+        if not df_name or df_name == "null":
             df_name = None
         # Choose subset of datasets
         if df_name is not None:
@@ -388,18 +388,9 @@ def _auto_generate_schema_tool(
             session._session_state,
         )
 
-    # Enhanced description lists datasets and descriptions
-    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
-    for spec in datasets:
-        if spec.description:
-            lines.append(f"- {spec.table_name}: {spec.description}")
-        else:
-            lines.append(f"- {spec.table_name}")
-    enhanced_description = "\n".join(lines)
-
     return DynamicToolDefinition(
         name=tool_name,
-        description=enhanced_description,
+        description=tool_description.strip(),
         _func=schema_func,
         max_result_limit=None,
     )
@@ -410,7 +401,7 @@ def _auto_generate_sql_tool(
     tool_name: str,
     tool_description: str,
     *,
-    result_limit: int = 50,
+    result_limit: int = 100,
 ) -> DynamicToolDefinition:
     """Create an Analyze tool that executes DuckDB SELECT SQL across datasets.
 
@@ -427,12 +418,7 @@ def _auto_generate_sql_tool(
         return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets})._logical_plan
 
     # Enhanced description with dataset names and descriptions
-    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
-    for spec in datasets:
-        if spec.description:
-            lines.append(f"- {spec.table_name}: {spec.description}")
-        else:
-            lines.append(f"- {spec.table_name}")
+    lines: List[str] = [tool_description.strip()]
     if datasets:
         example_name = datasets[0].table_name
     else:
@@ -443,11 +429,11 @@ def _auto_generate_sql_tool(
             "- SQL dialect: DuckDB.\n",
             "- For text search, prefer regular expressions using REGEXP_MATCHES().\n",
             "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.\n",
-            f"- Returns a maximum of {result_limit} rows.\n",
+            f"- Results are limited to {result_limit} rows, use LIMIT/OFFSET to paginate when receiving a result set of {result_limit} or more rows.\n",
             "Examples:\n",  # nosec B608 - example text only
-            f"- SELECT * FROM {example_name} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT {result_limit}",  # nosec B608 - example text only
-            f"- SELECT dept, COUNT(*) AS n FROM {example_name} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT {result_limit}",  # nosec B608 - example text only
-            f"- Paging: page 2 of size {result_limit}\n  SELECT * FROM {example_name} ORDER BY created_at DESC LIMIT {result_limit} OFFSET {result_limit}",  # nosec B608 - example text only
+            f"- SELECT * FROM {{{example_name}}} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT {result_limit}",  # nosec B608 - example text only
+            f"- SELECT dept, COUNT(*) AS n FROM {{{example_name}}} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT {result_limit}",  # nosec B608 - example text only
+            f"- Paging: page 2 of size {result_limit}\n  SELECT * FROM {{{example_name}}} ORDER BY created_at DESC LIMIT {result_limit} OFFSET {result_limit}",  # nosec B608 - example text only
         ]
     )
     enhanced_description = "\n".join(lines)
@@ -537,7 +523,7 @@ def _auto_generate_profile_tool(
     """
     if len(datasets) == 0:
         raise ValueError("Cannot create profile tool: no datasets provided.")
-
+    tool_key = _sanitize_name(tool_name)
     def _compute_profile_rows(df: DataFrame, dataset_name: str) -> List[Dict[str, object]]:
         total_rows = df.count()
         preview = df.limit(10000).to_polars()
@@ -548,20 +534,30 @@ def _auto_generate_profile_tool(
             nn = df.agg(count(col(col_name)).alias("c")).to_polars().get_column("c")[0]
             null_count = int(total_rows - nn)
             stats: Dict[str, object] = {
-                "dataset": dataset_name,
-                "column": col_name,
-                "type": dtype_str,
-                "row_count": int(total_rows),
-                "non_null_count": int(nn),
-                "null_count": null_count,
-                "min": None,
-                "max": None,
-                "mean": None,
-                "std": None,
-                "distinct_count": None,
-                "top_values": None,
-                "true_count": None,
-                "false_count": None,
+                "dataset_name": dataset_name,
+                "column_name": col_name,
+                "data_type": dtype_str,
+                "total_rows": int(total_rows),
+                "populated_rows": int(nn),
+                "missing_rows": null_count,
+                "completeness_percent": round((nn / total_rows * 100) if total_rows > 0 else 0, 1),
+                "numeric_min": None,
+                "numeric_max": None,
+                "numeric_mean": None,
+                "numeric_std_dev": None,
+                "unique_values": None,
+                "cardinality": None,  # "unique", "low", "medium", "high"
+                "frequent_values_with_counts": json.dumps([]),
+                "boolean_true_rows": None,
+                "boolean_false_rows": None,
+                # When top-k isn't computed (e.g., strings with very long average length),
+                # provide a small sample of values for quick reference.
+                "example_values": json.dumps([]),
+                # Profiling hints for LLM agents
+                "text_avg_length": None,
+                "contains_long_text": False,
+                "semantic_type": None,  # "identifier", "categorical", "continuous", "text", "boolean"
+                "usage_recommendations": [],
             }
             if field.data_type in (IntegerType, FloatType, DoubleType):
                 agg_df = df.agg(
@@ -570,18 +566,31 @@ def _auto_generate_profile_tool(
                     avg(col(col_name)).alias("mean"),
                     stddev(col(col_name)).alias("std"),
                 ).to_polars()
-                stats["min"] = agg_df.get_column("min")[0]
-                stats["max"] = agg_df.get_column("max")[0]
-                stats["mean"] = agg_df.get_column("mean")[0]
-                stats["std"] = agg_df.get_column("std")[0]
+                stats["numeric_min"] = agg_df.get_column("min")[0]
+                stats["numeric_max"] = agg_df.get_column("max")[0]
+                stats["numeric_mean"] = agg_df.get_column("mean")[0]
+                stats["numeric_std_dev"] = agg_df.get_column("std")[0]
+                stats["semantic_type"] = "continuous"
+
+                # Check if it might be an identifier
+                if "id" in col_name.lower() or col_name.lower().endswith("_id"):
+                    stats["semantic_type"] = "identifier"
+                    stats["usage_recommendations"].append(
+                        "Appears to be an identifier column. Use for JOINs and specific record lookups."
+                    )
             elif field.data_type == BooleanType:
+                stats["semantic_type"] = "boolean"
+                stats["cardinality"] = "low"
                 if col_name in preview.columns:
                     s_bool = preview.get_column(col_name).cast(pl.Boolean)
-                    stats["true_count"] = int((s_bool).sum())
-                    stats["false_count"] = int((~s_bool).sum())
+                    stats["boolean_true_rows"] = int((s_bool).sum())
+                    stats["boolean_false_rows"] = int((~s_bool).sum())
                 else:
-                    stats["true_count"] = 0
-                    stats["false_count"] = 0
+                    stats["boolean_true_rows"] = 0
+                    stats["boolean_false_rows"] = 0
+                stats["usage_recommendations"].append(
+                    "Boolean column. Excellent for filtering and conditional logic."
+                )
             elif field.data_type == StringType:
                 if col_name in preview.columns:
                     s = preview.get_column(col_name)
@@ -596,13 +605,40 @@ def _auto_generate_profile_tool(
                 else:
                     avg_len = None
                     sample_distinct = None
+
+                # Determine cardinality and semantic type
+                if sample_distinct is not None:
+                    distinct_ratio = sample_distinct / len(preview) if len(preview) > 0 else 0
+                    if distinct_ratio > 0.95:
+                        stats["cardinality"] = "unique"
+                        stats["semantic_type"] = "identifier" if avg_len and avg_len < 50 else "text"
+                    elif sample_distinct <= 10:
+                        stats["cardinality"] = "low"
+                        stats["semantic_type"] = "categorical"
+                    elif sample_distinct <= 100:
+                        stats["cardinality"] = "medium"
+                        stats["semantic_type"] = "categorical"
+                    else:
+                        stats["cardinality"] = "high"
+                        stats["semantic_type"] = "text"
+
+                # Record the average length for agent awareness
+                stats["text_avg_length"] = avg_len
+                if avg_len is not None and avg_len > 1024:
+                    stats["contains_long_text"] = True
+                    stats["usage_recommendations"].append(
+                        "This column appears to contain long text. "
+                        "When using the 'Analyze' tool ensure LIMIT/ORDER BY is set. "
+                        "Exclude this column from `Read` unless the result limit is very low. "
+                        "To find relevant rows based on data from this column, consider the `Search Content` tool."
+                    )
                 compute_topk = (
                     (avg_len is not None and avg_len <= 128)
                     and (sample_distinct is not None and sample_distinct <= max(topk_distinct * 10, 200))
                 )
                 if compute_topk and col_name in preview.columns:
                     vc = preview.get_column(col_name).value_counts(sort=True)
-                    stats["distinct_count"] = int(vc.height)
+                    stats["unique_values"] = int(vc.height)
                     val_col = col_name if col_name in vc.columns else vc.columns[0]
                     top_vals: List[Dict[str, object]] = []
                     for i in range(min(topk_distinct, vc.height)):
@@ -610,24 +646,56 @@ def _auto_generate_profile_tool(
                             "value": str(vc.get_column(val_col)[i]),
                             "count": int(vc.get_column("count")[i]),
                         })
-                    stats["top_values"] = json.dumps(top_vals)
+                    stats["frequent_values_with_counts"] = json.dumps(top_vals)
                 else:
-                    stats["distinct_count"] = None
-                    stats["top_values"] = json.dumps([])
+                    # No top-k: still provide a few sample values when strings aren't too long.
+                    # Use a conservative threshold to avoid dumping giant text fields.
+                    # Add cardinality-based recommendations
+                    if stats.get("cardinality") == "low":
+                        stats["usage_recommendations"].append(
+                            f"Low cardinality categorical column ({sample_distinct} values). "
+                            f"Excellent for GROUP BY, filtering, and aggregations."
+                        )
+                    elif stats.get("cardinality") == "medium":
+                        stats["usage_recommendations"].append(
+                            f"Medium cardinality column ({sample_distinct} values). "
+                            f"Good for filtering and grouping. Consider using `Search Content` or `Analyze` w/REGEXP_MATCHES for text matching."
+                        )
+                    elif stats.get("cardinality") == "unique":
+                        stats["usage_recommendations"].append(
+                            "This column appears to have mostly unique values. "
+                            "May be an identifier or free-text field. Use Search Content for text matching."
+                        )
+                    else:
+                        stats["usage_recommendations"].append(
+                            "This column has high cardinality. "
+                            "To find relevant rows based on data from this column, consider the `Search Content` tool."
+                        )
+                    if (avg_len is not None and avg_len <= 256) and (col_name in preview.columns):
+                        try:
+                            s_non_null = preview.get_column(col_name).drop_nulls()
+                            if s_non_null.len() > 0:
+                                k = min(3, int(s_non_null.len()))
+                                sampled = s_non_null.sample(n=k, with_replacement=False, shuffle=True)
+                                stats["example_values"] = json.dumps([str(v) for v in sampled.to_list()])
+                        except Exception:
+                            # Best-effort sampling
+                            pass
             rows_list.append(stats)
         return rows_list
 
     def _materialize_dataset_description(df: DataFrame, dataset_name: str, view_name: str) -> None:
         rows_list = _compute_profile_rows(df, dataset_name)
-        safe_rows: List[Dict[str, str]] = []
+        safe_rows: List[Dict[str, object]] = []
         for row in rows_list:
-            safe_rows.append({k: ("" if v is None else str(v)) for k, v in row.items()})
+            safe_rows.append({k: ("" if v is None else v) for k, v in row.items()})
         pl_df = pl.DataFrame(safe_rows)
         plan = InMemorySource.from_session_state(pl_df, session._session_state)
         catalog = session._session_state.catalog
-        catalog.create_view(view_name, plan, ignore_if_exists=True)
+        catalog.drop_view(view_name, ignore_if_not_exists=True)
+        catalog.create_view(view_name, plan)
 
-    def _ensure_profile_view_for_dataset(spec: DatasetSpec, tool_key: str, refresh: bool) -> LogicalPlan:
+    def _ensure_profile_view_for_dataset(spec: DatasetSpec, refresh: bool) -> LogicalPlan:
         schema_hash = _schema_fingerprint(spec.df)
         view_name = f"__fenic_profile__{tool_key}__{_sanitize_name(spec.table_name)}__{schema_hash}"
         catalog = session._session_state.catalog
@@ -640,47 +708,32 @@ def _auto_generate_profile_tool(
         refresh: Annotated[bool, "Recompute and refresh cached profile view(s)"] = False,
     ) -> LogicalPlan:
         # sometimes the models get...very confused, and pass the null string instead of `null` or omitting the field entirely
-        if df_name == "null":
+        if not df_name or df_name == "null":
             df_name = None
-        tool_key = _sanitize_name(tool_name)
         # Single dataset branch returns the view plan directly
         if df_name is not None:
             spec = next((d for d in datasets if d.table_name == df_name), None)
             if spec is None:
                 raise ValidationError(f"Unknown dataset '{df_name}'. Available: {', '.join(d.table_name for d in datasets)}")
-            return _ensure_profile_view_for_dataset(spec, tool_key, refresh)
+            return _ensure_profile_view_for_dataset(spec, refresh)
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
         per_df_polars: List[pl.DataFrame] = []
         for spec in datasets:
             # Ensure view exists and read it, then convert to polars for concatenation
-            plan = _ensure_profile_view_for_dataset(spec, tool_key, refresh)
+            plan = _ensure_profile_view_for_dataset(spec, refresh)
             pl_df = session._session_state.execution.collect(plan)[0]
             per_df_polars.append(pl_df)
 
         combined = pl.concat(per_df_polars, how="vertical") if len(per_df_polars) > 1 else per_df_polars[0]
         return InMemorySource.from_session_state(combined, session._session_state)
 
-    # Enhanced description: list datasets and notes
-    lines: List[str] = [tool_description.strip(), "", "Datasets available:"]
-    for spec in datasets:
-        if spec.description:
-            lines.append(f"- {spec.table_name}: {spec.description}")
-        else:
-            lines.append(f"- {spec.table_name}")
-    lines.extend(
-        [
-            "",
-            "Notes:",
-            "- Results are cached per dataset, tool name, and schema fingerprint; pass refresh=true to recompute.",
-            "- Returns per-column stats (numeric, boolean, string).",
-        ]
-    )
-    enhanced_description = "\n".join(lines)
+    for dataset in datasets:
+        _ensure_profile_view_for_dataset(dataset, True)
 
     return DynamicToolDefinition(
         name=tool_name,
-        description=enhanced_description,
+        description=tool_description,
         _func=profile_func,
         max_result_limit=None,
     )
@@ -702,7 +755,7 @@ def _auto_generate_core_tools(
     - Search Content: return matching rows from a single dataset using regex matching across string columns
     - Analyze: DuckDB SELECT-only SQL across datasets
     """
-    group_desc = "; ".join(
+    group_desc = "\n".join(
         [f"{d.table_name}: {d.description.strip()}" if d.description else d.table_name for d in datasets]
     )
 
@@ -711,7 +764,7 @@ def _auto_generate_core_tools(
         session,
         tool_name=f"{tool_group_name} - Schema",
         tool_description="\n\n".join([
-            "Show the schema (column names and types) for any or all of the datasets listed below.",
+            "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
             group_desc,
         ]),
     )
@@ -720,10 +773,12 @@ def _auto_generate_core_tools(
         datasets,
         session,
         tool_name=f"{tool_group_name} - Profile",
-        tool_description="\n\n".join([
+        tool_description="\n".join([
             "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
+            "This call should be used as a follow up after calling the `Schema` tool."
             "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
             "Results are cached per tool name and schema fingerprint; pass refresh=true to recompute.",
+            "Available Datasets:",
             group_desc,
         ]),
     )
@@ -734,7 +789,7 @@ def _auto_generate_core_tools(
         tool_name=f"{tool_group_name} - Read",
         tool_description="\n\n".join([
             "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
-            "Available datasets:\n",
+            "Available datasets:",
             group_desc,
         ]),
         result_limit=sql_max_rows,
@@ -746,7 +801,7 @@ def _auto_generate_core_tools(
         tool_name=f"{tool_group_name} - Search Summary",
         tool_description="\n\n".join([
             "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
-            "Available datasets:\n",
+            "Available datasets:",
             group_desc,
         ]),
     )

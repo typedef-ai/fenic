@@ -15,7 +15,7 @@ import logging
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import Annotated, Literal
 
 from fenic.core._interfaces.session_state import BaseSessionState
@@ -44,7 +44,9 @@ logger = logging.getLogger(__name__)
 
 class MCPResultSet(BaseModel):
     """Structured result returned to the MCP client."""
-    table_schema: List[Dict[str, Any]]
+    model_config = ConfigDict(extra="forbid")
+
+    table_schema: Optional[List[Dict[str, Any]]]
     rows: Union[List[Dict[str, Any]], str]
     row_count: int
 
@@ -175,6 +177,8 @@ class FenicMCPServer:
                 )
                 if table_format == "markdown":
                     result_set.rows = _render_markdown_preview(rows_list)
+                    result_set.table_schema = None
+
                 return result_set
             except Exception as e:
                 from fastmcp.exceptions import ToolError
@@ -269,6 +273,8 @@ class FenicMCPServer:
                 out = MCPResultSet(table_schema=schema_fields, rows=rows_list, row_count=len(rows_list))
                 if table_format == "markdown":
                     out.rows = _render_markdown_preview(rows_list)
+                    out.table_schema = None
+
                 return out
             except Exception as e:
                 from fastmcp.exceptions import ToolError
