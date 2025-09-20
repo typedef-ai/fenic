@@ -214,7 +214,7 @@ def main():
         automated_tool_generation=fc.ToolGenerationConfig(
             table_names=["conversations", "enriched_profiles", "moderation_report"],
             tool_group_name="Dating App Moderation",
-            sql_max_rows=50
+            max_result_rows=100
         )
     )
     fc.run_mcp_server_sync(mcp_generator)

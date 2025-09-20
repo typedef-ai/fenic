@@ -1,7 +1,7 @@
 """Exported Types related to Parameterized View/MCP Tool Generation."""
 from __future__ import annotations
 
-from typing import Annotated, Callable, List, Optional, Union
+from typing import Annotated, Callable, List, Optional, Union, Coroutine, Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.dataclasses import dataclass
@@ -86,7 +86,7 @@ class DynamicToolDefinition:
     name: str
     description: str
     max_result_limit: Optional[int]
-    _func: Callable[..., LogicalPlan]
+    func: Callable[..., Coroutine[Any, Any, LogicalPlan]]
     add_limit_parameter: bool = True
     default_table_format: TableFormat = "markdown"
     read_only: Annotated[bool, "A hint to provide to the model that the tool is read-only."] = True

@@ -113,7 +113,7 @@ def main() -> None:
         auto_cfg = ToolGenerationConfig(
             table_names=args.tables,
             tool_group_name=args.generated_tool_prefix,
-            sql_max_rows=args.sql_max_rows,
+            max_result_rows=args.sql_max_rows,
         )
 
     # If neither tables nor any tools resolved, error out with guidance

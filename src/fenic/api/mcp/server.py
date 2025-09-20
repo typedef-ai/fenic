@@ -43,7 +43,7 @@ def create_mcp_server(
             automated_tool_generation.table_names,
             session,
             tool_group_name=automated_tool_generation.tool_group_name,
-            sql_max_rows=automated_tool_generation.sql_max_rows)
+            sql_max_rows=automated_tool_generation.max_result_rows)
         )
     if not (parameterized_tools or dynamic_tools):
         raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")

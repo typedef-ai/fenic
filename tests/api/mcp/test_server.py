@@ -6,13 +6,13 @@ from fenic.api.mcp.server import create_mcp_server
 from fenic.api.mcp.tool_generation import auto_generate_core_tools_from_tables
 from fenic.api.session.session import Session
 from fenic.core._utils.misc import to_snake_case
-from tests.api.mcp.utils import _create_table_with_rows
+from tests.api.mcp.utils import create_table_with_rows
 
 
 def test_server_generation(local_session: Session):
     pytest.importorskip("fastmcp")
-    _create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
-    _create_table_with_rows(local_session, "t2", [10, 20], description="table two")
+    create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
+    create_table_with_rows(local_session, "t2", [10, 20], description="table two")
 
     tools = auto_generate_core_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
 
