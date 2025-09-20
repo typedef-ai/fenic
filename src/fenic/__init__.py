@@ -18,6 +18,7 @@ from fenic.api import (
     Lineage,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
+    OpenRouterLanguageModel,
     SemanticConfig,
     SemanticExtensions,
     Session,
@@ -127,6 +128,7 @@ __all__ = [
     "GoogleDeveloperEmbeddingModel",
     "GoogleVertexLanguageModel",
     "GoogleVertexEmbeddingModel",
+    "OpenRouterLanguageModel",
     "SemanticConfig",
     "ModelAlias",
     # IO

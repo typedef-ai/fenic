@@ -12,6 +12,7 @@ from fenic.api.session.config import (
     ModelConfig,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
+    OpenRouterLanguageModel,
     SemanticConfig,
     SessionConfig,
 )
@@ -32,4 +33,5 @@ __all__ = [
     "CloudConfig",
     "CloudExecutorSize",
     "CohereEmbeddingModel",
+    "OpenRouterLanguageModel",
 ]
