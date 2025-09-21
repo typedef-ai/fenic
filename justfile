@@ -95,14 +95,14 @@ test: test-local
   true
 
 # run local tests
-test-local modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small" : sync
+test-local modelProvider="google-developer" modelName="gemini-2.0-flash-lite" embeddingModelProvider="google-developer" embeddingModelName="gemini-embedding-001" : sync
   POLARS_VERBOSE=1 uv run pytest -m "not cloud" --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
   --embedding-model-provider {{ embeddingModelProvider }} --embedding-model-name {{ embeddingModelName }} tests
 
 alias test-not-cloud := test-local
 
 # run fenic cloud related tests
-test-cloud modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small": sync-cloud
+test-cloud modelProvider="google-developer" modelName="gemini-2.0-flash-lite" embeddingModelProvider="google-developer" embeddingModelName="gemini-embedding-001": sync-cloud
   uv run pytest -m cloud --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
   --embedding-model-provider {{ embeddingModelProvider }} --embedding-model-name {{ embeddingModelName }} tests
 
