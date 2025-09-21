@@ -544,29 +544,30 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     self.pending_requests = queue_items
 
                 # Iterate through pending requests and process those with available capacity
+                processed_requests = []
                 for queue_item in self.pending_requests:
-                    if self._check_and_consume_rate_limit(queue_item.estimated_tokens):
-                        task = asyncio.create_task(
-                            self._process_single_request(queue_item)
-                        )
-                        self._track_inflight_task(task)
-                        self.pending_requests.remove(queue_item)
-                    else:
-                        # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
-                        await asyncio.sleep(MILLISECOND_IN_SECONDS)
+                    try:
+                        if self._check_and_consume_rate_limit(queue_item.estimated_tokens):
+                            task = asyncio.create_task(
+                                self._process_single_request(queue_item)
+                            )
+                            self._track_inflight_task(task)
+                            processed_requests.append(queue_item)
+                        else:
+                            # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
+                            await asyncio.sleep(MILLISECOND_IN_SECONDS)
 
-                    await self._maybe_backoff()
+                        await self._maybe_backoff()
+                    except Exception as e:
+                        logger.error(f"Fatal error in request worker for model {self.model}: {e}", exc_info=True)
+                        self._register_thread_exception(queue_item, e)
+                        processed_requests.append(queue_item)
+                # removed all processed requests from the pending queue
+                for processed in processed_requests:
+                    self.pending_requests.remove(processed)
         except asyncio.CancelledError:
             logger.debug(f"Worker for model {self.model} was cancelled")
             raise
-        except Exception as e:
-            logger.error(f"Error in worker for model {self.model}: {e}", exc_info=True)
-            for task in self.pending_requests:
-                self._register_thread_exception(task, e)
-            self.pending_requests = []
-            self.request_queue.cancel()
-            self.retry_queue.cancel()
-            self.shutdown()
 
 
     async def _process_single_request(self, queue_item: QueueItem[RequestT]):
@@ -621,7 +622,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 self.last_transient_exception_time = current_time
         elif isinstance(maybe_response, FatalException):
             logger.error(
-                f"Fatal error encountered for model {self.model}: {maybe_response.exception}. Request failed."
+                f"Model {self.model} encountered an error: {maybe_response.exception}. Request failed."
             )
             self._register_thread_exception(queue_item, maybe_response.exception)
         else:
