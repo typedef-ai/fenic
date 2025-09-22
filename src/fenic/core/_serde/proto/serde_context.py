@@ -59,8 +59,8 @@ from fenic.core._utils.structured_outputs import (
 from fenic.core.mcp._validators import get_param_validator
 from fenic.core.mcp.types import (
     BoundToolParam,
-    UserDefinedTool,
     ToolParamConstraints,
+    UserDefinedTool,
 )
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema

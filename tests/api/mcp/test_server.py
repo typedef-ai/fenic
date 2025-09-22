@@ -6,8 +6,8 @@ pytest.importorskip("fastmcp")
 from fastmcp.tools import Tool
 
 from fenic import SystemTool, SystemToolConfig
-from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
 from fenic.api.functions import col, tool_param
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
 from fenic.api.mcp.server import create_mcp_server
 from fenic.api.session.session import Session
 from fenic.core._utils.misc import to_snake_case
@@ -18,7 +18,6 @@ from tests.api.mcp.utils import create_table_with_rows
 
 
 def test_server_generation_with_parameterized_tools(local_session: Session):
-    pytest.importorskip("fastmcp")
     df = local_session.create_dataframe({"city": ["SF"], "age": [10], "user_name": ["Alice"]})
     query = df.filter(
         (col("city") == tool_param("city_name", StringType))
@@ -38,7 +37,7 @@ def test_server_generation_with_parameterized_tools(local_session: Session):
         query=query,
     )
 
-    server = create_mcp_server(local_session, "Test Server", parameterized_tools=[parameterized_tool])
+    server = create_mcp_server(local_session, "Test Server", user_defined_tools=[parameterized_tool])
     server_tools = asyncio.run(server.mcp.get_tools())
     assert len(server_tools) == 1
     parameter_schema = server_tools["tool_x"].parameters['properties']
@@ -59,8 +58,7 @@ def test_server_generation_with_parameterized_tools(local_session: Session):
     assert user_names_param['minItems'] == 1
     assert user_names_param['description'] == "User names"
 
-def test_server_generation(local_session: Session):
-    pytest.importorskip("fastmcp")
+def test_server_generation_with_system_tools(local_session: Session):
     create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
     create_table_with_rows(local_session, "t2", [10, 20], description="table two")
     tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_namespace="Auto")

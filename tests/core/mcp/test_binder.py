@@ -80,7 +80,6 @@ def test_bind_parameters_type_mismatch_raises(local_session: Session):
                     required=True,
                     has_default=False,
                     allowed_values=None,
-                    default_value=None,
                 )
             ],
         )

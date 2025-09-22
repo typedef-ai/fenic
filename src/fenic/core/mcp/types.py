@@ -87,10 +87,10 @@ class BoundToolParam:
     data_type: DataType
     required: bool
     has_default: bool
-    default_value: Optional[ToolParameterType]
-    allowed_values: Optional[List[ToolParameterType]]
-    constraints: Optional[ToolParamConstraints]
-    validators: List[ParamValidator]
+    default_value: Optional[ToolParameterType] = None
+    allowed_values: Optional[List[ToolParameterType]] = None
+    constraints: Optional[ToolParamConstraints] = None
+    validators: List[ParamValidator] = Field(default_factory=list)
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
