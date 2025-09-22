@@ -124,6 +124,8 @@ message LogicalExpr {
     ToDateExpr to_date = 160;
     ToTimestampExpr to_timestamp = 161;
     DateFormatExpr date_format = 162;
+    ToUTCTimestampExpr to_utc_timestamp = 163;
+    FromUTCTimestampExpr from_utc_timestamp = 164;
   }
 }
 
@@ -631,3 +633,14 @@ message DateFormatExpr {
   LogicalExpr expr = 1;
   string format = 2;
 }
+
+message ToUTCTimestampExpr {
+  LogicalExpr expr = 1;
+  string timezone = 2;
+}
+
+message FromUTCTimestampExpr {
+  LogicalExpr expr = 1;
+  string timezone = 2;
+}
+

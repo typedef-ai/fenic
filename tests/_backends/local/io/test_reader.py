@@ -1,5 +1,6 @@
 import datetime
 import os
+import zoneinfo
 from io import StringIO
 from pathlib import Path
 from typing import Literal, Union
@@ -16,6 +17,7 @@ from fenic import (
     ColumnField,
     DateType,
     DoubleType,
+    EmbeddingType,
     FloatType,
     IntegerType,
     JsonType,
@@ -25,6 +27,7 @@ from fenic import (
     TimestampType,
     col,
     markdown,
+    semantic,
 )
 from fenic._backends.local.utils.io_utils import (
     write_file,
@@ -941,79 +944,117 @@ def test_ingest_date_type(local_session, temp_dir):
     assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
 
-def test_ingest_datetime_type(local_session, temp_dir):
-    """Test ingestion of datetime columns.
+DATETIME_COLUMN_NAME = "some_datetime"
 
-    This tests:
-    - Filtering on datetime values
-    - Consistency across read methods (parquet vs in-memory)
-    """
-    PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
-    DATETIME_COLUMN_NAME = "some_datetime"
-    CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
-    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13)
+polars_df_time_columns = pl.DataFrame(
+    {
+        "month": [1, 2, 3],
+        "day": [4, 5, 6],
+        "hour": [7, 8, 9],
+        "minute": [10, 11, 12],
+        "second": [13, 14, 15],
+    }
+)
+polars_datetime_naive_df = polars_df_time_columns.with_columns(
+    pl.datetime(
+        2024,
+        pl.col("month"),
+        pl.col("day"),
+        pl.col("hour"),
+        pl.col("minute"),
+        pl.col("second"),
+    ).alias(DATETIME_COLUMN_NAME)
+)
+polars_datetime_utc_tz_df = polars_datetime_naive_df.with_columns(pl.col(DATETIME_COLUMN_NAME).dt.replace_time_zone("UTC").alias(DATETIME_COLUMN_NAME))
+polars_datetime_la_tz_df = polars_datetime_utc_tz_df.with_columns(pl.col(DATETIME_COLUMN_NAME).dt.convert_time_zone("America/Los_Angeles").alias(DATETIME_COLUMN_NAME))
 
-    # Create a dataframe with a datetime column
-    df = pl.DataFrame(
-        {
-            "month": [1, 2, 3],
-            "day": [4, 5, 6],
-            "hour": [7, 8, 9],
-            "minute": [10, 11, 12],
-            "second": [13, 14, 15],
-        }
-    )
-    polars_df = df.with_columns(
-        pl.datetime(
-            2024,
-            pl.col("month"),
-            pl.col("day"),
-            pl.col("hour"),
-            pl.col("minute"),
-            pl.col("second"),
-        ).alias(DATETIME_COLUMN_NAME)
-    )
-    write_test_file(PARQUET_FILE_NAME, polars_df, local_session, "parquet")
-
-    # Test 1: Reading from Parquet file
-    fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
-    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
-    result = fenic_df.to_polars()
-
-    expected_schema = pl.Schema(
+EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+EXPECTED_DATETIME_SCHEMA = pl.Schema(
         {
             "month": pl.Int64,
             "day": pl.Int64,
             "hour": pl.Int64,
             "minute": pl.Int64,
             "second": pl.Int64,
-            DATETIME_COLUMN_NAME: pl.Datetime(),
+            DATETIME_COLUMN_NAME: pl.Datetime(time_unit="us", time_zone="UTC"),
         }
     )
-    assert result.schema == expected_schema
-    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
-
-    # Test 2: Using in-memory dataframe
-    fenic_df = local_session.create_dataframe(polars_df)
-    fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
+EXPECTED_DATE_SCHEMA = pl.Schema(
+        {
+            "month": pl.Int64,
+            "day": pl.Int64,
+            "hour": pl.Int64,
+            "minute": pl.Int64,
+            "second": pl.Int64,
+            DATETIME_COLUMN_NAME: pl.Date,
+        }
     )
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_naive_df, polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_from_parquet(local_session, temp_dir, polars_datetime_df):
+    """Test reading datetime columns from Parquet files."""
+    PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+
+    write_test_file(PARQUET_FILE_NAME, polars_datetime_df, local_session, "parquet")
+    fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
     result = fenic_df.to_polars()
-    assert result.schema == expected_schema
+    assert result.schema == EXPECTED_DATETIME_SCHEMA
     assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
-    # Test 3: CSV file
-    write_test_file(CSV_FILE_NAME, polars_df, local_session, "csv")
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_naive_df, polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_from_inmemory(local_session, polars_datetime_df):
+    """Test reading datetime columns from in-memory dataframes."""
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+
+    fenic_df = local_session.create_dataframe(polars_datetime_df)
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    result = fenic_df.to_polars()
+
+    cached_df = local_session.create_dataframe(polars_datetime_df).cache()
+    cached_df = cached_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    result_cached = cached_df.to_polars()
+
+    assert result.schema == EXPECTED_DATETIME_SCHEMA
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+    assert result_cached.schema == EXPECTED_DATETIME_SCHEMA
+    assert result_cached[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_naive_df, polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_from_csv(local_session, temp_dir, polars_datetime_df):
+    """Test reading datetime columns from CSV files."""
+    CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+
+    write_test_file(CSV_FILE_NAME, polars_datetime_df, local_session, "csv")
     fenic_df = local_session.read.csv(CSV_FILE_NAME)
-    fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
-    )
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
     result = fenic_df.to_polars()
-    assert result.schema == expected_schema
+
+    assert result.schema == EXPECTED_DATETIME_SCHEMA
     assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
-    # Test 4: Override Schema w/ TimestampType
-    fenic_df = local_session.read.csv(
+def test_read_naive_datetime_with_timestamp_and_date_schema_override(local_session, temp_dir):
+    """Test reading naive datetime columns with TimestampType schema override."""
+    CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    # result depends on the timezone of the machine, so only test the schema
+
+    write_test_file(CSV_FILE_NAME, polars_datetime_naive_df, local_session, "csv")
+    df_datetime = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=DateType),
+            ]))
+    df_timestamp = local_session.read.csv(
         CSV_FILE_NAME,
         schema=Schema(
             column_fields=[
@@ -1024,12 +1065,39 @@ def test_ingest_datetime_type(local_session, temp_dir):
                 ColumnField(name="second", data_type=IntegerType),
                 ColumnField(name=DATETIME_COLUMN_NAME, data_type=TimestampType),
             ]))
-    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    assert df_datetime.to_polars().schema == EXPECTED_DATE_SCHEMA
+    assert df_timestamp.to_polars().schema == EXPECTED_DATETIME_SCHEMA
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_with_timestamp_schema_override(local_session, temp_dir, polars_datetime_df):
+    """Test reading datetime columns with TimestampType schema override."""
+    CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+
+    write_test_file(CSV_FILE_NAME, polars_datetime_df, local_session, "csv")
+    df = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=TimestampType),
+            ]))
+    fenic_df = df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
     result = fenic_df.to_polars()
-    assert result.schema == expected_schema
+    assert result.schema == EXPECTED_DATETIME_SCHEMA
     assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
-    # Test 5: Override Schema w/ DateType
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_with_date_schema_override(local_session, temp_dir, polars_datetime_df):
+    """Test reading datetime columns with DateType schema override."""
+    CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+
+    write_test_file(CSV_FILE_NAME, polars_datetime_df, local_session, "csv")
     fenic_df = local_session.read.csv(
         CSV_FILE_NAME,
         schema=Schema(
@@ -1042,7 +1110,24 @@ def test_ingest_datetime_type(local_session, temp_dir):
                 ColumnField(name=DATETIME_COLUMN_NAME, data_type=DateType),
             ]))
     result = fenic_df.to_pydict()
-    result["some_datetime"] = [datetime.date(2024, 1, 4), datetime.date(2024, 2, 5), datetime.date(2024, 3, 6)]
+    expected_result_la = [datetime.date(2024, 1, 3), datetime.date(2024, 2, 5), datetime.date(2024, 3, 6)]
+    expected_result_utc = [datetime.date(2024, 1, 4), datetime.date(2024, 2, 5), datetime.date(2024, 3, 6)]
+    assert fenic_df.to_polars().schema == EXPECTED_DATE_SCHEMA
+    # We do not coerce the timestamp to UTC if we are treating it as a date, so the data depends on the timezone of the input.
+    assert result[DATETIME_COLUMN_NAME] == expected_result_utc or result[DATETIME_COLUMN_NAME] == expected_result_la
+
+@pytest.mark.parametrize("polars_datetime_df", [polars_datetime_naive_df, polars_datetime_utc_tz_df, polars_datetime_la_tz_df])
+def test_read_datetime_from_table(local_session, polars_datetime_df):
+    """Test reading datetime columns from Table."""
+    
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+    df = local_session.create_dataframe(polars_datetime_df)
+    df.write.save_as_table("test_datetime_table_ts", mode="overwrite")
+
+    fenic_df = local_session.table("test_datetime_table_ts")
+    filtered_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    assert filtered_df.to_polars().schema == EXPECTED_DATETIME_SCHEMA
+    assert filtered_df.to_pydict()[DATETIME_COLUMN_NAME] == [EXPECTED_DATETIME]
 
 
 def test_ingest_array_type(local_session, temp_dir):
@@ -1385,3 +1470,20 @@ def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
             assert row["has_signature_fields"] , "PDF 3 expected to have signature fields"
             assert row["image_count"] > 0, "PDF 3 expected to have images"
             assert row["page_count"] == file3_pages, f"PDF 3 expected to have {file3_pages} pages"
+
+
+def test_read_embeddings_table(local_session, extract_data_df, embedding_model_name_and_dimensions):
+    """Test group_by() on a semantic cluster id with a saved embeddings table."""
+    embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
+
+    df = extract_data_df.select(semantic.embed(col("review")).alias("embeddings"))
+    df.write.save_as_table("feedback_embeddings", mode="overwrite")
+    df_embeddings = local_session.table("feedback_embeddings")
+    assert df_embeddings.schema.column_fields == [
+        ColumnField("embeddings", EmbeddingType(embedding_model=embedding_model_name, dimensions=embedding_dimensions)),
+    ]
+
+    df_embeddings_polars = df_embeddings.to_polars()
+    assert df_embeddings_polars.schema == pl.Schema({
+        "embeddings": pl.Array(pl.Float32, embedding_dimensions),
+    })

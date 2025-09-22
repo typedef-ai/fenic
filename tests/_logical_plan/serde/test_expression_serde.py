@@ -45,6 +45,7 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FromUTCTimestampExpr,
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
@@ -104,6 +105,7 @@ from fenic.core._logical_plan.expressions import (
     TimestampDiffExpr,
     ToDateExpr,
     ToTimestampExpr,
+    ToUTCTimestampExpr,
     TsParseExpr,
     UDFExpr,
     UnresolvedLiteralExpr,
@@ -642,6 +644,12 @@ expression_examples = {
             LiteralExpr(datetime.datetime.now(), TimestampType),
             "second",
         ),
+    ],
+    ToUTCTimestampExpr: [
+        ToUTCTimestampExpr(LiteralExpr(datetime.datetime.now(), TimestampType), "UTC"),
+    ],
+    FromUTCTimestampExpr: [
+        FromUTCTimestampExpr(LiteralExpr(datetime.datetime.now(), TimestampType), "UTC"),
     ],
 }
 

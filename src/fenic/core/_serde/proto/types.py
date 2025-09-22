@@ -222,6 +222,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     FirstExpr as FirstExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    FromUTCTimestampExpr as FromUTCTimestampExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     FuzzyRatioExpr as FuzzyRatioExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -402,6 +405,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ToTimestampExpr as ToTimestampExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ToUTCTimestampExpr as ToUTCTimestampExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     TsParseExpr as TsParseExprProto,
@@ -678,4 +684,6 @@ __all__ = [
     "DateFormatExprProto",
     "DateDiffExprProto",
     "TimestampDiffExprProto",
+    "ToUTCTimestampExprProto",
+    "FromUTCTimestampExprProto",
 ]

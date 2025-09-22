@@ -397,7 +397,7 @@ class SQLExec(PhysicalPlan):
             cursor.register(view_name, child_df)
         try:
             pl_result = cursor.execute(self.query).pl()
-            return apply_ingestion_coercions(pl_result)
+            return apply_ingestion_coercions(pl_result, coerce_array=True)
         finally:
             for view_name in self.view_names:
                 try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timezone
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
@@ -67,6 +68,7 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FromUTCTimestampExpr,
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
     FuzzyTokenSortRatioExpr,
@@ -126,6 +128,7 @@ from fenic.core._logical_plan.expressions import (
     TimestampDiffExpr,
     ToDateExpr,
     ToTimestampExpr,
+    ToUTCTimestampExpr,
     TsParseExpr,
     UDFExpr,
     WhenExpr,
@@ -149,6 +152,7 @@ from fenic.core.types.datatypes import (
     StructField,
     StructType,
     _PrimitiveType,
+    _TimestampType,
 )
 from fenic.core.types.enums import FuzzySimilarityMethod
 
@@ -189,6 +193,9 @@ class ExprConverter:
         def _literal_to_polars_expr(value: Any, data_type: DataType) -> pl.Expr:
             if value is None:
                 return pl.lit(None, dtype=convert_custom_dtype_to_polars(data_type))
+
+            if isinstance(data_type, _TimestampType):
+                return pl.lit(_pytype_datetime_to_utc(value), dtype=pl.Datetime(time_zone="UTC"))
 
             if isinstance(data_type, _PrimitiveType):
                 return pl.lit(value, dtype=convert_custom_dtype_to_polars(data_type))
@@ -1302,12 +1309,16 @@ class ExprConverter:
     def _convert_to_timestamp_expr(self, logical: ToTimestampExpr) -> pl.Expr:
         """Convert a string into a timestamp."""
         # logical.format should be a chrono format.
-        return self._convert_expr(logical.expr).str.strptime(dtype=pl.Datetime, format=logical.format)
+        result = self._convert_expr(logical.expr).str.strptime(dtype=pl.Datetime, format=logical.format)
+        if _format_has_tz_tokens(logical.format):
+            return result.dt.convert_time_zone("UTC")
+        else:
+            return result.dt.replace_time_zone("UTC")
 
     @_convert_expr.register(NowExpr)
     def _convert_now_expr(self, logical: NowExpr) -> pl.Expr:
         """Convert a string into a timestamp."""
-        return pl.lit(datetime.datetime.now(), dtype=pl.Date if logical.as_date else pl.Datetime)
+        return pl.lit(datetime.datetime.now(tz=datetime.timezone.utc), dtype=pl.Date if logical.as_date else pl.Datetime)
 
     @_convert_expr.register(DateTruncExpr)
     def _convert_date_trunc_expr(self, logical: DateTruncExpr) -> pl.Expr:
@@ -1333,11 +1344,20 @@ class ExprConverter:
 
     @_convert_expr.register(DateDiffExpr)
     def _convert_date_diff_expr(self, logical: DateDiffExpr) -> pl.Expr:
-        return (self._convert_expr(logical.end) - self._convert_expr(logical.start)).dt.total_days()
+        end_expr = self._convert_expr(logical.end).cast(pl.Datetime)
+        start_expr = self._convert_expr(logical.start).cast(pl.Datetime)
+        return (end_expr - start_expr).dt.total_days()
 
     @_convert_expr.register(TimestampDiffExpr)
     def _convert_timestamp_diff_expr(self, logical: TimestampDiffExpr) -> pl.Expr:
-        duration_expr = self._convert_expr(logical.end) - self._convert_expr(logical.start)
+        """Convert a timestamp diff expression to a Polars expression.
+
+        We convert the start and end expressions to datetime before performing the calculation.
+        UTC before performing the calculation.
+        """
+        end_expr = self._convert_expr(logical.end).cast(pl.Datetime)
+        start_expr = self._convert_expr(logical.start).cast(pl.Datetime)
+        duration_expr = end_expr - start_expr
         if logical.unit == "year":
             return (duration_expr.dt.total_days() / 365).cast(pl.Int64)
         elif logical.unit == "month":
@@ -1354,6 +1374,19 @@ class ExprConverter:
             return duration_expr.dt.total_milliseconds()
         else:
             raise InternalError(f"Unknown timestamp diff unit: {logical.unit}. Invalid state.")
+
+    @_convert_expr.register(ToUTCTimestampExpr)
+    def _convert_to_utc_timestamp_expr(self, logical: ToUTCTimestampExpr) -> pl.Expr:
+        return (self._convert_expr(logical.expr) 
+            .dt.replace_time_zone(logical.timezone)
+            .dt.convert_time_zone("UTC"))
+
+    @_convert_expr.register(FromUTCTimestampExpr)
+    def _convert_from_utc_timestamp_expr(self, logical: FromUTCTimestampExpr) -> pl.Expr:
+        return (self._convert_expr(logical.expr)
+            .dt.convert_time_zone(logical.timezone)
+            .dt.replace_time_zone("UTC"))
+
 
 def _convert_fuzzy_similarity_method_to_expr(expr: pl.Expr, other: pl.Expr, method: FuzzySimilarityMethod) -> pl.Expr:
     if method == "indel":
@@ -1431,5 +1464,19 @@ def _like_to_regex(pattern_expr: pl.Expr, case_insensitive: bool = False) -> pl.
 
     return regex_expr
 
+def _format_has_tz_tokens(fmt: str) -> bool:
+    """Check if a format string has any timezone tokens."""
+    tz_tokens = {"V", "z", "O", "X", "Z"}
+    return set(fmt) & tz_tokens
+
 def _get_zero_ts_part_from_date(expr: pl.Expr) -> pl.Expr:
+    """Get the zero part of a date expression."""
     return (expr.dt.year() * pl.lit(0, dtype=pl.Int32))
+
+def _pytype_datetime_to_utc(dt: datetime.datetime) -> datetime.datetime:
+    if dt.tzinfo is None:
+        # Naive datetime, assume it's UTC
+        return dt.replace(tzinfo=timezone.utc)
+    else:
+        # Aware datetime, convert to UTC
+        return dt.astimezone(timezone.utc)

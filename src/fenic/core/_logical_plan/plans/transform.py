@@ -570,7 +570,7 @@ class SQL(LogicalPlan):
             polars_schema = convert_custom_schema_to_polars_schema(input.schema())
             db_conn.register(view_name, pl.DataFrame(schema=polars_schema))
         try:
-            pl_result = db_conn.execute(self.resolved_query).pl()
+            pl_result = db_conn.execute(f"SET timezone = 'UTC'; {self.resolved_query}").pl()
             return convert_polars_schema_to_custom_schema(pl_result.schema)
         except Exception as e:
             raise PlanError(f"Failed to plan SQL query: {self._templated_query}") from e

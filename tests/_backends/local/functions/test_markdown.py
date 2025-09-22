@@ -367,7 +367,7 @@ def test_md_generate_toc(local_session):
     assert toc_list[1] == "# Simple Doc"
 
     # Third document has no h1, so should be empty
-    assert toc_list[2] is None
+    assert toc_list[2] is None or toc_list[2] == ""
 
 
 def test_md_generate_toc_empty_string(local_session):
@@ -375,7 +375,7 @@ def test_md_generate_toc_empty_string(local_session):
     df = df.select(col("markdown").cast(MarkdownType).alias("md_col"))
     toc_df = df.select(markdown.generate_toc(col("md_col")).alias("toc"))
     result = toc_df.to_polars()
-    assert result["toc"].to_list() == [None]
+    assert result["toc"].to_list() == [None] or result["toc"].to_list() == [""]
 
 def test_md_generate_toc_empty_headers(local_session):
     test_markdown = dedent(

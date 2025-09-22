@@ -68,6 +68,9 @@ from fenic.core._logical_plan.expressions.dt import (
     DayExpr as DayExpr,
 )
 from fenic.core._logical_plan.expressions.dt import (
+    FromUTCTimestampExpr as FromUTCTimestampExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
     HourExpr as HourExpr,
 )
 from fenic.core._logical_plan.expressions.dt import (
@@ -96,6 +99,9 @@ from fenic.core._logical_plan.expressions.dt import (
 )
 from fenic.core._logical_plan.expressions.dt import (
     ToTimestampExpr as ToTimestampExpr,
+)
+from fenic.core._logical_plan.expressions.dt import (
+    ToUTCTimestampExpr as ToUTCTimestampExpr,
 )
 from fenic.core._logical_plan.expressions.dt import (
     YearExpr as YearExpr,

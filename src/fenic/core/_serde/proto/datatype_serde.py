@@ -432,11 +432,11 @@ def _deserialize_date_type(_: DateTypeProto, context: SerdeContext) -> DataType:
 # =============================================================================
 
 @serialize_data_type.register
-def _serialize_timestamp_type(_: _TimestampType, context: SerdeContext) -> DataTypeProto:
+def _serialize_timestamp_type(ts: _TimestampType, context: SerdeContext) -> DataTypeProto:
     """Serialize a timestamp type."""
     return DataTypeProto(timestamp=TimestampTypeProto())
 
 @_deserialize_data_type_helper.register
-def _deserialize_timestamp_type(_: TimestampTypeProto, context: SerdeContext) -> DataType:
+def _deserialize_timestamp_type(ts_proto: TimestampTypeProto, context: SerdeContext) -> DataType:
     """Deserialize a timestamp type."""
     return TimestampType
