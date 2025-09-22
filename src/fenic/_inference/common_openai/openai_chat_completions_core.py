@@ -183,7 +183,7 @@ class OpenAIChatCompletionsCore:
 
         except RateLimitError as e:
             if e.response and e.response.json()["error"]["type"] == "insufficient_quota":
-                logger.error(f"Insufficient quota for model {self._model_provider.value}:{self._model}: {e}")
+                logger.error(f"Insufficient quota on {self._model_provider.value} provider: {e}")
                 return FatalException(e)
             return TransientException(e)
 
