@@ -2,6 +2,7 @@
 
 from fenic.api.functions import dt, embedding, json, markdown, semantic, text
 from fenic.api.functions.builtin import (
+    approx_count_distinct,
     array,
     array_agg,
     array_contains,
@@ -14,6 +15,7 @@ from fenic.api.functions.builtin import (
     coalesce,
     collect_list,
     count,
+    count_distinct,
     desc,
     desc_nulls_first,
     desc_nulls_last,
@@ -26,6 +28,7 @@ from fenic.api.functions.builtin import (
     stddev,
     struct,
     sum,
+    sum_distinct,
     udf,
     when,
 )
@@ -39,15 +42,18 @@ __all__ = [
     "array_agg",
     "async_udf",
     "avg",
+    "approx_count_distinct",
     "collect_list",
     "coalesce",
     "count",
+    "count_distinct",
     "json",
     "markdown",
     "max",
     "mean",
     "min",
     "struct",
+    "sum_distinct",
     "sum",
     "udf",
     "col",

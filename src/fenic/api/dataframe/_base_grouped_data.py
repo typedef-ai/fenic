@@ -6,7 +6,17 @@ if TYPE_CHECKING:
 from typing import Dict, List, Tuple, Union
 
 from fenic.api.column import Column
-from fenic.api.functions import avg, col, count, max, min, sum
+from fenic.api.functions import (
+    approx_count_distinct,
+    avg,
+    col,
+    count,
+    count_distinct,
+    max,
+    min,
+    sum,
+    sum_distinct,
+)
 from fenic.core._logical_plan.expressions import AliasExpr
 from fenic.core._logical_plan.expressions.base import AggregateExpr
 
@@ -26,6 +36,9 @@ class BaseGroupedData:
             "max": max,
             "count": count,
             "mean": avg,
+            "count_distinct": count_distinct,
+            "approx_count_distinct": approx_count_distinct,
+            "sum_distinct": sum_distinct,
         }
         agg_exprs = []
         for col_name, func_name in agg_dict.items():

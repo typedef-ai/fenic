@@ -1,12 +1,21 @@
 """Expression classes for internal implementation of column operations."""
 
+from fenic.core._logical_plan.expressions.aggregate import (
+    ApproxCountDistinctExpr as ApproxCountDistinctExpr,
+)
 from fenic.core._logical_plan.expressions.aggregate import AvgExpr as AvgExpr
+from fenic.core._logical_plan.expressions.aggregate import (
+    CountDistinctExpr as CountDistinctExpr,
+)
 from fenic.core._logical_plan.expressions.aggregate import CountExpr as CountExpr
 from fenic.core._logical_plan.expressions.aggregate import FirstExpr as FirstExpr
 from fenic.core._logical_plan.expressions.aggregate import ListExpr as ListExpr
 from fenic.core._logical_plan.expressions.aggregate import MaxExpr as MaxExpr
 from fenic.core._logical_plan.expressions.aggregate import MinExpr as MinExpr
 from fenic.core._logical_plan.expressions.aggregate import StdDevExpr as StdDevExpr
+from fenic.core._logical_plan.expressions.aggregate import (
+    SumDistinctExpr as SumDistinctExpr,
+)
 from fenic.core._logical_plan.expressions.aggregate import SumExpr as SumExpr
 from fenic.core._logical_plan.expressions.arithmetic import (
     ArithmeticExpr as ArithmeticExpr,

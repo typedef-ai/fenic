@@ -9,12 +9,14 @@ from pydantic import ConfigDict, validate_call
 from fenic.api.column import Column, ColumnOrName
 from fenic.api.functions.core import lit
 from fenic.core._logical_plan.expressions import (
+    ApproxCountDistinctExpr,
     ArrayContainsExpr,
     ArrayExpr,
     ArrayLengthExpr,
     AsyncUDFExpr,
     AvgExpr,
     CoalesceExpr,
+    CountDistinctExpr,
     CountExpr,
     FirstExpr,
     GreatestExpr,
@@ -24,6 +26,7 @@ from fenic.core._logical_plan.expressions import (
     MinExpr,
     StdDevExpr,
     StructExpr,
+    SumDistinctExpr,
     SumExpr,
     UDFExpr,
     WhenExpr,
@@ -50,6 +53,29 @@ def sum(column: ColumnOrName) -> Column:
     """
     return Column._from_logical_expr(
         SumExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def sum_distinct(column: ColumnOrName) -> Column:
+    """Aggregate function: returns the sum of distinct values in the specified column.
+
+    Args:
+        column: Column or column name to compute the sum of distinct values
+
+    Returns:
+        A Column expression representing the sum distinct aggregation
+
+    Example:
+        ```python
+        df.group_by("k").agg(sum_distinct("v").alias("sum_unique"))
+        ```
+
+    Raises:
+        TypeMismatchError: If column is not a numeric or boolean type
+    """
+    return Column._from_logical_expr(
+        SumDistinctExpr(Column._from_col_or_name(column)._logical_expr)
     )
 
 
@@ -148,6 +174,31 @@ def count(column: ColumnOrName) -> Column:
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def count_distinct(column: ColumnOrName) -> Column:
+    """Aggregate function: returns the number of distinct non-null values in a column.
+
+    Behavior: Nulls are ignored.
+
+    Args:
+        column: Column or column name to count distinct values in
+
+    Returns:
+        A Column expression representing the count distinct aggregation
+
+    Example:
+        ```python
+        df.group_by("k").agg(count_distinct("v").alias("num_unique"))
+        ```
+
+    Raises:
+        TypeMismatchError: If column is not a numeric, boolean, string, or array type
+    """
+    return Column._from_logical_expr(
+        CountDistinctExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def collect_list(column: ColumnOrName) -> Column:
     """Aggregate function: collects all values from the specified column into a list.
 
@@ -162,6 +213,30 @@ def collect_list(column: ColumnOrName) -> Column:
     """
     return Column._from_logical_expr(
         ListExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def approx_count_distinct(column: ColumnOrName) -> Column:
+    """Aggregate function: returns an approximate count (using HyperLogLog++) of distinct non-null values.
+
+    Behavior: Nulls are ignored.
+
+    Args:
+        column: Column or column name to approximately count distinct values in
+
+    Returns:
+        A Column expression representing the approximate count distinct aggregation
+
+    Example:
+        ```python
+        df.group_by("k").agg(approx_count_distinct("v").alias("approx_unique"))
+        ```
+
+    Raises:
+        TypeMismatchError: If column is not a numeric, boolean, or string type
+    """
+    return Column._from_logical_expr(
+        ApproxCountDistinctExpr(Column._from_col_or_name(column)._logical_expr)
     )
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

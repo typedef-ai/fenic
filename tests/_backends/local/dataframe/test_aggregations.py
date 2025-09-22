@@ -9,19 +9,24 @@ from fenic import (
     DoubleType,
     EmbeddingType,
     IntegerType,
+    Session,
     StringType,
+    approx_count_distinct,
     avg,
     col,
     count,
+    count_distinct,
     first,
     lit,
     max,
     mean,
     min,
     stddev,
+    struct,
     sum,
+    sum_distinct,
 )
-from fenic.core.error import PlanError
+from fenic.core.error import PlanError, TypeMismatchError
 
 
 def test_sum_aggregation(sample_df):
@@ -421,3 +426,72 @@ def test_stddev_aggregation(local_session):
 
     for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=True):
         assert res_val == pytest.approx(exp_val, rel=1e-9)
+
+
+def test_count_distinct_aggregation(local_session: Session):
+    # Larger dataset with numbers and strings
+    groups = ["A"] * 1000 + ["B"] * 1000
+    nums = [i % 10 for i in range(1000)] + [None if i % 50 == 0 else (i % 20) for i in range(1000)]
+    data = {
+        "group": groups,
+        "value": nums,
+        "text": [f"k{(i % 5)}" for i in range(2000)],
+    }
+    df = local_session.create_dataframe(data)
+    result = (
+        df.group_by("group")
+        .agg(
+            count_distinct("value").alias("cd"),
+            approx_count_distinct("value").alias("acd"),
+            count_distinct("text").alias("cd_text"),
+        )
+        .sort("group")
+        .to_polars()
+    )
+
+    assert result.schema["cd"] in (pl.Int64, pl.UInt32, pl.Int32)
+    assert result.schema["acd"] in (pl.Int64, pl.UInt32, pl.Int32)
+    assert result.schema["cd_text"] in (pl.Int64, pl.UInt32, pl.Int32)
+
+    a_row = result.filter(pl.col("group") == "A").row(0)
+    b_row = result.filter(pl.col("group") == "B").row(0)
+
+    # For group A: value cycles 0..9 (10 distinct)
+    assert a_row[result.columns.index("cd")] == 10
+    # For group B: value cycles 0..19 with some None (20 distinct)
+    assert b_row[result.columns.index("cd")] == 20
+    # text cycles k0..k4 (5 distinct) in both groups
+    assert a_row[result.columns.index("cd_text")] == 5
+    assert b_row[result.columns.index("cd_text")] == 5
+
+
+def test_sum_distinct_aggregation(local_session: Session):
+    data = {
+        "k": ["x"] * 100 + ["y"] * 100,
+        "v": [1] * 100 + [i % 5 for i in range(100)],
+        "arr": [[1, 2]] * 200,
+    }
+    df = local_session.create_dataframe(data)
+    result = (
+        df.group_by("k")
+        .agg(
+            sum_distinct("v").alias("sd"),
+        )
+        .sort("k")
+        .to_polars()
+    )
+
+    x_row = result.filter(pl.col("k") == "x").row(0)
+    y_row = result.filter(pl.col("k") == "y").row(0)
+    assert x_row[result.columns.index("sd")] == 1
+    # y group has v cycling 0..4, distinct sum is 0+1+2+3+4=10
+    assert y_row[result.columns.index("sd")] == 10
+
+    # Arrays are not supported for sum_distinct (should error at signature time if attempted)
+    with pytest.raises(TypeMismatchError):
+        # type checker/validator should reject arrays for sum_distinct
+        _ = df.group_by("k").agg(sum_distinct("arr")).to_polars()
+
+    # Structs are not supported for sum_distinct (should error at signature time if attempted)
+    with pytest.raises(TypeMismatchError):
+        _ = df.group_by("k").agg(sum_distinct(struct("v", "k"))).to_polars()

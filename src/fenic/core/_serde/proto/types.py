@@ -140,6 +140,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     AnalyzeSentimentExpr as AnalyzeSentimentExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ApproxCountDistinctExpr as ApproxCountDistinctExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArithmeticExpr as ArithmeticExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -180,6 +183,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ContainsExpr as ContainsExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    CountDistinctExpr as CountDistinctExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     CountExpr as CountExprProto,
@@ -381,6 +387,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     StructExpr as StructExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    SumDistinctExpr as SumDistinctExprProto,
 )
 
 # Aggregate expressions
@@ -636,6 +645,9 @@ __all__ = [
     "FirstExprProto",
     "ListExprProto",
     "StdDevExprProto",
+    "CountDistinctExprProto",
+    "ApproxCountDistinctExprProto",
+    "SumDistinctExprProto",
     # Plan classes
     "LogicalPlanProto",
     "FenicSchemaProto",

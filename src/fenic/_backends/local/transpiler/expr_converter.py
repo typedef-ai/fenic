@@ -39,6 +39,7 @@ from fenic._backends.schema_serde import serialize_data_type
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     AnalyzeSentimentExpr,
+    ApproxCountDistinctExpr,
     ArithmeticExpr,
     ArrayContainsExpr,
     ArrayExpr,
@@ -55,6 +56,7 @@ from fenic.core._logical_plan.expressions import (
     ConcatExpr,
     ContainsAnyExpr,
     ContainsExpr,
+    CountDistinctExpr,
     CountExpr,
     CountTokensExpr,
     DateAddExpr,
@@ -121,6 +123,7 @@ from fenic.core._logical_plan.expressions import (
     StripCharsExpr,
     StrLengthExpr,
     StructExpr,
+    SumDistinctExpr,
     SumExpr,
     TextChunkExpr,
     TextractExpr,
@@ -332,6 +335,9 @@ class ExprConverter:
             SumExpr: lambda expr: self._convert_expr(
                 expr.expr
             ).sum(),
+            SumDistinctExpr: lambda expr: (
+                lambda base: base.filter(base.is_not_null()).unique().sum()
+            )(self._convert_expr(expr.expr)),
             MinExpr: lambda expr: self._convert_expr(
                 expr.expr,
             ).min(),
@@ -343,6 +349,12 @@ class ExprConverter:
                 if isinstance(expr.expr, LiteralExpr)
                 else self._convert_expr(expr.expr).count()
             ),
+            CountDistinctExpr: lambda expr: (
+                lambda base: base.filter(base.is_not_null()).n_unique()
+            )(self._convert_expr(expr.expr)),
+            ApproxCountDistinctExpr: lambda expr: (
+                lambda base: base.filter(base.is_not_null()).approx_n_unique()
+            )(self._convert_expr(expr.expr)),
             ListExpr: lambda expr: self._convert_expr(
                 expr.expr
             ),
