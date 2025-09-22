@@ -3,10 +3,8 @@ import inspect
 
 import pytest
 
-pytest.importorskip("fastmcp")
-
 from fenic.api.mcp.tool_generation import (
-    auto_generate_core_tools_from_tables,
+    auto_generate_system_tools_from_tables,
     fenic_tool,
 )
 from fenic.api.session.session import Session
@@ -17,20 +15,21 @@ from tests.api.mcp.utils import create_table_with_rows
 
 def test_auto_generate_core_tools_from_tables_missing_table_raises(local_session):
     with pytest.raises(ConfigurationError, match="do not exist"):
-        auto_generate_core_tools_from_tables(["does_not_exist"], local_session, tool_group_name="TG")
+        auto_generate_system_tools_from_tables(["does_not_exist"], local_session, tool_group_name="TG")
 
 
 def test_auto_generate_core_tools_from_tables_requires_descriptions(local_session):
     create_table_with_rows(local_session, "t_no_desc", [1, 2, 3], description=None)
     with pytest.raises(ConfigurationError, match="Missing descriptions"):
-        auto_generate_core_tools_from_tables(["t_no_desc"], local_session, tool_group_name="TG")
+        auto_generate_system_tools_from_tables(["t_no_desc"], local_session, tool_group_name="TG")
 
 
 def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
+    pytest.importorskip("fastmcp")
     create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
     create_table_with_rows(local_session, "t2", [10, 20], description="table two")
 
-    tools = auto_generate_core_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
+    tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
 
     # Expect core set: Schema, Describe, Read, Search Summary, Search Content, Analyze
     assert len(tools) == 6
@@ -53,7 +52,7 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
 
     # Sanity check: the Schema tool's callable returns a LogicalPlan we can collect
     schema_tool = next(t for t in tools if t.name.endswith("Schema"))
-    plan = schema_tool.func()  # type: ignore[call-arg]
+    plan = asyncio.run(schema_tool.func())  # type: ignore[call-arg]
     pl_df, _ = local_session._session_state.execution.collect(plan)
     assert set(pl_df.columns) == {"dataset", "schema"}
     assert sorted(pl_df.get_column("dataset").to_list()) == ["t1", "t2"]

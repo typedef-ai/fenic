@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from fenic.api.mcp.tool_generation import (
     ToolGenerationConfig,
-    auto_generate_core_tools_from_tables,
+    auto_generate_system_tools_from_tables,
 )
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
@@ -39,11 +39,11 @@ def create_mcp_server(
     if parameterized_tools is None:
         parameterized_tools = []
     if automated_tool_generation:
-        dynamic_tools.extend(auto_generate_core_tools_from_tables(
+        dynamic_tools.extend(auto_generate_system_tools_from_tables(
             automated_tool_generation.table_names,
             session,
             tool_group_name=automated_tool_generation.tool_group_name,
-            sql_max_rows=automated_tool_generation.max_result_rows)
+            max_result_limit=automated_tool_generation.max_result_rows)
         )
     if not (parameterized_tools or dynamic_tools):
         raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")

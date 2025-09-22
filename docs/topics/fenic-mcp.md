@@ -195,7 +195,7 @@ Notes:
 - Dynamic tools are not stored in the catalog; they exist only while your server process is running.
 - Dynamic tools can be used to integrate your MCP server with external data sources or APIs to perform operations.
 
-### Step 2c: Auto-generate core analysis tools from catalog tables
+### Step 2c: Auto-generate system tools from catalog tables
 
 You can generate a suite of reusable data tools (Schema, Profile, Read, Search Summary, Search Content, Analyze) directly from catalog tables and their descriptions. This is helpful for quickly exposing exploratory and read/query capabilities to MCP.
 
@@ -348,7 +348,7 @@ Environment variables for model providers (if your tools use semantic operators)
 | Parameters/Schema       | From function signature using `Annotated[type, "description"]`. `limit` and `table_format` are auto-added.     | From `ToolParam` definitions bound to `tool_param(...)` in the plan. Defaults mark params as optional. |
 | Execution context       | Executes the returned logical plan from your function; can capture `DataFrame`s or use session access in code. | Executes a stored logical plan with bound parameters from the catalog.                                 |
 | Result formatting       | `table_format` supports `markdown` or `structured`; `limit` caps rows (capped by `max_result_limit` if set).   | Same.                                                                                                  |
-| Best for                | Custom logic, semantic/procedural transforms, quick EDA, mixing multiple data sources in code.                 | Reusable, shareable queries/macros that outlive the application process.                               |
+| Best for                | Custom logic, semantic/procedural transforms, external data integration, mixing multiple data sources in code. | Reusable, shareable queries/macros that outlive the application process.                               |
 
 ## Troubleshooting
 

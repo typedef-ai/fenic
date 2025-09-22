@@ -86,23 +86,23 @@ class ToolGenerationConfig:
     max_result_rows: int = 100
 
 
-def auto_generate_core_tools_from_tables(
+def auto_generate_system_tools_from_tables(
     table_names: List[str],
     session: Session,
     *,
     tool_group_name: str,
-    sql_max_rows: int = 100,
+    max_result_limit: int = 100,
 ) -> List[DynamicToolDefinition]:
     """Generate Schema/Profile/Read/Search/Analyze tools from catalog tables.
 
     Validates that each table exists and has a non-empty description in catalog metadata.
     """
     datasets = _build_datasets_from_tables(table_names, session)
-    return _auto_generate_core_tools(
+    return _auto_generate_system_tools(
         datasets,
         session,
         tool_group_name=tool_group_name,
-        sql_max_rows=sql_max_rows,
+        max_result_limit=max_result_limit,
     )
 
 
@@ -217,15 +217,12 @@ def _auto_generate_read_tool(
     result_limit: int = 50,
 ) -> DynamicToolDefinition:
     """Create a read tool over one or many datasets."""
-    # avoid import issue from __init__
-    from fastmcp.server.context import Context
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
 
     name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
 
     async def _validate_columns(
-        ctx: Context,
         available_columns: List[str],
         original_columns: List[str],
         filtered_columns: List[str],
@@ -234,10 +231,9 @@ def _auto_generate_read_tool(
             raise ValidationError(f"Column(s) {original_columns} not found. Available: {', '.join(available_columns)}")
         if len(filtered_columns) != len(original_columns):
             invalid_columns = [c for c in original_columns if c not in filtered_columns]
-            await ctx.warning(f"Column(s) {invalid_columns} not found. Available: {', '.join(available_columns)}")
+            raise ValidationError(f"Column(s) {invalid_columns} not found. Available: {', '.join(available_columns)}")
 
     async def read_func(
-        ctx: Context, # MCP server context allows us to log warnings back to the client.
         df_name: Annotated[str, "Dataset name to read rows from."],
         limit: Annotated[Optional[int], "Max rows to read within a page"] = result_limit,
         offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
@@ -259,11 +255,11 @@ def _auto_generate_read_tool(
         exclude_columns = [c.strip() for c in exclude_columns.split(",") if c.strip()] if exclude_columns else None
         if include_columns:
             filtered_columns = [c for c in include_columns if c in available_columns]
-            await _validate_columns(ctx, available_columns, include_columns, filtered_columns)
+            await _validate_columns(available_columns, include_columns, filtered_columns)
             df = df.select(*filtered_columns)
         if exclude_columns:
             filtered_columns = [c for c in available_columns if c not in exclude_columns]
-            await _validate_columns(ctx, available_columns, exclude_columns, filtered_columns)
+            await _validate_columns(available_columns, exclude_columns, filtered_columns)
             df = df.select(*filtered_columns)
         # Apply paging (handles offset+order_by via SQL and optional limit)
         return _apply_paging(
@@ -466,7 +462,7 @@ def _auto_generate_sql_tool(
     """Create an Analyze tool that executes DuckDB SELECT SQL across datasets.
 
     - JOINs between the provided datasets are allowed.
-    - DDL/DML, CTEs, subqueries, UNION, and multiple top-level queries are not allowed (enforced upstream).
+    - DDL/DML and multiple top-level queries are not allowed (enforced in `session.sql()`).
     - The callable returns a LogicalPlan gathered later by the MCP server.
     """
     if len(datasets) == 0:
@@ -474,7 +470,7 @@ def _auto_generate_sql_tool(
 
     async def analyze_func(
         full_sql: Annotated[
-            str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., `SELECT * FROM {orders}`. JOINs between the provided datasets are allowed. SQL dialect: DuckDB. DDL/DML, CTEs, subqueries, UNION, and multiple top-level queries are not allowed"]
+            str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., `SELECT * FROM {orders}`. JOINs between the provided datasets are allowed. SQL dialect: DuckDB. DDL/DML and multiple top-level queries are not allowed"]
     ) -> LogicalPlan:
         return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets})._logical_plan
 
@@ -804,12 +800,12 @@ async def _compute_profile_rows(
     return rows_list
 
 
-def _auto_generate_core_tools(
+def _auto_generate_system_tools(
     datasets: List[DatasetSpec],
     session: Session,
     *,
     tool_group_name: str,
-    sql_max_rows: int = 100,
+    max_result_limit: int = 100,
 ) -> List[DynamicToolDefinition]:
     """Generate core tools spanning all datasets: Schema, Profile, Analyze.
 
@@ -858,7 +854,7 @@ def _auto_generate_core_tools(
             "Available datasets:",
             group_desc,
         ]),
-        result_limit=sql_max_rows,
+        result_limit=max_result_limit,
     )
 
     search_summary_tool = _auto_generate_search_summary_tool(
@@ -880,7 +876,7 @@ def _auto_generate_core_tools(
             "Available datasets:",
             group_desc,
         ]),
-        result_limit=sql_max_rows,
+        result_limit=max_result_limit,
     )
 
     analyze_tool = _auto_generate_sql_tool(
@@ -889,14 +885,14 @@ def _auto_generate_core_tools(
         tool_name=f"{tool_group_name} - Analyze",
         tool_description="\n\n".join([
             "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
-            "DDL/DML, CTEs, subqueries, UNION, and multiple top-level queries are not allowed (enforced upstream).",
+            "DDL/DML and multiple top-level queries are not allowed.",
             "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
             "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
             "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
             "Below, the available datasets are listed, by name and description.",
             group_desc,
         ]),
-        result_limit=sql_max_rows,
+        result_limit=max_result_limit,
     )
 
     return [schema_tool, profile_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
