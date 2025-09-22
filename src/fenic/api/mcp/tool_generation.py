@@ -15,12 +15,20 @@ import asyncio
 import functools
 import hashlib
 import inspect
-import json
 import re
-from dataclasses import dataclass, asdict
-from typing import Callable, Dict, List, Literal, Optional, TypedDict, Union, Coroutine, Any
+from dataclasses import dataclass
+from inspect import iscoroutinefunction
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Union,
+)
 
-from fastmcp.server.context import Context
 import polars as pl
 from typing_extensions import Annotated
 
@@ -28,7 +36,6 @@ from fenic.api.dataframe.dataframe import DataFrame
 from fenic.api.functions import (
     avg,
     col,
-    count,
     stddev,
 )
 from fenic.api.functions import max as max_
@@ -46,6 +53,8 @@ from fenic.core.types.datatypes import (
     IntegerType,
     StringType,
 )
+
+PROFILE_MAX_SAMPLE_SIZE = 10_000
 
 
 @dataclass
@@ -101,18 +110,28 @@ def fenic_tool(
     tool_name: str,
     tool_description: str,
     max_result_limit: Optional[int] = None,
+    client_limit_parameter: bool = True,
     default_table_format: TableFormat = "markdown",
     read_only: bool = True,
     idempotent: bool = True,
     destructive: bool = False,
     open_world: bool = False,
-) -> Callable[[Callable[..., Coroutine[Any, Any, DataFrame]]], DynamicToolDefinition]:
+) -> Callable[[
+        Union[
+            Callable[..., Coroutine[Any, Any, DataFrame]],
+            Callable[..., DataFrame]
+        ]], DynamicToolDefinition]:
     """Decorator to bind a DataFrame to a user-authored tool function.
+
+    Can be added to a synchronous or asynchronous (recommended) tool function.
+    Function based tools (dynamic tools) cannot be persisted to the catalog.
+    See the (Fenic MCP documentation)[https://fenic.ai/docs/topics/fenic-mcp] for more details.
 
     Args:
         tool_name: The name of the tool.
         tool_description: The description of the tool.
-        max_result_limit: The maximum number of results to return.
+        max_result_limit: The maximum number of results to return. If omitted, no limit will be enforced.
+        client_limit_parameter: Whether to add a client-side limit parameter to the tool.
         default_table_format: The default table format to return.
         read_only: A hint to provide to the model that the tool does not modify its environment.
         idempotent: A hint to provide to the model that calling the tool multiple times with the same input will always return the same result (redundant if read_only is True).
@@ -136,10 +155,10 @@ def fenic_tool(
 
     Example: Creating an open-world tool that reaches out to an external API. The open_world flag indicates to the model that the tool may interact with an "open world" of external entities
         @fenic_tool(tool_name="search_knowledge_base", tool_description="...", open_world=True)
-        def search_knowledge_base(
+        async def search_knowledge_base(
             query: Annotated[str, "Knowledge base search query"],
         ) -> DataFrame:
-            results = requests.get(...)
+            results = await requests.get(...)
             return fc.create_dataframe(results)
 
     Notes:
@@ -149,20 +168,26 @@ def fenic_tool(
     - The returned object is a DynamicTool ready for registration.
     - A `limit` parameter is automatically added to the function signature, which can be used to limit the number of rows returned up to the tool's `max_result_limit`.
     - A `table_format` parameter is automatically added to the function signature, which can be used to specify the format of the returned data (markdown, structured)
+    - The `add_limit_parameter` flag can be used to control whether the client is allowed to specify a limit parameter.
     """
 
-    def decorator(func: Callable[..., Coroutine[Any, Any, DataFrame]]) -> DynamicToolDefinition:
+    def decorator(
+        func: Union[Callable[..., Coroutine[Any, Any, DataFrame]], Callable[..., DataFrame]]) -> DynamicToolDefinition:
         _ensure_no_var_args(func, func_label=tool_name)
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> LogicalPlan:
-            result_df = await func(*args, **kwargs)
+            if iscoroutinefunction(func):
+                result_df = await func(*args, **kwargs)
+            else:
+                result_df = await asyncio.to_thread(lambda: func(*args, **kwargs))
             return result_df._logical_plan
 
         return DynamicToolDefinition(
             name=tool_name,
             description=tool_description,
             max_result_limit=max_result_limit,
+            add_limit_parameter=client_limit_parameter,
             default_table_format=default_table_format,
             read_only=read_only,
             idempotent=idempotent,
@@ -192,6 +217,8 @@ def _auto_generate_read_tool(
     result_limit: int = 50,
 ) -> DynamicToolDefinition:
     """Create a read tool over one or many datasets."""
+    # avoid import issue from __init__
+    from fastmcp.server.context import Context
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
 
@@ -296,7 +323,7 @@ def _auto_generate_search_summary_tool(
     )
 
 
-def auto_generate_search_content_tool(
+def _auto_generate_search_content_tool(
     datasets: List[DatasetSpec],
     session: Session,
     tool_name: str,
@@ -464,13 +491,10 @@ def _auto_generate_sql_tool(
             "- For text search, prefer regular expressions using REGEXP_MATCHES().\n",
             "- Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.\n",
             f"- Results are limited to {result_limit} rows, use LIMIT/OFFSET to paginate when receiving a result set of {result_limit} or more rows.\n",
-            "Examples:\n",  # nosec B608 - example text only
-            f"- SELECT * FROM {{{example_name}}} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT {result_limit}",
-            # nosec B608 - example text only
-            f"- SELECT dept, COUNT(*) AS n FROM {{{example_name}}} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT {result_limit}",
-            # nosec B608 - example text only
-            f"- Paging: page 2 of size {result_limit}\n  SELECT * FROM {{{example_name}}} ORDER BY created_at DESC LIMIT {result_limit} OFFSET {result_limit}",
-            # nosec B608 - example text only
+            "Examples:\n",
+            f"- SELECT * FROM {{{example_name}}} WHERE REGEXP_MATCHES(message, '(?i)error|fail') LIMIT {result_limit}", # nosec B608 - example text only
+            f"- SELECT dept, COUNT(*) AS n FROM {{{example_name}}} WHERE status = 'active' GROUP BY dept HAVING n > 10 ORDER BY n DESC LIMIT {result_limit}", # nosec B608 - example text only
+            f"- Paging: page 2 of size {result_limit}\n  SELECT * FROM {{{example_name}}} ORDER BY created_at DESC LIMIT {result_limit} OFFSET {result_limit}", # nosec B608 - example text only
         ]
     )
     enhanced_description = "\n".join(lines)
@@ -543,7 +567,7 @@ def _apply_paging(
 
 
 @dataclass
-class ProfileRow:
+class _ProfileRow:
     dataset_name: str
     column_name: str
     data_type: str
@@ -584,26 +608,9 @@ def _auto_generate_profile_tool(
         raise ValueError("Cannot create profile tool: no datasets provided.")
     tool_key = _sanitize_name(tool_name)
 
-    async def _materialize_dataset_description(df: DataFrame, dataset_name: str, view_name: str) -> None:
-        profile_rows = await _compute_profile_rows(df, dataset_name, topk_distinct)
-        pl_df = pl.DataFrame(profile_rows)
-        plan = InMemorySource.from_session_state(pl_df, session._session_state)
-        catalog = session._session_state.catalog
-        catalog.drop_view(view_name, ignore_if_not_exists=True)
-        catalog.create_view(view_name, plan)
-
-    async def _ensure_profile_view_for_dataset(spec: DatasetSpec, refresh: bool) -> LogicalPlan:
-        schema_hash = _schema_fingerprint(spec.df)
-        view_name = f"__fenic_profile__{tool_key}__{_sanitize_name(spec.table_name)}__{schema_hash}"
-        catalog = session._session_state.catalog
-        if refresh or not catalog.does_view_exist(view_name):
-            await _materialize_dataset_description(spec.df, spec.table_name, view_name)
-        return catalog.get_view_plan(view_name)
-
     async def profile_func(
         df_name: Annotated[
             str | None, "Optional DataFrame name to return a single profile for. To return profiles for all datasets, omit this parameter."] = None,
-        refresh: Annotated[bool, "Recompute and refresh cached profile view(s)"] = False,
     ) -> LogicalPlan:
         # sometimes the models get...very confused, and pass the null string instead of `null` or omitting the field entirely
         if not df_name or df_name == "null":
@@ -614,13 +621,12 @@ def _auto_generate_profile_tool(
             if spec is None:
                 raise ValidationError(
                     f"Unknown dataset '{df_name}'. Available: {', '.join(d.table_name for d in datasets)}")
-            return await _ensure_profile_view_for_dataset(spec, refresh)
+            return await _ensure_profile_view_for_dataset(session, tool_key, spec, topk_distinct)
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
         profile_df = None
         for spec in datasets:
-            # Ensure view exists and read it, then convert to polars for concatenation
-            plan = await _ensure_profile_view_for_dataset(spec, refresh)
+            plan = await _ensure_profile_view_for_dataset(session, tool_key, spec, topk_distinct)
             df = DataFrame._from_logical_plan(plan, session_state=session._session_state)
             if not profile_df:
                 profile_df = df
@@ -636,21 +642,42 @@ def _auto_generate_profile_tool(
         max_result_limit=None,
     )
 
+async def _ensure_profile_view_for_dataset(
+    session: Session,
+    tool_key: str,
+    spec: DatasetSpec,
+    topk_distinct: int,
+) -> LogicalPlan:
+    schema_hash = _schema_fingerprint(spec.df)
+    view_name = f"__fenic_profile__{tool_key}__{_sanitize_name(spec.table_name)}__{schema_hash}"
+    catalog = session._session_state.catalog
+    if not catalog.does_view_exist(view_name):
+        profile_rows = await _compute_profile_rows(
+            spec.df,
+            spec.table_name,
+            topk_distinct,
+        )
+        view_plan = InMemorySource.from_session_state(
+            pl.DataFrame(profile_rows), session._session_state,
+        )
+        catalog.create_view(view_name, view_plan)
+    return catalog.get_view_plan(view_name)
+
 async def _compute_profile_rows(
     df: DataFrame,
     dataset_name: str,
-    topk_distinct: int
-) -> List[ProfileRow]:
+    topk_distinct: int,
+) -> List[_ProfileRow]:
     pl_df = df.to_polars()
     total_rows = pl_df.height
-    sampled_df = pl_df.sample(10000)
-    rows_list: List[ProfileRow] = []
+    sampled_df = pl_df.sample(min(total_rows, PROFILE_MAX_SAMPLE_SIZE))
+    rows_list: List[_ProfileRow] = []
     for field in df.schema.column_fields:
         col_name = field.name
         dtype_str = str(field.data_type)
         null_count = sampled_df.select(pl.col(col_name).is_null().sum()).item()
         non_null_count = sampled_df.height - null_count
-        stats: ProfileRow = ProfileRow(
+        stats = _ProfileRow(
             dataset_name=dataset_name,
             column_name=col_name,
             data_type=dtype_str,
@@ -815,8 +842,7 @@ def _auto_generate_core_tools(
             "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
             "This call should be used as a follow up after calling the `Schema` tool."
             "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
-            "Results are cached per tool name and schema fingerprint; pass refresh=true to recompute.",
-            "Profiles statistics are calculated across a sample of the original dataset.",
+            "Profiling statistics are calculated across a sample of the original dataset.",
             "Available Datasets:",
             group_desc,
         ]),
@@ -845,7 +871,7 @@ def _auto_generate_core_tools(
             group_desc,
         ]),
     )
-    search_content_tool = auto_generate_search_content_tool(
+    search_content_tool = _auto_generate_search_content_tool(
         datasets,
         session,
         tool_name=f"{tool_group_name} - Search Content",

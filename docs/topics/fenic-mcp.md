@@ -140,7 +140,7 @@ session.catalog.drop_tool("users_by_name_regex", ignore_if_not_exists=True)
 
 ### Step 2b: Create dynamic tools with `@fenic_tool`
 
-Dynamic tools let you expose arbitrary Python logic as an MCP tool. They are defined with the `@fenic_tool` decorator and must return a Fenic `DataFrame`. Annotate parameters with `typing_extensions.Annotated` to provide per-argument descriptions in the tool schema. The server automatically adds `limit` and `table_format` keyword-only parameters for limiting the size of result sets and output formatting.
+Dynamic tools let you expose arbitrary Python logic as an MCP tool. They are defined with the `@fenic_tool` decorator and must return a Fenic `DataFrame`. Annotate parameters with `typing_extensions.Annotated` to provide per-argument descriptions in the tool schema. The server automatically adds `limit` and `table_format` keyword-only parameters for limiting the size of result sets and output formatting -- if the tool handles its own limiting, set `client_limit_parameter` to `False` to disable this behavior. The wrapped function can be async (recommended) or synchronous.
 
 ```python
 from typing_extensions import Annotated
@@ -178,7 +178,7 @@ orders_total = orders.group_by("user_id").agg(
     max_result_limit=100,
     default_table_format="markdown",
 )
-def users_with_min_spend(
+async def users_with_min_spend(
     name_regex: Annotated[Optional[str], "Regex for user name (use (?i) for case-insensitive)"] = None,
     min_total: Annotated[float, "Minimum total order amount"],
 ) -> DataFrame:

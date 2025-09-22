@@ -147,30 +147,24 @@ class FenicMCPServer:
         original_result_count = len(pl_df)
         if effective_limit and original_result_count > effective_limit:
             pl_df = pl_df.limit(effective_limit)
+        schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
+        rows_list = pl_df.to_dicts()
+        returned_result_count = len(rows_list)
         if table_format == "structured":
-            rows_list = pl_df.to_dicts()
-            schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
             result_set = MCPResultSet(
                 table_schema=schema_fields,
                 rows=rows_list,
-                returned_result_count=len(rows_list),
+                returned_result_count=returned_result_count,
                 total_result_count=original_result_count,
             )
         else:
-            with pl.Config(
-                tbl_hide_dataframe_shape=True,
-                tbl_cols=-1,
-                tbl_rows=-1,
-                tbl_width_chars=-1,
-                fmt_str_lengths=25000 #TODO(bcallender): make this configurable
-            ):
-                rows = repr(pl_df)
-                result_set = MCPResultSet(
-                    table_schema=None,
-                    rows=rows,
-                    returned_result_count=len(pl_df),
-                    total_result_count=original_result_count,
-                )
+            rows = _render_markdown_preview(rows_list)
+            result_set = MCPResultSet(
+                table_schema=schema_fields,
+                rows=rows,
+                returned_result_count=returned_result_count,
+                total_result_count=original_result_count,
+            )
         return result_set
 
     def _build_parameterized_tool(self, tool: ParameterizedToolDefinition):
