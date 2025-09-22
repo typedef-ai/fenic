@@ -1,3 +1,4 @@
+import logging
 import math
 import threading
 import time
@@ -5,7 +6,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from fenic._constants import MINUTE_IN_SECONDS
-from fenic.core.error import ExecutionError
+from fenic.core.error import ExecutionError, InternalError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,7 +67,7 @@ class RateLimitStrategy(ABC):
     """
     def __init__(self, rpm: int):
         if rpm <= 0:
-            raise ValueError("rpm must be greater than 0")
+            raise ValidationError("rpm must be greater than 0")
         self.rpm = rpm
         self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
         self.mutex = threading.Lock()
@@ -105,6 +108,145 @@ class RateLimitStrategy(ABC):
             int: The total number of tokens allowed per minute.
         """
         pass
+
+
+class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
+    """Adaptive RPM limiter with multiplicative backoff and optional additive increase.
+
+    On backoff, reduces RPM by a multiplier and clears burst capacity. When no
+    provider RPM hint is active and no cooldown is in effect, increases RPM
+    additively after a configurable number of consecutive successful requests,
+    up to a configurable maximum. Provider hints (RPM limit and retry-at time)
+    clamp RPM and gate scheduling until the cooldown expires. Uses a single
+    requests bucket and does not perform token accounting.
+
+    Attributes:
+        rpm: The starting RPM.
+        min_rpm: The minimum RPM.
+        backoff_multiplier: The multiplier to use when backoff is called.
+        max_rpm: The maximum RPM.
+        additive_increment: The amount to increment the RPM by after a certain number of consecutive successes.
+        increase_after_successes: The number of consecutive successes required to increment the RPM.
+    """
+
+    def __init__(
+        self,
+        rpm: int = 25_000,
+        min_rpm: int = 50,
+        backoff_multiplier: float = 0.75,
+        *,
+        max_rpm: int | None = None,
+        additive_increment: int = 50,
+        increase_after_successes: int = 30,
+    ):
+        super().__init__(rpm=rpm)
+        self._min_rpm = max(1, min_rpm)
+        if not (0 < backoff_multiplier < 1):
+            raise InternalError("backoff multiplier must be between 0 and 1")
+        self._backoff_multiplier = backoff_multiplier
+        # Cap upward growth; default to the starting rpm
+        self._max_rpm = max(rpm, self._min_rpm) if max_rpm is None else max(max_rpm, self._min_rpm)
+        # Additive increase controls (only when no provider hint is present)
+        self._additive_increment = max(1, additive_increment)
+        self._increase_after_successes = max(1, increase_after_successes)
+        self._consecutive_successes = 0
+        self._rpm_hint: int | None = None
+        self._cooldown_until: float = 0.0
+        self._on_cooldown = False
+
+    def register_rate_limit_hint(
+        self, rpm_hint: int | None, retry_at_epoch_seconds: float | None
+    ) -> None:
+        """Register provider-processed hints: rpm limit and absolute retry time.
+
+        Args:
+            rpm_hint: Max requests per minute allowed by provider (if known)
+            retry_at_epoch_seconds: Unix epoch seconds we should not send before (if known)
+        """
+        with self.mutex:
+            if isinstance(rpm_hint, int) and rpm_hint > 0:
+                self._rpm_hint = rpm_hint
+                self.rpm = min(self.rpm, rpm_hint)
+                self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
+            if (
+                isinstance(retry_at_epoch_seconds, (int, float))
+                and retry_at_epoch_seconds > 0
+            ):
+                self._cooldown_until = float(retry_at_epoch_seconds)
+                if not self._on_cooldown:
+                    self._on_cooldown = True
+                    logger.warning(
+                        f"Provider is throttling requests. Pausing for {retry_at_epoch_seconds - time.time():.2f}s before resuming at the provider specified limit of {rpm_hint} requests per minute."
+                    )
+            else:
+                logger.warning(
+                        f"Provider is throttling requests. Resetting RPM to {rpm_hint} requests per minute as specified by the provider."
+                    )
+
+    def backoff(self, curr_time: float) -> int:
+        """Backoff the request rate limit bucket."""
+        with self.mutex:
+            # Reduce rpm multiplicatively; clamp by hint and min
+            new_rpm = self._rpm_hint if self._rpm_hint else max(self._min_rpm, int(self.rpm * self._backoff_multiplier))
+            if new_rpm != self.rpm:
+                logger.debug(
+                    f"AdaptiveBackoff: reducing rpm multiplicatively from {self.rpm} to {new_rpm} after backoff"
+                )
+                self.rpm = new_rpm
+                # Replace bucket: drop burst capacity
+                self.requests_bucket = RateLimitBucket(max_capacity=self.rpm)
+            # Zero capacity to yield scheduling immediately after sleep completes
+            self.requests_bucket._set_capacity(0, curr_time)
+            # Reset growth tracking after backoff
+            self._consecutive_successes = 0
+        return 0
+
+    def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
+        now = time.time()
+        # Cooldown gate: do not allow any requests until reset time
+        if now < self._cooldown_until:
+            return False
+        available_requests = self.requests_bucket._get_available_capacity(now)
+        if available_requests >= 1:
+            self._on_cooldown = False
+            self.requests_bucket._set_capacity(available_requests - 1, now)
+            # Track successful scheduling and consider additive growth
+            self._record_success_and_maybe_grow(now)
+            return True
+        return False
+
+    def context_tokens_per_minute(self) -> int:
+        # Not used; return large sentinel
+        return 1_000_000_000
+
+    def __str__(self):
+        return f"AdaptiveBackoffRateLimitStrategy(rpm={self.rpm}, min_rpm={self._min_rpm}, backoff_multiplier={self._backoff_multiplier})"
+
+    # Internal helpers
+    def _record_success_and_maybe_grow(self, now: float) -> None:
+        with self.mutex:
+            # Do not grow if provider supplied an explicit rpm hint
+            if self._rpm_hint is not None or self._on_cooldown:
+                self._consecutive_successes = 0
+                return
+            self._consecutive_successes += 1
+            if (
+                self._consecutive_successes >= self._increase_after_successes
+                and self.rpm < self._max_rpm
+            ):
+                new_rpm = min(self._max_rpm, self.rpm + self._additive_increment)
+                if new_rpm != self.rpm:
+                    # Preserve current available capacity proportionally when resizing
+                    available = self.requests_bucket._get_available_capacity(now)
+                    self.rpm = new_rpm
+                    new_bucket = RateLimitBucket(max_capacity=self.rpm)
+                    # Clamp carried capacity to new max
+                    new_bucket._set_capacity(min(available, self.rpm), now)
+                    self.requests_bucket = new_bucket
+                    logger.debug(
+                        f"AdaptiveBackoff: increasing rpm additively to {self.rpm} after {self._consecutive_successes} consecutive successes"
+                    )
+                self._consecutive_successes = 0
 
 
 class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
@@ -259,5 +401,3 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
             str: A string showing the RPM, input TPM, and output TPM limits.
         """
         return f"SeparatedTokenRateLimitStrategy(rpm={self.rpm}, input_tpm={self.input_tpm}, output_tpm={self.output_tpm})"
-
-

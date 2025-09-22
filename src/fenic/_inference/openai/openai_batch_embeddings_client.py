@@ -6,13 +6,13 @@ from typing import Union
 from fenic._inference.common_openai.openai_embeddings_core import (
     OpenAIEmbeddingsCore,
 )
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     RequestT,
     TransientException,
 )
+from fenic._inference.openai.openai_provider import OpenAIModelProvider
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
@@ -57,7 +57,6 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             model_provider=self.model_provider,
             token_counter=TiktokenTokenCounter(model_name=model),
             client=self.model_provider_class.create_aio_client()
-
         )
 
     async def make_single_request(

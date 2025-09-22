@@ -19,8 +19,9 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 import fenic as fc
-from fenic import IntegerType, OpenAILanguageModel, SemanticConfig, StringType
+from fenic import IntegerType, SemanticConfig, StringType
 from fenic.api.functions.core import tool_param
+from fenic.api.session.config import OpenRouterLanguageModel
 from fenic.core.mcp.types import ToolParam
 
 
@@ -30,98 +31,161 @@ def main() -> None:
         app_name="mcp_demo",
         semantic=SemanticConfig(
             language_models={
-                "gpt-4.1-nano": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
-                    rpm=2500,
-                    tpm=2_000_000
+                "gpt-4.1-nano": OpenRouterLanguageModel(
+                    model_name="openai/gpt-4.1-nano",
                 ),
-                "gpt-4.1-mini": OpenAILanguageModel(
-                    model_name="gpt-4.1-mini",
-                    rpm=2500,
-                    tpm=2_000_000
+                "gpt-4.1-mini": OpenRouterLanguageModel(
+                    model_name="openai/gpt-4.1-mini",
                 ),
-                "gpt-5-nano": OpenAILanguageModel(
-                    model_name="gpt-5-nano",
-                    rpm=2500,
-                    tpm=2_000_000,
-                    profiles={"default" : OpenAILanguageModel.Profile(
-                        reasoning_effort="minimal"
-                    )}
+                "gpt-5-nano": OpenRouterLanguageModel(
+                    model_name="openai/gpt-5-nano",
+                    profiles={
+                        "default": OpenRouterLanguageModel.Profile(
+                            reasoning_effort="low",
+                        )
+                    },
                 ),
-
-                "gpt-5-mini": OpenAILanguageModel(
-                    model_name="gpt-5-mini",
-                    rpm=2500,
-                    tpm=2_000_000,
-                    profiles={"default": OpenAILanguageModel.Profile(
-                        reasoning_effort="minimal"
-                    )}
-                )
+                "testing_model": OpenRouterLanguageModel(
+                    model_name="meta-llama/llama-4-maverick",
+                    profiles={
+                        "default": OpenRouterLanguageModel.Profile(
+                            provider=OpenRouterLanguageModel.Provider(
+                                sort="price",
+                            )
+                        )
+                    },
+                ),
+                "gpt-5-mini": OpenRouterLanguageModel(
+                    model_name="openai/gpt-5-mini",
+                    profiles={
+                        "default": OpenRouterLanguageModel.Profile(
+                            reasoning_effort="low"
+                        )
+                    },
+                ),
             },
             default_language_model="gpt-4.1-nano",
-        )
+        ),
     )
     local_session = fc.Session.get_or_create(session_config)
     job_category_list = [
-                "Engineering",
-                "Software & IT",
-                "Data & AI",
-                "Sales",
-                "Marketing",
-                "Customer Success",
-                "HR & People Ops",
-                "Finance & Accounting",
-                "Operations and Supply Chain",
-                "Legal and Compliance",
-                "Administrative",
-                "Executive and General Management",
-                "Other"]
+        "Engineering",
+        "Software & IT",
+        "Data & AI",
+        "Sales",
+        "Marketing",
+        "Customer Success",
+        "HR & People Ops",
+        "Finance & Accounting",
+        "Operations and Supply Chain",
+        "Legal and Compliance",
+        "Administrative",
+        "Executive and General Management",
+        "Other",
+    ]
     try:
-        candidates_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/candidates.parquet")
+        candidates_df = local_session.read.parquet(
+            "s3://typedef-assets/demo/mcp/candidates.parquet"
+        )
     except Exception:
         # Synthetic candidate dataset: (candidate_id, candidate_resume)
-        raw_candidates = local_session.read.parquet("s3://typedef-assets/demo/mcp/raw_resumes.parquet").limit(1000)
+        raw_candidates = local_session.read.parquet(
+            "s3://typedef-assets/demo/mcp/raw_resumes.parquet"
+        ).limit(250)
 
         class CandidateProfile(BaseModel):
-            first_name: Optional[str] = Field( description="Candidate's first name.")
-            last_name: Optional[str] = Field( description="Candidate's last name.")
-            title: Optional[str] = Field( description="Candidate's title. (if provided).")
-            pronouns: Optional[str] = Field( description="Candidate's pronouns. (if provided).")
+            first_name: Optional[str] = Field(description="Candidate's first name.")
+            last_name: Optional[str] = Field(description="Candidate's last name.")
+            title: Optional[str] = Field(
+                description="Candidate's title. (if provided)."
+            )
+            pronouns: Optional[str] = Field(
+                description="Candidate's pronouns. (if provided)."
+            )
             education: str = Field(description="Degrees or programs")
-            seniority: str = Field(description="Likely seniority level, e.g., junior/senior/staff/principal")
+            seniority: str = Field(
+                description="Likely seniority level, e.g., junior/senior/staff/principal"
+            )
             skills: str = Field(description="Notable technical or domain skills")
-            experience: str = Field(description="Summary of candidate's work history, with companies, durations, and notable achievements.")
-            job_category: List[Literal[
-                "Engineering",
-                "Software & IT",
-                "Data & AI",
-                "Sales",
-                "Marketing",
-                "Customer Success",
-                "HR & People Ops",
-                "Finance & Accounting",
-                "Operations and Supply Chain",
-                "Legal and Compliance",
-                "Administrative",
-                "Executive and General Management",
-                "Other"]] = Field(description="Pick between 1 and 3 job categories that describe the candidate's work history.", max_length=3)
+            experience: str = Field(
+                description="Summary of candidate's work history, with companies, durations, and notable achievements."
+            )
+            job_category: List[
+                Literal[
+                    "Engineering",
+                    "Software & IT",
+                    "Data & AI",
+                    "Sales",
+                    "Marketing",
+                    "Customer Success",
+                    "HR & People Ops",
+                    "Finance & Accounting",
+                    "Operations and Supply Chain",
+                    "Legal and Compliance",
+                    "Administrative",
+                    "Executive and General Management",
+                    "Other",
+                ]
+            ] = Field(
+                description="Pick between 1 and 3 job categories that describe the candidate's work history."
+            )
 
-        candidates_df = raw_candidates.with_column(
-            "profile",
-            fc.semantic.extract("candidate_resume", CandidateProfile, max_output_tokens=4096)
-        ).unnest("profile").cache()
+        candidates_df = (
+            raw_candidates.with_column(
+                "profile",
+                fc.semantic.extract(
+                    "candidate_resume",
+                    CandidateProfile,
+                    model_alias="testing_model",
+                    max_output_tokens=4096,
+                ),
+            )
+            .unnest("profile")
+            .cache()
+        )
 
     candidates_df.write.save_as_table("candidates", mode="overwrite")
-    local_session.catalog.set_table_description("candidates", "Resumes for all candidates in our hiring pipeline")
+    local_session.catalog.set_table_description(
+        "candidates", "Resumes for all candidates in our hiring pipeline"
+    )
     candidates_df = local_session.table("candidates")
     # Tool 1: search_candidates -- perform a regex search over the candidate education, seniority, skills, experience
-    education_match = fc.coalesce(fc.col("education").rlike(tool_param("education_query", StringType)), fc.lit(True))
-    seniority_match = fc.coalesce(fc.col("seniority").rlike(tool_param("seniority_query", StringType)), fc.lit(True))
-    skills_match = fc.coalesce(fc.col("skills").rlike(tool_param("skills_query", StringType)), fc.lit(True))
-    experience_match = fc.coalesce(fc.col("experience").rlike(tool_param("experience_query", StringType)), fc.lit(True))
-    job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
-    merged_filter = education_match & seniority_match & skills_match & experience_match & job_category_match
-    search_candidates = candidates_df.filter(merged_filter).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
+    education_match = fc.coalesce(
+        fc.col("education").rlike(tool_param("education_query", StringType)),
+        fc.lit(True),
+    )
+    seniority_match = fc.coalesce(
+        fc.col("seniority").rlike(tool_param("seniority_query", StringType)),
+        fc.lit(True),
+    )
+    skills_match = fc.coalesce(
+        fc.col("skills").rlike(tool_param("skills_query", StringType)), fc.lit(True)
+    )
+    experience_match = fc.coalesce(
+        fc.col("experience").rlike(tool_param("experience_query", StringType)),
+        fc.lit(True),
+    )
+    job_category_match = fc.coalesce(
+        fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")),
+        fc.lit(True),
+    )
+    merged_filter = (
+        education_match
+        & seniority_match
+        & skills_match
+        & experience_match
+        & job_category_match
+    )
+    search_candidates = candidates_df.filter(merged_filter).select(
+        "candidate_id",
+        "first_name",
+        "last_name",
+        "education",
+        "seniority",
+        "skills",
+        "experience",
+        "job_category",
+    )
     if local_session.catalog.describe_tool("search_candidates"):
         local_session.catalog.drop_tool("search_candidates")
     local_session.catalog.create_tool(
@@ -129,24 +193,59 @@ def main() -> None:
         "Search candidates by education, seniority, skills, and experience using regex patterns.",
         search_candidates,
         tool_params=[
-            ToolParam(name="education_query", description="Regex pattern to match against education.", has_default=True, default_value=None),
-            ToolParam(name="seniority_query", description="Regex pattern to match against seniority.", has_default=True, default_value=None),
-            ToolParam(name="skills_query", description="Regex pattern to match against skills.", has_default=True, default_value=None),
-            ToolParam(name="experience_query", description="Regex pattern to match against experience.", has_default=True, default_value=None),
-            ToolParam(name="job_category_query", description="Filter candidates by job category.", has_default=True, default_value=None, allowed_values=job_category_list),
+            ToolParam(
+                name="education_query",
+                description="Regex pattern to match against education.",
+                has_default=True,
+                default_value=None,
+            ),
+            ToolParam(
+                name="seniority_query",
+                description="Regex pattern to match against seniority.",
+                has_default=True,
+                default_value=None,
+            ),
+            ToolParam(
+                name="skills_query",
+                description="Regex pattern to match against skills.",
+                has_default=True,
+                default_value=None,
+            ),
+            ToolParam(
+                name="experience_query",
+                description="Regex pattern to match against experience.",
+                has_default=True,
+                default_value=None,
+            ),
+            ToolParam(
+                name="job_category_query",
+                description="Filter candidates by job category.",
+                has_default=True,
+                default_value=None,
+                allowed_values=job_category_list,
+            ),
         ],
         result_limit=100,
     )
 
     # Tool 2: candidate_resumes_by_candidate_ids -- given a list of candidate ids, return the raw resumes for each candidate
-    candidate_resumes = candidates_df.filter(fc.col("candidate_id").is_in(fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType)))).select("candidate_id", "candidate_resume")
+    candidate_resumes = candidates_df.filter(
+        fc.col("candidate_id").is_in(
+            fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType))
+        )
+    ).select("candidate_id", "candidate_resume")
     if local_session.catalog.describe_tool("candidate_resumes_by_candidate_ids"):
         local_session.catalog.drop_tool("candidate_resumes_by_candidate_ids")
     local_session.catalog.create_tool(
         "candidate_resumes_by_candidate_ids",
         "Return the raw resumes for a list of candidate ids.",
         candidate_resumes,
-        tool_params=[ToolParam(name="candidate_ids", description="List of candidate ids to return the resumes for.")],
+        tool_params=[
+            ToolParam(
+                name="candidate_ids",
+                description="List of candidate ids to return the resumes for.",
+            )
+        ],
         result_limit=100,
     )
 
@@ -206,8 +305,24 @@ def main() -> None:
         strict=False,
         model_alias="gpt-4.1-mini",
     )
-    job_category_match = fc.coalesce(fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")), fc.lit(True))
-    candidates_for_job = candidates_df.filter(job_category_match).filter(fit_pred).select("candidate_id", "first_name", "last_name", "education", "seniority", "skills", "experience", "job_category")
+    job_category_match = fc.coalesce(
+        fc.tool_param("job_category_query", StringType).is_in(fc.col("job_category")),
+        fc.lit(True),
+    )
+    candidates_for_job = (
+        candidates_df.filter(job_category_match)
+        .filter(fit_pred)
+        .select(
+            "candidate_id",
+            "first_name",
+            "last_name",
+            "education",
+            "seniority",
+            "skills",
+            "experience",
+            "job_category",
+        )
+    )
     if local_session.catalog.describe_tool("candidates_for_job_description"):
         local_session.catalog.drop_tool("candidates_for_job_description")
     local_session.catalog.create_tool(
@@ -215,9 +330,17 @@ def main() -> None:
         "Find candidates who are a good fit for a free-form job description using structured profiles.",
         candidates_for_job,
         tool_params=[
-            ToolParam(name="job_description",
-                      description="Free-form job description text to match candidates against."),
-            ToolParam(name="job_category_query", description="Filter candidates by job category.", has_default=True, default_value=None, allowed_values=job_category_list),
+            ToolParam(
+                name="job_description",
+                description="Free-form job description text to match candidates against.",
+            ),
+            ToolParam(
+                name="job_category_query",
+                description="Filter candidates by job category.",
+                has_default=True,
+                default_value=None,
+                allowed_values=job_category_list,
+            ),
         ],
         result_limit=100,
     )
@@ -225,7 +348,9 @@ def main() -> None:
     # Tool 4: create_outreach_for_candidate — personalize a recruiting email at runtime
     # Include resume + optional cover letter as rich context for personalization.
     outreach_email = candidates_df.filter(
-        fc.col("candidate_id").is_in(fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType))),
+        fc.col("candidate_id").is_in(
+            fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType))
+        ),
     ).select(
         fc.col("candidate_id"),
         fc.semantic.map(
@@ -275,7 +400,7 @@ def main() -> None:
             instructions=fc.tool_param("instructions", StringType),
             strict=False,
             max_output_tokens=320,
-            model_alias="gpt-5-mini"
+            model_alias="gpt-5-mini",
         ).alias("email"),
     )
     # Filter to a single candidate_id at runtime
@@ -286,18 +411,28 @@ def main() -> None:
         "Create a personalized recruiting email for a candidate using resume and cover letter context.",
         outreach_email,
         tool_params=[
-            ToolParam(name="candidate_ids", description="IDs of the candidate(s) for which to generate outreach emails, e.g., [123456, 423512]"),
+            ToolParam(
+                name="candidate_ids",
+                description="IDs of the candidate(s) for which to generate outreach emails, e.g., [123456, 423512]",
+            ),
             ToolParam(name="company", description="Your company name."),
             ToolParam(name="job_title", description="The job title being offered."),
-            ToolParam(name="job_description", description="The job description being offered."),
-            ToolParam(name="recruiter_name", description="Your name for the signature."),
-            ToolParam(name="why_join", description="A sentence about why the candidate should join."),
+            ToolParam(
+                name="job_description", description="The job description being offered."
+            ),
+            ToolParam(
+                name="recruiter_name", description="Your name for the signature."
+            ),
+            ToolParam(
+                name="why_join",
+                description="A sentence about why the candidate should join.",
+            ),
             ToolParam(
                 name="instructions",
                 description="Optional style/formatting instructions.",
                 has_default=True,
                 default_value="",
-            )
+            ),
         ],
     )
 
@@ -315,7 +450,6 @@ def main() -> None:
 
     # Testing an issue with event loop shutdown
     local_session.stop()
-
 
 
 if __name__ == "__main__":

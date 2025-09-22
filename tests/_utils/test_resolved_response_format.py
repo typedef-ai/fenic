@@ -22,8 +22,8 @@ class PydanticModelWithDescriptions(BaseModel):
     test_int: int = Field(..., description="A test integer.", multiple_of=10, gt=0, lt=100)
     test_str: str = Field(..., description="A test string.", pattern=r"^[a-z]+$")
     test_nested: NestedModel = Field(..., description="A nested model.")
-    test_array_nested: list[NestedModel] = Field(..., description="A list of nested models.", max_items=10)
-    test_array_str: list[str] = Field(..., description="A list of strings.", max_items=10)
+    test_array_nested: list[NestedModel] = Field(..., description="A list of nested models.", max_length=10)
+    test_array_str: list[str] = Field(..., description="A list of strings.", max_length=10)
     test_str_literal: Literal["a", "b", "c"] = Field(..., description="A string literal.")
 
 def test_resolved_response_format_eq():

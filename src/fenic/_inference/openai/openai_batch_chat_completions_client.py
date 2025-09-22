@@ -1,4 +1,5 @@
 """Client for making batch requests to OpenAI's chat completions API."""
+
 from typing import Optional, Union
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
@@ -7,15 +8,15 @@ from fenic._inference.common_openai.openai_chat_completions_core import (
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
-from fenic._inference.common_openai.openai_provider import OpenAIModelProvider
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
 )
+from fenic._inference.openai.openai_provider import OpenAIModelProvider
 from fenic._inference.rate_limit_strategy import (
+    RateLimitStrategy,
     TokenEstimate,
-    UnifiedTokenRateLimitStrategy,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
@@ -29,7 +30,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
 
     def __init__(
         self,
-        rate_limit_strategy: UnifiedTokenRateLimitStrategy,
+        rate_limit_strategy: RateLimitStrategy,
         model: str,
         queue_size: int = 100,
         max_backoffs: int = 10,
@@ -46,6 +47,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             profiles: Dictionary of profile configurations
             default_profile_name: Default profile to use when none specified
         """
+        token_counter = TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base")
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
@@ -53,19 +55,21 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
-            token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
+            token_counter=token_counter,
         )
-        self._model_parameters = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model)
+        self._model_parameters = model_catalog.get_completion_model_parameters(
+            ModelProvider.OPENAI, model
+        )
         self._profile_manager = OpenAICompletionsProfileManager(
             model_parameters=self._model_parameters,
             profile_configurations=profiles,
-            default_profile_name=default_profile_name
+            default_profile_name=default_profile_name,
         )
         self._core = OpenAIChatCompletionsCore(
             model=model,
             model_provider=ModelProvider.OPENAI,
-            token_counter=TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base"),
-            client=self.model_provider_class.create_aio_client()
+            token_counter=token_counter,
+            client=self.model_provider_class.create_aio_client(),
         )
 
     async def make_single_request(
@@ -79,7 +83,8 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         Returns:
             The response from the API or an exception
         """
-        return await self._core.make_single_request(request, self._profile_manager.get_profile_by_name(request.model_profile))
+        profile = self._profile_manager.get_profile_by_name(request.model_profile)
+        return await self._core.make_single_request(request, profile)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for request deduplication.

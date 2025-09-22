@@ -59,6 +59,7 @@ from fenic.api.session import (
     GoogleVertexLanguageModel,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
+    OpenRouterLanguageModel,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -76,6 +77,7 @@ __all__ = [
     "GoogleDeveloperLanguageModel",
     "GoogleVertexEmbeddingModel",
     "GoogleVertexLanguageModel",
+    "OpenRouterLanguageModel",
     "SemanticConfig",
     "CloudConfig",
     # IO

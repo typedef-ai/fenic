@@ -23,6 +23,12 @@ from fenic.core.types.enums import (
     FuzzySimilarityMethod,
     SemanticSimilarityMetric,
 )
+from fenic.core.types.provider_routing import (
+    DataCollection,
+    ModelQuantization,
+    ProviderSort,
+    StructuredOutputStrategy,
+)
 from fenic.core.types.query_result import DataLike, DataLikeType, QueryResult
 from fenic.core.types.schema import (
     ColumnField,
@@ -81,5 +87,9 @@ __all__ = [
     "TranscriptType",
     "FuzzySimilarityMethod",
     "DatasetMetadata",
+    "ProviderSort",
+    "DataCollection",
+    "ModelQuantization",
+    "StructuredOutputStrategy",
 ]
 

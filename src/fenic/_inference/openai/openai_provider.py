@@ -23,7 +23,7 @@ class OpenAIModelProvider(ModelProviderClass):
     def create_aio_client(self):
         """Create an OpenAI async client instance."""
         return AsyncOpenAI()
-    
+
     async def validate_api_key(self) -> None:
         """Validate OpenAI API key by listing models."""
         client = self.create_aio_client()

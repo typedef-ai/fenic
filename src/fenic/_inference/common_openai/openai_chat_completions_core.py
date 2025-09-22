@@ -16,6 +16,7 @@ from openai.types import CompletionUsage
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionProfileConfiguration,
 )
+from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
     FatalException,
     TransientException,
@@ -91,6 +92,8 @@ class OpenAIChatCompletionsCore:
                 "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
+            if request.temperature:
+                common_params.update({"temperature": request.temperature})
 
             # Determine if we need logprobs
             if request.top_logprobs:
@@ -107,10 +110,18 @@ class OpenAIChatCompletionsCore:
             if request.structured_output:
                 common_params["response_format"] = request.structured_output.pydantic_model
                 response = await self._client.beta.chat.completions.parse(**common_params)
-                if response.choices[0].message.refusal:
-                    return None
             else:
                 response = await self._client.chat.completions.create(**common_params)
+
+            completion_choice, err = handle_openai_compatible_response(
+                model_provider=self._model_provider,
+                model_name=self._model,
+                request=request,
+                response=response,
+                request_key_generator=generate_completion_request_key,
+            )
+            if err is not None:
+                return err
 
             # Extract usage metrics
             usage: CompletionUsage = response.usage
@@ -140,7 +151,7 @@ class OpenAIChatCompletionsCore:
                 completion_tokens=completion_tokens,  # Actual completion tokens (excluding reasoning)
                 total_tokens=total_prompt_tokens + total_output_tokens,
                 cached_tokens=cached_input_tokens,
-                thinking_tokens=reasoning_tokens  # OpenAI's reasoning tokens
+                thinking_tokens=reasoning_tokens,  # OpenAI's reasoning tokens
             )
 
             # Update metrics (existing logic)
@@ -156,13 +167,14 @@ class OpenAIChatCompletionsCore:
                 cached_input_tokens_read=cached_input_tokens,
                 output_tokens=total_output_tokens,
             )
-            completion = response.choices[0].message.content
+            completion = completion_choice.message.content
             if completion is None:
                 logger.warning(
-                    f"[{self._model_provider.value}:{self._model}] returned None for completion for {self.get_request_key(request)}: {response}")
+                    f"[{self._model_provider.value}:{self._model}] returned None for completion for {self.get_request_key(request)}: {response}"
+                )
             return FenicCompletionsResponse(
-                completion=response.choices[0].message.content,
-                logprobs=response.choices[0].logprobs,
+                completion=completion_choice.message.content,
+                logprobs=completion_choice.logprobs,
                 usage=response_usage,
             )
 
