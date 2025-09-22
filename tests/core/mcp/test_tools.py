@@ -1,13 +1,14 @@
+import re
 
 import pytest
 from pydantic import BaseModel
 from pydantic import ValidationError as PydValidationError
 
 from fenic.api.functions import col, tool_param
-from fenic.core.error import PlanError
+from fenic.core.error import PlanError, ValidationError
 from fenic.core.mcp._tools import bind_tool, create_pydantic_model_for_tool
-from fenic.core.mcp.types import ToolParam
-from fenic.core.types.datatypes import IntegerType, StringType
+from fenic.core.mcp.types import ToolParam, ToolParamConstraints
+from fenic.core.types.datatypes import ArrayType, IntegerType, StringType
 
 
 def test_toolparam_required_and_default_validation():
@@ -50,6 +51,103 @@ def test_resolve_tool_validates_unresolved_params(local_session):
             result_limit=50,
             query=query,
         )
+
+def test_resolve_tool_validates_mistyped_validators(local_session):
+    df = local_session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30], "city": ["SF", "SEA"]})
+    query = df.filter((col("age") >= tool_param("min_age", IntegerType)) & (col("city") == tool_param("city_name", StringType)))._logical_plan
+
+    with pytest.raises(PlanError, match="Param Validator `regex` supports data types \(StringType\), but the parameter `min_age` has data type IntegerType."):
+        bind_tool(
+            name="users_by_city",
+            description="Filter users",
+            params=[
+                ToolParam(name="min_age", description="Minimum age", validator_names=["regex"]),
+                ToolParam(name="city_name", description="City name", validator_names=["regex"]),
+            ],
+            result_limit=50,
+            query=query,
+        )
+
+def test_resolve_tool_validates_missing_validators(local_session):
+    df = local_session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30], "city": ["SF", "SEA"]})
+    query = df.filter((col("age") >= tool_param("min_age", IntegerType)) & (col("city") == tool_param("city_name", StringType)))._logical_plan
+
+    with pytest.raises(PlanError, match="Could not find a ParamValidator for the following validator names: \['non_existent'\]"):
+        bind_tool(
+            name="users_by_city",
+            description="Filter users",
+            params=[
+                ToolParam(name="min_age", description="Minimum age"),
+                ToolParam(name="city_name", description="City name", validator_names=["non_existent"]),
+            ],
+            result_limit=50,
+            query=query,
+        )
+
+def test_create_pydantic_model_for_tool_applies_validators(local_session):
+    df = local_session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30], "city": ["SF", "SEA"]})
+    query = df.filter(
+        (col("age") >= tool_param("min_age", IntegerType)) &
+        (col("city") == tool_param("city_name", StringType))
+    )._logical_plan
+
+    tool = bind_tool(
+        name="users_by_city",
+        description="Filter users",
+        params=[
+            ToolParam(name="min_age", description="Minimum age"),
+            ToolParam(name="city_name", description="City name", validator_names=["regex"]),
+        ],
+        result_limit=50,
+        query=query,
+    )
+
+    Model: type[BaseModel] = create_pydantic_model_for_tool(tool)
+
+    with pytest.raises(ValidationError, match="Unbalanced curly braces"):
+        Model(city_name="{+---", min_age=25)
+
+    with pytest.raises(ValidationError, match="Too many alternations \(21 > 20\)"):
+        Model(city_name="SF|SEA|OAK|PHX|LAS|ORD|XRD|PRD|IAD|CRD|FRA|LON|UMEA|BOS|YYZ|DOG|BAT|BAN|LAP|LAX|TYO|HND", min_age=25)
+
+
+def test_create_pydantic_model_for_tool_applies_field_validators(local_session):
+    df = local_session.create_dataframe({"city": ["SF"], "age": [10], "user_name": ["Alice"]})
+    query = df.filter(
+        (col("city") == tool_param("city_name", StringType))
+        & (col("age") >= tool_param("age", IntegerType))
+        & (col("user_name").is_in(tool_param("user_names", ArrayType(StringType))))
+    )._logical_plan
+
+    tool = bind_tool(
+        name="tool_x",
+        description="",
+        params=[
+            ToolParam(name="city_name", description="City name", constraints=ToolParamConstraints(pattern="^SF$")),
+            ToolParam(name="age", description="Age", constraints=ToolParamConstraints(gt=0, lt=120, multiple_of=2)),
+            ToolParam(name="user_names", description="User names", constraints=ToolParamConstraints(min_length=1, max_length=5)),
+        ],
+        result_limit=10,
+        query=query,
+    )
+
+    Model: type[BaseModel] = create_pydantic_model_for_tool(tool)
+    #should pass validation
+    Model(city_name="SF", age=10, user_names=["Alice", "Bob"])
+    with pytest.raises(PydValidationError, match=re.escape("String should match pattern '^SF$'")):
+        Model(city_name="SEA", age=10, user_names=["Alice", "Bob"])
+
+    with pytest.raises(PydValidationError, match=re.escape("Input should be greater than 0")):
+        Model(city_name="SF", age=0, user_names=["Alice", "Bob"])
+
+    with pytest.raises(PydValidationError, match=re.escape("Input should be a multiple of 2")):
+        Model(city_name="SF", age=11, user_names=["Alice", "Bob"])
+
+    with pytest.raises(PydValidationError, match=re.escape("List should have at most 5 items after validation, not 6")):
+        Model(city_name="SF", age=10, user_names=["Alice", "Bob", "Charlie", "David", "Eve", "Frank"])
+
+    with pytest.raises(PydValidationError, match=re.escape("List should have at least 1 item after validation, not 0")):
+        Model(city_name="SF", age=10, user_names=[])
 
 
 def test_create_pydantic_model_for_tool_defaults_and_required(local_session):

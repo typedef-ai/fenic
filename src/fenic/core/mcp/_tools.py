@@ -13,7 +13,7 @@ from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.type_inference import infer_pytype_from_dtype
 from fenic.core.error import PlanError
-from fenic.core.mcp._validators import get_param_validator, maybe_get_param_validator
+from fenic.core.mcp._validators import get_param_validator
 from fenic.core.mcp.types import (
     BoundToolParam,
     TableFormat,
@@ -85,9 +85,10 @@ def bind_tool(
                 try:
                     validator = get_param_validator(validator_name)
                     if unresolved_expr.data_type not in validator.data_types():
+                        supported_data_types = ", ".join([str(dt) for dt in validator.data_types()])
                         raise PlanError(
-                            f"Param Validator {validator_name} supports data types {validator.data_types()}, "
-                            f"but the parameter {unresolved_expr_name} has data type {unresolved_expr.data_type}."
+                            f"Param Validator `{validator_name}` supports data types ({supported_data_types}), "
+                            f"but the parameter `{unresolved_expr_name}` has data type {unresolved_expr.data_type}."
                         )
                     validators.append(validator)
                 except KeyError:
@@ -132,18 +133,10 @@ def create_pydantic_model_for_tool(tool: UserDefinedTool) -> type[BaseModel]:
             if isinstance(p.data_type, ArrayType):
                 return list[literal_type]  # type: ignore[valid-type]
             return literal_type
+        if isinstance(p.data_type, ArrayType):
+            inner_type = infer_pytype_from_dtype(p.data_type.element_type)
+            return list[inner_type]  # type: ignore[valid-type]
         return infer_pytype_from_dtype(p.data_type)
-
-    def _wrap_with_validator(base_t, validator_name: Optional[str]):
-        if not validator_name:
-            return base_t
-        pv = maybe_get_param_validator(validator_name)
-        if pv is None:
-            return base_t
-        def _wrap(v, _pv=pv):
-            _pv.validate(v)
-            return v
-        return TypingAnnotated[base_t, AfterValidator(_wrap)]  # type: ignore[valid-type]
 
     def _field_kwargs(p: BoundToolParam, include_default: bool) -> dict:
         kwargs: dict = {"description": p.description}

@@ -1,6 +1,7 @@
 import re
-from typing import Dict, List, Optional, Protocol, Union, runtime_checkable
+from typing import Dict, List, Protocol, Union, runtime_checkable
 
+from fenic._polars_plugins import py_validate_regex  # noqa: F401
 from fenic.core.error import (
     ValidationError,
 )
@@ -21,7 +22,7 @@ class ParamValidator(Protocol):
         """The data types that the validator operates on."""
         ...
 
-    def validate(self, value: Union[str, int, float, bool, list, dict]) -> bool:
+    def validate(self, value: Union[str, int, float, bool, list, dict]):
         """Validate an argument value.
 
         Args:
@@ -62,14 +63,6 @@ class RegexValidator(ParamValidator):
         if len(query) > MAX_REGEX_LENGTH:
             raise ValidationError(f"Regex too long (>{MAX_REGEX_LENGTH} characters)")
 
-        # Support /pattern/flags and capture flags
-        query, flags = self._strip_slash_delimiters(query)
-        unsupported_flags = {f for f in flags if f not in {"i", "m", "s", "x"}}
-        if unsupported_flags:
-            raise ValidationError(
-                f"Unsupported regex flags: {''.join(sorted(unsupported_flags))}"
-            )
-
         # Strip inline flags at start like (?i), (?m), combined, to avoid duplication
         query = re.sub(r"^\(\?[aiLmsux]+\)", "", query)
 
@@ -89,15 +82,16 @@ class RegexValidator(ParamValidator):
             except ValueError:
                 raise ValidationError("Invalid quantifier bounds") from None
             if m_val > MAX_QUANTIFIER_VALUE or n_val > MAX_QUANTIFIER_VALUE:
-                raise ValidationError("Quantifier bounds too large")
+                raise ValidationError(f"Quantifier bounds {m_val} or {n_val} > {MAX_QUANTIFIER_VALUE}")
             if n and n_val < m_val:
-                raise ValidationError("Quantifier upper bound less than lower bound")
+                raise ValidationError(f"Quantifier upper bound {n_val} < lower bound {m_val}")
 
         # Limit alternations
-        if query.count("|") > MAX_ALTERNATIONS:
-            raise ValidationError("Too many alternations in regex")
+        alternations = query.count("|")
+        if alternations > MAX_ALTERNATIONS:
+            raise ValidationError(f"Too many alternations ({alternations} > {MAX_ALTERNATIONS})")
 
-        # Disallow backreferences (simple and robust detection)
+        # Disallow backreferences
         if any(f"\\{d}" in query for d in "123456789"):
             raise ValidationError("Backreferences are not supported")
 
@@ -121,11 +115,11 @@ class RegexValidator(ParamValidator):
         if re.search(r"\{\s*\d+\s*,\s*\d+\s*,", query):
             raise ValidationError("Invalid quantifier syntax")
 
-        # Ensure it compiles in Python as a basic sanity check
+        # Final check, ensure that the regex is valid for `rlike`
         try:
-            re.compile(query)
-        except re.error as err:
-            raise ValidationError(f"Invalid regex syntax: {err}") from None
+            py_validate_regex(query)
+        except Exception as err:
+            raise ValidationError(f"Invalid regex syntax: {query}") from err
 
         return
 
@@ -145,20 +139,6 @@ class RegexValidator(ParamValidator):
                     return False
             i += 1
         return depth == 0
-
-
-    def _strip_slash_delimiters(self, pattern: str) -> tuple[str, set[str]]:
-        """Support /pattern/flags syntax; return (pattern, flags).
-
-        Only recognize i,m,s,x flags; others are rejected later.
-        """
-        if len(pattern) >= 2 and pattern.startswith("/") and pattern.rfind("/") > 0:
-            last = pattern.rfind("/")
-            core = pattern[1:last]
-            flags = set(pattern[last + 1 :].lower())
-            return core, flags
-        return pattern, set()
-
 
 # -- Registry for reusable ParamValidators --
 _PARAM_VALIDATOR_REGISTRY: Dict[str, ParamValidator] = {}
@@ -184,12 +164,6 @@ def get_param_validator(name: str) -> ParamValidator:
         return _PARAM_VALIDATOR_REGISTRY[name]
     except KeyError as err:
         raise KeyError(f"No ParamValidator registered under name '{name}'") from err
-
-
-def maybe_get_param_validator(name: Optional[str]) -> Optional[ParamValidator]:
-    if name is None:
-        return None
-    return get_param_validator(name)
 
 
 # Pre-register common validators
