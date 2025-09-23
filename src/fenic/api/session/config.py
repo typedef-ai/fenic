@@ -34,6 +34,7 @@ from fenic.core._resolved_session_config import (
     ResolvedGoogleModelProfile,
     ResolvedLanguageModelConfig,
     ResolvedModelConfig,
+    ResolvedOllamaModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedOpenAIModelProfile,
     ResolvedOpenRouterModelConfig,
@@ -890,11 +891,87 @@ class CohereEmbeddingModel(BaseModel):
         input_type: CohereEmbeddingTaskType = Field(default="search_document", description="Type of input")
 
 
+class OllamaLanguageModel(BaseModel):
+    """Configuration for Ollama language models.
+
+    This class defines the configuration settings for Ollama language models,
+    including model selection and local server configuration. Ollama models are discovered
+    dynamically from the local Ollama installation.
+
+    Attributes:
+        model_name: The name of the Ollama model to use (e.g., "qwen3:4b", "llama2:7b").
+        host: The Ollama server host URL. Defaults to http://localhost:11434.
+        rpm: Requests per minute limit for rate limiting. For local models, this should
+            be set based on hardware capabilities.
+        auto_pull: Whether to automatically pull the model if it's not available locally.
+
+    Example:
+        Configuring an Ollama language model:
+
+        ```python
+        config = OllamaLanguageModel(
+            model_name="qwen3:4b",
+            host="http://localhost:11434",
+            rpm=10,  # Conservative for local hardware
+            auto_pull=True
+        )
+        ```
+
+        Using a different Ollama server:
+
+        ```python
+        config = OllamaLanguageModel(
+            model_name="llama2:13b",
+            host="http://ollama-server:11434",
+            rpm=5,
+            auto_pull=False
+        )
+        ```
+    """
+    model_name: str = Field(..., description="The name of the Ollama model to use")
+    host: str = Field(default="http://localhost:11434", description="Ollama server host URL")
+    rpm: int = Field(default=10, gt=0, description="Requests per minute; conservative default for local models")
+    auto_pull: bool = Field(default=True, description="Automatically pull model if not available locally")
+
+
+class OllamaEmbeddingModel(BaseModel):
+    """Configuration for Ollama embedding models.
+
+    This class defines the configuration settings for Ollama embedding models,
+    including model selection and local server configuration. Ollama embedding models
+    are discovered dynamically from the local Ollama installation.
+
+    Attributes:
+        model_name: The name of the Ollama embedding model to use (e.g., "embeddinggemma", "nomic-embed-text").
+        host: The Ollama server host URL. Defaults to http://localhost:11434.
+        rpm: Requests per minute limit for rate limiting. For local models, this should
+            be set based on hardware capabilities.
+        auto_pull: Whether to automatically pull the model if it's not available locally.
+
+    Example:
+        Configuring an Ollama embedding model:
+
+        ```python
+        config = OllamaEmbeddingModel(
+            model_name="embeddinggemma",
+            host="http://localhost:11434",
+            rpm=20,  # Embedding models are typically faster
+            auto_pull=True
+        )
+        ```
+    """
+    model_name: str = Field(..., description="The name of the Ollama embedding model to use")
+    host: str = Field(default="http://localhost:11434", description="Ollama server host URL")
+    rpm: int = Field(default=20, gt=0, description="Requests per minute; embedding models are typically faster")
+    auto_pull: bool = Field(default=True, description="Automatically pull model if not available locally")
+
+
 EmbeddingModel = Union[
     OpenAIEmbeddingModel,
     GoogleVertexEmbeddingModel,
     GoogleDeveloperEmbeddingModel,
     CohereEmbeddingModel,
+    OllamaEmbeddingModel,
 ]
 LanguageModel = Union[
     OpenAILanguageModel,
@@ -902,6 +979,7 @@ LanguageModel = Union[
     GoogleDeveloperLanguageModel,
     GoogleVertexLanguageModel,
     OpenRouterLanguageModel,
+    OllamaLanguageModel,
 ]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
 
@@ -1024,9 +1102,9 @@ class SemanticConfig(BaseModel):
 
             # Set default profile for each model if not set and only one profile exists
             for model_config in self.language_models.values():
-                if model_config.profiles is not None:
+                if hasattr(model_config, 'profiles') and model_config.profiles is not None:
                     profile_names = list(model_config.profiles.keys())
-                    if model_config.default_profile is None and len(profile_names) == 1:
+                    if hasattr(model_config, 'default_profile') and model_config.default_profile is None and len(profile_names) == 1:
                         model_config.default_profile = profile_names[0]
 
         # Set default embedding model if not set and only one model exists
@@ -1038,6 +1116,7 @@ class SemanticConfig(BaseModel):
                 if hasattr(model_config, "profiles") and model_config.profiles is not None:
                     preset_names = list(model_config.profiles.keys())
                     if (
+                        hasattr(model_config, 'default_profile') and
                         model_config.default_profile is None
                         and len(preset_names) == 1
                     ):
@@ -1084,15 +1163,15 @@ class SemanticConfig(BaseModel):
                             language_model_name
                         )
                     )
-                if language_model.profiles is not None:
+                if hasattr(language_model, 'profiles') and language_model.profiles is not None:
                     if not completion_model_params.supports_profiles:
                         raise ConfigurationError(
                             f"Model '{model_alias}' does not support parameter profiles. Please remove the Profile configuration.")
                     profile_names = list(language_model.profiles.keys())
-                    if language_model.default_profile is None and len(profile_names) > 0:
+                    if hasattr(language_model, 'default_profile') and language_model.default_profile is None and len(profile_names) > 0:
                         raise ConfigurationError(
                             f"default_profile is not set for model {model_alias}, but multiple profiles are configured. Please specify one of: {profile_names} as a default_profile.")
-                    if language_model.default_profile is not None and language_model.default_profile not in profile_names:
+                    if hasattr(language_model, 'default_profile') and language_model.default_profile is not None and language_model.default_profile not in profile_names:
                         raise ConfigurationError(
                             f"default_profile {language_model.default_profile} is not in configured profiles for model {model_alias}. Available profiles: {profile_names}")
                     for profile_alias, profile in language_model.profiles.items():
@@ -1120,10 +1199,10 @@ class SemanticConfig(BaseModel):
                     ))
                 if hasattr(embedding_model, "profiles") and embedding_model.profiles:
                     profile_names = list(embedding_model.profiles.keys())
-                    if embedding_model.default_profile is None and len(profile_names) > 0:
+                    if hasattr(embedding_model, 'default_profile') and embedding_model.default_profile is None and len(profile_names) > 0:
                         raise ConfigurationError(
                             f"default_profile is not set for model {model_alias}, but multiple profiles are configured. Please specify one of: {profile_names} as a default_profile.")
-                    if embedding_model.default_profile is not None and embedding_model.default_profile not in profile_names:
+                    if hasattr(embedding_model, 'default_profile') and embedding_model.default_profile is not None and embedding_model.default_profile not in profile_names:
                         raise ConfigurationError(
                             f"default_profile {embedding_model.default_profile} is not in configured profiles for model {model_alias}. Available profiles: {profile_names}")
 
@@ -1360,6 +1439,13 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile,
                 )
+            elif isinstance(model, (OllamaLanguageModel, OllamaEmbeddingModel)):
+                return ResolvedOllamaModelConfig(
+                    model_name=model.model_name,
+                    host=model.host,
+                    rpm=model.rpm,
+                    auto_pull=model.auto_pull,
+                )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")
 
@@ -1458,5 +1544,7 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.COHERE
     elif isinstance(model_config, OpenRouterLanguageModel):
         return ModelProvider.OPENROUTER
+    elif isinstance(model_config, (OllamaLanguageModel, OllamaEmbeddingModel)):
+        return ModelProvider.OLLAMA
     else:
         raise InternalError(f"Unknown model type: {type(model_config)}")

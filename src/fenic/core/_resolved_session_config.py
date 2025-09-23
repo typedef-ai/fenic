@@ -130,12 +130,22 @@ class ResolvedOpenRouterModelConfig:
     default_profile: Optional[str] = None
 
 
+@dataclass
+class ResolvedOllamaModelConfig:
+    model_name: str
+    host: str
+    rpm: int
+    auto_pull: bool
+    model_provider: ModelProvider = ModelProvider.OLLAMA
+
+
 ResolvedModelConfig = Union[
     ResolvedOpenAIModelConfig,
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,
     ResolvedCohereModelConfig,
     ResolvedOpenRouterModelConfig,
+    ResolvedOllamaModelConfig,
 ]
 
 

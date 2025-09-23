@@ -17,6 +17,7 @@ class ModelProvider(Enum):
     GOOGLE_VERTEX = "google-vertex"
     COHERE = "cohere"
     OPENROUTER = "openrouter"
+    OLLAMA = "ollama"
 
 
 class TieredTokenCost:
@@ -319,6 +320,7 @@ class ModelCatalog:
         self._initialize_google_gla_models()
         self._initialize_google_vertex_models()
         self._initialize_cohere_models()
+        self._register_ollama_dynamic_loader()
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
@@ -960,6 +962,88 @@ class ModelCatalog:
                 max_input_size=512,
             ),
         )
+
+    def _register_ollama_dynamic_loader(self):
+        """Register dynamic loader for Ollama models that discovers models at runtime."""
+        def load_ollama_models():
+            """Dynamic loader that discovers available Ollama models."""
+            try:
+                import asyncio
+                from fenic._inference.ollama.ollama_model_manager import OllamaModelManager
+
+                # Create event loop if we don't have one
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                manager = OllamaModelManager()
+
+                # Run the async model discovery
+                chat_models, embedding_models = loop.run_until_complete(
+                    manager.discover_models_by_type()
+                )
+
+                logger.debug(f"Discovered Ollama models - Chat: {chat_models}, Embeddings: {embedding_models}")
+
+                # Add discovered chat models
+                for model_name in chat_models:
+                    # Get model info for dynamic parameters
+                    model_info = loop.run_until_complete(manager.get_model_info(model_name))
+
+                    if model_info:
+                        context_length = model_info.context_length
+                        max_output = model_info.get_max_output_tokens()
+                    else:
+                        # Conservative defaults if model info is unavailable
+                        context_length = 8192
+                        max_output = 2048
+
+                    self.add_model(
+                        ModelProvider.OLLAMA,
+                        model_name,
+                        CompletionModelParameters(
+                            input_token_cost=0.0,  # Local models are free
+                            output_token_cost=0.0,
+                            context_window_length=context_length,
+                            max_output_tokens=max_output,
+                            max_temperature=1.0,
+                            supports_profiles=False,
+                            supports_reasoning=False,
+                            supports_custom_temperature=True,
+                            supports_verbosity=False,
+                        ),
+                    )
+
+                # Add discovered embedding models
+                for model_name in embedding_models:
+                    model_info = loop.run_until_complete(manager.get_model_info(model_name))
+
+                    if model_info:
+                        max_input = model_info.context_length
+                    else:
+                        max_input = 8192  # Conservative default
+
+                    self.add_model(
+                        ModelProvider.OLLAMA,
+                        model_name,
+                        EmbeddingModelParameters(
+                            input_token_cost=0.0,  # Local models are free
+                            allowed_output_dimensions=768,  # Common default, will vary by model
+                            max_input_size=max_input,
+                        ),
+                    )
+
+                logger.info(f"Successfully loaded {len(chat_models)} chat models and {len(embedding_models)} embedding models from Ollama")
+
+            except ImportError:
+                logger.debug("Ollama dependencies not available, skipping dynamic model loading")
+            except Exception as e:
+                logger.warning(f"Failed to load Ollama models dynamically: {e}")
+
+        # Register the dynamic loader
+        self.register_dynamic_provider(ModelProvider.OLLAMA, load_ollama_models)
 
     # Public methods
     def get_completion_model_parameters(self, model_provider: ModelProvider,

@@ -25,6 +25,7 @@ from fenic.core._resolved_session_config import (
     ResolvedCohereModelConfig,
     ResolvedGoogleModelConfig,
     ResolvedModelConfig,
+    ResolvedOllamaModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedOpenRouterModelConfig,
     ResolvedSemanticConfig,
@@ -241,6 +242,14 @@ class SessionModelRegistry:
                     profile_configurations=model_config.profiles,
                     default_profile_name=model_config.default_profile
                 )
+            elif isinstance(model_config, ResolvedOllamaModelConfig):
+                from fenic._inference.ollama.ollama_batch_embeddings_client import OllamaBatchEmbeddingsClient
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=100000)  # High TPM for local models
+                client = OllamaBatchEmbeddingsClient(
+                    rate_limit_strategy=rate_limit_strategy,
+                    model=model_config.model_name,
+                    host=model_config.host,
+                )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")
 
@@ -319,6 +328,14 @@ class SessionModelRegistry:
                     rate_limit_strategy=rate_limit_strategy,
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
+                )
+            elif isinstance(model_config, ResolvedOllamaModelConfig):
+                from fenic._inference.ollama.ollama_batch_chat_completions_client import OllamaBatchChatCompletionsClient
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=100000)  # High TPM for local models
+                client = OllamaBatchChatCompletionsClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    host=model_config.host,
                 )
             else:
                 raise ConfigurationError(f"Unsupported model configuration: {model_config}")

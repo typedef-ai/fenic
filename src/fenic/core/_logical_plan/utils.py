@@ -9,6 +9,7 @@ from fenic.core._logical_plan.expressions import AggregateExpr, LogicalExpr, Sor
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
     ResolvedGoogleModelConfig,
+    ResolvedOllamaModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedOpenRouterModelConfig,
     ResolvedSessionConfig,
@@ -80,6 +81,8 @@ def validate_completion_parameters(
         model_provider = model_config.model_provider
     elif isinstance(model_config, ResolvedOpenRouterModelConfig):
         model_provider = ModelProvider.OPENROUTER
+    elif isinstance(model_config, ResolvedOllamaModelConfig):
+        model_provider = ModelProvider.OLLAMA
     else:
         model_provider = ModelProvider.ANTHROPIC
     completion_parameters: CompletionModelParameters = model_catalog.get_completion_model_parameters(model_provider, model_config.model_name)

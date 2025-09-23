@@ -27,6 +27,8 @@ from fenic.api.session.config import (
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     LanguageModel,
+    OllamaEmbeddingModel,
+    OllamaLanguageModel,
     OpenAILanguageModel,
     OpenRouterLanguageModel,
 )
@@ -231,6 +233,16 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
                 model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
             ),
         }
+    elif language_model_provider == ModelProvider.OLLAMA:
+        language_models = {
+            "model_1": nano,
+            "model_2": OllamaLanguageModel(
+                model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True,
+            ),
+        }
     else:
         raise ValueError(f"Unsupported language model provider: {language_model_provider}")
     return SessionConfig(
@@ -399,6 +411,13 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
             },
             default_profile="default",
         )
+    elif model_provider == ModelProvider.OLLAMA:
+        language_model = OllamaLanguageModel(
+            model_name=model_name,
+            host="http://localhost:11434",
+            rpm=100,  # Higher rate for testing
+            auto_pull=True,
+        )
     else:
         raise ValueError(f"Unsupported language model provider: {model_provider}")
     return language_model
@@ -419,6 +438,13 @@ def configure_embedding_model(model_provider: ModelProvider, model_name: str) ->
     elif model_provider == ModelProvider.COHERE:
         embedding_model = CohereEmbeddingModel(
             model_name=model_name, rpm=3000, tpm=1_000_000
+        )
+    elif model_provider == ModelProvider.OLLAMA:
+        embedding_model = OllamaEmbeddingModel(
+            model_name=model_name,
+            host="http://localhost:11434",
+            rpm=100,  # Higher rate for testing
+            auto_pull=True,
         )
     else:
         raise ValueError(f"Unsupported embedding model provider: {model_provider}")
