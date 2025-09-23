@@ -13,15 +13,14 @@ from fenic.api.mcp.tool_generation import (
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp._server import FenicMCPServer, MCPTransport
-from fenic.core.mcp.types import DynamicToolDefinition, ParameterizedToolDefinition
+from fenic.core.mcp.types import SystemToolDefinition, UserDefinedToolDefinition
 
 
 def create_mcp_server(
     session: Session,
     server_name: str,
     *,
-    parameterized_tools: Optional[List[ParameterizedToolDefinition]] = None,
-    dynamic_tools: Optional[List[DynamicToolDefinition]] = None,
+    user_defined_tools: Optional[List[UserDefinedToolDefinition]] = None,
     automated_tool_generation: Optional[ToolGenerationConfig] = None,
     concurrency_limit: int = 8,
 ) -> FenicMCPServer:
@@ -30,24 +29,23 @@ def create_mcp_server(
     Args:
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
-        dynamic_tools: Dynamic tools to register (optional).
-        parameterized_tools: Tools to register (optional).
+        user_defined_tools: Tools to register (optional).
         automated_tool_generation: Generate automated tools for one or more Dataframes.
         concurrency_limit: Maximum number of concurrent tool executions.
     """
-    dynamic_tools: List[DynamicToolDefinition] = dynamic_tools or []
-    if parameterized_tools is None:
-        parameterized_tools = []
+    system_tools: List[SystemToolDefinition] = []
+    if user_defined_tools is None:
+        user_defined_tools = []
     if automated_tool_generation:
-        dynamic_tools.extend(auto_generate_system_tools_from_tables(
+        system_tools.extend(auto_generate_system_tools_from_tables(
             automated_tool_generation.table_names,
             session,
             tool_group_name=automated_tool_generation.tool_group_name,
             max_result_limit=automated_tool_generation.max_result_rows)
         )
-    if not (parameterized_tools or dynamic_tools):
+    if not (user_defined_tools or system_tools):
         raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")
-    return FenicMCPServer(session._session_state, parameterized_tools, dynamic_tools, server_name, concurrency_limit)
+    return FenicMCPServer(session._session_state, user_defined_tools, system_tools, server_name, concurrency_limit)
 
 def run_mcp_server_asgi(
     server: FenicMCPServer,

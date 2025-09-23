@@ -34,9 +34,9 @@ from fenic.core.mcp._tools import (
     create_pydantic_model_for_tool,
 )
 from fenic.core.mcp.types import (
-    DynamicToolDefinition,
-    ParameterizedToolDefinition,
+    SystemToolDefinition,
     TableFormat,
+    UserDefinedToolDefinition,
 )
 from fenic.core.types.datatypes import ArrayType
 from fenic.logging import configure_logging
@@ -60,8 +60,8 @@ class FenicMCPServer:
     def __init__(
         self,
         session_state: BaseSessionState,
-        paramaterized_tools: list[ParameterizedToolDefinition],
-        dynamic_tools: list[DynamicToolDefinition],
+        user_defined_tools: list[UserDefinedToolDefinition],
+        system_tools: list[SystemToolDefinition],
         server_name: str = "Fenic Views",
         concurrency_limit: int = 8
     ):
@@ -69,17 +69,17 @@ class FenicMCPServer:
 
         Args:
             session_state: Fenic session state to use for tool execution.
-            paramaterized_tools: List of user-created tools
-            dynamic_tools: List of auto-generated tools
+            user_defined_tools: List of user-created tools
+            system_tools: List of auto-generated tools
             server_name: Name of the MCP server.
             concurrency_limit: Maximum number of concurrent tool executions.
         """
         self.session_state = session_state
         self.server_name = server_name
-        self.paramaterized_tools = paramaterized_tools
-        self.dynamic_tools = dynamic_tools
+        self.user_defined_tools = user_defined_tools
+        self.system_tools = system_tools
         self._collect_semaphore = asyncio.Semaphore(concurrency_limit)
-        if not (paramaterized_tools or dynamic_tools):
+        if not (user_defined_tools or system_tools):
             raise ConfigurationError("No tools provided to MCP server.")
         try:
             from fastmcp import FastMCP
@@ -89,16 +89,16 @@ class FenicMCPServer:
                 "To use fenic MCP server generation, install the 'mcp' extra: pip install \"fenic[mcp]\""
             ) from None
         self.mcp = FastMCP(self.server_name)
-        for tool in self.paramaterized_tools:
-            tool_fn = self._build_parameterized_tool(tool)
+        for tool in self.user_defined_tools:
+            tool_fn = self._build_user_defined_tool(tool)
             self.mcp.tool(
                 annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
                 name=to_snake_case(tool.name),
                 title=tool.name
             )(tool_fn)
 
-        for tool in self.dynamic_tools:
-            tool_fn = self._register_dynamic_callable(tool)
+        for tool in self.system_tools:
+            tool_fn = self._build_system_tool(tool)
             self.mcp.tool(
                 annotations=ToolAnnotations(
                     readOnlyHint=tool.read_only,
@@ -167,7 +167,7 @@ class FenicMCPServer:
             )
         return result_set
 
-    def _build_parameterized_tool(self, tool: ParameterizedToolDefinition):
+    def _build_user_defined_tool(self, tool: UserDefinedToolDefinition):
         """Build a keyword-argument tool function with per-field schema for FastMCP.
 
         We still validate/coerce using a generated Pydantic model under the hood,
@@ -224,7 +224,7 @@ class FenicMCPServer:
                 )
                 annotations[param.name] = param_annotation
 
-            # Add table_format and limit just like dynamic tools
+            # Add table_format and limit just like system tools
             tf_ann = Annotated[TableFormat, (
                 TABLE_FORMAT_DESCRIPTION
             )]
@@ -261,7 +261,7 @@ class FenicMCPServer:
         tool_fn_wrapper.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
         return tool_fn_wrapper
 
-    def _register_dynamic_callable(self, tool: DynamicToolDefinition):
+    def _build_system_tool(self, tool: SystemToolDefinition):
         # Dynamic function must return a LogicalPlan. This registrar wraps the callable so
         # that we (a) execute/collect the plan off the event loop, (b) limit concurrency,
         # and (c) format the results into an MCPResultSet for FastMCP.
@@ -276,7 +276,7 @@ class FenicMCPServer:
             table_format = kwargs.pop("table_format", tool.default_table_format)
             # Extract optional limit and compute effective_limit against tool.result_limit
             effective_limit = _calculate_effective_limit(tool, kwargs.pop("limit", None))
-            # Obtain the plan by invoking the dynamic tool. No session is injected here;
+            # Obtain the plan by invoking the system tool. No session is injected here;
             # the callable is expected to derive any context it needs from inputs.
             try:
                 # Collect on a thread to avoid blocking the event loop, and gate concurrent
@@ -393,7 +393,7 @@ def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 def _calculate_effective_limit(
-    tool: Union[ParameterizedToolDefinition, DynamicToolDefinition],
+    tool: Union[UserDefinedToolDefinition, SystemToolDefinition],
     requested_limit: Optional[Union[int, str]]
 ) -> Optional[int]:
     if requested_limit:

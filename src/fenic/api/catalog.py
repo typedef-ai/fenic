@@ -6,7 +6,7 @@ from pydantic import ConfigDict, validate_call
 
 from fenic.api.dataframe.dataframe import DataFrame
 from fenic.core._interfaces.catalog import BaseCatalog
-from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.mcp.types import ToolParam, UserDefinedToolDefinition
 from fenic.core.types import DatasetMetadata, Schema
 
 
@@ -654,7 +654,7 @@ class Catalog:
         return self.catalog.drop_view(view_name, ignore_if_not_exists)
 
     @validate_call(config=ConfigDict(strict=True))
-    def describe_tool(self, tool_name: str) -> ParameterizedToolDefinition:
+    def describe_tool(self, tool_name: str) -> UserDefinedToolDefinition:
         """Returns the tool with the specified name from the current catalog.
 
         Args:
@@ -747,7 +747,7 @@ class Catalog:
         """
         return self.catalog.drop_tool(tool_name, ignore_if_not_exists)
 
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedToolDefinition]:
         """Lists the tools available in the current catalog."""
         return self.catalog.list_tools()
 

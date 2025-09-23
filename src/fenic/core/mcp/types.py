@@ -67,7 +67,7 @@ class BoundToolParam:
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
-class ParameterizedToolDefinition:
+class UserDefinedToolDefinition:
     """A tool that has been bound to a specific Parameterized View."""
     name: str
     description: str
@@ -77,7 +77,7 @@ class ParameterizedToolDefinition:
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
-class DynamicToolDefinition:
+class SystemToolDefinition:
     """A tool implemented as a regular Python function with explicit parameters.
 
     The function must be a `Callable[..., Coroutine[Any, Any, LogicalPlan]]` 

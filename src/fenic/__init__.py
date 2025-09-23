@@ -80,7 +80,6 @@ from fenic.core import (
     DataType,
     DocumentPathType,
     DoubleType,
-    DynamicToolDefinition,
     EmbeddingType,
     FloatType,
     FuzzySimilarityMethod,
@@ -97,7 +96,6 @@ from fenic.core import (
     ModelQuantization,
     OperatorMetrics,
     Paragraph,
-    ParameterizedToolDefinition,
     PredicateExample,
     PredicateExampleCollection,
     ProviderSort,
@@ -110,8 +108,10 @@ from fenic.core import (
     StructField,
     StructType,
     StructuredOutputStrategy,
+    SystemToolDefinition,
     ToolParam,
     TranscriptType,
+    UserDefinedToolDefinition,
 )
 from fenic.core.error import InvalidExampleCollectionError
 from fenic.core.types.semantic import ModelAlias
@@ -237,8 +237,8 @@ __all__ = [
     # MCP
     "ToolParam",
     "BoundToolParam",
-    "ParameterizedToolDefinition",
-    "DynamicToolDefinition",
+    "UserDefinedToolDefinition",
+    "SystemToolDefinition",
     "ToolGenerationConfig",
     "create_mcp_server",
     "run_mcp_server_asgi",

@@ -30,7 +30,7 @@ from fenic.core.error import (
     ToolNotFoundError,
 )
 from fenic.core.mcp._tools import bind_tool
-from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.mcp.types import ToolParam, UserDefinedToolDefinition
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
     DatasetMetadata,
@@ -506,7 +506,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
 
-    def describe_tool(self, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, tool_name: str) -> Optional[UserDefinedToolDefinition]:
         """Get a tool's metadata from the system table."""
         cursor = self.db_conn.cursor()
         existing_tool = self.system_tables.describe_tool(cursor, tool_name)
@@ -534,7 +534,7 @@ class LocalCatalog(BaseCatalog):
         self.system_tables.save_tool(cursor, tool_definition)
         return True
 
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedToolDefinition]:
         """List all tools in the current catalog."""
         cursor = self.db_conn.cursor()
         return self.system_tables.list_tools(cursor)

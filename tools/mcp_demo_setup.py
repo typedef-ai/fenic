@@ -435,7 +435,7 @@ def main() -> None:
     server = fc.create_mcp_server(
         session=local_session,
         server_name="Fenic Semantic Demo",
-        parameterized_tools=local_session.catalog.list_tools(),
+        user_defined_tools=local_session.catalog.list_tools(),
         automated_tool_generation=fc.ToolGenerationConfig(
            table_names=["candidates"],
            tool_group_name="Candidate Information"

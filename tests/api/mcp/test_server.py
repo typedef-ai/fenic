@@ -16,7 +16,7 @@ def test_server_generation(local_session: Session):
 
     tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
 
-    server = create_mcp_server(local_session, "Test Server", dynamic_tools=tools)
+    server = create_mcp_server(local_session, "Test Server", system_tools=tools)
     server_tools = asyncio.run(server.mcp.get_tools())
     assert len(server_tools) == len(tools)
     for tool in tools:
