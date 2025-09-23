@@ -7,9 +7,8 @@ import pytest
 from fenic.api.mcp.tool_generation import (
     auto_generate_system_tools_from_tables,
 )
-from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
-from fenic.core.mcp.types import SystemToolDefinition
+from fenic.core.mcp.types import SystemTool
 from tests.api.mcp.utils import create_table_with_rows
 
 
@@ -42,7 +41,7 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     assert any(name.endswith("Analyze") for name in names)
 
     for tool in tools:
-        assert isinstance(tool, SystemToolDefinition)
+        assert isinstance(tool, SystemTool)
         assert callable(tool.func)
         assert iscoroutinefunction(tool.func)
         func_signature = inspect.signature(tool.func)

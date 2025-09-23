@@ -2,9 +2,9 @@
 
 from fenic.core.mcp import (
     BoundToolParam,
-    SystemToolDefinition,
+    SystemTool,
     ToolParam,
-    UserDefinedToolDefinition,
+    UserDefinedTool,
 )
 from fenic.core.metrics import (
     LMMetrics,
@@ -105,6 +105,6 @@ __all__ = [
     # MCP
     "ToolParam",
     "BoundToolParam",
-    "UserDefinedToolDefinition",
-    "SystemToolDefinition",
+    "UserDefinedTool",
+    "SystemTool",
 ]

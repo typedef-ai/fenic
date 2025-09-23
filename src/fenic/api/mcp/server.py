@@ -13,14 +13,15 @@ from fenic.api.mcp.tool_generation import (
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp._server import FenicMCPServer, MCPTransport
-from fenic.core.mcp.types import SystemToolDefinition, UserDefinedToolDefinition
+from fenic.core.mcp.types import SystemTool, UserDefinedTool
 
 
 def create_mcp_server(
     session: Session,
     server_name: str,
     *,
-    user_defined_tools: Optional[List[UserDefinedToolDefinition]] = None,
+    user_defined_tools: Optional[List[UserDefinedTool]] = None,
+    system_tools: Optional[List[SystemTool]] = None,
     automated_tool_generation: Optional[ToolGenerationConfig] = None,
     concurrency_limit: int = 8,
 ) -> FenicMCPServer:
@@ -29,13 +30,13 @@ def create_mcp_server(
     Args:
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
+        system_tools: List of system tools to register (optional).
         user_defined_tools: Tools to register (optional).
         automated_tool_generation: Generate automated tools for one or more Dataframes.
         concurrency_limit: Maximum number of concurrent tool executions.
     """
-    system_tools: List[SystemToolDefinition] = []
-    if user_defined_tools is None:
-        user_defined_tools = []
+    system_tools = system_tools or []
+    user_defined_tools = user_defined_tools or []
     if automated_tool_generation:
         system_tools.extend(auto_generate_system_tools_from_tables(
             automated_tool_generation.table_names,

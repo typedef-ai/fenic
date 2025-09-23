@@ -11,17 +11,10 @@ execution and result formatting.
 
 from __future__ import annotations
 
-import asyncio
-import functools
 import hashlib
-import inspect
 import re
 from dataclasses import dataclass
-from inspect import iscoroutinefunction
 from typing import (
-    Any,
-    Callable,
-    Coroutine,
     Dict,
     List,
     Literal,
@@ -45,7 +38,7 @@ from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core.error import ConfigurationError, ValidationError
-from fenic.core.mcp.types import SystemToolDefinition, TableFormat
+from fenic.core.mcp.types import SystemTool
 from fenic.core.types.datatypes import (
     BooleanType,
     DoubleType,
@@ -92,7 +85,7 @@ def auto_generate_system_tools_from_tables(
     *,
     tool_group_name: str,
     max_result_limit: int = 100,
-) -> List[SystemToolDefinition]:
+) -> List[SystemTool]:
     """Generate Schema/Profile/Read/Search/Analyze tools from catalog tables.
 
     Validates that each table exists and has a non-empty description in catalog metadata.
@@ -112,7 +105,7 @@ def _auto_generate_read_tool(
     tool_description: str,
     *,
     result_limit: int = 50,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create a read tool over one or many datasets."""
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
@@ -165,7 +158,7 @@ def _auto_generate_read_tool(
             sort_ascending=sort_ascending,
         )
 
-    return SystemToolDefinition(
+    return SystemTool(
         name=tool_name,
         description=tool_description,
         func=read_func,
@@ -179,7 +172,7 @@ def _auto_generate_search_summary_tool(
     session: Session,
     tool_name: str,
     tool_description: str,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create a grep-like summary tool over one or many datasets (string columns)."""
     if len(datasets) == 0:
         raise ValueError("Cannot create search summary tool: no datasets provided.")
@@ -205,7 +198,7 @@ def _auto_generate_search_summary_tool(
         pl_df = pl.DataFrame(rows)
         return InMemorySource.from_session_state(pl_df, session._session_state)
 
-    return SystemToolDefinition(
+    return SystemTool(
         name=tool_name,
         description=tool_description,
         func=search_summary,
@@ -220,7 +213,7 @@ def _auto_generate_search_content_tool(
     tool_description: str,
     *,
     result_limit: int = 100,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create a content search tool for a single dataset (string columns)."""
     if len(datasets) == 0:
         raise ValidationError("Cannot create search content tool: no datasets provided.")
@@ -276,7 +269,7 @@ def _auto_generate_search_content_tool(
             sort_ascending=sort_ascending,
         )
 
-    return SystemToolDefinition(
+    return SystemTool(
         name=tool_name,
         description=tool_description,
         func=search_rows,
@@ -290,7 +283,7 @@ def _auto_generate_schema_tool(
     session: Session,
     tool_name: str,
     tool_description: str,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create a schema tool over one or many datasets.
 
     - Returns one row per dataset with a column `schema` containing a list of
@@ -337,7 +330,7 @@ def _auto_generate_schema_tool(
             session._session_state,
         )
 
-    return SystemToolDefinition(
+    return SystemTool(
         name=tool_name,
         description=tool_description.strip(),
         func=schema_func,
@@ -352,7 +345,7 @@ def _auto_generate_sql_tool(
     tool_description: str,
     *,
     result_limit: int = 100,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create an Analyze tool that executes DuckDB SELECT SQL across datasets.
 
     - JOINs between the provided datasets are allowed.
@@ -389,7 +382,7 @@ def _auto_generate_sql_tool(
     )
     enhanced_description = "\n".join(lines)
 
-    tool = SystemToolDefinition(
+    tool = SystemTool(
         name=tool_name,
         description=enhanced_description,
         func=analyze_func,
@@ -485,7 +478,7 @@ def _auto_generate_profile_tool(
     tool_description: str,
     *,
     topk_distinct: int = 10,
-) -> SystemToolDefinition:
+) -> SystemTool:
     """Create a cached Profile tool for one or many datasets.
 
     Output columns include:
@@ -525,7 +518,7 @@ def _auto_generate_profile_tool(
 
         return profile_df._logical_plan
 
-    return SystemToolDefinition(
+    return SystemTool(
         name=tool_name,
         description=tool_description,
         func=profile_func,
@@ -700,7 +693,7 @@ def _auto_generate_system_tools(
     *,
     tool_group_name: str,
     max_result_limit: int = 100,
-) -> List[SystemToolDefinition]:
+) -> List[SystemTool]:
     """Generate core tools spanning all datasets: Schema, Profile, Analyze.
 
     - Schema: list columns/types for any or all datasets

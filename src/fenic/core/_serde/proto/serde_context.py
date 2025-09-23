@@ -53,7 +53,7 @@ from fenic.core._serde.proto.types import (
 from fenic.core._utils.structured_outputs import (
     check_if_model_uses_unserializable_features,
 )
-from fenic.core.mcp.types import BoundToolParam, UserDefinedToolDefinition
+from fenic.core.mcp.types import BoundToolParam, UserDefinedTool
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
@@ -918,7 +918,7 @@ class SerdeContext:
 
     def serialize_tool_definition(
         self,
-        tool_definition: UserDefinedToolDefinition,
+        tool_definition: UserDefinedTool,
         field_name: str = "tool_definition"
     ) -> ToolDefinitionProto:
         with self.path_context(field_name):
@@ -941,11 +941,11 @@ class SerdeContext:
         self,
         tool_definition_proto: ToolDefinitionProto,
         field_name: str = "tool_definition"
-    ) -> UserDefinedToolDefinition:
+    ) -> UserDefinedTool:
         """Deserialize a ToolDefinition."""
         with self.path_context(field_name):
             try:
-                return UserDefinedToolDefinition(
+                return UserDefinedTool(
                     name=tool_definition_proto.name,
                     description=tool_definition_proto.description,
                     params=[self.deserialize_tool_parameter(tool_param) for tool_param in tool_definition_proto.params],

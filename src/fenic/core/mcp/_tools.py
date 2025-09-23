@@ -16,7 +16,7 @@ from fenic.core.mcp.types import (
     BoundToolParam,
     TableFormat,
     ToolParam,
-    UserDefinedToolDefinition,
+    UserDefinedTool,
 )
 from fenic.core.types.datatypes import ArrayType
 
@@ -31,7 +31,7 @@ def bind_tool(
     params: list[ToolParam],
     result_limit: int,
     query: LogicalPlan
-) -> UserDefinedToolDefinition:
+) -> UserDefinedTool:
     """Create a tool from a query and a set of parameters.
 
     Raises PlanError if the logical plan contains unresolved parameters that are not in the tool parameters.
@@ -89,7 +89,7 @@ def bind_tool(
             )
         )
 
-    return UserDefinedToolDefinition(
+    return UserDefinedTool(
         name=name,
         description=description,
         params=resolved_params,
@@ -98,7 +98,7 @@ def bind_tool(
     )
 
 
-def create_pydantic_model_for_tool(tool: UserDefinedToolDefinition) -> type[BaseModel]:
+def create_pydantic_model_for_tool(tool: UserDefinedTool) -> type[BaseModel]:
     """Create a Pydantic model for a tool."""
     model_name = f"{tool.name}_Params"
     model_fields = {}

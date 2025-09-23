@@ -108,10 +108,10 @@ from fenic.core import (
     StructField,
     StructType,
     StructuredOutputStrategy,
-    SystemToolDefinition,
+    SystemTool,
     ToolParam,
     TranscriptType,
-    UserDefinedToolDefinition,
+    UserDefinedTool,
 )
 from fenic.core.error import InvalidExampleCollectionError
 from fenic.core.types.semantic import ModelAlias
@@ -237,8 +237,8 @@ __all__ = [
     # MCP
     "ToolParam",
     "BoundToolParam",
-    "UserDefinedToolDefinition",
-    "SystemToolDefinition",
+    "UserDefinedTool",
+    "SystemTool",
     "ToolGenerationConfig",
     "create_mcp_server",
     "run_mcp_server_asgi",

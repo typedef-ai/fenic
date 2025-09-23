@@ -13,7 +13,7 @@ import asyncio
 import inspect
 import logging
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
 
 import polars as pl
 from pydantic import BaseModel, ConfigDict
@@ -34,9 +34,9 @@ from fenic.core.mcp._tools import (
     create_pydantic_model_for_tool,
 )
 from fenic.core.mcp.types import (
-    SystemToolDefinition,
+    SystemTool,
     TableFormat,
-    UserDefinedToolDefinition,
+    UserDefinedTool,
 )
 from fenic.core.types.datatypes import ArrayType
 from fenic.logging import configure_logging
@@ -60,8 +60,8 @@ class FenicMCPServer:
     def __init__(
         self,
         session_state: BaseSessionState,
-        user_defined_tools: list[UserDefinedToolDefinition],
-        system_tools: list[SystemToolDefinition],
+        user_defined_tools: list[UserDefinedTool],
+        system_tools: list[SystemTool],
         server_name: str = "Fenic Views",
         concurrency_limit: int = 8
     ):
@@ -167,23 +167,26 @@ class FenicMCPServer:
             )
         return result_set
 
-    def _build_user_defined_tool(self, tool: UserDefinedToolDefinition):
+    def _build_user_defined_tool(
+        self,
+        tool_definition: UserDefinedTool
+    ) -> Callable[..., Coroutine[Any, Any, MCPResultSet]]:
         """Build a keyword-argument tool function with per-field schema for FastMCP.
 
         We still validate/coerce using a generated Pydantic model under the hood,
         but expose individual keyword-only parameters in the function signature so
         FastMCP generates a clean per-argument schema (no single params model).
         """
-        ParamsModel = create_pydantic_model_for_tool(tool)
+        ParamsModel = create_pydantic_model_for_tool(tool_definition)
 
         # Names of bound parameters for filtering out helper args
-        param_names = {p.name for p in tool.params}
+        param_names = {p.name for p in tool_definition.params}
 
         async def tool_fn_wrapper(*args, **kwargs) -> MCPResultSet:
             # Extract UI/runtime-only flags
             table_format: TableFormat = kwargs.pop("table_format", "markdown")
             # Compute effective limit: cap by tool.result_limit when provided
-            effective_limit = _calculate_effective_limit(tool, kwargs.pop("limit", None))
+            effective_limit = _calculate_effective_limit(tool_definition, kwargs.pop("limit", None))
 
             # Validate/coerce only the bound parameters using the ParamsModel
             payload_only_tool_params = {k: v for k, v in kwargs.items() if k in param_names}
@@ -191,26 +194,26 @@ class FenicMCPServer:
             payload = params_obj.model_dump(exclude_none=True)
 
             try:
-                bound_plan = bind_parameters(tool._parameterized_view, payload, tool.params)
+                bound_plan = bind_parameters(tool_definition._parameterized_view, payload, tool_definition.params)
                 async with self._collect_semaphore:
                     pl_df, metrics = await asyncio.to_thread(
                         lambda: self.session_state.execution.collect(bound_plan)
                     )
-                    logger.info(f"Completed query for {tool.name}")
+                    logger.info(f"Completed query for {tool_definition.name}")
                     logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {params_obj.model_dump_json()}")
 
                 return self._handle_result_set(pl_df, effective_limit, table_format)
             except Exception as e:
                 from fastmcp.exceptions import ToolError
-                raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
+                raise ToolError(f"Fenic server failed to execute tool {tool_definition.name}. Underlying error: {e}") from e
 
 
         try:
             params: list[inspect.Parameter] = []
             annotations: Dict[str, object] = {}
             # Add one keyword-only parameter per tool param
-            for param in tool.params:
+            for param in tool_definition.params:
                 param_type = _type_for_param(param)
                 param_annotation = _annotate_with_description(param_type, param.description)
                 default_value = param.default_value if param.has_default else inspect._empty
@@ -241,7 +244,7 @@ class FenicMCPServer:
                 inspect.Parameter(
                     name="limit",
                     kind=inspect.Parameter.KEYWORD_ONLY,
-                    default=tool.max_result_limit,
+                    default=tool_definition.max_result_limit,
                     annotation=lim_ann,
                 )
             )
@@ -258,10 +261,13 @@ class FenicMCPServer:
 
         # Docstring includes schema from the Pydantic model
         pydantic_schema_description = convert_pydantic_model_to_key_descriptions(ParamsModel)
-        tool_fn_wrapper.__doc__ = "\n\n".join([tool.description, pydantic_schema_description])
+        tool_fn_wrapper.__doc__ = "\n\n".join([tool_definition.description, pydantic_schema_description])
         return tool_fn_wrapper
 
-    def _build_system_tool(self, tool: SystemToolDefinition):
+    def _build_system_tool(
+        self,
+        tool_definition: SystemTool
+    ) -> Callable[[...], Coroutine[Any, Any, MCPResultSet]]:
         # Dynamic function must return a LogicalPlan. This registrar wraps the callable so
         # that we (a) execute/collect the plan off the event loop, (b) limit concurrency,
         # and (c) format the results into an MCPResultSet for FastMCP.
@@ -273,29 +279,29 @@ class FenicMCPServer:
 
         async def wrapper(*args, **kwargs) -> MCPResultSet:
             # Extract table_format from kwargs if provided, otherwise use tool default
-            table_format = kwargs.pop("table_format", tool.default_table_format)
+            table_format = kwargs.pop("table_format", tool_definition.default_table_format)
             # Extract optional limit and compute effective_limit against tool.result_limit
-            effective_limit = _calculate_effective_limit(tool, kwargs.pop("limit", None))
+            effective_limit = _calculate_effective_limit(tool_definition, kwargs.pop("limit", None))
             # Obtain the plan by invoking the system tool. No session is injected here;
             # the callable is expected to derive any context it needs from inputs.
             try:
                 # Collect on a thread to avoid blocking the event loop, and gate concurrent
                 # collections with a semaphore to protect the backend executor.
                 async with self._collect_semaphore:
-                    bound_plan = await tool.func(*args, **kwargs)
+                    bound_plan = await tool_definition.func(*args, **kwargs)
                     pl_df, metrics = await asyncio.to_thread(
                         lambda: self.session_state.execution.collect(bound_plan)
                     )
-                    logger.info(f"Completed query for {tool.name}")
+                    logger.info(f"Completed query for {tool_definition.name}")
                     logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {args if args else kwargs}")
 
                 return self._handle_result_set(pl_df, effective_limit, table_format)
             except Exception as e:
                 from fastmcp.exceptions import ToolError
-                raise ToolError(f"Fenic server failed to execute tool {tool.name}. Underlying error: {e}") from e
+                raise ToolError(f"Fenic server failed to execute tool {tool_definition.name}. Underlying error: {e}") from e
 
-        @wraps(tool.func)
+        @wraps(tool_definition.func)
         async def wrapped(*args, **kwargs):
             # Delegate to the inner wrapper; @wraps preserves the original signature so
             # FastMCP can generate a clean tool schema from annotations.
@@ -305,17 +311,17 @@ class FenicMCPServer:
         _expose_keyword_param(
             "table_format",
             wrapped=wrapped,
-            default_value=tool.default_table_format,
+            default_value=tool_definition.default_table_format,
             py_type=TableFormat,
             description=(
                 TABLE_FORMAT_DESCRIPTION
             ),
         )
-        if tool.max_result_limit and tool.add_limit_parameter:
+        if tool_definition.max_result_limit and tool_definition.add_limit_parameter:
             _expose_keyword_param(
                 "limit",
                 wrapped=wrapped,
-                default_value=tool.max_result_limit,
+                default_value=tool_definition.max_result_limit,
                 py_type=Optional[Union[int, str]],
                 description=LIMIT_DESCRIPTION,
             )
@@ -393,7 +399,7 @@ def _render_markdown_preview(rows: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 def _calculate_effective_limit(
-    tool: Union[UserDefinedToolDefinition, SystemToolDefinition],
+    tool: Union[UserDefinedTool, SystemTool],
     requested_limit: Optional[Union[int, str]]
 ) -> Optional[int]:
     if requested_limit:

@@ -1,5 +1,3 @@
-from textwrap import dedent
-from typing import Annotated
 
 import fenic as fc
 from fenic import OpenAILanguageModel, SemanticConfig
