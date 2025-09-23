@@ -44,6 +44,7 @@ from fenic.api.functions import (
 from fenic.api.io import DataFrameReader, DataFrameWriter
 from fenic.api.lineage import Lineage
 from fenic.api.mcp import (
+    SystemToolConfig,
     create_mcp_server,
     run_mcp_server_asgi,
     run_mcp_server_async,
@@ -135,5 +136,6 @@ __all__ = [
     "create_mcp_server",
     "run_mcp_server_sync",
     "run_mcp_server_async",
-    "run_mcp_server_asgi"
+    "run_mcp_server_asgi",
+    "SystemToolConfig",
 ]

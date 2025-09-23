@@ -19,7 +19,7 @@ from fenic.core._serde import LogicalPlanSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import ToolDefinitionProto
 from fenic.core.error import CatalogError
-from fenic.core.mcp.types import ParameterizedToolDefinition
+from fenic.core.mcp.types import UserDefinedTool
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import ColumnField, DatasetMetadata, Schema
 from fenic.core.types.datatypes import (
@@ -465,7 +465,7 @@ class SystemTableClient:
                 f"Failed to delete views metadata for database {database_name}"
             ) from e
 
-    def save_tool(self, cursor: duckdb.DuckDBPyConnection, tool: ParameterizedToolDefinition) -> None:
+    def save_tool(self, cursor: duckdb.DuckDBPyConnection, tool: UserDefinedTool) -> None:
         """Save a tool's metadata to the system table.
         Raises:
             CatalogError: If the tool metadata cannot be saved.
@@ -486,7 +486,7 @@ class SystemTableClient:
                 f"Failed to save tool metadata for {tool.name}"
             ) from e
 
-    def describe_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, cursor: duckdb.DuckDBPyConnection, tool_name: str) -> Optional[UserDefinedTool]:
         """Get a tool's metadata from the system table.
         Raises:
             CatalogError: If the tool metadata cannot be retrieved.
@@ -508,7 +508,7 @@ class SystemTableClient:
                 f"Failed to retrieve tool metadata for {tool_name}"
             ) from e
 
-    def list_tools(self, cursor: duckdb.DuckDBPyConnection) -> List[ParameterizedToolDefinition]:
+    def list_tools(self, cursor: duckdb.DuckDBPyConnection) -> List[UserDefinedTool]:
         """List all tools in the system table.
         Raises:
             CatalogError: If the tools metadata cannot be retrieved.
@@ -815,7 +815,7 @@ class SystemTableClient:
                 f"Failed to initialize tools and {TOOLS_METADATA_TABLE} table"
             ) from e
 
-    def _deserialize_and_resolve_tool(self, row: tuple) -> ParameterizedToolDefinition:
+    def _deserialize_and_resolve_tool(self, row: tuple) -> UserDefinedTool:
        decoded_tool = base64.b64decode(row[0])
        proto_tool = ToolDefinitionProto.FromString(decoded_tool)
        return self.serde_context.deserialize_tool_definition(proto_tool)

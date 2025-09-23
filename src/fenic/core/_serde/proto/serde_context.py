@@ -53,7 +53,7 @@ from fenic.core._serde.proto.types import (
 from fenic.core._utils.structured_outputs import (
     check_if_model_uses_unserializable_features,
 )
-from fenic.core.mcp.types import BoundToolParam, ParameterizedToolDefinition
+from fenic.core.mcp.types import BoundToolParam, UserDefinedTool
 from fenic.core.types.datatypes import DataType
 from fenic.core.types.schema import ColumnField, Schema
 
@@ -918,7 +918,7 @@ class SerdeContext:
 
     def serialize_tool_definition(
         self,
-        tool_definition: ParameterizedToolDefinition,
+        tool_definition: UserDefinedTool,
         field_name: str = "tool_definition"
     ) -> ToolDefinitionProto:
         with self.path_context(field_name):
@@ -932,7 +932,7 @@ class SerdeContext:
                     params=serialized_params,
                     parameterized_view=self.serialize_logical_plan("parameterized_view",
                                                                    tool_definition._parameterized_view),
-                    result_limit=tool_definition.result_limit,
+                    result_limit=tool_definition.max_result_limit,
                 )
             except Exception as e:
                 self._handle_serde_error(e)
@@ -941,17 +941,17 @@ class SerdeContext:
         self,
         tool_definition_proto: ToolDefinitionProto,
         field_name: str = "tool_definition"
-    ) -> ParameterizedToolDefinition:
+    ) -> UserDefinedTool:
         """Deserialize a ToolDefinition."""
         with self.path_context(field_name):
             try:
-                return ParameterizedToolDefinition(
+                return UserDefinedTool(
                     name=tool_definition_proto.name,
                     description=tool_definition_proto.description,
                     params=[self.deserialize_tool_parameter(tool_param) for tool_param in tool_definition_proto.params],
                     _parameterized_view=self.deserialize_logical_plan("parameterized_view",
                                                                       tool_definition_proto.parameterized_view),
-                    result_limit=tool_definition_proto.result_limit,
+                    max_result_limit=tool_definition_proto.result_limit,
                 )
             except Exception as e:
                 self._handle_serde_error(e)

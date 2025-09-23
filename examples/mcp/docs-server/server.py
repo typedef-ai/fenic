@@ -212,7 +212,7 @@ def main():
         server = create_mcp_server(
             session=session,
             server_name="Fenic Documentation Server",
-            tools=tools,
+            user_defined_tools=tools,
             concurrency_limit=8
         )
         

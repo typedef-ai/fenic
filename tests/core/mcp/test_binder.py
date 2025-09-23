@@ -2,13 +2,14 @@ import pytest
 
 from fenic.api.dataframe.dataframe import DataFrame
 from fenic.api.functions import col, tool_param
+from fenic.api.session.session import Session
 from fenic.core.error import PlanError, TypeMismatchError
 from fenic.core.mcp._binder import bind_parameters, collect_unresolved_parameters
 from fenic.core.mcp.types import BoundToolParam
 from fenic.core.types.datatypes import ArrayType, IntegerType, StringType
 
 
-def test_bind_parameters_replaces_unresolved_and_executes(local_session):
+def test_bind_parameters_replaces_unresolved_and_executes(local_session: Session):
     df = local_session.create_dataframe(
         {"name": ["Alice", "Bob", "Charlie"], "age": [25, 30, 35], "city": ["SF", "SF", "SEA"]}
     )
@@ -29,7 +30,7 @@ def test_bind_parameters_replaces_unresolved_and_executes(local_session):
     assert result[0]["name"] == "Bob"
 
 
-def test_bind_parameters_missing_param_raises(local_session):
+def test_bind_parameters_missing_param_raises(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     unresolved_df = df.filter(col("age") > tool_param("min_age", IntegerType))
 
@@ -37,7 +38,7 @@ def test_bind_parameters_missing_param_raises(local_session):
         bind_parameters(unresolved_df._logical_plan, {}, [])
 
 
-def test_bind_parameters_with_tool_param_default(local_session):
+def test_bind_parameters_with_tool_param_default(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     unresolved_df = df.filter(col("age") > tool_param("min_age", IntegerType))
     bound_plan = bind_parameters(
@@ -63,7 +64,7 @@ def test_bind_parameters_with_tool_param_default(local_session):
     assert {r["age"] for r in result} == {3}
 
 
-def test_bind_parameters_type_mismatch_raises(local_session):
+def test_bind_parameters_type_mismatch_raises(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     unresolved_df = df.filter(col("age") > tool_param("min_age", IntegerType))
 
@@ -85,7 +86,7 @@ def test_bind_parameters_type_mismatch_raises(local_session):
         )
 
 
-def test_bind_parameters_none_value_raises(local_session):
+def test_bind_parameters_none_value_raises(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     unresolved_df = df.filter(col("age") > tool_param("min_age", IntegerType))
 
@@ -107,7 +108,7 @@ def test_bind_parameters_none_value_raises(local_session):
         )
 
 
-def test_bind_parameters_list_type_mismatch_raises(local_session):
+def test_bind_parameters_list_type_mismatch_raises(local_session: Session):
     df = local_session.create_dataframe({"arr": [[1, 2], [3], [4]]})
     # Expect an array of integers
     unresolved_df = df.filter(col("arr") == tool_param("vals", ArrayType(IntegerType)))
@@ -131,7 +132,7 @@ def test_bind_parameters_list_type_mismatch_raises(local_session):
         )
 
 
-def test_bind_no_unresolved_params_is_noop(local_session):
+def test_bind_no_unresolved_params_is_noop(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     # No tool_param used
     plan = df.filter(col("age") > 1)._logical_plan
@@ -142,7 +143,7 @@ def test_bind_no_unresolved_params_is_noop(local_session):
     assert len(collect_unresolved_parameters(bound)) == 0
 
 
-def test_bind_extra_params_ignored(local_session):
+def test_bind_extra_params_ignored(local_session: Session):
     df = local_session.create_dataframe({"age": [1, 2, 3]})
     unresolved_df = df.filter(col("age") > tool_param("min_age", IntegerType))
 

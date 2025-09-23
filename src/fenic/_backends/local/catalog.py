@@ -30,7 +30,7 @@ from fenic.core.error import (
     ToolNotFoundError,
 )
 from fenic.core.mcp._tools import bind_tool
-from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.mcp.types import ToolParam, UserDefinedTool
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
     DatasetMetadata,
@@ -506,7 +506,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
 
-    def describe_tool(self, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, tool_name: str) -> Optional[UserDefinedTool]:
         """Get a tool's metadata from the system table."""
         cursor = self.db_conn.cursor()
         existing_tool = self.system_tables.describe_tool(cursor, tool_name)
@@ -525,17 +525,16 @@ class LocalCatalog(BaseCatalog):
     ) -> bool:
         """Create a new tool in the current catalog."""
         # Ensure the tool is valid by resolving it.
-        with self.lock:
-            tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
-            cursor = self.db_conn.cursor()
-            if self.system_tables.describe_tool(cursor, tool_name):
-                if ignore_if_exists:
-                    return False
-                raise ToolAlreadyExistsError(tool_name)
-            self.system_tables.save_tool(cursor, tool_definition)
-            return True
+        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+        cursor = self.db_conn.cursor()
+        if self.system_tables.describe_tool(cursor, tool_name):
+            if ignore_if_exists:
+                return False
+            raise ToolAlreadyExistsError(tool_name)
+        self.system_tables.save_tool(cursor, tool_definition)
+        return True
 
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedTool]:
         """List all tools in the current catalog."""
         cursor = self.db_conn.cursor()
         return self.system_tables.list_tools(cursor)

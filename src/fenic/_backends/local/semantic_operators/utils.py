@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from textwrap import dedent
 from typing import (
@@ -6,6 +7,8 @@ from typing import (
 
 import polars as pl
 from pydantic import BaseModel, create_model
+
+logger = logging.getLogger(__name__)
 
 SIMPLE_INSTRUCTION_SYSTEM_PROMPT = dedent("""\
     Follow the user's instruction exactly and generate only the requested output.

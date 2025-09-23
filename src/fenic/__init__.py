@@ -23,6 +23,7 @@ from fenic.api import (
     SemanticExtensions,
     Session,
     SessionConfig,
+    SystemToolConfig,
     array,
     array_agg,
     array_contains,
@@ -95,7 +96,6 @@ from fenic.core import (
     ModelQuantization,
     OperatorMetrics,
     Paragraph,
-    ParameterizedToolDefinition,
     PredicateExample,
     PredicateExampleCollection,
     ProviderSort,
@@ -108,8 +108,10 @@ from fenic.core import (
     StructField,
     StructType,
     StructuredOutputStrategy,
+    SystemTool,
     ToolParam,
     TranscriptType,
+    UserDefinedTool,
 )
 from fenic.core.error import InvalidExampleCollectionError
 from fenic.core.types.semantic import ModelAlias
@@ -235,7 +237,9 @@ __all__ = [
     # MCP
     "ToolParam",
     "BoundToolParam",
-    "ParameterizedToolDefinition",
+    "UserDefinedTool",
+    "SystemTool",
+    "SystemToolConfig",
     "create_mcp_server",
     "run_mcp_server_asgi",
     "run_mcp_server_async",
