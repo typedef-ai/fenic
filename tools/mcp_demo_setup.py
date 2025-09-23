@@ -436,7 +436,7 @@ def main() -> None:
         session=local_session,
         server_name="Fenic Semantic Demo",
         user_defined_tools=local_session.catalog.list_tools(),
-        automated_tool_generation=fc.ToolGenerationConfig(
+        system_tools=fc.ToolGenerationConfig(
            table_names=["candidates"],
            tool_group_name="Candidate Information"
         )

@@ -4,7 +4,7 @@ from inspect import iscoroutinefunction
 
 import pytest
 
-from fenic.api.mcp.tool_generation import (
+from fenic.api.mcp.tools import (
     auto_generate_system_tools_from_tables,
 )
 from fenic.core.error import ConfigurationError

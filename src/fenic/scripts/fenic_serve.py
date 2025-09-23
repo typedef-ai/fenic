@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Optional
 
 from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync
-from fenic.api.mcp.tool_generation import ToolGenerationConfig
+from fenic.api.mcp.tools import ToolGenerationConfig
 from fenic.api.session.config import SessionConfig
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError, ToolNotFoundError
@@ -125,7 +125,7 @@ def main() -> None:
         session,
         server_name=args.server_name,
         user_defined_tools=tools if tools else None,
-        automated_tool_generation=auto_cfg,
+        system_tools=auto_cfg,
         concurrency_limit=args.concurrency_limit,
     )
 

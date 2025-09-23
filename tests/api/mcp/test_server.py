@@ -2,8 +2,9 @@ import asyncio
 
 import pytest
 
+from fenic import ToolGenerationConfig
 from fenic.api.mcp.server import create_mcp_server
-from fenic.api.mcp.tool_generation import auto_generate_system_tools_from_tables
+from fenic.api.mcp.tools import auto_generate_system_tools_from_tables
 from fenic.api.session.session import Session
 from fenic.core._utils.misc import to_snake_case
 from tests.api.mcp.utils import create_table_with_rows
@@ -13,10 +14,12 @@ def test_server_generation(local_session: Session):
     pytest.importorskip("fastmcp")
     create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
     create_table_with_rows(local_session, "t2", [10, 20], description="table two")
-
     tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
-
-    server = create_mcp_server(local_session, "Test Server", system_tools=tools)
+    server = create_mcp_server(local_session, "Test Server", system_tools=ToolGenerationConfig(
+        table_names=["t1", "t2"],
+        tool_group_name="Auto",
+        max_result_rows=100
+    ))
     server_tools = asyncio.run(server.mcp.get_tools())
     assert len(server_tools) == len(tools)
     for tool in tools:

@@ -44,13 +44,13 @@ def main():
     mcp_generator = fc.create_mcp_server(
         local_session,
         "Dating App Moderation Demo",
-        automated_tool_generation=fc.ToolGenerationConfig(
+        system_tools=fc.ToolGenerationConfig(
             table_names=["conversations", "enriched_profiles", "moderation_report"],
             tool_group_name="Dating App Moderation",
             max_result_rows=100
         )
     )
-    fc.run_mcp_server_sync(mcp_generator)
+    fc.run_mcp_server_sync(mcp_generator, port=8001)
 
 
 if __name__ == "__main__":

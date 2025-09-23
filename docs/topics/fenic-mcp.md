@@ -147,13 +147,13 @@ Example:
 ```python
 from fenic import Session
 from fenic.api.mcp.server import create_mcp_server
-from fenic.api.mcp.tool_generation import ToolGenerationConfig
+from fenic.api.mcp.tools import ToolGenerationConfig
 
 session = Session.get_or_create(...)
 server = create_mcp_server(
     session,
     server_name="Fenic MCP",
-    automated_tool_generation=ToolGenerationConfig(
+    system_tools=ToolGenerationConfig(
         table_names=["orders", "users"],
         tool_group_name="Dataset Exploration",
         max_result_rows=200,

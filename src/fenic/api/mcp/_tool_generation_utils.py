@@ -1,51 +1,32 @@
-"""API-layer generators for automatic MCP tools from DataFrames.
-
-These helpers generate System Tool Definitions for:
-- Schema: dataset column names and types
-- Profile: per-column statistics (counts, numeric summaries, simple string summaries)
-- Analyze: DuckDB SQL across one or more datasets.
-
-All generated tools return LogicalPlan objects. The MCP server wrapper handles
-execution and result formatting.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import (
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Union,
-)
+from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 from typing_extensions import Annotated
 
-from fenic.api.dataframe.dataframe import DataFrame
-from fenic.api.functions import (
+from fenic import (
+    BooleanType,
+    DataFrame,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    Session,
+    StringType,
+    SystemTool,
     avg,
     col,
     stddev,
 )
-from fenic.api.functions import max as max_
-from fenic.api.functions import min as min_
-from fenic.api.session.session import Session
+from fenic import max as max_
+from fenic import min as min_
+from fenic.core._logical_plan import LogicalPlan
 from fenic.core._logical_plan.plans import InMemorySource
-from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core.error import ConfigurationError, ValidationError
-from fenic.core.mcp.types import SystemTool
-from fenic.core.types.datatypes import (
-    BooleanType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    StringType,
-)
 
 PROFILE_MAX_SAMPLE_SIZE = 10_000
 
@@ -63,40 +44,140 @@ class DatasetSpec:
     description: str
     df: DataFrame
 
-
-@dataclass
-class ToolGenerationConfig:
-    """Configuration for automated tool generation.
-
-    Attributes:
-        table_names: List of table names.
-        tool_group_name: Name of the tool group.
-        max_result_rows: Maximum number of rows to be returned from Read/Analyze tools.
-    """
-
-    table_names: List[str]
-    tool_group_name: str
-    max_result_rows: int = 100
-
-
-def auto_generate_system_tools_from_tables(
-    table_names: List[str],
+def auto_generate_system_tools(
+    datasets: List[DatasetSpec],
     session: Session,
     *,
     tool_group_name: str,
     max_result_limit: int = 100,
 ) -> List[SystemTool]:
-    """Generate Schema/Profile/Read/Search/Analyze tools from catalog tables.
+    """Generate core tools spanning all datasets: Schema, Profile, Analyze.
 
-    Validates that each table exists and has a non-empty description in catalog metadata.
+    - Schema: list columns/types for any or all datasets
+    - Profile: dataset statistics for any or all datasets
+    - Read: read rows from a single dataset to sample the data
+    - Search Summary: regex search across all datasets and return a summary of the number of matches per dataset
+    - Search Content: return matching rows from a single dataset using regex matching across string columns
+    - Analyze: DuckDB SELECT-only SQL across datasets
     """
-    datasets = _build_datasets_from_tables(table_names, session)
-    return _auto_generate_system_tools(
+    group_desc = "\n".join(
+        [f"{d.table_name}: {d.description.strip()}" if d.description else d.table_name for d in datasets]
+    )
+
+    schema_tool = _auto_generate_schema_tool(
         datasets,
         session,
-        tool_group_name=tool_group_name,
-        max_result_limit=max_result_limit,
+        tool_name=f"{tool_group_name} - Schema",
+        tool_description="\n\n".join([
+            "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
+            group_desc,
+        ]),
     )
+
+    profile_tool = _auto_generate_profile_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Profile",
+        tool_description="\n".join([
+            "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
+            "This call should be used as a follow up after calling the `Schema` tool."
+            "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
+            "Profiling statistics are calculated across a sample of the original dataset.",
+            "Available Datasets:",
+            group_desc,
+        ]),
+    )
+
+    read_tool = _auto_generate_read_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Read",
+        tool_description="\n\n".join([
+            "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
+            "Use `include_columns` and `exclude_columns` to filter columns by name -- this is important to conserve token usage. Use the `Profile` tool to understand the columns and their sizes.",
+            "Available datasets:",
+            group_desc,
+        ]),
+        result_limit=max_result_limit,
+    )
+
+    search_summary_tool = _auto_generate_search_summary_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Search Summary",
+        tool_description="\n\n".join([
+            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
+            "Available datasets:",
+            group_desc,
+        ]),
+    )
+    search_content_tool = _auto_generate_search_content_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Search Content",
+        tool_description="\n\n".join([
+            "Return matching rows from a single dataset using substring/regex across string columns.",
+            "Available datasets:",
+            group_desc,
+        ]),
+        result_limit=max_result_limit,
+    )
+
+    analyze_tool = _auto_generate_sql_tool(
+        datasets,
+        session,
+        tool_name=f"{tool_group_name} - Analyze",
+        tool_description="\n\n".join([
+            "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
+            "DDL/DML and multiple top-level queries are not allowed.",
+            "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
+            "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
+            "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
+            "Below, the available datasets are listed, by name and description.",
+            group_desc,
+        ]),
+        result_limit=max_result_limit,
+    )
+
+    return [schema_tool, profile_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
+
+
+def build_datasets_from_tables(table_names: List[str], session: Session) -> List[DatasetSpec]:
+    """Resolve catalog table names into DatasetSpec list with validated descriptions.
+
+    Raises ConfigurationError if any table is missing or lacks a non-empty description.
+    """
+    if len(table_names) == 0:
+        raise ConfigurationError("No tables provided for tool generation.")
+
+    missing_desc: List[str] = []
+    missing_tables: List[str] = []
+    specs: List[DatasetSpec] = []
+
+    for table_name in table_names:
+        if not session.catalog.does_table_exist(table_name):
+            missing_tables.append(table_name)
+            continue
+        table_metadata = session.catalog.describe_table(table_name)
+        desc = (table_metadata.description or "").strip()
+        if not desc:
+            missing_desc.append(table_name)
+        df = session.table(table_name)
+        specs.append(DatasetSpec(table_name=table_name, description=desc, df=df))
+
+    if missing_tables:
+        raise ConfigurationError(
+            f"The following tables do not exist: {', '.join(sorted(missing_tables))}"
+        )
+    if missing_desc:
+        raise ConfigurationError(
+            "All tables must have a non-empty description to enable automated tool creation. "
+            f"Missing descriptions for: {', '.join(sorted(missing_desc))}"
+            "Use `session.catalog.set_table_description(table_name, description)` to set the table description."
+        )
+
+    return specs
+
 
 def _auto_generate_read_tool(
     datasets: List[DatasetSpec],
@@ -525,6 +606,7 @@ def _auto_generate_profile_tool(
         max_result_limit=None,
     )
 
+
 async def _ensure_profile_view_for_dataset(
     session: Session,
     tool_key: str,
@@ -545,6 +627,7 @@ async def _ensure_profile_view_for_dataset(
         )
         catalog.create_view(view_name, view_plan)
     return catalog.get_view_plan(view_name)
+
 
 async def _compute_profile_rows(
     df: DataFrame,
@@ -685,138 +768,3 @@ async def _compute_profile_rows(
                     stats.string_example_values = sampled
         rows_list.append(stats)
     return rows_list
-
-
-def _auto_generate_system_tools(
-    datasets: List[DatasetSpec],
-    session: Session,
-    *,
-    tool_group_name: str,
-    max_result_limit: int = 100,
-) -> List[SystemTool]:
-    """Generate core tools spanning all datasets: Schema, Profile, Analyze.
-
-    - Schema: list columns/types for any or all datasets
-    - Profile: dataset statistics for any or all datasets
-    - Read: read rows from a single dataset to sample the data
-    - Search Summary: regex search across all datasets and return a summary of the number of matches per dataset
-    - Search Content: return matching rows from a single dataset using regex matching across string columns
-    - Analyze: DuckDB SELECT-only SQL across datasets
-    """
-    group_desc = "\n".join(
-        [f"{d.table_name}: {d.description.strip()}" if d.description else d.table_name for d in datasets]
-    )
-
-    schema_tool = _auto_generate_schema_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Schema",
-        tool_description="\n\n".join([
-            "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
-            group_desc,
-        ]),
-    )
-
-    profile_tool = _auto_generate_profile_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Profile",
-        tool_description="\n".join([
-            "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
-            "This call should be used as a follow up after calling the `Schema` tool."
-            "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
-            "Profiling statistics are calculated across a sample of the original dataset.",
-            "Available Datasets:",
-            group_desc,
-        ]),
-    )
-
-    read_tool = _auto_generate_read_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Read",
-        tool_description="\n\n".join([
-            "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
-            "Use `include_columns` and `exclude_columns` to filter columns by name -- this is important to conserve token usage. Use the `Profile` tool to understand the columns and their sizes.",
-            "Available datasets:",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    search_summary_tool = _auto_generate_search_summary_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Search Summary",
-        tool_description="\n\n".join([
-            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
-            "Available datasets:",
-            group_desc,
-        ]),
-    )
-    search_content_tool = _auto_generate_search_content_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Search Content",
-        tool_description="\n\n".join([
-            "Return matching rows from a single dataset using substring/regex across string columns.",
-            "Available datasets:",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    analyze_tool = _auto_generate_sql_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_group_name} - Analyze",
-        tool_description="\n\n".join([
-            "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
-            "DDL/DML and multiple top-level queries are not allowed.",
-            "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
-            "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
-            "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
-            "Below, the available datasets are listed, by name and description.",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    return [schema_tool, profile_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
-
-
-def _build_datasets_from_tables(table_names: List[str], session: Session) -> List[DatasetSpec]:
-    """Resolve catalog table names into DatasetSpec list with validated descriptions.
-
-    Raises ConfigurationError if any table is missing or lacks a non-empty description.
-    """
-    if len(table_names) == 0:
-        raise ConfigurationError("No tables provided for tool generation.")
-
-    missing_desc: List[str] = []
-    missing_tables: List[str] = []
-    specs: List[DatasetSpec] = []
-
-    for table_name in table_names:
-        if not session.catalog.does_table_exist(table_name):
-            missing_tables.append(table_name)
-            continue
-        table_metadata = session.catalog.describe_table(table_name)
-        desc = (table_metadata.description or "").strip()
-        if not desc:
-            missing_desc.append(table_name)
-        df = session.table(table_name)
-        specs.append(DatasetSpec(table_name=table_name, description=desc, df=df))
-
-    if missing_tables:
-        raise ConfigurationError(
-            f"The following tables do not exist: {', '.join(sorted(missing_tables))}"
-        )
-    if missing_desc:
-        raise ConfigurationError(
-            "All tables must have a non-empty description to enable automated tool creation. "
-            f"Missing descriptions for: {', '.join(sorted(missing_desc))}"
-            "Use `session.catalog.set_table_description(table_name, description)` to set the table description."
-        )
-
-    return specs
