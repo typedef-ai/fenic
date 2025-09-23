@@ -8,25 +8,23 @@ from typing import Dict, List, Literal, Optional, Union
 import polars as pl
 from typing_extensions import Annotated
 
-from fenic import (
+from fenic.api import col
+from fenic.api.dataframe import DataFrame
+from fenic.api.functions import avg, stddev
+from fenic.api.functions import max as max_
+from fenic.api.functions import min as min_
+from fenic.api.session import Session
+from fenic.core._logical_plan import LogicalPlan
+from fenic.core._logical_plan.plans import InMemorySource
+from fenic.core.error import ConfigurationError, ValidationError
+from fenic.core.mcp.types import SystemTool
+from fenic.core.types.datatypes import (
     BooleanType,
-    DataFrame,
     DoubleType,
     FloatType,
     IntegerType,
-    Session,
     StringType,
-    SystemTool,
-    avg,
-    col,
-    stddev,
 )
-from fenic import max as max_
-from fenic import min as min_
-from fenic.core._logical_plan import LogicalPlan
-from fenic.core._logical_plan.plans import InMemorySource
-from fenic.core._utils.schema import convert_custom_dtype_to_polars
-from fenic.core.error import ConfigurationError, ValidationError
 
 PROFILE_MAX_SAMPLE_SIZE = 10_000
 
@@ -44,11 +42,11 @@ class DatasetSpec:
     description: str
     df: DataFrame
 
-def auto_generate_system_tools(
+def _auto_generate_system_tools(
     datasets: List[DatasetSpec],
     session: Session,
     *,
-    tool_group_name: str,
+    tool_namespace: Optional[str],
     max_result_limit: int = 100,
 ) -> List[SystemTool]:
     """Generate core tools spanning all datasets: Schema, Profile, Analyze.
@@ -67,7 +65,7 @@ def auto_generate_system_tools(
     schema_tool = _auto_generate_schema_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Schema",
+        tool_name=f"{tool_namespace} - Schema" if tool_namespace else "Schema",
         tool_description="\n\n".join([
             "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
             group_desc,
@@ -77,7 +75,7 @@ def auto_generate_system_tools(
     profile_tool = _auto_generate_profile_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Profile",
+        tool_name=f"{tool_namespace} - Profile" if tool_namespace else "Profile",
         tool_description="\n".join([
             "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
             "This call should be used as a follow up after calling the `Schema` tool."
@@ -91,8 +89,8 @@ def auto_generate_system_tools(
     read_tool = _auto_generate_read_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Read",
-        tool_description="\n\n".join([
+        tool_name=f"{tool_namespace} - Read" if tool_namespace else "Read",
+        tool_description="\n".join([
             "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
             "Use `include_columns` and `exclude_columns` to filter columns by name -- this is important to conserve token usage. Use the `Profile` tool to understand the columns and their sizes.",
             "Available datasets:",
@@ -104,8 +102,8 @@ def auto_generate_system_tools(
     search_summary_tool = _auto_generate_search_summary_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Search Summary",
-        tool_description="\n\n".join([
+        tool_name=f"{tool_namespace} - Search Summary" if tool_namespace else "Search Summary",
+        tool_description="\n".join([
             "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
             "Available datasets:",
             group_desc,
@@ -114,8 +112,8 @@ def auto_generate_system_tools(
     search_content_tool = _auto_generate_search_content_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Search Content",
-        tool_description="\n\n".join([
+        tool_name=f"{tool_namespace} - Search Content" if tool_namespace else "Search Content",
+        tool_description="\n".join([
             "Return matching rows from a single dataset using substring/regex across string columns.",
             "Available datasets:",
             group_desc,
@@ -126,8 +124,8 @@ def auto_generate_system_tools(
     analyze_tool = _auto_generate_sql_tool(
         datasets,
         session,
-        tool_name=f"{tool_group_name} - Analyze",
-        tool_description="\n\n".join([
+        tool_name=f"{tool_namespace} - Analyze" if tool_namespace else "Analyze",
+        tool_description="\n".join([
             "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
             "DDL/DML and multiple top-level queries are not allowed.",
             "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
@@ -142,14 +140,11 @@ def auto_generate_system_tools(
     return [schema_tool, profile_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
 
 
-def build_datasets_from_tables(table_names: List[str], session: Session) -> List[DatasetSpec]:
+def _build_datasets_from_tables(table_names: List[str], session: Session) -> List[DatasetSpec]:
     """Resolve catalog table names into DatasetSpec list with validated descriptions.
 
     Raises ConfigurationError if any table is missing or lacks a non-empty description.
     """
-    if len(table_names) == 0:
-        raise ConfigurationError("No tables provided for tool generation.")
-
     missing_desc: List[str] = []
     missing_tables: List[str] = []
     specs: List[DatasetSpec] = []
@@ -398,8 +393,7 @@ def _auto_generate_schema_tool(
 
         for name, d in selected.items():
             # Build a single-row DataFrame with a common list<struct{column,type}> schema column
-            schema_entries = [{"column": f.name, "type": str(convert_custom_dtype_to_polars(f.data_type))} for f in
-                              d.schema.column_fields]
+            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in d.schema.column_fields]
             dataset_names.append(name)
             dataset_schemas.append(schema_entries)
 
@@ -768,3 +762,25 @@ async def _compute_profile_rows(
                     stats.string_example_values = sampled
         rows_list.append(stats)
     return rows_list
+
+
+def auto_generate_system_tools_from_tables(
+    table_names: list[str],
+    session: Session,
+    *,
+    tool_namespace: Optional[str],
+    max_result_limit: int = 100,
+) -> List[SystemTool]:
+    """Generate Schema/Profile/Read/Search [Content/Summary]/Analyze tools from catalog tables.
+
+    Validates that each table exists and has a non-empty description in catalog metadata.
+    """
+    if not table_names:
+        raise ConfigurationError("At least one table name must be specified for automated system tool creation.")
+    datasets = _build_datasets_from_tables(table_names, session)
+    return _auto_generate_system_tools(
+        datasets,
+        session,
+        tool_namespace=tool_namespace,
+        max_result_limit=max_result_limit,
+    )

@@ -44,9 +44,9 @@ def main():
     mcp_generator = fc.create_mcp_server(
         local_session,
         "Dating App Moderation Demo",
-        system_tools=fc.ToolGenerationConfig(
+        system_tools=fc.SystemToolConfig(
             table_names=["conversations", "enriched_profiles", "moderation_report"],
-            tool_group_name="Dating App Moderation",
+            tool_namespace="Dating App Moderation",
             max_result_rows=100
         )
     )

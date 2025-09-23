@@ -16,7 +16,7 @@ Examples:
   - Run with automated tools from tables (descriptions required in catalog metadata):
       fenic-serve \
         --tables orders customers \
-        --tool-group-name "Sales" \
+        --tool_namespace "sales" \
         --sql-max-rows 100
 
   - Provide a session configuration via JSON file:
@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Optional
 
 from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync
-from fenic.api.mcp.tools import ToolGenerationConfig
+from fenic.api.mcp.tools import SystemToolConfig
 from fenic.api.session.config import SessionConfig
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError, ToolNotFoundError
@@ -67,9 +67,9 @@ def _parse_args() -> argparse.Namespace:
     # Inputs: tools or tables
     parser.add_argument("--tools", nargs="*", default=None, help="Catalog tool names to load.")
     parser.add_argument("--tables", nargs="*", default=None, help="Catalog table names for automated tool generation.")
-    parser.add_argument("--generated-tool-prefix", type=str, default="dataset_exploration",
-                        help="Tool prefix for generated tools. Will be converted to `snake_case`. Defaults to `dataset_exploration`, "
-                             "so tools will be generated as `dataset_exploration_schema`, `dataset_exploration_read` etc.")
+    parser.add_argument("--tool_namespace", type=str, default=None,
+                        help="Tool namespace for generated tools. Will be converted to `snake_case`. "
+                             "Example: If provided with a value of `dataset_exploration`, tools will be generated as `dataset_exploration_schema`, `dataset_exploration_read` etc.")
     parser.add_argument("--sql-max-rows", type=int, default=100, help="Row limit for Analyze/Read/Search tools.")
 
     return parser.parse_args()
@@ -108,11 +108,11 @@ def main() -> None:
     else:
         tools = session.catalog.list_tools()
 
-    auto_cfg: Optional[ToolGenerationConfig] = None
+    auto_cfg: Optional[SystemToolConfig] = None
     if args.tables:
-        auto_cfg = ToolGenerationConfig(
+        auto_cfg = SystemToolConfig(
             table_names=args.tables,
-            tool_group_name=args.generated_tool_prefix,
+            tool_namespace=args.tool_namespace,
             max_result_rows=args.sql_max_rows,
         )
 

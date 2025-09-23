@@ -6,9 +6,9 @@ This module exposes helpers to:
 """
 from typing import List, Optional
 
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
 from fenic.api.mcp.tools import (
-    ToolGenerationConfig,
-    auto_generate_system_tools_from_tables,
+    SystemToolConfig,
 )
 from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
@@ -21,7 +21,7 @@ def create_mcp_server(
     server_name: str,
     *,
     user_defined_tools: Optional[List[UserDefinedTool]] = None,
-    system_tools: Optional[ToolGenerationConfig] = None,
+    system_tools: Optional[SystemToolConfig] = None,
     concurrency_limit: int = 8,
 ) -> FenicMCPServer:
     """Create an MCP server from datasets and tools.
@@ -29,19 +29,20 @@ def create_mcp_server(
     Args:
         session: Fenic session used to execute tools.
         server_name: Name of the MCP server.
-        system_tools: List of system tools to register (optional).
-        user_defined_tools: Tools to register (optional).
-        system_tools: Generate system tools for one or more Dataframes.
+        user_defined_tools: User defined tools to register with the MCP server.
+        system_tools: Configuration for automatically created system tools.
         concurrency_limit: Maximum number of concurrent tool executions.
     """
     generated_system_tools = []
     user_defined_tools = user_defined_tools or []
     if system_tools:
-        generated_system_tools.extend(auto_generate_system_tools_from_tables(
-            system_tools.table_names,
-            session,
-            tool_group_name=system_tools.tool_group_name,
-            max_result_limit=system_tools.max_result_rows)
+        generated_system_tools.extend(
+            auto_generate_system_tools_from_tables(
+                system_tools.table_names,
+                session,
+                tool_namespace=system_tools.tool_namespace,
+                max_result_limit=system_tools.max_result_rows
+            )
         )
     if not (user_defined_tools or system_tools):
         raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")

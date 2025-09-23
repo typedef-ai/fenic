@@ -436,9 +436,9 @@ def main() -> None:
         session=local_session,
         server_name="Fenic Semantic Demo",
         user_defined_tools=local_session.catalog.list_tools(),
-        system_tools=fc.ToolGenerationConfig(
+        system_tools=fc.SystemToolConfig(
            table_names=["candidates"],
-           tool_group_name="Candidate Information"
+           tool_namespace="Candidate Information"
         )
     )
     fc.run_mcp_server_sync(server)

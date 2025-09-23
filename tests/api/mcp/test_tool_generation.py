@@ -4,9 +4,7 @@ from inspect import iscoroutinefunction
 
 import pytest
 
-from fenic.api.mcp.tools import (
-    auto_generate_system_tools_from_tables,
-)
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp.types import SystemTool
 from tests.api.mcp.utils import create_table_with_rows
@@ -14,13 +12,13 @@ from tests.api.mcp.utils import create_table_with_rows
 
 def test_auto_generate_core_tools_from_tables_missing_table_raises(local_session):
     with pytest.raises(ConfigurationError, match="do not exist"):
-        auto_generate_system_tools_from_tables(["does_not_exist"], local_session, tool_group_name="TG")
+        auto_generate_system_tools_from_tables(["does_not_exist"], local_session, tool_namespace="TG")
 
 
 def test_auto_generate_core_tools_from_tables_requires_descriptions(local_session):
     create_table_with_rows(local_session, "t_no_desc", [1, 2, 3], description=None)
     with pytest.raises(ConfigurationError, match="Missing descriptions"):
-        auto_generate_system_tools_from_tables(["t_no_desc"], local_session, tool_group_name="TG")
+        auto_generate_system_tools_from_tables(["t_no_desc"], local_session, tool_namespace="TG")
 
 
 def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
@@ -28,7 +26,7 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     create_table_with_rows(local_session, "t1", [1, 2, 3], description="table one")
     create_table_with_rows(local_session, "t2", [10, 20], description="table two")
 
-    tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_group_name="Auto")
+    tools = auto_generate_system_tools_from_tables(["t1", "t2"], local_session, tool_namespace="Auto")
 
     # Expect core set: Schema, Describe, Read, Search Summary, Search Content, Analyze
     assert len(tools) == 6

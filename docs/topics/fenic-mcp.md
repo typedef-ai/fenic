@@ -136,7 +136,15 @@ session.catalog.drop_tool("users_by_name_regex", ignore_if_not_exists=True)
 
 ### Step 2a: Auto-generate system tools from catalog tables
 
-You can generate a suite of reusable data tools (Schema, Profile, Read, Search Summary, Search Content, Analyze) directly from catalog tables and their descriptions. This is helpful for quickly exposing exploratory and read/query capabilities to MCP.
+You can generate a suite of reusable data tools (Schema, Profile, Read, Search Summary, Search Content, Analyze) directly from catalog tables and their descriptions.
+This is helpful for quickly exposing exploratory and read/query capabilities to MCP. Available tools include:
+
+- Schema: list columns/types for any or all tables
+- Profile: column statistics (counts, basic numeric analysis [min, max, mean, etc.], contextual information for text columns [average_length, etc.])
+- Read: read a selection of rows from a single table. These rows can be paged over, filtered and can use column projections.
+- Search Summary: regex search across all text columns in all tables -- returns back dataframe names with result counts.
+- Search Content: regex search across a single table, specifying one or more text columns to search across -- returns back rows corresponding to the query.
+- Analyze: Write raw SQL to perform complex analysis on one or more tables.
 
 Requirements:
 
@@ -147,15 +155,15 @@ Example:
 ```python
 from fenic import Session
 from fenic.api.mcp.server import create_mcp_server
-from fenic.api.mcp.tools import ToolGenerationConfig
+from fenic.api.mcp.tools import SystemToolConfig
 
 session = Session.get_or_create(...)
 server = create_mcp_server(
     session,
     server_name="Fenic MCP",
-    system_tools=ToolGenerationConfig(
-        table_names=["orders", "users"],
-        tool_group_name="Dataset Exploration",
+    system_tools=SystemToolConfig(
+        table_names=session.catalog.list_tables(),
+        tool_namespace="Dataset Exploration",
         max_result_rows=200,
     ),
 )
@@ -163,21 +171,18 @@ server = create_mcp_server(
 
 ## Step 3a: Serve tools programmatically
 
-Use the MCP server helpers to serve existing catalog tools. If you want all registered tools, call `list_tools()`. If you want a subset, fetch by name.
+Use the MCP server helpers to serve existing catalog tools. To use all catalog tools in the MCP server,
+pass `session.catalog.list_tools` to `create_mcp_server`:
 
 ```python
 from fenic import Session,SessionConfig
-from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync, run_mcp_server_async, run_mcp_server_asgi,
+from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync, run_mcp_server_async, run_mcp_server_asgi
 
 session = Session.get_or_create(SessionConfig(
     app_name="mcp_example",
     ...
 ))
-
-# Load all catalog tools
-tools = session.catalog.list_tools()
-
-server = create_mcp_server(session, server_name="Fenic MCP", user_defined_tools=tools)
+server = create_mcp_server(session, server_name="Fenic MCP", user_defined_tools=session.catalog.list_tools())
 
 # Run HTTP server (defaults shown); if additional configuration is required, any argument that can be passed to FastMCP `run` can be passed here
 #

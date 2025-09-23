@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict
 from typing_extensions import Annotated, Literal
 
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan import LogicalPlan
 from fenic.core._utils.misc import to_snake_case
 from fenic.core._utils.structured_outputs import (
     convert_pydantic_model_to_key_descriptions,
@@ -139,6 +140,7 @@ class FenicMCPServer:
 
     def _handle_result_set(
         self,
+        plan: LogicalPlan,
         pl_df: pl.DataFrame,
         effective_limit: Optional[int],
         table_format: TableFormat
@@ -147,7 +149,7 @@ class FenicMCPServer:
         original_result_count = len(pl_df)
         if effective_limit and original_result_count > effective_limit:
             pl_df = pl_df.limit(effective_limit)
-        schema_fields = [{"name": name, "type": str(dtype)} for name, dtype in pl_df.schema.items()]
+        schema_fields = [{"name": field.name, "type": str(field.data_type)} for field in plan.schema().column_fields]
         rows_list = pl_df.to_dicts()
         returned_result_count = len(rows_list)
         if table_format == "structured":
@@ -202,8 +204,7 @@ class FenicMCPServer:
                     logger.info(f"Completed query for {tool_definition.name}")
                     logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {params_obj.model_dump_json()}")
-
-                return self._handle_result_set(pl_df, effective_limit, table_format)
+                    return self._handle_result_set(bound_plan, pl_df, effective_limit, table_format)
             except Exception as e:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool_definition.name}. Underlying error: {e}") from e
@@ -295,8 +296,7 @@ class FenicMCPServer:
                     logger.info(f"Completed query for {tool_definition.name}")
                     logger.info(metrics.get_summary())
                     logger.debug(f"Query Details: {args if args else kwargs}")
-
-                return self._handle_result_set(pl_df, effective_limit, table_format)
+                    return self._handle_result_set(bound_plan, pl_df, effective_limit, table_format)
             except Exception as e:
                 from fastmcp.exceptions import ToolError
                 raise ToolError(f"Fenic server failed to execute tool {tool_definition.name}. Underlying error: {e}") from e
