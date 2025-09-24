@@ -135,6 +135,9 @@ class OllamaBatchChatCompletionsClient(
             # Add options with dynamic configuration based on model metadata
             options = {}
 
+            # Disable thinking tokens for cleaner output
+            options['think'] = False
+
             # Use model-specific max output tokens if available
             if request.max_completion_tokens is not None:
                 options["num_predict"] = request.max_completion_tokens

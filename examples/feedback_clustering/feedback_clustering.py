@@ -3,35 +3,67 @@
 This example demonstrates how to use semantic.with_cluster_labels() and semantic.reduce()
 to automatically cluster customer feedback into themes and generate summaries
 for each discovered category.
+
+Usage:
+    python feedback_clustering.py
+    python feedback_clustering.py --language-model-provider ollama --language-model-name qwen3:4b --embedding-model-provider ollama --embedding-model-name embeddinggemma:latest
 """
 
+import argparse
 from typing import Optional
 
 import fenic as fc
 
 
-def main(config: Optional[fc.SessionConfig] = None):
+def main(config: Optional[fc.SessionConfig] = None, language_model_provider: str = "openai", language_model_name: str = "gpt-4o-mini", embedding_model_provider: str = "openai", embedding_model_name: str = "text-embedding-3-small"):
     """Analyze customer feedback using semantic clustering and summarization."""
     # Configure session with both language models and embedding models
-    config = config or fc.SessionConfig(
-        app_name="feedback_clustering",
-        semantic=fc.SemanticConfig(
-            language_models={
-                "mini": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
-                    rpm=500,
-                    tpm=200_000,
-                )
-            },
-            embedding_models={
-                "small": fc.OpenAIEmbeddingModel(
-                    model_name="text-embedding-3-small",
-                    rpm=3000,
-                    tpm=1_000_000
-                )
-            }
-        ),
-    )
+    if config is None:
+        # Configure language model based on provider
+        if language_model_provider == "openai":
+            language_model = fc.OpenAILanguageModel(
+                model_name=language_model_name,
+                rpm=500,
+                tpm=200_000
+            )
+        elif language_model_provider == "ollama":
+            language_model = fc.OllamaLanguageModel(
+                model_name=language_model_name,
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True
+            )
+        else:
+            raise ValueError(f"Unsupported language model provider: {language_model_provider}")
+
+        # Configure embedding model based on provider
+        if embedding_model_provider == "openai":
+            embedding_model = fc.OpenAIEmbeddingModel(
+                model_name=embedding_model_name,
+                rpm=3000,
+                tpm=1_000_000
+            )
+        elif embedding_model_provider == "ollama":
+            embedding_model = fc.OllamaEmbeddingModel(
+                model_name=embedding_model_name,
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True
+            )
+        else:
+            raise ValueError(f"Unsupported embedding model provider: {embedding_model_provider}")
+
+        config = fc.SessionConfig(
+            app_name="feedback_clustering",
+            semantic=fc.SemanticConfig(
+                language_models={
+                    "mini": language_model
+                },
+                embedding_models={
+                    "small": embedding_model
+                }
+            ),
+        )
 
     # Create session
     session = fc.Session.get_or_create(config)
@@ -193,4 +225,26 @@ def main(config: Optional[fc.SessionConfig] = None):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Customer Feedback Clustering & Analysis")
+    parser.add_argument("--language-model-provider", default="openai",
+                        choices=["openai", "ollama"],
+                        help="Language model provider (default: openai)")
+    parser.add_argument("--language-model-name", default="gpt-4o-mini",
+                        help="Language model name (default: gpt-4o-mini)")
+    parser.add_argument("--embedding-model-provider", default="openai",
+                        choices=["openai", "ollama"],
+                        help="Embedding model provider (default: openai)")
+    parser.add_argument("--embedding-model-name", default="text-embedding-3-small",
+                        help="Embedding model name (default: text-embedding-3-small)")
+
+    args = parser.parse_args()
+
+    # Note: Ensure you have set your API key:
+    # For OpenAI: export OPENAI_API_KEY="your-api-key-here"
+    # For Ollama: ensure Ollama is running on localhost:11434
+    main(
+        language_model_provider=args.language_model_provider,
+        language_model_name=args.language_model_name,
+        embedding_model_provider=args.embedding_model_provider,
+        embedding_model_name=args.embedding_model_name
+    )

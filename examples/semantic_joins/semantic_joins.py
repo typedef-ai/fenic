@@ -2,28 +2,47 @@
 
 This example demonstrates how to perform LLM-powered semantic joins that use
 natural language reasoning to match data across different DataFrames.
+
+Usage:
+    python semantic_joins.py
+    python semantic_joins.py --language-model-provider ollama --language-model-name qwen3:4b
 """
 
+import argparse
 from typing import Optional
 
 import fenic as fc
 
 
-def main(config: Optional[fc.SessionConfig] = None):
+def main(config: Optional[fc.SessionConfig] = None, language_model_provider: str = "openai", language_model_name: str = "gpt-4o-mini"):
     """Demonstrate semantic join capabilities using LLM reasoning."""
     # Configure session with language models (no embeddings needed)
-    config = config or fc.SessionConfig(
-        app_name="semantic_joins",
-        semantic=fc.SemanticConfig(
-            language_models={
-                "mini": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
-                    rpm=500,
-                    tpm=200_000,
-                )
-            }
-        ),
-    )
+    if config is None:
+        # Configure language model based on provider
+        if language_model_provider == "openai":
+            language_model = fc.OpenAILanguageModel(
+                model_name=language_model_name,
+                rpm=500,
+                tpm=200_000
+            )
+        elif language_model_provider == "ollama":
+            language_model = fc.OllamaLanguageModel(
+                model_name=language_model_name,
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True
+            )
+        else:
+            raise ValueError(f"Unsupported language model provider: {language_model_provider}")
+
+        config = fc.SessionConfig(
+            app_name="semantic_joins",
+            semantic=fc.SemanticConfig(
+                language_models={
+                    "mini": language_model
+                }
+            ),
+        )
 
     # Create session
     session = fc.Session.get_or_create(config)
@@ -225,4 +244,19 @@ def main(config: Optional[fc.SessionConfig] = None):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Semantic Joins Example")
+    parser.add_argument("--language-model-provider", default="openai",
+                        choices=["openai", "ollama"],
+                        help="Language model provider (default: openai)")
+    parser.add_argument("--language-model-name", default="gpt-4o-mini",
+                        help="Language model name (default: gpt-4o-mini)")
+
+    args = parser.parse_args()
+
+    # Note: Ensure you have set your API key:
+    # For OpenAI: export OPENAI_API_KEY="your-api-key-here"
+    # For Ollama: ensure Ollama is running on localhost:11434
+    main(
+        language_model_provider=args.language_model_provider,
+        language_model_name=args.language_model_name
+    )

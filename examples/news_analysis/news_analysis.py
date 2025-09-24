@@ -12,8 +12,10 @@ This is a practical example of how semantic classification can provide insights 
 
 Usage:
     python news_analysis.py
+    python news_analysis.py --language-model-provider ollama --language-model-name qwen3:4b
 """
 
+import argparse
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -21,36 +23,36 @@ from pydantic import BaseModel, Field
 import fenic as fc
 
 
-def main(config: Optional[fc.SessionConfig] = None):
+def main(config: Optional[fc.SessionConfig] = None, language_model_provider: str = "openai", language_model_name: str = "gpt-4o-mini"):
     """Main analysis pipeline for news article bias detection."""
     # Configure session with semantic capabilities
-    # Set your `OPENAI_API_KEY` environment variable.
-    # Alternatively, you can run the example with an Gemini (`GOOGLE_API_KEY`) model by uncommenting the provided additional model configurations.
-    # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
     print("🔧 Configuring fenic session...")
-    config = config or fc.SessionConfig(
-        app_name="news_analysis",
-        semantic=fc.SemanticConfig(
-            language_models={
-                "openai": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
-                    rpm=500,
-                    tpm=200_000
-                ),
-                # "gemini": fc.GoogleDeveloperLanguageModel(
-                #     model_name="gemini-2.0-flash",
-                #     rpm=500,
-                #     tpm=1_000_000
-                # ),
-                # "anthropic": fc.AnthropicLanguageModel(
-                #     model_name="claude-3-5-haiku-latest",
-                #     rpm=500,
-                #     input_tpm=80_000,
-                #     output_tpm=32_000,
-                # )
-            }
+    if config is None:
+        # Configure language model based on provider
+        if language_model_provider == "openai":
+            language_model = fc.OpenAILanguageModel(
+                model_name=language_model_name,
+                rpm=500,
+                tpm=200_000
+            )
+        elif language_model_provider == "ollama":
+            language_model = fc.OllamaLanguageModel(
+                model_name=language_model_name,
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True
+            )
+        else:
+            raise ValueError(f"Unsupported language model provider: {language_model_provider}")
+
+        config = fc.SessionConfig(
+            app_name="news_analysis",
+            semantic=fc.SemanticConfig(
+                language_models={
+                    "default": language_model
+                }
+            )
         )
-    )
 
     # Create session
     session = fc.Session.get_or_create(config)
@@ -402,4 +404,19 @@ def main(config: Optional[fc.SessionConfig] = None):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="News Article Bias Detection")
+    parser.add_argument("--language-model-provider", default="openai",
+                        choices=["openai", "ollama"],
+                        help="Language model provider (default: openai)")
+    parser.add_argument("--language-model-name", default="gpt-4o-mini",
+                        help="Language model name (default: gpt-4o-mini)")
+
+    args = parser.parse_args()
+
+    # Note: Ensure you have set your API key:
+    # For OpenAI: export OPENAI_API_KEY="your-api-key-here"
+    # For Ollama: ensure Ollama is running on localhost:11434
+    main(
+        language_model_provider=args.language_model_provider,
+        language_model_name=args.language_model_name
+    )

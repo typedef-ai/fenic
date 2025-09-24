@@ -1,3 +1,4 @@
+import argparse
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -14,20 +15,34 @@ class ErrorPattern(BaseModel):
     error_type: str = Field(description="Type of error (e.g., NullPointer, Timeout, ConnectionRefused)")
     component: str = Field(description="Affected component or system")
 
-def main(config: Optional[fc.SessionConfig] = None):
+def main(config: Optional[fc.SessionConfig] = None, language_model_provider: str = "openai", language_model_name: str = "gpt-4o-mini", embedding_model_provider: Optional[str] = None, embedding_model_name: Optional[str] = None):
     # 1. Configure session with semantic capabilities
-    config = config or fc.SessionConfig(
-        app_name="hello_debug",
-        semantic=fc.SemanticConfig(
-            language_models= {
-                "mini": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",  # Fast and effective for log analysis
-                    rpm=500,
-                    tpm=200_000
-                )
-            }
+    if config is None:
+        # Configure language model based on provider
+        if language_model_provider == "openai":
+            language_model = fc.OpenAILanguageModel(
+                model_name=language_model_name,
+                rpm=500,
+                tpm=200_000
+            )
+        elif language_model_provider == "ollama":
+            language_model = fc.OllamaLanguageModel(
+                model_name=language_model_name,
+                host="http://localhost:11434",
+                rpm=100,
+                auto_pull=True
+            )
+        else:
+            raise ValueError(f"Unsupported language model provider: {language_model_provider}")
+
+        config = fc.SessionConfig(
+            app_name="hello_debug",
+            semantic=fc.SemanticConfig(
+                language_models={
+                    "mini": language_model
+                }
+            )
         )
-    )
 
     # Create session
     session = fc.Session.get_or_create(config)
@@ -222,6 +237,26 @@ All events processed successfully
 
 
 if __name__ == "__main__":
-    # Note: Ensure you have set your OpenAI API key:
-    # export OPENAI_API_KEY="your-api-key-here"
-    main()
+    parser = argparse.ArgumentParser(description="Error Log Analyzer")
+    parser.add_argument("--language-model-provider", default="openai",
+                        choices=["openai", "ollama"],
+                        help="Language model provider (default: openai)")
+    parser.add_argument("--language-model-name", default="gpt-4o-mini",
+                        help="Language model name (default: gpt-4o-mini)")
+    parser.add_argument("--embedding-model-provider",
+                        choices=["openai", "ollama"],
+                        help="Embedding model provider")
+    parser.add_argument("--embedding-model-name",
+                        help="Embedding model name")
+
+    args = parser.parse_args()
+
+    # Note: Ensure you have set your API key:
+    # For OpenAI: export OPENAI_API_KEY="your-api-key-here"
+    # For Ollama: ensure Ollama is running on localhost:11434
+    main(
+        language_model_provider=args.language_model_provider,
+        language_model_name=args.language_model_name,
+        embedding_model_provider=args.embedding_model_provider,
+        embedding_model_name=args.embedding_model_name
+    )
