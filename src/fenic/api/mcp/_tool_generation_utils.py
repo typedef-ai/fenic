@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional, Union
@@ -34,36 +32,23 @@ class ToolDataset:
     Attributes:
       table_name: name of the table registered in the catalog.
       description: description of the table from the catalog.
-      session: a fenic Session, used to load tables from the catalog using `table_name`
     """
     table_name: str
     description: str
-    session: Session
 
     def __init__(
         self,
         table_name: str,
         description: str,
-        session: Session
     ):
         self.table_name = table_name
         self.description = description
-        self.session = session
 
-    @property
-    def df(self) -> DataFrame:
-        return self.session.table(self.table_name)
+    def df(self, session: Session) -> DataFrame:
+        return session.table(self.table_name)
 
-    @property
-    def schema(self) -> Schema:
-        return self.session.catalog.describe_table(self.table_name).schema
-
-    @property
-    def schema_fingerprint(self) -> str:
-        hasher = hashlib.sha256()
-        for f in self.schema.column_fields:
-            hasher.update(f"{f.name}|{str(f.data_type)}".encode("utf-8"))
-        return hasher.hexdigest()[:12]
+    def schema(self, session: Session) -> Schema:
+        return session.catalog.describe_table(self.table_name).schema
 
 
 def auto_generate_system_tools_from_tables(
@@ -196,7 +181,7 @@ def _build_datasets_from_tables(table_names: List[str], session: Session) -> Lis
         desc = (table_metadata.description or "").strip()
         if not desc:
             missing_desc.append(table_name)
-        specs.append(ToolDataset(table_name=table_name, description=desc, session=session))
+        specs.append(ToolDataset(table_name=table_name, description=desc))
 
     if missing_tables:
         raise ConfigurationError(
@@ -224,18 +209,7 @@ def _auto_generate_read_tool(
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
 
-    def _validate_columns(
-        available_columns: List[str],
-        original_columns: List[str],
-        filtered_columns: List[str],
-    ) -> None:
-        if not filtered_columns:
-            raise ValidationError(f"Column(s) {original_columns} not found. Available: {', '.join(available_columns)}")
-        if len(filtered_columns) != len(original_columns):
-            invalid_columns = [c for c in original_columns if c not in filtered_columns]
-            raise ValidationError(f"Column(s) {invalid_columns} not found. Available: {', '.join(available_columns)}")
-
-    async def read_func(
+    def read_func(
         df_name: Annotated[str, "Dataset name to read rows from."],
         limit: Annotated[Optional[int], "Max rows to read within a page"] = result_limit,
         offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
@@ -247,18 +221,18 @@ def _auto_generate_read_tool(
 
         if df_name not in datasets:
             raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(datasets.keys())}")
-        df = datasets[df_name].df
+        df = datasets[df_name].df(session)
         order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
         available_columns = df.columns
         include_columns = [c.strip() for c in include_columns.split(",") if c.strip()] if include_columns else None
         exclude_columns = [c.strip() for c in exclude_columns.split(",") if c.strip()] if exclude_columns else None
+        if include_columns and exclude_columns:
+            raise ValidationError("include_columns and exclude_columns cannot be used together.")
         if include_columns:
             filtered_columns = [c for c in include_columns if c in available_columns]
-            _validate_columns(available_columns, include_columns, filtered_columns)
             df = df.select(*filtered_columns)
         if exclude_columns:
             filtered_columns = [c for c in available_columns if c not in exclude_columns]
-            _validate_columns(available_columns, exclude_columns, filtered_columns)
             df = df.select(*filtered_columns)
         # Apply paging (handles offset+order_by via SQL and optional limit)
         return _apply_paging(
@@ -289,12 +263,12 @@ def _auto_generate_search_summary_tool(
     if len(datasets) == 0:
         raise ValueError("Cannot create search summary tool: no datasets provided.")
 
-    async def search_summary(
+    def search_summary(
         pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
     ) -> LogicalPlan:
         rows: List[Dict[str, object]] = []
         for name, dataset in datasets.items():
-            df = dataset.df
+            df = dataset.df(session)
             cols = [f.name for f in df.schema.column_fields if f.data_type == StringType]
             if not cols:
                 rows.append({"dataset": name, "total_matches": 0})
@@ -305,7 +279,7 @@ def _auto_generate_search_summary_tool(
                 predicate = this if predicate is None else (predicate | this)
 
             df = df.filter(predicate)
-            total_count = await asyncio.to_thread(df.count)
+            total_count = df.count()
             rows.append({"dataset": name, "total_matches": total_count})
 
         pl_df = pl.DataFrame(rows)
@@ -339,7 +313,7 @@ def _auto_generate_search_content_tool(
             return selected
         return [f.name for f in df.schema.column_fields if f.data_type == StringType]
 
-    async def search_rows(
+    def search_rows(
         df_name: Annotated[str, "Dataset name to search (single dataset)"],
         pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
         limit: Annotated[Optional[int], "Max rows to read within a page of search results"] = result_limit,
@@ -361,7 +335,7 @@ def _auto_generate_search_content_tool(
             raise ValidationError("Query pattern cannot be empty.")
         if df_name not in datasets:
             raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(datasets.keys())}")
-        df = datasets[df_name].df
+        df = datasets[df_name].df(session)
         cols = _string_columns(df, search_columns)
         if not cols:
             return df.limit(0)._logical_plan
@@ -404,7 +378,7 @@ def _auto_generate_schema_tool(
     if len(datasets) == 0:
         raise ValueError("Cannot create schema tool: no datasets provided.")
 
-    async def schema_func(
+    def schema_func(
         df_name: Annotated[
             str | None, "Optional DataFrame name to return a single schema for. To return schemas for all datasets, OMIT this parameter."] = None,
     ) -> LogicalPlan:
@@ -426,7 +400,7 @@ def _auto_generate_schema_tool(
 
         for name, dataset in selected.items():
             # Build a single-row DataFrame with a common list<struct{column,type}> schema column
-            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in dataset.schema.column_fields]
+            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in dataset.schema(session).column_fields]
             dataset_names.append(name)
             dataset_schemas.append(schema_entries)
 
@@ -463,11 +437,11 @@ def _auto_generate_sql_tool(
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create SQL tool: no datasets provided.")
 
-    async def analyze_func(
+    def analyze_func(
         full_sql: Annotated[
             str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., `SELECT * FROM {orders}`. JOINs between the provided datasets are allowed. SQL dialect: DuckDB. DDL/DML and multiple top-level queries are not allowed"]
     ) -> LogicalPlan:
-        return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets.values()})._logical_plan
+        return session.sql(full_sql.strip(), **{spec.table_name: spec.df(session) for spec in datasets.values()})._logical_plan
 
     # Enhanced description with dataset names and descriptions
     lines: List[str] = [tool_description.strip()]
@@ -592,7 +566,7 @@ def _auto_generate_profile_tool(
     if len(datasets) == 0:
         raise ValueError("Cannot create profile tool: no datasets provided.")
 
-    async def profile_func(
+    def profile_func(
         df_name: Annotated[
             str | None, "Optional DataFrame name to return a single profile for. To return profiles for all datasets, omit this parameter."] = None,
     ) -> LogicalPlan:
@@ -601,17 +575,17 @@ def _auto_generate_profile_tool(
             df_name = None
         # Single dataset branch returns the view plan directly
         if df_name is not None:
-            spec = next((d for d in datasets.values() if d.table_name == df_name), None)
+            spec = datasets.get(df_name)
             if spec is None:
                 raise ValidationError(
                     f"Unknown dataset '{df_name}'. Available: {', '.join(datasets.keys())}")
-            profile_df = await _compute_profile_for_dataset(session, spec, topk_distinct)
+            profile_df = _compute_profile_for_dataset(session, spec, topk_distinct)
             return profile_df._logical_plan
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
         profile_df = None
         for spec in datasets.values():
-            df = await _compute_profile_for_dataset(session, spec, topk_distinct)
+            df = _compute_profile_for_dataset(session, spec, topk_distinct)
             if not profile_df:
                 profile_df = df
             else:
@@ -626,13 +600,13 @@ def _auto_generate_profile_tool(
         max_result_limit=None,
     )
 
-async def _compute_profile_for_dataset(
+def _compute_profile_for_dataset(
     session: Session,
     spec: ToolDataset,
     topk_distinct: int,
 ) -> DataFrame:
-    profile_rows = await _compute_profile_rows(
-        spec.df,
+    profile_rows = _compute_profile_rows(
+        spec.df(session),
         spec.table_name,
         topk_distinct,
     )
@@ -645,7 +619,7 @@ async def _compute_profile_for_dataset(
     )
 
 
-async def _compute_profile_rows(
+def _compute_profile_rows(
     df: DataFrame,
     dataset_name: str,
     topk_distinct: int,

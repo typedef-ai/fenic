@@ -289,7 +289,9 @@ class FenicMCPServer:
                 # Collect on a thread to avoid blocking the event loop, and gate concurrent
                 # collections with a semaphore to protect the backend executor.
                 async with self._collect_semaphore:
-                    bound_plan = await tool_definition.func(*args, **kwargs)
+                    bound_plan = await asyncio.to_thread(
+                        lambda: tool_definition.func(*args, **kwargs)
+                    )
                     pl_df, metrics = await asyncio.to_thread(
                         lambda: self.session_state.execution.collect(bound_plan)
                     )
