@@ -45,7 +45,7 @@ def create_mcp_server(
             )
         )
     if not (user_defined_tools or system_tools):
-        raise ConfigurationError("No tools provided. Either provide tools or set generate_automated_tools=True and provide datasets.")
+        raise ConfigurationError("No tools provided. Either provide `user_defined_tools` or set `system_tools` to create system tools for catalog tables.")
     return FenicMCPServer(session._session_state, user_defined_tools, generated_system_tools, server_name, concurrency_limit)
 
 def run_mcp_server_asgi(

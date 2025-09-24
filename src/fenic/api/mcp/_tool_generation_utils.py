@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from dataclasses import dataclass
@@ -10,9 +11,6 @@ from typing_extensions import Annotated
 
 from fenic.api import col
 from fenic.api.dataframe import DataFrame
-from fenic.api.functions import avg, stddev
-from fenic.api.functions import max as max_
-from fenic.api.functions import min as min_
 from fenic.api.session import Session
 from fenic.core._logical_plan import LogicalPlan
 from fenic.core._logical_plan.plans import InMemorySource
@@ -25,25 +23,73 @@ from fenic.core.types.datatypes import (
     IntegerType,
     StringType,
 )
+from fenic.core.types.schema import Schema
 
 PROFILE_MAX_SAMPLE_SIZE = 10_000
 
 
-@dataclass
-class DatasetSpec:
+class ToolDataset:
     """Specification for a dataset exposed to a tool.
 
     Attributes:
       table_name: name of the table registered in the catalog.
       description: description of the table from the catalog.
-      df: the fenic DataFrame object with the table data.
+      session: a fenic Session, used to load tables from the catalog using `table_name`
     """
     table_name: str
     description: str
-    df: DataFrame
+    session: Session
+
+    def __init__(
+        self,
+        table_name: str,
+        description: str,
+        session: Session
+    ):
+        self.table_name = table_name
+        self.description = description
+        self.session = session
+
+    @property
+    def df(self) -> DataFrame:
+        return self.session.table(self.table_name)
+
+    @property
+    def schema(self) -> Schema:
+        return self.session.catalog.describe_table(self.table_name).schema
+
+    @property
+    def schema_fingerprint(self) -> str:
+        hasher = hashlib.sha256()
+        for f in self.schema.column_fields:
+            hasher.update(f"{f.name}|{str(f.data_type)}".encode("utf-8"))
+        return hasher.hexdigest()[:12]
+
+
+def auto_generate_system_tools_from_tables(
+    table_names: list[str],
+    session: Session,
+    *,
+    tool_namespace: Optional[str],
+    max_result_limit: int = 100,
+) -> List[SystemTool]:
+    """Generate Schema/Profile/Read/Search [Content/Summary]/Analyze tools from catalog tables.
+
+    Validates that each table exists and has a non-empty description in catalog metadata.
+    """
+    if not table_names:
+        raise ConfigurationError("At least one table name must be specified for automated system tool creation.")
+    datasets = _build_datasets_from_tables(table_names, session)
+    return _auto_generate_system_tools(
+        datasets,
+        session,
+        tool_namespace=tool_namespace,
+        max_result_limit=max_result_limit,
+    )
+
 
 def _auto_generate_system_tools(
-    datasets: List[DatasetSpec],
+    datasets: List[ToolDataset],
     session: Session,
     *,
     tool_namespace: Optional[str],
@@ -62,92 +108,85 @@ def _auto_generate_system_tools(
         [f"{d.table_name}: {d.description.strip()}" if d.description else d.table_name for d in datasets]
     )
 
-    schema_tool = _auto_generate_schema_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Schema" if tool_namespace else "Schema",
-        tool_description="\n\n".join([
-            "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
-            group_desc,
-        ]),
-    )
+    name_to_spec: Dict[str, ToolDataset] = {spec.table_name: spec for spec in datasets}
+    generated_tools: List[SystemTool] = [
+        _auto_generate_schema_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Schema" if tool_namespace else "Schema",
+            tool_description="\n\n".join([
+                "Show the schema (column names and types) for any or all of the datasets listed below. This call should be the first step in exploring the available datasets.",
+                group_desc,
+            ]),
+        ), _auto_generate_profile_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Profile" if tool_namespace else "Profile",
+            tool_description="\n".join([
+                "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
+                "This call should be used as a follow up after calling the `Schema` tool."
+                "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
+                "Profiling statistics are calculated across a sample of the original dataset.",
+                "Available Datasets:",
+                group_desc,
+            ]),
+        ), _auto_generate_read_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Read" if tool_namespace else "Read",
+            tool_description="\n".join([
+                "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
+                "Use `include_columns` and `exclude_columns` to filter columns by name -- this is important to conserve token usage. Use the `Profile` tool to understand the columns and their sizes.",
+                "Available datasets:",
+                group_desc,
+            ]),
+            result_limit=max_result_limit,
+        ), _auto_generate_search_summary_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Search Summary" if tool_namespace else "Search Summary",
+            tool_description="\n".join([
+                "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
+                "Available datasets:",
+                group_desc,
+            ]),
+        ), _auto_generate_search_content_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Search Content" if tool_namespace else "Search Content",
+            tool_description="\n".join([
+                "Return matching rows from a single dataset using substring/regex across string columns.",
+                "Available datasets:",
+                group_desc,
+            ]),
+            result_limit=max_result_limit,
+        ), _auto_generate_sql_tool(
+            name_to_spec,
+            session,
+            tool_name=f"{tool_namespace} - Analyze" if tool_namespace else "Analyze",
+            tool_description="\n".join([
+                "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
+                "DDL/DML and multiple top-level queries are not allowed.",
+                "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
+                "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
+                "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
+                "Below, the available datasets are listed, by name and description.",
+                group_desc,
+            ]),
+            result_limit=max_result_limit,
+        )]
 
-    profile_tool = _auto_generate_profile_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Profile" if tool_namespace else "Profile",
-        tool_description="\n".join([
-            "Return dataset data profile: row_count and per-column stats for any or all of the datasets listed below.",
-            "This call should be used as a follow up after calling the `Schema` tool."
-            "Numeric stats: min/max/mean/std; Booleans: true/false counts; Strings: distinct_count and top values.",
-            "Profiling statistics are calculated across a sample of the original dataset.",
-            "Available Datasets:",
-            group_desc,
-        ]),
-    )
-
-    read_tool = _auto_generate_read_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Read" if tool_namespace else "Read",
-        tool_description="\n".join([
-            "Read rows from a single dataset. Use to sample data, or to execute simple queries over the data that do not require filtering or grouping.",
-            "Use `include_columns` and `exclude_columns` to filter columns by name -- this is important to conserve token usage. Use the `Profile` tool to understand the columns and their sizes.",
-            "Available datasets:",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    search_summary_tool = _auto_generate_search_summary_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Search Summary" if tool_namespace else "Search Summary",
-        tool_description="\n".join([
-            "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
-            "Available datasets:",
-            group_desc,
-        ]),
-    )
-    search_content_tool = _auto_generate_search_content_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Search Content" if tool_namespace else "Search Content",
-        tool_description="\n".join([
-            "Return matching rows from a single dataset using substring/regex across string columns.",
-            "Available datasets:",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    analyze_tool = _auto_generate_sql_tool(
-        datasets,
-        session,
-        tool_name=f"{tool_namespace} - Analyze" if tool_namespace else "Analyze",
-        tool_description="\n".join([
-            "Execute Read-Only (SELECT) SQL over the provided datasets using fenic's SQL support.",
-            "DDL/DML and multiple top-level queries are not allowed.",
-            "For text search, prefer regular expressions (REGEXP_MATCHES()/REGEXP_EXTRACT()).",
-            "Paging: use ORDER BY to define row order, then LIMIT and OFFSET for pages.",
-            "JOINs between datasets are allowed. Refer to datasets by name in braces, e.g., {orders}.",
-            "Below, the available datasets are listed, by name and description.",
-            group_desc,
-        ]),
-        result_limit=max_result_limit,
-    )
-
-    return [schema_tool, profile_tool, read_tool, search_summary_tool, search_content_tool, analyze_tool]
+    return generated_tools
 
 
-def _build_datasets_from_tables(table_names: List[str], session: Session) -> List[DatasetSpec]:
+def _build_datasets_from_tables(table_names: List[str], session: Session) -> List[ToolDataset]:
     """Resolve catalog table names into DatasetSpec list with validated descriptions.
 
     Raises ConfigurationError if any table is missing or lacks a non-empty description.
     """
     missing_desc: List[str] = []
     missing_tables: List[str] = []
-    specs: List[DatasetSpec] = []
+    specs: List[ToolDataset] = []
 
     for table_name in table_names:
         if not session.catalog.does_table_exist(table_name):
@@ -157,8 +196,7 @@ def _build_datasets_from_tables(table_names: List[str], session: Session) -> Lis
         desc = (table_metadata.description or "").strip()
         if not desc:
             missing_desc.append(table_name)
-        df = session.table(table_name)
-        specs.append(DatasetSpec(table_name=table_name, description=desc, df=df))
+        specs.append(ToolDataset(table_name=table_name, description=desc, session=session))
 
     if missing_tables:
         raise ConfigurationError(
@@ -175,7 +213,7 @@ def _build_datasets_from_tables(table_names: List[str], session: Session) -> Lis
 
 
 def _auto_generate_read_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -185,8 +223,6 @@ def _auto_generate_read_tool(
     """Create a read tool over one or many datasets."""
     if len(datasets) == 0:
         raise ConfigurationError("Cannot create read tool: no datasets provided.")
-
-    name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
 
     def _validate_columns(
         available_columns: List[str],
@@ -209,9 +245,9 @@ def _auto_generate_read_tool(
         exclude_columns: Annotated[Optional[str], "Comma separated list of columns to exclude from the result"] = None,
     ) -> LogicalPlan:
 
-        if df_name not in name_to_df:
-            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
-        df = name_to_df[df_name]
+        if df_name not in datasets:
+            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(datasets.keys())}")
+        df = datasets[df_name].df
         order_by = [c.strip() for c in order_by.split(",") if c.strip()] if order_by else None
         available_columns = df.columns
         include_columns = [c.strip() for c in include_columns.split(",") if c.strip()] if include_columns else None
@@ -244,7 +280,7 @@ def _auto_generate_read_tool(
 
 
 def _auto_generate_search_summary_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -253,14 +289,13 @@ def _auto_generate_search_summary_tool(
     if len(datasets) == 0:
         raise ValueError("Cannot create search summary tool: no datasets provided.")
 
-    name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
-
     async def search_summary(
         pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
     ) -> LogicalPlan:
         rows: List[Dict[str, object]] = []
-        for name, d in name_to_df.items():
-            cols = [f.name for f in d.schema.column_fields if f.data_type == StringType]
+        for name, dataset in datasets.items():
+            df = dataset.df
+            cols = [f.name for f in df.schema.column_fields if f.data_type == StringType]
             if not cols:
                 rows.append({"dataset": name, "total_matches": 0})
                 continue
@@ -268,8 +303,10 @@ def _auto_generate_search_summary_tool(
             for c_name in cols:
                 this = col(c_name).rlike(pattern)
                 predicate = this if predicate is None else (predicate | this)
-            total_count = d.filter(predicate).count()
-            rows.append({"dataset": name, "total_matches": int(total_count)})
+
+            df = df.filter(predicate)
+            total_count = await asyncio.to_thread(df.count)
+            rows.append({"dataset": name, "total_matches": total_count})
 
         pl_df = pl.DataFrame(rows)
         return InMemorySource.from_session_state(pl_df, session._session_state)
@@ -283,7 +320,7 @@ def _auto_generate_search_summary_tool(
 
 
 def _auto_generate_search_content_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -293,8 +330,6 @@ def _auto_generate_search_content_tool(
     """Create a content search tool for a single dataset (string columns)."""
     if len(datasets) == 0:
         raise ValidationError("Cannot create search content tool: no datasets provided.")
-
-    name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
 
     def _string_columns(df: DataFrame, selected: Optional[List[str]]) -> List[str]:
         if selected:
@@ -324,17 +359,17 @@ def _auto_generate_search_content_tool(
 
         if not pattern:
             raise ValidationError("Query pattern cannot be empty.")
-        if df_name not in name_to_df:
-            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}")
-        d = name_to_df[df_name]
-        cols = _string_columns(d, search_columns)
+        if df_name not in datasets:
+            raise ValidationError(f"Unknown DataFrame '{df_name}'. Available: {', '.join(datasets.keys())}")
+        df = datasets[df_name].df
+        cols = _string_columns(df, search_columns)
         if not cols:
-            return d.limit(0)._logical_plan
+            return df.limit(0)._logical_plan
         predicate = None
         for c_name in cols:
             this = col(c_name).rlike(pattern)
             predicate = this if predicate is None else (predicate | this)
-        out = d.filter(predicate)
+        out = df.filter(predicate)
 
         return _apply_paging(
             out,
@@ -355,7 +390,7 @@ def _auto_generate_search_content_tool(
 
 
 def _auto_generate_schema_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -369,8 +404,6 @@ def _auto_generate_schema_tool(
     if len(datasets) == 0:
         raise ValueError("Cannot create schema tool: no datasets provided.")
 
-    name_to_df: Dict[str, DataFrame] = {d.table_name: d.df for d in datasets}
-
     async def schema_func(
         df_name: Annotated[
             str | None, "Optional DataFrame name to return a single schema for. To return schemas for all datasets, OMIT this parameter."] = None,
@@ -380,20 +413,20 @@ def _auto_generate_schema_tool(
             df_name = None
         # Choose subset of datasets
         if df_name is not None:
-            if df_name not in name_to_df:
+            if df_name not in datasets:
                 raise ValidationError(
-                    f"Unknown DataFrame '{df_name}'. Available: {', '.join(name_to_df.keys())}"
+                    f"Unknown DataFrame '{df_name}'. Available: {', '.join(datasets.keys())}"
                 )
-            selected = {df_name: name_to_df[df_name]}
+            selected = {df_name: datasets[df_name]}
         else:
-            selected = name_to_df
+            selected = datasets
 
         dataset_names: List[str] = []
         dataset_schemas: List[List[Dict[str, str]]] = []
 
-        for name, d in selected.items():
+        for name, dataset in selected.items():
             # Build a single-row DataFrame with a common list<struct{column,type}> schema column
-            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in d.schema.column_fields]
+            schema_entries = [{"column": f.name, "type": str(f.data_type)} for f in dataset.schema.column_fields]
             dataset_names.append(name)
             dataset_schemas.append(schema_entries)
 
@@ -414,7 +447,7 @@ def _auto_generate_schema_tool(
 
 
 def _auto_generate_sql_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -434,12 +467,12 @@ def _auto_generate_sql_tool(
         full_sql: Annotated[
             str, "Full SELECT SQL. Refer to DataFrames by name in braces, e.g., `SELECT * FROM {orders}`. JOINs between the provided datasets are allowed. SQL dialect: DuckDB. DDL/DML and multiple top-level queries are not allowed"]
     ) -> LogicalPlan:
-        return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets})._logical_plan
+        return session.sql(full_sql.strip(), **{spec.table_name: spec.df for spec in datasets.values()})._logical_plan
 
     # Enhanced description with dataset names and descriptions
     lines: List[str] = [tool_description.strip()]
     if datasets:
-        example_name = datasets[0].table_name
+        example_name = next(iter(datasets.keys()))
     else:
         example_name = "data"
     lines.extend(
@@ -465,13 +498,6 @@ def _auto_generate_sql_tool(
         add_limit_parameter=False,
     )
     return tool
-
-
-def _schema_fingerprint(df: DataFrame) -> str:
-    hasher = hashlib.sha256()
-    for f in df.schema.column_fields:
-        hasher.update(f"{f.name}|{str(f.data_type)}".encode("utf-8"))
-    return hasher.hexdigest()[:12]
 
 
 def _sanitize_name(name: str) -> str:
@@ -525,11 +551,12 @@ def _apply_paging(
 
 
 @dataclass
-class _ProfileRow:
+class ProfileRow:
     dataset_name: str
     column_name: str
     data_type: str
     total_rows: int
+    sample_size: int
     percent_rows_contains_null: float
     semantic_type: Literal["identifier", "categorical", "continuous", "text", "boolean", "unknown"]
     cardinality: Literal["unique", "low", "medium", "high", "unknown"]
@@ -538,6 +565,7 @@ class _ProfileRow:
     numeric_max: Optional[float]
     numeric_mean: Optional[float]
     numeric_std_dev: Optional[float]
+    numeric_median: Optional[float]
     string_avg_length: Optional[float]
     string_distinct_count: Optional[int]
     string_top_values: Optional[List[Dict[str, Union[int, str]]]]
@@ -545,9 +573,8 @@ class _ProfileRow:
     boolean_true_rows: Optional[int]
     boolean_false_rows: Optional[int]
 
-
 def _auto_generate_profile_tool(
-    datasets: List[DatasetSpec],
+    datasets: Dict[str, ToolDataset],
     session: Session,
     tool_name: str,
     tool_description: str,
@@ -564,7 +591,6 @@ def _auto_generate_profile_tool(
     """
     if len(datasets) == 0:
         raise ValueError("Cannot create profile tool: no datasets provided.")
-    tool_key = _sanitize_name(tool_name)
 
     async def profile_func(
         df_name: Annotated[
@@ -575,17 +601,17 @@ def _auto_generate_profile_tool(
             df_name = None
         # Single dataset branch returns the view plan directly
         if df_name is not None:
-            spec = next((d for d in datasets if d.table_name == df_name), None)
+            spec = next((d for d in datasets.values() if d.table_name == df_name), None)
             if spec is None:
                 raise ValidationError(
-                    f"Unknown dataset '{df_name}'. Available: {', '.join(d.table_name for d in datasets)}")
-            return await _ensure_profile_view_for_dataset(session, tool_key, spec, topk_distinct)
+                    f"Unknown dataset '{df_name}'. Available: {', '.join(datasets.keys())}")
+            profile_df = await _compute_profile_for_dataset(session, spec, topk_distinct)
+            return profile_df._logical_plan
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
         profile_df = None
-        for spec in datasets:
-            plan = await _ensure_profile_view_for_dataset(session, tool_key, spec, topk_distinct)
-            df = DataFrame._from_logical_plan(plan, session_state=session._session_state)
+        for spec in datasets.values():
+            df = await _compute_profile_for_dataset(session, spec, topk_distinct)
             if not profile_df:
                 profile_df = df
             else:
@@ -600,48 +626,45 @@ def _auto_generate_profile_tool(
         max_result_limit=None,
     )
 
-
-async def _ensure_profile_view_for_dataset(
+async def _compute_profile_for_dataset(
     session: Session,
-    tool_key: str,
-    spec: DatasetSpec,
+    spec: ToolDataset,
     topk_distinct: int,
-) -> LogicalPlan:
-    schema_hash = _schema_fingerprint(spec.df)
-    view_name = f"__fenic_profile__{tool_key}__{_sanitize_name(spec.table_name)}__{schema_hash}"
-    catalog = session._session_state.catalog
-    if not catalog.does_view_exist(view_name):
-        profile_rows = await _compute_profile_rows(
-            spec.df,
-            spec.table_name,
-            topk_distinct,
-        )
-        view_plan = InMemorySource.from_session_state(
+) -> DataFrame:
+    profile_rows = await _compute_profile_rows(
+        spec.df,
+        spec.table_name,
+        topk_distinct,
+    )
+
+    return DataFrame._from_logical_plan(
+        InMemorySource.from_session_state(
             pl.DataFrame(profile_rows), session._session_state,
-        )
-        catalog.create_view(view_name, view_plan)
-    return catalog.get_view_plan(view_name)
+        ),
+        session._session_state,
+    )
 
 
 async def _compute_profile_rows(
     df: DataFrame,
     dataset_name: str,
     topk_distinct: int,
-) -> List[_ProfileRow]:
+) -> List[ProfileRow]:
     pl_df = df.to_polars()
     total_rows = pl_df.height
     sampled_df = pl_df.sample(min(total_rows, PROFILE_MAX_SAMPLE_SIZE))
-    rows_list: List[_ProfileRow] = []
+    rows_list: List[ProfileRow] = []
     for field in df.schema.column_fields:
         col_name = field.name
         dtype_str = str(field.data_type)
         null_count = sampled_df.select(pl.col(col_name).is_null().sum()).item()
         non_null_count = sampled_df.height - null_count
-        stats = _ProfileRow(
+        stats = ProfileRow(
             dataset_name=dataset_name,
             column_name=col_name,
             data_type=dtype_str,
             total_rows=total_rows,
+            sample_size=sampled_df.height,
             percent_rows_contains_null=round((non_null_count / float(sampled_df.height) * 100) if sampled_df.height > 0 else 0, 1),
             usage_recommendations=[],
             cardinality="unknown",
@@ -651,6 +674,7 @@ async def _compute_profile_rows(
             numeric_min=None,
             numeric_max=None,
             numeric_mean=None,
+            numeric_median=None,
             numeric_std_dev=None,
             string_avg_length=None,
             string_distinct_count=None,
@@ -658,16 +682,20 @@ async def _compute_profile_rows(
             string_example_values=None,
         )
         if field.data_type in (IntegerType, FloatType, DoubleType):
-            agg_df = df.agg(
-                min_(col(col_name)).alias("min"),
-                max_(col(col_name)).alias("max"),
-                avg(col(col_name)).alias("mean"),
-                stddev(col(col_name)).alias("std"),
-            ).to_pylist()
-            stats.numeric_min = agg_df[0]["min"]
-            stats.numeric_max = agg_df[0]["max"]
-            stats.numeric_mean = agg_df[0]["mean"]
-            stats.numeric_std_dev = agg_df[0]["std"]
+            stats_df = sampled_df.select(
+                pl.col(col_name).mean().alias("mean"),
+                pl.col(col_name).min().alias("min"),
+                pl.col(col_name).max().alias("max"),
+                pl.col(col_name).median().alias("median"),
+                pl.col(col_name).std().alias("std"),
+            ).to_dicts()
+
+            stats.numeric_min = stats_df[0]["min"]
+            stats.numeric_max = stats_df[0]["max"]
+            stats.numeric_mean = stats_df[0]["mean"]
+            stats.numeric_std_dev = stats_df[0]["std"]
+            stats.numeric_median = stats_df[0]["median"]
+
             stats.semantic_type = "continuous"
             stats.cardinality = "high"
             # Check if it might be an identifier
@@ -677,7 +705,7 @@ async def _compute_profile_rows(
             stats.semantic_type = "boolean"
             stats.cardinality = "low"
             s_bool = sampled_df.get_column(col_name)
-            stats.boolean_true_rows = int((s_bool).sum())
+            stats.boolean_true_rows = int(s_bool.sum())
             stats.boolean_false_rows = int((~s_bool).sum())
         elif field.data_type == StringType:
             s = sampled_df.get_column(col_name)
@@ -710,8 +738,30 @@ async def _compute_profile_rows(
                     "Exclude this column from `Read` unless the result limit is very low. "
                     "To find relevant rows based on data from this column, consider the `Search Content` tool."
                 )
+
+            # Add cardinality-based recommendations
+            if stats.cardinality == "low":
+                stats.usage_recommendations.append(
+                    f"Low cardinality categorical column ({stats.string_distinct_count} values). "
+                    f"Excellent for GROUP BY, filtering, and aggregations."
+                )
+            elif stats.cardinality == "medium":
+                stats.usage_recommendations.append(
+                    f"Medium cardinality column ({stats.string_distinct_count} values). "
+                    f"Good for filtering and grouping. Consider using `Search Content` or `Analyze` w/REGEXP_MATCHES for text matching."
+                )
+            elif stats.cardinality == "unique":
+                stats.usage_recommendations.append(
+                    "This column appears to have mostly unique values. "
+                    "May be an identifier or free-text field. Use Search Content for text matching."
+                )
+            else:
+                stats.usage_recommendations.append(
+                    "This column has high cardinality. "
+                    "To find relevant rows based on data from this column, consider the `Search Content` tool."
+                )
             compute_topk = (
-                stats.string_avg_length <= 512 and
+                stats.string_avg_length <= 1024 and
                 stats.string_distinct_count <= max(topk_distinct * 10, 200)
             )
 
@@ -730,27 +780,6 @@ async def _compute_profile_rows(
             else:
                 # No top-k: still provide a few sample values when strings aren't too long.
                 # Use a conservative threshold to avoid dumping giant text fields.
-                # Add cardinality-based recommendations
-                if stats.cardinality == "low":
-                    stats.usage_recommendations.append(
-                        f"Low cardinality categorical column ({stats.string_distinct_count} values). "
-                        f"Excellent for GROUP BY, filtering, and aggregations."
-                    )
-                elif stats.cardinality == "medium":
-                    stats.usage_recommendations.append(
-                        f"Medium cardinality column ({stats.string_distinct_count} values). "
-                        f"Good for filtering and grouping. Consider using `Search Content` or `Analyze` w/REGEXP_MATCHES for text matching."
-                    )
-                elif stats.cardinality == "unique":
-                    stats.usage_recommendations.append(
-                        "This column appears to have mostly unique values. "
-                        "May be an identifier or free-text field. Use Search Content for text matching."
-                    )
-                else:
-                    stats.usage_recommendations.append(
-                        "This column has high cardinality. "
-                        "To find relevant rows based on data from this column, consider the `Search Content` tool."
-                    )
                 if stats.percent_rows_contains_null > 0:
                     s_non_null = sampled_df.get_column(col_name).drop_nulls()
                     k = min(3, int(s_non_null.len()))
@@ -762,25 +791,3 @@ async def _compute_profile_rows(
                     stats.string_example_values = sampled
         rows_list.append(stats)
     return rows_list
-
-
-def auto_generate_system_tools_from_tables(
-    table_names: list[str],
-    session: Session,
-    *,
-    tool_namespace: Optional[str],
-    max_result_limit: int = 100,
-) -> List[SystemTool]:
-    """Generate Schema/Profile/Read/Search [Content/Summary]/Analyze tools from catalog tables.
-
-    Validates that each table exists and has a non-empty description in catalog metadata.
-    """
-    if not table_names:
-        raise ConfigurationError("At least one table name must be specified for automated system tool creation.")
-    datasets = _build_datasets_from_tables(table_names, session)
-    return _auto_generate_system_tools(
-        datasets,
-        session,
-        tool_namespace=tool_namespace,
-        max_result_limit=max_result_limit,
-    )

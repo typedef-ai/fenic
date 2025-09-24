@@ -22,7 +22,21 @@ def main():
     enriched_profiles_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/enriched_profiles.parquet").select(
         "profile_id", "full_name", "age", "gender", "location", "looking_for", "pets", "occupation", "hobbies",
         "ideal_partner", "bio")
-    moderation_report_df = local_session.read.parquet("s3://typedef-assets/demo/mcp/moderation_report.parquet")
+    moderation_report_df = local_session.read.parquet(
+        "s3://typedef-assets/demo/mcp/moderation_report.parquet"
+    ).select(
+        "conversation_id",
+        "user1_id",
+        "user2_id",
+        "conversation_summary",
+        "primary_concern",
+        "secondary_concerns",
+        "behavior_severity",
+        "escalation_observed",
+        "recommended_action",
+        "primary_bad_actor",
+        "explanation"
+    )
     conversations_df.write.save_as_table(table_name="conversations", mode="overwrite")
     local_session.catalog.set_table_description("conversations", "Raw conversations between users on a dating app.")
     enriched_profiles_df.write.save_as_table(
