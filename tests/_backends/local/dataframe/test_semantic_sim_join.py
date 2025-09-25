@@ -184,11 +184,11 @@ def test_semantic_sim_join(local_session, metric, embedding_model_name_and_dimen
             "course_id": pl.Int64,
             "course_name": pl.String,
             "other_col_left": pl.String,
-            "course_embeddings": pl.Array(pl.Float32, 1536),
+            "course_embeddings": pl.Array(pl.Float32, embedding_dimensions),
             "skill_id": pl.Int64,
             "skill": pl.String,
             "other_col_right": pl.String,
-            "skill_embeddings": pl.Array(pl.Float32, 1536),
+            "skill_embeddings": pl.Array(pl.Float32, embedding_dimensions),
         }
     )
 

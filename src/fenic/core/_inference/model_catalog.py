@@ -1025,12 +1025,15 @@ class ModelCatalog:
                     else:
                         max_input = 8192  # Conservative default
 
+                    # Get actual embedding dimensions from model info
+                    embedding_dims = model_info.embedding_dimensions if hasattr(model_info, 'embedding_dimensions') else 768
+
                     self.add_model(
                         ModelProvider.OLLAMA,
                         model_name,
                         EmbeddingModelParameters(
                             input_token_cost=0.0,  # Local models are free
-                            allowed_output_dimensions=768,  # Common default, will vary by model
+                            allowed_output_dimensions=embedding_dims,  # Use actual model dimensions
                             max_input_size=max_input,
                         ),
                     )
@@ -1097,13 +1100,15 @@ class ModelCatalog:
                     model_info = loop.run_until_complete(manager.get_model_info(model_name))
                     if model_info:
                         max_input = model_info.context_length
+                        # Get actual embedding dimensions from model info
+                        embedding_dims = model_info.embedding_dimensions if hasattr(model_info, 'embedding_dimensions') else 768
 
                         self.add_model(
                             ModelProvider.OLLAMA,
                             model_name,
                             EmbeddingModelParameters(
                                 input_token_cost=0.0,
-                                allowed_output_dimensions=768,
+                                allowed_output_dimensions=embedding_dims,  # Use actual model dimensions
                                 max_input_size=max_input,
                             ),
                         )

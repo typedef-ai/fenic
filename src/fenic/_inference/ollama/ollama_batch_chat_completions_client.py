@@ -162,25 +162,16 @@ class OllamaBatchChatCompletionsClient(
                 # Use Ollama's format parameter for JSON mode
                 common_params["format"] = "json"
 
-                # Add schema to the system message with simpler instructions
+                # Add schema to the system message
                 messages = common_params["messages"]
-                # Create a simpler schema instruction that focuses on the actual fields
-                schema = request.structured_output.json_schema
-                fields_info = []
-                if "properties" in schema:
-                    for field_name, field_info in schema["properties"].items():
-                        field_type = field_info.get("type", "string")
-                        description = field_info.get("description", f"The {field_name}")
-                        fields_info.append(f'"{field_name}" ({field_type}): {description}')
-
-                schema_prompt = f"\n\nRespond with valid JSON containing these fields:\n" + "\n".join(f"- {info}" for info in fields_info) + "\n\nExample format: {json.dumps({prop: f'<{prop}>' for prop in schema.get('properties', {}).keys()})}"
-
                 if messages and messages[0].get("role") == "system":
                     system_msg_content = messages[0]["content"]
+                    schema_prompt = f"\n\nPlease respond with valid JSON that matches this schema:\n{json.dumps(request.structured_output.json_schema, indent=2)}"
                     messages[0]["content"] = system_msg_content + schema_prompt
                 else:
                     # Add a system message if none exists
-                    messages.insert(0, {"role": "system", "content": schema_prompt.strip()})
+                    schema_prompt = f"Please respond with valid JSON that matches this schema:\n{json.dumps(request.structured_output.json_schema, indent=2)}"
+                    messages.insert(0, {"role": "system", "content": schema_prompt})
 
             # Also detect if the prompt is asking for JSON and enable JSON mode
             elif "json" in str(request.messages.system).lower() or "json" in str(request.messages.user).lower():

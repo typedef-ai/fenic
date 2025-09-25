@@ -41,9 +41,9 @@ def test_semantic_cluster_with_centroids(local_session, embedding_model_name_and
     polars_df = df.to_polars()
     assert polars_df.schema == {
         "blurb": pl.Utf8,
-        "embeddings": pl.Array(pl.Float32, 1536),
+        "embeddings": pl.Array(pl.Float32, embedding_dimensions),
         "cluster_label": pl.Int32,
-        "cluster_centroid": pl.Array(pl.Float32, 1536),
+        "cluster_centroid": pl.Array(pl.Float32, embedding_dimensions),
     }
 
 def test_semantic_cluster_derived_column(local_session):

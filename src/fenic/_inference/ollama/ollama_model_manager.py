@@ -22,6 +22,7 @@ class OllamaModelInfo:
         self.parameter_count = self._extract_parameter_count()
         self.architecture = self.details.get("family", "unknown")
         self.quantization = self._extract_quantization()
+        self.embedding_dimensions = self._extract_embedding_dimensions()
 
         # Determine model capabilities
         self.is_embedding_model = self._is_embedding_model()
@@ -43,6 +44,23 @@ class OllamaModelInfo:
 
         # Simple fallback if no parameter data available
         return 8192
+
+    def _extract_embedding_dimensions(self) -> int:
+        """Extract embedding dimensions from model parameters."""
+        # Try architecture-specific embedding length first
+        architecture = self.parameters.get("general.architecture", "")
+        if architecture:
+            arch_embedding_key = f"{architecture}.embedding_length"
+            if arch_embedding_key in self.parameters:
+                return int(self.parameters[arch_embedding_key])
+
+        # Try common fallback keys
+        for key in ["general.embedding_length", "embedding_length", "embedding_dimensions"]:
+            if key in self.parameters:
+                return int(self.parameters[key])
+
+        # Fallback to common embedding dimension for unknown models
+        return 768
 
     def _extract_parameter_count(self) -> str:
         """Extract parameter count information."""
