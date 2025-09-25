@@ -11,6 +11,7 @@ Key optimizations:
 import hashlib
 import logging
 import os
+import time
 from typing import Optional, Union
 
 import ollama
@@ -107,6 +108,7 @@ class OllamaBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         Returns:
             The embedding vector or an exception
         """
+        start_time = time.time()
         try:
             # Ensure model info is loaded and verify it's an embedding model
             model_info = await self._ensure_model_info()
@@ -162,6 +164,10 @@ class OllamaBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
                 if isinstance(embeddings, list) and len(embeddings) > 0:
                     embedding = embeddings[0]
                     if isinstance(embedding, list) and len(embedding) > 0:
+                        # Record successful completion for rate limiting strategy
+                        completion_time = time.time() - start_time
+                        if hasattr(self.rate_limit_strategy, 'record_completion'):
+                            self.rate_limit_strategy.record_completion(completion_time, success=True)
                         return embedding
                     else:
                         logger.error(f"Invalid embedding format from Ollama: {type(embedding)}")
@@ -174,6 +180,11 @@ class OllamaBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
                 return FatalException(Exception("No embeddings data in response"))
 
         except ollama.ResponseError as e:
+            # Record failed completion for rate limiting strategy
+            completion_time = time.time() - start_time
+            if hasattr(self.rate_limit_strategy, 'record_completion'):
+                self.rate_limit_strategy.record_completion(completion_time, success=False)
+
             # Handle Ollama-specific errors optimized for embedding models
             if e.status_code == 404:
                 # Model not found - attempt auto-pull if configured, otherwise fatal
@@ -182,6 +193,9 @@ class OllamaBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             elif e.status_code == 503:
                 # Server overloaded - Ollama's queue is full
                 logger.warning(f"Ollama server overloaded (queue full: {self._ollama_max_queue}): {e}")
+                # Record 503 error for rate limiting strategy
+                if hasattr(self.rate_limit_strategy, 'record_503_error'):
+                    self.rate_limit_strategy.record_503_error()
                 return TransientException(e)
             elif e.status_code == 429:
                 # Rate limited - respect Ollama's internal rate limiting
@@ -195,6 +209,11 @@ class OllamaBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
                 logger.error(f"Ollama embeddings API error: {e}")
                 return FatalException(e)
         except Exception as e:
+            # Record failed completion for rate limiting strategy
+            completion_time = time.time() - start_time
+            if hasattr(self.rate_limit_strategy, 'record_completion'):
+                self.rate_limit_strategy.record_completion(completion_time, success=False)
+
             # Handle other errors optimized for local embedding scenarios
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in ["connection", "timeout", "network"]):

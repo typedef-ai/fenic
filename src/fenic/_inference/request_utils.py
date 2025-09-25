@@ -9,7 +9,7 @@ from fenic._inference.types import FenicCompletionsRequest
 def parse_openrouter_rate_limit_headers(
     headers: dict | None,
 ) -> tuple[int | None, float | None]:
-    """Parse OpenRouter rate limit headers into (rpm_hint, retry_at_epoch_seconds).
+    """Parse OpenRouter  headers into (rpm_hint, retry_at_epoch_seconds).
 
     Assumptions for OpenRouter:
       - "x-ratelimit-limit": integer RPM limit

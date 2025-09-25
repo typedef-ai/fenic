@@ -11,6 +11,7 @@ Key optimizations:
 import json
 import logging
 import os
+import time
 from typing import Optional, Union
 
 import ollama
@@ -115,6 +116,7 @@ class OllamaBatchChatCompletionsClient(
         Returns:
             The response from the API or an exception
         """
+        start_time = time.time()
         try:
             # Ensure model info is loaded for dynamic configuration
             model_info = await self._ensure_model_info()
@@ -231,6 +233,11 @@ class OllamaBatchChatCompletionsClient(
                     # Try to clean up common JSON issues
                     completion_text = self._clean_json_response(completion_text)
 
+            # Record successful completion for rate limiting strategy
+            completion_time = time.time() - start_time
+            if hasattr(self.rate_limit_strategy, 'record_completion'):
+                self.rate_limit_strategy.record_completion(completion_time, success=True)
+
             return FenicCompletionsResponse(
                 completion=completion_text,
                 logprobs=None,  # Ollama doesn't typically support logprobs
@@ -238,6 +245,11 @@ class OllamaBatchChatCompletionsClient(
             )
 
         except ollama.ResponseError as e:
+            # Record failed completion for rate limiting strategy
+            completion_time = time.time() - start_time
+            if hasattr(self.rate_limit_strategy, 'record_completion'):
+                self.rate_limit_strategy.record_completion(completion_time, success=False)
+
             # Handle Ollama-specific errors optimized for local model behavior
             if e.status_code == 404:
                 # Model not found - attempt auto-pull if configured, otherwise fatal
@@ -247,6 +259,9 @@ class OllamaBatchChatCompletionsClient(
             elif e.status_code == 503:
                 # Server overloaded - Ollama's queue is full (OLLAMA_MAX_QUEUE exceeded)
                 logger.warning(f"Ollama server overloaded (queue full: {self._ollama_max_queue}): {e}")
+                # Record 503 error for rate limiting strategy
+                if hasattr(self.rate_limit_strategy, 'record_503_error'):
+                    self.rate_limit_strategy.record_503_error()
                 return TransientException(e)
             elif e.status_code == 429:
                 # Rate limited - respect Ollama's internal rate limiting
@@ -260,6 +275,11 @@ class OllamaBatchChatCompletionsClient(
                 logger.error(f"Ollama API error: {e}")
                 return FatalException(e)
         except Exception as e:
+            # Record failed completion for rate limiting strategy
+            completion_time = time.time() - start_time
+            if hasattr(self.rate_limit_strategy, 'record_completion'):
+                self.rate_limit_strategy.record_completion(completion_time, success=False)
+
             # Handle other errors optimized for local model scenarios
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in ["connection", "timeout", "network"]):
