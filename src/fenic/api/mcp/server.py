@@ -6,6 +6,8 @@ This module exposes helpers to:
 """
 from typing import List, Optional
 
+from pydantic import ConfigDict, validate_call
+
 from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
 from fenic.api.mcp.tools import (
     SystemToolConfig,
@@ -14,7 +16,6 @@ from fenic.api.session.session import Session
 from fenic.core.error import ConfigurationError
 from fenic.core.mcp._server import FenicMCPServer, MCPTransport
 from fenic.core.mcp.types import UserDefinedTool
-from pydantic import validate_call, ConfigDict
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

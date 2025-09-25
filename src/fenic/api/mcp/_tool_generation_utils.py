@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from typing import Dict, List, Literal, Optional, Union, Any
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import polars as pl
 from typing_extensions import Annotated
@@ -560,6 +560,7 @@ class ProfileRow:
     data_type: str
     total_rows: int
     sample_size: int
+    sample_percentage_of_original: float
     null_row_count: int
     non_null_row_count: int
     percent_rows_contains_null: float
@@ -781,7 +782,8 @@ def _compute_profile_rows(
             data_type=dtype_str,
             total_rows=total_rows,
             sample_size=sample_size,
-            percent_rows_contains_null=round(((null_count / float(sample_size)) * 100.0) if sample_size > 0 else 0.0,
+            sample_percentage_of_original=round((float(sample_size) / total_rows) * 100, 1),
+            percent_rows_contains_null=round(((null_count / float(sample_size)) * 100) if sample_size > 0 else 0.0,
                                              1),
             null_row_count=null_count,
             non_null_row_count=non_null_count,
@@ -881,8 +883,13 @@ def _compute_profile_rows(
                         n=k,
                         with_replacement=False,
                         shuffle=True
-                    ).str.slice(0, length=256).to_list()
-                    stats.string_stats.example_values = sampled
+                    ).to_list()
+                    # there are very few values in the sample, so it's not too much of a performance hit to truncate them in python instead of polars
+                    stats.string_stats.example_values = [
+                        (v[:LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH] + f"... (truncated {len(v) - LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH} characters)")
+                        if isinstance(v, str) and len(v) > LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH
+                        else v for v in sampled
+                    ]
         stats.hints = list(set(stats.hints))
         rows_list.append(asdict(stats))
     return rows_list
