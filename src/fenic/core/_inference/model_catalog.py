@@ -1045,6 +1045,80 @@ class ModelCatalog:
         # Register the dynamic loader
         self.register_dynamic_provider(ModelProvider.OLLAMA, load_ollama_models)
 
+    def ensure_ollama_model_available(self, model_name: str) -> bool:
+        """Ensure an Ollama model is available, pulling it if necessary."""
+        try:
+            import asyncio
+            from fenic._inference.ollama.ollama_model_manager import OllamaModelManager
+
+            # Create event loop if we don't have one
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            manager = OllamaModelManager()
+
+            # Try to ensure the model is available (will auto-pull if needed)
+            success = loop.run_until_complete(manager.ensure_model_available(model_name))
+
+            if success:
+                # Re-discover models to add the newly pulled model to catalog
+                chat_models, embedding_models = loop.run_until_complete(
+                    manager.discover_models_by_type()
+                )
+
+                # Add the new model to the catalog
+                if model_name in chat_models:
+                    model_info = loop.run_until_complete(manager.get_model_info(model_name))
+                    if model_info:
+                        context_length = model_info.context_length
+                        max_output = model_info.get_max_output_tokens()
+
+                        self.add_model(
+                            ModelProvider.OLLAMA,
+                            model_name,
+                            CompletionModelParameters(
+                                input_token_cost=0.0,
+                                output_token_cost=0.0,
+                                context_window_length=context_length,
+                                max_output_tokens=max_output,
+                                max_temperature=1.0,
+                                supports_profiles=False,
+                                supports_reasoning=False,
+                                supports_custom_temperature=True,
+                                supports_verbosity=False,
+                            ),
+                        )
+                        logger.info(f"Added newly pulled Ollama model: {model_name}")
+                        return True
+                elif model_name in embedding_models:
+                    model_info = loop.run_until_complete(manager.get_model_info(model_name))
+                    if model_info:
+                        max_input = model_info.context_length
+
+                        self.add_model(
+                            ModelProvider.OLLAMA,
+                            model_name,
+                            EmbeddingModelParameters(
+                                input_token_cost=0.0,
+                                allowed_output_dimensions=768,
+                                max_input_size=max_input,
+                            ),
+                        )
+                        logger.info(f"Added newly pulled Ollama embedding model: {model_name}")
+                        return True
+
+            return False
+
+        except ImportError:
+            logger.debug("Ollama dependencies not available for model auto-pull")
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to auto-pull Ollama model {model_name}: {e}")
+            return False
+
     # Public methods
     def get_completion_model_parameters(self, model_provider: ModelProvider,
                                         model_name: str) -> CompletionModelParameters | None:
@@ -1057,7 +1131,17 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        return self._get_supported_completions_models_by_provider(model_provider).get(model_name)
+        # First try to get the model from the catalog
+        params = self._get_supported_completions_models_by_provider(model_provider).get(model_name)
+
+        # If not found and it's an Ollama model, try to auto-pull it
+        if params is None and model_provider == ModelProvider.OLLAMA:
+            logger.info(f"Attempting to auto-pull Ollama model: {model_name}")
+            if self.ensure_ollama_model_available(model_name):
+                # Try again after auto-pull
+                params = self._get_supported_completions_models_by_provider(model_provider).get(model_name)
+
+        return params
 
     def get_embedding_model_parameters(self, model_provider: ModelProvider, model_name: str) -> EmbeddingModelParameters | None:
         """Gets the parameters for a specific embedding model.
@@ -1069,7 +1153,17 @@ class ModelCatalog:
         Returns:
             Model parameters if found, None otherwise
         """
-        return self._get_supported_embeddings_models_by_provider(model_provider).get(model_name)
+        # First try to get the model from the catalog
+        params = self._get_supported_embeddings_models_by_provider(model_provider).get(model_name)
+
+        # If not found and it's an Ollama model, try to auto-pull it
+        if params is None and model_provider == ModelProvider.OLLAMA:
+            logger.info(f"Attempting to auto-pull Ollama embedding model: {model_name}")
+            if self.ensure_ollama_model_available(model_name):
+                # Try again after auto-pull
+                params = self._get_supported_embeddings_models_by_provider(model_provider).get(model_name)
+
+        return params
 
     def generate_unsupported_completion_model_error_message(self, model_provider: ModelProvider,
                                                             model_name: str) -> str:
