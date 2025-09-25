@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Union
+from dataclasses import asdict, dataclass
+from typing import Dict, List, Literal, Optional, Union, Any
 
 import polars as pl
 from typing_extensions import Annotated
@@ -527,6 +527,33 @@ def _apply_paging(
 
 
 @dataclass
+class NumericStats:
+    min: float
+    max: float
+    mean: float
+    std_dev: float
+    median: float
+    quantile_25: float
+    quantile_75: float
+
+@dataclass
+class TopValues:
+    value: str
+    count: int
+
+@dataclass
+class StringStats:
+    avg_length_chars: float
+    distinct_count: int
+    top_values: List[TopValues]
+    example_values: List[str]
+
+@dataclass
+class BooleanStats:
+    true_rows: int
+    false_rows: int
+
+@dataclass
 class ProfileRow:
     dataset_name: str
     column_name: str
@@ -539,17 +566,9 @@ class ProfileRow:
     semantic_type: Literal["identifier", "categorical", "continuous", "text", "boolean", "unknown"]
     cardinality: Literal["unique", "low", "medium", "high", "unknown"]
     hints: List[str]
-    numeric_min: Optional[float]
-    numeric_max: Optional[float]
-    numeric_mean: Optional[float]
-    numeric_std_dev: Optional[float]
-    numeric_median: Optional[float]
-    string_avg_length_chars: Optional[float]
-    string_distinct_count: Optional[int]
-    string_top_values: Optional[List[Dict[str, Union[int, str]]]]
-    string_example_values: Optional[List[str]]
-    boolean_true_rows: Optional[int]
-    boolean_false_rows: Optional[int]
+    numeric_stats: Optional[NumericStats]
+    string_stats: Optional[StringStats]
+    boolean_stats: Optional[BooleanStats]
 
 def _auto_generate_profile_tool(
     datasets: Dict[str, ToolDataset],
@@ -609,16 +628,44 @@ def _compute_profile_for_dataset(
     spec: ToolDataset,
     topk_distinct: int,
 ) -> DataFrame:
-    profile_rows = _compute_profile_rows(
+    df_rows = _compute_profile_rows(
         spec.df(session),
         spec.table_name,
         topk_distinct,
     )
+    # Enforce struct dtypes so columns don't collapse to Null when all values are None
+    top_values_struct = pl.Struct([pl.Field("value", pl.Utf8), pl.Field("count", pl.Int64)])
+    numeric_struct = pl.Struct([
+        pl.Field("min", pl.Float64),
+        pl.Field("max", pl.Float64),
+        pl.Field("mean", pl.Float64),
+        pl.Field("std_dev", pl.Float64),
+        pl.Field("median", pl.Float64),
+        pl.Field("quantile_25", pl.Float64),
+        pl.Field("quantile_75", pl.Float64),
+    ])
+    boolean_struct = pl.Struct([
+        pl.Field("true_rows", pl.Int64),
+        pl.Field("false_rows", pl.Int64),
+    ])
+    string_struct = pl.Struct([
+        pl.Field("avg_length_chars", pl.Float64),
+        pl.Field("distinct_count", pl.Int64),
+        pl.Field("top_values", pl.List(top_values_struct)),
+        pl.Field("example_values", pl.List(pl.Utf8)),
+    ])
+
+    pl_df = pl.DataFrame(
+        df_rows,
+        schema_overrides={
+            "numeric_stats": numeric_struct,
+            "boolean_stats": boolean_struct,
+            "string_stats": string_struct,
+        },
+    )
 
     return DataFrame._from_logical_plan(
-        InMemorySource.from_session_state(
-            pl.DataFrame(profile_rows), session._session_state,
-        ),
+        InMemorySource.from_session_state(pl_df, session._session_state),
         session._session_state,
     )
 
@@ -627,7 +674,7 @@ def _compute_profile_rows(
     df: DataFrame,
     dataset_name: str,
     topk_distinct: int,
-) -> List[ProfileRow]:
+) -> List[dict[str, Any]]:
     pl_df = df.to_polars()
     total_rows = pl_df.height
     sampled_df = pl_df.sample(min(total_rows, PROFILE_MAX_SAMPLE_SIZE))
@@ -664,6 +711,12 @@ def _compute_profile_rows(
     def a_n_unique(name: str) -> str:
         return f"n_unique__{name}"
 
+    def a_quantile_25(name: str) -> str:
+        return f"quantile_25__{name}"
+
+    def a_quantile_75(name: str) -> str:
+        return f"quantile_75__{name}"
+
     for field in df.schema.column_fields:
         col_name = field.name
         # Common null counts
@@ -676,6 +729,8 @@ def _compute_profile_rows(
                 pl.col(col_name).max().alias(a_max(col_name)),
                 pl.col(col_name).median().alias(a_median(col_name)),
                 pl.col(col_name).std().alias(a_std(col_name)),
+                pl.col(col_name).quantile(0.25).alias(a_quantile_25(col_name)),
+                pl.col(col_name).quantile(0.75).alias(a_quantile_75(col_name)),
             ])
         elif field.data_type == BooleanType:
             # Count of true values (nulls treated as False to avoid null sums)
@@ -691,7 +746,7 @@ def _compute_profile_rows(
         agg_df = sampled_df.select(exprs)
         agg_row = agg_df.to_dicts()[0] if agg_df.height > 0 else {}
 
-    rows_list: List[ProfileRow] = []
+    rows_list: List[dict[str, Any]] = []
     sample_size = sampled_df.height
     for field in df.schema.column_fields:
         col_name = field.name
@@ -699,7 +754,27 @@ def _compute_profile_rows(
         null_count_val = agg_row.get(a_nulls(col_name), 0)
         null_count = int(null_count_val) if null_count_val else 0
         non_null_count = sample_size - null_count
+        numeric_stats = NumericStats(
+            min=agg_row.get(a_min(col_name)),
+            max=agg_row.get(a_max(col_name)),
+            mean=agg_row.get(a_mean(col_name)),
+            std_dev=agg_row.get(a_std(col_name)),
+            median=agg_row.get(a_median(col_name)),
+            quantile_25=agg_row.get(a_quantile_25(col_name)),
+            quantile_75=agg_row.get(a_quantile_75(col_name)),
+        )
 
+        string_stats = StringStats(
+            avg_length_chars=agg_row.get(a_strlen_mean(col_name)),
+            distinct_count=agg_row.get(a_n_unique(col_name)),
+            top_values=None,
+            example_values=None,
+        )
+        boolean_stats = BooleanStats(
+            true_rows=agg_row.get(a_true(col_name)) if agg_row.get(a_true(col_name)) is not None else None,
+            false_rows=(sample_size - agg_row.get(a_true(col_name))) if agg_row.get(
+                a_true(col_name)) is not None else None,
+        )
         stats = ProfileRow(
             dataset_name=dataset_name,
             column_name=col_name,
@@ -713,18 +788,9 @@ def _compute_profile_rows(
             hints=[],
             cardinality="unknown",
             semantic_type="unknown",
-            boolean_true_rows=agg_row.get(a_true(col_name)) if agg_row.get(a_true(col_name)) is not None else None,
-            boolean_false_rows=(sample_size - agg_row.get(a_true(col_name))) if agg_row.get(
-                a_true(col_name)) is not None else None,
-            numeric_min=agg_row.get(a_min(col_name)),
-            numeric_max=agg_row.get(a_max(col_name)),
-            numeric_mean=agg_row.get(a_mean(col_name)),
-            numeric_median=agg_row.get(a_median(col_name)),
-            numeric_std_dev=agg_row.get(a_std(col_name)),
-            string_avg_length_chars=agg_row.get(a_strlen_mean(col_name)),
-            string_distinct_count=agg_row.get(a_n_unique(col_name)),
-            string_top_values=None,
-            string_example_values=None,
+            boolean_stats=boolean_stats,
+            numeric_stats=numeric_stats,
+            string_stats=string_stats,
         )
         if field.data_type in numeric_types:
             stats.semantic_type = "continuous"
@@ -738,26 +804,26 @@ def _compute_profile_rows(
             stats.cardinality = "low"
         elif field.data_type == StringType:
             # Determine cardinality and semantic type
-            if stats.string_distinct_count is not None:
-                distinct_ratio = (stats.string_distinct_count / sample_size) if sample_size > 0 else 0
+            if stats.string_stats.distinct_count is not None:
+                distinct_ratio = (stats.string_stats.distinct_count / sample_size) if sample_size > 0 else 0
                 if distinct_ratio > 0.95:
                     stats.cardinality = "unique"
                     stats.semantic_type = "identifier" if (
-                                stats.string_avg_length_chars is not None and stats.string_avg_length_chars < 50) else "text"
-                elif stats.string_distinct_count <= 10:
+                                stats.string_stats.avg_length_chars is not None and stats.string_stats.avg_length_chars < 50) else "text"
+                elif stats.string_stats.distinct_count <= 10:
                     stats.cardinality = "low"
                     stats.semantic_type = "categorical"
-                elif stats.string_distinct_count <= 100:
+                elif stats.string_stats.distinct_count <= 100:
                     stats.cardinality = "medium"
                     stats.semantic_type = "categorical"
                 else:
                     stats.cardinality = "high"
                     stats.semantic_type = "text"
 
-            if stats.string_avg_length_chars is not None and stats.string_avg_length_chars > LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH:
+            if stats.string_stats.avg_length_chars is not None and stats.string_stats.avg_length_chars > LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH:
                 stats.hints.extend([
                     "has_long_text",
-                    "exclude_from_read",
+                    "consider_excluding_from_read",
                     "prefer_search_content",
                     "use_row_limit",
                     "prefer_analyze_regex_match"
@@ -788,35 +854,35 @@ def _compute_profile_rows(
 
             compute_topk = (
                     (
-                                stats.string_avg_length_chars is not None and stats.string_avg_length_chars <= LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH) and
-                    (stats.string_distinct_count is not None and stats.string_distinct_count <= max(topk_distinct * 10,
+                                stats.string_stats.avg_length_chars is not None and stats.string_stats.avg_length_chars <= LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH) and
+                    (stats.string_stats.distinct_count is not None and stats.string_stats.distinct_count <= max(topk_distinct * 10,
                                                                                                     200))
             )
 
             if compute_topk:
                 vc = sampled_df.get_column(col_name).value_counts(sort=True)
                 val_col = col_name if col_name in vc.columns else vc.columns[0]
-                top_vals: List[Dict[str, Union[int, str]]] = []
+                top_vals: List[TopValues] = []
                 for i in range(min(topk_distinct, vc.height)):
                     top_vals.append(
-                        {
-                            "count": vc.get_column("count")[i],
-                            "value": vc.get_column(val_col)[i],
-                        }
+                        TopValues(
+                            value=vc.get_column(val_col)[i],
+                            count=vc.get_column("count")[i],
+                        )
                     )
-                stats.string_top_values = top_vals
+                stats.string_stats.top_values = top_vals
             else:
                 # No top-k: still provide a few sample values when strings aren't too long.
                 # Use a conservative threshold to avoid dumping giant text fields.
-                if stats.percent_rows_contains_null > 0:
+                if stats.percent_rows_contains_null < 100:
                     s_non_null = sampled_df.get_column(col_name).drop_nulls()
                     k = min(3, int(s_non_null.len()))
                     sampled = s_non_null.sample(
                         n=k,
                         with_replacement=False,
                         shuffle=True
-                    ).str.slice(0, length=512).to_list()
-                    stats.string_example_values = sampled
+                    ).str.slice(0, length=256).to_list()
+                    stats.string_stats.example_values = sampled
         stats.hints = list(set(stats.hints))
-        rows_list.append(stats)
+        rows_list.append(asdict(stats))
     return rows_list

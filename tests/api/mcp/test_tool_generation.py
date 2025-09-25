@@ -1,6 +1,4 @@
-import asyncio
 import inspect
-from inspect import iscoroutinefunction
 
 import pytest
 
@@ -41,7 +39,6 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     for tool in tools:
         assert isinstance(tool, SystemTool)
         assert callable(tool.func)
-        assert iscoroutinefunction(tool.func)
         func_signature = inspect.signature(tool.func)
         # limit and table_format are added by the MCP server wrapper
         assert "table_format" not in func_signature.parameters
@@ -50,7 +47,7 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
 
     # Sanity check: the Schema tool's callable returns a LogicalPlan we can collect
     schema_tool = next(t for t in tools if t.name.endswith("Schema"))
-    plan = asyncio.run(schema_tool.func())  # type: ignore[call-arg]
+    plan = schema_tool.func()
     pl_df, _ = local_session._session_state.execution.collect(plan)
     assert set(pl_df.columns) == {"dataset", "schema"}
     assert sorted(pl_df.get_column("dataset").to_list()) == ["t1", "t2"]
