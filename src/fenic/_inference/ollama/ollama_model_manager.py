@@ -14,7 +14,8 @@ class OllamaModelInfo:
     def __init__(self, model_data: Dict[str, Any]):
         self.name = model_data.get("name", "")
         self.details = model_data.get("details", {})
-        self.parameters = model_data.get("parameters", {})
+        self.parameters = model_data.get("model_info", {})  # model_info contains the detailed parameters
+        self.raw_response = model_data  # Store full response for capabilities
 
         # Extract key parameters
         self.context_length = self._extract_context_length()
@@ -28,53 +29,39 @@ class OllamaModelInfo:
 
     def _extract_context_length(self) -> int:
         """Extract context length from model parameters."""
-        # Try different parameter names that might contain context length
-        for key in ["general.context_length", "llama.context_length", "context_length"]:
+        # Try architecture-specific context length first
+        architecture = self.parameters.get("general.architecture", "")
+        if architecture:
+            arch_context_key = f"{architecture}.context_length"
+            if arch_context_key in self.parameters:
+                return int(self.parameters[arch_context_key])
+
+        # Try common fallback keys
+        for key in ["general.context_length", "context_length"]:
             if key in self.parameters:
                 return int(self.parameters[key])
 
-        # Fallback defaults based on architecture/name
-        if "embed" in self.name.lower():
-            return 8192  # Common for embedding models
-        elif any(size in self.name.lower() for size in ["7b", "8b"]):
-            return 32768  # Common for 7B-8B models
-        elif any(size in self.name.lower() for size in ["13b", "14b"]):
-            return 16384  # Common for 13B-14B models
-        elif any(size in self.name.lower() for size in ["30b", "34b"]):
-            return 8192   # Common for 30B+ models
-        else:
-            return 8192   # Conservative default
+        # Simple fallback if no parameter data available
+        return 8192
 
     def _extract_parameter_count(self) -> str:
         """Extract parameter count information."""
-        param_size = self.details.get("parameter_size", "")
-        if param_size:
-            return param_size
-
-        # Try to infer from model name
-        name_lower = self.name.lower()
-        for size in ["70b", "34b", "30b", "13b", "8b", "7b", "4b", "3b", "1b"]:
-            if size in name_lower:
-                return size
-
-        return "unknown"
+        return self.details.get("parameter_size", "unknown")
 
     def _extract_quantization(self) -> str:
         """Extract quantization information."""
-        # Look for quantization in model name or details
-        name_lower = self.name.lower()
-        for quant in ["q8_0", "q6_k", "q5_k_m", "q5_0", "q4_k_m", "q4_0", "q3_k_m", "q2_k", "fp16", "fp32"]:
-            if quant in name_lower:
-                return quant
-
         return self.details.get("quantization_level", "unknown")
 
     def _is_embedding_model(self) -> bool:
-        """Determine if this is an embedding model based on name and metadata."""
+        """Determine if this is an embedding model based on capabilities."""
+        # Check capabilities field (most reliable)
+        capabilities = self.raw_response.get("capabilities", [])
+        if capabilities:
+            return "embedding" in capabilities
+
+        # Fallback to name-based detection if no capabilities available
         name_lower = self.name.lower()
-        embedding_indicators = [
-            "embed", "embedding", "nomic", "bge", "gte", "e5", "sentence"
-        ]
+        embedding_indicators = ["embed", "embedding", "nomic", "bge", "gte", "e5", "sentence"]
         return any(indicator in name_lower for indicator in embedding_indicators)
 
     def _is_chat_model(self) -> bool:
@@ -84,15 +71,8 @@ class OllamaModelInfo:
 
     def get_max_output_tokens(self) -> int:
         """Get recommended max output tokens based on context length."""
-        # Reserve some context for input, return reasonable output limit
-        if self.context_length >= 32768:
-            return 8192
-        elif self.context_length >= 16384:
-            return 4096
-        elif self.context_length >= 8192:
-            return 2048
-        else:
-            return 1024
+        # Reserve 50% of context for output, 50% for input
+        return max(1024, self.context_length // 2)
 
 
 class OllamaModelManager:
