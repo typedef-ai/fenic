@@ -50,10 +50,9 @@ def setup_mcp_for_evaluation(local_session: fc.Session) -> FenicMCPServer:
     return fc.create_mcp_server(
         local_session,
         "Dating App Moderation Demo",
-        # dynamic_tools=[semantic_profile_search, user_activity_report],
-        automated_tool_generation=fc.ToolGenerationConfig(
+        system_tools=fc.SystemToolConfig(
             table_names=["conversations", "enriched_profiles", "moderation_report"],
-            tool_group_name="Dating App",
+            tool_namespace="Dating App",
             max_result_rows=100
         )
     )
