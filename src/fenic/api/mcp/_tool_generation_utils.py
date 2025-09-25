@@ -23,6 +23,8 @@ from fenic.core.types.datatypes import (
 )
 from fenic.core.types.schema import Schema
 
+LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH = 1024
+
 PROFILE_MAX_SAMPLE_SIZE = 10_000
 
 
@@ -531,16 +533,18 @@ class ProfileRow:
     data_type: str
     total_rows: int
     sample_size: int
+    null_row_count: int
+    non_null_row_count: int
     percent_rows_contains_null: float
     semantic_type: Literal["identifier", "categorical", "continuous", "text", "boolean", "unknown"]
     cardinality: Literal["unique", "low", "medium", "high", "unknown"]
-    usage_recommendations: List[str]
+    hints: List[str]
     numeric_min: Optional[float]
     numeric_max: Optional[float]
     numeric_mean: Optional[float]
     numeric_std_dev: Optional[float]
     numeric_median: Optional[float]
-    string_avg_length: Optional[float]
+    string_avg_length_chars: Optional[float]
     string_distinct_count: Optional[int]
     string_top_values: Optional[List[Dict[str, Union[int, str]]]]
     string_example_values: Optional[List[str]]
@@ -627,73 +631,119 @@ def _compute_profile_rows(
     pl_df = df.to_polars()
     total_rows = pl_df.height
     sampled_df = pl_df.sample(min(total_rows, PROFILE_MAX_SAMPLE_SIZE))
+
+    # Build a single batched select of aggregations for all columns
+    exprs: List[pl.Expr] = []
+    numeric_types = (IntegerType, FloatType, DoubleType)
+
+    # Alias builders for convenience
+    def a_nulls(name: str) -> str:
+        return f"nulls__{name}"
+
+    def a_mean(name: str) -> str:
+        return f"mean__{name}"
+
+    def a_min(name: str) -> str:
+        return f"min__{name}"
+
+    def a_max(name: str) -> str:
+        return f"max__{name}"
+
+    def a_median(name: str) -> str:
+        return f"median__{name}"
+
+    def a_std(name: str) -> str:
+        return f"std__{name}"
+
+    def a_true(name: str) -> str:
+        return f"true__{name}"
+
+    def a_strlen_mean(name: str) -> str:
+        return f"strlen_mean__{name}"
+
+    def a_n_unique(name: str) -> str:
+        return f"n_unique__{name}"
+
+    for field in df.schema.column_fields:
+        col_name = field.name
+        # Common null counts
+        exprs.append(pl.col(col_name).is_null().sum().alias(a_nulls(col_name)))
+        # type-specific aggregations
+        if field.data_type in numeric_types:
+            exprs.extend([
+                pl.col(col_name).mean().alias(a_mean(col_name)),
+                pl.col(col_name).min().alias(a_min(col_name)),
+                pl.col(col_name).max().alias(a_max(col_name)),
+                pl.col(col_name).median().alias(a_median(col_name)),
+                pl.col(col_name).std().alias(a_std(col_name)),
+            ])
+        elif field.data_type == BooleanType:
+            # Count of true values (nulls treated as False to avoid null sums)
+            exprs.append(pl.col(col_name).drop_nulls().sum().alias(a_true(col_name)))
+        elif field.data_type == StringType:
+            exprs.extend([
+                pl.col(col_name).str.len_chars().mean().alias(a_strlen_mean(col_name)),
+                pl.col(col_name).n_unique().alias(a_n_unique(col_name)),
+            ])
+
+    agg_row: Dict[str, object] = {}
+    if exprs:
+        agg_df = sampled_df.select(exprs)
+        agg_row = agg_df.to_dicts()[0] if agg_df.height > 0 else {}
+
     rows_list: List[ProfileRow] = []
+    sample_size = sampled_df.height
     for field in df.schema.column_fields:
         col_name = field.name
         dtype_str = str(field.data_type)
-        null_count = sampled_df.select(pl.col(col_name).is_null().sum()).item()
-        non_null_count = sampled_df.height - null_count
+        null_count_val = agg_row.get(a_nulls(col_name), 0)
+        null_count = int(null_count_val) if null_count_val else 0
+        non_null_count = sample_size - null_count
+
         stats = ProfileRow(
             dataset_name=dataset_name,
             column_name=col_name,
             data_type=dtype_str,
             total_rows=total_rows,
-            sample_size=sampled_df.height,
-            percent_rows_contains_null=round((non_null_count / float(sampled_df.height) * 100) if sampled_df.height > 0 else 0, 1),
-            usage_recommendations=[],
+            sample_size=sample_size,
+            percent_rows_contains_null=round(((null_count / float(sample_size)) * 100.0) if sample_size > 0 else 0.0,
+                                             1),
+            null_row_count=null_count,
+            non_null_row_count=non_null_count,
+            hints=[],
             cardinality="unknown",
             semantic_type="unknown",
-            boolean_true_rows=None,
-            boolean_false_rows=None,
-            numeric_min=None,
-            numeric_max=None,
-            numeric_mean=None,
-            numeric_median=None,
-            numeric_std_dev=None,
-            string_avg_length=None,
-            string_distinct_count=None,
+            boolean_true_rows=agg_row.get(a_true(col_name)) if agg_row.get(a_true(col_name)) is not None else None,
+            boolean_false_rows=(sample_size - agg_row.get(a_true(col_name))) if agg_row.get(
+                a_true(col_name)) is not None else None,
+            numeric_min=agg_row.get(a_min(col_name)),
+            numeric_max=agg_row.get(a_max(col_name)),
+            numeric_mean=agg_row.get(a_mean(col_name)),
+            numeric_median=agg_row.get(a_median(col_name)),
+            numeric_std_dev=agg_row.get(a_std(col_name)),
+            string_avg_length_chars=agg_row.get(a_strlen_mean(col_name)),
+            string_distinct_count=agg_row.get(a_n_unique(col_name)),
             string_top_values=None,
             string_example_values=None,
         )
-        if field.data_type in (IntegerType, FloatType, DoubleType):
-            stats_df = sampled_df.select(
-                pl.col(col_name).mean().alias("mean"),
-                pl.col(col_name).min().alias("min"),
-                pl.col(col_name).max().alias("max"),
-                pl.col(col_name).median().alias("median"),
-                pl.col(col_name).std().alias("std"),
-            ).to_dicts()
-
-            stats.numeric_min = stats_df[0]["min"]
-            stats.numeric_max = stats_df[0]["max"]
-            stats.numeric_mean = stats_df[0]["mean"]
-            stats.numeric_std_dev = stats_df[0]["std"]
-            stats.numeric_median = stats_df[0]["median"]
-
+        if field.data_type in numeric_types:
             stats.semantic_type = "continuous"
             stats.cardinality = "high"
             # Check if it might be an identifier
             if "id" in col_name.lower() or col_name.lower().endswith("_id"):
                 stats.semantic_type = "identifier"
+
         elif field.data_type == BooleanType:
             stats.semantic_type = "boolean"
             stats.cardinality = "low"
-            s_bool = sampled_df.get_column(col_name)
-            stats.boolean_true_rows = int(s_bool.sum())
-            stats.boolean_false_rows = int((~s_bool).sum())
         elif field.data_type == StringType:
-            s = sampled_df.get_column(col_name)
-            stats.string_avg_length = s.str.len_chars().mean()
-            stats.string_distinct_count = s.n_unique()
-            stats.string_top_values = None
-            stats.string_example_values = None
-
             # Determine cardinality and semantic type
             if stats.string_distinct_count is not None:
-                distinct_ratio = stats.string_distinct_count / len(sampled_df) if len(sampled_df) > 0 else 0
+                distinct_ratio = (stats.string_distinct_count / sample_size) if sample_size > 0 else 0
                 if distinct_ratio > 0.95:
                     stats.cardinality = "unique"
-                    stats.semantic_type = "identifier" if stats.string_avg_length and stats.string_avg_length < 50 else "text"
+                    stats.semantic_type = "identifier" if (
+                                stats.string_avg_length_chars is not None and stats.string_avg_length_chars < 50) else "text"
                 elif stats.string_distinct_count <= 10:
                     stats.cardinality = "low"
                     stats.semantic_type = "categorical"
@@ -704,39 +754,43 @@ def _compute_profile_rows(
                     stats.cardinality = "high"
                     stats.semantic_type = "text"
 
-            # Record the average length for agent awareness
-            if stats.string_avg_length is not None and stats.string_avg_length > 1024:
-                stats.usage_recommendations.append(
-                    "This column appears to contain long text. "
-                    "When using the 'Analyze' tool ensure LIMIT/ORDER BY is set. "
-                    "Exclude this column from `Read` unless the result limit is very low. "
-                    "To find relevant rows based on data from this column, consider the `Search Content` tool."
-                )
+            if stats.string_avg_length_chars is not None and stats.string_avg_length_chars > LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH:
+                stats.hints.extend([
+                    "has_long_text",
+                    "exclude_from_read",
+                    "prefer_search_content",
+                    "use_row_limit",
+                    "prefer_analyze_regex_match"
+                ])
 
             # Add cardinality-based recommendations
             if stats.cardinality == "low":
-                stats.usage_recommendations.append(
-                    f"Low cardinality categorical column ({stats.string_distinct_count} values). "
-                    f"Excellent for GROUP BY, filtering, and aggregations."
-                )
+                stats.hints.extend([
+                    "use_for_aggregations",
+                    "use_for_filtering",
+                ])
             elif stats.cardinality == "medium":
-                stats.usage_recommendations.append(
-                    f"Medium cardinality column ({stats.string_distinct_count} values). "
-                    f"Good for filtering and grouping. Consider using `Search Content` or `Analyze` w/REGEXP_MATCHES for text matching."
-                )
+                stats.hints.extend([
+                    "use_for_aggregations",
+                    "prefer_search_content",
+                    "prefer_row_limit",
+                    "prefer_analyze_regex_match"
+                ])
             elif stats.cardinality == "unique":
-                stats.usage_recommendations.append(
-                    "This column appears to have mostly unique values. "
-                    "May be an identifier or free-text field. Use Search Content for text matching."
-                )
-            else:
-                stats.usage_recommendations.append(
-                    "This column has high cardinality. "
-                    "To find relevant rows based on data from this column, consider the `Search Content` tool."
-                )
+                stats.hints.extend([
+                    "high_cardinality",
+                    "unique_values",
+                ])
+            elif stats.cardinality == "high":
+                stats.hints.extend([
+                    "high_cardinality",
+                ])
+
             compute_topk = (
-                stats.string_avg_length <= 1024 and
-                stats.string_distinct_count <= max(topk_distinct * 10, 200)
+                    (
+                                stats.string_avg_length_chars is not None and stats.string_avg_length_chars <= LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH) and
+                    (stats.string_distinct_count is not None and stats.string_distinct_count <= max(topk_distinct * 10,
+                                                                                                    200))
             )
 
             if compute_topk:
@@ -763,5 +817,6 @@ def _compute_profile_rows(
                         shuffle=True
                     ).str.slice(0, length=512).to_list()
                     stats.string_example_values = sampled
+        stats.hints = list(set(stats.hints))
         rows_list.append(stats)
     return rows_list
