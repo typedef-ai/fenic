@@ -48,11 +48,13 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
         page_separator: Optional[str] = None,
         describe_images: bool = False,
         model_alias: Optional[ResolvedModelAlias] = None,
+        max_output_tokens: Optional[int] = None,
     ):
         self.page_separator = page_separator
         self.describe_images = describe_images
         self.model = model
         self.model_alias = model_alias
+        self.max_output_tokens = max_output_tokens
 
         DocFolderLoader.check_file_extensions(input.to_list(), "pdf")
 
@@ -62,7 +64,7 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
                 model=model,
                 operator_name="semantic.parse_pdf",
                 inference_config=InferenceConfiguration(
-                    max_output_tokens=None,
+                    max_output_tokens=max_output_tokens,
                     temperature=1.0,  # Use a higher temperature so gemini flash models can handle complex table formatting.  For more info see the conversation here: https://discuss.ai.google.dev/t/gemini-2-0-flash-has-a-weird-bug/65119/26
                     model_profile=model_alias.profile if model_alias else None,
                 ),

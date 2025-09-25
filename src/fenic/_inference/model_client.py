@@ -245,8 +245,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
 
     @abstractmethod
-    def _get_max_output_tokens(self, request: RequestT) -> int:
-        """Get conservative output token estimate. Override in subclasses for provider-specific logic."""
+    def _get_max_output_token_request_limit(self, request: RequestT) -> int:
+        """Get the upper limit of output tokens to set on a request."""
         pass
 
     #

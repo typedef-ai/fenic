@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class InferenceConfiguration:
-    # If max_output_tokens is not provided, do not include it in the request.
+    # If max_output_tokens is not provided, model_client will add a guardrail based on the estimated output tokens.
     max_output_tokens: Optional[int]
     temperature: float
     top_logprobs: Optional[int] = None

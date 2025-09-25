@@ -94,7 +94,7 @@ class OpenRouterBatchChatCompletionsClient(
         common_params = {
                 "model": self.model,
                 "messages": convert_messages(request.messages),
-                "max_completion_tokens": self._get_max_output_tokens(request),
+                "max_completion_tokens": self._get_max_output_token_request_limit(request),
                 "n": 1,
             }
 
@@ -239,7 +239,7 @@ class OpenRouterBatchChatCompletionsClient(
     ) -> TokenEstimate:
         return TokenEstimate(
             input_tokens=self.token_counter.count_tokens(request.messages),
-            output_tokens=self._get_max_output_tokens(request),
+            output_tokens=self.token_counter.count_tokens(request.messages) + self._get_expected_additional_reasoning_tokens(request),
         )
 
     def reset_metrics(self):
@@ -248,7 +248,14 @@ class OpenRouterBatchChatCompletionsClient(
     def get_metrics(self) -> LMMetrics:
         return self._metrics
 
-    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
+    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> int:
+        """Get the upper limit of output tokens for a request.
+
+        If max_completion_tokens is not set, don't apply a limit and return None.
+
+        Include the thinking token budget with a safety margin."""
+        if request.max_completion_tokens is None:
+            return None
         return request.max_completion_tokens + self._get_expected_additional_reasoning_tokens(request)
 
     # This is a slightly less conservative estimate than the OpenRouter documentation on how reasoning_effort is used to

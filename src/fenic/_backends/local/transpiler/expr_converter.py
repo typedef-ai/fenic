@@ -712,8 +712,9 @@ class ExprConverter:
                 page_separator=logical.page_separator,
                 describe_images=logical.describe_images,
                 model_alias=logical.model_alias,
+                max_output_tokens=logical.max_output_tokens,
             ).execute()
-        
+
         return self._convert_expr(logical.expr).map_batches(
             parse_pdf_fn, return_dtype=pl.Utf8
         )

@@ -10,7 +10,6 @@ from fenic.core.error import ExecutionError, InternalError, ValidationError
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class TokenEstimate:
     input_tokens: int = 0

@@ -132,56 +132,6 @@ class GeminiNativeChatCompletionsClient(
         # Re-expose for mypy – same implementation as parent.
         return super().count_tokens(messages)
 
-    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
-        """Use Google-specific response schema token estimation.
-
-        Args:
-            response_format: Pydantic model class defining the response format
-
-        Returns:
-            Estimated token overhead for structured output
-        """
-        return self._estimate_response_schema_tokens(response_format)
-
-    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> Optional[int]:
-        """Get maximum output tokens including thinking budget.
-
-        If max_completion_tokens is not set, return None.
-
-        Conservative estimate that includes both completion tokens and
-        thinking token budget with a safety margin.
-
-        Args:
-            request: The completion request
-
-        Returns:
-            Maximum output tokens (completion + thinking budget with safety margin)
-        """
-        if request.max_completion_tokens is None:
-            return None
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
-        )
-        return request.max_completion_tokens + int(
-            1.5 * profile_config.thinking_token_budget
-        )
-
-    @cache  # noqa: B019 – builtin cache OK here.
-    def _estimate_response_schema_tokens(self, response_format: ResolvedResponseFormat) -> int:
-        """Estimate token count for a response format schema.
-
-        Uses Google's tokenizer to count tokens in a JSON schema representation
-        of the response format. Results are cached for performance.
-
-        Args:
-            response_format: Pydantic model class defining the response format
-
-        Returns:
-            Estimated token count for the response format
-        """
-        schema_str = response_format.schema_fingerprint
-        return self._token_counter.count_tokens(schema_str)
-
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for the request.
 
@@ -196,19 +146,17 @@ class GeminiNativeChatCompletionsClient(
     def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
         """Estimate the number of tokens for a request.
 
+        If the request provides a max_completion_tokens value, use that.  Otherwise, estimate the output tokens based on the file size.
+
         Args:
             request: The request to estimate tokens for
 
         Returns:
             TokenEstimate: The estimated token usage
         """
-
-        # Count input tokens
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
-
-        output_tokens = self._get_max_output_tokens(request) or self._model_parameters.max_output_tokens
-
+        output_tokens = self._estimate_output_tokens(request)
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
     async def make_single_request(
@@ -228,16 +176,17 @@ class GeminiNativeChatCompletionsClient(
         """
 
         profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
-        max_output_tokens = self._get_max_output_tokens(request)
-
         generation_config: GenerateContentConfigDict = {
             "temperature": request.temperature,
             "response_logprobs": request.top_logprobs is not None,
             "logprobs": request.top_logprobs,
             "system_instruction": request.messages.system,
         }
+
+        max_output_tokens = self._get_max_output_token_request_limit(request)
         if max_output_tokens is not None:
             generation_config["max_output_tokens"] = max_output_tokens
+
         generation_config.update(profile_config.additional_generation_config)
         if request.structured_output is not None:
             generation_config.update(
@@ -355,3 +304,54 @@ class GeminiNativeChatCompletionsClient(
         finally:
             if file_obj:
                 await delete_file(self._client, file_obj.name)
+
+    @cache  # noqa: B019 – builtin cache OK here.
+    def _estimate_response_schema_tokens(self, response_format: ResolvedResponseFormat) -> int:
+        """Estimate token count for a response format schema.
+
+        Uses Google's tokenizer to count tokens in a JSON schema representation
+        of the response format. Results are cached for performance.
+
+        Args:
+            response_format: Pydantic model class defining the response format
+
+        Returns:
+            Estimated token count for the response format
+        """
+        schema_str = response_format.schema_fingerprint
+        return self._token_counter.count_tokens(schema_str)
+
+    def _estimate_structured_output_overhead(self, response_format: ResolvedResponseFormat) -> int:
+        """Use Google-specific response schema token estimation.
+
+        Args:
+            response_format: Pydantic model class defining the response format
+
+        Returns:
+            Estimated token overhead for structured output
+        """
+        return self._estimate_response_schema_tokens(response_format)
+
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of output tokens for a request."""
+        estimated_output_tokens = request.max_completion_tokens or 0
+        if request.max_completion_tokens is None and request.messages.user_file:
+            # TODO(DY): the semantic operator should dictate how the file affects the token estimate
+            estimated_output_tokens = self.token_counter.count_file_output_tokens(request.messages)
+        return estimated_output_tokens + self._get_expected_additional_reasoning_tokens(request)
+
+    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> Optional[int]:
+        """Get the upper limit of output tokens for a request.
+
+        Returns None if max_completion_tokens is not provided (no limit should be set).
+        If max_completion_tokens is provided, includes the thinking token budget with a safety margin."""
+        if request.max_completion_tokens is None:
+            return None
+        return request.max_completion_tokens + self._get_expected_additional_reasoning_tokens(request)
+
+    def _get_expected_additional_reasoning_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Get the expected additional reasoning tokens for a request.  Include a safety margin."""
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        return int(
+            1.5 * profile_config.thinking_token_budget
+        )
