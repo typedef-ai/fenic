@@ -16,43 +16,16 @@
         <prompt>Which neighborhoods have the highest share of users seeking a Long-term relationship? Rank by percentage.</prompt>
     </task>
     <task>
-        <prompt>Show the top 10 hobbies among users aged 25–35 in Manhattan, with counts.</prompt>
-    </task>
-    <task>
         <prompt>Break down gender distribution by 3-year age buckets (18–20, 21–23, …) across all profiles.</prompt>
     </task>
     <task>
         <prompt>Among profiles that mention pets, which locations have the highest concentration of pet owners?</prompt>
     </task>
     <task>
-        <prompt>List all conversations flagged as bad actors and summarize counts by primary_concern and behavior_severity.</prompt>
-    </task>
-    <task>
-        <prompt>For moderation reports where escalation_observed = true, what are the most common primary_concern values and recommended_action outcomes?</prompt>
-    </task>
-    <!-- <task>
         <prompt>Identify repeat offenders: which user IDs appear most often as the primary_bad_actor? Return top 10 with counts and common concerns.</prompt>
     </task>
     <task>
-        <prompt>What recommended_action is most frequently applied per risk category (e.g., harassment_risk, scam_fraud_risk)? Show a table mapping risk → top action with counts.</prompt>
-    </task>
-    <task>
-        <prompt>Find profiles whose ideal_partner description includes the word "cat" and who are located in Manhattan. Return profile_id, full_name, location, pets.</prompt>
-    </task>
-    <task>
-        <prompt>Compare the distribution of "looking_for" categories across Manhattan, Brooklyn, and Queens. Show counts by borough.</prompt>
-    </task>
-    <task>
-        <prompt>From the moderation_report, list the top 5 conversations with harassment_risk = true ordered by behavior_severity, including conversation_summary (limit length) and recommended_action.</prompt>
-    </task>
-    <task>
-        <prompt>Compute the proportion of moderation reports with any risk flag set (at least one risk=true) that also have conversation_flagged_as_bad_actor = true.</prompt>
-    </task>
-    <task>
-        <prompt>For users aged 26–32 looking for a Long-term relationship, which occupations are most common? Return top 10 with counts.</prompt>
-    </task>
-    <task>
         <prompt>Are there patterns between behavior_severity and recommended_action? Provide counts for each (behavior_severity, recommended_action) pair.</prompt>
-    </task> -->
+    </task>
 </evaluation>
 

@@ -20,7 +20,7 @@ import time
 import traceback
 import xml.etree.ElementTree as ET  #nosec B405: file is local and trusted within repo
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastmcp.exceptions import ToolError
 from fastmcp.tools.tool import ToolResult
@@ -167,9 +167,6 @@ class MCPEvaluator:
     async def _extract_tool_schemas(self) -> List[Dict[str, Any]]:
         """Extract JSON schemas for all tools in the MCP server."""
         tools = []
-
-        # Debug: Print what's available in the server
-
         # Get tools from the FastMCP instance
         for tool_name, tool_info in (await self.server.mcp.get_tools()).items():
             logger.info(f"🔍 Tool: {tool_name} - {tool_info.description}")
@@ -210,7 +207,7 @@ class MCPEvaluator:
             return f"Tool {tool_name} failed: {formatted_error_list}"
 
 
-    async def agent_loop(self, prompt: str) -> AgentLoopResult:
+    async def agent_loop(self, prompt: str) -> Optional[AgentLoopResult]:
         """Simplified agent loop using OpenAI Chat Completions with tool calling."""
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": AGENT_PROMPT},
@@ -225,14 +222,17 @@ class MCPEvaluator:
                 model=self.agent_model,
                 messages=messages,
                 tools=self.tools if self.tools else None,
+                reasoning_effort="low",
                 # tool_choice="auto",
                 extra_body={
+                    # Preserve usage metrics
                     "usage": {
                         "include": True
                     },  
+                    # Ensure providers validate tool params
                     "provider" : {
                             "require_parameters" : True
-                        }
+                        },
                 },
             )
             usage = resp.usage
@@ -248,18 +248,9 @@ class MCPEvaluator:
             agent_usage += response_metrics
             choice = resp.choices[0]
             msg = choice.message
-
+            messages.append(msg.to_dict())
             # If there are tool calls, execute them and loop
             if getattr(msg, "tool_calls", None):
-                # Append assistant message with tool calls
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": msg.content or "",
-                        "tool_calls": [tc.model_dump() for tc in msg.tool_calls],
-                    }
-                )
-
                 for tc in msg.tool_calls:
                     tool_name = tc.function.name
                     try:
