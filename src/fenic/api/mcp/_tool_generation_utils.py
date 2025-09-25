@@ -577,7 +577,7 @@ def _auto_generate_profile_tool(
     tool_name: str,
     tool_description: str,
     *,
-    topk_distinct: int = 10,
+    topk_distinct: int = 5,
 ) -> SystemTool:
     """Create a cached Profile tool for one or many datasets.
 
@@ -593,6 +593,11 @@ def _auto_generate_profile_tool(
     def profile_func(
         df_name: Annotated[
             str | None, "Optional DataFrame name to return a single profile for. To return profiles for all datasets, omit this parameter."] = None,
+        column_sample_size: Annotated[
+            int, "When providing Top-K distinct/example values for columns, what is the maximum count that should be returned"] = topk_distinct,
+        text_sample_character_length: Annotated[
+            int, "When returning example values for StringType columns, how many characters should be returned before truncating."
+        ] = 512
     ) -> LogicalPlan:
         # sometimes the models get...very confused, and pass the null string instead of `null` or omitting the field entirely
         if not df_name or df_name == "null":
@@ -603,13 +608,13 @@ def _auto_generate_profile_tool(
             if spec is None:
                 raise ValidationError(
                     f"Unknown dataset '{df_name}'. Available: {', '.join(datasets.keys())}")
-            profile_df = _compute_profile_for_dataset(session, spec, topk_distinct)
+            profile_df = _compute_profile_for_dataset(session, spec, column_sample_size, text_sample_character_length)
             return profile_df._logical_plan
 
         # Multi-dataset: concatenate cached views (or compute & cache if missing)
         profile_df = None
         for spec in datasets.values():
-            df = _compute_profile_for_dataset(session, spec, topk_distinct)
+            df = _compute_profile_for_dataset(session, spec, topk_distinct, text_sample_character_length)
             if not profile_df:
                 profile_df = df
             else:
@@ -628,11 +633,13 @@ def _compute_profile_for_dataset(
     session: Session,
     spec: ToolDataset,
     topk_distinct: int,
+    text_sample_truncation_length: int
 ) -> DataFrame:
     df_rows = _compute_profile_rows(
         spec.df(session),
         spec.table_name,
         topk_distinct,
+        text_sample_truncation_length,
     )
     # Enforce struct dtypes so columns don't collapse to Null when all values are None
     top_values_struct = pl.Struct([pl.Field("value", pl.Utf8), pl.Field("count", pl.Int64)])
@@ -675,6 +682,7 @@ def _compute_profile_rows(
     df: DataFrame,
     dataset_name: str,
     topk_distinct: int,
+    text_sample_truncation_length: int
 ) -> List[dict[str, Any]]:
     pl_df = df.to_polars()
     total_rows = pl_df.height
@@ -855,10 +863,8 @@ def _compute_profile_rows(
                 ])
 
             compute_topk = (
-                    (
-                                stats.string_stats.avg_length_chars is not None and stats.string_stats.avg_length_chars <= LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH) and
-                    (stats.string_stats.distinct_count is not None and stats.string_stats.distinct_count <= max(topk_distinct * 10,
-                                                                                                    200))
+                    (stats.string_stats.avg_length_chars <= LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH) and
+                    (stats.string_stats.distinct_count <= max(topk_distinct * 10, 200))
             )
 
             if compute_topk:
@@ -878,7 +884,7 @@ def _compute_profile_rows(
                 # Use a conservative threshold to avoid dumping giant text fields.
                 if stats.percent_rows_contains_null < 100:
                     s_non_null = sampled_df.get_column(col_name).drop_nulls()
-                    k = min(3, int(s_non_null.len()))
+                    k = min(topk_distinct, int(s_non_null.len()))
                     sampled = s_non_null.sample(
                         n=k,
                         with_replacement=False,
@@ -886,8 +892,8 @@ def _compute_profile_rows(
                     ).to_list()
                     # there are very few values in the sample, so it's not too much of a performance hit to truncate them in python instead of polars
                     stats.string_stats.example_values = [
-                        (v[:LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH] + f"... (truncated {len(v) - LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH} characters)")
-                        if isinstance(v, str) and len(v) > LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH
+                        (v[:text_sample_truncation_length] + f"... (truncated {len(v) - text_sample_truncation_length} characters)")
+                        if isinstance(v, str) and len(v) > text_sample_truncation_length
                         else v for v in sampled
                     ]
         stats.hints = list(set(stats.hints))
