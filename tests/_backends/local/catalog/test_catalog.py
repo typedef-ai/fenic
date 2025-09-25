@@ -504,7 +504,7 @@ def test_describe_tool(local_session: Session):
     tool = local_session.catalog.describe_tool("tool_desc")
     assert tool.name == "tool_desc"
     assert [p.name for p in tool.params] == ["city_name"]
-    assert tool.result_limit == 7
+    assert tool.max_result_limit == 7
 
 
 def test_list_tools(local_session: Session):

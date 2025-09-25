@@ -51,7 +51,7 @@ from fenic.core.error import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
-from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.mcp.types import ToolParam, UserDefinedTool
 from fenic.core.types import DatasetMetadata, Schema
 from fenic.core.types.schema import ColumnField
 
@@ -341,7 +341,7 @@ class CloudCatalog(BaseCatalog):
             "Set view description not implemented for cloud catalog"
         )
 
-    def describe_tool(self, tool_name: str) -> ParameterizedToolDefinition:
+    def describe_tool(self, tool_name: str) -> UserDefinedTool:
         """Find and return the tool from the current database."""
         # TODO: Implement get tool for the cloud
         raise NotImplementedError(
@@ -368,7 +368,7 @@ class CloudCatalog(BaseCatalog):
             "Drop tool not implemented for cloud catalog"
         )
 
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedTool]:
         """Get a list of all tools in the current database."""
         raise NotImplementedError(
             "List tools not implemented for cloud catalog"

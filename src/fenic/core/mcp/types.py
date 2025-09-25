@@ -1,7 +1,7 @@
 """Exported Types related to Parameterized View/MCP Tool Generation."""
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Annotated, Any, Callable, Coroutine, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.dataclasses import dataclass
@@ -67,10 +67,30 @@ class BoundToolParam:
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
-class ParameterizedToolDefinition:
+class UserDefinedTool:
     """A tool that has been bound to a specific Parameterized View."""
     name: str
     description: str
     params: list[BoundToolParam]
-    result_limit: int
+    max_result_limit: int
     _parameterized_view: LogicalPlan
+
+
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
+class SystemTool:
+    """A tool implemented as a regular Python function with explicit parameters.
+
+    The function must be a `Callable[..., Coroutine[Any, Any, LogicalPlan]]` 
+    (a function defined with `async def`). Collection/formatting is handled by
+    the MCP generator wrapper.
+    """
+    name: str
+    description: str
+    max_result_limit: Optional[int]
+    func: Callable[..., Coroutine[Any, Any, LogicalPlan]]
+    add_limit_parameter: bool = True 
+    default_table_format: TableFormat = "markdown"
+    read_only: Annotated[bool, "A hint to provide to the client that the tool is read-only."] = True
+    idempotent: Annotated[bool, "A hint to provide to the client that the tool is idempotent."] = True
+    destructive: Annotated[bool, "A hint to provide to the client that the tool is destructive."] = False
+    open_world: Annotated[bool, "A hint to provide to the client that the tool reaches out to external endpoints/knowledge bases."] = False

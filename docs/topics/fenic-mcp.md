@@ -1,24 +1,26 @@
 # Fenic MCP: Create and Serve Catalog Tools
 
-This guide shows how to expose Fenic Paramaterized Tools via an MCP server. Paramaterized Tools are created by adding placeholder values to DataFrame operations
-to be filled in at runtime, and managed in the Fenic Catalog. In most respects, these Paramaterized Tools are like SQL Macros. Just like one might create a macro as:
+This guide shows how to expose User Defined fenic tools via an MCP server. User Defined Tools are created by adding placeholder values to DataFrame operations
+to be filled in at runtime, and managed in the Fenic Catalog. In most respects, these tools are like SQL Macros or parameterized views. Just like one might create a macro as:
 
 ```SQL
 CREATE MACRO get_users(user_name) AS TABLE
     SELECT * FROM users WHERE name = user_name;
 ```
 
-One can create a Paramaterized Tool in Fenic:
+One can create a Tool in Fenic:
 
 ```python
-filter_tool_df = df.filter(fc.col("name") == fc.tool_param("user_name", StringType))
+import fenic as fc
+
+filter_tool_df = df.filter(fc.col("name") == fc.tool_param("user_name", fc.StringType))
 session.catalog.create_tool(
     "users_by_name",
     "Filter users by name",
     filter_tool_df,
     tool_params=[
         # If default values are provided, the parameters will be marked as `Optional` in the MCP API Spec.
-        ToolParam(name="user_name", description="User's Name (Exact Match)")
+        fc.ToolParam(name="user_name", description="User's Name (Exact Match)")
     ]
 )
 
@@ -37,8 +39,6 @@ Create with description:
 
 ```python
 from fenic import ColumnField, IntegerType, Schema, Session
-
-session = Session.get_or_create()
 
 session.catalog.create_table(
     "orders",
@@ -74,11 +74,7 @@ print([f.name for f in meta.schema.column_fields])
 Tools encapsulate a parameterized query and an optional row limit. Define inputs via `tool_param` placeholders in your query and register their schema via `ToolParam`, then save with `create_tool`.
 
 ```python
-from fenic import Session
-from fenic.api.functions import col
-from fenic.core._logical_plan.expressions.basic import tool_param
-from fenic.core.mcp.types import ToolParam
-
+import fenic as fc
 session = Session.get_or_create(fc.SessionConfig(
     app_name="mcp_example",
 ))
@@ -94,8 +90,8 @@ session.catalog.set_table_description("users", "User information")
 users = session.table("users")
 
 # Tool A: Filter users by optional age range. Uses coalesce to evaluate to True if the user does not pass in one side of the range.
-optional_min = fc.coalesce(fc.col("age") >= tool_param("min_age", IntegerType), fc.lit(True))
-optional_max = fc.coalesce(fc.col("age") <= tool_param("max_age", IntegerType), fc.lit(True))
+optional_min = fc.coalesce(fc.col("age") >= fc.tool_param("min_age", fc.IntegerType), fc.lit(True))
+optional_max = fc.coalesce(fc.col("age") <= fc.tool_param("max_age", fc.IntegerType), fc.lit(True))
 core_filter = df.filter(optional_min & optional_max)
 session.catalog.create_tool(
     "users_by_age_range",
@@ -103,17 +99,17 @@ session.catalog.create_tool(
     core_filter,
     tool_params=[
         # If default values are provided, the parameters will be marked as `Optional` in the MCP API Spec.
-        ToolParam(name="min_age", description="Minimum age", has_default=True, default_value=None),
-        ToolParam(name="max_age", description="Maximum age", has_default=True, default_value=None),
+        fc.ToolParam(name="min_age", description="Minimum age", has_default=True, default_value=None),
+        fc.ToolParam(name="max_age", description="Maximum age", has_default=True, default_value=None),
     ]
 )
 
 # Tool B: Case-sensitive regex search by name (use (?i) for case-insensitive).
-name_search_query = users.filter(col("name").rlike(tool_param("name_regex")))
+name_search_query = users.filter(fc.col("name").rlike(fc.tool_param("name_regex")))
 
-# If a default is not provided, the paramater will be marked as `required` in the MCP API Spec.
+# If a default is not provided, the parameter will be marked as `required` in the MCP API Spec.
 name_search_params = [
-    ToolParam(
+    fc.ToolParam(
         name="name_regex",
         description="Search for users by name, using a regular expression. (use (?i) for case-insensitive)",
     )
@@ -138,22 +134,55 @@ session.catalog.drop_tool("users_by_age_range", ignore_if_not_exists=True)
 session.catalog.drop_tool("users_by_name_regex", ignore_if_not_exists=True)
 ```
 
-## Step 3a: Serve tools programmatically
+### Step 2a: Auto-generate system tools from catalog tables
 
-Use the MCP server helpers to serve existing catalog tools. If you want all registered tools, call `list_tools()`. If you want a subset, fetch by name.
+You can generate a suite of reusable data tools (Schema, Profile, Read, Search Summary, Search Content, Analyze) directly from catalog tables and their descriptions.
+This is helpful for quickly exposing exploratory and read/query capabilities to MCP. Available tools include:
+
+- Schema: list columns/types for any or all tables
+- Profile: column statistics (counts, basic numeric analysis [min, max, mean, etc.], contextual information for text columns [average_length, etc.])
+- Read: read a selection of rows from a single table. These rows can be paged over, filtered and can use column projections.
+- Search Summary: regex search across all text columns in all tables -- returns back dataframe names with result counts.
+- Search Content: regex search across a single table, specifying one or more text columns to search across -- returns back rows corresponding to the query.
+- Analyze: Write raw SQL to perform complex analysis on one or more tables.
+
+Requirements:
+
+- Each table must exist and have a non-empty description (see Step 1).
+
+Example:
 
 ```python
 from fenic import Session
-from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync, run_mcp_server_async, run_mcp_server_asgi,
+from fenic.api.mcp.server import create_mcp_server
+from fenic.api.mcp.tools import SystemToolConfig
 
-session = Session.get_or_create(fc.SessionConfig(
+session = Session.get_or_create(...)
+server = create_mcp_server(
+    session,
+    server_name="Fenic MCP",
+    system_tools=SystemToolConfig(
+        table_names=session.catalog.list_tables(),
+        tool_namespace="Dataset Exploration",
+        max_result_rows=200,
+    ),
+)
+```
+
+## Step 3a: Serve tools programmatically
+
+Use the MCP server helpers to serve existing catalog tools. To use all catalog tools in the MCP server,
+pass `session.catalog.list_tools` to `create_mcp_server`:
+
+```python
+from fenic import Session,SessionConfig
+from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync, run_mcp_server_async, run_mcp_server_asgi
+
+session = Session.get_or_create(SessionConfig(
     app_name="mcp_example",
+    ...
 ))
-
-# Load all catalog tools
-tools = session.catalog.list_tools()
-
-server = create_mcp_server(session, server_name="Fenic MCP", tools=tools)
+server = create_mcp_server(session, server_name="Fenic MCP", user_defined_tools=session.catalog.list_tools())
 
 # Run HTTP server (defaults shown); if additional configuration is required, any argument that can be passed to FastMCP `run` can be passed here
 #
@@ -188,7 +217,6 @@ asgi_app = run_mcp_server_asgi(
     path="/mcp",
     # middleware = [...]
 )
-
 ```
 
 ## Step 3b: Serve tools via CLI (fenic-serve)
@@ -217,7 +245,17 @@ Example `session.config.json` (minimal):
 
 ```json
 {
-  "app_name": "mcp_example"
+  "app_name": "mcp_demo",
+  "semantic": {
+    "language_models": {
+      "gpt-4.1-nano": {
+        "model_name": "gpt-4.1-nano",
+        "rpm": 2500,
+        "tpm": 2000000
+      }
+    },
+    "default_language_model": "gpt-4.1-nano"
+  }
 }
 ```
 

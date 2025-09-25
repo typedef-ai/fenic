@@ -7,7 +7,7 @@ from fenic.core.types import DatasetMetadata, Schema
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.plans.base import LogicalPlan
-    from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+    from fenic.core.mcp.types import ToolParam, UserDefinedTool
 
 
 class BaseCatalog(ABC):
@@ -145,7 +145,7 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def describe_tool(self, tool_name: str) -> ParameterizedToolDefinition:
+    def describe_tool(self, tool_name: str) -> UserDefinedTool:
         """Find and return the tool from the current catalog."""
         pass
 
@@ -168,6 +168,6 @@ class BaseCatalog(ABC):
         pass
 
     @abstractmethod
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedTool]:
         """Get a list of all tools in the current catalog."""
         pass

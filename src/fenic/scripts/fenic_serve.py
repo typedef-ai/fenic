@@ -16,7 +16,7 @@ Examples:
   - Run with automated tools from tables (descriptions required in catalog metadata):
       fenic-serve \
         --tables orders customers \
-        --tool-group-name "Sales" \
+        --tool_namespace "sales" \
         --sql-max-rows 100
 
   - Provide a session configuration via JSON file:
@@ -39,9 +39,10 @@ from pathlib import Path
 from typing import Optional
 
 from fenic.api.mcp.server import create_mcp_server, run_mcp_server_sync
+from fenic.api.mcp.tools import SystemToolConfig
 from fenic.api.session.config import SessionConfig
 from fenic.api.session.session import Session
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, ToolNotFoundError
 
 
 def _parse_args() -> argparse.Namespace:
@@ -63,8 +64,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--stateful-http", action="store_true",
                         help="Run the MCP server in stateful mode -- clients are assigned a session id and can use it to persist state across requests (default: stateless).")
 
-    # Inputs: tools
+    # Inputs: tools or tables
     parser.add_argument("--tools", nargs="*", default=None, help="Catalog tool names to load.")
+    parser.add_argument("--tables", nargs="*", default=None, help="Catalog table names for automated tool generation.")
+    parser.add_argument("--tool_namespace", type=str, default=None,
+                        help="Tool namespace for generated tools. Will be converted to `snake_case`. "
+                             "Example: If provided with a value of `dataset_exploration`, tools will be generated as `dataset_exploration_schema`, `dataset_exploration_read` etc.")
+    parser.add_argument("--sql-max-rows", type=int, default=100, help="Row limit for Analyze/Read/Search tools.")
 
     return parser.parse_args()
 
@@ -95,19 +101,31 @@ def main() -> None:
     tools = []
     if args.tools:
         for tool_name in args.tools:
-            tools.append(session.catalog.describe_tool(tool_name))
+            try:
+                tools.append(session.catalog.describe_tool(tool_name))
+            except ToolNotFoundError as e:
+                raise ConfigurationError(f"Tool {tool_name} not found in the catalog.") from e
     else:
         tools = session.catalog.list_tools()
 
-    # If no tools resolved, error out with guidance
-    if not tools:
+    auto_cfg: Optional[SystemToolConfig] = None
+    if args.tables:
+        auto_cfg = SystemToolConfig(
+            table_names=args.tables,
+            tool_namespace=args.tool_namespace,
+            max_result_rows=args.sql_max_rows,
+        )
+
+    # If neither tables nor any tools resolved, error out with guidance
+    if not args.tables and not tools:
         raise ConfigurationError(
-            "No tools provided, and no tools registered in the catalog. Provide --tools or register tools.")
+            "No tools or tables provided, and no tools registered in the catalog. Provide --tools/--tables or register tools.")
 
     server = create_mcp_server(
         session,
         server_name=args.server_name,
-        tools=tools if tools else None,
+        user_defined_tools=tools if tools else None,
+        system_tools=auto_cfg,
         concurrency_limit=args.concurrency_limit,
     )
 

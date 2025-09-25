@@ -2,7 +2,7 @@
 
 **Using Fenic's native MCP capabilities to serve API documentation.**
 
-This MCP server demonstrates Fenic's built-in MCP support, creating parameterized tools from DataFrame queries. The server exposes Fenic's API documentation through searchable, queryable tools that AI assistants can use to understand and work with the Fenic framework.
+This MCP server demonstrates Fenic's built-in MCP support, creating user-defined MCP tools from DataFrame queries. The server exposes Fenic's API documentation through searchable, queryable tools that AI assistants can use to understand and work with the Fenic framework.
 
 **Why it matters:** when you’re developing in a codebase the model hasn’t “seen,” you either hand-craft prompts or burn tokens asking vague questions.
 
@@ -21,7 +21,7 @@ General models are great at Typescript and Python, not your private APIs. This s
 
 ## Features
 
-- **Native MCP Support** - Uses Fenic's built-in `create_mcp_server` and parameterized tools
+- **Native MCP Support** - Uses Fenic's built-in `create_mcp_server` and user defined tools
 - **Search Fenic API** - Search for functions, classes, methods using regex patterns
 - **Get Entity Details** - Fetch detailed documentation for specific API elements
 - **Project Overview** - Get high-level understanding of Fenic's architecture
