@@ -4,12 +4,6 @@
 
 This collection features **17 interactive notebooks** designed for **2-minute video demonstrations**. Each example is self-contained, uses real-world synthetic data, and demonstrates a specific Fenic capability that solves actual business problems.
 
-Perfect for:
-- **Product demos** and sales presentations
-- **Developer onboarding** and tutorials  
-- **Social media content** and marketing videos
-- **Conference talks** and technical presentations
-
 ## 🎯 Demo Categories
 
 ### Core AI Capabilities
