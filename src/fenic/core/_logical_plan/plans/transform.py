@@ -19,7 +19,7 @@ from fenic.core._logical_plan.expressions import (
 )
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._logical_plan.utils import validate_scalar_expr
-from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core._utils.misc import generate_unique_view_name
 from fenic.core._utils.schema import (
     convert_custom_schema_to_polars_schema,
     convert_polars_schema_to_custom_schema,
@@ -555,7 +555,7 @@ class SQL(LogicalPlan):
         def replace_placeholder(match: re.Match) -> str:
             placeholder = match.group(1)
             if placeholder not in template_name_to_view_name:
-                view_name = generate_unique_arrow_view_name()
+                view_name = generate_unique_view_name()
                 template_name_to_view_name[placeholder] = view_name
             return template_name_to_view_name[placeholder]
 
@@ -570,8 +570,8 @@ class SQL(LogicalPlan):
             polars_schema = convert_custom_schema_to_polars_schema(input.schema())
             db_conn.register(view_name, pl.DataFrame(schema=polars_schema))
         try:
-            arrow_result = db_conn.execute(self.resolved_query).arrow()
-            return convert_polars_schema_to_custom_schema(pl.from_arrow(arrow_result).schema)
+            pl_result = db_conn.execute(self.resolved_query).pl()
+            return convert_polars_schema_to_custom_schema(pl_result.schema)
         except Exception as e:
             raise PlanError(f"Failed to plan SQL query: {self._templated_query}") from e
 

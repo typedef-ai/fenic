@@ -383,27 +383,27 @@ class SQLExec(PhysicalPlan):
         query: str,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
-        arrow_view_names: List[str],
+        view_names: List[str],
     ):
         super().__init__(children, cache_info=cache_info, session_state=session_state)
-        if len(children) != len(arrow_view_names):
+        if len(children) != len(view_names):
             raise InternalError("Unreachable: SQLExec expects 1 child")
         self.query = query
-        self.arrow_view_names = arrow_view_names
+        self.view_names = view_names
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         cursor = self.session_state.intermediate_df_client.db_conn.cursor()
-        for child_df, arrow_view_name in zip(child_dfs, self.arrow_view_names, strict=False):
-            cursor.register(arrow_view_name, child_df)
+        for child_df, view_name in zip(child_dfs, self.view_names, strict=False):
+            cursor.register(view_name, child_df)
         try:
-            arrow_result = cursor.execute(self.query).arrow()
-            return apply_ingestion_coercions(pl.from_arrow(arrow_result))
+            pl_result = cursor.execute(self.query).pl()
+            return apply_ingestion_coercions(pl_result)
         finally:
-            for arrow_view_name in self.arrow_view_names:
+            for view_name in self.view_names:
                 try:
-                    cursor.execute(f"DROP VIEW IF EXISTS {arrow_view_name}")
+                    cursor.execute(f"DROP VIEW IF EXISTS {view_name}")
                 except Exception:
-                    logger.error(f"Failed to drop view: {arrow_view_name}")
+                    logger.error(f"Failed to drop view: {view_name}")
                     pass
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
@@ -414,7 +414,7 @@ class SQLExec(PhysicalPlan):
             query=self.query,
             cache_info=self.cache_info,
             session_state=self.session_state,
-            arrow_view_names=self.arrow_view_names,
+            view_names=self.view_names,
         )
 
     def build_node_lineage(

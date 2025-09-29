@@ -432,5 +432,5 @@ class PlanConverter:
                 query=logical.resolved_query,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
-                arrow_view_names=logical.view_names,
+                view_names=logical.view_names,
             )

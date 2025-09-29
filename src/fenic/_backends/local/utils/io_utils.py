@@ -78,8 +78,7 @@ def query_files(
     result = build_read_query(paths, file_type, s3_session, **options)
 
     try:
-        arrow_result = duckdb_conn.execute(result.sql).arrow()
-        return pl.from_arrow(arrow_result)
+        return duckdb_conn.execute(result.sql).pl()
     except duckdb.HTTPException as e:
         logger.debug("DuckDB read query failed for paths=%s: %s", paths, e, exc_info=True)
         message = _format_http_read_error(e, result)

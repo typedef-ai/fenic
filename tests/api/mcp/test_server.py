@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+
+pytest.importorskip("fastmcp")
 from fastmcp.tools import Tool
 
 from fenic import SystemTool, SystemToolConfig

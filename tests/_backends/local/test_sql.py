@@ -39,6 +39,27 @@ def test_sql_simple_join(local_session_config):
     expected = pl.DataFrame({"id": [2], "name1": ["Bob"], "name2": ["Charlie"], "name": ["BobCharlie"]})
     assert df.equals(expected)
 
+def test_sql_simple_join_loading_from_python_dict(local_session_config):
+    session = Session.get_or_create(local_session_config)
+    df1 = session.create_dataframe({"id": [1, 2], "name1": ["Alice", "Bob"]})
+    df2 = session.create_dataframe({"id": [2, 3], "name2": ["Charlie", "David"]})
+    df = session.sql("SELECT * FROM {df1} JOIN {df2} USING (id)", df1=df1, df2=df2)
+    assert df.schema.column_fields == [
+        ColumnField("id", IntegerType),
+        ColumnField("name1", StringType),
+        ColumnField("name2", StringType),
+    ]
+    df = df.with_column("name", text.concat(df["name1"], df["name2"]))
+    assert df.schema.column_fields == [
+        ColumnField("id", IntegerType),
+        ColumnField("name1", StringType),
+        ColumnField("name2", StringType),
+        ColumnField("name", StringType),
+    ]
+    df = df.to_polars()
+    expected = pl.DataFrame({"id": [2], "name1": ["Bob"], "name2": ["Charlie"], "name": ["BobCharlie"]})
+    assert df.equals(expected)
+
 def test_sql_simple_multiple_references_same_table(local_session_config):
     session = Session.get_or_create(local_session_config)
     df1 = session.create_dataframe(pl.DataFrame({"id": [1, 2], "name1": ["Alice", "Bob"]}))

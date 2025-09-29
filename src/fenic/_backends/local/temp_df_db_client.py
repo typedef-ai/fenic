@@ -3,7 +3,7 @@ from pathlib import Path
 import polars as pl
 
 import fenic._backends.local.utils.io_utils
-from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core._utils.misc import generate_unique_view_name
 
 
 class TempDFDBClient:
@@ -24,15 +24,13 @@ class TempDFDBClient:
     def read_df(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
-        result = self.db_conn.cursor().execute(f"SELECT * FROM {table_name}")
-        arrow_table = result.arrow()
-        return pl.from_arrow(arrow_table)
+        return self.db_conn.cursor().execute(f"SELECT * FROM {table_name}").pl()
         # trunk-ignore-end(bandit/B608)
 
     def write_df(self, df: pl.DataFrame, table_name: str):
         """Write a Polars dataframe to a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
-        view_name = generate_unique_arrow_view_name()
+        view_name = generate_unique_view_name()
         cursor = self.db_conn.cursor()
         cursor.register(view_name, df)
         cursor.execute(f"CREATE TABLE {table_name} AS SELECT * FROM {view_name}")

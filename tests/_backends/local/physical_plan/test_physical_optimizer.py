@@ -37,14 +37,14 @@ class TestMergeDuckDBNodesRule:
             query="SELECT * FROM file_source WHERE x > 10",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view1"]
+            view_names=["view1"]
         )
         sql2 = SQLExec(
             children=[sql1],
             query="SELECT * FROM sql1 GROUP BY y",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view2"]
+            view_names=["view2"]
         )
         duckdb_sink = DuckDBTableSinkExec(
             child=sql2,
@@ -128,7 +128,7 @@ class TestMergeDuckDBNodesRule:
             query="SELECT * FROM filter_exec",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view1"]
+            view_names=["view1"]
         )
 
         # Apply optimization
@@ -174,21 +174,21 @@ class TestMergeDuckDBNodesRule:
             query="SELECT * FROM source_table",
             cache_info=CacheInfo(cache_key="cached_table"),  # Cache here
             session_state=session_state,
-            arrow_view_names=["view1"]
+            view_names=["view1"]
         )
         sql2 = SQLExec(
             children=[sql1],
             query="SELECT * FROM sql1",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view2"]
+            view_names=["view2"]
         )
         sql3 = SQLExec(
             children=[sql2],
             query="SELECT * FROM sql2",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view3"]
+            view_names=["view3"]
         )
 
         # Apply optimization
@@ -223,21 +223,21 @@ class TestMergeDuckDBNodesRule:
             query="SELECT * FROM source_table",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view1"]
+            view_names=["view1"]
         )
         sql2 = SQLExec(
             children=[sql1],
             query="SELECT * FROM sql1",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["view2"]
+            view_names=["view2"]
         )
         sql3 = SQLExec(
             children=[sql2],
             query="SELECT * FROM sql2",
             cache_info=CacheInfo(cache_key="cached_table"),  # Cache here
             session_state=session_state,
-            arrow_view_names=["view3"]
+            view_names=["view3"]
         )
 
         # Apply optimization
@@ -273,7 +273,7 @@ class TestMergeDuckDBNodesRule:
             query="SELECT * FROM left_source JOIN right_source ON left_source.id = right_source.id",
             cache_info=None,
             session_state=session_state,
-            arrow_view_names=["left", "right"]
+            view_names=["left", "right"]
         )
 
         # Apply optimization

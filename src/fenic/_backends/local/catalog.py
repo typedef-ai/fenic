@@ -17,7 +17,7 @@ from fenic._backends.utils.catalog_utils import (
 )
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core._utils.misc import generate_unique_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
     CatalogError,
@@ -414,7 +414,7 @@ class LocalCatalog(BaseCatalog):
         self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -551,7 +551,7 @@ class LocalCatalog(BaseCatalog):
 
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -587,7 +587,7 @@ class LocalCatalog(BaseCatalog):
 
     def insert_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Insert a Polars dataframe into a table in the current database."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.get_current_catalog(),
             self.get_current_database())
@@ -629,7 +629,7 @@ class LocalCatalog(BaseCatalog):
 
     def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Replace a table in the current database with a Polars dataframe."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.get_current_catalog(),
             self.get_current_database())
