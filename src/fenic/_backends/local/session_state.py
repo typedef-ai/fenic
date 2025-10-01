@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from decimal import ROUND_DOWN, Decimal
 from functools import cached_property
 from pathlib import Path
 from typing import Optional
@@ -122,12 +123,27 @@ class LocalSessionState(BaseSessionState):
                 print(f"  Total queries executed: {costs['query_count']}")
                 print(f"  Total execution time: {costs['total_execution_time_ms']:.2f}ms")
                 print(f"  Total rows processed: {costs['total_output_rows']:,}")
-                print(f"  Total language model cost: ${costs['total_lm_cost']:.6f}")
-                print(f"  Total embedding model cost: ${costs['total_rm_cost']:.6f}")
+                print(f"  Total language model cost: ${_format_float(costs['total_lm_cost'])}")
+                if costs['total_lm_requests'] > 0:
+                    print(f"  Total language model requests: {costs['total_lm_requests']}")
+                    print(f"  Total language model tokens: {costs['total_lm_uncached_input_tokens']:,} input tokens, {costs['total_lm_cached_input_tokens']:,} cached input tokens, {costs['total_lm_output_tokens']:,} output tokens")
+                print(f"  Total embedding model cost: ${_format_float(costs['total_rm_cost'])}")
+                if costs['total_rm_requests'] > 0:
+                    print(f"  Total embedding model requests: {costs['total_rm_requests']}")
+                    print(f"  Total embedding model tokens: {costs['total_rm_input_tokens']:,} input tokens")
                 total_cost = costs['total_lm_cost'] + costs['total_rm_cost']
-                print(f"  Total cost: ${total_cost:.6f}")
+                print(f"  Total cost: ${_format_float(total_cost)}")
         except Exception as e:
             # Don't fail session stop if metrics summary fails
             logger.warning(f"Failed to print session usage summary: {e}")
 
+# Utility functions
 
+def _format_float(value: float) -> str:
+    """Format float up to 6 decimal places, but strip trailing zeros. Always keep at least 2 decimals."""
+    d = Decimal(value).quantize(Decimal("0.000001"), rounding=ROUND_DOWN)  # 6 decimals max
+    s = format(d.normalize(), "f")  # remove exponent notation
+    integer_part, _, decimal_part = s.partition(".")
+    # Remove trailing zeros from decimals, then ensure at least 2 digits
+    decimal_part = (decimal_part.rstrip("0") or "0").ljust(2, "0")
+    return f"{integer_part}.{decimal_part}"

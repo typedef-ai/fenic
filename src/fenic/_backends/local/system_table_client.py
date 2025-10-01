@@ -26,6 +26,7 @@ from fenic.core.types.datatypes import (
     DoubleType,
     IntegerType,
     StringType,
+    TimestampType,
 )
 
 # Constants for system schema and table names
@@ -630,6 +631,12 @@ class SystemTableClient:
                 f"""
                 SELECT
                     SUM(total_lm_cost) as total_lm_cost,
+                    SUM(total_lm_uncached_input_tokens) as total_lm_uncached_input_tokens,
+                    SUM(total_lm_cached_input_tokens) as total_lm_cached_input_tokens,
+                    SUM(total_lm_output_tokens) as total_lm_output_tokens,
+                    SUM(total_lm_requests) as total_lm_requests,
+                    SUM(total_rm_input_tokens) as total_rm_input_tokens,
+                    SUM(total_rm_requests) as total_rm_requests,
                     SUM(total_rm_cost) as total_rm_cost,
                     COUNT(*) as query_count,
                     SUM(execution_time_ms) as total_execution_time_ms,
@@ -643,6 +650,12 @@ class SystemTableClient:
             if result is None:
                 return {
                     "total_lm_cost": 0.0,
+                    "total_lm_uncached_input_tokens": 0,
+                    "total_lm_cached_input_tokens": 0,
+                    "total_lm_output_tokens": 0,
+                    "total_lm_requests": 0,
+                    "total_rm_input_tokens": 0,
+                    "total_rm_requests": 0,
                     "total_rm_cost": 0.0,
                     "query_count": 0,
                     "total_execution_time_ms": 0.0,
@@ -651,10 +664,16 @@ class SystemTableClient:
 
             return {
                 "total_lm_cost": result[0],
-                "total_rm_cost": result[1],
-                "query_count": result[2],
-                "total_execution_time_ms": result[3],
-                "total_output_rows": result[4],
+                "total_lm_uncached_input_tokens": result[1],
+                "total_lm_cached_input_tokens": result[2],
+                "total_lm_output_tokens": result[3],
+                "total_lm_requests": result[4],
+                "total_rm_input_tokens": result[5],
+                "total_rm_requests": result[6],
+                "total_rm_cost": result[7],
+                "query_count": result[8],
+                "total_execution_time_ms": result[9],
+                "total_output_rows": result[10],
             }
 
         except Exception as e:
@@ -713,8 +732,8 @@ class SystemTableClient:
                     session_id TEXT NOT NULL,
                     execution_time_ms DOUBLE NOT NULL,
                     num_output_rows INTEGER NOT NULL,
-                    start_ts TIMESTAMP NOT NULL,
-                    end_ts TIMESTAMP NOT NULL,
+                    start_ts TIMESTAMPTZ NOT NULL,
+                    end_ts TIMESTAMPTZ NOT NULL,
                     total_lm_cost DOUBLE NOT NULL DEFAULT 0.0,
                     total_lm_uncached_input_tokens INTEGER NOT NULL DEFAULT 0,
                     total_lm_cached_input_tokens INTEGER NOT NULL DEFAULT 0,
@@ -733,8 +752,8 @@ class SystemTableClient:
                 ColumnField(name="session_id", data_type=StringType),
                 ColumnField(name="execution_time_ms", data_type=DoubleType),
                 ColumnField(name="num_output_rows", data_type=IntegerType),
-                ColumnField(name="start_ts", data_type=StringType),  # Store as ISO timestamp string
-                ColumnField(name="end_ts", data_type=StringType),  # Store as ISO timestamp string
+                ColumnField(name="start_ts", data_type=TimestampType),
+                ColumnField(name="end_ts", data_type=TimestampType),
                 ColumnField(name="total_lm_cost", data_type=DoubleType),
                 ColumnField(name="total_lm_uncached_input_tokens", data_type=IntegerType),
                 ColumnField(name="total_lm_cached_input_tokens", data_type=IntegerType),
