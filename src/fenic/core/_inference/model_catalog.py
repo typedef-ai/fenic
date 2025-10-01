@@ -204,6 +204,8 @@ AnthropicLanguageModelName = Literal[
     "claude-3-7-sonnet-20250219",
     "claude-3-5-haiku-latest",
     "claude-3-5-haiku-20241022",
+    "claude-sonnet-4-5-20250929",
+    "claude-sonnet-4-5",
     "claude-sonnet-4-20250514",
     "claude-sonnet-4-0",
     "claude-4-sonnet-20250514",
@@ -353,6 +355,21 @@ class ModelCatalog:
                 supports_reasoning=True,
             ),
             snapshots=["claude-opus-4-20250514", "claude-4-opus-20250514"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-4-5",
+            CompletionModelParameters(
+                input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
+                cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
+                cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
+                output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=64_000,
+                supports_reasoning=True,
+            ),
+            snapshots=["claude-sonnet-4-5-20250929"],
         )
 
         self._add_model_to_catalog(
