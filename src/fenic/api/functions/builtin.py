@@ -174,28 +174,34 @@ def count(column: ColumnOrName) -> Column:
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
-def count_distinct(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the number of distinct non-null values in a column.
+def count_distinct(*cols: ColumnOrName) -> Column:
+    """Aggregate function: returns the number of distinct non-null rows across one or more columns.
 
-    Behavior: Nulls are ignored.
+    Behavior: Any row where one or more inputs is null is ignored.
 
     Args:
-        column: Column or column name to count distinct values in
+        *cols: One or more columns or column names to include in the distinct count.
 
     Returns:
-        A Column expression representing the count distinct aggregation
+        A Column expression representing the count distinct aggregation over the provided columns.
 
     Example:
         ```python
+        # Single column
         df.group_by("k").agg(count_distinct("v").alias("num_unique"))
+
+        # Multiple columns
+        df.agg(count_distinct("a", "b").alias("num_unique_pairs"))
         ```
 
     Raises:
+        ValidationError: If no columns are provided.
         TypeMismatchError: If column is not a numeric, boolean, string, or array type
     """
-    return Column._from_logical_expr(
-        CountDistinctExpr(Column._from_col_or_name(column)._logical_expr)
-    )
+    if not cols:
+        raise ValidationError("count_distinct requires at least one column")
+    exprs = [Column._from_col_or_name(c)._logical_expr for c in cols]
+    return Column._from_logical_expr(CountDistinctExpr(exprs))
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))

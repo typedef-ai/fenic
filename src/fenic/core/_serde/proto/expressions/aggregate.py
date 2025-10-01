@@ -234,7 +234,7 @@ def _serialize_count_distinct_expr(
 ) -> LogicalExprProto:
     return LogicalExprProto(
         count_distinct=CountDistinctExprProto(
-            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr)
+            exprs=context.serialize_logical_expr_list(SerdeContext.EXPRS, logical.exprs)
         )
     )
 
@@ -244,7 +244,7 @@ def _deserialize_count_distinct_expr(
     logical_proto: CountDistinctExprProto, context: SerdeContext
 ) -> CountDistinctExpr:
     return CountDistinctExpr(
-        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
+        exprs=context.deserialize_logical_expr_list(SerdeContext.EXPRS, logical_proto.exprs)
     )
 
 

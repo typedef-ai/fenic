@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 if TYPE_CHECKING:
     from fenic.core.types.datatypes import DataType
@@ -81,7 +81,7 @@ class ColumnNotFoundError(PlanError):
 class TypeMismatchError(PlanError):
     """Type validation errors."""
 
-    def __init__(self, expected: DataType, actual: DataType, context: str):
+    def __init__(self, expected: Union[DataType, List[DataType]], actual: DataType, context: str):
         """Initialize a type mismatch error.
 
         Args:

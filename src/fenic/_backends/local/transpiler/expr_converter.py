@@ -350,11 +350,11 @@ class ExprConverter:
                 else self._convert_expr(expr.expr).count()
             ),
             CountDistinctExpr: lambda expr: (
-                lambda base: base.filter(base.is_not_null()).n_unique()
-            )(self._convert_expr(expr.expr)),
+                pl.struct([self._convert_expr(e) for e in expr.exprs]).n_unique()
+            ),
             ApproxCountDistinctExpr: lambda expr: (
-                lambda base: base.filter(base.is_not_null()).approx_n_unique()
-            )(self._convert_expr(expr.expr)),
+                self._convert_expr(expr.expr).approx_n_unique()
+            ),
             ListExpr: lambda expr: self._convert_expr(
                 expr.expr
             ),

@@ -10,11 +10,12 @@ from fenic.core._logical_plan.signatures.function_signature import (
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.type_signature import (
     Any,
-    ArrayOfAny,
+    ArrayOfPrimitives,
     Exact,
     InstanceOf,
     Numeric,
     OneOf,
+    VariadicAny,
 )
 from fenic.core.types.datatypes import (
     BooleanType,
@@ -103,26 +104,22 @@ def register_aggregate_signatures():
     ))
 
     # Distinct aggregate functions
-    # approx_count_distinct - supports primitive scalars and arrays
+    # approx_count_distinct - supports primitive scalars and arrays of primitives
     FunctionRegistry.register("approx_count_distinct", FunctionSignature(
         function_name="approx_count_distinct",
         type_signature=OneOf([
             Numeric(1),
+            ArrayOfPrimitives(1),
             Exact([BooleanType]),
             Exact([StringType]),
         ]),
         return_type=IntegerType
     ))
 
-    # count_distinct - supports primitive scalars and arrays
+    # count_distinct - supports variadic columns of any type.
     FunctionRegistry.register("count_distinct", FunctionSignature(
         function_name="count_distinct",
-        type_signature=OneOf([
-            Numeric(1),
-            Exact([BooleanType]),
-            Exact([StringType]),
-            ArrayOfAny(1),
-        ]),
+        type_signature=VariadicAny(expected_min_args=1),
         return_type=IntegerType
     ))
 

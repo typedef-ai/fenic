@@ -864,10 +864,10 @@ class StdDevExpr(_message.Message):
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class CountDistinctExpr(_message.Message):
-    __slots__ = ("expr",)
-    EXPR_FIELD_NUMBER: _ClassVar[int]
-    expr: LogicalExpr
-    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+    __slots__ = ("exprs",)
+    EXPRS_FIELD_NUMBER: _ClassVar[int]
+    exprs: _containers.RepeatedCompositeFieldContainer[LogicalExpr]
+    def __init__(self, exprs: _Optional[_Iterable[_Union[LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class ApproxCountDistinctExpr(_message.Message):
     __slots__ = ("expr",)

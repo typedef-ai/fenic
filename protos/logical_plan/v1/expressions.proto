@@ -550,7 +550,7 @@ message StdDevExpr {
 }
 
 message CountDistinctExpr {
-  LogicalExpr expr = 1;
+  repeated LogicalExpr exprs = 1;
 }
 
 message ApproxCountDistinctExpr {

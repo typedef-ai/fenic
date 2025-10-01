@@ -456,13 +456,27 @@ def test_count_distinct_aggregation(local_session: Session):
     a_row = result.filter(pl.col("group") == "A").row(0)
     b_row = result.filter(pl.col("group") == "B").row(0)
 
-    # For group A: value cycles 0..9 (10 distinct)
+    # For group A: value cycles 0..9 (10 distinct, no nulls)
     assert a_row[result.columns.index("cd")] == 10
-    # For group B: value cycles 0..19 with some None (20 distinct)
-    assert b_row[result.columns.index("cd")] == 20
-    # text cycles k0..k4 (5 distinct) in both groups
+    assert a_row[result.columns.index("acd")] == 10
+    # For group B: value cycles 0..19 with some None (20 distinct + 1 for nulls)
+    assert b_row[result.columns.index("cd")] == 21
+    assert b_row[result.columns.index("acd")] == 21
+    # text cycles k0..k4 (5 distinct) in both groups (no nulls)
     assert a_row[result.columns.index("cd_text")] == 5
     assert b_row[result.columns.index("cd_text")] == 5
+
+
+def test_count_distinct_multi_columns(local_session: Session):
+    data = {
+        "a": [1, 1, 1, 2, 2, None],
+        "b": [1, 2, None, 1, 1, 2],
+    }
+    df = local_session.create_dataframe(data)
+    # Distinct pairs by pyspark semantics:
+    # (1,1), (1,2), (1,None), (2,1),(None, 2) => 5 distinct
+    result = df.agg(count_distinct("a", "b").alias("cd_pairs")).to_polars()
+    assert result["cd_pairs"][0] == 5
 
 
 def test_sum_distinct_aggregation(local_session: Session):
