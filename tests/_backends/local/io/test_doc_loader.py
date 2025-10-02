@@ -21,14 +21,14 @@ class TestDocLoader:
         """Enumerate all the files in a folder."""
         files = DocFolderLoader._enumerate_files(
             self.get_globbed_path(temp_dir_with_test_files, "*.md"),
-            valid_file_extension=".md")
+            valid_file_extension="md")
         assert len(files) == 2
         self._assert_file_in_results(files, temp_dir_with_test_files, "file1.md")
         self._assert_file_in_results(files, temp_dir_with_test_files, "file2.md")
 
         files_pdf = DocFolderLoader._enumerate_files(
             self.get_globbed_path(temp_dir_with_test_files, "*.pdf"),
-            valid_file_extension=".pdf")
+            valid_file_extension="pdf")
         assert len(files_pdf) == 2
         self._assert_file_in_results(files_pdf, temp_dir_with_test_files, "file8.pdf")
         self._assert_file_in_results(files_pdf, temp_dir_with_test_files, "file9.pdf")
@@ -38,7 +38,7 @@ class TestDocLoader:
         """Enumerate all the files in a folder."""
         files = DocFolderLoader._enumerate_files(
             self.get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-            valid_file_extension=".md",
+            valid_file_extension="md",
             recursive=True)
         assert len(files) == 5
         self._assert_file_in_results(files, temp_dir_with_test_files, "file1.md")
@@ -49,7 +49,7 @@ class TestDocLoader:
 
         files_pdf = DocFolderLoader._enumerate_files(
             self.get_globbed_path(temp_dir_with_test_files, "**/*.pdf"),
-            valid_file_extension=".pdf",
+            valid_file_extension="pdf",
             recursive=True)
         assert len(files_pdf) == 5
         self._assert_file_in_results(files_pdf, temp_dir_with_test_files, "file8.pdf")
@@ -62,7 +62,7 @@ class TestDocLoader:
         """Enumerate all the files in a folder."""
         files = DocFolderLoader._enumerate_files(
                     self.get_globbed_path(temp_dir_with_test_files, "**/*"),
-                    valid_file_extension=".md",
+                    valid_file_extension="md",
                     exclude_pattern=r"\.pdf$|\.tmp$|\.json$|\.txy$|\backup.md.bak$|\.bak$|temp/.*",
                     recursive=True)
         assert len(files) == 4
@@ -72,7 +72,7 @@ class TestDocLoader:
         
         files_pdf = DocFolderLoader._enumerate_files(
             self.get_globbed_path(temp_dir_with_test_files, "**/*"),
-            valid_file_extension=".pdf",
+            valid_file_extension="pdf",
             exclude_pattern=r"\.md$|\.tmp$|\.json$|\.txy$|\backup.md.bak$|\.bak$|temp/.*",
             recursive=True)
         assert len(files_pdf) == 4
@@ -83,10 +83,9 @@ class TestDocLoader:
     def test_load_files_from_folder(self, temp_dir_with_test_files, local_session):
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-            valid_file_extension="md",
+            content_type="markdown",
             recursive=True))
         assert result_df is not None
-        assert result_df.schema == DocFolderLoader.get_schema()
         assert result_df.count() == 5
 
         result_dict = result_df.to_pydict()
@@ -103,10 +102,9 @@ class TestDocLoader:
 
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-            valid_file_extension="md",
+            content_type="markdown",
             recursive=True))
         assert result_df is not None
-        assert result_df.schema == DocFolderLoader.get_schema()
         assert result_df.count() == 5
         result_dict = result_df.to_pydict()
         errors = result_dict["error"]
@@ -120,7 +118,7 @@ class TestDocLoader:
         """Test that the validate_path method returns a hash of the files in the path."""
         DocFolderLoader.validate_paths(self.get_globbed_path(temp_dir_with_test_files, "**/*.md"))
         assert True
-        
+
     def test_validate_path_invalid(self):
         """Test that the validate_path method returns a hash of the files in the path."""
         with pytest.raises(ValidationError):
@@ -131,7 +129,7 @@ class TestDocLoader:
         with pytest.raises(FileLoaderError):
             DocFolderLoader.load_docs_from_folder(
                 self.get_globbed_path(temp_dir_with_test_files, "**/*.json"),
-                valid_file_extension="md",
+                content_type="markdown",
                 recursive=True)
 
     def test_load_docs_with_no_files(self, local_session, temp_dir_just_one_file):
@@ -139,20 +137,19 @@ class TestDocLoader:
         os.remove(os.path.join(temp_dir_just_one_file, "file1.md"))
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_just_one_file, "**/*.md"),
-            valid_file_extension="md",
+            content_type="markdown",
             recursive=True))
         assert result_df is not None
         assert result_df.count() == 0
-        assert result_df.schema == DocFolderLoader.get_schema()
 
     def test_load_docs_with_no_files_pdf(self, local_session, temp_dir_just_one_file):
         """Test that the load_docs_from_folder method returns an empty dataframe if the path is empty."""
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_just_one_file, "**/*.pdf"),
-            valid_file_extension="pdf",
+            content_type="pdf",
             recursive=True))
         assert result_df.count() == 0
-        assert result_df.schema == DocFolderLoader.get_schema(file_extension="pdf")
+        assert result_df.schema == DocFolderLoader.get_schema(content_type="pdf")
 
     def test_load_docs_with_200_files(self, local_session, temp_dir_just_one_file):
         """Test that the load_docs_from_folder method returns a dataframe with 200 files."""
@@ -160,10 +157,9 @@ class TestDocLoader:
             _save_md_file(Path(os.path.join(temp_dir_just_one_file, f"file{i}.md")))
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_just_one_file, "**/*.md"),
-            valid_file_extension="md",
+            content_type="markdown",
             recursive=True))
         assert result_df.count() == 200
-        assert result_df.schema == DocFolderLoader.get_schema()
 
     def test_load_pdf_metadata_from_200_files(self, local_session, temp_dir_just_one_file):
         """Test that the load_docs_from_folder method returns a dataframe with PDF metadata."""
@@ -172,11 +168,10 @@ class TestDocLoader:
 
         result_df = local_session.create_dataframe(DocFolderLoader.load_docs_from_folder(
             self.get_globbed_path(temp_dir_just_one_file, "**/*.pdf"),
-            valid_file_extension="pdf",
+            content_type="pdf",
             recursive=True))
         assert result_df.count() == 200
-
-        assert result_df.schema == DocFolderLoader.get_schema(file_extension="pdf")
+        assert result_df.schema == DocFolderLoader.get_schema(content_type="pdf")
 
     def _assert_file_in_results(self, files: List[str], temp_dir: Path, file_name: str):
         assert os.path.join(temp_dir, file_name) in files

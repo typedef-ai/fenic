@@ -4,7 +4,8 @@ import os
 import random
 import tempfile
 from pathlib import Path
-from typing import Protocol, Tuple
+from textwrap import wrap
+from typing import List, Optional, Protocol, Tuple, Union
 from urllib.parse import urlparse
 
 import boto3
@@ -150,6 +151,12 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         help="If set, will run reader tests that read from HuggingFace.",
+    )
+    parser.addoption(
+        "--test-model-evaluation",
+        action="store",
+        default=None,
+        help="If set, will run model evaluation tests.",
     )
 
 @pytest.fixture
@@ -516,36 +523,47 @@ def _save_pdf_file(
     path,
     title="Test PDF",
     author="UnitTest",
-    text_content=None,
+    text_content:Optional[Union[str, List[str]]] = None,
     page_count=5,
     encrypt=False,
     include_forms=False,
     include_signatures=False,
     include_images=False,
     include_vectors=False,
+    include_small_images=False,
+    include_headers_and_footers=False,
 ):
-    """Generate a PDF with optional features randomly assigned to pages."""
+    """Generate a PDF with optional features randomly assigned to pages.
+
+    It will generate each included feature on 1 or more randomly selected pages."""
     doc = fitz.open()
     added_vectors = False
     added_images = False
     added_forms = False
     added_signatures = False
+    added_small_images = False
     for i in range(page_count):
         page = doc.new_page()
 
-        # Always text
-
-        page_text = f"Page {i+1} of {page_count}\nRandom Number: {random.randint(0, 100)}",
-        if page_text is not None:
+        if text_content is not None:
             if isinstance(text_content, str):
-                page_text = page_text
-            elif isinstance(page_text, list):
+                page_text = text_content
+            elif isinstance(text_content, list):
                 page_text = text_content[i % len(text_content)]
-        page.insert_text(
-            (50,50),
-            page_text,
-            fontsize=12,
-        )
+            max_chars = 80
+            wrapped_text = wrap(page_text, max_chars)
+            x = 50
+            y = 50
+            for line in wrapped_text:
+                page.insert_text(
+                    (x,y),
+                    line,
+                    fontsize=12,
+                )
+                y += 12
+
+        test_dir = os.path.dirname(__file__)
+        image_path = os.path.join(test_dir, "_utils", "data", "puppy_image.png")
 
         if include_vectors and (random.choice([True, False]) or (not added_vectors and i == page_count-1)):
             rect = fitz.Rect(100, 100, 200, 200) # x0, y0, x1, y1
@@ -553,8 +571,8 @@ def _save_pdf_file(
             added_vectors = True
 
         if include_images and (random.choice([True, False]) or (not added_images and i == page_count-1)):
-            rect = fitz.Rect(100, 200, 200, 300) # x0, y0, x1, y1
-            page.insert_image(rect, pixmap=fitz.Pixmap(fitz.csRGB, fitz.IRect(0,0,100,100)))
+            rect = fitz.Rect(100, 200, 400, 300) # x0, y0, x1, y1
+            page.insert_image(rect, pixmap=fitz.Pixmap(image_path))
             added_images = True
 
         if include_forms and (random.choice([True, False]) or (not added_forms and i == page_count-1)):
@@ -574,6 +592,36 @@ def _save_pdf_file(
             widget.rect = rect
             page.add_widget(widget)
             added_signatures = True
+
+        if include_small_images and (random.choice([True, False]) or (not added_small_images and i == page_count-1)):
+            rect = fitz.Rect(100, 600, 120, 620) # x0, y0, x1, y1
+            page.insert_image(rect, pixmap=fitz.Pixmap(image_path))
+            added_small_images = True
+
+        rect = page.rect
+        width, height = rect.width, rect.height
+        if include_headers_and_footers:
+            # --- HEADER (top center) ---
+            page.insert_text(
+                (width / 2, 20),  # x=center, y=20 pts from top
+                "confidential",
+                fontsize=8,
+                fontname="helv",  # Helvetica
+                color=(0, 0, 0),  # black
+            )
+            # --- FOOTER (bottom center) ---
+            page.insert_text(
+                (width / 2, height - 20),  # x=center, y=20 pts above bottom
+                "property of the company",
+                fontsize=8,
+                fontname="helv",
+                color=(0, 0, 0),
+            )
+        page.insert_text(
+            (width - 40, height - 20),
+            f"Page {i+1}",
+            fontsize=8,
+        )
 
     # Metadata
     now = datetime.datetime.now().strftime("D:%Y%m%d%H%M%S")

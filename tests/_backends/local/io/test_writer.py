@@ -1,4 +1,4 @@
-
+import re
 from urllib.parse import urlparse
 
 import boto3
@@ -310,9 +310,9 @@ def test_write_with_no_aws_credentials(local_session_config, temp_dir):
         assert does_path_exist(output_path, session._session_state.s3_session)
 
     # Test that s3 writes will fail without credentials
-    with pytest.raises(ConfigurationError, match="Unable to locate AWS credentials."):
+    with pytest.raises(ConfigurationError, match=re.escape("AWS credentials were not found. Configure AWS credentials (env/aws_config) to read or write to S3.")):
         df1.write.csv("s3://test-bucket/test-file.csv", mode="overwrite")
-    with pytest.raises(ConfigurationError, match="Unable to locate AWS credentials."):
+    with pytest.raises(ConfigurationError, match=re.escape("AWS credentials were not found. Configure AWS credentials (env/aws_config) to read or write to S3.")):
         df1.write.parquet("s3://test-bucket/test-file.parquet", mode="overwrite")
 
     session.stop()

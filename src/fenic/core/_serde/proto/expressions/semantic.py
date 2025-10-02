@@ -8,6 +8,7 @@ from fenic.core._logical_plan.expressions.semantic import (
     SemanticClassifyExpr,
     SemanticExtractExpr,
     SemanticMapExpr,
+    SemanticParsePDFExpr,
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
@@ -34,6 +35,7 @@ from fenic.core._serde.proto.types import (
     SemanticClassifyExprProto,
     SemanticExtractExprProto,
     SemanticMapExprProto,
+    SemanticParsePDFExprProto,
     SemanticPredExprProto,
     SemanticReduceExprProto,
     SemanticSummarizeExprProto,
@@ -440,4 +442,33 @@ def _deserialize_semantic_summarize_expr(
         format=summary_format,
         temperature=logical_proto.temperature,
         model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
+    )
+
+# =============================================================================
+# SemanticParsePDFExpr
+# =============================================================================
+
+@serialize_logical_expr.register
+def _serialize_semantic_parse_pdf_expr(logical: SemanticParsePDFExpr, context: SerdeContext) -> LogicalExprProto:
+    """Serialize a semantic parse PDF expression."""
+    return LogicalExprProto(
+        semantic_parse_pdf=SemanticParsePDFExprProto(
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr),
+            model_alias=context.serialize_resolved_model_alias("model_alias", logical.model_alias),
+            page_separator=logical.page_separator,
+            describe_images=logical.describe_images,
+        )
+    )
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_semantic_parse_pdf_expr(
+    logical_proto: SemanticParsePDFExprProto,
+    context: SerdeContext,
+) -> SemanticParsePDFExpr:
+    """Deserialize a semantic parse PDF expression."""
+    return SemanticParsePDFExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        model_alias=context.deserialize_resolved_model_alias("model_alias", logical_proto.model_alias) if logical_proto.HasField("model_alias") else None,
+        page_separator=logical_proto.page_separator,
+        describe_images=logical_proto.describe_images,
     )

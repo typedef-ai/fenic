@@ -186,8 +186,7 @@ def main() -> None:
         "experience",
         "job_category",
     )
-    if local_session.catalog.describe_tool("search_candidates"):
-        local_session.catalog.drop_tool("search_candidates")
+    local_session.catalog.drop_tool("search_candidates")
     local_session.catalog.create_tool(
         "search_candidates",
         "Search candidates by education, seniority, skills, and experience using regex patterns.",
@@ -234,8 +233,7 @@ def main() -> None:
             fc.tool_param("candidate_ids", fc.ArrayType(element_type=IntegerType))
         )
     ).select("candidate_id", "candidate_resume")
-    if local_session.catalog.describe_tool("candidate_resumes_by_candidate_ids"):
-        local_session.catalog.drop_tool("candidate_resumes_by_candidate_ids")
+    local_session.catalog.drop_tool("candidate_resumes_by_candidate_ids")
     local_session.catalog.create_tool(
         "candidate_resumes_by_candidate_ids",
         "Return the raw resumes for a list of candidate ids.",
@@ -323,8 +321,7 @@ def main() -> None:
             "job_category",
         )
     )
-    if local_session.catalog.describe_tool("candidates_for_job_description"):
-        local_session.catalog.drop_tool("candidates_for_job_description")
+    local_session.catalog.drop_tool("candidates_for_job_description")
     local_session.catalog.create_tool(
         "candidates_for_job_description",
         "Find candidates who are a good fit for a free-form job description using structured profiles.",
@@ -404,8 +401,7 @@ def main() -> None:
         ).alias("email"),
     )
     # Filter to a single candidate_id at runtime
-    if local_session.catalog.describe_tool("create_outreach_for_candidate"):
-        local_session.catalog.drop_tool("create_outreach_for_candidate")
+    local_session.catalog.drop_tool("create_outreach_for_candidate")
     local_session.catalog.create_tool(
         "create_outreach_for_candidate",
         "Create a personalized recruiting email for a candidate using resume and cover letter context.",
@@ -435,21 +431,17 @@ def main() -> None:
             ),
         ],
     )
-
     # Launch MCP server with our custom tools, along with the auto-generated tools.
-    # server = fc.create_mcp_server(
-    #     session=local_session,
-    #     server_name="Fenic Semantic Demo",
-    #     tools=local_session.catalog.list_tools(),
-    #     automated_tool_generation=fc.ToolGenerationConfig(
-    #        table_names=["candidates"],
-    #        tool_group_name="Candidate Information"
-    #     )
-    # )
-    # fc.run_mcp_server_sync(server)
-
-    # Testing an issue with event loop shutdown
-    local_session.stop()
+    server = fc.create_mcp_server(
+        session=local_session,
+        server_name="Fenic Semantic Demo",
+        user_defined_tools=local_session.catalog.list_tools(),
+        system_tools=fc.SystemToolConfig(
+           table_names=["candidates"],
+           tool_namespace="Candidate Information"
+        )
+    )
+    fc.run_mcp_server_sync(server)
 
 
 if __name__ == "__main__":

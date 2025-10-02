@@ -5,6 +5,7 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -16,6 +17,7 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
 )
 from fenic.core.types.enums import (
@@ -61,6 +63,7 @@ __all__ = [
     "DataType",
     "DataLike",
     "DataLikeType",
+    "DateType",
     "QueryResult",
     "DocumentPathType",
     "DoubleType",
@@ -84,6 +87,7 @@ __all__ = [
     "StructType",
     "KeyPoints",
     "Paragraph",
+    "TimestampType",
     "TranscriptType",
     "FuzzySimilarityMethod",
     "DatasetMetadata",

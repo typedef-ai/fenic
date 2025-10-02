@@ -52,7 +52,6 @@ from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
 from fenic.core.types import ClassDefinition
-from fenic.core.types.datatypes import MarkdownType
 from fenic.core.types.semantic_examples import MapExample, MapExampleCollection
 
 
@@ -80,7 +79,7 @@ def _create_plan_examples(session, temp_dir_with_test_files):
         DocSource: [
             ("doc_source", DocSource.from_session_state(
                 paths=[temp_dir_with_test_files],
-                valid_file_extension=".md",
+                content_type="markdown",
                 recursive=True,
                 session_state=session._session_state,
             )),
@@ -449,7 +448,7 @@ def test_table_source_plans(local_session, serde_implementation: SupportsLogical
 def test_doc_source_plans(local_session, serde_implementation: SupportsLogicalPlanSerde, temp_dir_with_test_files):
     df_docs = local_session.read.docs(
         [temp_dir_with_test_files],
-        data_type=MarkdownType,
+        content_type="markdown",
         recursive=True
     )
     plan = df_docs._logical_plan

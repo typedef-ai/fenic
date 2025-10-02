@@ -94,6 +94,7 @@ from fenic.core._serde.proto.expressions import (  # noqa: F401, E402
     basic,
     binary,
     case,
+    dt,
     embedding,
     json,
     markdown,

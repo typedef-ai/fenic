@@ -1,10 +1,16 @@
+import datetime
 import re
 
 import pytest
 
 from fenic import ColumnField, col, greatest, least
 from fenic.core.error import TypeMismatchError, ValidationError
-from fenic.core.types.datatypes import BooleanType, DoubleType, IntegerType, StringType
+from fenic.core.types.datatypes import (
+    BooleanType,
+    DoubleType,
+    IntegerType,
+    StringType,
+)
 
 
 @pytest.fixture
@@ -127,3 +133,19 @@ def test_least(greatest_least_source):
 
     with pytest.raises(TypeMismatchError, match="least expects all arguments to have the same type"):
         df = greatest_least_source.select(least(col("int"), col("str")).alias("least"))
+
+def test_with_datetime_types(local_session):
+        """Test that greatest and least work with datetime types."""
+        df_source = local_session.create_dataframe({
+            "date_col": [datetime.date(2023, 12, 25), datetime.date(2024, 1, 1)],
+            "date_col2": [datetime.date(2023, 12, 24), datetime.date(2024, 1, 2)],
+            "datetime_col": [datetime.datetime(2023, 12, 25, 14, 30), datetime.datetime(2024, 1, 1, 9, 15)],
+            "datetime_col2": [datetime.datetime(2023, 12, 25, 14, 29), datetime.datetime(2024, 1, 1, 9, 18)],
+        })
+        df = df_source.select(least(col("date_col"), col("date_col2")).alias("least"))
+        results = df.to_pydict()
+        assert results["least"] == [datetime.date(2023, 12, 24), datetime.date(2024, 1, 1)]
+
+        df = df_source.select(greatest(col("datetime_col"), col("datetime_col2")).alias("greatest"))
+        results = df.to_pydict()
+        assert results["greatest"] == [datetime.datetime(2023, 12, 25, 14, 30), datetime.datetime(2024, 1, 1, 9, 18)]

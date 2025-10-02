@@ -1,13 +1,15 @@
 """MCP Tool Generation/FastMCP Server Management."""
 from fenic.core.mcp.types import (
     BoundToolParam,
-    ParameterizedToolDefinition,
+    SystemTool,
     ToolParam,
+    UserDefinedTool,
 )
 
 __all__ = [
     # Types
     "BoundToolParam",
-    "ParameterizedToolDefinition",
+    "UserDefinedTool",
+    "SystemTool",
     "ToolParam",
 ]

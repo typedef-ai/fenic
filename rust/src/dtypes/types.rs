@@ -15,6 +15,10 @@ pub enum FenicDType {
     DoubleType,
     #[serde(rename = "BooleanType")]
     BooleanType,
+    #[serde(rename = "DateType")]
+    DateType,
+    #[serde(rename = "TimestampType")]
+    TimestampType,
 
     // Collection Types
     #[serde(rename = "ArrayType")]
@@ -59,6 +63,10 @@ impl FenicDType {
             FenicDType::FloatType => DataType::Float32,
             FenicDType::DoubleType => DataType::Float64,
             FenicDType::BooleanType => DataType::Boolean,
+            FenicDType::DateType => DataType::Date,
+            // TODO: Timezone support will be added later.
+            // For datetime, we'll use nanoseconds as the time unit.
+            FenicDType::TimestampType => DataType::Datetime(TimeUnit::Nanoseconds, None),
             FenicDType::ArrayType { element_type } => {
                 let element_type = element_type.canonical_polars_type();
                 DataType::List(Box::new(element_type))
@@ -145,6 +153,7 @@ mod tests {
             FenicDType::BooleanType.canonical_polars_type(),
             DataType::Boolean
         );
+        assert_eq!(FenicDType::DateType.canonical_polars_type(), DataType::Date);
         assert_eq!(
             FenicDType::JsonType.canonical_polars_type(),
             DataType::String

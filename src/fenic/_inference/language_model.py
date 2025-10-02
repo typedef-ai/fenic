@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class InferenceConfiguration:
-    max_output_tokens: int
+    # If max_output_tokens is not provided, do not include it in the request.
+    max_output_tokens: Optional[int]
     temperature: float
     top_logprobs: Optional[int] = None
     response_format: Optional[ResolvedResponseFormat] = None  # Resolved JSON schema
@@ -51,7 +52,6 @@ class LanguageModel:
     ) -> list[Optional[FenicCompletionsResponse]]:
         # Create batch requests
         requests = []
-
         # Check model specific requirements for request params.
         temperature_param = temperature if self.model_parameters.supports_custom_temperature else None
         if temperature and not temperature_param:

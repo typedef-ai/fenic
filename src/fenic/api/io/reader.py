@@ -12,10 +12,11 @@ if TYPE_CHECKING:
     from fenic.api.dataframe import DataFrame
     from fenic.core._interfaces import BaseSessionState
 
-from fenic.api.functions import col
 from fenic.core._logical_plan.plans import DocSource, FileSource
+from fenic.core._utils.file_content import (
+    validate_paths_and_return_list_of_strings,
+)
 from fenic.core.error import UnsupportedFileTypeError, ValidationError
-from fenic.core.types.datatypes import JsonType, MarkdownType
 
 
 class DataFrameReader:
@@ -223,38 +224,21 @@ class DataFrameReader:
             ValidationError: If any path doesn't end with the expected file extension.
             ValidationError: If paths is not a string, Path, or list of strings/Paths.
         """
-        # Validate paths type
-        if not isinstance(paths, (str, Path, list)):
-            raise ValidationError(
-                f"Expected paths to be str, Path, or list, got {type(paths).__name__}"
-            )
-
-        # Convert to list if it's a single path
-        if isinstance(paths, (str, Path)):
-            paths_list = [paths]
-        else:
-            # Validate each item in the list
-            for i, path in enumerate(paths):
-                if not isinstance(path, (str, Path)):
-                    raise ValidationError(
-                        f"Expected path at index {i} to be str or Path, got {type(path).__name__}"
-                    )
-            paths_list = paths
+        path_str_list = validate_paths_and_return_list_of_strings(paths)
 
         # Validate file extensions
-        for path in paths_list:
-            if not str(path).endswith(file_extension):
+        for path in path_str_list:
+            if not path.endswith(file_extension):
                 raise ValidationError(
                     f"Invalid file extension for {file_format.upper()} reader: '{path}' does not end with '{file_extension}'. "
                     f"Please ensure all paths have the correct extension. "
                     f"Example: 'data/file{file_extension}' or 'data/*{file_extension}'"
                 )
 
-        # Convert all paths to strings
-        paths_str = [str(p) for p in paths_list]
+
 
         logical_node = FileSource.from_session_state(
-            paths=paths_str,
+            paths=path_str_list,
             file_format=file_format,
             options=options,
             session_state=self._session_state,
@@ -263,37 +247,38 @@ class DataFrameReader:
 
         return DataFrame._from_logical_plan(logical_node, self._session_state)
 
+
+
     def docs(
             self,
-            paths: Union[str, list[str]],
-            data_type: Union[MarkdownType, JsonType],
+            paths: Union[str, Path, list[Union[str, Path]]],
+            content_type: Literal["markdown", "json"],
             exclude: Optional[str] = None,
             recursive: bool = False,
     ) -> DataFrame:
-        r"""Load a DataFrame from a list of paths of documents (markdown or json).
+        r"""Load a DataFrame with the document contents of a list of paths (markdown or json).
 
         Args:
             paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
-            data_type: Data type that will be used to cast the content of the files.
-                       One of MarkdownType or JsonType.
+            content_type: Content type of the files. One of "markdown" or "json".
             exclude: A regex pattern to exclude files.
                      If it is not provided no files will be excluded.
             recursive: Whether to recursively load files from the folder.
 
         Returns:
             DataFrame: A dataframe with all the documents found in the paths.
-                       Each document is a row in the dataframe.
+                       The content of each document is a row in the dataframe.
 
         Raises:
-            ValidationError: If any file does not have a `.md` or `.json` depending on the data_type.
-            UnsupportedFileTypeError: If the data_type is not supported.
+            ValidationError: If any file does not have a `.md` or `.json` depending on the content_type.
+            UnsupportedFileTypeError: If the specified content_type is not "markdown" or "json" .
 
         Notes:
             - Each row in the dataframe corresponds to a file in the list of paths.
             - The dataframe has the following columns:
                 - file_path: The path to the file.
                 - error: The error message if the file failed to be loaded.
-                - content: The content of the file casted to the data_type.
+                - content: The content of the file casted to the content_type.
             - Recursive loading is supported in conjunction with the '**' glob pattern,
               e.g. `data/**/*.md` will load all markdown files in the `data` folder and all subfolders
                    when recursive is set to True.
@@ -301,46 +286,38 @@ class DataFrameReader:
 
         Example: Read all the markdown files in a folder and all its subfolders.
             ```python
-            df = session.read.docs("data/docs/**/*.md", data_type=MarkdownType, recursive=True)
+            df = session.read.docs("data/docs/**/*.md", content_type="markdown", recursive=True)
             ```
 
         Example: Read a folder of markdown files excluding some files.
             ```python
-            df = session.read.docs("data/docs/*.md", data_type=MarkdownType, exclude=r"\.bak.md$")
+            df = session.read.docs("data/docs/*.md", content_type="markdown", exclude=r"\.bak.md$")
             ```
 
         """
-        if data_type not in [MarkdownType, JsonType]:
-            raise UnsupportedFileTypeError(f"Unsupported file type: {data_type}")
+        path_str_list = validate_paths_and_return_list_of_strings(paths)
 
-        if isinstance(paths, str):
-            paths = [paths]
+        if content_type not in ["markdown", "json"]:
+            raise UnsupportedFileTypeError(f"{content_type}, must be 'markdown' or 'json'")
 
-        valid_file_extension = "md" if data_type == MarkdownType else "json"
         logical_node = DocSource.from_session_state(
-            paths=paths,
-            valid_file_extension=valid_file_extension,
+            paths=path_str_list,
+            content_type=content_type,
             exclude=exclude,
             recursive=recursive,
             session_state=self._session_state,
         )
         from fenic.api.dataframe import DataFrame
 
-        df = DataFrame._from_logical_plan(logical_node, self._session_state)
-        df = df.select(
-            col("file_path"),
-            col("error"),
-            col("content").cast(data_type).alias("content"),
-        )
-        return df
+        return DataFrame._from_logical_plan(logical_node, self._session_state)
 
     def pdf_metadata(
             self,
-            paths: Union[str, list[str]],
+            paths: Union[str, Path, list[Union[str, Path]]],
             exclude: Optional[str] = None,
             recursive: bool = False,
     ) -> DataFrame:
-        r"""Load a DataFrame with metadata from PDF files.
+        r"""Load a DataFrame with metadata of PDF files in a list of paths.
 
         Args:
             paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
@@ -358,7 +335,7 @@ class DataFrameReader:
         Notes:
             - Each row in the dataframe corresponds to a file in the list of paths.
             - The metadata columns are:
-                - doc_path: The path to the document.
+                - file_path: The path to the document.
                 - error: The error message if the file failed to be loaded.
                 - size: Size of the PDF file in bytes.
                 - title: Title of the PDF document.
@@ -386,32 +363,15 @@ class DataFrameReader:
             ```
 
         """
-        if isinstance(paths, str):
-            paths = [paths]
+        path_str_list = validate_paths_and_return_list_of_strings(paths)
 
         logical_node = DocSource.from_session_state(
-            paths=paths,
-            valid_file_extension="pdf",
+            paths=path_str_list,
+            content_type="pdf",
             exclude=exclude,
             recursive=recursive,
             session_state=self._session_state,
         )
         from fenic.api.dataframe import DataFrame
 
-        df = DataFrame._from_logical_plan(logical_node, self._session_state)
-        # Rename file_path to doc_path for consistency with other doc readers
-        df = df.select(
-            col("file_path").alias("doc_path"),
-            col("error"),
-            col("size"),
-            col("title"),
-            col("author"),
-            col("creation_date"),
-            col("mod_date"),
-            col("page_count"),
-            col("has_forms"),
-            col("has_signature_fields"),
-            col("image_count"),
-            col("is_encrypted"),
-        )
-        return df
+        return DataFrame._from_logical_plan(logical_node, self._session_state)

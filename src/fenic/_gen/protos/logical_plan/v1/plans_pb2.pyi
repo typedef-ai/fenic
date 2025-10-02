@@ -103,16 +103,16 @@ class TableSource(_message.Message):
     def __init__(self, table_name: _Optional[str] = ...) -> None: ...
 
 class DocSource(_message.Message):
-    __slots__ = ("paths", "valid_file_extension", "exclude", "recursive")
+    __slots__ = ("paths", "content_type", "exclude", "recursive")
     PATHS_FIELD_NUMBER: _ClassVar[int]
-    VALID_FILE_EXTENSION_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     EXCLUDE_FIELD_NUMBER: _ClassVar[int]
     RECURSIVE_FIELD_NUMBER: _ClassVar[int]
     paths: _containers.RepeatedScalarFieldContainer[str]
-    valid_file_extension: str
+    content_type: _enums_pb2.DocContentType
     exclude: str
     recursive: bool
-    def __init__(self, paths: _Optional[_Iterable[str]] = ..., valid_file_extension: _Optional[str] = ..., exclude: _Optional[str] = ..., recursive: bool = ...) -> None: ...
+    def __init__(self, paths: _Optional[_Iterable[str]] = ..., content_type: _Optional[_Union[_enums_pb2.DocContentType, str]] = ..., exclude: _Optional[str] = ..., recursive: bool = ...) -> None: ...
 
 class Projection(_message.Message):
     __slots__ = ("input", "exprs")

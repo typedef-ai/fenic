@@ -14,6 +14,7 @@ from fenic.core._serde.proto.types import DataTypeProto
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -25,8 +26,10 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
     _BooleanType,
+    _DateType,
     _DoubleType,
     _FloatType,
     _HtmlType,
@@ -34,6 +37,7 @@ from fenic.core.types.datatypes import (
     _JsonType,
     _MarkdownType,
     _StringType,
+    _TimestampType,
 )
 
 # Define examples for each datatype
@@ -48,6 +52,8 @@ datatype_examples = {
     _JsonType: [JsonType],
     _MarkdownType: [MarkdownType],
     _HtmlType: [HtmlType],
+    _DateType: [DateType],
+    _TimestampType: [TimestampType],
 
     # Complex types with parameters
     ArrayType: [

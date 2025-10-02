@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import polars as pl
 
+import fenic._backends.local.polars_plugins  # noqa: F401
 from fenic._backends.local.lineage import OperatorLineage
+from fenic._backends.schema_serde import serialize_data_type
 from fenic.core.error import InternalError
+from fenic.core.types.datatypes import JsonType, MarkdownType, StringType
+from fenic.core.types.enums import DocContentType
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -63,15 +68,7 @@ class FileSourceExec(PhysicalPlan):
             raise InternalError("Unreachable: SourceExec expects 0 children")
 
         file_format = self.file_format.lower()
-        build_query_fn = {
-            "csv": self.session_state.execution._build_read_csv_query,
-            "parquet": self.session_state.execution._build_read_parquet_query,
-        }.get(file_format)
-
-        if build_query_fn is None:
-            raise InternalError(f"Unsupported file format: {self.file_format}")
-        query = build_query_fn(self.paths, False, **self.options)
-        df = query_files(query=query, paths=self.paths, s3_session=self.session_state.s3_session)
+        df = query_files(paths=self.paths, file_type=file_format, s3_session=self.session_state.s3_session, **self.options)
         return apply_ingestion_coercions(df)
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
@@ -128,14 +125,14 @@ class DocSourceExec(PhysicalPlan):
     def __init__(
             self,
             paths: list[str],
-            valid_file_extension: str,
+            content_type: DocContentType,
             exclude: Optional[str],
             recursive: bool,
             session_state: LocalSessionState,
     ):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.paths = paths
-        self.valid_file_extension = valid_file_extension
+        self.content_type = content_type
         self.exclude = exclude
         self.recursive = recursive
 
@@ -144,17 +141,30 @@ class DocSourceExec(PhysicalPlan):
             raise InternalError("Unreachable: DocSourceExec expects 0 children")
         df = DocFolderLoader.load_docs_from_folder(
             self.paths,
-            self.valid_file_extension,
+            self.content_type,
             self.exclude,
             self.recursive)
-        return apply_ingestion_coercions(df)
+        df = apply_ingestion_coercions(df)
+        if self.content_type in ["markdown", "json"]:
+            # overwrite the content column with the casted content
+            source_type = json.dumps(serialize_data_type(StringType))
+            if self.content_type == "markdown":
+                dest_type = json.dumps(serialize_data_type(MarkdownType))
+            else:
+                dest_type = json.dumps(serialize_data_type(JsonType))
+            df = df.with_columns(
+                pl.col("content").dtypes.cast(source_type, dest_type).alias("content")
+            )
+        return df
+
+    
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:
             raise InternalError("Unreachable: DocSourceExec expects 0 children")
         return DocSourceExec(
             paths=self.paths,
-            valid_file_extension=self.valid_file_extension,
+            content_type=self.content_type,
             exclude=self.exclude,
             recursive=self.recursive,
             session_state=self.session_state,

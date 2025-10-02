@@ -1,4 +1,5 @@
 """Utilities for converting between different schema representations."""
+import datetime
 from typing import List, Literal, Union, get_args, get_origin
 
 import polars as pl
@@ -8,6 +9,7 @@ from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
     DataType,
+    DateType,
     DocumentPathType,
     DoubleType,
     EmbeddingType,
@@ -16,6 +18,7 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
     TranscriptType,
     _HtmlType,
     _JsonType,
@@ -164,6 +167,10 @@ def convert_custom_dtype_to_polars(
             return pl.String
         elif custom_dtype == BooleanType:
             return pl.Boolean
+        elif custom_dtype == DateType:
+            return pl.Date
+        elif custom_dtype == TimestampType:
+            return pl.Datetime(time_unit="ns")
     elif isinstance(custom_dtype, ArrayType):
         return pl.List(convert_custom_dtype_to_polars(custom_dtype.element_type))
     elif isinstance(custom_dtype, StructType):
@@ -191,6 +198,10 @@ def _convert_pytype_to_custom_dtype(py_type: type) -> _PrimitiveType:
         return DoubleType
     elif py_type is bool:
         return BooleanType
+    elif py_type is datetime.date:
+        return DateType
+    elif py_type is datetime.datetime:
+        return TimestampType
     elif hasattr(py_type, '__origin__') and py_type.__origin__ is Literal:
         return StringType
     else:
@@ -241,11 +252,10 @@ def _convert_polars_dtype_to_custom_dtype(
             for field in polars_dtype.fields
         ]
         return StructType(struct_fields=struct_fields)
-    elif isinstance(polars_dtype, (pl.Date, pl.Datetime)):
-        # pl.Time is not properly supported by DuckDB, it is suggested that users
-        # use timestamp instead.
-        # https://duckdb.org/docs/sql/types/time
-        return StringType
+    elif isinstance(polars_dtype, pl.Date):
+        return DateType
+    elif isinstance(polars_dtype, pl.Datetime):
+        return TimestampType
     else:
         raise ValueError(f"Unsupported Polars data type: {polars_dtype}")
 

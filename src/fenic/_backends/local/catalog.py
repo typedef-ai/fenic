@@ -17,7 +17,7 @@ from fenic._backends.utils.catalog_utils import (
 )
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._utils.misc import generate_unique_arrow_view_name
+from fenic.core._utils.misc import generate_unique_view_name
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import (
     CatalogError,
@@ -30,7 +30,7 @@ from fenic.core.error import (
     ToolNotFoundError,
 )
 from fenic.core.mcp._tools import bind_tool
-from fenic.core.mcp.types import ParameterizedToolDefinition, ToolParam
+from fenic.core.mcp.types import ToolParam, UserDefinedTool
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import (
     DatasetMetadata,
@@ -414,7 +414,7 @@ class LocalCatalog(BaseCatalog):
         self, table_name: str, schema: Schema, ignore_if_exists: bool = True, description: Optional[str] = None
     ) -> bool:
         """Create a new table."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -506,7 +506,7 @@ class LocalCatalog(BaseCatalog):
                 ) from e
 
 
-    def describe_tool(self, tool_name: str) -> Optional[ParameterizedToolDefinition]:
+    def describe_tool(self, tool_name: str) -> Optional[UserDefinedTool]:
         """Get a tool's metadata from the system table."""
         cursor = self.db_conn.cursor()
         existing_tool = self.system_tables.describe_tool(cursor, tool_name)
@@ -525,17 +525,16 @@ class LocalCatalog(BaseCatalog):
     ) -> bool:
         """Create a new tool in the current catalog."""
         # Ensure the tool is valid by resolving it.
-        with self.lock:
-            tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
-            cursor = self.db_conn.cursor()
-            if self.system_tables.describe_tool(cursor, tool_name):
-                if ignore_if_exists:
-                    return False
-                raise ToolAlreadyExistsError(tool_name)
-            self.system_tables.save_tool(cursor, tool_definition)
-            return True
+        tool_definition = bind_tool(tool_name, tool_description, tool_params, result_limit, tool_query)
+        cursor = self.db_conn.cursor()
+        if self.system_tables.describe_tool(cursor, tool_name):
+            if ignore_if_exists:
+                return False
+            raise ToolAlreadyExistsError(tool_name)
+        self.system_tables.save_tool(cursor, tool_definition)
+        return True
 
-    def list_tools(self) -> List[ParameterizedToolDefinition]:
+    def list_tools(self) -> List[UserDefinedTool]:
         """List all tools in the current catalog."""
         cursor = self.db_conn.cursor()
         return self.system_tables.list_tools(cursor)
@@ -552,7 +551,7 @@ class LocalCatalog(BaseCatalog):
 
     def write_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Write a Polars dataframe to a table in the current database."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         with self.lock:
             table_identifier = TableIdentifier.from_string(table_name).enrich(
                 self.get_current_catalog(),
@@ -588,7 +587,7 @@ class LocalCatalog(BaseCatalog):
 
     def insert_df_to_table(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Insert a Polars dataframe into a table in the current database."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.get_current_catalog(),
             self.get_current_database())
@@ -630,7 +629,7 @@ class LocalCatalog(BaseCatalog):
 
     def replace_table_with_df(self, df: pl.DataFrame, table_name: str, schema: Schema):
         """Replace a table in the current database with a Polars dataframe."""
-        temp_view_name = generate_unique_arrow_view_name()
+        temp_view_name = generate_unique_view_name()
         table_identifier = TableIdentifier.from_string(table_name).enrich(
             self.get_current_catalog(),
             self.get_current_database())

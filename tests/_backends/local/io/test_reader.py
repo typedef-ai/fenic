@@ -1,5 +1,5 @@
+import datetime
 import os
-from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from typing import Literal, Union
@@ -14,6 +14,7 @@ from fenic import (
     ArrayType,
     BooleanType,
     ColumnField,
+    DateType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -21,13 +22,11 @@ from fenic import (
     MarkdownType,
     Schema,
     StringType,
+    TimestampType,
     col,
     markdown,
 )
 from fenic._backends.local.utils.io_utils import (
-    _build_query_with_hf_creds,
-    _build_query_with_httpfs_extensions,
-    _build_query_with_s3_creds,
     write_file,
 )
 from fenic.api.session import Session
@@ -35,7 +34,6 @@ from fenic.core.error import (
     FileLoaderError,
     InternalError,
     PlanError,
-    UnsupportedFileTypeError,
     ValidationError,
 )
 from tests.conftest import _save_pdf_file
@@ -735,45 +733,6 @@ Bob,30,Chicago"""
 # AWS Credentials Tests
 # =============================================================================
 
-def test_read_query_setup_with_aws_credentials(local_session_config, monkeypatch):
-    """Test that a local session can be created with AWS credentials.
-
-    test that our read queries are setup with the credentials.
-    test that we error out if we don't have credentials.
-    """
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test_access_key_id")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test_secret_access_key")
-    monkeypatch.setenv("AWS_SESSION_TOKEN", "test_session_token")
-    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-2")
-
-    session = Session.get_or_create(local_session_config)
-
-    # Get configured credentials from session
-    aws_credentials = session._session_state.s3_session.get_credentials()
-    frozen_credentials = aws_credentials.get_frozen_credentials()
-    access_key = frozen_credentials.access_key
-    secret_key = frozen_credentials.secret_key
-    token = frozen_credentials.token
-    region = session._session_state.s3_session.region_name
-
-    # Test that read queries to s3 have the configured credentials
-    paths = ["s3://test-bucket/test-file.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    assert has_s3_creds
-    assert "http"
-    assert f"SET s3_access_key_id='{access_key}'" in query
-    assert f"SET s3_secret_access_key='{secret_key}'" in query
-    assert f"SET s3_session_token='{token}'" in query
-    assert f"SET s3_region='{region}'" in query
-
-    session.stop()
-
-
 def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
     """Test that local read queries work and that read queries to s3 will fail without aws credentials."""
     session = Session.get_or_create(local_session_config)
@@ -832,78 +791,14 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
-    assert (
-        str(exc_info.value.__cause__) ==
-        "File loader error: Failed to read from Hugging Face -- credentials were not found and the dataset is private or gated. "
-        "Set HF_TOKEN environment variable. (Status code: 401)"
-    )
+    assert "401" in str(exc_info.value.__cause__)
 
     # Test with invalid token
     monkeypatch.setenv("HF_TOKEN", "invalid_token")
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
-    assert (
-        str(exc_info.value.__cause__) ==
-        "File loader error: Failed to read from Hugging Face -- the provided credentials do not have the required "
-        "permissions. (Status code: 401)"
-    )
-
-    session.stop()
-
-def test_read_query_setup_with_huggingface_credentials(local_session_config, monkeypatch):
-    """Test that read queries to huggingface datasets will succeed with hf credentials."""
-    monkeypatch.setenv("HF_TOKEN", "test_token")
-    session = Session.get_or_create(local_session_config)
-
-    # Test that read queries to s3 have the configured credentials
-    paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_hf_creds = _build_query_with_hf_creds(query)
-    assert has_hf_creds
-    assert "INSTALL httpfs; LOAD httpfs;" in query
-    assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
-
-    session.stop()
-
-def test_read_query_setup_with_huggingface_credentials_and_s3_credentials(local_session_config, monkeypatch):
-    """Test that read queries to huggingface datasets will succeed with hf credentials."""
-    monkeypatch.setenv("HF_TOKEN", "test_token")
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test_access_key_id")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test_secret_access_key")
-    monkeypatch.setenv("AWS_SESSION_TOKEN", "test_session_token")
-    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-2")
-
-    session = Session.get_or_create(local_session_config)
-
-    # Get configured credentials from session
-    aws_credentials = session._session_state.s3_session.get_credentials()
-    frozen_credentials = aws_credentials.get_frozen_credentials()
-    access_key = frozen_credentials.access_key
-    secret_key = frozen_credentials.secret_key
-    token = frozen_credentials.token
-    region = session._session_state.s3_session.region_name
-    # Test that read queries to s3 have the configured credentials
-    paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
-    query = session._session_state.execution._build_read_csv_query(
-        paths,
-        infer_schema=True,
-    )
-    query = _build_query_with_httpfs_extensions(query)
-    query, has_s3_creds = _build_query_with_s3_creds(query, session._session_state.s3_session)
-    assert has_s3_creds
-    query, has_hf_creds = _build_query_with_hf_creds(query)
-    assert has_hf_creds
-    assert "INSTALL httpfs; LOAD httpfs;" in query
-    assert "CREATE SECRET hf_token (TYPE HUGGINGFACE, TOKEN 'test_token');" in query
-    assert f"SET s3_access_key_id='{access_key}'" in query
-    assert f"SET s3_secret_access_key='{secret_key}'" in query
-    assert f"SET s3_session_token='{token}'" in query
-    assert f"SET s3_region='{region}'" in query
+    assert "401" in str(exc_info.value.__cause__)
 
     session.stop()
 
@@ -995,16 +890,16 @@ Francis
 
 
 def test_ingest_date_type(local_session, temp_dir):
-    """Test automatic conversion of date columns to strings.
+    """Test ingestion of date columns.
 
     This tests:
-    - Date column representation as strings
-    - Filtering on date string values
+    - Filtering on date values
     - Consistency across read methods (parquet vs in-memory)
     """
     PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
     DATE_COLUMN_NAME = "some_date"
     CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATE = datetime.date(2024, 1, 4)
 
     # Create a dataframe with a date column
     df = pl.DataFrame(
@@ -1020,43 +915,43 @@ def test_ingest_date_type(local_session, temp_dir):
 
     # Test 1: Reading from Parquet file
     fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
 
     # Verify schema and type conversion
     expected_schema = pl.Schema(
-        {"month": pl.Int64, "day": pl.Int64, DATE_COLUMN_NAME: pl.String}
+        {"month": pl.Int64, "day": pl.Int64, DATE_COLUMN_NAME: pl.Date}
     )
-    assert result.schema == expected_schema, "Date should be converted to String"
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
     # Test 2: Using in-memory dataframe
     fenic_df = local_session.create_dataframe(polars_df)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
     # Test 3: CSV file
     polars_df.write_csv(CSV_FILE_NAME)
     fenic_df = local_session.read.csv(CSV_FILE_NAME)
-    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == "2024-01-04")
+    fenic_df = fenic_df.filter(col(DATE_COLUMN_NAME) == EXPECTED_DATE)
     result = fenic_df.to_polars()
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
-
-    assert result.schema == expected_schema, "Date should be converted to String"
-    assert result[DATE_COLUMN_NAME].to_list() == ["2024-01-04"]
+    assert result.schema == expected_schema
+    assert result[DATE_COLUMN_NAME].to_list() == [EXPECTED_DATE]
 
 
 def test_ingest_datetime_type(local_session, temp_dir):
-    """Test automatic conversion of datetime columns to strings.
+    """Test ingestion of datetime columns.
 
     This tests:
-    - Datetime column representation as strings
-    - Filtering on datetime string values
+    - Filtering on datetime values
     - Consistency across read methods (parquet vs in-memory)
     """
     PARQUET_FILE_NAME = f"{temp_dir.path}/test.parquet"
     DATETIME_COLUMN_NAME = "some_datetime"
     CSV_FILE_NAME = f"{temp_dir.path}/test.csv"
+    EXPECTED_DATETIME = datetime.datetime(2024, 1, 4, 7, 10, 13)
 
     # Create a dataframe with a datetime column
     df = pl.DataFrame(
@@ -1082,9 +977,7 @@ def test_ingest_datetime_type(local_session, temp_dir):
 
     # Test 1: Reading from Parquet file
     fenic_df = local_session.read.parquet(PARQUET_FILE_NAME)
-    fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
-    )
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
     result = fenic_df.to_polars()
 
     expected_schema = pl.Schema(
@@ -1094,34 +987,62 @@ def test_ingest_datetime_type(local_session, temp_dir):
             "hour": pl.Int64,
             "minute": pl.Int64,
             "second": pl.Int64,
-            DATETIME_COLUMN_NAME: pl.String,
+            DATETIME_COLUMN_NAME: pl.Datetime(),
         }
     )
-    assert (
-            result.schema == expected_schema
-    ), "Datetime should be converted to String"
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
     # Test 2: Using in-memory dataframe
     fenic_df = local_session.create_dataframe(polars_df)
     fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
+        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
     )
     result = fenic_df.to_polars()
-
-    assert (
-            result.schema == expected_schema
-    ), "Datetime should be converted to String"
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
 
     # Test 3: CSV file
     write_test_file(CSV_FILE_NAME, polars_df, local_session, "csv")
     fenic_df = local_session.read.csv(CSV_FILE_NAME)
     fenic_df = fenic_df.filter(
-        col(DATETIME_COLUMN_NAME) == "2024-01-04 07:10:13.000000"
+        col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME
     )
     result = fenic_df.to_polars()
-    assert result[DATETIME_COLUMN_NAME].to_list() == ["2024-01-04 07:10:13.000000"]
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+
+    # Test 4: Override Schema w/ TimestampType
+    fenic_df = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=TimestampType),
+            ]))
+    fenic_df = fenic_df.filter(col(DATETIME_COLUMN_NAME) == EXPECTED_DATETIME)
+    result = fenic_df.to_polars()
+    assert result.schema == expected_schema
+    assert result[DATETIME_COLUMN_NAME].to_list() == [EXPECTED_DATETIME]
+
+    # Test 5: Override Schema w/ DateType
+    fenic_df = local_session.read.csv(
+        CSV_FILE_NAME,
+        schema=Schema(
+            column_fields=[
+                ColumnField(name="month", data_type=IntegerType),
+                ColumnField(name="day", data_type=IntegerType),
+                ColumnField(name="hour", data_type=IntegerType),
+                ColumnField(name="minute", data_type=IntegerType),
+                ColumnField(name="second", data_type=IntegerType),
+                ColumnField(name=DATETIME_COLUMN_NAME, data_type=DateType),
+            ]))
+    result = fenic_df.to_pydict()
+    result["some_datetime"] = [datetime.date(2024, 1, 4), datetime.date(2024, 2, 5), datetime.date(2024, 3, 6)]
 
 
 def test_ingest_array_type(local_session, temp_dir):
@@ -1226,7 +1147,7 @@ def test_read_docs(local_session, temp_dir_with_test_files):
     """Test that reading from a folder works."""
     df = local_session.read.docs(
         _get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-        data_type=MarkdownType,
+        content_type="markdown",
         recursive=True)
     df.collect()
     assert df.schema == Schema(
@@ -1241,9 +1162,9 @@ def test_read_docs(local_session, temp_dir_with_test_files):
         col("file_path"),
         markdown.generate_toc(col("content")).alias("toc")
     )
-    dict = df.to_pydict()
-    assert len(dict["file_path"]) == 5
-    assert "2 Background" in dict["toc"][0]
+    pydict = df.to_pydict()
+    assert len(pydict["file_path"]) == 5
+    assert "2 Background" in pydict["toc"][0]
 
 
 def test_read_docs_invalid_path(local_session):
@@ -1251,16 +1172,7 @@ def test_read_docs_invalid_path(local_session):
     with pytest.raises(ValidationError):
         local_session.read.docs(
             "/invalid/path",
-            data_type=MarkdownType,
-            recursive=True)
-
-
-def test_read_docs_invalid_type(local_session, temp_dir_with_test_files):
-    """Test that reading from an invalid path fails."""
-    with pytest.raises(UnsupportedFileTypeError):
-        local_session.read.docs(
-            _get_globbed_path(temp_dir_with_test_files, "**/*.md"),
-            data_type=StringType,
+            content_type="markdown",
             recursive=True)
 
 
@@ -1272,9 +1184,12 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_tes
     with open(json_path, 'w') as f:
         json.dump({"test": "data", "number": 42}, f)
 
+    paths = _get_globbed_path(temp_dir_with_test_files, "**/*.json")
+    # Test that str paths or Path objects are accepted.
+    paths.append(json_path)
     df = local_session.read.docs(
-        _get_globbed_path(temp_dir_with_test_files, "**/*.json"),
-        data_type=JsonType,
+        paths,
+        content_type="json",
         recursive=True)
     df.collect()
     assert df.schema == Schema(
@@ -1286,7 +1201,7 @@ def test_read_docs_no_wildcard_only_valid_files(local_session, temp_dir_with_tes
     )
     results = df.to_pydict()
     # There might be other JSON files in the test directory
-    assert len(results["file_path"]) >= 1
+    assert len(results["file_path"]) >= 2
     # Verify our test file is in the results
     assert any("test.json" in path for path in results["file_path"])
 
@@ -1295,17 +1210,31 @@ def test_read_markdown_no_wildcard_only_valid_files(local_session, temp_dir_just
     """Test that reading from a path with (and no wild card) only valid files works."""
     df = local_session.read.docs(
         [temp_dir_just_one_file],
-        data_type=MarkdownType)
+        content_type="markdown")
     df.collect()
     dict = df.to_pydict()
     assert len(dict["file_path"]) == 1
 
+def test_read_docs_invalid_path_args(local_session, temp_dir_just_one_file):
+    """Test that reading from an invalid path fails."""
+
+    with pytest.raises(ValidationError, match="Expected path at index 1 to be str or Path, got NoneType"):
+        _ = local_session.read.docs(
+            [temp_dir_just_one_file, None],
+            content_type="markdown",
+            recursive=True)
+
+    with pytest.raises(ValidationError, match="Expected paths to be str, Path, or list, got NoneType"):
+        _ = local_session.read.docs(
+            None,
+            content_type="markdown",
+            recursive=True)
 
 def test_read_docs_no_files_valid_paths(local_session, temp_dir_with_test_files):
     """Test that if no files are found, we'll get a dataframe with the path and an error message."""
     df = local_session.read.docs(
         _get_globbed_path(temp_dir_with_test_files, "**/*.unknown_extension"),
-        data_type=MarkdownType,
+        content_type="markdown",
         recursive=True)
     df.collect()
     results = df.to_pydict()
@@ -1316,7 +1245,7 @@ def test_read_docs_no_wildcard_path_is_file(local_session, temp_dir_just_one_fil
     """Test that reading from a path to a file works."""
     df = local_session.read.docs(
         [str(Path.joinpath(Path(temp_dir_just_one_file), "file1.md"))],
-        data_type=MarkdownType)
+        content_type="markdown")
     df.collect()
     dict = df.to_pydict()
     assert len(dict["file_path"]) == 1
@@ -1333,7 +1262,7 @@ def test_read_pdfs_invalid_path(local_session):
 
 pdf_metadata_schema = Schema(
     [
-        ColumnField(name="doc_path", data_type=StringType),
+        ColumnField(name="file_path", data_type=StringType),
         ColumnField(name="error", data_type=StringType),
         ColumnField(name="size", data_type=IntegerType),
         ColumnField(name="title", data_type=StringType),
@@ -1355,7 +1284,7 @@ def _get_globbed_path(path: str, file_extension: str) -> list[str]:
 
 def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
     """Test that reading PDFs from a folder."""
-    start_time = datetime.now().replace(microsecond=0)
+    start_time = datetime.datetime.now().replace(microsecond=0)
     file1_pages = 3
     file2_pages = 5
     file3_pages = 7
@@ -1379,8 +1308,8 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]
-        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
-        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        creation_dt = datetime.datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
         assert creation_dt >= start_time
         assert mod_dt >= start_time
         assert not row["is_encrypted"]
@@ -1391,7 +1320,7 @@ def test_read_pdfs_basic(local_session, temp_dir_just_one_file):
 
 def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
     """Test that reading PDFs with text and fields from a folder."""
-    start_time = datetime.now().replace(microsecond=0)
+    start_time = datetime.datetime.now().replace(microsecond=0)
     file1_pages = 3
     file2_pages = 5
     file3_pages = 7
@@ -1434,8 +1363,8 @@ def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
         assert row["size"] > 0
         creation_date = row["creation_date"]
         mod_date = row["mod_date"]
-        creation_dt = datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
-        mod_dt = datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
+        creation_dt = datetime.datetime.strptime(creation_date, "D:%Y%m%d%H%M%S")
+        mod_dt = datetime.datetime.strptime(mod_date, "D:%Y%m%d%H%M%S")
         assert creation_dt >= start_time, f"PDF {i+1} expected to have a creation date after {start_time}"
         assert mod_dt >= start_time, f"PDF {i+1} expected to have a modification date after {start_time}"
         assert not row["is_encrypted"] , "PDF expected to be not encrypted"

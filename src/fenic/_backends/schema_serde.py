@@ -15,6 +15,7 @@ from fenic.core.types import (
 )
 from fenic.core.types.datatypes import (
     _BooleanType,
+    _DateType,
     _DoubleType,
     _FloatType,
     _HtmlType,
@@ -22,6 +23,7 @@ from fenic.core.types.datatypes import (
     _JsonType,
     _MarkdownType,
     _StringType,
+    _TimestampType,
 )
 
 _TYPE_MAPPING: Dict[str, Type[DataType]] = {
@@ -30,6 +32,8 @@ _TYPE_MAPPING: Dict[str, Type[DataType]] = {
     "FloatType": _FloatType,
     "DoubleType": _DoubleType,
     "BooleanType": _BooleanType,
+    "DateType": _DateType,
+    "TimestampType": _TimestampType,
     "ArrayType": ArrayType,
     "StructType": StructType,
     "StructField": StructField,

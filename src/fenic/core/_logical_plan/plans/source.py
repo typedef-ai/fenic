@@ -11,6 +11,7 @@ from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.schema import convert_polars_schema_to_custom_schema
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
+from fenic.core.types.enums import DocContentType
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan.expressions.base import LogicalExpr
@@ -197,13 +198,13 @@ class DocSource(LogicalPlan):
     def __init__(
         self,
         paths: list[str],
-        valid_file_extension: Literal["md", "json", "pdf"],
+        content_type: DocContentType,
         exclude: Optional[str] = None,
         recursive: bool = False,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None):
         self._paths = paths
-        self._valid_file_extension = valid_file_extension
+        self._content_type = content_type
         self._exclude = exclude
         self._recursive = recursive
         super().__init__(session_state, schema)
@@ -212,27 +213,27 @@ class DocSource(LogicalPlan):
     def from_session_state(
         cls,
         paths: list[str],
-        valid_file_extension: Literal["md", "json", "pdf"],
+        content_type: DocContentType,
         exclude: Optional[str] = None,
         recursive: bool = False,
         session_state: Optional[BaseSessionState] = None,
     ) -> DocSource:
-        return DocSource(paths, valid_file_extension, exclude, recursive, session_state, None)
+        return DocSource(paths, content_type, exclude, recursive, session_state, None)
 
     @classmethod
     def from_schema(
         cls,
         paths: list[str],
-        valid_file_extension: Literal["md", "json", "pdf"],
+        content_type: DocContentType,
         exclude: Optional[str] = None,
         recursive: bool = False,
         schema: Optional[Schema] = None,
     ) -> DocSource:
-        return DocSource(paths, valid_file_extension, exclude, recursive, None, schema)
+        return DocSource(paths, content_type, exclude, recursive, None, schema)
 
     def _build_schema(self, session_state: BaseSessionState) -> Schema:
         DocFolderLoader.validate_paths(self._paths)
-        return DocFolderLoader.get_schema(self._valid_file_extension)
+        return DocFolderLoader.get_schema(self._content_type)
 
     def children(self) -> List[LogicalPlan]:
         return []
@@ -241,18 +242,18 @@ class DocSource(LogicalPlan):
         return []
 
     def _repr(self) -> str:
-        return f"DocSource(path={self._paths}, valid_file_extension={self._valid_file_extension}, exclude={self._exclude}, recursive={self._recursive})"
+        return f"DocSource(path={self._paths}, content_type={self._content_type}, exclude={self._exclude}, recursive={self._recursive})"
 
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 0:
             raise InternalError(f"DocSource must have no children, got {len(children)}")
         result = DocSource.from_schema(
-            self._paths, self._valid_file_extension, self._exclude, self._recursive, self._schema)
+            self._paths, self._content_type, self._exclude, self._recursive, self._schema)
         result.set_cache_info(self.cache_info)
         return result
 
     def _eq_specific(self, other: DocSource) -> bool:
         return (self._paths == other._paths and
-                self._valid_file_extension == other._valid_file_extension and
+                self._content_type == other._content_type and
                 self._exclude == other._exclude and
                 self._recursive == other._recursive)

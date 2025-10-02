@@ -32,6 +32,7 @@ from fenic.core._logical_plan.plans.join import (
 )
 from fenic.core._logical_plan.plans.sink import FileSink, TableSink
 from fenic.core._logical_plan.plans.source import (
+    DocSource,
     FileSource,
     InMemorySource,
     TableSource,
@@ -187,6 +188,34 @@ class TestSourcePlans:
         table3 = TableSource.from_schema("products", schema)
         assert table1 != table3
 
+    def test_doc_source(self):
+        """Test DocSource compares paths and format."""
+        schema = Schema([ColumnField("x", IntegerType)])
+
+        # Same paths and format
+        doc1 = DocSource.from_schema(["data.md"], "md", None, False, schema)
+        doc2 = DocSource.from_schema(["data.md"], "md", None, False, schema)
+        assert doc1 == doc2
+
+        # recursive vs not recursive
+        doc3 = DocSource.from_schema(["data.md"], "md", None, True, schema)
+        assert doc1 != doc3
+
+        # Different paths
+        doc4 = DocSource.from_schema(["other.md"], "md", None, False, schema)
+        doc5 = DocSource.from_schema(["data.md", "data/**/*.md"], "md", None, False, schema)
+        assert doc1 != doc4
+        assert doc1 != doc5
+
+        # Different exclude
+        doc6 = DocSource.from_schema(["data.md"], "md", "exclude_pattern_1", False, schema)
+        doc7 = DocSource.from_schema(["data.md"], "md", "exclude_pattern_2", False, schema)
+        assert doc1 != doc6
+        assert doc6 != doc7
+
+        # Different format
+        doc8 = DocSource.from_schema(["data.json"], "json", None, False, schema)
+        assert doc1 != doc8
 
 class TestTransformPlans:
     """Test equality for transform plans."""

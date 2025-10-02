@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class DataType(_message.Message):
-    __slots__ = ("string", "integer", "float", "double", "boolean", "array", "struct", "embedding", "transcript", "document_path", "markdown", "html", "json")
+    __slots__ = ("string", "integer", "float", "double", "boolean", "array", "struct", "embedding", "transcript", "document_path", "markdown", "html", "json", "date", "timestamp")
     STRING_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
     FLOAT_FIELD_NUMBER: _ClassVar[int]
@@ -20,6 +20,8 @@ class DataType(_message.Message):
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     HTML_FIELD_NUMBER: _ClassVar[int]
     JSON_FIELD_NUMBER: _ClassVar[int]
+    DATE_FIELD_NUMBER: _ClassVar[int]
+    TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     string: StringType
     integer: IntegerType
     float: FloatType
@@ -33,7 +35,9 @@ class DataType(_message.Message):
     markdown: MarkdownType
     html: HTMLType
     json: JSONType
-    def __init__(self, string: _Optional[_Union[StringType, _Mapping]] = ..., integer: _Optional[_Union[IntegerType, _Mapping]] = ..., float: _Optional[_Union[FloatType, _Mapping]] = ..., double: _Optional[_Union[DoubleType, _Mapping]] = ..., boolean: _Optional[_Union[BooleanType, _Mapping]] = ..., array: _Optional[_Union[ArrayType, _Mapping]] = ..., struct: _Optional[_Union[StructType, _Mapping]] = ..., embedding: _Optional[_Union[EmbeddingType, _Mapping]] = ..., transcript: _Optional[_Union[TranscriptType, _Mapping]] = ..., document_path: _Optional[_Union[DocumentPathType, _Mapping]] = ..., markdown: _Optional[_Union[MarkdownType, _Mapping]] = ..., html: _Optional[_Union[HTMLType, _Mapping]] = ..., json: _Optional[_Union[JSONType, _Mapping]] = ...) -> None: ...
+    date: DateType
+    timestamp: TimestampType
+    def __init__(self, string: _Optional[_Union[StringType, _Mapping]] = ..., integer: _Optional[_Union[IntegerType, _Mapping]] = ..., float: _Optional[_Union[FloatType, _Mapping]] = ..., double: _Optional[_Union[DoubleType, _Mapping]] = ..., boolean: _Optional[_Union[BooleanType, _Mapping]] = ..., array: _Optional[_Union[ArrayType, _Mapping]] = ..., struct: _Optional[_Union[StructType, _Mapping]] = ..., embedding: _Optional[_Union[EmbeddingType, _Mapping]] = ..., transcript: _Optional[_Union[TranscriptType, _Mapping]] = ..., document_path: _Optional[_Union[DocumentPathType, _Mapping]] = ..., markdown: _Optional[_Union[MarkdownType, _Mapping]] = ..., html: _Optional[_Union[HTMLType, _Mapping]] = ..., json: _Optional[_Union[JSONType, _Mapping]] = ..., date: _Optional[_Union[DateType, _Mapping]] = ..., timestamp: _Optional[_Union[TimestampType, _Mapping]] = ...) -> None: ...
 
 class StringType(_message.Message):
     __slots__ = ()
@@ -52,6 +56,14 @@ class DoubleType(_message.Message):
     def __init__(self) -> None: ...
 
 class BooleanType(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class DateType(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class TimestampType(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

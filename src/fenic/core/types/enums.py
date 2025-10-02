@@ -98,3 +98,29 @@ Valid values:
 - "right": Strip characters from the right side.
 - "both": Strip characters from both sides.
 """
+
+DocContentType = Literal["markdown", "json", "pdf"]
+"""
+Type alias representing the type of document content.
+
+Valid values:
+
+- "markdown": Markdown format.
+- "json": JSON format.
+- "pdf": PDF format.
+"""
+
+DateTimeUnit = Literal["year", "month", "day", "hour", "minute", "second", "millisecond"]
+"""
+Type alias representing the supported date part or time unit to be used in date functions.
+
+Valid values:
+
+- "year": Year.
+- "month": Month.
+- "day": Day.
+- "hour": Hour.
+- "minute": Minute.
+- "second": Second.
+- "millisecond": Millisecond.
+"""

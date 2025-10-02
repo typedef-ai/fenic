@@ -192,6 +192,50 @@ class _BooleanType(_PrimitiveType):
         return isinstance(other, _BooleanType)
 
 
+@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class _DateType(_PrimitiveType):
+    def __str__(self) -> str:
+        """Return a string representation of the date type.
+
+        Returns:
+            The string "DateType".
+        """
+        return "DateType"
+
+    def __eq__(self, other: object) -> bool:
+        """Compare this date type with another object for equality.
+
+        Args:
+            other: The object to compare with.
+
+        Returns:
+            True if the other object is also a date type, False otherwise.
+        """
+        return isinstance(other, _DateType)
+
+
+@dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
+class _TimestampType(_PrimitiveType):
+    def __str__(self) -> str:
+        """Return a string representation of the timestamp type.
+
+        Returns:
+            The string "TimestampType".
+        """
+        return "TimestampType"
+
+    def __eq__(self, other: object) -> bool:
+        """Compare this timestamp type with another object for equality.
+
+        Args:
+            other: The object to compare with.
+
+        Returns:
+            True if the other object is also a timestamp type, False otherwise.
+        """
+        return isinstance(other, _TimestampType)
+
+
 # === Composite and Parameterized Types ===
 
 
@@ -514,6 +558,12 @@ DoubleType = _DoubleType()
 
 BooleanType = _BooleanType()
 """Represents a boolean value. (True/False)"""
+
+DateType = _DateType()
+"""Represents a date value."""
+
+TimestampType = _TimestampType()
+"""Represents a timestamp value."""
 
 MarkdownType = _MarkdownType()
 """Represents a string containing Markdown-formatted text."""

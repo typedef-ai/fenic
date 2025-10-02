@@ -1,3 +1,4 @@
+import re
 import uuid
 
 
@@ -20,7 +21,7 @@ def get_content_hash(content: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, content))[:8]
 
 
-def generate_unique_arrow_view_name() -> str:
+def generate_unique_view_name() -> str:
     """Generate a unique temporary view name for an Arrow table.
 
     This is useful for assigning a one-off name to a view or table when
@@ -30,7 +31,17 @@ def generate_unique_arrow_view_name() -> str:
         A string representing a unique temporary view name.
 
     Example:
-        >>> generate_unique_arrow_view_name()
-        'temp_arrow_view_1a2b3c4d5e6f...'
+        >>> generate_unique_view_name()
+        'temp_view_1a2b3c4d5e6f...'
     """
-    return f"temp_arrow_view_{uuid.uuid4().hex}"
+    return f"temp_view_{uuid.uuid4().hex}"
+
+def to_snake_case(name: str) -> str:
+    result = name
+    return "_".join(
+        re.sub(
+            "([A-Z][a-z]+)",
+            r" \1",
+            re.sub("([A-Z]+)", r" \1", result.replace("-", " ")),
+        ).split()
+    ).lower()
