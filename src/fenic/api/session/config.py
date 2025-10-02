@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import os
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+logger = logging.getLogger(__name__)
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
@@ -1140,7 +1142,7 @@ class SemanticConfig(BaseModel):
         if not self.language_models and not self.embedding_models:
             return self
 
-        # Validate: only one Ollama model unless override is set (check this FIRST before other validations)
+        # Warn if multiple Ollama models are configured
         ollama_models = []
 
         if self.language_models:
@@ -1154,20 +1156,13 @@ class SemanticConfig(BaseModel):
                     ollama_models.append(f"embedding model '{alias}' ({model.model_name})")
 
         if len(ollama_models) > 1:
-            # Check environment variable override (primarily for testing)
-            allow_multiple = os.getenv("FENIC_ALLOW_MULTIPLE_OLLAMA_MODELS", "false").lower() == "true"
-
-            if not allow_multiple:
-                models_list = ", ".join(ollama_models)
-                raise ConfigurationError(
-                    f"Multiple Ollama models are not currently supported in a single session "
-                    f"due to memory constraints. Found: {models_list}.\n\n"
-                    f"Ollama models share VRAM/RAM and may not fit in memory simultaneously. "
-                    f"Please configure only one Ollama model per session, or use separate sessions "
-                    f"for different Ollama models.\n\n"
-                    f"Advanced: Set FENIC_ALLOW_MULTIPLE_OLLAMA_MODELS=true to override this check "
-                    f"(may cause 503 errors and performance issues)."
-                )
+            models_list = ", ".join(ollama_models)
+            logger.warning(
+                f"Multiple Ollama models detected in session: {models_list}.\n\n"
+                f"This configuration is only recommended if both models fit in VRAM/RAM simultaneously. "
+                f"If models don't fit, Ollama will unload and reload them on each request, "
+                f"causing significant performance degradation."
+            )
 
         # Validate language models if provided
         if self.language_models:
