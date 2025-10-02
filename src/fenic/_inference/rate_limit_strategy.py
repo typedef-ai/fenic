@@ -407,170 +407,35 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
         return f"SeparatedTokenRateLimitStrategy(rpm={self.rpm}, input_tpm={self.input_tpm}, output_tpm={self.output_tpm})"
 
 
-class OllamaQueueAwareRateLimitStrategy(RateLimitStrategy):
-    """Simple rate limiting strategy optimized for Ollama's local model constraints.
+class OllamaPassThroughRateLimitStrategy(RateLimitStrategy):
+    """Minimal rate limiting strategy for Ollama.
 
-    Uses a global completion time rolling average to adaptively adjust dispatch rate.
-    When Ollama's queue is full (HTTP 503), backs off intelligently.
+    This strategy relies entirely on Ollama's server-side queue management
+    and error responses. It does not perform any client-side rate limiting.
 
-    Key Features:
-    - Simple global completion time tracking with rolling average
-    - Adaptive dispatch rate based on actual completion performance
-    - Intelligent handling of Ollama's 503 (queue full) responses
-    - Respects OLLAMA_NUM_PARALLEL for concurrent requests
+    - check_and_consume_rate_limit: Always returns True (no client-side limiting)
+    - backoff: No-op (handled by retry logic in ModelClient)
+    - Transient errors (503, queue full) are handled by exponential backoff in ModelClient
+
+    This is appropriate for Ollama because:
+    1. Ollama manages its own queue (default 512 requests)
+    2. Users typically have exclusive access to their local Ollama instance
+    3. Server-side queue management is more accurate than client-side estimation
     """
 
-    def __init__(
-        self,
-        ollama_num_parallel: Optional[int] = None,
-        completion_time_window: int = 50,
-        min_dispatch_interval: float = 0.1,
-        max_dispatch_interval: float = 5.0,
-    ):
-        """Initialize the Ollama queue-aware rate limiting strategy.
-
-        Args:
-            ollama_num_parallel: Max parallel requests. If None, reads from
-                OLLAMA_NUM_PARALLEL env var (default: 1)
-            completion_time_window: Number of completions to track for rolling average
-            min_dispatch_interval: Minimum seconds between dispatches (max rate)
-            max_dispatch_interval: Maximum seconds between dispatches (min rate)
-        """
-        # Initialize with a high RPM since we're not really using the traditional RPM approach
-        super().__init__(rpm=1000)
-
-        self.ollama_num_parallel = ollama_num_parallel or int(os.getenv("OLLAMA_NUM_PARALLEL", "1"))
-        self.completion_time_window = completion_time_window
-        self.min_dispatch_interval = min_dispatch_interval
-        self.max_dispatch_interval = max_dispatch_interval
-
-        # Global completion tracking
-        self.completion_times = deque(maxlen=completion_time_window)
-        self.dispatch_interval = 0.1  # Start with minimum interval
-        self.in_flight_count = 0
-
-        # Queue state tracking
-        self.backoff_until = 0.0
-        self._last_dispatch_time = 0.0
-
-        logger.debug(
-            f"OllamaQueueAware strategy initialized: "
-            f"num_parallel={self.ollama_num_parallel}"
-        )
+    def __init__(self):
+        """Initialize pass-through strategy."""
+        # Initialize parent with dummy RPM (not used)
+        super().__init__(rpm=999_999)
 
     def check_and_consume_rate_limit(self, token_estimate: TokenEstimate) -> bool:
-        """Check if we should dispatch a request immediately.
-
-        Args:
-            token_estimate: Token estimate for the request
-
-        Returns:
-            True if request should be dispatched immediately, False to retry later
-        """
-        with self.mutex:
-            current_time = time.time()
-
-            # Check if we're in backoff mode due to recent 503
-            if current_time < self.backoff_until:
-                return False
-
-            # Check if we have capacity for more in-flight requests
-            if self.in_flight_count >= self.ollama_num_parallel:
-                return False
-
-            # Check dispatch timing based on completion pattern
-            time_since_last = current_time - self._last_dispatch_time
-            if time_since_last < self.dispatch_interval:
-                return False
-
-            # Looks good to dispatch
-            self.in_flight_count += 1
-            self._last_dispatch_time = current_time
-            return True
-
-    def record_completion(self, completion_time: float, success: bool = True):
-        """Record completion time and update dispatch rate.
-
-        Args:
-            completion_time: Total time from request to response (seconds)
-            success: Whether the request was successful
-        """
-        with self.mutex:
-            # Decrement in-flight count
-            self.in_flight_count = max(0, self.in_flight_count - 1)
-
-            if success:
-                # Record completion time and update dispatch rate
-                self.completion_times.append(completion_time)
-                self._update_dispatch_rate()
-
-                # Clear backoff if we had successful completion
-                self.backoff_until = 0.0
-
-    def record_503_error(self):
-        """Record that Ollama's queue is full (HTTP 503)."""
-        with self.mutex:
-            current_time = time.time()
-
-            # Implement simple backoff for 503s
-            backoff_seconds = 2.0  # Simple 2 second backoff
-            self.backoff_until = current_time + backoff_seconds
-
-            logger.warning(f"Ollama queue full (503). Backing off for {backoff_seconds:.2f}s")
+        """Always returns True - no client-side rate limiting."""
+        return True
 
     def backoff(self, curr_time: float) -> int:
-        """Handle backoff for various error conditions."""
-        # We handle our own backoff timing internally
+        """No-op backoff - handled by ModelClient retry logic."""
         return 0
 
     def context_tokens_per_minute(self) -> int:
-        """Return a high limit since local models don't have token-based pricing."""
-        return 1_000_000
-
-    def _update_dispatch_rate(self):
-        """Update dispatch rate based on completion times."""
-        if len(self.completion_times) < 1:  # Need at least one sample
-            return
-
-        avg_completion_time = sum(self.completion_times) / len(self.completion_times)
-
-        # Calculate optimal dispatch interval
-        # If completions are fast, we can dispatch more frequently
-        # If completions are slow, we should dispatch less frequently
-        base_interval = avg_completion_time / self.ollama_num_parallel
-
-        # Apply bounds
-        dispatch_interval = max(
-            self.min_dispatch_interval,
-            min(self.max_dispatch_interval, base_interval)
-        )
-
-        old_interval = self.dispatch_interval
-        self.dispatch_interval = dispatch_interval
-
-        logger.debug(
-            f"Updated dispatch: avg_completion={avg_completion_time:.2f}s, "
-            f"interval: {old_interval:.2f}s -> {dispatch_interval:.2f}s"
-        )
-
-    def get_stats(self) -> Dict:
-        """Get performance statistics."""
-        with self.mutex:
-            if not self.completion_times:
-                return {}
-
-            return {
-                'avg_completion_time': sum(self.completion_times) / len(self.completion_times),
-                'min_completion_time': min(self.completion_times),
-                'max_completion_time': max(self.completion_times),
-                'sample_count': len(self.completion_times),
-                'dispatch_interval': self.dispatch_interval,
-                'in_flight_requests': self.in_flight_count,
-            }
-
-    def __str__(self):
-        return (
-            f"OllamaQueueAwareRateLimitStrategy("
-            f"num_parallel={self.ollama_num_parallel}, "
-            f"in_flight={self.in_flight_count})"
-        )
+        """Returns a very large number since we don't track tokens client-side."""
+        return 999_999_999  # Effectively unlimited

@@ -160,18 +160,9 @@ class OllamaBatchChatCompletionsClient(
             # Handle structured output using Ollama's JSON mode
             if request.structured_output:
                 # Use Ollama's format parameter for JSON mode
+                # Note: Don't add schema to prompt - Fenic already includes prompt_schema_definition
+                # in the system message with field names and descriptions
                 common_params["format"] = "json"
-
-                # Add schema to the system message
-                messages = common_params["messages"]
-                if messages and messages[0].get("role") == "system":
-                    system_msg_content = messages[0]["content"]
-                    schema_prompt = f"\n\nPlease respond with valid JSON that matches this schema:\n{json.dumps(request.structured_output.json_schema, indent=2)}"
-                    messages[0]["content"] = system_msg_content + schema_prompt
-                else:
-                    # Add a system message if none exists
-                    schema_prompt = f"Please respond with valid JSON that matches this schema:\n{json.dumps(request.structured_output.json_schema, indent=2)}"
-                    messages.insert(0, {"role": "system", "content": schema_prompt})
 
             # Also detect if the prompt is asking for JSON and enable JSON mode
             elif "json" in str(request.messages.system).lower() or "json" in str(request.messages.user).lower():

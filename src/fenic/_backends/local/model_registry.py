@@ -244,7 +244,8 @@ class SessionModelRegistry:
                 )
             elif isinstance(model_config, ResolvedOllamaModelConfig):
                 from fenic._inference.ollama.ollama_batch_embeddings_client import OllamaBatchEmbeddingsClient
-                rate_limit_strategy = UnifiedTokenRateLimitStrategy(rpm=model_config.rpm, tpm=100000)  # High TPM for local models
+                from fenic._inference.rate_limit_strategy import OllamaPassThroughRateLimitStrategy
+                rate_limit_strategy = OllamaPassThroughRateLimitStrategy()  # Rely on Ollama's server-side queue management
                 client = OllamaBatchEmbeddingsClient(
                     rate_limit_strategy=rate_limit_strategy,
                     model=model_config.model_name,
@@ -331,8 +332,8 @@ class SessionModelRegistry:
                 )
             elif isinstance(model_config, ResolvedOllamaModelConfig):
                 from fenic._inference.ollama.ollama_batch_chat_completions_client import OllamaBatchChatCompletionsClient
-                from fenic._inference.rate_limit_strategy import OllamaQueueAwareRateLimitStrategy
-                rate_limit_strategy = OllamaQueueAwareRateLimitStrategy()  # Optimized for Ollama's queue constraints
+                from fenic._inference.rate_limit_strategy import OllamaPassThroughRateLimitStrategy
+                rate_limit_strategy = OllamaPassThroughRateLimitStrategy()  # Rely on Ollama's server-side queue management
                 client = OllamaBatchChatCompletionsClient(
                     model=model_config.model_name,
                     rate_limit_strategy=rate_limit_strategy,

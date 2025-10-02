@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional, Union
@@ -1139,6 +1140,35 @@ class SemanticConfig(BaseModel):
         if not self.language_models and not self.embedding_models:
             return self
 
+        # Validate: only one Ollama model unless override is set (check this FIRST before other validations)
+        ollama_models = []
+
+        if self.language_models:
+            for alias, model in self.language_models.items():
+                if isinstance(model, OllamaLanguageModel):
+                    ollama_models.append(f"language model '{alias}' ({model.model_name})")
+
+        if self.embedding_models:
+            for alias, model in self.embedding_models.items():
+                if isinstance(model, OllamaEmbeddingModel):
+                    ollama_models.append(f"embedding model '{alias}' ({model.model_name})")
+
+        if len(ollama_models) > 1:
+            # Check environment variable override (primarily for testing)
+            allow_multiple = os.getenv("FENIC_ALLOW_MULTIPLE_OLLAMA_MODELS", "false").lower() == "true"
+
+            if not allow_multiple:
+                models_list = ", ".join(ollama_models)
+                raise ConfigurationError(
+                    f"Multiple Ollama models are not currently supported in a single session "
+                    f"due to memory constraints. Found: {models_list}.\n\n"
+                    f"Ollama models share VRAM/RAM and may not fit in memory simultaneously. "
+                    f"Please configure only one Ollama model per session, or use separate sessions "
+                    f"for different Ollama models.\n\n"
+                    f"Advanced: Set FENIC_ALLOW_MULTIPLE_OLLAMA_MODELS=true to override this check "
+                    f"(may cause 503 errors and performance issues)."
+                )
+
         # Validate language models if provided
         if self.language_models:
             available_language_model_aliases = list(self.language_models.keys())
@@ -1208,7 +1238,6 @@ class SemanticConfig(BaseModel):
 
                     for profile_alias, profile in embedding_model.profiles.items():
                         _validate_embedding_profile(embedding_model_parameters, model_alias, profile_alias, profile)
-
 
         return self
 
