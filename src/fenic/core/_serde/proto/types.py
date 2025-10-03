@@ -146,16 +146,55 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArithmeticExpr as ArithmeticExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayCompactExpr as ArrayCompactExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayContainsExpr as ArrayContainsExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayDistinctExpr as ArrayDistinctExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayExceptExpr as ArrayExceptExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayExpr as ArrayExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayIntersectExpr as ArrayIntersectExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayJoinExpr as ArrayJoinExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ArrayLengthExpr as ArrayLengthExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayMaxExpr as ArrayMaxExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayMinExpr as ArrayMinExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayRemoveExpr as ArrayRemoveExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayRepeatExpr as ArrayRepeatExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayReverseExpr as ArrayReverseExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArraySliceExpr as ArraySliceExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArraySortExpr as ArraySortExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArraysOverlapExpr as ArraysOverlapExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ArrayUnionExpr as ArrayUnionExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     AvgExpr as AvgExprProto,
@@ -209,6 +248,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     DayExpr as DayExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    ElementAtExpr as ElementAtExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Embedding expressions
     EmbeddingNormalizeExpr as EmbeddingNormalizeExprProto,
 )
@@ -226,6 +268,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     FirstExpr as FirstExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    FlattenExpr as FlattenExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     FromUTCTimestampExpr as FromUTCTimestampExprProto,
@@ -577,6 +622,21 @@ __all__ = [
     "IsNullExprProto",
     "ArrayLengthExprProto",
     "ArrayContainsExprProto",
+    "ArrayDistinctExprProto",
+    "ArrayMaxExprProto",
+    "ArrayMinExprProto",
+    "ArraySortExprProto",
+    "ArrayReverseExprProto",
+    "ArrayRemoveExprProto",
+    "ArrayUnionExprProto",
+    "ArrayIntersectExprProto",
+    "ArrayExceptExprProto",
+    "ArrayCompactExprProto",
+    "ArrayRepeatExprProto",
+    "FlattenExprProto",
+    "ArraySliceExprProto",
+    "ElementAtExprProto",
+    "ArraysOverlapExprProto",
     "GreatestExprProto",
     "LeastExprProto",
     # Binary Exprs

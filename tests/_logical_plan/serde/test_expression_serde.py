@@ -16,11 +16,24 @@ from fenic.core._logical_plan.expressions import (
     ApproxCountDistinctExpr,
     # Arithmetic expressions
     ArithmeticExpr,
+    ArrayCompactExpr,
     ArrayContainsExpr,
+    ArrayDistinctExpr,
+    ArrayExceptExpr,
     ArrayExpr,
+    ArrayIntersectExpr,
     # Text expressions
     ArrayJoinExpr,
     ArrayLengthExpr,
+    ArrayMaxExpr,
+    ArrayMinExpr,
+    ArrayRemoveExpr,
+    ArrayRepeatExpr,
+    ArrayReverseExpr,
+    ArraySliceExpr,
+    ArraySortExpr,
+    ArraysOverlapExpr,
+    ArrayUnionExpr,
     AsyncUDFExpr,
     AvgExpr,
     # Comparison expressions
@@ -40,6 +53,7 @@ from fenic.core._logical_plan.expressions import (
     DateFormatExpr,
     DateTruncExpr,
     DayExpr,
+    ElementAtExpr,
     # Embedding expressions
     EmbeddingNormalizeExpr,
     EmbeddingsExpr,
@@ -47,6 +61,7 @@ from fenic.core._logical_plan.expressions import (
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FlattenExpr,
     FromUTCTimestampExpr,
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
@@ -248,6 +263,66 @@ expression_examples = {
             ArrayExpr([LiteralExpr("a", StringType)]),
             LiteralExpr("a", StringType),
         ),
+    ],
+    ArrayDistinctExpr: [
+        ArrayDistinctExpr(ColumnExpr("array_col")),
+        ArrayDistinctExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType), LiteralExpr(1, IntegerType)])),
+    ],
+    ArrayMaxExpr: [
+        ArrayMaxExpr(ColumnExpr("array_col")),
+        ArrayMaxExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(5, IntegerType), LiteralExpr(3, IntegerType)])),
+    ],
+    ArrayMinExpr: [
+        ArrayMinExpr(ColumnExpr("array_col")),
+        ArrayMinExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(5, IntegerType), LiteralExpr(3, IntegerType)])),
+    ],
+    ArraySortExpr: [
+        ArraySortExpr(ColumnExpr("array_col")),
+        ArraySortExpr(ArrayExpr([LiteralExpr(3, IntegerType), LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)])),
+    ],
+    ArrayReverseExpr: [
+        ArrayReverseExpr(ColumnExpr("array_col")),
+        ArrayReverseExpr(ArrayExpr([LiteralExpr("a", StringType), LiteralExpr("b", StringType)])),
+    ],
+    ArrayRemoveExpr: [
+        ArrayRemoveExpr(ColumnExpr("array_col"), LiteralExpr(2, IntegerType)),
+        ArrayRemoveExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType), LiteralExpr(3, IntegerType)]), LiteralExpr(2, IntegerType)),
+    ],
+    ArrayUnionExpr: [
+        ArrayUnionExpr(ColumnExpr("array_col1"), ColumnExpr("array_col2")),
+        ArrayUnionExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)]), ArrayExpr([LiteralExpr(2, IntegerType), LiteralExpr(3, IntegerType)])),
+    ],
+    ArrayIntersectExpr: [
+        ArrayIntersectExpr(ColumnExpr("array_col1"), ColumnExpr("array_col2")),
+        ArrayIntersectExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)]), ArrayExpr([LiteralExpr(2, IntegerType), LiteralExpr(3, IntegerType)])),
+    ],
+    ArrayExceptExpr: [
+        ArrayExceptExpr(ColumnExpr("array_col1"), ColumnExpr("array_col2")),
+        ArrayExceptExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)]), ArrayExpr([LiteralExpr(2, IntegerType)])),
+    ],
+    ArrayCompactExpr: [
+        ArrayCompactExpr(ColumnExpr("array_col")),
+        ArrayCompactExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(None, IntegerType), LiteralExpr(3, IntegerType)])),
+    ],
+    ArrayRepeatExpr: [
+        ArrayRepeatExpr(LiteralExpr("x", StringType), LiteralExpr(3, IntegerType)),
+        ArrayRepeatExpr(ColumnExpr("value_col"), ColumnExpr("count_col")),
+    ],
+    FlattenExpr: [
+        FlattenExpr(ColumnExpr("nested_array_col")),
+        FlattenExpr(ArrayExpr([ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)]), ArrayExpr([LiteralExpr(3, IntegerType)])])),
+    ],
+    ArraySliceExpr: [
+        ArraySliceExpr(ColumnExpr("array_col"), LiteralExpr(1, IntegerType), LiteralExpr(3, IntegerType)),
+        ArraySliceExpr(ArrayExpr([LiteralExpr("a", StringType), LiteralExpr("b", StringType), LiteralExpr("c", StringType)]), LiteralExpr(2, IntegerType), LiteralExpr(2, IntegerType)),
+    ],
+    ElementAtExpr: [
+        ElementAtExpr(ColumnExpr("array_col"), LiteralExpr(1, IntegerType)),
+        ElementAtExpr(ArrayExpr([LiteralExpr(10, IntegerType), LiteralExpr(20, IntegerType), LiteralExpr(30, IntegerType)]), LiteralExpr(-1, IntegerType)),
+    ],
+    ArraysOverlapExpr: [
+        ArraysOverlapExpr(ColumnExpr("array_col1"), ColumnExpr("array_col2")),
+        ArraysOverlapExpr(ArrayExpr([LiteralExpr(1, IntegerType), LiteralExpr(2, IntegerType)]), ArrayExpr([LiteralExpr(2, IntegerType), LiteralExpr(3, IntegerType)])),
     ],
     CastExpr: [
         CastExpr(ColumnExpr("int_col"), StringType),

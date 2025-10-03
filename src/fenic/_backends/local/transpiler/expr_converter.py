@@ -41,10 +41,23 @@ from fenic.core._logical_plan.expressions import (
     AnalyzeSentimentExpr,
     ApproxCountDistinctExpr,
     ArithmeticExpr,
+    ArrayCompactExpr,
     ArrayContainsExpr,
+    ArrayDistinctExpr,
+    ArrayExceptExpr,
     ArrayExpr,
+    ArrayIntersectExpr,
     ArrayJoinExpr,
     ArrayLengthExpr,
+    ArrayMaxExpr,
+    ArrayMinExpr,
+    ArrayRemoveExpr,
+    ArrayRepeatExpr,
+    ArrayReverseExpr,
+    ArraySliceExpr,
+    ArraySortExpr,
+    ArraysOverlapExpr,
+    ArrayUnionExpr,
     AsyncUDFExpr,
     AvgExpr,
     BooleanExpr,
@@ -64,12 +77,14 @@ from fenic.core._logical_plan.expressions import (
     DateFormatExpr,
     DateTruncExpr,
     DayExpr,
+    ElementAtExpr,
     EmbeddingNormalizeExpr,
     EmbeddingsExpr,
     EmbeddingSimilarityExpr,
     EndsWithExpr,
     EqualityComparisonExpr,
     FirstExpr,
+    FlattenExpr,
     FromUTCTimestampExpr,
     FuzzyRatioExpr,
     FuzzyTokenSetRatioExpr,
@@ -965,6 +980,108 @@ class ExprConverter:
         return self._convert_expr(logical.expr).list.len()
 
 
+    @_convert_expr.register(ArrayDistinctExpr)
+    def _convert_array_distinct_expr(self, logical: ArrayDistinctExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).list.unique()
+
+    @_convert_expr.register(ArrayMaxExpr)
+    def _convert_array_max_expr(self, logical: ArrayMaxExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).list.max()
+
+    @_convert_expr.register(ArrayMinExpr)
+    def _convert_array_min_expr(self, logical: ArrayMinExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).list.min()
+
+    @_convert_expr.register(ArraySortExpr)
+    def _convert_array_sort_expr(self, logical: ArraySortExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).list.sort()
+
+    @_convert_expr.register(ArrayReverseExpr)
+    def _convert_array_reverse_expr(self, logical: ArrayReverseExpr) -> pl.Expr:
+        return self._convert_expr(logical.expr).list.reverse()
+
+    @_convert_expr.register(ArrayRemoveExpr)
+    def _convert_array_remove_expr(self, logical: ArrayRemoveExpr) -> pl.Expr:
+        array_expr = self._convert_expr(logical.expr)
+        element_expr = self._convert_expr(logical.element)
+        # Filter out elements that match the target element
+        # Need to handle the case where element_expr might be a column reference
+        return array_expr.list.eval(pl.element().filter(pl.element() != element_expr.first()))
+
+    @_convert_expr.register(ArrayUnionExpr)
+    def _convert_array_union_expr(self, logical: ArrayUnionExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.left)
+        right_expr = self._convert_expr(logical.right)
+        # PySpark array_union returns distinct elements from both arrays
+        return left_expr.list.set_union(right_expr)
+
+    @_convert_expr.register(ArrayIntersectExpr)
+    def _convert_array_intersect_expr(self, logical: ArrayIntersectExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.left)
+        right_expr = self._convert_expr(logical.right)
+        # PySpark array_intersect returns distinct elements in both arrays
+        return left_expr.list.set_intersection(right_expr)
+
+    @_convert_expr.register(ArrayExceptExpr)
+    def _convert_array_except_expr(self, logical: ArrayExceptExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.left)
+        right_expr = self._convert_expr(logical.right)
+        # PySpark array_except returns distinct elements in left but not in right
+        return left_expr.list.set_difference(right_expr)
+
+    @_convert_expr.register(ArrayCompactExpr)
+    def _convert_array_compact_expr(self, logical: ArrayCompactExpr) -> pl.Expr:
+        # PySpark array_compact removes null values from array
+        return self._convert_expr(logical.expr).list.drop_nulls()
+
+    @_convert_expr.register(ArrayRepeatExpr)
+    def _convert_array_repeat_expr(self, logical: ArrayRepeatExpr) -> pl.Expr:
+        element_expr = self._convert_expr(logical.element)
+        count_expr = self._convert_expr(logical.count)
+        # PySpark array_repeat creates an array with element repeated count times
+        # Use struct + map_elements to repeat per row
+        return pl.struct([element_expr.alias("_elem"), count_expr.alias("_count")]).map_elements(
+            lambda row: [row["_elem"]] * row["_count"] if row["_count"] is not None else None,
+            skip_nulls=False
+        )
+
+    @_convert_expr.register(FlattenExpr)
+    def _convert_flatten_expr(self, logical: FlattenExpr) -> pl.Expr:
+        # PySpark flatten flattens one level of nesting (array of arrays -> array)
+        # Use list.eval to explode inner arrays and collect them
+        return self._convert_expr(logical.expr).list.eval(pl.element().explode())
+
+    @_convert_expr.register(ArraySliceExpr)
+    def _convert_array_slice_expr(self, logical: ArraySliceExpr) -> pl.Expr:
+        array_expr = self._convert_expr(logical.expr)
+        start_expr = self._convert_expr(logical.start)
+        length_expr = self._convert_expr(logical.length)
+        # PySpark slice uses 1-based indexing for start position
+        # Positive indices: convert 1-based to 0-based (subtract 1)
+        # Negative indices: keep as-is (both PySpark and Polars use -1 for last element)
+        adjusted_start = pl.when(start_expr > 0).then(start_expr - 1).otherwise(start_expr)
+        return array_expr.list.slice(adjusted_start, length_expr)
+
+    @_convert_expr.register(ElementAtExpr)
+    def _convert_element_at_expr(self, logical: ElementAtExpr) -> pl.Expr:
+        array_expr = self._convert_expr(logical.expr)
+        index_expr = self._convert_expr(logical.index)
+        # PySpark element_at uses 1-based indexing:
+        #   - Positive: 1 is first element (convert to 0-based by subtracting 1)
+        #   - Negative: -1 is last element (same in Polars, no conversion needed)
+        adjusted_index = pl.when(index_expr > 0).then(index_expr - 1).otherwise(index_expr)
+        return array_expr.list.get(adjusted_index)
+
+    @_convert_expr.register(ArraysOverlapExpr)
+    def _convert_arrays_overlap_expr(self, logical: ArraysOverlapExpr) -> pl.Expr:
+        left_expr = self._convert_expr(logical.left)
+        right_expr = self._convert_expr(logical.right)
+        # PySpark arrays_overlap returns true if arrays have at least one common element
+        # Check if intersection is non-empty
+        intersection = left_expr.list.set_intersection(right_expr)
+        return intersection.list.len() > 0
+
+
     @_convert_expr.register(CastExpr)
     def _convert_cast_expr(self, logical: CastExpr) -> pl.Expr:
         if not logical.source_type:
@@ -1401,7 +1518,7 @@ class ExprConverter:
 
     @_convert_expr.register(ToUTCTimestampExpr)
     def _convert_to_utc_timestamp_expr(self, logical: ToUTCTimestampExpr) -> pl.Expr:
-        return (self._convert_expr(logical.expr) 
+        return (self._convert_expr(logical.expr)
             .dt.replace_time_zone(logical.timezone)
             .dt.convert_time_zone("UTC"))
 

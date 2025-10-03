@@ -10,15 +10,30 @@ from fenic.api.column import Column, ColumnOrName
 from fenic.api.functions.core import lit
 from fenic.core._logical_plan.expressions import (
     ApproxCountDistinctExpr,
+    ArrayCompactExpr,
     ArrayContainsExpr,
+    ArrayDistinctExpr,
+    ArrayExceptExpr,
     ArrayExpr,
+    ArrayIntersectExpr,
     ArrayLengthExpr,
+    ArrayMaxExpr,
+    ArrayMinExpr,
+    ArrayRemoveExpr,
+    ArrayRepeatExpr,
+    ArrayReverseExpr,
+    ArraySliceExpr,
+    ArraySortExpr,
+    ArraysOverlapExpr,
+    ArrayUnionExpr,
     AsyncUDFExpr,
     AvgExpr,
     CoalesceExpr,
     CountDistinctExpr,
     CountExpr,
+    ElementAtExpr,
     FirstExpr,
+    FlattenExpr,
     GreatestExpr,
     LeastExpr,
     ListExpr,
@@ -707,6 +722,43 @@ def array_size(column: ColumnOrName) -> Column:
 
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_distinct(column: ColumnOrName) -> Column:
+    """Removes duplicate values from an array column.
+
+    Args:
+        column: Column or column name containing arrays.
+
+    Returns:
+        A new column that is an array of unique values from the input column.
+
+    Notes:
+        - Will attempt to preserve order of first appearances, but order is not guaranteed.
+
+    Example:
+        ```python
+        # create a dataframe with an array column with duplicates
+        df = session.create_dataframe({
+            "array_col": [[1, 2, 2, 3], [4, 4, 4], None]
+        })
+
+        # remove duplicates
+        df.select(array_distinct("array_col").alias("distinct_array"))
+        # Output:
+        # +--------------------+
+        # | distinct_array     |
+        # +--------------------+
+        # | [1, 2, 3]          |
+        # | [4]                |
+        # | None               |
+        # +--------------------+
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayDistinctExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def array_contains(
     column: ColumnOrName, value: Union[str, int, float, bool, Column]
 ) -> Column:
@@ -746,6 +798,347 @@ def array_contains(
     return Column._from_logical_expr(
         ArrayContainsExpr(
             Column._from_col_or_name(column)._logical_expr, value_column._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_max(column: ColumnOrName) -> Column:
+    """Returns the maximum value in an array.
+
+    Args:
+        column: Column or column name containing arrays of comparable types
+            (numeric, string, date, boolean). Does not work on arrays of structs.
+
+    Returns:
+        A Column containing the maximum value from each array.
+
+    Raises:
+        TypeMismatchError: If array contains non-comparable element types (e.g., structs).
+
+    Example:
+        ```python
+        df.select(array_max("numbers"))
+        df.select(array_max("dates"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayMaxExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_min(column: ColumnOrName) -> Column:
+    """Returns the minimum value in an array.
+
+    Args:
+        column: Column or column name containing arrays of comparable types
+            (numeric, string, date, boolean). Does not work on arrays of structs.
+
+    Returns:
+        A Column containing the minimum value from each array.
+
+    Raises:
+        TypeMismatchError: If array contains non-comparable element types (e.g., structs).
+
+    Example:
+        ```python
+        df.select(array_min("numbers"))
+        df.select(array_min("dates"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayMinExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_sort(column: ColumnOrName) -> Column:
+    """Sorts the array in ascending order.
+
+    Args:
+        column: Column or column name containing arrays of comparable types
+            (numeric, string, date, boolean). Does not work on arrays of structs.
+
+    Returns:
+        A Column with sorted arrays in ascending order.
+
+    Raises:
+        TypeMismatchError: If array contains non-comparable element types (e.g., structs).
+
+    Note:
+        Unlike PySpark's array_sort, this does not support a custom comparator function.
+        For custom sorting logic on complex types, consider using other transformations.
+
+    Example:
+        ```python
+        df.select(array_sort("numbers"))  # [3, 1, 2] -> [1, 2, 3]
+        df.select(array_sort("words"))    # ["cat", "apple", "bat"] -> ["apple", "bat", "cat"]
+        ```
+    """
+    return Column._from_logical_expr(
+        ArraySortExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def reverse(column: ColumnOrName) -> Column:
+    """Reverses the elements of an array.
+
+    Args:
+        column: Column or column name containing arrays.
+
+    Returns:
+        A Column with reversed arrays.
+
+    Example:
+        ```python
+        df.select(reverse("tags"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayReverseExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_remove(column: ColumnOrName, element: Union[str, int, float, bool, Column]) -> Column:
+    """Removes all occurrences of an element from an array.
+
+    Args:
+        column: Column or column name containing arrays.
+        element: Element to remove from the arrays.
+
+    Returns:
+        A Column with arrays having the element removed.
+
+    Example:
+        ```python
+        df.select(array_remove("tags", "deprecated"))
+        ```
+    """
+    element_column = element if isinstance(element, Column) else lit(element)
+    return Column._from_logical_expr(
+        ArrayRemoveExpr(
+            Column._from_col_or_name(column)._logical_expr,
+            element_column._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_union(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Returns the union of two arrays without duplicates.
+
+    Args:
+        col1: First array column.
+        col2: Second array column.
+
+    Returns:
+        A Column containing the union of both arrays.
+
+    Example:
+        ```python
+        df.select(array_union("tags1", "tags2"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayUnionExpr(
+            Column._from_col_or_name(col1)._logical_expr,
+            Column._from_col_or_name(col2)._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_intersect(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Returns the intersection of two arrays.
+
+    Args:
+        col1: First array column.
+        col2: Second array column.
+
+    Returns:
+        A Column containing elements present in both arrays.
+
+    Example:
+        ```python
+        df.select(array_intersect("tags1", "tags2"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayIntersectExpr(
+            Column._from_col_or_name(col1)._logical_expr,
+            Column._from_col_or_name(col2)._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_except(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Returns elements in the first array but not in the second.
+
+    Args:
+        col1: First array column.
+        col2: Second array column.
+
+    Returns:
+        A Column containing elements in col1 but not in col2.
+
+    Example:
+        ```python
+        df.select(array_except("all_tags", "deprecated_tags"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayExceptExpr(
+            Column._from_col_or_name(col1)._logical_expr,
+            Column._from_col_or_name(col2)._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_compact(column: ColumnOrName) -> Column:
+    """Removes null values from an array.
+
+    Args:
+        column: Column or column name containing arrays.
+
+    Returns:
+        A Column with arrays having null values removed.
+
+    Example:
+        ```python
+        df.select(array_compact("tags"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArrayCompactExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def array_repeat(col: ColumnOrName, count: Union[int, ColumnOrName]) -> Column:
+    """Creates an array containing the element repeated count times.
+
+    Args:
+        col: Column or value to repeat.
+        count: Number of times to repeat the element.
+
+    Returns:
+        A Column containing an array with the element repeated.
+
+    Example:
+        ```python
+        df.select(array_repeat(lit("x"), 3))  # Returns ["x", "x", "x"]
+        df.select(array_repeat(col("value"), col("count")))
+        ```
+    """
+    count_column = count if isinstance(count, Column) else lit(count)
+    return Column._from_logical_expr(
+        ArrayRepeatExpr(
+            Column._from_col_or_name(col)._logical_expr,
+            count_column._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def flatten(column: ColumnOrName) -> Column:
+    """Flattens an array of arrays into a single array.
+
+    Args:
+        column: Column or column name containing arrays of arrays.
+
+    Returns:
+        A Column with flattened arrays.
+
+    Example:
+        ```python
+        df.select(flatten("nested_arrays"))
+        ```
+    """
+    return Column._from_logical_expr(
+        FlattenExpr(Column._from_col_or_name(column)._logical_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def slice(column: ColumnOrName, start: Union[int, ColumnOrName], length: Union[int, ColumnOrName]) -> Column:
+    """Extracts a subarray from an array.
+
+    Args:
+        column: Column or column name containing arrays.
+        start: Starting position (1-based index).
+        length: Number of elements to extract.
+
+    Returns:
+        A Column with subarrays extracted.
+
+    Example:
+        ```python
+        df.select(slice("tags", 1, 3))  # First 3 elements
+        df.select(slice("tags", col("start_idx"), 2))
+        ```
+    """
+    start_column = start if isinstance(start, Column) else lit(start)
+    length_column = length if isinstance(length, Column) else lit(length)
+    return Column._from_logical_expr(
+        ArraySliceExpr(
+            Column._from_col_or_name(column)._logical_expr,
+            start_column._logical_expr,
+            length_column._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
+    """Returns the element at the given index in an array.
+
+    Args:
+        column: Column or column name containing arrays.
+        index: Index of the element (1-based).
+
+    Returns:
+        A Column containing the element at the specified index.
+
+    Example:
+        ```python
+        df.select(element_at("tags", 1))  # First element
+        df.select(element_at("tags", -1))  # Last element
+        ```
+    """
+    index_column = index if isinstance(index, Column) else lit(index)
+    return Column._from_logical_expr(
+        ElementAtExpr(
+            Column._from_col_or_name(column)._logical_expr,
+            index_column._logical_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def arrays_overlap(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+    """Checks if two arrays have at least one common element.
+
+    Args:
+        col1: First array column.
+        col2: Second array column.
+
+    Returns:
+        A boolean Column (True if arrays overlap, False otherwise).
+
+    Example:
+        ```python
+        df.select(arrays_overlap("tags1", "tags2"))
+        ```
+    """
+    return Column._from_logical_expr(
+        ArraysOverlapExpr(
+            Column._from_col_or_name(col1)._logical_expr,
+            Column._from_col_or_name(col2)._logical_expr
         )
     )
 
