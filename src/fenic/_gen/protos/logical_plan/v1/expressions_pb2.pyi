@@ -10,24 +10,39 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class LogicalExpr(_message.Message):
-    __slots__ = ("column", "literal", "alias", "sort", "index", "array", "struct", "cast", "not_expr", "coalesce", "in_expr", "is_null", "array_length", "array_contains", "greatest", "least", "unresolved_literal", "arithmetic", "boolean", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "semantic_parse_pdf", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "byte_length", "jinja", "fuzzy_ratio", "fuzzy_token_sort_ratio", "fuzzy_token_set_ratio", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise", "sum", "avg", "count", "max", "min", "first", "list", "std_dev", "count_distinct", "approx_count_distinct", "sum_distinct", "year", "month", "day", "hour", "minute", "second", "millisecond", "date_add", "timestamp_add", "date_trunc", "date_diff", "timestamp_diff", "now", "to_date", "to_timestamp", "date_format", "to_utc_timestamp", "from_utc_timestamp")
+    __slots__ = ("column", "literal", "alias", "sort", "index", "struct", "cast", "not_expr", "coalesce", "in_expr", "is_null", "unresolved_literal", "array", "array_length", "array_contains", "element_at", "array_slice", "array_distinct", "array_max", "array_min", "array_sort", "array_reverse", "array_remove", "array_compact", "array_repeat", "flatten", "array_union", "array_intersect", "array_except", "arrays_overlap", "greatest", "least", "arithmetic", "boolean", "equality_comparison", "numeric_comparison", "semantic_map", "semantic_extract", "semantic_pred", "semantic_reduce", "semantic_classify", "analyze_sentiment", "embeddings", "semantic_summarize", "semantic_parse_pdf", "embedding_normalize", "embedding_similarity", "textract", "text_chunk", "recursive_text_chunk", "count_tokens", "concat", "array_join", "contains", "contains_any", "rlike", "like", "ilike", "ts_parse", "starts_with", "ends_with", "regexp_split", "split_part", "string_casing", "strip_chars", "replace", "str_length", "byte_length", "jinja", "fuzzy_ratio", "fuzzy_token_sort_ratio", "fuzzy_token_set_ratio", "jq", "json_type", "json_contains", "md_to_json", "md_get_code_blocks", "md_generate_toc", "md_extract_header_chunks", "when", "otherwise", "sum", "avg", "count", "max", "min", "first", "list", "std_dev", "count_distinct", "approx_count_distinct", "sum_distinct", "year", "month", "day", "hour", "minute", "second", "millisecond", "date_add", "timestamp_add", "date_trunc", "date_diff", "timestamp_diff", "now", "to_date", "to_timestamp", "date_format", "to_utc_timestamp", "from_utc_timestamp")
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     ALIAS_FIELD_NUMBER: _ClassVar[int]
     SORT_FIELD_NUMBER: _ClassVar[int]
     INDEX_FIELD_NUMBER: _ClassVar[int]
-    ARRAY_FIELD_NUMBER: _ClassVar[int]
     STRUCT_FIELD_NUMBER: _ClassVar[int]
     CAST_FIELD_NUMBER: _ClassVar[int]
     NOT_EXPR_FIELD_NUMBER: _ClassVar[int]
     COALESCE_FIELD_NUMBER: _ClassVar[int]
     IN_EXPR_FIELD_NUMBER: _ClassVar[int]
     IS_NULL_FIELD_NUMBER: _ClassVar[int]
+    UNRESOLVED_LITERAL_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_FIELD_NUMBER: _ClassVar[int]
     ARRAY_LENGTH_FIELD_NUMBER: _ClassVar[int]
     ARRAY_CONTAINS_FIELD_NUMBER: _ClassVar[int]
+    ELEMENT_AT_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_SLICE_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_DISTINCT_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_MAX_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_MIN_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_SORT_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_REVERSE_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_REMOVE_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_COMPACT_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_REPEAT_FIELD_NUMBER: _ClassVar[int]
+    FLATTEN_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_UNION_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_INTERSECT_FIELD_NUMBER: _ClassVar[int]
+    ARRAY_EXCEPT_FIELD_NUMBER: _ClassVar[int]
+    ARRAYS_OVERLAP_FIELD_NUMBER: _ClassVar[int]
     GREATEST_FIELD_NUMBER: _ClassVar[int]
     LEAST_FIELD_NUMBER: _ClassVar[int]
-    UNRESOLVED_LITERAL_FIELD_NUMBER: _ClassVar[int]
     ARITHMETIC_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     EQUALITY_COMPARISON_FIELD_NUMBER: _ClassVar[int]
@@ -111,18 +126,33 @@ class LogicalExpr(_message.Message):
     alias: AliasExpr
     sort: SortExpr
     index: IndexExpr
-    array: ArrayExpr
     struct: StructExpr
     cast: CastExpr
     not_expr: NotExpr
     coalesce: CoalesceExpr
     in_expr: InExpr
     is_null: IsNullExpr
+    unresolved_literal: UnresolvedLiteralExpr
+    array: ArrayExpr
     array_length: ArrayLengthExpr
     array_contains: ArrayContainsExpr
+    element_at: ElementAtExpr
+    array_slice: ArraySliceExpr
+    array_distinct: ArrayDistinctExpr
+    array_max: ArrayMaxExpr
+    array_min: ArrayMinExpr
+    array_sort: ArraySortExpr
+    array_reverse: ArrayReverseExpr
+    array_remove: ArrayRemoveExpr
+    array_compact: ArrayCompactExpr
+    array_repeat: ArrayRepeatExpr
+    flatten: FlattenExpr
+    array_union: ArrayUnionExpr
+    array_intersect: ArrayIntersectExpr
+    array_except: ArrayExceptExpr
+    arrays_overlap: ArraysOverlapExpr
     greatest: GreatestExpr
     least: LeastExpr
-    unresolved_literal: UnresolvedLiteralExpr
     arithmetic: ArithmeticExpr
     boolean: BooleanExpr
     equality_comparison: EqualityComparisonExpr
@@ -201,7 +231,7 @@ class LogicalExpr(_message.Message):
     date_format: DateFormatExpr
     to_utc_timestamp: ToUTCTimestampExpr
     from_utc_timestamp: FromUTCTimestampExpr
-    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., not_expr: _Optional[_Union[NotExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., in_expr: _Optional[_Union[InExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., greatest: _Optional[_Union[GreatestExpr, _Mapping]] = ..., least: _Optional[_Union[LeastExpr, _Mapping]] = ..., unresolved_literal: _Optional[_Union[UnresolvedLiteralExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[ArithmeticExpr, _Mapping]] = ..., boolean: _Optional[_Union[BooleanExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[EqualityComparisonExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[NumericComparisonExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., semantic_parse_pdf: _Optional[_Union[SemanticParsePDFExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., byte_length: _Optional[_Union[ByteLengthExpr, _Mapping]] = ..., jinja: _Optional[_Union[JinjaExpr, _Mapping]] = ..., fuzzy_ratio: _Optional[_Union[FuzzyRatioExpr, _Mapping]] = ..., fuzzy_token_sort_ratio: _Optional[_Union[FuzzyTokenSortRatioExpr, _Mapping]] = ..., fuzzy_token_set_ratio: _Optional[_Union[FuzzyTokenSetRatioExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., sum: _Optional[_Union[SumExpr, _Mapping]] = ..., avg: _Optional[_Union[AvgExpr, _Mapping]] = ..., count: _Optional[_Union[CountExpr, _Mapping]] = ..., max: _Optional[_Union[MaxExpr, _Mapping]] = ..., min: _Optional[_Union[MinExpr, _Mapping]] = ..., first: _Optional[_Union[FirstExpr, _Mapping]] = ..., list: _Optional[_Union[ListExpr, _Mapping]] = ..., std_dev: _Optional[_Union[StdDevExpr, _Mapping]] = ..., count_distinct: _Optional[_Union[CountDistinctExpr, _Mapping]] = ..., approx_count_distinct: _Optional[_Union[ApproxCountDistinctExpr, _Mapping]] = ..., sum_distinct: _Optional[_Union[SumDistinctExpr, _Mapping]] = ..., year: _Optional[_Union[YearExpr, _Mapping]] = ..., month: _Optional[_Union[MonthExpr, _Mapping]] = ..., day: _Optional[_Union[DayExpr, _Mapping]] = ..., hour: _Optional[_Union[HourExpr, _Mapping]] = ..., minute: _Optional[_Union[MinuteExpr, _Mapping]] = ..., second: _Optional[_Union[SecondExpr, _Mapping]] = ..., millisecond: _Optional[_Union[MilliSecondExpr, _Mapping]] = ..., date_add: _Optional[_Union[DateAddExpr, _Mapping]] = ..., timestamp_add: _Optional[_Union[TimestampAddExpr, _Mapping]] = ..., date_trunc: _Optional[_Union[DateTruncExpr, _Mapping]] = ..., date_diff: _Optional[_Union[DateDiffExpr, _Mapping]] = ..., timestamp_diff: _Optional[_Union[TimestampDiffExpr, _Mapping]] = ..., now: _Optional[_Union[NowExpr, _Mapping]] = ..., to_date: _Optional[_Union[ToDateExpr, _Mapping]] = ..., to_timestamp: _Optional[_Union[ToTimestampExpr, _Mapping]] = ..., date_format: _Optional[_Union[DateFormatExpr, _Mapping]] = ..., to_utc_timestamp: _Optional[_Union[ToUTCTimestampExpr, _Mapping]] = ..., from_utc_timestamp: _Optional[_Union[FromUTCTimestampExpr, _Mapping]] = ...) -> None: ...
+    def __init__(self, column: _Optional[_Union[ColumnExpr, _Mapping]] = ..., literal: _Optional[_Union[LiteralExpr, _Mapping]] = ..., alias: _Optional[_Union[AliasExpr, _Mapping]] = ..., sort: _Optional[_Union[SortExpr, _Mapping]] = ..., index: _Optional[_Union[IndexExpr, _Mapping]] = ..., struct: _Optional[_Union[StructExpr, _Mapping]] = ..., cast: _Optional[_Union[CastExpr, _Mapping]] = ..., not_expr: _Optional[_Union[NotExpr, _Mapping]] = ..., coalesce: _Optional[_Union[CoalesceExpr, _Mapping]] = ..., in_expr: _Optional[_Union[InExpr, _Mapping]] = ..., is_null: _Optional[_Union[IsNullExpr, _Mapping]] = ..., unresolved_literal: _Optional[_Union[UnresolvedLiteralExpr, _Mapping]] = ..., array: _Optional[_Union[ArrayExpr, _Mapping]] = ..., array_length: _Optional[_Union[ArrayLengthExpr, _Mapping]] = ..., array_contains: _Optional[_Union[ArrayContainsExpr, _Mapping]] = ..., element_at: _Optional[_Union[ElementAtExpr, _Mapping]] = ..., array_slice: _Optional[_Union[ArraySliceExpr, _Mapping]] = ..., array_distinct: _Optional[_Union[ArrayDistinctExpr, _Mapping]] = ..., array_max: _Optional[_Union[ArrayMaxExpr, _Mapping]] = ..., array_min: _Optional[_Union[ArrayMinExpr, _Mapping]] = ..., array_sort: _Optional[_Union[ArraySortExpr, _Mapping]] = ..., array_reverse: _Optional[_Union[ArrayReverseExpr, _Mapping]] = ..., array_remove: _Optional[_Union[ArrayRemoveExpr, _Mapping]] = ..., array_compact: _Optional[_Union[ArrayCompactExpr, _Mapping]] = ..., array_repeat: _Optional[_Union[ArrayRepeatExpr, _Mapping]] = ..., flatten: _Optional[_Union[FlattenExpr, _Mapping]] = ..., array_union: _Optional[_Union[ArrayUnionExpr, _Mapping]] = ..., array_intersect: _Optional[_Union[ArrayIntersectExpr, _Mapping]] = ..., array_except: _Optional[_Union[ArrayExceptExpr, _Mapping]] = ..., arrays_overlap: _Optional[_Union[ArraysOverlapExpr, _Mapping]] = ..., greatest: _Optional[_Union[GreatestExpr, _Mapping]] = ..., least: _Optional[_Union[LeastExpr, _Mapping]] = ..., arithmetic: _Optional[_Union[ArithmeticExpr, _Mapping]] = ..., boolean: _Optional[_Union[BooleanExpr, _Mapping]] = ..., equality_comparison: _Optional[_Union[EqualityComparisonExpr, _Mapping]] = ..., numeric_comparison: _Optional[_Union[NumericComparisonExpr, _Mapping]] = ..., semantic_map: _Optional[_Union[SemanticMapExpr, _Mapping]] = ..., semantic_extract: _Optional[_Union[SemanticExtractExpr, _Mapping]] = ..., semantic_pred: _Optional[_Union[SemanticPredExpr, _Mapping]] = ..., semantic_reduce: _Optional[_Union[SemanticReduceExpr, _Mapping]] = ..., semantic_classify: _Optional[_Union[SemanticClassifyExpr, _Mapping]] = ..., analyze_sentiment: _Optional[_Union[AnalyzeSentimentExpr, _Mapping]] = ..., embeddings: _Optional[_Union[EmbeddingsExpr, _Mapping]] = ..., semantic_summarize: _Optional[_Union[SemanticSummarizeExpr, _Mapping]] = ..., semantic_parse_pdf: _Optional[_Union[SemanticParsePDFExpr, _Mapping]] = ..., embedding_normalize: _Optional[_Union[EmbeddingNormalizeExpr, _Mapping]] = ..., embedding_similarity: _Optional[_Union[EmbeddingSimilarityExpr, _Mapping]] = ..., textract: _Optional[_Union[TextractExpr, _Mapping]] = ..., text_chunk: _Optional[_Union[TextChunkExpr, _Mapping]] = ..., recursive_text_chunk: _Optional[_Union[RecursiveTextChunkExpr, _Mapping]] = ..., count_tokens: _Optional[_Union[CountTokensExpr, _Mapping]] = ..., concat: _Optional[_Union[ConcatExpr, _Mapping]] = ..., array_join: _Optional[_Union[ArrayJoinExpr, _Mapping]] = ..., contains: _Optional[_Union[ContainsExpr, _Mapping]] = ..., contains_any: _Optional[_Union[ContainsAnyExpr, _Mapping]] = ..., rlike: _Optional[_Union[RLikeExpr, _Mapping]] = ..., like: _Optional[_Union[LikeExpr, _Mapping]] = ..., ilike: _Optional[_Union[ILikeExpr, _Mapping]] = ..., ts_parse: _Optional[_Union[TsParseExpr, _Mapping]] = ..., starts_with: _Optional[_Union[StartsWithExpr, _Mapping]] = ..., ends_with: _Optional[_Union[EndsWithExpr, _Mapping]] = ..., regexp_split: _Optional[_Union[RegexpSplitExpr, _Mapping]] = ..., split_part: _Optional[_Union[SplitPartExpr, _Mapping]] = ..., string_casing: _Optional[_Union[StringCasingExpr, _Mapping]] = ..., strip_chars: _Optional[_Union[StripCharsExpr, _Mapping]] = ..., replace: _Optional[_Union[ReplaceExpr, _Mapping]] = ..., str_length: _Optional[_Union[StrLengthExpr, _Mapping]] = ..., byte_length: _Optional[_Union[ByteLengthExpr, _Mapping]] = ..., jinja: _Optional[_Union[JinjaExpr, _Mapping]] = ..., fuzzy_ratio: _Optional[_Union[FuzzyRatioExpr, _Mapping]] = ..., fuzzy_token_sort_ratio: _Optional[_Union[FuzzyTokenSortRatioExpr, _Mapping]] = ..., fuzzy_token_set_ratio: _Optional[_Union[FuzzyTokenSetRatioExpr, _Mapping]] = ..., jq: _Optional[_Union[JqExpr, _Mapping]] = ..., json_type: _Optional[_Union[JsonTypeExpr, _Mapping]] = ..., json_contains: _Optional[_Union[JsonContainsExpr, _Mapping]] = ..., md_to_json: _Optional[_Union[MdToJsonExpr, _Mapping]] = ..., md_get_code_blocks: _Optional[_Union[MdGetCodeBlocksExpr, _Mapping]] = ..., md_generate_toc: _Optional[_Union[MdGenerateTocExpr, _Mapping]] = ..., md_extract_header_chunks: _Optional[_Union[MdExtractHeaderChunks, _Mapping]] = ..., when: _Optional[_Union[WhenExpr, _Mapping]] = ..., otherwise: _Optional[_Union[OtherwiseExpr, _Mapping]] = ..., sum: _Optional[_Union[SumExpr, _Mapping]] = ..., avg: _Optional[_Union[AvgExpr, _Mapping]] = ..., count: _Optional[_Union[CountExpr, _Mapping]] = ..., max: _Optional[_Union[MaxExpr, _Mapping]] = ..., min: _Optional[_Union[MinExpr, _Mapping]] = ..., first: _Optional[_Union[FirstExpr, _Mapping]] = ..., list: _Optional[_Union[ListExpr, _Mapping]] = ..., std_dev: _Optional[_Union[StdDevExpr, _Mapping]] = ..., count_distinct: _Optional[_Union[CountDistinctExpr, _Mapping]] = ..., approx_count_distinct: _Optional[_Union[ApproxCountDistinctExpr, _Mapping]] = ..., sum_distinct: _Optional[_Union[SumDistinctExpr, _Mapping]] = ..., year: _Optional[_Union[YearExpr, _Mapping]] = ..., month: _Optional[_Union[MonthExpr, _Mapping]] = ..., day: _Optional[_Union[DayExpr, _Mapping]] = ..., hour: _Optional[_Union[HourExpr, _Mapping]] = ..., minute: _Optional[_Union[MinuteExpr, _Mapping]] = ..., second: _Optional[_Union[SecondExpr, _Mapping]] = ..., millisecond: _Optional[_Union[MilliSecondExpr, _Mapping]] = ..., date_add: _Optional[_Union[DateAddExpr, _Mapping]] = ..., timestamp_add: _Optional[_Union[TimestampAddExpr, _Mapping]] = ..., date_trunc: _Optional[_Union[DateTruncExpr, _Mapping]] = ..., date_diff: _Optional[_Union[DateDiffExpr, _Mapping]] = ..., timestamp_diff: _Optional[_Union[TimestampDiffExpr, _Mapping]] = ..., now: _Optional[_Union[NowExpr, _Mapping]] = ..., to_date: _Optional[_Union[ToDateExpr, _Mapping]] = ..., to_timestamp: _Optional[_Union[ToTimestampExpr, _Mapping]] = ..., date_format: _Optional[_Union[DateFormatExpr, _Mapping]] = ..., to_utc_timestamp: _Optional[_Union[ToUTCTimestampExpr, _Mapping]] = ..., from_utc_timestamp: _Optional[_Union[FromUTCTimestampExpr, _Mapping]] = ...) -> None: ...
 
 class ColumnExpr(_message.Message):
     __slots__ = ("name",)
@@ -297,6 +327,12 @@ class ArrayLengthExpr(_message.Message):
     expr: LogicalExpr
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
+class ArrayDistinctExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
 class ArrayContainsExpr(_message.Message):
     __slots__ = ("expr", "other")
     EXPR_FIELD_NUMBER: _ClassVar[int]
@@ -304,6 +340,108 @@ class ArrayContainsExpr(_message.Message):
     expr: LogicalExpr
     other: LogicalExpr
     def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., other: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayMaxExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayMinExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArraySortExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayReverseExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayRemoveExpr(_message.Message):
+    __slots__ = ("expr", "element")
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    ELEMENT_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    element: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., element: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayUnionExpr(_message.Message):
+    __slots__ = ("left", "right")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayIntersectExpr(_message.Message):
+    __slots__ = ("left", "right")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayExceptExpr(_message.Message):
+    __slots__ = ("left", "right")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayCompactExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArrayRepeatExpr(_message.Message):
+    __slots__ = ("element", "count")
+    ELEMENT_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    element: LogicalExpr
+    count: LogicalExpr
+    def __init__(self, element: _Optional[_Union[LogicalExpr, _Mapping]] = ..., count: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class FlattenExpr(_message.Message):
+    __slots__ = ("expr",)
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArraySliceExpr(_message.Message):
+    __slots__ = ("expr", "start", "length")
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    START_FIELD_NUMBER: _ClassVar[int]
+    LENGTH_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    start: LogicalExpr
+    length: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., start: _Optional[_Union[LogicalExpr, _Mapping]] = ..., length: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ElementAtExpr(_message.Message):
+    __slots__ = ("expr", "index")
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    INDEX_FIELD_NUMBER: _ClassVar[int]
+    expr: LogicalExpr
+    index: LogicalExpr
+    def __init__(self, expr: _Optional[_Union[LogicalExpr, _Mapping]] = ..., index: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
+
+class ArraysOverlapExpr(_message.Message):
+    __slots__ = ("left", "right")
+    LEFT_FIELD_NUMBER: _ClassVar[int]
+    RIGHT_FIELD_NUMBER: _ClassVar[int]
+    left: LogicalExpr
+    right: LogicalExpr
+    def __init__(self, left: _Optional[_Union[LogicalExpr, _Mapping]] = ..., right: _Optional[_Union[LogicalExpr, _Mapping]] = ...) -> None: ...
 
 class ArithmeticExpr(_message.Message):
     __slots__ = ("left", "right", "operator")
