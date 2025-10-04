@@ -19,7 +19,12 @@ from fenic.core._logical_plan.expressions.text import (
     LikeExpr,
     RecursiveTextChunkExpr,
     RecursiveTextChunkExprConfiguration,
+    RegexpCountExpr,
+    RegexpExtractAllExpr,
+    RegexpExtractExpr,
+    RegexpInstrExpr,
     RegexpSplitExpr,
+    RegexpSubstrExpr,
     ReplaceExpr,
     RLikeExpr,
     SplitPartExpr,
@@ -58,7 +63,12 @@ from fenic.core._serde.proto.types import (
     LikeExprProto,
     LogicalExprProto,
     RecursiveTextChunkExprProto,
+    RegexpCountExprProto,
+    RegexpExtractAllExprProto,
+    RegexpExtractExprProto,
+    RegexpInstrExprProto,
     RegexpSplitExprProto,
+    RegexpSubstrExprProto,
     ReplaceExprProto,
     RLikeExprProto,
     SplitPartExprProto,
@@ -605,6 +615,162 @@ def _deserialize_regexp_split_expr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         pattern=logical_proto.pattern,
         limit=logical_proto.limit,
+    )
+
+
+# =============================================================================
+# RegexpCountExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_regexp_count_expr(
+    logical: RegexpCountExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize a regexp count expression."""
+    return LogicalExprProto(
+        regexp_count=RegexpCountExprProto(
+            expr=context.serialize_logical_expr("expr", logical.expr),
+            pattern=context.serialize_logical_expr("pattern", logical.pattern),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_regexp_count_expr(
+    logical_proto: RegexpCountExprProto,
+    context: SerdeContext,
+) -> RegexpCountExpr:
+    """Deserialize a regexp count expression."""
+    return RegexpCountExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        pattern=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.pattern),
+    )
+
+
+# =============================================================================
+# RegexpExtractExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_regexp_extract_expr(
+    logical: RegexpExtractExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize a regexp extract expression."""
+    return LogicalExprProto(
+        regexp_extract=RegexpExtractExprProto(
+            expr=context.serialize_logical_expr("expr", logical.expr),
+            pattern=context.serialize_logical_expr("pattern", logical.pattern),
+            idx=context.serialize_logical_expr("idx", logical.idx),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_regexp_extract_expr(
+    logical_proto: RegexpExtractExprProto,
+    context: SerdeContext,
+) -> RegexpExtractExpr:
+    """Deserialize a regexp extract expression."""
+    return RegexpExtractExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        pattern=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.pattern),
+        idx=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.idx),
+    )
+
+
+# =============================================================================
+# RegexpExtractAllExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_regexp_extract_all_expr(
+    logical: RegexpExtractAllExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize a regexp extract all expression."""
+    return LogicalExprProto(
+        regexp_extract_all=RegexpExtractAllExprProto(
+            expr=context.serialize_logical_expr("expr", logical.expr),
+            pattern=context.serialize_logical_expr("pattern", logical.pattern),
+            idx=context.serialize_logical_expr("idx", logical.idx),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_regexp_extract_all_expr(
+    logical_proto: RegexpExtractAllExprProto,
+    context: SerdeContext,
+) -> RegexpExtractAllExpr:
+    """Deserialize a regexp extract all expression."""
+    return RegexpExtractAllExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        pattern=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.pattern),
+        idx=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.idx),
+    )
+
+
+# =============================================================================
+# RegexpInstrExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_regexp_instr_expr(
+    logical: RegexpInstrExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize a regexp instr expression."""
+    return LogicalExprProto(
+        regexp_instr=RegexpInstrExprProto(
+            expr=context.serialize_logical_expr("expr", logical.expr),
+            pattern=context.serialize_logical_expr("pattern", logical.pattern),
+            idx=context.serialize_logical_expr("idx", logical.idx),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_regexp_instr_expr(
+    logical_proto: RegexpInstrExprProto,
+    context: SerdeContext,
+) -> RegexpInstrExpr:
+    """Deserialize a regexp instr expression."""
+    return RegexpInstrExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        pattern=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.pattern),
+        idx=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.idx),
+    )
+
+
+# =============================================================================
+# RegexpSubstrExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_regexp_substr_expr(
+    logical: RegexpSubstrExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize a regexp substr expression."""
+    return LogicalExprProto(
+        regexp_substr=RegexpSubstrExprProto(
+            expr=context.serialize_logical_expr("expr", logical.expr),
+            pattern=context.serialize_logical_expr("pattern", logical.pattern),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_regexp_substr_expr(
+    logical_proto: RegexpSubstrExprProto,
+    context: SerdeContext,
+) -> RegexpSubstrExpr:
+    """Deserialize a regexp substr expression."""
+    return RegexpSubstrExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        pattern=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.pattern),
     )
 
 

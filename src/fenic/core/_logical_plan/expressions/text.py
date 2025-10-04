@@ -982,3 +982,196 @@ class FuzzyTokenSetRatioExpr(ValidatedSignature, LogicalExpr):
 
     def _eq_specific(self, other: FuzzyTokenSetRatioExpr) -> bool:
         return self.method == other.method
+
+
+class RegexpCountExpr(ValidatedSignature, LogicalExpr):
+    """Expression for counting regex pattern matches in a string.
+
+    Counts the number of times the regex pattern is matched in the string.
+
+    Args:
+        expr: The input string column expression
+        pattern: The regex pattern to count
+
+    Raises:
+        ValidationError: If the regex pattern is invalid
+    """
+
+    function_name = "text.regexp_count"
+
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
+        self.expr = expr
+        self.pattern = pattern
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.pattern]
+
+    def _eq_specific(self, other: RegexpCountExpr) -> bool:
+        return self.pattern == other.pattern
+
+
+class RegexpExtractExpr(ValidatedSignature, LogicalExpr):
+    """Expression for extracting a regex group from a string.
+
+    Extracts a specific group matched by the regex pattern from the string.
+
+    Args:
+        expr: The input string column expression
+        pattern: The regex pattern with capture groups
+        idx: The group index to extract (0 = entire match, 1+ = capture groups)
+
+    Raises:
+        ValidationError: If the regex pattern is invalid
+    """
+
+    function_name = "text.regexp_extract"
+
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr, idx: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
+        self.expr = expr
+        self.pattern = pattern
+        self.idx = idx
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.pattern, self.idx]
+
+    def _eq_specific(self, other: RegexpExtractExpr) -> bool:
+        return self.pattern == other.pattern and self.idx == other.idx
+
+
+class RegexpExtractAllExpr(ValidatedSignature, LogicalExpr):
+    """Expression for extracting all regex matches from a string.
+
+    Extracts all strings that match the regex pattern, optionally from a specific group.
+    Returns an array of matches.
+
+    Args:
+        expr: The input string column expression
+        pattern: The regex pattern with optional capture groups
+        idx: The group index to extract (0 = entire match, 1+ = capture groups)
+
+    Raises:
+        ValidationError: If the regex pattern is invalid
+    """
+
+    function_name = "text.regexp_extract_all"
+
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr, idx: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
+        self.expr = expr
+        self.pattern = pattern
+        self.idx = idx
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.pattern, self.idx]
+
+    def _eq_specific(self, other: RegexpExtractAllExpr) -> bool:
+        return self.pattern == other.pattern and self.idx == other.idx
+
+
+class RegexpInstrExpr(ValidatedSignature, LogicalExpr):
+    """Expression for finding the position of a regex match in a string.
+
+    Returns the 1-based position of the first substring that matches the regex pattern.
+    Returns 0 if no match is found.
+
+    Args:
+        expr: The input string column expression
+        pattern: The regex pattern to search for
+        idx: The group index to locate (0 = entire match, 1+ = capture groups)
+
+    Raises:
+        ValidationError: If the regex pattern is invalid
+    """
+
+    function_name = "text.regexp_instr"
+
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr, idx: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
+        self.expr = expr
+        self.pattern = pattern
+        self.idx = idx
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.pattern, self.idx]
+
+    def _eq_specific(self, other: RegexpInstrExpr) -> bool:
+        return self.pattern == other.pattern and self.idx == other.idx
+
+
+class RegexpSubstrExpr(ValidatedSignature, LogicalExpr):
+    """Expression for extracting the first regex match from a string.
+
+    Returns the first substring that matches the regex pattern.
+
+    Args:
+        expr: The input string column expression
+        pattern: The regex pattern to search for
+
+    Raises:
+        ValidationError: If the regex pattern is invalid
+    """
+
+    function_name = "text.regexp_substr"
+
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr):
+        if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
+            try:
+                py_validate_regex(pattern.literal)
+            except Exception as e:
+                raise ValidationError(f"Invalid regex pattern: {pattern.literal}") from e
+
+        self.expr = expr
+        self.pattern = pattern
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self):
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr, self.pattern]
+
+    def _eq_specific(self, other: RegexpSubstrExpr) -> bool:
+        return self.pattern == other.pattern

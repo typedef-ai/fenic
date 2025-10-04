@@ -119,7 +119,12 @@ from fenic.core._logical_plan.expressions import (
     Operator,
     OtherwiseExpr,
     RecursiveTextChunkExpr,
+    RegexpCountExpr,
+    RegexpExtractAllExpr,
+    RegexpExtractExpr,
+    RegexpInstrExpr,
     RegexpSplitExpr,
+    RegexpSubstrExpr,
     ReplaceExpr,
     RLikeExpr,
     SecondExpr,
@@ -877,6 +882,115 @@ class ExprConverter:
                 pattern=logical.pattern, value=delimiter, literal=False
             )
             return split_ready.str.split(by=delimiter)
+
+
+    @_convert_expr.register(RegexpCountExpr)
+    def _convert_regexp_count_expr(self, logical: RegexpCountExpr) -> pl.Expr:
+        physical_expr = self._convert_expr(logical.expr)
+        pattern_expr = self._convert_expr(logical.pattern)
+
+        # str.count_matches accepts expressions directly
+        return physical_expr.str.count_matches(pattern_expr, literal=False)
+
+
+    @_convert_expr.register(RegexpExtractExpr)
+    def _convert_regexp_extract_expr(self, logical: RegexpExtractExpr) -> pl.Expr:
+        physical_expr = self._convert_expr(logical.expr)
+        pattern_expr = self._convert_expr(logical.pattern)
+        idx_expr = self._convert_expr(logical.idx)
+
+        # str.extract accepts pattern as expr, but group_index must be int
+        if isinstance(logical.idx, LiteralExpr):
+            return physical_expr.str.extract(pattern_expr, int(logical.idx.literal))
+        else:
+            # For dynamic group index, use map_batches
+            return pl.struct([
+                physical_expr.alias("str"),
+                pattern_expr.alias("pattern"),
+                idx_expr.alias("idx")
+            ]).map_batches(
+                lambda s: s.struct.field("str").str.extract(
+                    s.struct.field("pattern"), s.struct.field("idx").cast(pl.UInt32)
+                )
+            )
+
+
+    @_convert_expr.register(RegexpExtractAllExpr)
+    def _convert_regexp_extract_all_expr(self, logical: RegexpExtractAllExpr) -> pl.Expr:
+        physical_expr = self._convert_expr(logical.expr)
+        pattern_expr = self._convert_expr(logical.pattern)
+        self._convert_expr(logical.idx)
+
+        # For PySpark compatibility: extract all matches of a specific group
+        if isinstance(logical.idx, LiteralExpr) and isinstance(logical.pattern, LiteralExpr):
+            group_idx = int(logical.idx.literal)
+            pattern = logical.pattern.literal
+            
+            if group_idx == 0:
+                # Group 0: extract entire match using extract_all
+                return physical_expr.str.extract_all(pattern)
+            else:
+                # Group 1+: extract all matches, then use extract_groups on each to get specific capture group
+                # extract_groups returns a struct with numbered fields ("1", "2", etc.)
+                return (
+                    physical_expr.str.extract_all(pattern)
+                    .list.eval(pl.element().str.extract_groups(pattern).struct[str(group_idx)])
+                )
+        else:
+            # For dynamic pattern/idx, use extract_all (best effort)
+            return physical_expr.str.extract_all(pattern_expr)
+
+
+    @_convert_expr.register(RegexpInstrExpr)
+    def _convert_regexp_instr_expr(self, logical: RegexpInstrExpr) -> pl.Expr:
+        physical_expr = self._convert_expr(logical.expr)
+        pattern_expr = self._convert_expr(logical.pattern)
+        idx_expr = self._convert_expr(logical.idx)
+
+        # Polars doesn't have a built-in for this, so we need to implement it
+        # We'll extract the match and then find its position in the original string
+        if isinstance(logical.pattern, LiteralExpr) and isinstance(logical.idx, LiteralExpr):
+            # Extract the match
+            match_expr = physical_expr.str.extract(pattern_expr, int(logical.idx.literal))
+            # Find position: use str.find on the match within the original string
+            # Add 1 to convert from 0-based to 1-based indexing (PySpark compatibility)
+            # Return 0 if no match, null if input is null
+            return pl.when(physical_expr.is_null()).then(None).otherwise(
+                pl.when(match_expr.is_null()).then(pl.lit(0)).otherwise(
+                    physical_expr.str.find(match_expr, literal=True) + 1
+                )
+            )
+        else:
+            # For column expressions, use map_batches
+            return pl.struct([
+                physical_expr.alias("str"),
+                pattern_expr.alias("pattern"),
+                idx_expr.alias("idx")
+            ]).map_batches(
+                lambda s: pl.when(s.struct.field("str").is_null()).then(None).otherwise(
+                    pl.when(
+                        s.struct.field("str").str.extract(
+                            s.struct.field("pattern"), s.struct.field("idx").cast(pl.UInt32)
+                        ).is_null()
+                    ).then(pl.lit(0)).otherwise(
+                        s.struct.field("str").str.find(
+                            s.struct.field("str").str.extract(
+                                s.struct.field("pattern"), s.struct.field("idx").cast(pl.UInt32)
+                            ),
+                            literal=True
+                        ) + 1
+                    )
+                )
+            )
+
+
+    @_convert_expr.register(RegexpSubstrExpr)
+    def _convert_regexp_substr_expr(self, logical: RegexpSubstrExpr) -> pl.Expr:
+        physical_expr = self._convert_expr(logical.expr)
+        pattern_expr = self._convert_expr(logical.pattern)
+
+        # str.extract accepts pattern as expr, extract group 0 (entire match)
+        return physical_expr.str.extract(pattern_expr, 0)
 
 
     @_convert_expr.register(StripCharsExpr)

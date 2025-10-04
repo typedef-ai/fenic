@@ -249,7 +249,22 @@ from fenic.core._logical_plan.expressions.text import (
     RecursiveTextChunkExpr as RecursiveTextChunkExpr,
 )
 from fenic.core._logical_plan.expressions.text import (
+    RegexpCountExpr as RegexpCountExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    RegexpExtractAllExpr as RegexpExtractAllExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    RegexpExtractExpr as RegexpExtractExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    RegexpInstrExpr as RegexpInstrExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
     RegexpSplitExpr as RegexpSplitExpr,
+)
+from fenic.core._logical_plan.expressions.text import (
+    RegexpSubstrExpr as RegexpSubstrExpr,
 )
 from fenic.core._logical_plan.expressions.text import ReplaceExpr as ReplaceExpr
 from fenic.core._logical_plan.expressions.text import RLikeExpr as RLikeExpr

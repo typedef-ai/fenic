@@ -184,6 +184,52 @@ def register_text_signatures():
         )
     )
 
+    # Regex functions
+    FunctionRegistry.register(
+        "text.regexp_count",
+        FunctionSignature(
+            function_name="text.regexp_count",
+            type_signature=Exact([StringType, StringType]),  # string input + pattern
+            return_type=IntegerType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.regexp_extract",
+        FunctionSignature(
+            function_name="text.regexp_extract",
+            type_signature=Exact([StringType, StringType, IntegerType]),  # string input + pattern + group index
+            return_type=StringType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.regexp_extract_all",
+        FunctionSignature(
+            function_name="text.regexp_extract_all",
+            type_signature=Exact([StringType, StringType, IntegerType]),  # string input + pattern + group index
+            return_type=ArrayType(StringType)
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.regexp_instr",
+        FunctionSignature(
+            function_name="text.regexp_instr",
+            type_signature=Exact([StringType, StringType, IntegerType]),  # string input + pattern + group index
+            return_type=IntegerType
+        )
+    )
+
+    FunctionRegistry.register(
+        "text.regexp_substr",
+        FunctionSignature(
+            function_name="text.regexp_substr",
+            type_signature=Exact([StringType, StringType]),  # string input + pattern
+            return_type=StringType
+        )
+    )
+
     FunctionRegistry.register(
         "text.split_part",
         FunctionSignature(

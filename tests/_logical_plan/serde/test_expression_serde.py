@@ -95,7 +95,12 @@ from fenic.core._logical_plan.expressions import (
     # Case expressions
     OtherwiseExpr,
     RecursiveTextChunkExpr,
+    RegexpCountExpr,
+    RegexpExtractAllExpr,
+    RegexpExtractExpr,
+    RegexpInstrExpr,
     RegexpSplitExpr,
+    RegexpSubstrExpr,
     ReplaceExpr,
     ResolvedClassDefinition,
     RLikeExpr,
@@ -616,6 +621,26 @@ expression_examples = {
     RegexpSplitExpr: [
         RegexpSplitExpr(ColumnExpr("text_col"), r"\s+"),
         RegexpSplitExpr(ColumnExpr("text_col"), r",", 3),
+    ],
+    RegexpCountExpr: [
+        RegexpCountExpr(ColumnExpr("text_col"), LiteralExpr(r"\d+", StringType)),
+        RegexpCountExpr(ColumnExpr("text_col"), ColumnExpr("pattern_col")),
+    ],
+    RegexpExtractExpr: [
+        RegexpExtractExpr(ColumnExpr("email"), LiteralExpr(r"([^@]+)@", StringType), LiteralExpr(1, IntegerType)),
+        RegexpExtractExpr(ColumnExpr("text"), ColumnExpr("pattern"), LiteralExpr(0, IntegerType)),
+    ],
+    RegexpExtractAllExpr: [
+        RegexpExtractAllExpr(ColumnExpr("text"), LiteralExpr(r"\d+", StringType), LiteralExpr(0, IntegerType)),
+        RegexpExtractAllExpr(ColumnExpr("text"), LiteralExpr(r"#(\w+)", StringType), LiteralExpr(1, IntegerType)),
+    ],
+    RegexpInstrExpr: [
+        RegexpInstrExpr(ColumnExpr("text"), LiteralExpr(r"\d", StringType), LiteralExpr(0, IntegerType)),
+        RegexpInstrExpr(ColumnExpr("text"), ColumnExpr("pattern"), LiteralExpr(1, IntegerType)),
+    ],
+    RegexpSubstrExpr: [
+        RegexpSubstrExpr(ColumnExpr("text"), LiteralExpr(r"\d+\.\d+", StringType)),
+        RegexpSubstrExpr(ColumnExpr("text"), ColumnExpr("pattern_col")),
     ],
     SplitPartExpr: [
         SplitPartExpr(

@@ -376,7 +376,22 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     RecursiveTextChunkExpr as RecursiveTextChunkExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    RegexpCountExpr as RegexpCountExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    RegexpExtractAllExpr as RegexpExtractAllExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    RegexpExtractExpr as RegexpExtractExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    RegexpInstrExpr as RegexpInstrExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     RegexpSplitExpr as RegexpSplitExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    RegexpSubstrExpr as RegexpSubstrExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     ReplaceExpr as ReplaceExprProto,
@@ -672,7 +687,12 @@ __all__ = [
     "TsParseExprProto",
     "StartsWithExprProto",
     "EndsWithExprProto",
+    "RegexpCountExprProto",
+    "RegexpExtractAllExprProto",
+    "RegexpExtractExprProto",
+    "RegexpInstrExprProto",
     "RegexpSplitExprProto",
+    "RegexpSubstrExprProto",
     "SplitPartExprProto",
     "StringCasingExprProto",
     "StripCharsExprProto",

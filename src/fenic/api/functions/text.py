@@ -21,7 +21,12 @@ from fenic.core._logical_plan.expressions import (
     LiteralExpr,
     LogicalExpr,
     RecursiveTextChunkExpr,
+    RegexpCountExpr,
+    RegexpExtractAllExpr,
+    RegexpExtractExpr,
+    RegexpInstrExpr,
     RegexpSplitExpr,
+    RegexpSubstrExpr,
     ReplaceExpr,
     SplitPartExpr,
     StringCasingExpr,
@@ -637,6 +642,255 @@ def regexp_replace(
             replacement_expr,
             False,
         )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def regexp_count(src: ColumnOrName, pattern: Union[Column, str]) -> Column:
+    r"""Count the number of times a regex pattern is matched in a string.
+
+    Returns the count of matches for each string in the column.
+
+    Args:
+        src: The input string column or column name
+        pattern: The regex pattern to count (can be a string literal or column expression)
+
+    Returns:
+        Column: An integer column containing the count of pattern matches
+
+    Example: Count digits
+        ```python
+        import fenic as fc
+
+        df = fc.Session.local().create_dataframe({
+            "text": ["abc123", "456def789", "no digits"]
+        })
+
+        result = df.select(fc.text.regexp_count("text", r"\d"))
+        # Output: [3, 6, 0]
+        ```
+
+    Example: Count words
+        ```python
+        df = fc.Session.local().create_dataframe({
+            "text": ["hello world", "one two three"]
+        })
+
+        result = df.select(fc.text.regexp_count("text", r"\w+"))
+        # Output: [2, 3]
+        ```
+    """
+    if isinstance(pattern, Column):
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
+    return Column._from_logical_expr(
+        RegexpCountExpr(Column._from_col_or_name(src)._logical_expr, pattern_expr)
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def regexp_extract(
+    src: ColumnOrName, pattern: Union[Column, str], idx: Union[Column, int]
+) -> Column:
+    r"""Extract a specific regex group from a string.
+
+    Extracts a capture group matched by the regex pattern.
+    Group 0 is the entire match, group 1+ are capture groups.
+
+    Args:
+        src: The input string column or column name
+        pattern: The regex pattern with capture groups (can be a string literal or column expression)
+        idx: The group index to extract (0 = entire match, 1+ = capture groups)
+
+    Returns:
+        Column: A string column containing the extracted group (null if no match)
+
+    Example: Extract email username
+        ```python
+        import fenic as fc
+
+        df = fc.Session.local().create_dataframe({
+            "email": ["user@domain.com", "admin@example.org"]
+        })
+
+        result = df.select(fc.text.regexp_extract("email", r"([^@]+)@", 1))
+        # Output: ["user", "admin"]
+        ```
+
+    Example: Extract phone area code
+        ```python
+        df = fc.Session.local().create_dataframe({
+            "phone": ["(555) 123-4567", "(123) 456-7890"]
+        })
+
+        result = df.select(fc.text.regexp_extract("phone", r"\((\d{3})\)", 1))
+        # Output: ["555", "123"]
+        ```
+    """
+    if isinstance(pattern, Column):
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
+    if isinstance(idx, Column):
+        idx_expr = idx._logical_expr
+    else:
+        idx_expr = lit(idx)._logical_expr
+    return Column._from_logical_expr(
+        RegexpExtractExpr(
+            Column._from_col_or_name(src)._logical_expr, pattern_expr, idx_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def regexp_extract_all(
+    src: ColumnOrName, pattern: Union[Column, str], idx: Union[Column, int] = 0
+) -> Column:
+    r"""Extract all strings matching a regex pattern, optionally from a specific group.
+
+    Returns an array of all matches. Group 0 is the entire match, group 1+ are capture groups.
+
+    Args:
+        src: The input string column or column name
+        pattern: The regex pattern with optional capture groups
+        idx: The group index to extract (default: 0 for entire match, 1+ for capture groups)
+
+    Returns:
+        Column: An array column containing all matches
+
+    Example: Extract all digits
+        ```python
+        import fenic as fc
+
+        df = fc.Session.local().create_dataframe({
+            "text": ["abc123def456", "no digits", "789"]
+        })
+
+        result = df.select(fc.text.regexp_extract_all("text", r"\d+"))
+        # Output: [["123", "456"], [], ["789"]]
+        ```
+
+    Example: Extract all hashtags
+        ```python
+        df = fc.Session.local().create_dataframe({
+            "post": ["Love #coding and #python", "Just #relaxing"]
+        })
+
+        result = df.select(fc.text.regexp_extract_all("post", r"#(\w+)", 1))
+        # Output: [["coding", "python"], ["relaxing"]]
+        ```
+    """
+    if isinstance(pattern, Column):
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
+    if isinstance(idx, Column):
+        idx_expr = idx._logical_expr
+    else:
+        idx_expr = lit(idx)._logical_expr
+    return Column._from_logical_expr(
+        RegexpExtractAllExpr(
+            Column._from_col_or_name(src)._logical_expr, pattern_expr, idx_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def regexp_instr(
+    src: ColumnOrName, pattern: Union[Column, str], idx: Union[Column, int] = 0
+) -> Column:
+    r"""Find the 1-based position of the first regex match in a string.
+
+    Returns the position (1-based) of the first substring matching the pattern.
+    Returns 0 if no match is found.
+
+    Args:
+        src: The input string column or column name
+        pattern: The regex pattern to search for
+        idx: The group index to locate (default: 0 for entire match, 1+ for capture groups)
+
+    Returns:
+        Column: An integer column with 1-based position (0 if no match)
+
+    Example: Find position of first digit
+        ```python
+        import fenic as fc
+
+        df = fc.Session.local().create_dataframe({
+            "text": ["abc123", "no digits", "456xyz"]
+        })
+
+        result = df.select(fc.text.regexp_instr("text", r"\d"))
+        # Output: [4, 0, 1]  # 1-based positions
+        ```
+
+    Example: Find position of email
+        ```python
+        df = fc.Session.local().create_dataframe({
+            "text": ["Contact: user@domain.com", "No email here"]
+        })
+
+        result = df.select(fc.text.regexp_instr("text", r"[^@]+@[^@]+"))
+        # Output: [10, 0]
+        ```
+    """
+    if isinstance(pattern, Column):
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
+    if isinstance(idx, Column):
+        idx_expr = idx._logical_expr
+    else:
+        idx_expr = lit(idx)._logical_expr
+    return Column._from_logical_expr(
+        RegexpInstrExpr(
+            Column._from_col_or_name(src)._logical_expr, pattern_expr, idx_expr
+        )
+    )
+
+
+@validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
+def regexp_substr(src: ColumnOrName, pattern: Union[Column, str]) -> Column:
+    r"""Extract the first substring matching a regex pattern.
+
+    Returns the first substring that matches the pattern. Returns null if no match is found.
+
+    Args:
+        src: The input string column or column name
+        pattern: The regex pattern to search for
+
+    Returns:
+        Column: A string column containing the first match (null if no match)
+
+    Example: Extract first number
+        ```python
+        import fenic as fc
+
+        df = fc.Session.local().create_dataframe({
+            "text": ["Price: $123.45", "No price", "Cost: $67.89"]
+        })
+
+        result = df.select(fc.text.regexp_substr("text", r"\d+\.\d+"))
+        # Output: ["123.45", null, "67.89"]
+        ```
+
+    Example: Extract first URL
+        ```python
+        df = fc.Session.local().create_dataframe({
+            "text": ["Visit https://example.com for info", "No URL here"]
+        })
+
+        result = df.select(fc.text.regexp_substr("text", r"https?://[^\s]+"))
+        # Output: ["https://example.com", null]
+        ```
+    """
+    if isinstance(pattern, Column):
+        pattern_expr = pattern._logical_expr
+    else:
+        pattern_expr = lit(pattern)._logical_expr
+    return Column._from_logical_expr(
+        RegexpSubstrExpr(Column._from_col_or_name(src)._logical_expr, pattern_expr)
     )
 
 

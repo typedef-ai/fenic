@@ -839,3 +839,161 @@ def test_trim_whitespace(whitespace_trim_df):
     assert result["stripped_text_col"][1] == "world"
     assert result["stripped_text_col"][2] == "foo"
     assert result["stripped_text_col"][3] == "bar"
+
+
+# =============================================================================
+# Regexp functions
+# =============================================================================
+
+
+def test_regexp_count(local_session):
+    """Test regexp_count function."""
+    data = {"text": ["abc123", "456def789", "no digits", None]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(text.regexp_count("text", r"\d").alias("digit_count")).to_polars()
+
+    assert result["digit_count"][0] == 3
+    assert result["digit_count"][1] == 6
+    assert result["digit_count"][2] == 0
+    assert result["digit_count"][3] is None
+
+
+def test_regexp_count_words(local_session):
+    """Test regexp_count with word pattern."""
+    data = {"text": ["hello world", "one two three", ""]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(text.regexp_count("text", r"\w+").alias("word_count")).to_polars()
+
+    assert result["word_count"][0] == 2
+    assert result["word_count"][1] == 3
+    assert result["word_count"][2] == 0
+
+
+def test_regexp_extract(local_session):
+    """Test regexp_extract function."""
+    data = {"email": ["user@domain.com", "admin@example.org", "invalid", None]}
+    df = local_session.create_dataframe(data)
+
+    # Extract username (group 1)
+    result = df.select(
+        text.regexp_extract("email", r"([^@]+)@", 1).alias("username")
+    ).to_polars()
+
+    assert result["username"][0] == "user"
+    assert result["username"][1] == "admin"
+    assert result["username"][2] is None
+    assert result["username"][3] is None
+
+
+def test_regexp_extract_entire_match(local_session):
+    """Test regexp_extract with group 0 (entire match)."""
+    data = {"text": ["Price: $123.45", "Cost: $67.89", "No price"]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_extract("text", r"\$\d+\.\d+", 0).alias("price")
+    ).to_polars()
+
+    assert result["price"][0] == "$123.45"
+    assert result["price"][1] == "$67.89"
+    assert result["price"][2] is None
+
+
+def test_regexp_extract_all(local_session):
+    """Test regexp_extract_all function."""
+    data = {"text": ["abc123def456", "no digits", "789", None]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_extract_all("text", r"\d+", 0).alias("digits")
+    ).to_polars()
+
+    digits_list = result["digits"].to_list()
+    assert digits_list[0] == ["123", "456"]
+    assert digits_list[1] == []
+    assert digits_list[2] == ["789"]
+    assert digits_list[3] is None
+
+
+def test_regexp_extract_all_with_groups(local_session):
+    """Test regexp_extract_all with capture groups."""
+    data = {"post": ["Love #coding and #python", "Just #relaxing", "No hashtags"]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_extract_all("post", r"#(\w+)", 1).alias("hashtags")
+    ).to_polars()
+
+    hashtags_list = result["hashtags"].to_list()
+    assert hashtags_list[0] == ["coding", "python"]
+    assert hashtags_list[1] == ["relaxing"]
+    assert hashtags_list[2] == []
+
+
+def test_regexp_instr(local_session):
+    """Test regexp_instr function."""
+    data = {"text": ["abc123", "no digits", "456xyz", None]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_instr("text", r"\d", 0).alias("position")
+    ).to_polars()
+
+    assert result["position"][0] == 4  # 1-based position
+    assert result["position"][1] == 0  # No match
+    assert result["position"][2] == 1  # 1-based position
+    assert result["position"][3] is None
+
+
+def test_regexp_instr_with_email(local_session):
+    """Test regexp_instr finding email position."""
+    data = {"text": ["Contact: user@domain.com", "No email here", "Email: admin@test.com"]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_instr("text", r"[^@\s]+@[^@\s]+", 0).alias("email_pos")
+    ).to_polars()
+
+    assert result["email_pos"][0] == 10  # 1-based
+    assert result["email_pos"][1] == 0
+    assert result["email_pos"][2] == 8  # 1-based
+
+
+def test_regexp_substr(local_session):
+    """Test regexp_substr function."""
+    data = {"text": ["Price: $123.45", "No price", "Cost: $67.89", None]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_substr("text", r"\d+\.\d+").alias("number")
+    ).to_polars()
+
+    assert result["number"][0] == "123.45"
+    assert result["number"][1] is None
+    assert result["number"][2] == "67.89"
+    assert result["number"][3] is None
+
+
+def test_regexp_substr_url(local_session):
+    """Test regexp_substr extracting URL."""
+    data = {"text": ["Visit https://example.com for info", "No URL here", "See http://test.org"]}
+    df = local_session.create_dataframe(data)
+
+    result = df.select(
+        text.regexp_substr("text", r"https?://[^\s]+").alias("url")
+    ).to_polars()
+
+    assert result["url"][0] == "https://example.com"
+    assert result["url"][1] is None
+    assert result["url"][2] == "http://test.org"
+
+
+def test_regexp_invalid_pattern(local_session):
+    """Test that invalid regex patterns are caught."""
+    data = {"text": ["test"]}
+    df = local_session.create_dataframe(data)
+
+    with pytest.raises(ValidationError, match="Invalid regex pattern"):
+        df.select(text.regexp_count("text", r"[invalid(")).to_polars()

@@ -116,6 +116,11 @@ message LogicalExpr {
     FuzzyRatioExpr fuzzy_ratio = 72;
     FuzzyTokenSortRatioExpr fuzzy_token_sort_ratio = 73;
     FuzzyTokenSetRatioExpr fuzzy_token_set_ratio = 74;
+    RegexpCountExpr regexp_count = 75;
+    RegexpExtractExpr regexp_extract = 76;
+    RegexpExtractAllExpr regexp_extract_all = 77;
+    RegexpInstrExpr regexp_instr = 78;
+    RegexpSubstrExpr regexp_substr = 79;
 
     // JSON expressions
     JqExpr jq = 80;
@@ -518,6 +523,34 @@ message RegexpSplitExpr {
   LogicalExpr expr = 1;
   string pattern = 2;
   int32 limit = 3;
+}
+
+message RegexpCountExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr pattern = 2;
+}
+
+message RegexpExtractExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr pattern = 2;
+  LogicalExpr idx = 3;
+}
+
+message RegexpExtractAllExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr pattern = 2;
+  LogicalExpr idx = 3;
+}
+
+message RegexpInstrExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr pattern = 2;
+  LogicalExpr idx = 3;
+}
+
+message RegexpSubstrExpr {
+  LogicalExpr expr = 1;
+  LogicalExpr pattern = 2;
 }
 
 message SplitPartExpr {
