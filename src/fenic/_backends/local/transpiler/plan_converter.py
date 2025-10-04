@@ -10,6 +10,7 @@ from fenic._backends.local.physical_plan import (
     DuckDBTableSinkExec,
     DuckDBTableSourceExec,
     ExplodeExec,
+    ExplodeWithIndexExec,
     FileSinkExec,
     FileSourceExec,
     FilterExec,
@@ -41,6 +42,7 @@ from fenic.core._logical_plan.plans import (
     DocSource,
     DropDuplicates,
     Explode,
+    ExplodeWithIndex,
     FileSink,
     FileSource,
     Filter,
@@ -335,6 +337,30 @@ class PlanConverter:
                 child_physical,
                 physical_expr,
                 target_field.name,
+                logical.keep_null_and_empty,
+                cache_info=logical.cache_info,
+                session_state=self.session_state,
+            )
+
+        elif isinstance(logical, ExplodeWithIndex):
+            child_logical = logical.children()[0]
+            physical_expr = self.expr_converter.convert(
+                logical._expr
+            )
+            child_physical = self._convert_to_physical_plan(
+                child_logical,
+                cache_keys,
+            )
+            target_field = logical._expr.to_column_field(child_logical, self.session_state)
+            # Determine the actual value name
+            actual_value_name = logical.value_name if logical.value_name is not None else target_field.name
+            return ExplodeWithIndexExec(
+                child_physical,
+                physical_expr,
+                target_field.name,
+                logical.index_name,
+                actual_value_name,
+                logical.keep_null_and_empty,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
             )

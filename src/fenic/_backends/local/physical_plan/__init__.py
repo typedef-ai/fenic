@@ -37,6 +37,9 @@ from fenic._backends.local.physical_plan.transform import (
     DropDuplicatesExec as DropDuplicatesExec,
 )
 from fenic._backends.local.physical_plan.transform import ExplodeExec as ExplodeExec
+from fenic._backends.local.physical_plan.transform import (
+    ExplodeWithIndexExec as ExplodeWithIndexExec,
+)
 from fenic._backends.local.physical_plan.transform import FilterExec as FilterExec
 from fenic._backends.local.physical_plan.transform import LimitExec as LimitExec
 from fenic._backends.local.physical_plan.transform import (
@@ -65,6 +68,7 @@ __all__ = [
     "InMemorySourceExec",
     "DropDuplicatesExec",
     "ExplodeExec",
+    "ExplodeWithIndexExec",
     "FilterExec",
     "LimitExec",
     "ProjectionExec",

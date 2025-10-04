@@ -42,6 +42,7 @@ message LogicalPlan {
     Union union = 24;
     Limit limit = 25;
     Explode explode = 26;
+    ExplodeWithIndex explode_with_index = 34;
     DropDuplicates drop_duplicates = 27;
     Sort sort = 28;
     Unnest unnest = 29;
@@ -143,6 +144,15 @@ message Limit {
 message Explode {
   LogicalPlan input = 1;
   LogicalExpr expr = 2;
+  bool keep_null_and_empty = 3;
+}
+
+message ExplodeWithIndex {
+  LogicalPlan input = 1;
+  LogicalExpr expr = 2;
+  string index_name = 3;
+  optional string value_name = 4;
+  bool keep_null_and_empty = 5;
 }
 
 message DropDuplicates {

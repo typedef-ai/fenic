@@ -31,7 +31,7 @@ class CacheInfo(_message.Message):
     def __init__(self, cache_key: _Optional[str] = ...) -> None: ...
 
 class LogicalPlan(_message.Message):
-    __slots__ = ("schema", "cache_info", "in_memory_source", "file_source", "table_source", "doc_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")
+    __slots__ = ("schema", "cache_info", "in_memory_source", "file_source", "table_source", "doc_source", "projection", "filter", "join", "aggregate", "union", "limit", "explode", "explode_with_index", "drop_duplicates", "sort", "unnest", "sql", "semantic_cluster", "semantic_join", "semantic_similarity_join", "file_sink", "table_sink")
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     CACHE_INFO_FIELD_NUMBER: _ClassVar[int]
     IN_MEMORY_SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -45,6 +45,7 @@ class LogicalPlan(_message.Message):
     UNION_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
     EXPLODE_FIELD_NUMBER: _ClassVar[int]
+    EXPLODE_WITH_INDEX_FIELD_NUMBER: _ClassVar[int]
     DROP_DUPLICATES_FIELD_NUMBER: _ClassVar[int]
     SORT_FIELD_NUMBER: _ClassVar[int]
     UNNEST_FIELD_NUMBER: _ClassVar[int]
@@ -67,6 +68,7 @@ class LogicalPlan(_message.Message):
     union: Union
     limit: Limit
     explode: Explode
+    explode_with_index: ExplodeWithIndex
     drop_duplicates: DropDuplicates
     sort: Sort
     unnest: Unnest
@@ -76,7 +78,7 @@ class LogicalPlan(_message.Message):
     semantic_similarity_join: SemanticSimilarityJoin
     file_sink: FileSink
     table_sink: TableSink
-    def __init__(self, schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., cache_info: _Optional[_Union[CacheInfo, _Mapping]] = ..., in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., doc_source: _Optional[_Union[DocSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., semantic_join: _Optional[_Union[SemanticJoin, _Mapping]] = ..., semantic_similarity_join: _Optional[_Union[SemanticSimilarityJoin, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
+    def __init__(self, schema: _Optional[_Union[FenicSchema, _Mapping]] = ..., cache_info: _Optional[_Union[CacheInfo, _Mapping]] = ..., in_memory_source: _Optional[_Union[InMemorySource, _Mapping]] = ..., file_source: _Optional[_Union[FileSource, _Mapping]] = ..., table_source: _Optional[_Union[TableSource, _Mapping]] = ..., doc_source: _Optional[_Union[DocSource, _Mapping]] = ..., projection: _Optional[_Union[Projection, _Mapping]] = ..., filter: _Optional[_Union[Filter, _Mapping]] = ..., join: _Optional[_Union[Join, _Mapping]] = ..., aggregate: _Optional[_Union[Aggregate, _Mapping]] = ..., union: _Optional[_Union[Union, _Mapping]] = ..., limit: _Optional[_Union[Limit, _Mapping]] = ..., explode: _Optional[_Union[Explode, _Mapping]] = ..., explode_with_index: _Optional[_Union[ExplodeWithIndex, _Mapping]] = ..., drop_duplicates: _Optional[_Union[DropDuplicates, _Mapping]] = ..., sort: _Optional[_Union[Sort, _Mapping]] = ..., unnest: _Optional[_Union[Unnest, _Mapping]] = ..., sql: _Optional[_Union[SQL, _Mapping]] = ..., semantic_cluster: _Optional[_Union[SemanticCluster, _Mapping]] = ..., semantic_join: _Optional[_Union[SemanticJoin, _Mapping]] = ..., semantic_similarity_join: _Optional[_Union[SemanticSimilarityJoin, _Mapping]] = ..., file_sink: _Optional[_Union[FileSink, _Mapping]] = ..., table_sink: _Optional[_Union[TableSink, _Mapping]] = ...) -> None: ...
 
 class InMemorySource(_message.Message):
     __slots__ = ("source",)
@@ -217,12 +219,28 @@ class Limit(_message.Message):
     def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., n: _Optional[int] = ...) -> None: ...
 
 class Explode(_message.Message):
-    __slots__ = ("input", "expr")
+    __slots__ = ("input", "expr", "keep_null_and_empty")
     INPUT_FIELD_NUMBER: _ClassVar[int]
     EXPR_FIELD_NUMBER: _ClassVar[int]
+    KEEP_NULL_AND_EMPTY_FIELD_NUMBER: _ClassVar[int]
     input: LogicalPlan
     expr: _expressions_pb2.LogicalExpr
-    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ...) -> None: ...
+    keep_null_and_empty: bool
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., keep_null_and_empty: bool = ...) -> None: ...
+
+class ExplodeWithIndex(_message.Message):
+    __slots__ = ("input", "expr", "index_name", "value_name", "keep_null_and_empty")
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    EXPR_FIELD_NUMBER: _ClassVar[int]
+    INDEX_NAME_FIELD_NUMBER: _ClassVar[int]
+    VALUE_NAME_FIELD_NUMBER: _ClassVar[int]
+    KEEP_NULL_AND_EMPTY_FIELD_NUMBER: _ClassVar[int]
+    input: LogicalPlan
+    expr: _expressions_pb2.LogicalExpr
+    index_name: str
+    value_name: str
+    keep_null_and_empty: bool
+    def __init__(self, input: _Optional[_Union[LogicalPlan, _Mapping]] = ..., expr: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., index_name: _Optional[str] = ..., value_name: _Optional[str] = ..., keep_null_and_empty: bool = ...) -> None: ...
 
 class DropDuplicates(_message.Message):
     __slots__ = ("input", "subset")

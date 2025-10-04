@@ -5,6 +5,7 @@ from fenic.core._logical_plan.plans.transform import (
     SQL,
     DropDuplicates,
     Explode,
+    ExplodeWithIndex,
     Filter,
     Limit,
     Projection,
@@ -21,6 +22,7 @@ from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import (
     DropDuplicatesProto,
     ExplodeProto,
+    ExplodeWithIndexProto,
     FilterProto,
     LimitProto,
     LogicalPlanProto,
@@ -153,6 +155,7 @@ def _serialize_explode(
         explode=ExplodeProto(
             input=context.serialize_logical_plan(SerdeContext.INPUT, explode._input),
             expr=context.serialize_logical_expr(SerdeContext.EXPR, explode._expr),
+            keep_null_and_empty=explode.keep_null_and_empty,
         )
     )
 
@@ -164,6 +167,41 @@ def _deserialize_explode(explode: ExplodeProto, context: SerdeContext, schema: S
         input=context.deserialize_logical_plan(SerdeContext.INPUT, explode.input),
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, explode.expr),
         schema=schema,
+        keep_null_and_empty=explode.keep_null_and_empty,
+    )
+
+
+# =============================================================================
+# ExplodeWithIndex
+# =============================================================================
+
+
+@_serialize_logical_plan_helper.register
+def _serialize_explode_with_index(
+    explode_with_index: ExplodeWithIndex, context: SerdeContext
+) -> LogicalPlanProto:
+    """Serialize an explode_with_index (wrapper)."""
+    return LogicalPlanProto(
+        explode_with_index=ExplodeWithIndexProto(
+            input=context.serialize_logical_plan(SerdeContext.INPUT, explode_with_index._input),
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, explode_with_index._expr),
+            index_name=explode_with_index.index_name,
+            value_name=explode_with_index.value_name,
+            keep_null_and_empty=explode_with_index.keep_null_and_empty,
+        )
+    )
+
+
+@_deserialize_logical_plan_helper.register
+def _deserialize_explode_with_index(explode_with_index: ExplodeWithIndexProto, context: SerdeContext, schema: Schema) -> ExplodeWithIndex:
+    """Deserialize an ExplodeWithIndex LogicalPlan Node."""
+    return ExplodeWithIndex.from_schema(
+        input=context.deserialize_logical_plan(SerdeContext.INPUT, explode_with_index.input),
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, explode_with_index.expr),
+        index_name=explode_with_index.index_name,
+        value_name=explode_with_index.value_name or None,
+        schema=schema,
+        keep_null_and_empty=explode_with_index.keep_null_and_empty,
     )
 
 

@@ -286,20 +286,24 @@ class Explode(LogicalPlan):
             self,
             input: LogicalPlan,
             expr: LogicalExpr,
+            keep_null_and_empty: bool = False,
             session_state:Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
         validate_scalar_expr(expr, "explode")
         self._input = input
         self._expr = expr
+        self.keep_null_and_empty = keep_null_and_empty
         super().__init__(session_state, schema)
 
     @classmethod
-    def from_schema(cls, input: LogicalPlan, expr: LogicalExpr, schema: Schema) -> Explode:
-        return Explode(input, expr, schema=schema)
+    def from_schema(cls, input: LogicalPlan, expr: LogicalExpr, schema: Schema,
+                    keep_null_and_empty: bool = False) -> Explode:
+        return Explode(input, expr, keep_null_and_empty, schema=schema)
 
     @classmethod
-    def from_session_state(cls, input: LogicalPlan, expr: LogicalExpr, session_state: BaseSessionState) -> Explode:
-        return Explode(input, expr, session_state=session_state)
+    def from_session_state(cls, input: LogicalPlan, expr: LogicalExpr, session_state: BaseSessionState,
+                          keep_null_and_empty: bool = False) -> Explode:
+        return Explode(input, expr, keep_null_and_empty, session_state=session_state)
 
     def children(self) -> list[LogicalPlan]:
         return [self._input]
@@ -342,12 +346,113 @@ class Explode(LogicalPlan):
     def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
         if len(children) != 1:
             raise ValueError("Explode must have exactly one child")
-        result = Explode.from_session_state(children[0], self._expr, session_state)
+        result = Explode.from_session_state(children[0], self._expr, session_state, self.keep_null_and_empty)
         result.set_cache_info(self.cache_info)
         return result
 
     def _eq_specific(self, other: Explode) -> bool:
-        return self._expr == other._expr
+        return self._expr == other._expr and self.keep_null_and_empty == other.keep_null_and_empty
+
+
+class ExplodeWithIndex(LogicalPlan):
+    def __init__(
+            self,
+            input: LogicalPlan,
+            expr: LogicalExpr,
+            index_name: str,
+            value_name: Optional[str] = None,
+            keep_null_and_empty: bool = False,
+            session_state: Optional[BaseSessionState] = None,
+            schema: Optional[Schema] = None):
+        validate_scalar_expr(expr, "explode_with_index")
+        self._input = input
+        self._expr = expr
+        self.index_name = index_name
+        self.value_name = value_name
+        self.keep_null_and_empty = keep_null_and_empty
+        super().__init__(session_state, schema)
+
+    @classmethod
+    def from_schema(cls, input: LogicalPlan, expr: LogicalExpr, index_name: str,
+                    value_name: Optional[str], schema: Schema,
+                    keep_null_and_empty: bool = False) -> ExplodeWithIndex:
+        return ExplodeWithIndex(input, expr, index_name, value_name, keep_null_and_empty, schema=schema)
+
+    @classmethod
+    def from_session_state(cls, input: LogicalPlan, expr: LogicalExpr, index_name: str,
+                          value_name: Optional[str], session_state: BaseSessionState,
+                          keep_null_and_empty: bool = False) -> ExplodeWithIndex:
+        return ExplodeWithIndex(input, expr, index_name, value_name, keep_null_and_empty,
+                               session_state=session_state)
+
+    def children(self) -> list[LogicalPlan]:
+        return [self._input]
+
+    def exprs(self) -> List[LogicalExpr]:
+        return [self._expr]
+
+    def _build_schema(self, session_state: BaseSessionState) -> Schema:
+        input_schema = self._input.schema()
+        exploded_field = self._expr.to_column_field(self._input, session_state)
+
+        if not isinstance(exploded_field.data_type, ArrayType):
+            raise ValueError(
+                f"ExplodeWithIndex operator expected an array column for field {exploded_field.name}, "
+                f"but received {exploded_field.data_type} instead."
+            )
+
+        # Determine the value column name
+        actual_value_name = self.value_name if self.value_name is not None else exploded_field.name
+
+        new_fields = []
+        # Add index column first (0-based position within array)
+        new_fields.append(ColumnField(name=self.index_name, data_type=IntegerType))
+
+        # Add or replace the exploded column
+        for field in input_schema.column_fields:
+            if field.name == exploded_field.name:
+                if self.value_name is not None and self.value_name != field.name:
+                    # Keep original column and add new value column
+                    new_fields.append(field)
+                    new_fields.append(ColumnField(
+                        name=actual_value_name,
+                        data_type=exploded_field.data_type.element_type
+                    ))
+                else:
+                    # Replace the array column with its element type
+                    new_fields.append(ColumnField(
+                        name=actual_value_name,
+                        data_type=exploded_field.data_type.element_type
+                    ))
+            else:
+                new_fields.append(field)
+
+        # If the exploded column wasn't in the original schema, add it
+        if exploded_field.name not in {f.name for f in input_schema.column_fields}:
+            new_fields.append(ColumnField(
+                name=actual_value_name,
+                data_type=exploded_field.data_type.element_type,
+            ))
+
+        return Schema(column_fields=new_fields)
+
+    def _repr(self) -> str:
+        return f"ExplodeWithIndex({self._expr}, index={self.index_name}, value={self.value_name})"
+
+    def with_children(self, children: List[LogicalPlan], session_state: Optional[BaseSessionState] = None) -> LogicalPlan:
+        if len(children) != 1:
+            raise ValueError("ExplodeWithIndex must have exactly one child")
+        result = ExplodeWithIndex.from_session_state(
+            children[0], self._expr, self.index_name, self.value_name, session_state, self.keep_null_and_empty
+        )
+        result.set_cache_info(self.cache_info)
+        return result
+
+    def _eq_specific(self, other: ExplodeWithIndex) -> bool:
+        return (self._expr == other._expr and
+                self.index_name == other.index_name and
+                self.value_name == other.value_name and
+                self.keep_null_and_empty == other.keep_null_and_empty)
 
 
 class DropDuplicates(LogicalPlan):

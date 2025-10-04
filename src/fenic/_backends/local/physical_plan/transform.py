@@ -174,12 +174,14 @@ class ExplodeExec(PhysicalPlan):
         child: PhysicalPlan,
         physical_expr: pl.Expr,
         col_name: str,
+        keep_null_and_empty: bool,
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
     ):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.physical_expr = physical_expr
         self.col_name = col_name
+        self.keep_null_and_empty = keep_null_and_empty
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
@@ -187,8 +189,10 @@ class ExplodeExec(PhysicalPlan):
         child_df = child_dfs[0]
         child_df = child_df.with_columns(self.physical_expr)
         exploded_df = child_df.explode(self.col_name)
-        # Optionally filter out rows where the exploded column is null.
-        return exploded_df.filter(pl.col(self.col_name).is_not_null())
+        # Filter out nulls unless keep_null_and_empty is True
+        if not self.keep_null_and_empty:
+            exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
+        return exploded_df
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 1:
@@ -197,6 +201,7 @@ class ExplodeExec(PhysicalPlan):
             child=children[0],
             physical_expr=self.physical_expr,
             col_name=self.col_name,
+            keep_null_and_empty=self.keep_null_and_empty,
             cache_info=self.cache_info,
             session_state=self.session_state,
         )
@@ -207,6 +212,109 @@ class ExplodeExec(PhysicalPlan):
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
         exploded_df = child_df.explode(self.col_name)
+        # Filter out nulls unless keep_null_and_empty is True
+        if not self.keep_null_and_empty:
+            exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
+        exploded_df = exploded_df.with_columns(
+            pl.col("_uuid").alias("_backwards_uuid"),
+        )
+        exploded_df = _with_lineage_uuid(exploded_df)
+        backwards_df = exploded_df.select(["_uuid", "_backwards_uuid"])
+
+        materialize_df = exploded_df.drop("_backwards_uuid")
+
+        operator = self._build_unary_operator_lineage(
+            materialize_df=materialize_df,
+            child=(child_operator, backwards_df),
+        )
+
+        return operator, materialize_df
+
+
+class ExplodeWithIndexExec(PhysicalPlan):
+    def __init__(
+        self,
+        child: PhysicalPlan,
+        physical_expr: pl.Expr,
+        col_name: str,
+        index_name: str,
+        value_name: str,
+        keep_null_and_empty: bool,
+        cache_info: Optional[CacheInfo],
+        session_state: LocalSessionState,
+    ):
+        super().__init__([child], cache_info=cache_info, session_state=session_state)
+        self.physical_expr = physical_expr
+        self.col_name = col_name
+        self.index_name = index_name
+        self.value_name = value_name
+        self.keep_null_and_empty = keep_null_and_empty
+
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        if len(child_dfs) != 1:
+            raise ValueError("Unreachable: ExplodeWithIndexExec expects 1 child")
+        child_df = child_dfs[0]
+
+        # Add the array column if it's an expression
+        child_df = child_df.with_columns(self.physical_expr)
+
+        # Add a temporary row index to track original rows
+        child_df = child_df.with_row_index("__explode_row_id")
+
+        # Explode the array column
+        exploded_df = child_df.explode(self.col_name)
+
+        if self.keep_null_and_empty:
+            # For outer explode, we need to handle null/empty arrays specially
+            # Add the position column, but set it to null for null/empty arrays
+            exploded_df = exploded_df.with_columns(
+                pl.when(pl.col(self.col_name).is_not_null())
+                .then(pl.int_range(pl.len(), dtype=pl.Int64).over("__explode_row_id", mapping_strategy="group_to_rows"))
+                .otherwise(None)
+                .alias(self.index_name)
+            )
+        else:
+            # Filter out nulls in the exploded column for regular explode
+            exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
+            # Add the position column (0-based index within each original row)
+            exploded_df = exploded_df.with_columns(
+                pl.int_range(pl.len(), dtype=pl.Int64)
+                .over("__explode_row_id", mapping_strategy="group_to_rows")
+                .alias(self.index_name)
+            )
+
+        # Drop the temporary row index
+        exploded_df = exploded_df.drop("__explode_row_id")
+
+        # Rename the exploded column if needed
+        if self.value_name != self.col_name:
+            exploded_df = exploded_df.rename({self.col_name: self.value_name})
+
+        return exploded_df
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: ExplodeWithIndexExec expects 1 child")
+        return ExplodeWithIndexExec(
+            child=children[0],
+            physical_expr=self.physical_expr,
+            col_name=self.col_name,
+            index_name=self.index_name,
+            value_name=self.value_name,
+            keep_null_and_empty=self.keep_null_and_empty,
+            cache_info=self.cache_info,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
+        exploded_df = child_df.explode(self.col_name)
+        # Filter out nulls unless keep_null_and_empty is True
+        if not self.keep_null_and_empty:
+            exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
         exploded_df = exploded_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
         )

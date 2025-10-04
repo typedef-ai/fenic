@@ -29,6 +29,7 @@ from fenic.core._logical_plan.plans import (
     DocSource,
     DropDuplicates,
     Explode,
+    ExplodeWithIndex,
     FileSink,
     FileSource,
     Filter,
@@ -140,6 +141,15 @@ def _create_plan_examples(session, temp_dir_with_test_files):
         ],
         Explode: [
             ("array_explode", df_with_array.explode("arr")._logical_plan),
+        ],
+        ExplodeWithIndex: [
+            ("array_posexplode", df_with_array.posexplode("arr")._logical_plan),
+            # Default names: index_name defaults to "index", value_name is None (original column name)
+            ("explode_with_index_default_names", df_with_array.explode_with_index("arr")._logical_plan),
+            # Custom names: both index_name and value_name set
+            ("explode_with_index_custom_names", df_with_array.explode_with_index("arr", index_name="i", value_name="v")._logical_plan),
+            # Outer behavior: keep_null_and_empty=True with custom names
+            ("explode_with_index_outer", df_with_array.explode_with_index("arr", index_name="i", value_name="v", keep_null_and_empty=True)._logical_plan),
         ],
         DropDuplicates: [
             ("drop_duplicates", df_with_dupes.drop_duplicates(["c1", "c2"])._logical_plan),

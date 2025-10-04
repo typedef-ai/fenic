@@ -513,6 +513,9 @@ from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     Explode as ExplodeProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
+    ExplodeWithIndex as ExplodeWithIndexProto,
+)
+from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
     FenicSchema as FenicSchemaProto,
 )
 from fenic._gen.protos.logical_plan.v1.plans_pb2 import (
@@ -746,6 +749,7 @@ __all__ = [
     "UnionProto",
     "LimitProto",
     "ExplodeProto",
+    "ExplodeWithIndexProto",
     "DropDuplicatesProto",
     "SortProto",
     "UnnestProto",
