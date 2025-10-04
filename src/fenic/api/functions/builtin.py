@@ -822,13 +822,13 @@ def array_max(column: ColumnOrName) -> Column:
 
     Example: Finding maximum in numeric arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[3, 1, 5, 2], [10, 20], None, []]
         })
 
-        result = df.select(fn.array_max("numbers").alias("max_value"))
+        result = df.select(fc.array_max("numbers").alias("max_value"))
         # Output:
         # ┌───────────┐
         # │ max_value │
@@ -842,11 +842,11 @@ def array_max(column: ColumnOrName) -> Column:
 
     Example: Finding maximum in string arrays
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "words": [["cat", "apple", "zebra"], ["dog", "bat"]]
         })
 
-        result = df.select(fn.array_max("words").alias("max_word"))
+        result = df.select(fc.array_max("words").alias("max_word"))
         # Output: ["zebra", "dog"]
         ```
     """
@@ -875,13 +875,13 @@ def array_min(column: ColumnOrName) -> Column:
 
     Example: Finding minimum in numeric arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[3, 1, 5, 2], [10, 20], None, []]
         })
 
-        result = df.select(fn.array_min("numbers").alias("min_value"))
+        result = df.select(fc.array_min("numbers").alias("min_value"))
         # Output:
         # ┌───────────┐
         # │ min_value │
@@ -895,11 +895,11 @@ def array_min(column: ColumnOrName) -> Column:
 
     Example: Finding minimum in string arrays
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "words": [["cat", "apple", "zebra"], ["dog", "bat"]]
         })
 
-        result = df.select(fn.array_min("words").alias("min_word"))
+        result = df.select(fc.array_min("words").alias("min_word"))
         # Output: ["apple", "bat"]
         ```
     """
@@ -932,13 +932,13 @@ def array_sort(column: ColumnOrName) -> Column:
 
     Example: Sorting numeric arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[3, 1, 5, 2], [10, 30, 20], None]
         })
 
-        result = df.select(fn.array_sort("numbers").alias("sorted"))
+        result = df.select(fc.array_sort("numbers").alias("sorted"))
         # Output:
         # ┌────────────────┐
         # │ sorted         │
@@ -951,11 +951,11 @@ def array_sort(column: ColumnOrName) -> Column:
 
     Example: Sorting string arrays
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "words": [["cat", "apple", "bat"], ["zebra", "apple"]]
         })
 
-        result = df.select(fn.array_sort("words").alias("sorted"))
+        result = df.select(fc.array_sort("words").alias("sorted"))
         # Output: [["apple", "bat", "cat"], ["apple", "zebra"]]
         ```
     """
@@ -979,16 +979,16 @@ def reverse(column: ColumnOrName) -> Column:
 
     Example: Reversing arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[1, 2, 3, 4], [10, 20]],
             "words": [["a", "b", "c"], ["x", "y"]]
         })
 
         result = df.select(
-            fn.reverse("numbers").alias("reversed_nums"),
-            fn.reverse("words").alias("reversed_words")
+            fc.reverse("numbers").alias("reversed_nums"),
+            fc.reverse("words").alias("reversed_words")
         )
         # Output:
         # ┌────────────────┬─────────────────┐
@@ -1020,16 +1020,16 @@ def array_remove(column: ColumnOrName, element: Union[str, int, float, bool, Col
 
     Example: Removing literals
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "tags": [["a", "b", "a", "c"], ["x", "y", "x"]],
             "numbers": [[1, 2, 1, 3], [5, 5, 5]]
         })
 
         result = df.select(
-            fn.array_remove("tags", "a").alias("no_a"),
-            fn.array_remove("numbers", 5).alias("no_five")
+            fc.array_remove("tags", "a").alias("no_a"),
+            fc.array_remove("numbers", 5).alias("no_five")
         )
         # Output:
         # ┌─────────────┬──────────┐
@@ -1042,12 +1042,12 @@ def array_remove(column: ColumnOrName, element: Union[str, int, float, bool, Col
 
     Example: Removing with column expression
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "values": [[1, 2, 3], [4, 5, 6]],
             "to_remove": [2, 5]
         })
 
-        result = df.select(fn.array_remove("values", fn.col("to_remove")))
+        result = df.select(fc.array_remove("values", fc.col("to_remove")))
         # Output: [[1, 3], [4, 6]]
         ```
     """
@@ -1076,14 +1076,14 @@ def array_union(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Union of tag arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "tags1": [["a", "b", "c"], ["x", "y"]],
             "tags2": [["b", "c", "d"], ["y", "z"]]
         })
 
-        result = df.select(fn.array_union("tags1", "tags2").alias("all_tags"))
+        result = df.select(fc.array_union("tags1", "tags2").alias("all_tags"))
         # Output:
         # ┌──────────────────────┐
         # │ all_tags             │
@@ -1095,12 +1095,12 @@ def array_union(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Union with numeric arrays
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "nums1": [[1, 2, 3], [5, 6]],
             "nums2": [[2, 3, 4], [6, 7]]
         })
 
-        result = df.select(fn.array_union("nums1", "nums2"))
+        result = df.select(fc.array_union("nums1", "nums2"))
         # Output: [[1, 2, 3, 4], [5, 6, 7]]
         ```
     """
@@ -1128,14 +1128,14 @@ def array_intersect(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Intersection of arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr1": [["a", "b", "c"], ["x", "y", "z"]],
             "arr2": [["b", "c", "d"], ["y", "z", "w"]]
         })
 
-        result = df.select(fn.array_intersect("arr1", "arr2").alias("common"))
+        result = df.select(fc.array_intersect("arr1", "arr2").alias("common"))
         # Output:
         # ┌────────────┐
         # │ common     │
@@ -1147,12 +1147,12 @@ def array_intersect(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: No intersection
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr1": [[1, 2, 3]],
             "arr2": [[4, 5, 6]]
         })
 
-        result = df.select(fn.array_intersect("arr1", "arr2"))
+        result = df.select(fc.array_intersect("arr1", "arr2"))
         # Output: [[]]  # Empty array when no common elements
         ```
     """
@@ -1180,14 +1180,14 @@ def array_except(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Filtering out deprecated tags
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "all_tags": [["a", "b", "c", "d"], ["x", "y", "z"]],
             "deprecated": [["b", "d"], ["y"]]
         })
 
-        result = df.select(fn.array_except("all_tags", "deprecated").alias("active"))
+        result = df.select(fc.array_except("all_tags", "deprecated").alias("active"))
         # Output:
         # ┌────────────┐
         # │ active     │
@@ -1199,12 +1199,12 @@ def array_except(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: No common elements
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr1": [[1, 2, 3]],
             "arr2": [[4, 5, 6]]
         })
 
-        result = df.select(fn.array_except("arr1", "arr2"))
+        result = df.select(fc.array_except("arr1", "arr2"))
         # Output: [[1, 2, 3]]  # All elements retained
         ```
     """
@@ -1231,13 +1231,13 @@ def array_compact(column: ColumnOrName) -> Column:
 
     Example: Removing nulls from arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "values": [[1, None, 2, None, 3], ["a", None, "b"], None]
         })
 
-        result = df.select(fn.array_compact("values").alias("compact"))
+        result = df.select(fc.array_compact("values").alias("compact"))
         # Output:
         # ┌───────────┐
         # │ compact   │
@@ -1250,11 +1250,11 @@ def array_compact(column: ColumnOrName) -> Column:
 
     Example: All nulls removed
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "sparse": [[None, None, 1], [None]]
         })
 
-        result = df.select(fn.array_compact("sparse"))
+        result = df.select(fc.array_compact("sparse"))
         # Output: [[1], []]
         ```
     """
@@ -1280,15 +1280,15 @@ def array_repeat(col: ColumnOrName, count: Union[int, ColumnOrName]) -> Column:
 
     Example: Repeating literals
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "id": [1, 2, 3]
         })
 
         result = df.select(
-            fn.array_repeat(fn.lit("x"), 3).alias("repeated"),
-            fn.array_repeat(fn.lit(0), 5).alias("zeros")
+            fc.array_repeat(fc.lit("x"), 3).alias("repeated"),
+            fc.array_repeat(fc.lit(0), 5).alias("zeros")
         )
         # Output:
         # ┌─────────────────┬──────────────────────┐
@@ -1302,12 +1302,12 @@ def array_repeat(col: ColumnOrName, count: Union[int, ColumnOrName]) -> Column:
 
     Example: Repeating column values
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "value": ["a", "b", "c"],
             "count": [2, 3, 1]
         })
 
-        result = df.select(fn.array_repeat(fn.col("value"), fn.col("count")))
+        result = df.select(fc.array_repeat(fc.col("value"), fc.col("count")))
         # Output: [["a", "a"], ["b", "b", "b"], ["c"]]
         ```
     """
@@ -1335,13 +1335,13 @@ def flatten(column: ColumnOrName) -> Column:
 
     Example: Flattening nested arrays
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "nested": [[[1, 2], [3, 4]], [[5], [6, 7, 8]], None]
         })
 
-        result = df.select(fn.flatten("nested").alias("flat"))
+        result = df.select(fc.flatten("nested").alias("flat"))
         # Output:
         # ┌──────────────────┐
         # │ flat             │
@@ -1355,11 +1355,11 @@ def flatten(column: ColumnOrName) -> Column:
     Example: One level only
         ```python
         # Deeply nested arrays - only flattens one level
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "deep": [[[[1]], [[2]]], [[[3]]]]
         })
 
-        result = df.select(fn.flatten("deep"))
+        result = df.select(fc.flatten("deep"))
         # Output: [[[1], [2]], [[3]]]  # Still nested after one level
         ```
     """
@@ -1387,15 +1387,15 @@ def slice(column: ColumnOrName, start: Union[int, ColumnOrName], length: Union[i
 
     Example: Extracting from the start
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[1, 2, 3, 4, 5], [10, 20, 30]]
         })
 
         result = df.select(
-            fn.slice("numbers", 1, 3).alias("first_three"),
-            fn.slice("numbers", 2, 2).alias("middle_two")
+            fc.slice("numbers", 1, 3).alias("first_three"),
+            fc.slice("numbers", 2, 2).alias("middle_two")
         )
         # Output:
         # ┌───────────────┬────────────┐
@@ -1408,25 +1408,25 @@ def slice(column: ColumnOrName, start: Union[int, ColumnOrName], length: Union[i
 
     Example: Using negative indices
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr": [[1, 2, 3, 4, 5]]
         })
 
         # Extract last 3 elements: start at -3, take 3
-        result = df.select(fn.slice("arr", -3, 3))
+        result = df.select(fc.slice("arr", -3, 3))
         # Output: [[3, 4, 5]]
         ```
 
     Example: Dynamic slicing with columns
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "values": [[1, 2, 3, 4, 5], [10, 20, 30]],
             "start_idx": [2, 1],
             "num_elements": [2, 2]
         })
 
         result = df.select(
-            fn.slice("values", fn.col("start_idx"), fn.col("num_elements"))
+            fc.slice("values", fc.col("start_idx"), fc.col("num_elements"))
         )
         # Output: [[2, 3], [10, 20]]
         ```
@@ -1460,15 +1460,15 @@ def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
 
     Example: Accessing with positive indices
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "numbers": [[10, 20, 30, 40], [100, 200]]
         })
 
         result = df.select(
-            fn.element_at("numbers", 1).alias("first"),
-            fn.element_at("numbers", 2).alias("second")
+            fc.element_at("numbers", 1).alias("first"),
+            fc.element_at("numbers", 2).alias("second")
         )
         # Output:
         # ┌───────┬────────┐
@@ -1481,13 +1481,13 @@ def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
 
     Example: Accessing with negative indices
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr": [["a", "b", "c", "d"], ["x", "y", "z"]]
         })
 
         result = df.select(
-            fn.element_at("arr", -1).alias("last"),
-            fn.element_at("arr", -2).alias("second_last")
+            fc.element_at("arr", -1).alias("last"),
+            fc.element_at("arr", -2).alias("second_last")
         )
         # Output:
         # ┌──────┬─────────────┐
@@ -1500,12 +1500,12 @@ def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
 
     Example: Dynamic indexing with columns
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "values": [[1, 2, 3], [10, 20, 30]],
             "position": [2, 3]
         })
 
-        result = df.select(fn.element_at("values", fn.col("position")))
+        result = df.select(fc.element_at("values", fc.col("position")))
         # Output: [2, 30]
         ```
     """
@@ -1534,14 +1534,14 @@ def arrays_overlap(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Detecting overlap
         ```python
-        import fenic as fn
+        import fenic as fc
 
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "arr1": [["a", "b", "c"], ["x", "y"], ["p", "q"]],
             "arr2": [["c", "d", "e"], ["w", "z"], ["q", "r"]]
         })
 
-        result = df.select(fn.arrays_overlap("arr1", "arr2").alias("has_overlap"))
+        result = df.select(fc.arrays_overlap("arr1", "arr2").alias("has_overlap"))
         # Output:
         # ┌─────────────┐
         # │ has_overlap │
@@ -1554,24 +1554,24 @@ def arrays_overlap(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example: Using with filtering
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "user_tags": [["python", "ml"], ["java", "web"], ["python", "web"]],
             "required": [["python", "data"], ["python", "data"], ["python", "data"]]
         })
 
         # Filter users with at least one required tag
-        result = df.filter(fn.arrays_overlap("user_tags", "required"))
+        result = df.filter(fc.arrays_overlap("user_tags", "required"))
         # Output: Rows with indices 0 and 2 (have "python" tag)
         ```
 
     Example: Numeric arrays
         ```python
-        df = fn.Session.local().create_dataframe({
+        df = fc.Session.local().create_dataframe({
             "nums1": [[1, 2, 3], [4, 5, 6]],
             "nums2": [[3, 4, 5], [7, 8, 9]]
         })
 
-        result = df.select(fn.arrays_overlap("nums1", "nums2"))
+        result = df.select(fc.arrays_overlap("nums1", "nums2"))
         # Output: [true, false]
         ```
     """
