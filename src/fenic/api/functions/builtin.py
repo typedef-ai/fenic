@@ -806,20 +806,48 @@ def array_contains(
 def array_max(column: ColumnOrName) -> Column:
     """Returns the maximum value in an array.
 
+    Only works on arrays of comparable types (numeric, string, date, boolean).
+    Returns null if the array is null or empty.
+
     Args:
         column: Column or column name containing arrays of comparable types
             (numeric, string, date, boolean). Does not work on arrays of structs.
 
     Returns:
-        A Column containing the maximum value from each array.
+        A Column containing the maximum value from each array. Returns the element
+        type of the array (e.g., int for array of ints).
 
     Raises:
         TypeMismatchError: If array contains non-comparable element types (e.g., structs).
 
-    Example:
+    Example: Finding maximum in numeric arrays
         ```python
-        df.select(array_max("numbers"))
-        df.select(array_max("dates"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[3, 1, 5, 2], [10, 20], None, []]
+        })
+
+        result = df.select(fn.array_max("numbers").alias("max_value"))
+        # Output:
+        # ┌───────────┐
+        # │ max_value │
+        # ├───────────┤
+        # │ 5         │
+        # │ 20        │
+        # │ null      │
+        # │ null      │
+        # └───────────┘
+        ```
+
+    Example: Finding maximum in string arrays
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "words": [["cat", "apple", "zebra"], ["dog", "bat"]]
+        })
+
+        result = df.select(fn.array_max("words").alias("max_word"))
+        # Output: ["zebra", "dog"]
         ```
     """
     return Column._from_logical_expr(
@@ -831,20 +859,48 @@ def array_max(column: ColumnOrName) -> Column:
 def array_min(column: ColumnOrName) -> Column:
     """Returns the minimum value in an array.
 
+    Only works on arrays of comparable types (numeric, string, date, boolean).
+    Returns null if the array is null or empty.
+
     Args:
         column: Column or column name containing arrays of comparable types
             (numeric, string, date, boolean). Does not work on arrays of structs.
 
     Returns:
-        A Column containing the minimum value from each array.
+        A Column containing the minimum value from each array. Returns the element
+        type of the array (e.g., int for array of ints).
 
     Raises:
         TypeMismatchError: If array contains non-comparable element types (e.g., structs).
 
-    Example:
+    Example: Finding minimum in numeric arrays
         ```python
-        df.select(array_min("numbers"))
-        df.select(array_min("dates"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[3, 1, 5, 2], [10, 20], None, []]
+        })
+
+        result = df.select(fn.array_min("numbers").alias("min_value"))
+        # Output:
+        # ┌───────────┐
+        # │ min_value │
+        # ├───────────┤
+        # │ 1         │
+        # │ 10        │
+        # │ null      │
+        # │ null      │
+        # └───────────┘
+        ```
+
+    Example: Finding minimum in string arrays
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "words": [["cat", "apple", "zebra"], ["dog", "bat"]]
+        })
+
+        result = df.select(fn.array_min("words").alias("min_word"))
+        # Output: ["apple", "bat"]
         ```
     """
     return Column._from_logical_expr(
@@ -856,12 +912,16 @@ def array_min(column: ColumnOrName) -> Column:
 def array_sort(column: ColumnOrName) -> Column:
     """Sorts the array in ascending order.
 
+    Only works on arrays of comparable types (numeric, string, date, boolean).
+    Null values are placed at the end of the array.
+
     Args:
         column: Column or column name containing arrays of comparable types
             (numeric, string, date, boolean). Does not work on arrays of structs.
 
     Returns:
-        A Column with sorted arrays in ascending order.
+        A Column with sorted arrays in ascending order. Returns null if the input
+        array is null.
 
     Raises:
         TypeMismatchError: If array contains non-comparable element types (e.g., structs).
@@ -870,10 +930,33 @@ def array_sort(column: ColumnOrName) -> Column:
         Unlike PySpark's array_sort, this does not support a custom comparator function.
         For custom sorting logic on complex types, consider using other transformations.
 
-    Example:
+    Example: Sorting numeric arrays
         ```python
-        df.select(array_sort("numbers"))  # [3, 1, 2] -> [1, 2, 3]
-        df.select(array_sort("words"))    # ["cat", "apple", "bat"] -> ["apple", "bat", "cat"]
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[3, 1, 5, 2], [10, 30, 20], None]
+        })
+
+        result = df.select(fn.array_sort("numbers").alias("sorted"))
+        # Output:
+        # ┌────────────────┐
+        # │ sorted         │
+        # ├────────────────┤
+        # │ [1, 2, 3, 5]   │
+        # │ [10, 20, 30]   │
+        # │ null           │
+        # └────────────────┘
+        ```
+
+    Example: Sorting string arrays
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "words": [["cat", "apple", "bat"], ["zebra", "apple"]]
+        })
+
+        result = df.select(fn.array_sort("words").alias("sorted"))
+        # Output: [["apple", "bat", "cat"], ["apple", "zebra"]]
         ```
     """
     return Column._from_logical_expr(
@@ -885,15 +968,35 @@ def array_sort(column: ColumnOrName) -> Column:
 def reverse(column: ColumnOrName) -> Column:
     """Reverses the elements of an array.
 
+    Returns a new array with elements in reverse order. Returns null if the input
+    array is null.
+
     Args:
         column: Column or column name containing arrays.
 
     Returns:
         A Column with reversed arrays.
 
-    Example:
+    Example: Reversing arrays
         ```python
-        df.select(reverse("tags"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[1, 2, 3, 4], [10, 20]],
+            "words": [["a", "b", "c"], ["x", "y"]]
+        })
+
+        result = df.select(
+            fn.reverse("numbers").alias("reversed_nums"),
+            fn.reverse("words").alias("reversed_words")
+        )
+        # Output:
+        # ┌────────────────┬─────────────────┐
+        # │ reversed_nums  │ reversed_words  │
+        # ├────────────────┼─────────────────┤
+        # │ [4, 3, 2, 1]   │ ["c", "b", "a"] │
+        # │ [20, 10]       │ ["y", "x"]      │
+        # └────────────────┴─────────────────┘
         ```
     """
     return Column._from_logical_expr(
@@ -905,16 +1008,47 @@ def reverse(column: ColumnOrName) -> Column:
 def array_remove(column: ColumnOrName, element: Union[str, int, float, bool, Column]) -> Column:
     """Removes all occurrences of an element from an array.
 
+    Returns a new array with all instances of the specified element removed.
+    Returns null if the input array is null.
+
     Args:
         column: Column or column name containing arrays.
-        element: Element to remove from the arrays.
+        element: Element to remove from the arrays. Can be a literal value or a Column expression.
 
     Returns:
-        A Column with arrays having the element removed.
+        A Column with arrays having all occurrences of the element removed.
 
-    Example:
+    Example: Removing literals
         ```python
-        df.select(array_remove("tags", "deprecated"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "tags": [["a", "b", "a", "c"], ["x", "y", "x"]],
+            "numbers": [[1, 2, 1, 3], [5, 5, 5]]
+        })
+
+        result = df.select(
+            fn.array_remove("tags", "a").alias("no_a"),
+            fn.array_remove("numbers", 5).alias("no_five")
+        )
+        # Output:
+        # ┌─────────────┬──────────┐
+        # │ no_a        │ no_five  │
+        # ├─────────────┼──────────┤
+        # │ ["b", "c"]  │ [1, 2, 1, 3] │
+        # │ ["x", "y"]  │ []       │
+        # └─────────────┴──────────┘
+        ```
+
+    Example: Removing with column expression
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "values": [[1, 2, 3], [4, 5, 6]],
+            "to_remove": [2, 5]
+        })
+
+        result = df.select(fn.array_remove("values", fn.col("to_remove")))
+        # Output: [[1, 3], [4, 6]]
         ```
     """
     element_column = element if isinstance(element, Column) else lit(element)
@@ -930,16 +1064,44 @@ def array_remove(column: ColumnOrName, element: Union[str, int, float, bool, Col
 def array_union(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Returns the union of two arrays without duplicates.
 
+    Returns all distinct elements from both arrays. The order of elements is not
+    guaranteed. Returns null if either input array is null.
+
     Args:
-        col1: First array column.
-        col2: Second array column.
+        col1: First array column or column name.
+        col2: Second array column or column name.
 
     Returns:
-        A Column containing the union of both arrays.
+        A Column containing the distinct union of both arrays.
 
-    Example:
+    Example: Union of tag arrays
         ```python
-        df.select(array_union("tags1", "tags2"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "tags1": [["a", "b", "c"], ["x", "y"]],
+            "tags2": [["b", "c", "d"], ["y", "z"]]
+        })
+
+        result = df.select(fn.array_union("tags1", "tags2").alias("all_tags"))
+        # Output:
+        # ┌──────────────────────┐
+        # │ all_tags             │
+        # ├──────────────────────┤
+        # │ ["a", "b", "c", "d"] │
+        # │ ["x", "y", "z"]      │
+        # └──────────────────────┘
+        ```
+
+    Example: Union with numeric arrays
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "nums1": [[1, 2, 3], [5, 6]],
+            "nums2": [[2, 3, 4], [6, 7]]
+        })
+
+        result = df.select(fn.array_union("nums1", "nums2"))
+        # Output: [[1, 2, 3, 4], [5, 6, 7]]
         ```
     """
     return Column._from_logical_expr(
@@ -954,16 +1116,44 @@ def array_union(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 def array_intersect(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Returns the intersection of two arrays.
 
+    Returns distinct elements that appear in both arrays. The order of elements
+    is not guaranteed. Returns null if either input array is null.
+
     Args:
-        col1: First array column.
-        col2: Second array column.
+        col1: First array column or column name.
+        col2: Second array column or column name.
 
     Returns:
-        A Column containing elements present in both arrays.
+        A Column containing distinct elements present in both arrays.
 
-    Example:
+    Example: Intersection of arrays
         ```python
-        df.select(array_intersect("tags1", "tags2"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "arr1": [["a", "b", "c"], ["x", "y", "z"]],
+            "arr2": [["b", "c", "d"], ["y", "z", "w"]]
+        })
+
+        result = df.select(fn.array_intersect("arr1", "arr2").alias("common"))
+        # Output:
+        # ┌────────────┐
+        # │ common     │
+        # ├────────────┤
+        # │ ["b", "c"] │
+        # │ ["y", "z"] │
+        # └────────────┘
+        ```
+
+    Example: No intersection
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "arr1": [[1, 2, 3]],
+            "arr2": [[4, 5, 6]]
+        })
+
+        result = df.select(fn.array_intersect("arr1", "arr2"))
+        # Output: [[]]  # Empty array when no common elements
         ```
     """
     return Column._from_logical_expr(
@@ -978,16 +1168,44 @@ def array_intersect(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 def array_except(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Returns elements in the first array but not in the second.
 
+    Returns distinct elements from the first array that are not present in the
+    second array (set difference). Returns null if either input array is null.
+
     Args:
-        col1: First array column.
-        col2: Second array column.
+        col1: First array column or column name.
+        col2: Second array column or column name.
 
     Returns:
-        A Column containing elements in col1 but not in col2.
+        A Column containing distinct elements in col1 but not in col2.
 
-    Example:
+    Example: Filtering out deprecated tags
         ```python
-        df.select(array_except("all_tags", "deprecated_tags"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "all_tags": [["a", "b", "c", "d"], ["x", "y", "z"]],
+            "deprecated": [["b", "d"], ["y"]]
+        })
+
+        result = df.select(fn.array_except("all_tags", "deprecated").alias("active"))
+        # Output:
+        # ┌────────────┐
+        # │ active     │
+        # ├────────────┤
+        # │ ["a", "c"] │
+        # │ ["x", "z"] │
+        # └────────────┘
+        ```
+
+    Example: No common elements
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "arr1": [[1, 2, 3]],
+            "arr2": [[4, 5, 6]]
+        })
+
+        result = df.select(fn.array_except("arr1", "arr2"))
+        # Output: [[1, 2, 3]]  # All elements retained
         ```
     """
     return Column._from_logical_expr(
@@ -1002,15 +1220,42 @@ def array_except(col1: ColumnOrName, col2: ColumnOrName) -> Column:
 def array_compact(column: ColumnOrName) -> Column:
     """Removes null values from an array.
 
+    Returns a new array with all null values removed. Returns null if the input
+    array itself is null.
+
     Args:
         column: Column or column name containing arrays.
 
     Returns:
         A Column with arrays having null values removed.
 
-    Example:
+    Example: Removing nulls from arrays
         ```python
-        df.select(array_compact("tags"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "values": [[1, None, 2, None, 3], ["a", None, "b"], None]
+        })
+
+        result = df.select(fn.array_compact("values").alias("compact"))
+        # Output:
+        # ┌───────────┐
+        # │ compact   │
+        # ├───────────┤
+        # │ [1, 2, 3] │
+        # │ ["a", "b"]│
+        # │ null      │
+        # └───────────┘
+        ```
+
+    Example: All nulls removed
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "sparse": [[None, None, 1], [None]]
+        })
+
+        result = df.select(fn.array_compact("sparse"))
+        # Output: [[1], []]
         ```
     """
     return Column._from_logical_expr(
@@ -1022,17 +1267,48 @@ def array_compact(column: ColumnOrName) -> Column:
 def array_repeat(col: ColumnOrName, count: Union[int, ColumnOrName]) -> Column:
     """Creates an array containing the element repeated count times.
 
+    Returns a new array where the element is repeated the specified number of times.
+    Returns null if count is null or negative.
+
     Args:
-        col: Column or value to repeat.
-        count: Number of times to repeat the element.
+        col: Column, column name, or literal value to repeat.
+        count: Number of times to repeat the element. Can be an integer literal
+            or a Column expression.
 
     Returns:
-        A Column containing an array with the element repeated.
+        A Column containing an array with the element repeated count times.
 
-    Example:
+    Example: Repeating literals
         ```python
-        df.select(array_repeat(lit("x"), 3))  # Returns ["x", "x", "x"]
-        df.select(array_repeat(col("value"), col("count")))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "id": [1, 2, 3]
+        })
+
+        result = df.select(
+            fn.array_repeat(fn.lit("x"), 3).alias("repeated"),
+            fn.array_repeat(fn.lit(0), 5).alias("zeros")
+        )
+        # Output:
+        # ┌─────────────────┬──────────────────────┐
+        # │ repeated        │ zeros                │
+        # ├─────────────────┼──────────────────────┤
+        # │ ["x", "x", "x"] │ [0, 0, 0, 0, 0]      │
+        # │ ["x", "x", "x"] │ [0, 0, 0, 0, 0]      │
+        # │ ["x", "x", "x"] │ [0, 0, 0, 0, 0]      │
+        # └─────────────────┴──────────────────────┘
+        ```
+
+    Example: Repeating column values
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "value": ["a", "b", "c"],
+            "count": [2, 3, 1]
+        })
+
+        result = df.select(fn.array_repeat(fn.col("value"), fn.col("count")))
+        # Output: [["a", "a"], ["b", "b", "b"], ["c"]]
         ```
     """
     count_column = count if isinstance(count, Column) else lit(count)
@@ -1046,17 +1322,45 @@ def array_repeat(col: ColumnOrName, count: Union[int, ColumnOrName]) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def flatten(column: ColumnOrName) -> Column:
-    """Flattens an array of arrays into a single array.
+    """Flattens an array of arrays into a single array (one level deep).
+
+    Flattens nested arrays by concatenating all inner arrays into a single array.
+    Only flattens one level of nesting. Returns null if the input is null.
 
     Args:
         column: Column or column name containing arrays of arrays.
 
     Returns:
-        A Column with flattened arrays.
+        A Column with flattened arrays (one level deep).
 
-    Example:
+    Example: Flattening nested arrays
         ```python
-        df.select(flatten("nested_arrays"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "nested": [[[1, 2], [3, 4]], [[5], [6, 7, 8]], None]
+        })
+
+        result = df.select(fn.flatten("nested").alias("flat"))
+        # Output:
+        # ┌──────────────────┐
+        # │ flat             │
+        # ├──────────────────┤
+        # │ [1, 2, 3, 4]     │
+        # │ [5, 6, 7, 8]     │
+        # │ null             │
+        # └──────────────────┘
+        ```
+
+    Example: One level only
+        ```python
+        # Deeply nested arrays - only flattens one level
+        df = fn.Session.local().create_dataframe({
+            "deep": [[[[1]], [[2]]], [[[3]]]]
+        })
+
+        result = df.select(fn.flatten("deep"))
+        # Output: [[[1], [2]], [[3]]]  # Still nested after one level
         ```
     """
     return Column._from_logical_expr(
@@ -1066,20 +1370,65 @@ def flatten(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def slice(column: ColumnOrName, start: Union[int, ColumnOrName], length: Union[int, ColumnOrName]) -> Column:
-    """Extracts a subarray from an array.
+    """Extracts a subarray from an array using 1-based indexing (PySpark compatible).
+
+    Extracts a contiguous subarray starting from the given position. Uses 1-based
+    indexing for compatibility with PySpark. Returns null if the input array is null.
 
     Args:
         column: Column or column name containing arrays.
-        start: Starting position (1-based index).
-        length: Number of elements to extract.
+        start: Starting position (1-based index). Positive indices count from the
+            start (1 = first element), negative indices count from the end
+            (-1 = last element).
+        length: Number of elements to extract. Must be positive.
 
     Returns:
         A Column with subarrays extracted.
 
-    Example:
+    Example: Extracting from the start
         ```python
-        df.select(slice("tags", 1, 3))  # First 3 elements
-        df.select(slice("tags", col("start_idx"), 2))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[1, 2, 3, 4, 5], [10, 20, 30]]
+        })
+
+        result = df.select(
+            fn.slice("numbers", 1, 3).alias("first_three"),
+            fn.slice("numbers", 2, 2).alias("middle_two")
+        )
+        # Output:
+        # ┌───────────────┬────────────┐
+        # │ first_three   │ middle_two │
+        # ├───────────────┼────────────┤
+        # │ [1, 2, 3]     │ [2, 3]     │
+        # │ [10, 20, 30]  │ [20, 30]   │
+        # └───────────────┴────────────┘
+        ```
+
+    Example: Using negative indices
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "arr": [[1, 2, 3, 4, 5]]
+        })
+
+        # Extract last 3 elements: start at -3, take 3
+        result = df.select(fn.slice("arr", -3, 3))
+        # Output: [[3, 4, 5]]
+        ```
+
+    Example: Dynamic slicing with columns
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "values": [[1, 2, 3, 4, 5], [10, 20, 30]],
+            "start_idx": [2, 1],
+            "num_elements": [2, 2]
+        })
+
+        result = df.select(
+            fn.slice("values", fn.col("start_idx"), fn.col("num_elements"))
+        )
+        # Output: [[2, 3], [10, 20]]
         ```
     """
     start_column = start if isinstance(start, Column) else lit(start)
@@ -1095,19 +1444,69 @@ def slice(column: ColumnOrName, start: Union[int, ColumnOrName], length: Union[i
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
-    """Returns the element at the given index in an array.
+    """Returns the element at the given index in an array using 1-based indexing (PySpark compatible).
+
+    Uses 1-based indexing for compatibility with PySpark. Returns null if the
+    index is out of bounds or if the input array is null.
 
     Args:
         column: Column or column name containing arrays.
-        index: Index of the element (1-based).
+        index: Index of the element (1-based). Positive indices count from the
+            start (1 = first element), negative indices count from the end
+            (-1 = last element). Can be an integer literal or a Column expression.
 
     Returns:
         A Column containing the element at the specified index.
 
-    Example:
+    Example: Accessing with positive indices
         ```python
-        df.select(element_at("tags", 1))  # First element
-        df.select(element_at("tags", -1))  # Last element
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "numbers": [[10, 20, 30, 40], [100, 200]]
+        })
+
+        result = df.select(
+            fn.element_at("numbers", 1).alias("first"),
+            fn.element_at("numbers", 2).alias("second")
+        )
+        # Output:
+        # ┌───────┬────────┐
+        # │ first │ second │
+        # ├───────┼────────┤
+        # │ 10    │ 20     │
+        # │ 100   │ 200    │
+        # └───────┴────────┘
+        ```
+
+    Example: Accessing with negative indices
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "arr": [["a", "b", "c", "d"], ["x", "y", "z"]]
+        })
+
+        result = df.select(
+            fn.element_at("arr", -1).alias("last"),
+            fn.element_at("arr", -2).alias("second_last")
+        )
+        # Output:
+        # ┌──────┬─────────────┐
+        # │ last │ second_last │
+        # ├──────┼─────────────┤
+        # │ "d"  │ "c"         │
+        # │ "z"  │ "y"         │
+        # └──────┴─────────────┘
+        ```
+
+    Example: Dynamic indexing with columns
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "values": [[1, 2, 3], [10, 20, 30]],
+            "position": [2, 3]
+        })
+
+        result = df.select(fn.element_at("values", fn.col("position")))
+        # Output: [2, 30]
         ```
     """
     index_column = index if isinstance(index, Column) else lit(index)
@@ -1123,16 +1522,57 @@ def element_at(column: ColumnOrName, index: Union[int, ColumnOrName]) -> Column:
 def arrays_overlap(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Checks if two arrays have at least one common element.
 
+    Returns true if the two arrays share at least one common element, false if they
+    have no common elements. Returns null if either input array is null.
+
     Args:
-        col1: First array column.
-        col2: Second array column.
+        col1: First array column or column name.
+        col2: Second array column or column name.
 
     Returns:
-        A boolean Column (True if arrays overlap, False otherwise).
+        A boolean Column (True if arrays have common elements, False otherwise).
 
-    Example:
+    Example: Detecting overlap
         ```python
-        df.select(arrays_overlap("tags1", "tags2"))
+        import fenic as fn
+
+        df = fn.Session.local().create_dataframe({
+            "arr1": [["a", "b", "c"], ["x", "y"], ["p", "q"]],
+            "arr2": [["c", "d", "e"], ["w", "z"], ["q", "r"]]
+        })
+
+        result = df.select(fn.arrays_overlap("arr1", "arr2").alias("has_overlap"))
+        # Output:
+        # ┌─────────────┐
+        # │ has_overlap │
+        # ├─────────────┤
+        # │ true        │  # "c" is common
+        # │ false       │  # No common elements
+        # │ true        │  # "q" is common
+        # └─────────────┘
+        ```
+
+    Example: Using with filtering
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "user_tags": [["python", "ml"], ["java", "web"], ["python", "web"]],
+            "required": [["python", "data"], ["python", "data"], ["python", "data"]]
+        })
+
+        # Filter users with at least one required tag
+        result = df.filter(fn.arrays_overlap("user_tags", "required"))
+        # Output: Rows with indices 0 and 2 (have "python" tag)
+        ```
+
+    Example: Numeric arrays
+        ```python
+        df = fn.Session.local().create_dataframe({
+            "nums1": [[1, 2, 3], [4, 5, 6]],
+            "nums2": [[3, 4, 5], [7, 8, 9]]
+        })
+
+        result = df.select(fn.arrays_overlap("nums1", "nums2"))
+        # Output: [true, false]
         ```
     """
     return Column._from_logical_expr(
