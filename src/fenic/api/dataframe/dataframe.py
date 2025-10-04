@@ -647,6 +647,124 @@ class DataFrame:
             self._session_state,
         )
 
+    def with_columns(self, cols_map: Dict[str, Union[Any, Column]]) -> DataFrame:
+        """Add multiple new columns or replace existing columns.
+
+        Args:
+            cols_map: A dictionary where keys are column names and values are
+                Column expressions or literal values. Values that are not Column objects
+                will be treated as literal values.
+
+        Returns:
+            DataFrame: New DataFrame with added/replaced columns
+
+        Notes:
+            - All columns are created at once, so new columns cannot depend on each other.
+
+        Example: Add multiple columns
+            ```python
+            # Create a DataFrame
+            df = session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30]})
+
+            # Add multiple columns at once
+            df.with_columns({
+                "double_age": col("age") * 2,
+                "constant": lit(1),
+                "age_plus_10": col("age") + 10
+            }).show()
+            # Output:
+            # +-----+---+----------+--------+-----------+
+            # | name|age|double_age|constant|age_plus_10|
+            # +-----+---+----------+--------+-----------+
+            # |Alice| 25|        50|       1|         35|
+            # |  Bob| 30|        60|       1|         40|
+            # +-----+---+----------+--------+-----------+
+            ```
+
+        Example: Replace and add columns
+            ```python
+            # Replace existing column and add new ones
+            df.with_columns({
+                "age": col("age") + 1,
+                "is_adult": col("age") >= 18
+            }).show()
+            # Output:
+            # +-----+---+--------+
+            # | name|age|is_adult|
+            # +-----+---+--------+
+            # |Alice| 26|    true|
+            # |  Bob| 31|    true|
+            # +-----+---+--------+
+            ```
+
+        Example: Complex expressions
+            ```python
+            # Add multiple columns with complex expressions
+            df.with_columns({
+                "age_category": when(col("age") < 30, "young")
+                    .when(col("age") < 50, "middle")
+                    .otherwise("senior"),
+                "name_length": length(col("name")),
+                "name_upper": upper(col("name"))
+            }).show()
+            # Output:
+            # +-----+---+------------+-----------+----------+
+            # | name|age|age_category|name_length|name_upper|
+            # +-----+---+------------+-----------+----------+
+            # |Alice| 25|       young|          5|     ALICE|
+            # |  Bob| 30|      middle|          3|       BOB|
+            # +-----+---+------------+-----------+----------+
+            ```
+
+        Example: Error when adding columns that depend on each other
+            ```python
+            df.with_columns({
+                "age_plus_1": col("age") + 1,
+                "age_plus_2": col("age_plus_1") + 1
+            })
+            # ValueError: Column 'age_plus_1' not found in schema
+
+            # Instead, use a single with_column call
+            df = df.with_column(
+                "age_plus_1", col("age") + 1
+            ).with_column(
+                "age_plus_2", col("age_plus_1") + 1
+            )
+            df.show()
+            # Output:
+            # +-----+---+----------+----------+
+            # | name|age|age_plus_1|age_plus_2|
+            # +-----+---+----------+----------+
+            # |Alice| 25|        26|        27|
+            # |  Bob| 30|        31|        32|
+            # +-----+---+----------+----------+
+            ```
+        """
+        if not cols_map:
+            return self
+
+        exprs = []
+        new_col_names = set(cols_map.keys())
+
+        # Add existing columns that are not being replaced
+        for field in self.columns:
+            if field not in new_col_names:
+                exprs.append(Column._from_column_name(field)._logical_expr)
+
+        # Add all new columns with aliases
+        for col_name, col_expr in cols_map.items():
+            # Automatically wrap non-Column values (literals) with lit() for convenience
+            # This allows users to pass raw Python values like: {"constant": 100, "status": "active"}
+            # instead of requiring: {"constant": lit(100), "status": lit("active")}
+            if not isinstance(col_expr, Column):
+                col_expr = lit(col_expr)
+            exprs.append(col_expr.alias(col_name)._logical_expr)
+
+        return self._from_logical_plan(
+            Projection.from_session_state(self._logical_plan, exprs, self._session_state),
+            self._session_state,
+        )
+
     def with_column_renamed(self, col_name: str, new_col_name: str) -> DataFrame:
         """Rename a column. No-op if the column does not exist.
 
@@ -1601,11 +1719,15 @@ DataFrame.filter = validate_call(
 DataFrame.with_column = validate_call(
     config=ConfigDict(arbitrary_types_allowed=True, strict=True)
 )(DataFrame.with_column)
+DataFrame.with_columns = validate_call(
+    config=ConfigDict(arbitrary_types_allowed=True, strict=True)
+)(DataFrame.with_columns)
 DataFrame.with_column_renamed = validate_call(
     config=ConfigDict(strict=True)
 )(DataFrame.with_column_renamed)
 DataFrame.withColumnRenamed = DataFrame.with_column_renamed
 DataFrame.withColumn = DataFrame.with_column
+DataFrame.withColumns = DataFrame.with_columns
 DataFrame.drop = validate_call(
     config=ConfigDict(strict=True)
 )(DataFrame.drop)
