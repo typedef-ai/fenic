@@ -8,6 +8,7 @@ from typing import Optional, Union
 from openai import APIConnectionError, APITimeoutError, OpenAIError, RateLimitError
 from pydantic import ValidationError as PydanticValidationError
 
+from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
     FatalException,
@@ -92,7 +93,7 @@ class OpenRouterBatchChatCompletionsClient(
         profile = self._profile_manager.get_profile_by_name(request.model_profile)
         common_params = {
                 "model": self.model,
-                "messages": request.messages.to_message_list(),
+                "messages": convert_messages(request.messages),
                 "max_completion_tokens": self._get_max_output_tokens(request),
                 "n": 1,
             }
