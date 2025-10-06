@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.5.0](https://github.com/typedef-ai/fenic/compare/v0.4.2...v0.5.0) (2025-10-06)
+
+
+### Features
+
+* add "Fenic in 120 Seconds" demo notebook series ([#169](https://github.com/typedef-ai/fenic/issues/169)) ([e015e01](https://github.com/typedef-ai/fenic/commit/e015e0172dc42577e2f7d853a20ce734bd014c1a))
+* Add page chunking to semantic parse_pdf, refactor token estimation ([#219](https://github.com/typedef-ai/fenic/issues/219)) ([a9b8132](https://github.com/typedef-ai/fenic/commit/a9b813286f063c6d94819702feb445e12b5cbd7f))
+* add PhysicalPlanOptimizer library and implement MergeDuckDBNodesRule ([#213](https://github.com/typedef-ai/fenic/issues/213)) ([8729360](https://github.com/typedef-ai/fenic/commit/8729360e50b5aa776f2e135f263df01f3930dc03))
+* add sonnet 4.5 to model catalog ([#240](https://github.com/typedef-ai/fenic/issues/240)) ([8d797c2](https://github.com/typedef-ai/fenic/commit/8d797c24f865997f2200876a6fa2d39bcafe41a9))
+* add tz support for timestamp type ([#232](https://github.com/typedef-ai/fenic/issues/232)) ([c6167d9](https://github.com/typedef-ai/fenic/commit/c6167d9e5206c56525e5f499c16b6dbfb70cbf60))
+* reader.pdf_metadata for reading pdf metadata into a df ([#182](https://github.com/typedef-ai/fenic/issues/182)) ([5636b1a](https://github.com/typedef-ai/fenic/commit/5636b1a2ef05961b1350fd3308f1320ddba5d92d))
+* revert "feat: split reader.docs() into json() and markdown() ([#179](https://github.com/typedef-ai/fenic/issues/179))" ([#195](https://github.com/typedef-ai/fenic/issues/195)) ([8d9f490](https://github.com/typedef-ai/fenic/commit/8d9f4904ea630e7910a80aac40949a416ff23472))
+* semantic.pdf_parse and support for google models ([#191](https://github.com/typedef-ai/fenic/issues/191)) ([a23ead5](https://github.com/typedef-ai/fenic/commit/a23ead5809d132dab801996add13498b532027bb))
+* split reader.docs() into json() and markdown() ([#179](https://github.com/typedef-ai/fenic/issues/179)) ([083d61a](https://github.com/typedef-ai/fenic/commit/083d61a56fc14979a77831841086c0f2f99781c9))
+* support date & timestamp data types in Fenic ([#201](https://github.com/typedef-ai/fenic/issues/201)) ([4388dec](https://github.com/typedef-ai/fenic/commit/4388dec5bfbd8ceedc5e40c33f9e9b2509c070df))
+* support openrouter as a model provider ([#171](https://github.com/typedef-ai/fenic/issues/171)) ([b4e974f](https://github.com/typedef-ai/fenic/commit/b4e974ff926591fc55ef55019cc2fe0b7d6b43bd))
+* System Tools for fenic MCP servers ([#163](https://github.com/typedef-ai/fenic/issues/163)) ([aa644dc](https://github.com/typedef-ai/fenic/commit/aa644dc0ff335800360aa6efb3860ea9c521a727))
+* use gemini native token counter ([#197](https://github.com/typedef-ai/fenic/issues/197)) ([2978cd4](https://github.com/typedef-ai/fenic/commit/2978cd46a6f7974cfa1694d1dcafc989901d3f2d))
+
+
+### Bug Fixes
+
+* do not pass port to http_app, it is not accepted there ([#244](https://github.com/typedef-ai/fenic/issues/244)) ([fd11b30](https://github.com/typedef-ai/fenic/commit/fd11b30952511f3ffaeac1e012f01fcc3e7c7a35))
+* do not retry on 429: quota exhausted errors from OpenAI ([#231](https://github.com/typedef-ai/fenic/issues/231)) ([deef3a6](https://github.com/typedef-ai/fenic/commit/deef3a6c797ac22237ac9bd60417a8c8d407bb07))
+* doc loader should cast content in physical node and small api fixes ([#220](https://github.com/typedef-ai/fenic/issues/220)) ([3821a67](https://github.com/typedef-ai/fenic/commit/3821a671581006dc1b93083ebd3068187e3cce2c))
+* enforce that return types of all branches in conditional chains are equal and handle child exprs in IsNullExpr ([#190](https://github.com/typedef-ai/fenic/issues/190)) ([bd778e5](https://github.com/typedef-ai/fenic/commit/bd778e50419acceb0e44a3fa1f269e3f0acc2c7d))
+* export OpenRouterLanguageModel ([#227](https://github.com/typedef-ai/fenic/issues/227)) ([59be61b](https://github.com/typedef-ai/fenic/commit/59be61bad8543988f139261ef2d6f7290cbe852e))
+* gemini-2.5-pro default model without profiles ([#209](https://github.com/typedef-ai/fenic/issues/209)) ([755a319](https://github.com/typedef-ai/fenic/commit/755a319313c9c78c9bd709b80baae1886a981cdf))
+* improve localcatalog locking strategy to lock only when required ([#218](https://github.com/typedef-ai/fenic/issues/218)) ([8123ad9](https://github.com/typedef-ai/fenic/commit/8123ad964b04a4769ad21b03bcca397aa1d8294a))
+* off-by-one bug in random pdf content generation for testing ([#226](https://github.com/typedef-ai/fenic/issues/226)) ([adc0070](https://github.com/typedef-ai/fenic/commit/adc0070fedb10950838b9554d41f9f4c88edcd15))
+* openrouter batch completions client was broken after changes to LMRequestMessages ([#248](https://github.com/typedef-ai/fenic/issues/248)) ([4342fa6](https://github.com/typedef-ai/fenic/commit/4342fa61f83d11964d75c4773bd0bb31dc139b0b))
+* parse_pdf returns MarkdownType column ([#252](https://github.com/typedef-ai/fenic/issues/252)) ([94c5481](https://github.com/typedef-ai/fenic/commit/94c5481b95a342f1571f01090ce35e3650e2c9df))
+* quota exhaused error message for openai ([#233](https://github.com/typedef-ai/fenic/issues/233)) ([a42bc19](https://github.com/typedef-ai/fenic/commit/a42bc1904ee602b133130266e2e5eaa8d4e4cc42))
+* raise exception in user thread instead of shutting down when request above model tpm ([#228](https://github.com/typedef-ai/fenic/issues/228)) ([3147aae](https://github.com/typedef-ai/fenic/commit/3147aae8c7d3bf3bbfda80af135bbd0bc2858703))
+* raise if a request can't be handled by max token capacity ([#210](https://github.com/typedef-ai/fenic/issues/210)) ([b7eee1d](https://github.com/typedef-ai/fenic/commit/b7eee1da608a603a1c5ceb4ef1f4c946dba965ac))
+* regressions from duckdb 1.4.0 behavior changes, use polars methods instead of arrow, minor test fixes ([#239](https://github.com/typedef-ai/fenic/issues/239)) ([f4a5e73](https://github.com/typedef-ai/fenic/commit/f4a5e73387f988b8bb2202be8b5787d8dec6c84f))
+* remove o1-mini since it doesn't support json_schema structured output ([#208](https://github.com/typedef-ai/fenic/issues/208)) ([dec6503](https://github.com/typedef-ai/fenic/commit/dec6503069a9e42d3dfc13ff1445f53004737eae))
+* skip local gemini token counting tests if google-genai is not installed ([#214](https://github.com/typedef-ai/fenic/issues/214)) ([7bb85c6](https://github.com/typedef-ai/fenic/commit/7bb85c62db6930824072d3b490bc0e3ab3709bad))
+* unit test relies on non-deterministic calls in reduce ([#234](https://github.com/typedef-ai/fenic/issues/234)) ([a8f5770](https://github.com/typedef-ai/fenic/commit/a8f5770a3a6a69cc28cb8efa8c3804b24cdca519))
+* when querying files in public S3 buckets/HuggingFace Datasets, the user should not have to provide credentials ([#202](https://github.com/typedef-ai/fenic/issues/202)) ([3a99f79](https://github.com/typedef-ai/fenic/commit/3a99f79d81566fadcc0735efec8e47d2cd4f6327))
+
+
+### Documentation
+
+* fixed pyproject.toml and readme for the mcp example ([#198](https://github.com/typedef-ai/fenic/issues/198)) ([407de03](https://github.com/typedef-ai/fenic/commit/407de0324660c70eee700caab05ebba50d122965))
+* Update index.md in docs ([#205](https://github.com/typedef-ai/fenic/issues/205)) ([883cb30](https://github.com/typedef-ai/fenic/commit/883cb3078ce87e4b6adced2a46630201b6327362))
+* Update README.md ([#204](https://github.com/typedef-ai/fenic/issues/204)) ([0410f89](https://github.com/typedef-ai/fenic/commit/0410f89ee5a6170675a53f7bc6e928dda7a937a9))
+* updated and simplified the docs MCP example ([#193](https://github.com/typedef-ai/fenic/issues/193)) ([623a085](https://github.com/typedef-ai/fenic/commit/623a085247bd83ddf9ff3f237658cb09bb25ea46))
+
 ## [0.4.2](https://github.com/typedef-ai/fenic/compare/v0.4.1...v0.4.2) (2025-09-04)
 
 
