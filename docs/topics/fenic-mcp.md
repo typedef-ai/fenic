@@ -210,9 +210,6 @@ await run_mcp_server_async(
 
 asgi_app = run_mcp_server_asgi(
     server,
-    transport="http",
-    host="127.0.0.1",
-    port=8000,
     stateless_http=True,
     path="/mcp",
     # middleware = [...]

@@ -4,7 +4,7 @@ This module exposes helpers to:
 - Build a Fenic-backed MCP server from datasets and tools
 - Run the server synchronously or asynchronously
 """
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, validate_call
 
@@ -56,8 +56,7 @@ def run_mcp_server_asgi(
     server: FenicMCPServer,
     *,
     stateless_http: bool = True,
-    port: Optional[int] = None,
-    host: Optional[str] = None,
+    transport: Literal['streamable-http', 'sse'] = 'streamable-http',
     path: Optional[str] = "/mcp",
     **kwargs,
 ):
@@ -69,16 +68,15 @@ def run_mcp_server_asgi(
     Args:
         server: MCP server to run.
         stateless_http: If True, use stateless HTTP.
-        port: Port to listen on.
-        host: Host to listen on.
+        transport: Transport protocol to use (streamable-http, sse).
         path: Path to listen on.
-        kwargs: Additional transport-specific arguments to pass to FastMCP.
+        kwargs: Additional starlette-specific arguments to pass to FastMCP.
 
     Notes:
-        Some additional possible keyword arguments:
+        Additional keyword arguments:
         - `middleware`: A list of Starlette `ASGIMiddleware` middleware to apply to the app.
     """
-    return server.http_app(stateless_http=stateless_http, port=port, host=host, path=path, **kwargs)
+    return server.http_app(stateless_http=stateless_http, transport=transport, path=path, **kwargs)
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def run_mcp_server_sync(
