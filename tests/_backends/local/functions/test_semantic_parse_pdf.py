@@ -10,6 +10,7 @@ from fenic import SemanticConfig, Session, SessionConfig, col, semantic
 from fenic.api.session.config import GoogleDeveloperLanguageModel, OpenAILanguageModel
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core.error import ValidationError
+from fenic.core.types import ColumnField, MarkdownType
 from tests.conftest import _save_pdf_file
 
 basic_text_content = [
@@ -55,9 +56,13 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test
                                     include_images=[True, False])
     try:
         df = local_session.create_dataframe({"pdf_path": pdf_paths})
-        markdown_result = df.select(
+        parsed_df = df.select(
             semantic.parse_pdf(col("pdf_path")).alias("markdown_content")
-        ).collect()
+        ).cache()
+        assert parsed_df.schema.column_fields == [
+            ColumnField(name="markdown_content", data_type=MarkdownType)
+        ]
+        markdown_result = parsed_df.collect()
 
         for i in range(2):
             markdown_content = markdown_result.data["markdown_content"][i]

@@ -9,7 +9,7 @@ from fenic.core._logical_plan.signatures.function_signature import (
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.type_signature import Exact
-from fenic.core.types.datatypes import StringType
+from fenic.core.types.datatypes import MarkdownType, StringType
 
 
 def register_semantic_signatures():
@@ -53,7 +53,7 @@ def register_semantic_signatures():
     FunctionRegistry.register("semantic.parse_pdf", FunctionSignature(
         function_name="semantic.parse_pdf",
         type_signature=Exact([StringType]),
-        return_type=StringType
+        return_type=MarkdownType
     ))
 
 # Register all signatures when module is imported
