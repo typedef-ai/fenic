@@ -1,5 +1,6 @@
 import datetime
 import re
+import zoneinfo
 
 import pytest
 
@@ -135,12 +136,20 @@ def test_least(greatest_least_source):
         df = greatest_least_source.select(least(col("int"), col("str")).alias("least"))
 
 def test_with_datetime_types(local_session):
+        LA_TZ = "America/Los_Angeles"
+
         """Test that greatest and least work with datetime types."""
         df_source = local_session.create_dataframe({
             "date_col": [datetime.date(2023, 12, 25), datetime.date(2024, 1, 1)],
             "date_col2": [datetime.date(2023, 12, 24), datetime.date(2024, 1, 2)],
             "datetime_col": [datetime.datetime(2023, 12, 25, 14, 30), datetime.datetime(2024, 1, 1, 9, 15)],
             "datetime_col2": [datetime.datetime(2023, 12, 25, 14, 29), datetime.datetime(2024, 1, 1, 9, 18)],
+            "datetime_col_tz_la": [
+                datetime.datetime(2023, 12, 25, 14, 30, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ)),
+                datetime.datetime(2024, 1, 2, 9, 18, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ))],
+            "datetime_col_tz_la2": [
+                datetime.datetime(2023, 12, 25, 14, 29, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ)),
+                datetime.datetime(2024, 1, 1, 9, 19, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ))],
         })
         df = df_source.select(least(col("date_col"), col("date_col2")).alias("least"))
         results = df.to_pydict()
@@ -148,4 +157,12 @@ def test_with_datetime_types(local_session):
 
         df = df_source.select(greatest(col("datetime_col"), col("datetime_col2")).alias("greatest"))
         results = df.to_pydict()
-        assert results["greatest"] == [datetime.datetime(2023, 12, 25, 14, 30), datetime.datetime(2024, 1, 1, 9, 18)]
+        # We convert naive datetimes to UTC.
+        assert results["greatest"] == [datetime.datetime(2023, 12, 25, 14, 30, tzinfo=datetime.timezone.utc), datetime.datetime(2024, 1, 1, 9, 18, tzinfo=datetime.timezone.utc)]
+
+
+        df = df_source.select(least(col("datetime_col_tz_la"), col("datetime_col_tz_la2")).alias("least"))
+        results = df.to_pydict()
+        assert results["least"] == [
+            datetime.datetime(2023, 12, 25, 14, 29, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ)),
+            datetime.datetime(2024, 1, 1, 9, 19, tzinfo=zoneinfo.ZoneInfo(key=LA_TZ))]

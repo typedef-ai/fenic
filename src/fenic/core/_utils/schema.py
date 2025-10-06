@@ -170,7 +170,9 @@ def convert_custom_dtype_to_polars(
         elif custom_dtype == DateType:
             return pl.Date
         elif custom_dtype == TimestampType:
-            return pl.Datetime(time_unit="ns")
+            return pl.Datetime(time_unit="us", time_zone="UTC")
+        else:
+            raise ValueError(f"Unsupported PrimitiveType data type: {custom_dtype}")
     elif isinstance(custom_dtype, ArrayType):
         return pl.List(convert_custom_dtype_to_polars(custom_dtype.element_type))
     elif isinstance(custom_dtype, StructType):

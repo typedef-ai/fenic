@@ -32,7 +32,7 @@ class InMemorySourceExec(PhysicalPlan):
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
-        return apply_ingestion_coercions(self.df)
+        return apply_ingestion_coercions(self.df, coerce_array=True)
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:
@@ -69,7 +69,7 @@ class FileSourceExec(PhysicalPlan):
 
         file_format = self.file_format.lower()
         df = query_files(paths=self.paths, file_type=file_format, s3_session=self.session_state.s3_session, **self.options)
-        return apply_ingestion_coercions(df)
+        return apply_ingestion_coercions(df, coerce_array=True)
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:
@@ -144,7 +144,7 @@ class DocSourceExec(PhysicalPlan):
             self.content_type,
             self.exclude,
             self.recursive)
-        df = apply_ingestion_coercions(df)
+        df = apply_ingestion_coercions(df, coerce_array=True)
         if self.content_type in ["markdown", "json"]:
             # overwrite the content column with the casted content
             source_type = json.dumps(serialize_data_type(StringType))

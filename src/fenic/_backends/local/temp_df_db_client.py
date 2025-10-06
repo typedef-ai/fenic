@@ -3,6 +3,7 @@ from pathlib import Path
 import polars as pl
 
 import fenic._backends.local.utils.io_utils
+from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
 from fenic.core._utils.misc import generate_unique_view_name
 
 
@@ -24,7 +25,7 @@ class TempDFDBClient:
     def read_df(self, table_name: str) -> pl.DataFrame:
         """Read a Polars dataframe from a DuckDB table in the current DuckDB schema."""
         # trunk-ignore-begin(bandit/B608)
-        return self.db_conn.cursor().execute(f"SELECT * FROM {table_name}").pl()
+        return apply_ingestion_coercions(self.db_conn.cursor().execute(f"SELECT * FROM {table_name}").pl(), coerce_array=False)
         # trunk-ignore-end(bandit/B608)
 
     def write_df(self, df: pl.DataFrame, table_name: str):

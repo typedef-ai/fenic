@@ -214,7 +214,6 @@ def build_write_query(
         is_s3=is_s3
     )
 
-
 def _build_s3_config_components(s3_session: BotoSession) -> List[str]:
     """Build S3 configuration SQL statements. Raises ConfigurationError if credentials not found."""
     frozen_creds, region = _fetch_and_validate_s3_credentials(s3_session)
@@ -293,7 +292,7 @@ def _convert_schema_to_duckdb_dict(schema: Schema) -> Dict[str, str]:
         DoubleType: "DOUBLE",
         BooleanType: "BOOLEAN",
         DateType: "DATE",
-        TimestampType: "TIMESTAMP",
+        TimestampType: "TIMESTAMPTZ",
     }
 
     duckdb_schema = {}
@@ -302,7 +301,7 @@ def _convert_schema_to_duckdb_dict(schema: Schema) -> Dict[str, str]:
         if not duckdb_type:
             raise InternalError(
                 f"Invalid column type for csv Schema: ColumnField(name='{col_field.name}', data_type={type(col_field.data_type).__name__}). "
-                f"Expected one of: IntegerType, FloatType, DoubleType, BooleanType, or StringType. as data_type"
+                f"Expected one of: IntegerType, FloatType, DoubleType, BooleanType, StringType, DateType, or TimestampType as data_type"
                 f"Example: Schema([ColumnField(name='id', data_type=IntegerType), ColumnField(name='name', data_type=StringType)])"
             )
         duckdb_schema[col_field.name] = duckdb_type

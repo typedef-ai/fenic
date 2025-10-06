@@ -1,7 +1,13 @@
+import datetime
+import zoneinfo
+
 import polars as pl
 
 from fenic import avg, col, count
 
+TS_UTC = datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+TS_LA = datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
+TS_UTC_FROM_LA = datetime.datetime(2025, 1, 1, 9, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
 
 def create_basic_test_df(local_session):
     """Creates a test DataFrame with sample data."""
@@ -28,6 +34,8 @@ def create_basic_test_df(local_session):
                 ["yoga", "traveling", "reading"],
                 ["yoga", "traveling", "reading"],
             ],
+            "ts_utc": [TS_UTC]*6,
+            "ts_utc_from_la": [TS_LA]*6,
         }
     )
 
@@ -38,7 +46,7 @@ def test_lineage_single_child_backward(local_session):
     df = (
         source.filter(col("has_pet"))
         .explode("hobbies")
-        .group_by("gender", "hobbies", "city")
+        .group_by("gender", "hobbies", "city", "ts_utc", "ts_utc_from_la")
         .agg(count("gender").alias("count"), avg("age").alias("avg_age"))
         .select(
             "gender",
@@ -46,6 +54,8 @@ def test_lineage_single_child_backward(local_session):
             "city",
             col("count"),
             (col("avg_age") * 7).alias("age_in_dog_years"),
+            col("ts_utc"),
+            col("ts_utc_from_la"),
         )
     )
     lineage = df.lineage()
@@ -71,6 +81,8 @@ def test_lineage_single_child_backward(local_session):
                 "gender": ["Male"],
                 "hobbies": ["traveling"],
                 "city": ["San Francisco"],
+                "ts_utc": [TS_UTC],
+                "ts_utc_from_la": [TS_UTC_FROM_LA],
                 "count": [2],
                 "avg_age": [37.5],
             }
@@ -96,7 +108,7 @@ def test_lineage_single_child_forward(local_session):
     df = (
         source.filter(col("has_pet"))
         .explode("hobbies")
-        .group_by("gender", "hobbies", "city")
+        .group_by("gender", "hobbies", "city", "ts_utc", "ts_utc_from_la")
         .agg(count("gender").alias("count"), avg("age").alias("avg_age"))
         .select(
             "gender",
@@ -104,6 +116,8 @@ def test_lineage_single_child_forward(local_session):
             "city",
             col("count"),
             (col("avg_age") * 7).alias("age_in_dog_years"),
+            col("ts_utc"),
+            col("ts_utc_from_la"),
         )
     )
     lineage_query = df.lineage()
@@ -135,13 +149,17 @@ def test_lineage_single_child_forward(local_session):
     forward = lineage_query.forwards(uuid_cols)
     assert forward.shape[0] == 3
 
+    # check coercions cast timestamps to UTC
+    assert forward["ts_utc"][0] == TS_UTC
+    assert forward["ts_utc_from_la"][0] == TS_UTC_FROM_LA
+
 
 def test_lineage_single_child_backward_and_forward(local_session):
     source = create_basic_test_df(local_session)
     df = (
         source.filter(col("has_pet"))
         .explode("hobbies")
-        .group_by("gender", "hobbies", "city")
+        .group_by("gender", "hobbies", "city", "ts_utc", "ts_utc_from_la")
         .agg(count("gender").alias("count"), avg("age").alias("avg_age"))
         .select(
             "gender",
@@ -149,6 +167,8 @@ def test_lineage_single_child_backward_and_forward(local_session):
             "city",
             col("count"),
             (col("avg_age") * 7).alias("age_in_dog_years"),
+            col("ts_utc"),
+            col("ts_utc_from_la"),
         )
     )
     lineage = df.lineage()

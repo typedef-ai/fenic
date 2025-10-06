@@ -8,7 +8,9 @@ from fenic._backends.local.utils.doc_loader import DocFolderLoader
 from fenic._constants import PRETTY_PRINT_INDENT
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.plans.base import LogicalPlan
-from fenic.core._utils.schema import convert_polars_schema_to_custom_schema
+from fenic.core._utils.schema import (
+    convert_polars_schema_to_custom_schema,
+)
 from fenic.core.error import InternalError, PlanError
 from fenic.core.types import Schema
 from fenic.core.types.enums import DocContentType
@@ -61,7 +63,6 @@ class InMemorySource(LogicalPlan):
 
     def _eq_specific(self, other: InMemorySource) -> bool:
         return self._source.equals(other._source)
-
 
 class FileSource(LogicalPlan):
     def __init__(

@@ -321,6 +321,7 @@ class DateFormatExpr(LogicalExpr):
         return f"dt.date_format(format={self.format})"
     
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        # In the case of date_format, we should accept a timestamp with a timezone.
         self.temporal_type = _resolve_temporal_type(self.expr, plan, session_state)
         return ColumnField(str(self), StringType)
     
@@ -374,16 +375,55 @@ class TimestampDiffExpr(LogicalExpr):
         return self.start == other.start and self.end == other.end and self.unit == other.unit
 
 
+class ToUTCTimestampExpr(LogicalExpr):
+    """Expression for converting a timestamp to UTC."""
+    def __init__(self, expr: LogicalExpr, timezone: str):
+        self.expr = expr
+        self.timezone = timezone
+
+    def __str__(self):
+        return f"dt.to_utc_timestamp({self.expr}, timezone={self.timezone})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        _resolve_temporal_type(self.expr, plan, session_state)
+        # The resulting type is always UTC
+        return ColumnField(str(self), TimestampType)
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+    def _eq_specific(self, other: ToUTCTimestampExpr) -> bool:
+        return self.expr == other.expr and self.timezone == other.timezone
+
+
+class FromUTCTimestampExpr(LogicalExpr):
+    """Expression for converting a timestamp from UTC to a given tz."""
+    def __init__(self, expr: LogicalExpr, timezone: str):
+        self.expr = expr
+        self.timezone = timezone
+
+    def __str__(self):
+        return f"dt.from_utc_timestamp({self.expr}, timezone={self.timezone})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        _resolve_temporal_type(self.expr, plan, session_state, check_utc=False)
+        return ColumnField(str(self), TimestampType)
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+    def _eq_specific(self, other: FromUTCTimestampExpr) -> bool:
+        return self.expr == other.expr and self.timezone == other.timezone
+
+
 # UTILITY FUNCTIONS
 
-
-def _resolve_temporal_type(expr: LogicalExpr, plan: LogicalPlan, session_state: BaseSessionState) -> bool:
+def _resolve_temporal_type(expr: LogicalExpr, plan: LogicalPlan, session_state: BaseSessionState, check_utc: bool = False) -> bool:
     """Resolve the expression's type if it's DATE or TIMESTAMP, otherwise raise an error."""
     col_field = expr.to_column_field(plan, session_state)
-    if col_field.data_type in [DateType, TimestampType]:
+    if col_field.data_type == DateType or col_field.data_type == TimestampType:
         return col_field.data_type
     raise TypeError(f"Expected one of DateType or TimestampType, got {col_field.data_type}")
-
 
 def _repeat_map(ch: str, n: int) -> str:
     """Map a run of the same pattern letter (e.g., 'yyyy' or 'SSS') to Chrono's strftime.
@@ -454,6 +494,15 @@ def _repeat_map(ch: str, n: int) -> str:
         # SDF: X, XX, XXX => -08, -0800, -08:00 respectively.
         # Chrono supports %z (-0800) and %:z (-08:00). There's no bare -08, so map:
         return "%:z" if n >= 3 else "%z"
+    if ch == 'V':
+        # zone-name
+        # this should be a the full zone name, that is not available from Polars,
+        # so we'll print the zone name.
+        # e.g. "America/Los_Angeles" -> 'PST'
+        return "%Z"
+    if ch == 'z':
+        # zone-name
+        return "%Z"
 
     # Quarter (not standard in strftime; leave literal Q's/numbers)
     if ch == 'Q':

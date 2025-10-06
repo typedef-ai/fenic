@@ -1,4 +1,6 @@
 import os
+import zoneinfo
+from datetime import datetime
 
 import pytest
 
@@ -117,6 +119,15 @@ def test_metrics_table_contains_execution_data(local_session: Session, sample_df
     assert latest_metric["execution_id"][0] == execution_id
     assert latest_metric["start_ts"][0] is not None
     assert latest_metric["end_ts"][0] is not None
+    
+    # Check that start_ts and end_ts are datetime objects with UTC timezone
+    start_ts = latest_metric["start_ts"][0]
+    end_ts = latest_metric["end_ts"][0]
+    
+    assert isinstance(start_ts, datetime)
+    assert isinstance(end_ts, datetime)
+    assert start_ts.tzinfo == zoneinfo.ZoneInfo(key='UTC')
+    assert end_ts.tzinfo == zoneinfo.ZoneInfo(key='UTC')
 
 
 def test_multiple_sessions_different_metrics(tmp_path, local_session_config: SessionConfig):

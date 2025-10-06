@@ -64,9 +64,10 @@ impl FenicDType {
             FenicDType::DoubleType => DataType::Float64,
             FenicDType::BooleanType => DataType::Boolean,
             FenicDType::DateType => DataType::Date,
-            // TODO: Timezone support will be added later.
-            // For datetime, we'll use nanoseconds as the time unit.
-            FenicDType::TimestampType => DataType::Datetime(TimeUnit::Nanoseconds, None),
+            // For datetime, we'll use microseconds as the time unit.
+            FenicDType::TimestampType => DataType::Datetime(TimeUnit::Microseconds, unsafe {
+                Some(TimeZone::from_static("UTC"))
+            }),
             FenicDType::ArrayType { element_type } => {
                 let element_type = element_type.canonical_polars_type();
                 DataType::List(Box::new(element_type))

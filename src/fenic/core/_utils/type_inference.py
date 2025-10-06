@@ -40,7 +40,7 @@ def infer_pytype_from_dtype(dtype: DataType) -> type:
     elif dtype == DateType:
         return datetime.date
     elif dtype == TimestampType:
-        return datetime.datetime
+        return datetime.datetime(tzinfo=datetime.timezone.utc)
     elif dtype == JsonType or dtype == MarkdownType or dtype == HtmlType:
         return str
     elif isinstance(dtype, (TranscriptType, DocumentPathType)):

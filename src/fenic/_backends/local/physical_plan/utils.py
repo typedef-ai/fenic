@@ -3,11 +3,13 @@ from typing import Optional, Union
 import polars as pl
 
 
-def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
+def apply_ingestion_coercions(df: pl.DataFrame, coerce_array: bool) -> pl.DataFrame:
     """Apply type coercions to normalize data types during ingestion.
 
     This is intended for ingestion from external systems (e.g., DuckDB, Parquet)
     that may produce types unsupported or inconsistently handled by Fenic.
+
+    We only use Array type (pl.List) for embeddings.
 
     Coercion rules:
     - `Array` and `List` types are recursively coerced to ensure their inner types
@@ -24,7 +26,7 @@ def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
     expressions = []
     for col_name in df.columns:
         dtype = df[col_name].dtype
-        target_dtype = _build_target_dtype(dtype)
+        target_dtype = _build_target_dtype(dtype, coerce_array)
 
         if target_dtype != dtype:
             expressions.append(pl.col(col_name).cast(target_dtype))
@@ -34,14 +36,17 @@ def apply_ingestion_coercions(df: pl.DataFrame) -> pl.DataFrame:
     return df.select(expressions)
 
 
-def _build_target_dtype(dtype: pl.DataType) -> pl.DataType:
-    if isinstance(dtype, pl.Array):
-        return pl.List(_build_target_dtype(dtype.inner))
+def _build_target_dtype(dtype: pl.DataType, coerce_array: bool) -> pl.DataType:
+    if isinstance(dtype, pl.Array) and coerce_array:
+        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
     elif isinstance(dtype, pl.List):
-        return pl.List(_build_target_dtype(dtype.inner))
+        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
+    elif isinstance(dtype, pl.Datetime):
+        # DuckDB always uses UTC as its session timezone, so we set UTC here.
+        return pl.Datetime(time_unit="us", time_zone="UTC")
     elif isinstance(dtype, pl.Struct):
         new_fields = [
-            pl.Field(field.name, _build_target_dtype(field.dtype))
+            pl.Field(field.name, _build_target_dtype(field.dtype, coerce_array))
             for field in dtype.fields
         ]
         return pl.Struct(new_fields)

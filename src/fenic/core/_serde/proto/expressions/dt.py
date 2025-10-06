@@ -4,6 +4,7 @@ from fenic.core._logical_plan.expressions.dt import (
     DateFormatExpr,
     DateTruncExpr,
     DayExpr,
+    FromUTCTimestampExpr,
     HourExpr,
     MilliSecondExpr,
     MinuteExpr,
@@ -14,6 +15,7 @@ from fenic.core._logical_plan.expressions.dt import (
     TimestampDiffExpr,
     ToDateExpr,
     ToTimestampExpr,
+    ToUTCTimestampExpr,
     YearExpr,
 )
 from fenic.core._serde.proto.expression_serde import (
@@ -27,6 +29,7 @@ from fenic.core._serde.proto.types import (
     DateFormatExprProto,
     DateTruncExprProto,
     DayExprProto,
+    FromUTCTimestampExprProto,
     HourExprProto,
     LogicalExprProto,
     MilliSecondExprProto,
@@ -38,6 +41,7 @@ from fenic.core._serde.proto.types import (
     TimestampDiffExprProto,
     ToDateExprProto,
     ToTimestampExprProto,
+    ToUTCTimestampExprProto,
     YearExprProto,
 )
 
@@ -246,3 +250,32 @@ def _deserialize_date_format_expr(logical_proto: DateFormatExprProto, context: S
     return DateFormatExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
         format=logical_proto.format)
+
+# ToUTCTimestampExpr
+@serialize_logical_expr.register
+def _serialize_to_utc_timestamp_expr(logical: ToUTCTimestampExpr, context: SerdeContext) -> LogicalExprProto:
+    return LogicalExprProto(
+        to_utc_timestamp=ToUTCTimestampExprProto(
+            expr=serialize_logical_expr(logical.expr, context),
+            timezone=logical.timezone))
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_to_utc_timestamp_expr(logical_proto: ToUTCTimestampExprProto, context: SerdeContext) -> ToUTCTimestampExpr:
+    return ToUTCTimestampExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        timezone=logical_proto.timezone)
+
+# FromUTCTimestampExpr
+@serialize_logical_expr.register
+def _serialize_from_utc_timestamp_expr(logical: FromUTCTimestampExpr, context: SerdeContext) -> LogicalExprProto:
+    return LogicalExprProto(
+        from_utc_timestamp=FromUTCTimestampExprProto(
+            expr=serialize_logical_expr(logical.expr, context),
+            timezone=logical.timezone))
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_from_utc_timestamp_expr(logical_proto: FromUTCTimestampExprProto, context: SerdeContext) -> FromUTCTimestampExpr:
+    return FromUTCTimestampExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr),
+        timezone=logical_proto.timezone)
+

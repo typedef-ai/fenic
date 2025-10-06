@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import duckdb
 import polars as pl
 
+from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
 from fenic._backends.local.system_table_client import (
     READ_ONLY_SYSTEM_SCHEMA_NAME,
     SYSTEM_SCHEMA_NAME,
@@ -18,7 +19,9 @@ from fenic._backends.utils.catalog_utils import (
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._logical_plan.plans.base import LogicalPlan
 from fenic.core._utils.misc import generate_unique_view_name
-from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
+from fenic.core._utils.schema import (
+    convert_custom_schema_to_polars_schema,
+)
 from fenic.core.error import (
     CatalogError,
     DatabaseAlreadyExistsError,
@@ -669,9 +672,10 @@ class LocalCatalog(BaseCatalog):
         _verify_table_catalog(table_identifier)
         try:
             # trunk-ignore-begin(bandit/B608)
-            return self.db_conn.cursor().execute(
+            result = self.db_conn.cursor().execute(
                 f"SELECT * FROM {table_identifier.build_qualified_table_name()}"
             ).pl()
+            return apply_ingestion_coercions(result, coerce_array=False)
             # trunk-ignore-end(bandit/B608)
         except Exception as e:
             raise CatalogError(
@@ -716,7 +720,6 @@ class LocalCatalog(BaseCatalog):
             raise CatalogError(
                 f"Failed to check if view: `{view_identifier.db}.{view_identifier.table}` exists"
             ) from e
-
 
 def _verify_table_catalog(table_identifier: TableIdentifier) -> None:
     if not table_identifier.is_catalog_name_equal(DEFAULT_CATALOG_NAME):

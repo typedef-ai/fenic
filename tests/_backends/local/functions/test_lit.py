@@ -1,4 +1,5 @@
 import datetime
+import zoneinfo
 
 import pytest
 
@@ -32,6 +33,7 @@ def test_lit_primitive(local_session):
         lit("foo").alias("e"),
         lit(datetime.date(2025, 1, 1)).alias("f"),
         lit(datetime.datetime(2025, 1, 1, 1, 1, 1)).alias("g"),
+        lit(datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))).alias("h"),
     )
     expected_schema = Schema(
         [
@@ -42,6 +44,7 @@ def test_lit_primitive(local_session):
             ColumnField(name="e", data_type=StringType),
             ColumnField(name="f", data_type=DateType),
             ColumnField(name="g", data_type=TimestampType),
+            ColumnField(name="h", data_type=TimestampType),
         ]
     )
     assert df.schema == expected_schema
@@ -52,7 +55,8 @@ def test_lit_primitive(local_session):
     assert result["d"][0] == 1.0
     assert result["e"][0] == "foo"
     assert result["f"][0] == datetime.date(2025, 1, 1)
-    assert result["g"][0] == datetime.datetime(2025, 1, 1, 1, 1, 1)
+    assert result["g"][0] == datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC")) # Timestamp default is in UTC
+    assert result["h"][0] == datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
 
 
 def test_lit_array(local_session):

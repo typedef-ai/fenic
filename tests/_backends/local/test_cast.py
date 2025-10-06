@@ -1,5 +1,6 @@
 import datetime
 import json
+import zoneinfo
 
 import polars as pl
 import pytest
@@ -30,11 +31,14 @@ def test_cast_primitive(local_session):
         "float_col": [3.0],
         "str_date_col": ["2025-01-01"],
         "str_timestamp_col": ["2025-01-01T10:20:00.000"],
+        "str_timestamp_tz_col": ["2025-01-01T10:20:00.000+00:00"],
         "int_date_col": [20000],
         "dt_col": [datetime.date(2025, 1, 1)],
-        "ts_col": [datetime.datetime(2025, 1, 1, 10, 20, 0)],
+        "ts_col_naive": [datetime.datetime(2025, 1, 1, 10, 20, 0)],
+        "ts_col": [datetime.datetime(2025, 1, 1, 10, 20, 0, tzinfo=zoneinfo.ZoneInfo(key="UTC"))],
     }
     df = local_session.create_dataframe(data)
+
     result = df.select(
         col("integer_col").cast(StringType).alias("cast_col"),
         col("integer_col").cast(BooleanType).alias("cast_col2"),
@@ -48,13 +52,16 @@ def test_cast_primitive(local_session):
         col("boolean_col").cast(FloatType).alias("cast_col11"),
         col("boolean_col").cast(IntegerType).alias("cast_col12"),
         col("str_date_col").cast(DateType).alias("cast_col13"),
-        col("str_timestamp_col").cast(TimestampType).alias("cast_col14"),
+        col("str_timestamp_col").cast(TimestampType).alias("cast_col14_2"),
+        col("str_timestamp_tz_col").cast(TimestampType).alias("cast_col14"),
         col("int_date_col").cast(DateType).alias("cast_col15"),
         col("dt_col").cast(StringType).alias("cast_col16"),
         col("ts_col").cast(StringType).alias("cast_col17"),
         col("ts_col").cast(IntegerType).alias("cast_col18"),
         col("dt_col").cast(TimestampType).alias("cast_col19"),
         col("ts_col").cast(DateType).alias("cast_col20"),
+        col("ts_col_naive").cast(TimestampType).alias("cast_col21"),
+        col("ts_col_naive").cast(StringType).alias("cast_col22"),
     ).to_polars()
 
     assert result["cast_col"][0] == "8"
@@ -69,13 +76,18 @@ def test_cast_primitive(local_session):
     assert result["cast_col11"][0] == 1.0
     assert result["cast_col12"][0] == 1
     assert result["cast_col13"][0] == datetime.date(2025, 1, 1)
-    assert result["cast_col14"][0] == datetime.datetime(2025, 1, 1, 10, 20, 0)
+    assert result["cast_col14"][0] == datetime.datetime(2025, 1, 1, 10, 20, 0, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+    # TODO: write a string_to_timestamp function for cast.rs to handle ISO strings without timezones.
+    # For now, fenic provides other methods to convert timestmaps to/from strings with any format.
+    assert result["cast_col14_2"][0] is None
     assert result["cast_col15"][0] == datetime.date(2024, 10, 4)
     assert result["cast_col16"][0] == "2025-01-01"
-    assert result["cast_col17"][0] == "2025-01-01 10:20:00.000000"
-    assert result["cast_col18"][0] == 1735726800000000
-    assert result["cast_col19"][0] == datetime.datetime(2025, 1, 1, 0, 0, 0)
+    assert result["cast_col17"][0] == "2025-01-01 10:20:00.000000+00:00"
+    assert result["cast_col18"][0] == 1_735_726_800_000_000
+    assert result["cast_col19"][0] == datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
     assert result["cast_col20"][0] == datetime.date(2025, 1, 1)
+    assert result["cast_col21"][0] == datetime.datetime(2025, 1, 1, 10, 20, 0, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+    assert result["cast_col22"][0] == "2025-01-01 10:20:00.000000+00:00"
 
     # test that cast to boolean from string fails
     with pytest.raises(PlanError):

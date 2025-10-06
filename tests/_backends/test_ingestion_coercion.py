@@ -11,9 +11,19 @@ def test_array_coercion():
         "array_col": [[1, 2, 3], [4, 5, 6]]
     }, schema={"array_col": pl.Array(pl.Int64, 3)})
 
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     assert result.schema["array_col"] == pl.List(pl.Int64)
+
+def test_array_doesnt_coerce_if_coerce_array_is_false():
+    """Array column should not be converted to List if coerce_array is false."""
+    df = pl.DataFrame({
+        "array_col": [[1, 2, 3], [4, 5, 6]]
+    }, schema={"array_col": pl.Array(pl.Int64, 3)})
+
+    result = apply_ingestion_coercions(df, coerce_array=False)
+
+    assert result.schema["array_col"] == pl.Array(pl.Int64, 3)
 
 def test_array_of_dates_coercion():
     """Array of dates should become List of dates."""
@@ -24,7 +34,7 @@ def test_array_of_dates_coercion():
         ]
     }, schema={"date_array": pl.Array(pl.Date, 2)})
 
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     assert result.schema["date_array"] == pl.List(pl.Date)
 
@@ -37,7 +47,7 @@ def test_struct_coercion():
         ]
     })
 
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     expected_struct_type = pl.Struct([
         pl.Field("id", pl.Int64),
@@ -54,7 +64,7 @@ def test_no_coercion_needed():
     })
 
     original_schema = df.schema
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     assert result.schema == original_schema
     assert result.equals(df)
@@ -71,7 +81,7 @@ def test_mixed_columns():
         "array_col": pl.Array(pl.Int64, 2)
     })
 
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     assert result.schema["date_col"] == pl.Date      # unchanged
     assert result.schema["int_col"] == pl.Int64        # unchanged
@@ -97,7 +107,7 @@ def test_deeply_nested_structure():
         ]))
     })
 
-    result = apply_ingestion_coercions(df)
+    result = apply_ingestion_coercions(df, coerce_array=True)
 
     # Check the deeply nested coercion: Array(Date) -> List(String)
     expected_schema = pl.List(pl.Struct([
