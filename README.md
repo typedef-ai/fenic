@@ -2,7 +2,7 @@
 <div align="center">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/typedef-fenic-logo-dark.png">
-        <img src="docs/images/typedef-fenic-logo.png" alt="fenic, by typedef" width="90%">
+        <img src="docs/images/typedef-fenic-logo-github-yellow.png" alt="fenic, by typedef" width="90%">
     </picture>
 </div>
 
