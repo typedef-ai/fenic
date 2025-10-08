@@ -19,6 +19,7 @@ from fenic.core.types.provider_routing import (
     ProviderSort,
     StructuredOutputStrategy,
 )
+from fenic.core.types.semantic import ParsingEngine
 
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 Verbosity = Literal["low", "medium", "high"]
@@ -79,6 +80,7 @@ class ResolvedOpenRouterModelProfile:
     models: Optional[list[str]] = None
     provider: Optional[ResolvedOpenRouterProviderRouting] = None
     structured_output_strategy: Optional[StructuredOutputStrategy] = None
+    parsing_engine: Optional[ParsingEngine] = None
 
 
 @dataclass
@@ -128,6 +130,7 @@ class ResolvedOpenRouterModelConfig:
     profiles: Optional[dict[str, ResolvedOpenRouterModelProfile]] = None
     model_provider: ModelProvider = ModelProvider.OPENROUTER
     default_profile: Optional[str] = None
+    parsing_engine: Optional[ParsingEngine] = None
 
 
 ResolvedModelConfig = Union[

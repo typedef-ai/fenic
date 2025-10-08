@@ -32,7 +32,6 @@ class TieredTokenCost:
         self.cached_input_token_write_cost = cached_input_token_write_cost
         self.output_token_cost = output_token_cost
 
-
 class CompletionModelParameters:
     """Parameters for completion models including costs and context window size.
 
@@ -42,6 +41,7 @@ class CompletionModelParameters:
         cached_input_token_write_cost: Cost per cached input token write in USD
         output_token_cost: Cost per output token in USD
         context_window_length: Maximum number of tokens in the context window
+        tiered_token_costs: Tiered token costs for the model.
         max_output_tokens: Maximum number of tokens the model can generate in a single request.
         max_temperature: Maximum temperature for the model.
         supports_profiles: Whether the model supports parameter profiles.
@@ -897,7 +897,6 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
-                supports_profiles=False,
                 supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-lite-001"],
@@ -914,7 +913,6 @@ class ModelCatalog:
                 context_window_length=1_048_576,
                 max_output_tokens=8_192,
                 max_temperature=2.0,
-                supports_profiles=False,
                 supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],

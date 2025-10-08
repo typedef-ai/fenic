@@ -644,6 +644,7 @@ class AnthropicLanguageModel(BaseModel):
             ge=1024,
         )
 
+ParsingEngine = Literal["mistral-ocr", "pdf-text", "native"]
 
 class OpenRouterLanguageModel(BaseModel):
     """Configuration for OpenRouter language models.
@@ -788,6 +789,8 @@ class OpenRouterLanguageModel(BaseModel):
                 If the model does support reasoning, but not `reasoning_max_tokens`, a `reasoning_effort_ will be automatically
                 calculated based on `reasoning_max_tokens` as a percentage of the model's maximum output size
                 ([OpenRouter Documentation](https://openrouter.ai/docs/use-cases/reasoning-tokens#max-tokens-for-reasoning))
+            parsing_engine: The parsing engine to use for processing PDF files.  By default, the model's native parsing engine will be used.  If the model doesn't support PDF processing and the parsing engine is not provided, an error will be raised.  Note: 'mistral-ocr' incurs additional costs.
+                ([OpenRouter Documentation](https://openrouter.ai/docs/features/multimodal/pdfs))
         """
         model_config = ConfigDict(extra="forbid")
 
@@ -806,6 +809,10 @@ class OpenRouterLanguageModel(BaseModel):
         )
         provider: Optional[OpenRouterLanguageModel.Provider] = Field(
             default=None, description="Provider routing configuration"
+        )
+        parsing_engine: Optional[ParsingEngine] = Field(
+            default=None,
+            description="The parsing engine to use for processing PDF files. By default, the model's native parsing engine will be used."
         )
 
 
@@ -1341,6 +1348,7 @@ class SessionConfig(BaseModel):
                             reasoning_effort=profile.reasoning_effort,
                             reasoning_max_tokens=profile.reasoning_max_tokens,
                             models=profile.models,
+                            parsing_engine=profile.parsing_engine,
                             provider=(
                                 ResolvedOpenRouterProviderRouting(
                                     **(profile.provider.model_dump())

@@ -1,5 +1,6 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
 
+import importlib.util
 import logging
 import math
 from json.decoder import JSONDecodeError
@@ -65,6 +66,20 @@ class OpenRouterBatchChatCompletionsClient(
         profiles: Optional[dict[str, object]] = None,
         default_profile_name: Optional[str] = None,
     ):
+        # Choose token counter based on the model's provider
+        token_counter = None
+        provider_and_model = model.split("/")
+        if provider_and_model[0] == "google" and importlib.util.find_spec("google.genai") is not None:
+            # If fenic is built with google module, use the GeminiLocalTokenCounter.
+            # Otherwise, fall back to the TiktokenTokenCounter.
+            from fenic._inference.google.gemini_token_counter import (
+                GeminiLocalTokenCounter,
+            )
+            token_counter = GeminiLocalTokenCounter(model_name=provider_and_model[1])
+        else:
+            token_counter = TiktokenTokenCounter(
+                model_name=provider_and_model[1], fallback_encoding="o200k_base"
+            )
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENROUTER,
@@ -72,9 +87,7 @@ class OpenRouterBatchChatCompletionsClient(
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,
-            token_counter=TiktokenTokenCounter(
-                model_name=model, fallback_encoding="o200k_base"
-            ),
+            token_counter=token_counter,
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.OPENROUTER, model
@@ -87,6 +100,8 @@ class OpenRouterBatchChatCompletionsClient(
         self._aio_client = OpenRouterModelProvider().aio_client
         self._metrics = LMMetrics()
 
+
+
     async def make_single_request(
         self, request: FenicCompletionsRequest
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
@@ -94,9 +109,12 @@ class OpenRouterBatchChatCompletionsClient(
         common_params = {
                 "model": self.model,
                 "messages": convert_messages(request.messages),
-                "max_completion_tokens": self._get_max_output_token_request_limit(request),
                 "n": 1,
             }
+
+        max_completion_tokens = self._get_max_output_token_request_limit(request)
+        if max_completion_tokens is not None:
+            common_params["max_completion_tokens"] = max_completion_tokens
 
         if request.top_logprobs:
             common_params.update(
@@ -238,8 +256,8 @@ class OpenRouterBatchChatCompletionsClient(
         self, request: FenicCompletionsRequest
     ) -> TokenEstimate:
         return TokenEstimate(
-            input_tokens=self.token_counter.count_tokens(request.messages),
-            output_tokens=self.token_counter.count_tokens(request.messages) + self._get_expected_additional_reasoning_tokens(request),
+            input_tokens=self._estimate_input_tokens(request),
+            output_tokens=self._estimate_output_tokens(request),
         )
 
     def reset_metrics(self):
@@ -248,15 +266,38 @@ class OpenRouterBatchChatCompletionsClient(
     def get_metrics(self) -> LMMetrics:
         return self._metrics
 
-    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> int:
-        """Get the upper limit of output tokens for a request.
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of output tokens for a request."""
+        base_tokens = request.max_completion_tokens or 0
+        if request.max_completion_tokens is None and request.messages.user_file:
+            # TODO(DY): the semantic operator should dictate how the file affects the token estimate
+            base_tokens += self.token_counter.count_file_output_tokens(messages=request.messages)
+        return base_tokens + self._get_expected_additional_reasoning_tokens(request)
 
-        If max_completion_tokens is not set, don't apply a limit and return None.
+    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> Optional[int]:
+        """Return the maximum output token limit for a request.
 
-        Include the thinking token budget with a safety margin."""
+        Returns None if max_completion_tokens is not provided (no limit should be set).
+        If max_completion_tokens is provided, includes the thinking token budget with a safety margin."""
         if request.max_completion_tokens is None:
             return None
         return request.max_completion_tokens + self._get_expected_additional_reasoning_tokens(request)
+
+    def _estimate_input_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of input tokens for a request."""
+        input_tokens = self.token_counter.count_tokens(request.messages, ignore_file=True)
+        if request.messages.user_file:
+            input_tokens += self._estimate_file_input_tokens(request)
+        return input_tokens
+
+    def _estimate_file_input_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate the number of input tokens from a file in a request."""
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        if profile_config.parsing_engine and profile_config.parsing_engine == "native":
+            return self.token_counter.count_file_input_tokens(messages=request.messages)
+        # OpenRouter's engine tool processes the file first and passes annotated text to the model.
+        # We can estimate by extracting the text and tokenizing it (which is what count_file_output_tokens does)
+        return self.token_counter.count_file_output_tokens(messages=request.messages)
 
     # This is a slightly less conservative estimate than the OpenRouter documentation on how reasoning_effort is used to
     # generate a reasoning.max_tokens for models that only support reasoning.max_tokens.

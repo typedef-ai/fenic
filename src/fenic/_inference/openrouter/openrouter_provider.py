@@ -123,6 +123,7 @@ class OpenRouterModelProvider(ModelProviderClass):
             supports_reasoning=supports_reasoning,
             supports_custom_temperature=supports_custom_temperature,
             supports_verbosity=supports_verbosity,
+            supports_pdf_parsing=True, # Even if the model doesn't support pdf file processing, OpenRouter can use its separate processing engines
             supported_parameters=supported_params,
         )
 

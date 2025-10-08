@@ -1,12 +1,13 @@
 """Types used to configure model selection for semantic functions."""
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel
 
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
+ParsingEngine = Literal["mistral-ocr", "pdf-text", "native"]
 
 class ModelAlias(BaseModel):
     """A combination of a model name and a required profile for that model.

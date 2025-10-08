@@ -10,7 +10,7 @@ from fenic.core.error import InternalError
 Tokenizable = Union[str | LMRequestMessages]
 
 class TokenCounter(Protocol):
-    def count_tokens(self, messages: Tokenizable) -> int: ...
+    def count_tokens(self, messages: Tokenizable, ignore_file: bool = False) -> int: ...
     def count_file_input_tokens(self, messages: LMRequestMessages) -> int: ...
     def count_file_output_tokens(self, messages: LMRequestMessages) -> int: ...
 
@@ -22,11 +22,11 @@ class TiktokenTokenCounter(TokenCounter):
         except KeyError:
             self.tokenizer = tiktoken.get_encoding(fallback_encoding)
 
-    def count_tokens(self, messages: Tokenizable) -> int:
+    def count_tokens(self, messages: Tokenizable, ignore_file: bool = False) -> int:
         if isinstance(messages, str):
             return len(self.tokenizer.encode(messages))
         elif isinstance(messages, LMRequestMessages):
-            return self._count_message_tokens(messages)
+            return self._count_message_tokens(messages, ignore_file)
         else:
             raise TypeError(f"Expected str or LMRequestMessages, got {type(messages)}")
 
@@ -55,7 +55,7 @@ class TiktokenTokenCounter(TokenCounter):
         else:
             raise InternalError(f"File{messages.user_file.path}'s extension is not supported for llm completions.")
 
-    def _count_message_tokens(self, messages: LMRequestMessages) -> int:
+    def _count_message_tokens(self, messages: LMRequestMessages, ignore_file: bool = False) -> int:
         num_tokens = 0
         message_count = 2 # system message and user parent message
         num_tokens += self.count_tokens(messages.system)
@@ -66,7 +66,7 @@ class TiktokenTokenCounter(TokenCounter):
             num_tokens += self.count_tokens(example.user)
             num_tokens += self.count_tokens(example.assistant)
             message_count += 2
-        if messages.user_file:
+        if messages.user_file and not ignore_file:
             num_tokens += self.count_file_input_tokens(messages)
             message_count += 1
         num_tokens += message_count * PREFIX_TOKENS_PER_MESSAGE

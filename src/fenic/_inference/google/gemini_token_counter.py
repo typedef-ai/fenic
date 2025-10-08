@@ -40,7 +40,7 @@ class GeminiLocalTokenCounter(TokenCounter):
         except ValueError:
             self.google_tokenizer = LocalTokenizer(model_name=fallback_encoding)
 
-    def count_tokens(self, messages: Tokenizable) -> int:
+    def count_tokens(self, messages: Tokenizable, ignore_file: bool = False) -> int:
         """Count tokens for a string, message list, or `LMRequestMessages`.
 
         Args:
@@ -53,7 +53,7 @@ class GeminiLocalTokenCounter(TokenCounter):
         if isinstance(messages, str):
             return self._count_text_tokens(messages)
         elif isinstance(messages, LMRequestMessages):
-            return self._count_request_tokens(messages)
+            return self._count_request_tokens(messages, ignore_file)
 
     def count_file_input_tokens(self, messages: LMRequestMessages) -> int:
         # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
@@ -68,7 +68,7 @@ class GeminiLocalTokenCounter(TokenCounter):
         # In our estimates we add buffer, both for markdown structure and in case we ask the model to describe images.
         return self.google_tokenizer.count_tokens(text).total_tokens
 
-    def _count_request_tokens(self, messages: LMRequestMessages) -> int:
+    def _count_request_tokens(self, messages: LMRequestMessages, ignore_file: bool = False) -> int:
         """Count tokens for an `LMRequestMessages` object."""
         contents = convert_text_messages(messages)
         tokens = 0
@@ -79,7 +79,7 @@ class GeminiLocalTokenCounter(TokenCounter):
             ).total_tokens
             tokens += count_tokens
 
-        if messages.user_file:
+        if messages.user_file and not ignore_file:
             tokens += self.count_file_input_tokens(messages)
         return tokens
 
