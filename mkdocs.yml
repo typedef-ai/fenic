@@ -54,6 +54,7 @@ nav:
           - Markdown -> JSON: topics/markdown-json.md
           - Fenic MCP: topics/fenic-mcp.md
           - OpenRouter: topics/openrouter.md
+          - Timestamps and Dates: topics/timestamps_and_dates.md
       - Contributing: CONTRIBUTING.md
   - API Reference
 watch:

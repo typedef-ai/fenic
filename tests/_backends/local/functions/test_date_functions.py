@@ -784,6 +784,36 @@ class TestDateFunctions:
         assert df.to_polars()["ts_to_la"].to_list() == TS_FROM_UTC_TO_LA_RESULTS
         assert df_cached.to_polars()["ts_to_la"].to_list() == TS_FROM_UTC_TO_LA_RESULTS
 
+    def test_format_timestamps_multiple_timezones(self, local_session):
+        """Test formatting timestamps with multiple timezones."""
+        event_times = [
+            datetime.datetime(2025, 1, 15, 18, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC")),
+            datetime.datetime(2025, 1, 16, 14, 45, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+        ]
+        df = local_session.create_dataframe({"event_time": event_times})
+        df = df.select(
+            col("event_time"),
+            date_format(
+                from_utc_timestamp(col("event_time"), "America/Los_Angeles"),
+                "yyyy-MM-dd HH:mm:ss"
+            ).alias("time_pst"),
+            date_format(
+                from_utc_timestamp(col("event_time"), "America/New_York"),
+                "yyyy-MM-dd HH:mm:ss"
+            ).alias("time_est"),
+            date_format(
+                from_utc_timestamp(col("event_time"), "Europe/London"),
+                "yyyy-MM-dd HH:mm:ss"
+            ).alias("time_gmt")
+        )
+        result = df.to_polars()
+        assert result["time_pst"][0] == "2025-01-15 10:30:00"
+        assert result["time_est"][0] == "2025-01-15 13:30:00"
+        assert result["time_gmt"][0] == "2025-01-15 18:30:00"
+        assert result["time_pst"][1] == "2025-01-16 06:45:00"
+        assert result["time_est"][1] == "2025-01-16 09:45:00"
+        assert result["time_gmt"][1] == "2025-01-16 14:45:00"
+
 
     def test_timestamp_literal_with_tz(self, df_with_date_types):
         """Test the timestamp literal with timezone."""

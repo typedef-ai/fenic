@@ -102,6 +102,47 @@ def test_cast_primitive(local_session):
         df.select(col("ts_col").cast(BooleanType))
 
 
+def test_cast_to_timestamp_with_format(local_session):
+    """Test to_timestamp() with format string (docs line 68)."""
+    from fenic.api.functions.dt import to_timestamp
+
+    df = local_session.create_dataframe({
+        "timestamp_str": ["01-15-2025 10:30:00", "01-16-2025 14:00:00"]
+    })
+    result = df.select(
+        to_timestamp(col("timestamp_str"), "MM-dd-yyyy HH:mm:ss").alias("ts")
+    ).to_polars()
+
+    assert result["ts"][0] == datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+    assert result["ts"][1] == datetime.datetime(2025, 1, 16, 14, 0, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+
+
+def test_cast_to_timestamp_with_format_and_timezone(local_session):
+    """Test to_timestamp() with format and timezone (docs line 69)."""
+    from fenic.api.functions.dt import to_timestamp
+
+    df = local_session.create_dataframe({
+        "timestamp_str": ["01-15-2025 10:30:00 +08:00", "01-16-2025 14:00:00 +08:00"]
+    })
+    result = df.select(
+        to_timestamp(col("timestamp_str"), "MM-dd-yyyy HH:mm:ss XXX").alias("ts")
+    ).to_polars()
+
+    assert result["ts"][0] == datetime.datetime(2025, 1, 15, 2, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+    assert result["ts"][1] == datetime.datetime(2025, 1, 16, 6, 0, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+
+
+def test_cast_to_date_with_format(local_session):
+    """Test to_date() with format string (docs line 74)."""
+    from fenic.api.functions.dt import to_date
+
+    df = local_session.create_dataframe({
+        "date_str": ["01-27-2025"]
+    })
+    result = df.select(to_date(col("date_str"), format="MM-dd-yyyy").alias("dt")).to_polars()
+    assert result["dt"][0] == datetime.date(2025, 1, 27)
+
+
 def test_cast_array_basic(local_session):
     data = {"my_col": [[1, 2], [3, 4]]}
     df = local_session.create_dataframe(data)

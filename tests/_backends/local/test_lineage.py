@@ -5,9 +5,9 @@ import polars as pl
 
 from fenic import avg, col, count
 
-TS_UTC = datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
-TS_LA = datetime.datetime(2025, 1, 1, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
-TS_UTC_FROM_LA = datetime.datetime(2025, 1, 1, 9, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+TS_UTC = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
+TS_LA = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
+TS_UTC_FROM_LA = datetime.datetime(2025, 1, 2, 9, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
 
 def create_basic_test_df(local_session):
     """Creates a test DataFrame with sample data."""

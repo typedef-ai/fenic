@@ -1,3 +1,5 @@
+import datetime
+import zoneinfo
 from datetime import date
 
 import polars as pl
@@ -122,3 +124,22 @@ def test_deeply_nested_structure():
     first_event = events_data[0][0]  # First event in first row
     assert isinstance(first_event["timestamps"], list)
     assert all(isinstance(ts, date) for ts in first_event["timestamps"])
+
+
+def test_timezone_conversion_during_ingestion(local_session):
+    """Test timezone conversion during ingestion."""
+    naive = datetime.datetime(2025, 1, 15, 10, 30, 0)
+    utc = datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+    la = datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("America/Los_Angeles"))
+
+    df = local_session.create_dataframe({
+        "naive_ts": [naive],
+        "utc_ts": [utc],
+        "la_ts": [la]
+    })
+    result = df.to_polars()
+
+    assert result["naive_ts"][0] == datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+    assert result["utc_ts"][0] == datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+    assert result["la_ts"][0] == datetime.datetime(2025, 1, 15, 18, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
+
