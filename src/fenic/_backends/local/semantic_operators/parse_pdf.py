@@ -24,8 +24,9 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
     """Operator for parsing PDF files using language models with PDF parsing capabilities."""
     SYSTEM_PROMPT = jinja2.Template(dedent("""\
         Transcribe the main content of this PDF document to clean, well-formatted markdown.
-         - Output should be raw markdown, don't surround in code fences or backticks.
-         - Preserve the structure, formatting, headings, lists, and any tables to the best of your ability
+         - Output should be raw markdown, don't surround the whole output in code fences or backticks.
+         - For each topic, create a markdown heading. For key terms, use bold text.
+         - Preserve the structure, formatting, headings, lists, table of contents, and any tables using markdown syntax.
          - Format tables as github markdown tables, however:
              - for table headings, immediately add ' |' after the table heading
         {% if multiple_pages %}
