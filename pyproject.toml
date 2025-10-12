@@ -71,6 +71,7 @@ cloud = [
   "fenic-cloud>=0.1.3",
 ]
 mcp = ["fastmcp>=2.11.3"]
+eval = ["markdown-it-py>=4.0.0"]
 
 [build-system]
 requires = ["maturin>=1.8.6"]
