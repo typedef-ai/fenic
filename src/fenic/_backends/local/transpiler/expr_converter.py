@@ -349,11 +349,10 @@ class ExprConverter:
                 if isinstance(expr.expr, LiteralExpr)
                 else self._convert_expr(expr.expr).count()
             ),
-            CountDistinctExpr: lambda expr: (
-                pl.struct([self._convert_expr(e) for e in expr.exprs]).n_unique()
-            ),
+            CountDistinctExpr: self._convert_count_distinct_expr,
             ApproxCountDistinctExpr: lambda expr: (
-                self._convert_expr(expr.expr).approx_n_unique()
+                # Match PySpark semantics: ignore nulls
+                self._convert_expr(expr.expr).drop_nulls().approx_n_unique()
             ),
             ListExpr: lambda expr: self._convert_expr(
                 expr.expr
@@ -403,6 +402,18 @@ class ExprConverter:
             )
 
         raise NotImplementedError(f"Unsupported aggregate function: {type(logical)}")
+
+    def _convert_count_distinct_expr(self, logical: CountDistinctExpr) -> pl.Expr:
+        """Convert CountDistinctExpr to a Polars expression matching PySpark semantics.
+
+        PySpark semantics: rows where any of the input columns is null are ignored
+        prior to performing the distinct count across the row tuple.
+        """
+        converted_inputs = [self._convert_expr(e) for e in logical.exprs]
+        struct_expr = pl.struct(converted_inputs)
+        # Compute a null mask directly from input expressions (avoid struct field introspection)
+        any_null = pl.any_horizontal([expr.is_null() for expr in converted_inputs])
+        return struct_expr.filter(~any_null).n_unique()
 
 
     @_convert_expr.register(UDFExpr)

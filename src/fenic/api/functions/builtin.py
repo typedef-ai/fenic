@@ -64,11 +64,39 @@ def sum_distinct(column: ColumnOrName) -> Column:
         column: Column or column name to compute the sum of distinct values
 
     Returns:
-        A Column expression representing the sum distinct aggregation
+        A Column expression representing the sum-distinct aggregation
 
-    Example:
+    Example: Sum of distinct values per group
         ```python
-        df.group_by("k").agg(sum_distinct("v").alias("sum_unique"))
+        # Sample input
+        df = session.create_dataframe({
+            "k": ["a", "a", "b", "b"],
+            "v": [1, None, 2, 2],
+        })
+
+        # Sum distinct values of column `v` within each group `k`
+        df.group_by(fc.col("k")).agg(
+            fc.sum_distinct(fc.col("v")).alias("sum_distinct_v")
+        ).show()
+        # Output:
+        # +---+----------------+
+        # | k | sum_distinct_v |
+        # +---+----------------+
+        # | a |              1 |
+        # | b |              2 |
+        # +---+----------------+
+        ```
+
+    Example: Nulls are ignored when summing distinct values
+        ```python
+        df = session.create_dataframe({"k": ["x", "x"], "v": [None, 3]})
+        df.group_by(fc.col("k")).agg(fc.sum_distinct(fc.col("v")).alias("sd")).show()
+        # Output:
+        # +---+----+
+        # | k | sd |
+        # +---+----+
+        # | x |  3 |
+        # +---+----+
         ```
 
     Raises:
@@ -183,20 +211,62 @@ def count_distinct(*cols: ColumnOrName) -> Column:
         *cols: One or more columns or column names to include in the distinct count.
 
     Returns:
-        A Column expression representing the count distinct aggregation over the provided columns.
+        A Column expression representing the count-distinct aggregation over the provided columns.
 
-    Example:
+    Example: Distinct count per group (single column)
         ```python
-        # Single column
-        df.group_by("k").agg(count_distinct("v").alias("num_unique"))
+        # Sample input
+        df = session.create_dataframe({
+            "k": ["a", "a", "b", "b"],
+            "v": [1, None, 2, 2],
+        })
 
-        # Multiple columns
-        df.agg(count_distinct("a", "b").alias("num_unique_pairs"))
+        df.group_by(fc.col("k")).agg(
+            fc.count_distinct(fc.col("v")).alias("num_unique_v")
+        ).show()
+        # Output:
+        # +---+--------------+
+        # | k | num_unique_v |
+        # +---+--------------+
+        # | a |            1 |
+        # | b |            1 |
+        # +---+--------------+
+        ```
+
+    Example: Distinct count across multiple columns (whole DataFrame)
+        ```python
+        # Sample input
+        df = session.create_dataframe({
+            "a": [1, 1, 2, 2, None],
+            "b": ["x", "x", "y", "y", "z"],
+        })
+
+        df.agg(
+            fc.count_distinct(fc.col("a"), fc.col("b")).alias("num_unique_pairs")
+        ).show()
+        # Output:
+        # +------------------+
+        # | num_unique_pairs |
+        # +------------------+
+        # |                2 |
+        # +------------------+
+        ```
+
+    Example: Nulls in any input column are ignored for multi-column distinct
+        ```python
+        df = session.create_dataframe({"a": [1, 1, None], "b": [1, 2, 1]})
+        df.agg(fc.count_distinct(fc.col("a"), fc.col("b")).alias("cd")).show()
+        # Output:
+        # +----+
+        # | cd |
+        # +----+
+        # |  2 |
+        # +----+
         ```
 
     Raises:
         ValidationError: If no columns are provided.
-        TypeMismatchError: If column is not a numeric, boolean, string, or array type
+        TypeMismatchError: If a column has an unsupported type
     """
     if not cols:
         raise ValidationError("count_distinct requires at least one column")
@@ -223,19 +293,47 @@ def collect_list(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def approx_count_distinct(column: ColumnOrName) -> Column:
-    """Aggregate function: returns an approximate count (using HyperLogLog++) of distinct non-null values.
-
-    Behavior: Nulls are ignored.
+    """Aggregate function: returns an approximate count (HyperLogLog++) of distinct non-null values.
 
     Args:
         column: Column or column name to approximately count distinct values in
 
     Returns:
-        A Column expression representing the approximate count distinct aggregation
+        A Column expression representing the approximate count-distinct aggregation
 
-    Example:
+    Note:
+        Differs from the pyspark implementation in that the relative standard deviation is not configurable.
+
+    Example: Approximate distinct count per group
         ```python
-        df.group_by("k").agg(approx_count_distinct("v").alias("approx_unique"))
+        # Sample input
+        df = session.create_dataframe({
+            "k": ["a", "a", "b", "b", "b"],
+            "v": [1, None, 1, 2, 3],
+        })
+
+        df.group_by(fc.col("k")).agg(
+            fc.approx_count_distinct(fc.col("v")).alias("approx_unique_v")
+        ).show()
+        # Output:
+        # +---+------------------+
+        # | k | approx_unique_v  |
+        # +---+------------------+
+        # | a |                1 |
+        # | b |                3 |
+        # +---+------------------+
+        ```
+
+    Example: Nulls are ignored in approximate distinct counts
+        ```python
+        df = session.create_dataframe({"k": ["x", "x"], "v": [None, 3]})
+        df.group_by(fc.col("k")).agg(fc.approx_count_distinct(fc.col("v")).alias("acd")).show()
+        # Output:
+        # +---+-----+
+        # | k | acd |
+        # +---+-----+
+        # | x |   1 |
+        # +---+-----+
         ```
 
     Raises:

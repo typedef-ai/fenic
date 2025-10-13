@@ -442,7 +442,6 @@ def test_count_distinct_aggregation(local_session: Session):
         df.group_by("group")
         .agg(
             count_distinct("value").alias("cd"),
-            approx_count_distinct("value").alias("acd"),
             count_distinct("text").alias("cd_text"),
         )
         .sort("group")
@@ -450,7 +449,6 @@ def test_count_distinct_aggregation(local_session: Session):
     )
 
     assert result.schema["cd"] in (pl.Int64, pl.UInt32, pl.Int32)
-    assert result.schema["acd"] in (pl.Int64, pl.UInt32, pl.Int32)
     assert result.schema["cd_text"] in (pl.Int64, pl.UInt32, pl.Int32)
 
     a_row = result.filter(pl.col("group") == "A").row(0)
@@ -458,10 +456,8 @@ def test_count_distinct_aggregation(local_session: Session):
 
     # For group A: value cycles 0..9 (10 distinct, no nulls)
     assert a_row[result.columns.index("cd")] == 10
-    assert a_row[result.columns.index("acd")] == 10
-    # For group B: value cycles 0..19 with some None (20 distinct + 1 for nulls)
-    assert b_row[result.columns.index("cd")] == 21
-    assert b_row[result.columns.index("acd")] == 21
+    # For group B: value cycles 0..19 with some None; nulls are ignored for distinct
+    assert b_row[result.columns.index("cd")] == 20
     # text cycles k0..k4 (5 distinct) in both groups (no nulls)
     assert a_row[result.columns.index("cd_text")] == 5
     assert b_row[result.columns.index("cd_text")] == 5
@@ -473,10 +469,10 @@ def test_count_distinct_multi_columns(local_session: Session):
         "b": [1, 2, None, 1, 1, 2],
     }
     df = local_session.create_dataframe(data)
-    # Distinct pairs by pyspark semantics:
-    # (1,1), (1,2), (1,None), (2,1),(None, 2) => 5 distinct
+    # Distinct pairs by PySpark semantics (ignore rows where any column is null):
+    # (1,1), (1,2), (2,1) => 3 distinct
     result = df.agg(count_distinct("a", "b").alias("cd_pairs")).to_polars()
-    assert result["cd_pairs"][0] == 5
+    assert result["cd_pairs"][0] == 3
 
 
 def test_sum_distinct_aggregation(local_session: Session):
@@ -509,3 +505,93 @@ def test_sum_distinct_aggregation(local_session: Session):
     # Structs are not supported for sum_distinct (should error at signature time if attempted)
     with pytest.raises(TypeMismatchError):
         _ = df.group_by("k").agg(sum_distinct(struct("v", "k"))).to_polars()
+
+
+def test_approx_count_distinct_approximation(local_session: Session):
+    """Test that approx_count_distinct actually uses approximation with HyperLogLog++.
+
+    This test verifies that the approximation is close to the exact count (within expected error bounds)
+    """
+    # Test with different cardinalities to see approximation behavior
+    test_cases = [
+        (1_000, "low cardinality"),       # 1000 unique values
+        (10_000, "medium cardinality"),  # 10,000 unique values
+        (100_000, "high cardinality"),   # 100,000 unique values
+        (1_000_000, "very high cardinality"),  # 1,000,000 unique values
+    ]
+
+    for cardinality, description in test_cases:
+        # Create dataset with known cardinality
+        # Repeat values to ensure we have a reasonable dataset size
+        data = {
+            "value": list(range(cardinality)),
+        }
+        df = local_session.create_dataframe(data)
+
+        result = (
+            df
+            .agg(
+                count_distinct("value").alias("exact_count"),
+                approx_count_distinct("value").alias("approx_count"),
+            )
+            .to_polars()
+        )
+
+        exact = result["exact_count"][0]
+        approx = result["approx_count"][0]
+
+        # Verify exact count is correct
+        assert exact == cardinality, f"{description}: exact count should be {cardinality}"
+
+        # Calculate relative error
+        relative_error = abs(approx - exact) / exact
+        print(f"{description}: relative error {relative_error:.2%}")
+
+        # HyperLogLog++ typical error rate is around 1.15% with default settings
+        # We allow up to 5% to be safe (accounting for edge cases)
+        max_allowed_error = 0.05
+
+        assert relative_error <= max_allowed_error, (
+            f"{description}: approximation error {relative_error:.2%} exceeds max allowed "
+            f"{max_allowed_error:.2%} (exact={exact}, approx={approx})"
+        )
+
+        print(f"{description}: exact={exact}, approx={approx} relative error={relative_error:.2%}")
+
+def test_approx_count_distinct_with_nulls_and_duplicates(local_session: Session):
+    """Test that approx_count_distinct handles nulls correctly in approximate mode."""
+    # Create a dataset with known duplicates and nulls
+    data = {
+        "group": ["A"] * 20_000,
+        "value": (
+            # 10,000 unique values (0-9999)
+            list(range(10_000))
+            # 9,000 duplicates of existing values
+            + [i % 10_000 for i in range(9_000)]
+            # 1,000 nulls
+            + [None] * 1_000
+        ),
+    }
+    df = local_session.create_dataframe(data)
+
+    result = (
+        df.group_by("group")
+        .agg(
+            count_distinct("value").alias("exact_count"),
+            approx_count_distinct("value").alias("approx_count"),
+        )
+        .to_polars()
+    )
+
+    exact = result["exact_count"][0]
+    approx = result["approx_count"][0]
+
+    # Exact count should be 10,000 (nulls are ignored, duplicates are counted once)
+    assert exact == 10_000
+
+    # Approximation should be within 5% of exact
+    relative_error = abs(approx - exact) / exact
+    assert relative_error <= 0.05, (
+        f"Approximation error {relative_error:.2%} exceeds 5% "
+        f"(exact={exact}, approx={approx})"
+    )
