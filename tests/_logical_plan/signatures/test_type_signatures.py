@@ -7,6 +7,7 @@ This tests all the TypeSignature classes that validate argument types.
 import pytest
 
 from fenic.core._logical_plan.signatures.type_signature import (
+    AnyExcludingStructs,
     ArrayOfAny,
     ArrayOfPrimitives,
     ArrayWithMatchingElement,
@@ -23,6 +24,7 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
+    DocumentPathType,
     DoubleType,
     EmbeddingType,
     FloatType,
@@ -30,6 +32,7 @@ from fenic.core.types.datatypes import (
     StringType,
     StructField,
     StructType,
+    _PrimitiveType,
 )
 
 
@@ -378,3 +381,22 @@ class TestInstanceOf:
         # Should reject non-embedding type
         with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an instance of EmbeddingType"):
             sig.validate([StringType], "test_func")
+
+
+class TestAnyExcludingStructs:
+    """Test AnyExcludingStructs signature type."""
+
+    def test_validates_any_type_excluding_structs(self):
+        sig = AnyExcludingStructs(expected_num_args=1)
+        for type in _PrimitiveType.__subclasses__():
+            sig.validate([type], "test_func")
+
+        sig.validate([ArrayType(StringType)], "test_func")
+        sig.validate([ArrayType(DocumentPathType(format="pdf"))], "test_func")
+
+        # Should reject structs
+        with pytest.raises(TypeMismatchError, match="test_func expects a non-struct type at argument 0"):
+            sig.validate([StructType([StructField("name", StringType)])], "test_func")
+
+        with pytest.raises(TypeMismatchError, match="test_func expects an array of non-structs at argument 0"):
+            sig.validate([ArrayType(StructType([StructField("name", StringType)]))], "test_func")

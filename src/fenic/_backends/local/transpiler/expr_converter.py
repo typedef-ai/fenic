@@ -336,7 +336,7 @@ class ExprConverter:
                 expr.expr
             ).sum(),
             SumDistinctExpr: lambda expr: (
-                lambda base: base.filter(base.is_not_null()).unique().sum()
+                lambda base: base.unique().sum()
             )(self._convert_expr(expr.expr)),
             MinExpr: lambda expr: self._convert_expr(
                 expr.expr,

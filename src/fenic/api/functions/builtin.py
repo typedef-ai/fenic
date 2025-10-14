@@ -58,7 +58,7 @@ def sum(column: ColumnOrName) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def sum_distinct(column: ColumnOrName) -> Column:
-    """Aggregate function: returns the sum of distinct values in the specified column.
+    """Aggregate function: returns the sum of distinct numeric values in the specified column.
 
     Args:
         column: Column or column name to compute the sum of distinct values
@@ -296,7 +296,7 @@ def approx_count_distinct(column: ColumnOrName) -> Column:
     """Aggregate function: returns an approximate count (HyperLogLog++) of distinct non-null values.
 
     Args:
-        column: Column or column name to approximately count distinct values in
+        column: Column or column name to approximately count distinct values in. Cannot be a StructType column.
 
     Returns:
         A Column expression representing the approximate count-distinct aggregation
@@ -337,7 +337,7 @@ def approx_count_distinct(column: ColumnOrName) -> Column:
         ```
 
     Raises:
-        TypeMismatchError: If column is not a numeric, boolean, or string type
+        TypeMismatchError: If column is a StructType or ArrayType<StructType> column.
     """
     return Column._from_logical_expr(
         ApproxCountDistinctExpr(Column._from_col_or_name(column)._logical_expr)

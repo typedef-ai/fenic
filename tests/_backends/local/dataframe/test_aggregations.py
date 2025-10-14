@@ -27,6 +27,10 @@ from fenic import (
     sum_distinct,
 )
 from fenic.core.error import PlanError, TypeMismatchError
+from fenic.core.types.datatypes import (
+    JsonType,
+    MarkdownType,
+)
 
 
 def test_sum_aggregation(sample_df):
@@ -474,6 +478,14 @@ def test_count_distinct_multi_columns(local_session: Session):
     result = df.agg(count_distinct("a", "b").alias("cd_pairs")).to_polars()
     assert result["cd_pairs"][0] == 3
 
+def test_sum_distinct_with_bools(local_session: Session):
+    data = {
+        "k": ["x"] * 100 + ["y"] * 100,
+        "v": [True] * 100 + [False] * 100,
+    }
+    df = local_session.create_dataframe(data)
+    result = df.agg(sum_distinct("v").alias("sd")).to_polars()
+    assert result["sd"][0] == 1
 
 def test_sum_distinct_aggregation(local_session: Session):
     data = {
@@ -506,57 +518,49 @@ def test_sum_distinct_aggregation(local_session: Session):
     with pytest.raises(TypeMismatchError):
         _ = df.group_by("k").agg(sum_distinct(struct("v", "k"))).to_polars()
 
-
-def test_approx_count_distinct_approximation(local_session: Session):
+@pytest.mark.parametrize("test_cardinality", [(1_000, "low cardinality"), (10_000, "medium cardinality"), (100_000, "high cardinality"), (1_000_000, "very high cardinality")])
+def test_approx_count_distinct_approximation(local_session: Session, test_cardinality: tuple[int, str]):
     """Test that approx_count_distinct actually uses approximation with HyperLogLog++.
 
     This test verifies that the approximation is close to the exact count (within expected error bounds)
     """
-    # Test with different cardinalities to see approximation behavior
-    test_cases = [
-        (1_000, "low cardinality"),       # 1000 unique values
-        (10_000, "medium cardinality"),  # 10,000 unique values
-        (100_000, "high cardinality"),   # 100,000 unique values
-        (1_000_000, "very high cardinality"),  # 1,000,000 unique values
-    ]
+    cardinality, description = test_cardinality
+    # Create dataset with known cardinality
+    # Repeat values to ensure we have a reasonable dataset size
+    data = {
+        "value": list(range(cardinality)),
+    }
+    df = local_session.create_dataframe(data)
 
-    for cardinality, description in test_cases:
-        # Create dataset with known cardinality
-        # Repeat values to ensure we have a reasonable dataset size
-        data = {
-            "value": list(range(cardinality)),
-        }
-        df = local_session.create_dataframe(data)
-
-        result = (
-            df
-            .agg(
-                count_distinct("value").alias("exact_count"),
-                approx_count_distinct("value").alias("approx_count"),
-            )
-            .to_polars()
+    result = (
+        df
+        .agg(
+            count_distinct("value").alias("exact_count"),
+            approx_count_distinct("value").alias("approx_count"),
         )
+        .to_polars()
+    )
 
-        exact = result["exact_count"][0]
-        approx = result["approx_count"][0]
+    exact = result["exact_count"][0]
+    approx = result["approx_count"][0]
 
-        # Verify exact count is correct
-        assert exact == cardinality, f"{description}: exact count should be {cardinality}"
+    # Verify exact count is correct
+    assert exact == cardinality, f"{description}: exact count should be {cardinality}"
 
-        # Calculate relative error
-        relative_error = abs(approx - exact) / exact
-        print(f"{description}: relative error {relative_error:.2%}")
+    # Calculate relative error
+    relative_error = abs(approx - exact) / exact
+    print(f"{description}: relative error {relative_error:.2%}")
 
-        # HyperLogLog++ typical error rate is around 1.15% with default settings
-        # We allow up to 5% to be safe (accounting for edge cases)
-        max_allowed_error = 0.05
+    # HyperLogLog++ typical error rate is around 1.15% with default settings
+    # We allow up to 5% to be safe (accounting for edge cases)
+    max_allowed_error = 0.05
 
-        assert relative_error <= max_allowed_error, (
-            f"{description}: approximation error {relative_error:.2%} exceeds max allowed "
-            f"{max_allowed_error:.2%} (exact={exact}, approx={approx})"
-        )
+    assert relative_error <= max_allowed_error, (
+        f"{description}: approximation error {relative_error:.2%} exceeds max allowed "
+        f"{max_allowed_error:.2%} (exact={exact}, approx={approx})"
+    )
 
-        print(f"{description}: exact={exact}, approx={approx} relative error={relative_error:.2%}")
+    print(f"{description}: exact={exact}, approx={approx} relative error={relative_error:.2%}")
 
 def test_approx_count_distinct_with_nulls_and_duplicates(local_session: Session):
     """Test that approx_count_distinct handles nulls correctly in approximate mode."""
@@ -595,3 +599,43 @@ def test_approx_count_distinct_with_nulls_and_duplicates(local_session: Session)
         f"Approximation error {relative_error:.2%} exceeds 5% "
         f"(exact={exact}, approx={approx})"
     )
+
+def test_datatype_compatibility_with_count_distinct(local_session: Session):
+    # tests if count distinct can handle structs/logical types, etc.
+    data = {
+        "v": [1] * 100 + [i % 5 for i in range(100)],
+        "arr": [[1, 2]] * 200,
+        "struct": [{"a": x, "b": y} for x, y in zip(range(200), range(200), strict=True)],
+        "markdown": ["# Hello"] * 200,
+        "json": ["{\"a\": 1, \"b\": 2}"] * 200,
+    }
+    df = local_session.create_dataframe(data)
+    df = df.select(
+        col("v"),
+        col("struct"),
+        col("markdown").cast(MarkdownType).alias("markdown"),
+        col("json").cast(JsonType).alias("json"),
+    )
+    result = df.agg(
+        count_distinct("v").alias("cd"),
+        count_distinct("struct").alias("cd_struct"),
+        count_distinct("markdown").alias("cd_markdown"),
+        count_distinct("json").alias("cd_json"),
+    ).to_polars()
+    print(result)
+    assert result["cd"][0] == 5
+    assert result["cd_struct"][0] == 200
+    assert result["cd_markdown"][0] == 1
+    assert result["cd_json"][0] == 1
+
+    result_approx = df.agg(
+        approx_count_distinct("v").alias("approx_cd"),
+        approx_count_distinct("markdown").alias("approx_cd_markdown"),
+        approx_count_distinct("json").alias("approx_cd_json"),
+    ).to_polars()
+    assert result_approx["approx_cd"][0] == 5
+    assert result_approx["approx_cd_markdown"][0] == 1
+    assert result_approx["approx_cd_json"][0] == 1
+
+    with pytest.raises(TypeMismatchError):
+        _ = df.agg(approx_count_distinct("struct")).to_polars()

@@ -11,6 +11,7 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     DataType,
+    StructType,
     _is_dtype_numeric,
     _PrimitiveType,
 )
@@ -180,6 +181,24 @@ class OneOf(TypeSignature):
 
 # === Specialized Type Signatures for Arrays and Structs ===
 
+class AnyExcludingStructs(TypeSignature):
+    """Matches any type except the excluded types."""
+    def __init__(self, expected_num_args: int = 1):
+        self.expected_num_args = expected_num_args
+
+    def validate(self, actual_arg_types: List[DataType], func_name: str) -> None:
+        if len(actual_arg_types) != self.expected_num_args:
+            raise ValidationError(f"{func_name} expects {self.expected_num_args} arguments, got {len(actual_arg_types)}")
+        for i, actual_arg_type in enumerate(actual_arg_types):
+            if isinstance(actual_arg_type, ArrayType):
+                if isinstance(actual_arg_type.element_type, StructType):
+                    raise TypeMismatchError.from_message(
+                        f"{func_name} expects an array of non-structs at argument {i}"
+                    )
+            elif isinstance(actual_arg_type, StructType) :
+                raise TypeMismatchError.from_message(
+                    f"{func_name} expects a non-struct type at argument {i}"
+                )
 
 class ArrayOfAny(TypeSignature):
     """Matches any ArrayType regardless of element type."""
