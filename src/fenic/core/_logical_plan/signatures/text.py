@@ -198,7 +198,7 @@ def register_text_signatures():
         "text.regexp_extract",
         FunctionSignature(
             function_name="text.regexp_extract",
-            type_signature=Exact([StringType, StringType, IntegerType]),  # string input + pattern + group index
+            type_signature=Exact([StringType, StringType]),  # string input + pattern
             return_type=StringType
         )
     )

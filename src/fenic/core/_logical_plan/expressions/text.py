@@ -1037,7 +1037,7 @@ class RegexpExtractExpr(ValidatedSignature, LogicalExpr):
 
     function_name = "text.regexp_extract"
 
-    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr, idx: LogicalExpr):
+    def __init__(self, expr: LogicalExpr, pattern: LogicalExpr, idx: int):
         if isinstance(pattern, LiteralExpr) and pattern.data_type == StringType:
             try:
                 py_validate_regex(pattern.literal)
@@ -1054,7 +1054,7 @@ class RegexpExtractExpr(ValidatedSignature, LogicalExpr):
         return self._validator
 
     def children(self) -> List[LogicalExpr]:
-        return [self.expr, self.pattern, self.idx]
+        return [self.expr, self.pattern]
 
     def _eq_specific(self, other: RegexpExtractExpr) -> bool:
         return self.pattern == other.pattern and self.idx == other.idx

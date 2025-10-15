@@ -16,6 +16,9 @@ from fenic._backends.local.polars_plugins.json import (
 from fenic._backends.local.polars_plugins.markdown import (
     MarkdownExtractor,
 )
+from fenic._backends.local.polars_plugins.regex import (
+    Regexp,
+)
 from fenic._backends.local.polars_plugins.tokenization import (
     Tokenization,
     count_tokens,
@@ -37,4 +40,5 @@ __all__ = [
     "Jinja",
     "Dtypes",
     "Fuzz",
+    "Regexp",
 ]

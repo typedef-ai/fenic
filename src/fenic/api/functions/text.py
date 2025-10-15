@@ -691,12 +691,13 @@ def regexp_count(src: ColumnOrName, pattern: Union[Column, str]) -> Column:
 
 @validate_call(config=ConfigDict(strict=True, arbitrary_types_allowed=True))
 def regexp_extract(
-    src: ColumnOrName, pattern: Union[Column, str], idx: Union[Column, int]
+    src: ColumnOrName, pattern: Union[Column, str], idx: int
 ) -> Column:
     r"""Extract a specific regex group from a string.
 
-    Extracts a capture group matched by the regex pattern.
-    Group 0 is the entire match, group 1+ are capture groups.
+    Extracts a capture group matched by the regex pattern. Group 0 is the entire match, group 1+ are capture groups.
+    If the pattern/group has multiple matches within the same string, the result will be the first match. Use `regexp_extract_all`
+    to extract all matches.
 
     Args:
         src: The input string column or column name
@@ -704,7 +705,8 @@ def regexp_extract(
         idx: The group index to extract (0 = entire match, 1+ = capture groups)
 
     Returns:
-        Column: A string column containing the extracted group (null if no match)
+        Column: A string column containing the extracted group. If no match is found, or
+            the specified group did not match, the result will be an empty string.
 
     Example: Extract email username
         ```python
@@ -732,13 +734,9 @@ def regexp_extract(
         pattern_expr = pattern._logical_expr
     else:
         pattern_expr = lit(pattern)._logical_expr
-    if isinstance(idx, Column):
-        idx_expr = idx._logical_expr
-    else:
-        idx_expr = lit(idx)._logical_expr
     return Column._from_logical_expr(
         RegexpExtractExpr(
-            Column._from_col_or_name(src)._logical_expr, pattern_expr, idx_expr
+            Column._from_col_or_name(src)._logical_expr, pattern_expr, idx
         )
     )
 
@@ -750,6 +748,7 @@ def regexp_extract_all(
     r"""Extract all strings matching a regex pattern, optionally from a specific group.
 
     Returns an array of all matches. Group 0 is the entire match, group 1+ are capture groups.
+    If the pattern/group has multiple matches within the same string, the result will be an array of all matches.
 
     Args:
         src: The input string column or column name
