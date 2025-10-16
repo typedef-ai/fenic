@@ -108,6 +108,11 @@ def empty(data_type: DataType) -> Column:
 def lit(value: Any) -> Column:
     """Creates a Column expression representing a literal value.
 
+    Column Data Type must be inferrable from the value:
+        - Cannot be used to create a columm with the literal value `None`. Use `null(data_type)` instead.
+        - Cannot be used to create a columm with the literal value `[]`. Use `empty(ArrayType(...))` instead.
+        - Cannot be used to create a columm with the literal value `{}`. Use `empty(StructType(...))` instead.
+
     Args:
         value: The literal value to create a column for
 
