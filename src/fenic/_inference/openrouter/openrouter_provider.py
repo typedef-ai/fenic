@@ -93,11 +93,11 @@ class OpenRouterModelProvider(ModelProviderClass):
             cached_read_cost = 0.0
 
         context_len = None
-        if isinstance(top_provider.get("context_length"), int):
+        if isinstance(top_provider.get("context_length"), int) and top_provider.get("context_length") > 0:
             context_len = int(top_provider.get("context_length"))
-        elif isinstance(model_obj.get("context_length"), int):
+        elif isinstance(model_obj.get("context_length"), int) and model_obj.get("context_length") > 0:
             context_len = int(model_obj.get("context_length"))
-        if context_len is None:
+        if context_len is None or context_len == 0:
             return None
 
         max_tokens = None
