@@ -28,7 +28,7 @@ The backend is selected via session configuration, allowing the same code to run
 
 ## Directory Structure
 
-```
+```text
 fenic/
 ├── src/fenic/              # Main Python source code
 │   ├── api/                # Public API layer
@@ -400,7 +400,7 @@ uv sync                  # Install Python dependencies
 just sync-rust           # Build Rust extensions
 ```
 
-### Testing
+### Running Tests
 
 ```bash
 # Run all local tests
@@ -525,20 +525,23 @@ Base classes in semantic operators define common structure while subclasses impl
 
 ## Resources
 
-### Documentation
-- User docs: https://docs.fenic.ai
+### User Documentation
+
+- User docs: <https://docs.fenic.ai>
 - API reference: Auto-generated from docstrings
 - Examples: `examples/` directory with Jupyter notebooks
 
 ### Community
-- Discord: https://discord.gg/GdqF3J7huR
-- GitHub Issues: https://github.com/typedef-ai/fenic/issues
+
+- Discord: <https://discord.gg/GdqF3J7huR>
+- GitHub Issues: <https://github.com/typedef-ai/fenic/issues>
 
 ### Related Tools
-- Polars: https://pola.rs - Underlying DataFrame engine
-- DuckDB: https://duckdb.org - SQL engine
-- PySpark: https://spark.apache.org/docs/latest/api/python/ - API inspiration
-- LanceDB: https://lancedb.com - Vector database for embeddings
+
+- Polars: <https://pola.rs> - Underlying DataFrame engine
+- DuckDB: <https://duckdb.org> - SQL engine
+- PySpark: <https://spark.apache.org/docs/latest/api/python/> - API inspiration
+- LanceDB: <https://lancedb.com> - Vector database for embeddings
 
 ## Common Patterns
 
