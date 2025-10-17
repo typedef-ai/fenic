@@ -11,16 +11,21 @@ The project is built with a hybrid architecture using Python for the API and log
 ## Core Design Principles
 
 ### Session-Centric Design
+
 All operations flow through `Session.get_or_create()`. The session manages configuration, execution engine selection (local or cloud), and resource lifecycle. This is similar to SparkSession in PySpark.
 
 ### Lazy Evaluation
+
 DataFrame operations build logical plans without immediate execution. Execution is triggered only by actions like `show()`, `collect()`, `to_polars()`, or `count()`. This allows for query optimization before execution.
 
 ### Logical vs Physical Separation
+
 The framework separates what to compute (logical plans) from how to compute it (physical plans). Optimizer rules transform logical plans before the backend translates them into physical execution plans.
 
 ### Backend Abstraction
+
 Fenic supports multiple execution backends:
+
 - **Local Backend**: Uses Polars for in-memory execution (default)
 - **Cloud Backend**: Uses gRPC to execute on typedef cloud infrastructure
 
@@ -98,12 +103,14 @@ fenic/
 The API layer provides the user-facing interface. Key components:
 
 #### Session (`api/session/`)
+
 - Entry point to the framework
 - Manages configuration and backend selection
 - Creates DataFrames and provides catalog access
 - Methods: `create_dataframe()`, `read.*()`, `table()`, `sql()`
 
 #### DataFrame (`api/dataframe/dataframe.py`)
+
 - Core data structure representing a lazy computation
 - Provides PySpark-inspired operations: `select()`, `filter()`, `join()`, `group_by()`, etc.
 - Supports method chaining for building complex transformations
@@ -111,6 +118,7 @@ The API layer provides the user-facing interface. Key components:
 - Actions trigger execution: `show()`, `collect()`, `to_polars()`, `to_pandas()`, `count()`
 
 #### SemanticExtensions (`api/dataframe/semantic_extensions.py`)
+
 - Accessed via `df.semantic.*` property
 - Provides semantic operations powered by LLMs:
   - `with_cluster_labels()`: K-means clustering on embeddings
@@ -118,6 +126,7 @@ The API layer provides the user-facing interface. Key components:
   - `sim_join()`: Similarity-based joins using embeddings
 
 #### Functions (`api/functions/`)
+
 - Column-level operations and transformations
 - Standard functions: `col()`, `lit()`, `when()`, `coalesce()`, etc.
 - Semantic functions via `semantic.*` namespace:
@@ -130,6 +139,7 @@ The API layer provides the user-facing interface. Key components:
 - Special type constructors: `text.*`, `json.*`, `markdown.*`, `embedding.*`
 
 #### IO Layer (`api/io/`)
+
 - `DataFrameReader`: Read data from various sources (CSV, Parquet, JSON, managed tables)
 - `DataFrameWriter`: Write DataFrames to different formats
 
@@ -149,6 +159,7 @@ Logical plan nodes represent operations without specifying how to execute them:
 - **Union Plans**: `Union`
 
 Each plan node:
+
 - Contains references to child plan nodes (building a tree)
 - Defines a `schema()` method for type inference
 - Can be serialized for cloud execution (via protobuf)
@@ -159,7 +170,7 @@ Expression nodes represent column-level computations:
 
 - `ColumnRef`: Reference to a column
 - `LiteralExpr`: Constant value
-- `BinaryOp`: Binary operations (+, -, *, /, ==, !=, <, >, etc.)
+- `BinaryOp`: Binary operations (+, -, \*, /, ==, !=, <, >, etc.)
 - `UnaryOp`: Unary operations (NOT, IS NULL, etc.)
 - `FunctionCall`: Built-in function calls
 - `CaseWhen`: Conditional expressions
@@ -169,6 +180,7 @@ Expression nodes represent column-level computations:
 #### Optimizer (`core/_logical_plan/optimizer/`)
 
 Transformation rules that optimize logical plans before execution:
+
 - Constant folding
 - Filter pushdown opportunities
 - Expression simplification
@@ -193,12 +205,14 @@ Backends execute logical plans and return results.
 Uses Polars for in-memory execution:
 
 **Physical Plan Execution** (`physical_plan/`)
+
 - Translates logical plans to Polars LazyFrame operations
 - Handles complex operations like joins, aggregations, window functions
 - Manages execution of semantic operators
 
 **Semantic Operators** (`semantic_operators/`)
 Each semantic operator has its own implementation:
+
 - `extract.py`: Structured data extraction using LLMs
 - `classify.py`: Text classification with few-shot examples
 - `map.py`: Natural language transformations
@@ -211,11 +225,13 @@ Each semantic operator has its own implementation:
 - `summarize.py`: Text summarization
 
 **Catalog** (`catalog.py`)
+
 - Manages tables and views
 - Handles table registration and lookup
 - Manages system tables for lineage and metrics
 
 **Execution Engine** (`execution.py`)
+
 - Coordinates plan execution
 - Manages caching and persistence
 - Tracks query metrics (LLM calls, tokens, costs)
@@ -223,6 +239,7 @@ Each semantic operator has its own implementation:
 #### Cloud Backend (`_backends/cloud/`)
 
 Executes plans on typedef cloud infrastructure:
+
 - Serializes logical plans to protobuf
 - Sends plans via gRPC to cloud execution service
 - Receives results and deserializes back to Python
@@ -233,7 +250,9 @@ Executes plans on typedef cloud infrastructure:
 Manages LLM interactions across multiple providers.
 
 #### Model Client (`model_client.py`)
+
 Unified interface for all LLM providers:
+
 - Batches requests for efficiency
 - Handles retries with exponential backoff
 - Implements rate limiting strategies
@@ -241,7 +260,9 @@ Unified interface for all LLM providers:
 - Supports both streaming and batch modes
 
 #### Provider Implementations
+
 Each provider has its own module:
+
 - `openai/`: OpenAI GPT models
 - `anthropic/`: Anthropic Claude models
 - `google/`: Google Gemini models (Developer API and Vertex AI)
@@ -249,6 +270,7 @@ Each provider has its own module:
 - `openrouter/`: OpenRouter proxy
 
 Provider implementations handle:
+
 - API authentication
 - Request formatting
 - Response parsing
@@ -260,15 +282,18 @@ Provider implementations handle:
 Performance-critical operations implemented in Rust and exposed via PyO3:
 
 #### Text Processing
+
 - **Chunking** (`chunking/`): Split text into overlapping chunks for long documents
 - **Markdown** (`markdown_json/`): Parse markdown into structured JSON
 - **Transcript** (`transcript/`): Parse SRT, WebVTT, and generic transcript formats
 - **JSON** (`json/`): JQ-like JSON manipulation
 
 #### Template Rendering
+
 - **Jinja** (`jinja/`): Fast Jinja2-compatible template rendering for semantic operations
 
 #### Utilities
+
 - **Regex** (`regex/`): High-performance regex operations
 - **DTypes** (`dtypes/`): Custom Polars data type implementations
 
@@ -279,6 +304,7 @@ These Rust modules are compiled into a Python extension (`_polars_plugins`) usin
 ### Typical Query Execution Flow
 
 1. **User Code**: User writes DataFrame operations
+
    ```python
    session = Session.get_or_create(SessionConfig(app_name="my_app"))
    df = session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30]})
@@ -383,6 +409,7 @@ The test suite is organized by feature area:
 - `tests/integration/`: End-to-end integration tests
 
 Use pytest markers to control test execution:
+
 - `@pytest.mark.cloud`: Tests requiring cloud backend (excluded by default)
 - Run local tests: `just test` or `pytest tests/`
 - Run cloud tests: `just test-cloud` or `pytest tests/ -m cloud`
@@ -476,40 +503,49 @@ This rebuilds the Rust extensions and makes them available to Python.
 ## Key Design Patterns
 
 ### Builder Pattern
+
 Logical plans and expressions use builder patterns for construction, allowing fluent APIs and method chaining.
 
 ### Factory Methods
+
 DataFrames and plan nodes use factory methods (`_from_logical_plan()`, `from_session_state()`) to ensure proper initialization.
 
 ### Visitor Pattern
+
 The `walker.py` module implements visitor pattern for traversing logical plan trees.
 
 ### Strategy Pattern
+
 Different backends implement the same execution interface, allowing backend selection at runtime.
 
 ### Template Method Pattern
+
 Base classes in semantic operators define common structure while subclasses implement specific LLM interactions.
 
 ## Important Conventions
 
 ### Code Style
+
 - Use Google-style docstrings
 - Follow PEP 8 for Python code
 - Use type hints throughout
 - Ruff is configured for linting and formatting
 
 ### Naming Conventions
+
 - Plan nodes: PascalCase (e.g., `SemanticExtract`)
 - Expressions: PascalCase (e.g., `BinaryOp`)
 - Functions: snake_case (e.g., `create_dataframe()`)
 - Private modules: Prefix with `_` (e.g., `_backends/`)
 
 ### API Compatibility
+
 - Public API in `api/` should be stable
 - Internal APIs in `core/` and `_backends/` can change
 - Provide both snake_case and camelCase for PySpark compatibility
 
 ### Error Handling
+
 - Use custom exceptions from `core.error`:
   - `ValidationError`: User input validation
   - `PlanError`: Logical plan issues
@@ -518,6 +554,7 @@ Base classes in semantic operators define common structure while subclasses impl
   - `CatalogError`: Catalog operations
 
 ### Performance Considerations
+
 - Prefer batch operations over row-by-row processing
 - Use Rust extensions for CPU-intensive operations
 - Lazy evaluation prevents unnecessary computation
@@ -572,7 +609,7 @@ df.sort("date")
 
 ```python
 # Extract structured data
-df.with_column("parsed", 
+df.with_column("parsed",
     semantic.extract(
         "text_column",
         schema=MyPydanticModel,
@@ -622,6 +659,7 @@ print(result.metrics.get_summary())
 ### Common Issues
 
 **LLM Provider Errors**: Set appropriate API key environment variables:
+
 ```bash
 export OPENAI_API_KEY="your-key"
 export ANTHROPIC_API_KEY="your-key"
@@ -629,6 +667,7 @@ export GOOGLE_API_KEY="your-key"
 ```
 
 **Rust Extension Build Failures**: Ensure Rust toolchain is installed:
+
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
