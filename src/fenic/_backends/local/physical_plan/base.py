@@ -286,5 +286,5 @@ class PhysicalPlan(ABC):
 
 def _with_lineage_uuid(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns(
-        pl.Series("_uuid", [str(uuid.uuid4().hex) for _ in range(df.height)])
+        pl.Series("_uuid", [uuid.uuid4().hex for _ in range(df.height)])
     )
