@@ -768,19 +768,32 @@ class ExprConverter:
     @_convert_expr.register(SemanticParsePDFExpr)
     def _convert_parse_pdf_expr(self, logical: SemanticParsePDFExpr) -> pl.Expr:
         def parse_pdf_fn(batch: pl.Series) -> pl.Series:
+            if batch.dtype == pl.Struct:
+                fields = batch.struct.fields
+                docs_series = batch.struct.field(fields[0])
+                pages_series_or_static = batch.struct.field(fields[1])
+            else:
+                docs_series = batch
+                pages_series_or_static = logical.pages
+
             return SemanticParsePDF(
-                input=batch,
+                input=docs_series,
                 model=self.session_state.get_language_model(logical.model_alias),
                 page_separator=logical.page_separator,
                 describe_images=logical.describe_images,
                 model_alias=logical.model_alias,
                 max_output_tokens=logical.max_output_tokens,
                 request_timeout=logical.request_timeout,
+                pages=pages_series_or_static,
             ).execute()
-
-        return self._convert_expr(logical.expr).map_batches(
-            parse_pdf_fn, return_dtype=pl.Utf8
-        )
+        if isinstance(logical.pages, LogicalExpr):
+            return pl.struct(self._convert_expr(logical.expr), self._convert_expr(logical.pages)).map_batches(
+                parse_pdf_fn, return_dtype=pl.Utf8
+            )
+        else:
+            return self._convert_expr(logical.expr).map_batches(
+                parse_pdf_fn, return_dtype=pl.Utf8
+            )
 
     @_convert_expr.register(ArrayJoinExpr)
     def _convert_array_join_expr(self, logical: ArrayJoinExpr) -> pl.Expr:

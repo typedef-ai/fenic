@@ -1,6 +1,6 @@
 import logging
 from textwrap import dedent
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import fitz
 import jinja2
@@ -10,7 +10,11 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnFilePathOperator,
     CompletionOnlyRequestSender,
 )
-from fenic._backends.local.utils.doc_loader import DocFolderLoader
+from fenic._backends.local.utils.doc_loader import (
+    DocFolderLoader,
+    resolve_and_coalesce_pages,
+    validate_pages_argument,
+)
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import LMRequestFile, LMRequestMessages
 from fenic.core._inference.model_catalog import ModelProvider
@@ -52,12 +56,14 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
         model_alias: Optional[ResolvedModelAlias] = None,
         max_output_tokens: Optional[int] = None,
         request_timeout: Optional[float] = None,
+        pages: Optional[Union[pl.Series, int, List[Union[int, List[int]]]]] = None,
     ):
         self.page_separator = page_separator
         self.describe_images = describe_images
         self.model = model
         self.model_alias = model_alias
         self.max_output_tokens = max_output_tokens
+        self.pages = pages
 
         DocFolderLoader.check_file_extensions(input.to_list(), "pdf")
 
@@ -115,12 +121,19 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
             List of the each chunk size (page count) per PDF (page_counts_per_chunk_per_row)"""
         messages_batch = []
         page_counts_per_chunk_per_row = []
-        for path in self.input:
+        for idx, path in enumerate(self.input):
             if not path:
                 messages_batch.append(None)
                 page_counts_per_chunk_per_row.append([1])
             else:
-                file_chunks = self._get_file_chunks(path)
+                # pages can be a literal int, list of ranges, or a logical expression that resolves to an int or list of ranges
+                row_pages = self.pages.to_list()[idx] if isinstance(self.pages, pl.Series) else self.pages
+
+                # Validate pages if it's not None (validation happens here for column values)
+                if row_pages is not None:
+                    validate_pages_argument(row_pages)
+
+                file_chunks = self._get_file_chunks(path, row_pages)
                 page_counts_per_chunk = []
                 for file in file_chunks:
                     messages_batch.append(
@@ -130,57 +143,73 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
                 page_counts_per_chunk_per_row.append(page_counts_per_chunk)
         return messages_batch, page_counts_per_chunk_per_row
 
-
-    def _get_file_chunks(self, file_path: str) -> List[LMRequestFile]:
+    def _get_file_chunks(self, file_path: str, pages: Optional[Union[int, List[Union[int, List[int]]]]] = None) -> List[LMRequestFile]:
         """Get the page chunks for the PDF file.
 
         Limit the pages based on the model's output token limit and internal max pages per chunk.
 
         Args:
             file_path: Path to the PDF file
+            pages: Optional pages specification (1-indexed). If None, process all pages.
 
         Returns:
             List of LMRequestFile objects
-            List of (start_page, end_page) tuples (inclusive, 0-indexed)
         """
         chunks = []
-        range_start_page = 0
-        range_tokens = 0
-        range_page_count = 0
 
         with fitz.open(file_path) as doc:
             total_pages = doc.page_count
-            for page_num in range(total_pages):
-                text = doc[page_num].get_text("text")
-                page_tokens = self.model.count_tokens(text)
-                # Check if we need to start a new range, either by reaching the token limit or the requested page range size
-                would_exceed_tokens = range_tokens > 0 and (range_tokens + page_tokens) * PDF_MARKDOWN_OUTPUT_TOKEN_MULTIPLIER > self.model.model_parameters.max_output_tokens
-                would_exceed_page_limit = range_page_count >= PDF_MAX_PAGES_CHUNK
 
-                if would_exceed_tokens or would_exceed_page_limit:
-                    # Save current batch
-                    last_page = page_num - 1
-                    page_range = (range_start_page, last_page)
-                    with fitz.open() as doc_chunk:
-                        doc_chunk.insert_pdf(doc, from_page=range_start_page, to_page=last_page)
-                        chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=doc_chunk.tobytes(), page_range=page_range))
-                    range_start_page = page_num
-                    range_tokens = page_tokens
-                    range_page_count = 1
-                else:
-                    range_tokens += page_tokens
-                    range_page_count += 1
+            # Resolve page ranges
+            if pages is not None:
+                resolved_ranges = resolve_and_coalesce_pages(pages, total_pages)
+                # Filter out ranges that exceed the document's page count
+                resolved_ranges = [(start, min(end, total_pages - 1)) for start, end in resolved_ranges if start < total_pages]
+            else:
+                # Process all pages
+                resolved_ranges = [(0, total_pages - 1)]
 
-            # Add the last batch if there are remaining pages
-            if range_start_page < total_pages:
-                if range_start_page == 0:
-                    # whole pdf fits in one chunk, no need to keep data in memory
-                    chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=None, page_range=(0, total_pages - 1)))
-                else:
-                    # multi-page chunk
-                    with fitz.open() as doc_chunk:
-                        doc_chunk.insert_pdf(doc, from_page=range_start_page, to_page=total_pages - 1)
-                        chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=doc_chunk.tobytes(), page_range=(range_start_page, total_pages - 1)))
+            # Process each range
+            for range_start, range_end in resolved_ranges:
+                # Track current chunk within this range
+                chunk_start_page = range_start
+                chunk_tokens = 0
+                chunk_page_count = 0
+
+                for page_num in range(range_start, range_end + 1):
+                    text = doc[page_num].get_text("text")
+                    page_tokens = self.model.count_tokens(text)
+
+                    # Check if we need to start a new chunk
+                    would_exceed_tokens = chunk_tokens > 0 and (chunk_tokens + page_tokens) * PDF_MARKDOWN_OUTPUT_TOKEN_MULTIPLIER > self.model.model_parameters.max_output_tokens
+                    would_exceed_page_limit = chunk_page_count >= PDF_MAX_PAGES_CHUNK
+
+                    if would_exceed_tokens or would_exceed_page_limit:
+                        # Save current chunk
+                        last_page = page_num - 1
+                        page_range = (chunk_start_page, last_page)
+                        with fitz.open() as doc_chunk:
+                            doc_chunk.insert_pdf(doc, from_page=chunk_start_page, to_page=last_page)
+                            chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=doc_chunk.tobytes(), page_range=page_range))
+
+                        # Start new chunk
+                        chunk_start_page = page_num
+                        chunk_tokens = page_tokens
+                        chunk_page_count = 1
+                    else:
+                        chunk_tokens += page_tokens
+                        chunk_page_count += 1
+
+                # Add the last chunk for this range if there are remaining pages
+                if chunk_start_page <= range_end:
+                    if chunk_start_page == 0 and range_end == total_pages - 1 and len(resolved_ranges) == 1:
+                        # Whole PDF fits in one chunk, no need to keep data in memory
+                        chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=None, page_range=(0, total_pages - 1)))
+                    else:
+                        # Multi-page chunk or partial PDF
+                        with fitz.open() as doc_chunk:
+                            doc_chunk.insert_pdf(doc, from_page=chunk_start_page, to_page=range_end)
+                            chunks.append(LMRequestFile(path=file_path, pdf_chunk_bytes=doc_chunk.tobytes(), page_range=(chunk_start_page, range_end)))
 
             return chunks
 

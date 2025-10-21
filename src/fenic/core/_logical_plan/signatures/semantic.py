@@ -8,7 +8,7 @@ from fenic.core._logical_plan.signatures.function_signature import (
     ReturnTypeStrategy,
 )
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
-from fenic.core._logical_plan.signatures.type_signature import Exact
+from fenic.core._logical_plan.signatures.type_signature import Exact, VariadicAny
 from fenic.core.types.datatypes import MarkdownType, StringType
 
 
@@ -50,9 +50,10 @@ def register_semantic_signatures():
     ))
 
     # Parse PDF - parse PDF files with OCR/VLMs
+    # Accepts 1 arg (file_path) or 2 args (file_path, pages column)
     FunctionRegistry.register("semantic.parse_pdf", FunctionSignature(
         function_name="semantic.parse_pdf",
-        type_signature=Exact([StringType]),
+        type_signature=VariadicAny(expected_min_args=1),
         return_type=MarkdownType
     ))
 

@@ -6,7 +6,7 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple, Union
 
 import fitz  # PyMuPDF
 import polars as pl
@@ -25,6 +25,94 @@ from fenic.core.types.datatypes import (
 from fenic.core.types.enums import DocContentType
 
 logger = logging.getLogger(__name__)
+
+
+def validate_pages_argument(pages: Optional[Union[int, List[Union[int, List[int]]]]]) -> None:
+    """Validate the pages argument.
+
+    Args:
+        pages: Either an int, or a list of ints or pairs of ints (ranges), or None
+
+    Raises:
+        ValidationError: If the pages argument is invalid
+    """
+    if pages is None:
+        return
+    if isinstance(pages, int):
+        if pages <= 0:
+            raise ValidationError("Page numbers must be positive integers")
+    elif isinstance(pages, list):
+        for item in pages:
+            if isinstance(item, int):
+                if item <= 0:
+                    raise ValidationError("Page numbers must be positive integers")
+            elif isinstance(item, list):
+                if len(item) != 2:
+                    raise ValidationError("Page ranges must be pairs of two numbers")
+                if not all(isinstance(x, int) for x in item):
+                    raise ValidationError("Page range values must be integers")
+                if item[0] <= 0 or item[1] <= 0:
+                    raise ValidationError("Page numbers must be positive integers")
+                if item[1] < item[0]:
+                    raise ValidationError(f"Invalid page range [{item[0]}, {item[1]}]: end page must be >= start page")
+            else:
+                raise ValidationError(f"Invalid pages element type: {type(item).__name__}. Expected int or list of two ints")
+    else:
+        raise ValidationError(f"Invalid pages type: {type(pages).__name__}. Expected int, list, or Column")
+
+
+def resolve_and_coalesce_pages(pages: Union[int, List[Union[int, List[int]]]], total_pages: int) -> List[Tuple[int, int]]:
+    """Resolve and coalesce page specifications into sorted, non-overlapping ranges.
+
+    Converts page numbers and ranges into a sorted list of non-overlapping page ranges.
+    All page numbers are 1-indexed as input but converted to 0-indexed ranges for internal use.
+
+    Args:
+        pages: Either a single page number (int) or a list of page numbers and/or ranges.
+               Page numbers are 1-indexed. Ranges are represented as [start, end] (inclusive).
+
+    Returns:
+        List of (start, end) tuples representing 0-indexed page ranges (inclusive).
+        Ranges are sorted and non-overlapping.
+
+    Examples:
+        >>> resolve_and_coalesce_pages(5)
+        [(4, 4)]
+        >>> resolve_and_coalesce_pages([1, 3, 5])
+        [(0, 0), (2, 2), (4, 4)]
+        >>> resolve_and_coalesce_pages([1, [2, 4], 3, 5])
+        [(0, 0), (1, 3), (4, 4)]
+        >>> resolve_and_coalesce_pages([[1, 3], [2, 5], 7])
+        [(0, 4), (6, 6)]
+    """
+    # Convert to list of (start, end) tuples (0-indexed, inclusive)
+    ranges = []
+    if isinstance(pages, int):
+        # Single page: convert 1-indexed to 0-indexed
+        ranges.append((pages - 1, min(pages - 1, total_pages - 1)))
+    else:
+        for item in pages:
+            # Single page: convert 1-indexed to 0-indexed
+            # every range is capped by the total number of pages in the document
+            ranges.append((item - 1, min(item - 1, total_pages - 1)) if isinstance(item, int) else (item[0] - 1, min(item[1] - 1, total_pages - 1)))
+
+    # Sort by start page
+    ranges.sort()
+
+    # Coalesce overlapping ranges
+    if not ranges:
+        return []
+    coalesced = [ranges[0]]
+    for start, end in ranges[1:]:
+        last_start, last_end = coalesced[-1]
+        # Check if ranges overlap or are adjacent
+        if start <= last_end + 1:
+            # Merge ranges
+            coalesced[-1] = (last_start, max(last_end, end))
+        else:
+            # No overlap, add new range
+            coalesced.append((start, end))
+    return coalesced
 
 class DocFolderLoader:
     """A class that encapsulates folder traversal and multi-threaded file processing.

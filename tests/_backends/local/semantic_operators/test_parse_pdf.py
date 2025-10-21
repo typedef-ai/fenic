@@ -523,7 +523,6 @@ class TestParsePDF:
         check_chunk_content_and_order(result3[2], chunks=1, chunk_max_size=test_chunk_max_size)
         check_chunk_content_and_order(result3[3], chunks=2, chunk_max_size=test_chunk_max_size)
 
-
     def test_pdf_chunking_with_page_separator(self, temp_dir_just_one_file, mock_language_model, monkeypatch):
        # create a pdfs with varying page counts.  Mock max_output_tokens to be something larger than the total number of tokens in the pdfs.
         page_counts = [1, 5, 10, 20]
@@ -573,3 +572,121 @@ class TestParsePDF:
         check_chunk_page_separators(result3[1], pages=page_counts[1], chunk_max_size=test_chunk_max_size)
         check_chunk_page_separators(result3[2], pages=page_counts[2], chunk_max_size=test_chunk_max_size)
         check_chunk_page_separators(result3[3], pages=page_counts[3], chunk_max_size=test_chunk_max_size)
+
+
+
+    def test_pdf_chunking_with_page_ranges(self, temp_dir_just_one_file, mock_language_model, monkeypatch):
+        """Test PDF parsing with page ranges specified."""
+        # Create two PDFs: one with 15 pages, one with 5 pages
+        file_15_pages = os.path.join(temp_dir_just_one_file, "file_15_pages.pdf")
+        file_5_pages = os.path.join(temp_dir_just_one_file, "file_5_pages.pdf")
+        _save_pdf_file(file_15_pages, page_count=15, text_content="dummy text")
+        _save_pdf_file(file_5_pages, page_count=5, text_content="dummy text")
+
+        mock_language_model.max_output_tokens = 100_000
+        mock_language_model.count_tokens.return_value = 50
+        mock_language_model.get_completions.side_effect = mock_get_completions
+
+        test_chunk_max_size = 3
+        monkeypatch.setattr("fenic._backends.local.semantic_operators.parse_pdf.PDF_MAX_PAGES_CHUNK", test_chunk_max_size)
+
+        # Test 1: Single page number (page 5, 1-indexed)
+        input1 = pl.Series("input", [file_15_pages, file_5_pages])
+        pages1 = pl.Series("pages", [5, 5])  # Request page 5 for both PDFs
+
+        parse_pdf1 = ParsePDF(
+            input=input1,
+            model=mock_language_model,
+            pages=pages1,
+        )
+
+        result1 = parse_pdf1.execute()
+        assert result1.shape == (2,)
+        # Each PDF request should have exactly one chunk
+        _test_chunk_count(result1[0], expected_chunks=1)
+        _test_chunk_count(result1[1], expected_chunks=1)
+        # First PDF (15 pages) should have page 5 (0-indexed as page 4)
+        assert "start_page:'4'" in result1[0]
+        # Second PDF (5 pages) should have page 5 (0-indexed as page 4)
+        assert "start_page:'4'" in result1[1]
+
+        # Test 2: Overlapping ranges and single ints
+        # Request pages: 1, [3, 5], 4, 7 -> should coalesce to [1], [3-5], [7] -> 0-indexed: [0], [2-4], [6]
+        input2 = pl.Series("input", [file_15_pages, file_5_pages])
+        pages2 = pl.Series("pages", [[1, [3, 5], 4, 7], [1, [3, 5], 4, 7]], dtype=pl.Object)
+
+        parse_pdf2 = ParsePDF(
+            input=input2,
+            model=mock_language_model,
+            pages=pages2,
+        )
+
+        result2 = parse_pdf2.execute()
+        assert result2.shape == (2,)
+
+        # First PDF (15 pages): should process pages 0, 2-4, 6 (0-indexed)
+        # With chunk_max_size=3, we should get: [0], [2,3,4], [6]
+        # So we expect start_pages: 0, 2, 6
+        assert "start_page:'0'" in result2[0]
+        assert "start_page:'2'" in result2[0]
+        assert "start_page:'6'" in result2[0]
+
+        # Second PDF (5 pages): pages 0, 2-4 are valid, page 6 is out of range
+        # Should get: [0], [2,3,4]
+        assert "start_page:'0'" in result2[1]
+        assert "start_page:'2'" in result2[1]
+        _test_chunk_count(result2[1], expected_chunks=2)
+
+        # Test 3: static overlapping ranges and single ints
+        # Request pages: 1, [3, 5], 4, 7 -> should coalesce to [1], [3-5], [7] -> 0-indexed: [0], [2-4], [6]
+        input2 = pl.Series("input", [file_15_pages, file_5_pages])
+        pages2 = [1, [3, 5], 4, 7]
+
+        parse_pdf2 = ParsePDF(
+            input=input2,
+            model=mock_language_model,
+            pages=pages2,
+        )
+
+        result2 = parse_pdf2.execute()
+        assert result2.shape == (2,)
+
+        # First PDF (15 pages): should process pages 0, 2-4, 6 (0-indexed)
+        # With chunk_max_size=3, we should get: [0], [2,3,4], [6]
+        # So we expect start_pages: 0, 2, 6
+        assert "start_page:'0'" in result2[0]
+        assert "start_page:'2'" in result2[0]
+        assert "start_page:'6'" in result2[0]
+
+        # Second PDF (5 pages): pages 0, 2-4 are valid, page 6 is out of range
+        # Should get: [0], [2,3,4]
+        assert "start_page:'0'" in result2[1]
+        assert "start_page:'2'" in result2[1]
+        _test_chunk_count(result2[1], expected_chunks=2)
+
+        # Test 4: Column with mixed single int and list of ranges
+        input3 = pl.Series("input", [file_15_pages, file_5_pages])
+        # Row 1: single int (page 3), Row 2: list with ranges [1, [2, 4]]
+        pages3 = pl.Series("pages", [3, [1, [2, 4]]], dtype=pl.Object)
+
+        parse_pdf3 = ParsePDF(
+            input=input3,
+            model=mock_language_model,
+            pages=pages3,
+        )
+
+        result3 = parse_pdf3.execute()
+        assert result3.shape == (2,)
+
+        # First PDF: page 3 (0-indexed as 2)
+        assert "start_page:'2'" in result3[0]
+        _test_chunk_count(result3[0], expected_chunks=1)
+
+        # Second PDF: pages 1, [2, 4] -> 0-indexed [0], [1-3], coalesced to [0-3]
+        # With chunk_max_size=3, should get: [0,1,2], [3]
+        assert "start_page:'0'" in result3[1]
+        assert "start_page:'3'" in result3[1]
+        _test_chunk_count(result3[1], expected_chunks=2)
+
+def _test_chunk_count(response_string: str, expected_chunks: int) -> None:
+    assert response_string.count("start_page:'") == expected_chunks

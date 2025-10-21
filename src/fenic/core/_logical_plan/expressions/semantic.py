@@ -652,6 +652,7 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         describe_images: bool = False,
         max_output_tokens: Optional[int] = None,
         request_timeout: Optional[float] = None,
+        pages: Optional[Union[LogicalExpr, int, List[Union[int, List[int]]]]] = None,
     ):
         self.expr = expr
         self.model_alias = model_alias
@@ -659,6 +660,7 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         self.describe_images = describe_images
         self.max_output_tokens = max_output_tokens
         self.request_timeout = request_timeout
+        self.pages = pages
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -670,7 +672,10 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
-        return [self.expr]
+        children = [self.expr]
+        if isinstance(self.pages, LogicalExpr):
+            children.append(self.pages)
+        return children
 
     def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
         """Handle signature validation and completion parameter validation."""
@@ -690,4 +695,5 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
                 and self.page_separator == other.page_separator
                 and self.describe_images == other.describe_images
                 and self.max_output_tokens == other.max_output_tokens
-                and self.request_timeout == other.request_timeout)
+                and self.request_timeout == other.request_timeout
+                and self.pages == other.pages)

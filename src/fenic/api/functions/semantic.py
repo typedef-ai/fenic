@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, validate_call
 
 from fenic._inference.request_utils import TimeoutParam
+from fenic._backends.local.utils.doc_loader import validate_pages_argument
 from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
@@ -619,6 +620,8 @@ def parse_pdf(
 	describe_images: bool = False,  # for images that aren't tables
 	max_output_tokens: Optional[int] = None,
 	request_timeout: TimeoutParam = None,
+	request_timeout: Optional[float] = None,
+	pages: Optional[Union[Column, int, List[Union[int, List[int]]]]] = None,
 ) -> Column:
     r"""Parses a column of PDF paths into markdown.
 
@@ -632,12 +635,19 @@ def parse_pdf(
         describe_images:  Flag to describe images in the PDF. If True, the prompt will ask the model to include a description of the image in the markdown output.  If False, the prompt asks the model to ignore images that aren't tables or charts.
         max_output_tokens: Optional maximum number of output tokens per ~3 pages of PDF (does not include reasoning tokens). If None, don't constrain the model's output.
         request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
+        pages: Optional pages or page ranges to parse. Can be:
+            - An int (single page number, 1-indexed)
+            - A list of ints and/or pairs of ints (e.g., [1, [3, 5], 7] to parse pages 1, 3-5, and 7)
+            - A Column expression that resolves to an int or list of ints or ranges
+            If None, all pages will be parsed.
 
     Note:
         For Gemini models, this function uses the google file API, uploading PDF files to Google's file store and deleting them after each request.
+        A Column expression for pages is limited by its dtype, so it must either be list of ranges (list of lists size 2) or a list of page numbers, not both.  Rows can contain None/empty list to parse all pages.
 
     Raises:
         ExecutionError: If paths in the column are not valid PDF files.
+        ValidationError: If the pages argument is invalid.
 
     Example: Parse PDF paths in a column into markdown
         ```python
@@ -656,8 +666,26 @@ def parse_pdf(
         pdf_markdown = pdf_metadata.select(semantic.parse_pdf(col("file_path"), page_separator="--- PAGE BREAK ---")
         pdf_markdown.select(col("markdown_content")).show()
         ```
+
+    Example: Parsing PDFs with a page range - take only the pages 1-2 and 5-7
+        ```python
+        pdf_metadata = local_session.read.pdf_metadata("data/docs/**/*.pdf")
+        pdf_markdown = semantic.parse_pdf(col("file_path"), pages=[[1,2], [5,7]])
+        pdf_markdown.select(col("markdown_content")).show()
+        ```
+
+    Example: Parsing PDFs with a page range column - take only the first and last page
+        ```python
+        pdf_metadata = local_session.read.pdf_metadata("data/docs/**/*.pdf")
+        pdf_markdown = semantic.parse_pdf(col("file_path"), pages=array(lit(1), col("page_count"))
+        pdf_markdown.select(col("markdown_content")).show()
+        ```
     """
     resolved_model_alias = _resolve_model_alias(model_alias)
+
+    # Validate pages if it's not a Column
+    if not isinstance(pages, Column):
+        validate_pages_argument(pages)
 
     return Column._from_logical_expr(
         SemanticParsePDFExpr(
@@ -667,5 +695,6 @@ def parse_pdf(
             describe_images=describe_images,
             max_output_tokens=max_output_tokens,
             request_timeout=request_timeout,
+            pages=pages if not isinstance(pages, Column) else pages._logical_expr,
         )
     )
