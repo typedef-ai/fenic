@@ -215,6 +215,25 @@ def test_array_repeat(local_session):
     assert repeated_col[0] == ["x", "x", "x"]
     assert repeated_col[1] == ["y", "y"]
 
+def test_array_repeat_nested(local_session):
+    """Test array_repeat function with nested arrays."""
+    df = local_session.create_dataframe({"val": [["x", "y"], ["z"]], "count": [3, 2]})
+    result = df.select(fc.array_repeat(fc.col("val"), fc.col("count")).alias("repeated")).to_polars()
+
+    repeated_col = result["repeated"].to_list()
+    assert repeated_col[0] == [["x", "y"], ["x", "y"], ["x", "y"]]
+    assert repeated_col[1] == [["z"], ["z"]]
+
+def test_array_repeat_struct(local_session):
+    """Test array_repeat function with structs."""
+    df = local_session.create_dataframe({"val": [{"a": "x", "b": "y"}, {"a": "z"}], "count": [3, 2]})
+    result = df.select(fc.array_repeat(fc.col("val"), fc.col("count")).alias("repeated")).to_polars()
+
+    repeated_col = result["repeated"].to_list()
+    assert repeated_col[0] == [{"a": "x", "b": "y"}, {"a": "x", "b": "y"}, {"a": "x", "b": "y"}]
+    # b is None because the struct type is {a: str, b: str}, even if b is not populated in the second row
+    assert repeated_col[1] == [{"a": "z", "b": None}, {"a": "z", "b": None}]
+
 
 def test_flatten(local_session):
     """Test flatten function."""

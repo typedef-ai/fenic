@@ -1038,11 +1038,19 @@ class ExprConverter:
     def _convert_array_repeat_expr(self, logical: ArrayRepeatExpr) -> pl.Expr:
         element_expr = self._convert_expr(logical.element)
         count_expr = self._convert_expr(logical.count)
-        # PySpark array_repeat creates an array with element repeated count times
-        # Use struct + map_elements to repeat per row
-        return pl.struct([element_expr.alias("_elem"), count_expr.alias("_count")]).map_elements(
-            lambda row: [row["_elem"]] * row["_count"] if row["_count"] is not None else None,
-            skip_nulls=False
+
+        def _repeat_elements(s: pl.Series) -> pl.Series:
+            """Repeat elements based on count values in struct series."""
+            elem_series = s.struct.field("_elem")
+            count_series = s.struct.field("_count")
+
+            return pl.Series([
+                [elem] * count if count is not None else None
+                for elem, count in zip(elem_series, count_series, strict=True)
+            ], dtype=pl.List(elem_series.dtype))
+
+        return pl.struct([element_expr.alias("_elem"), count_expr.alias("_count")]).map_batches(
+            _repeat_elements
         )
 
     @_convert_expr.register(FlattenExpr)
