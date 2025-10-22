@@ -5,10 +5,10 @@ from typing import List, Literal, Union, get_args, get_origin
 import polars as pl
 from pydantic import BaseModel
 
+from fenic.core._utils.type_inference import infer_dtype_from_polars
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
-    DataType,
     DateType,
     DocumentPathType,
     DoubleType,
@@ -46,7 +46,7 @@ def convert_polars_schema_to_custom_schema(
         column_fields=[
             ColumnField(
                 name=col_name,
-                data_type=_convert_polars_dtype_to_custom_dtype(polars_dtype),
+                data_type=infer_dtype_from_polars(polars_dtype),
             )
             for col_name, polars_dtype in polars_schema.items()
         ]
@@ -209,57 +209,6 @@ def _convert_pytype_to_custom_dtype(py_type: type) -> _PrimitiveType:
     else:
         raise ValueError(f"Unsupported Python type: {py_type.__name__}")
 
-
-def _convert_polars_dtype_to_custom_dtype(
-    polars_dtype: pl.DataType,
-) -> DataType:
-    """Convert Polars data type to the custom PrimitiveType enum or complex type.
-
-    Args:
-        polars_dtype: Polars data type
-
-    Returns:
-        Union[PrimitiveType, ArrayType, StructType]: Corresponding custom data type
-
-    Raises:
-        ValueError: If the Polars data type is not supported
-    """
-    if isinstance(polars_dtype, (pl.Int32, pl.Int64, pl.Int128, pl.Int16, pl.Int8)):
-        return IntegerType
-    elif isinstance(polars_dtype, (pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)):
-        return IntegerType
-    elif isinstance(polars_dtype, pl.Float32):
-        return FloatType
-    elif isinstance(polars_dtype, pl.Float64):
-        return DoubleType
-    elif isinstance(polars_dtype, pl.Decimal):
-        return DoubleType
-    elif isinstance(polars_dtype, pl.Utf8):
-        return StringType
-    elif isinstance(polars_dtype, pl.Boolean):
-        return BooleanType
-    elif isinstance(polars_dtype, pl.List):
-        element_type = _convert_polars_dtype_to_custom_dtype(polars_dtype.inner)
-        return ArrayType(element_type=element_type)
-    elif isinstance(polars_dtype, pl.Array):
-        element_type = _convert_polars_dtype_to_custom_dtype(polars_dtype.inner)
-        return ArrayType(element_type=element_type)
-    elif isinstance(polars_dtype, pl.Struct):
-        # Convert each field in the StructType
-        struct_fields = [
-            StructField(
-                name=field.name,
-                data_type=_convert_polars_dtype_to_custom_dtype(field.dtype),
-            )
-            for field in polars_dtype.fields
-        ]
-        return StructType(struct_fields=struct_fields)
-    elif isinstance(polars_dtype, pl.Date):
-        return DateType
-    elif isinstance(polars_dtype, pl.Datetime):
-        return TimestampType
-    else:
-        raise ValueError(f"Unsupported Polars data type: {polars_dtype}")
 
 def _unwrap_optional_type(annotation) -> type:
     """Unwrap Optional type and return (actual_type, is_optional)."""

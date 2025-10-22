@@ -1,7 +1,11 @@
+import re
+
+import pandas as pd
+import polars as pl
 import pytest
 
 from fenic import IntegerType, col, lit, udf
-from fenic.core.error import PlanError
+from fenic.core.error import ExecutionError, PlanError, ValidationError
 
 
 def test_select_columns(sample_df):
@@ -52,20 +56,48 @@ def test_with_column(sample_df):
     assert "age_plus_1" in result.columns
     assert result["age_plus_1"][0] == 26
 
+@pytest.fixture
+def with_column_sample_df(local_session):
+  data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+  return local_session.create_dataframe(data)
 
-def test_with_column_replace_existing(local_session):
+def test_with_column_replace_existing(with_column_sample_df):
     """Test replacing an existing column."""
-    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
-    df = local_session.create_dataframe(data)
-
-    # Replace with literal
-    result = df.with_column("age", 50).to_polars()
+    result = with_column_sample_df.with_column("age", 50).to_polars()
     assert result["age"].to_list() == [50, 50]
-
     # Replace with expression
-    result = df.with_column("age", col("age") * 2).to_polars()
+    result = with_column_sample_df.with_column("age", col("age") * 2).to_polars()
     assert result["age"].to_list() == [50, 60]
 
+def test_with_column_series_length_too_long(with_column_sample_df):
+  """Test that a Series with a length longer than the DataFrame raises an error."""
+  with pytest.raises(ExecutionError, match="Failed to execute query: Series length 2 doesn't match the DataFrame height of 3"):
+    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1, 2, 3])).to_polars()
+
+def test_with_column_series_length_too_short(with_column_sample_df):
+  """Test that a Series with a length shorter than the DataFrame raises an error."""
+  with pytest.raises(ExecutionError, match="Failed to execute query: Series next_age, length 1 doesn't match the DataFrame height of 2"):
+    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1])).to_polars()
+
+def test_with_empty_series_raises_error(with_column_sample_df):
+  """Test that a Series with an empty DataFrame raises an error."""
+  with pytest.raises(ValidationError, match=re.escape("Series length cannot be 0. To add a column with null values, use `null(DoubleType)` instead.")):
+    with_column_sample_df.with_column("age", pl.Series("age", [], dtype=pl.Float64)).to_polars()
+  with pytest.raises(ValidationError, match=re.escape("Series length cannot be 0. To add a column with empty values, use `empty(ArrayType(element_type=IntegerType))` instead.")):
+    with_column_sample_df.with_column("empty_column", pl.Series("empty_column", [], dtype=pl.List(pl.Int64))).to_polars()
+
+def test_with_series_all_nulls_raises_error_without_dtype(with_column_sample_df):
+  """Test that a Series with all nulls raises an error."""
+  # with dtype, should work
+  result = with_column_sample_df.with_column("age", pl.Series("age", [None, None], dtype=pl.Float64)).to_polars()
+  assert result["age"].to_list() == [None, None]
+
+  with pytest.raises(
+    ValidationError, match=re.escape(
+      "Series cannot contain all nulls unless a dtype is specified. Use `null(dtype)` (for primitive types) or `empty(ArrayType(...))` or `empty(StructType(...))` (for collections) instead, or specify a dtype for the Series."
+    )
+  ):
+    with_column_sample_df.with_column("age", pl.Series("age", [None, None])).to_polars()
 
 def test_with_columns_add_multiple(sample_df):
     """Test adding multiple new columns."""
@@ -180,6 +212,8 @@ def test_with_columns_new_column_order(local_session):
 
     # Original column first, then new columns in insertion order
     assert list(result.columns) == ["a", "z_col", "y_col", "x_col"]
+
+
 
 def test_drop_column(sample_df):
     result = sample_df.drop("age").to_polars()
@@ -323,3 +357,203 @@ def test_with_column_renamed_non_existent(sample_df):
     result = sample_df.with_column_renamed("nonexistent", "new_name").to_polars()
     assert "nonexistent" not in result.columns
     assert "new_name" not in result.columns
+
+
+# Phase 1: Tests for with_column with Series support
+
+
+def test_with_column_polars_series(local_session):
+    """Test adding a Polars Series to a DataFrame."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create a Polars Series
+    bonus_series = pl.Series("bonus", [100, 200])
+
+    result = df.with_column("bonus", bonus_series).to_polars()
+
+    assert "bonus" in result.columns
+    assert result["bonus"].to_list() == [100, 200]
+
+
+def test_with_column_pandas_series(local_session):
+    """Test adding a pandas Series to a DataFrame."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create a pandas Series
+    bonus_series = pd.Series([100, 200], name="bonus")
+
+    result = df.with_column("bonus", bonus_series).to_polars()
+
+    assert "bonus" in result.columns
+    assert result["bonus"].to_list() == [100, 200]
+
+
+def test_with_column_series_replace_existing(local_session):
+    """Test replacing an existing column with a Series."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Replace age column with a Series
+    new_age_series = pl.Series("new_age", [26, 31])
+
+    result = df.with_column("age", new_age_series).to_polars()
+
+    assert result["age"].to_list() == [26, 31]
+
+
+def test_with_column_series_dtypes(local_session):
+    """Test Series with different data types."""
+    data = {"id": [1, 2, 3]}
+    df = local_session.create_dataframe(data)
+
+    # Test with different dtype Series
+    result_float = df.with_column("score", pl.Series([1.5, 2.5, 3.5])).to_polars()
+    assert result_float["score"].dtype == pl.Float64
+
+    result_str = df.with_column("label", pl.Series(["A", "B", "C"])).to_polars()
+    assert result_str["label"].dtype == pl.Utf8
+
+    result_bool = df.with_column("flag", pl.Series([True, False, True])).to_polars()
+    assert result_bool["flag"].dtype == pl.Boolean
+
+
+# Phase 2: Tests for with_columns with Series support
+
+
+def test_with_columns_polars_series(local_session):
+    """Test adding multiple Polars Series to a DataFrame."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create multiple Polars Series
+    result = df.with_columns({
+        "bonus": pl.Series([100, 200]),
+        "score": pl.Series([85.5, 92.0])
+    }).to_polars()
+
+    assert "bonus" in result.columns
+    assert "score" in result.columns
+    assert result["bonus"].to_list() == [100, 200]
+    assert result["score"].to_list() == [85.5, 92.0]
+
+
+def test_with_columns_pandas_series(local_session):
+    """Test adding multiple pandas Series to a DataFrame."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create multiple pandas Series
+    result = df.with_columns({
+        "bonus": pd.Series([100, 200]),
+        "score": pd.Series([85.5, 92.0])
+    }).to_polars()
+
+    assert "bonus" in result.columns
+    assert "score" in result.columns
+    assert result["bonus"].to_list() == [100, 200]
+    assert result["score"].to_list() == [85.5, 92.0]
+
+
+def test_with_columns_mixed_series_and_columns(local_session):
+    """Test mixing Series with Column expressions."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    result = df.with_columns({
+        "bonus": pl.Series([100, 200]),
+        "double_age": col("age") * 2,
+        "constant": 1
+    }).to_polars()
+
+    assert result["bonus"].to_list() == [100, 200]
+    assert result["double_age"].to_list() == [50, 60]
+    assert result["constant"].to_list() == [1, 1]
+
+
+def test_with_columns_series_replace_existing(local_session):
+    """Test replacing existing columns with Series."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    result = df.with_columns({
+        "age": pl.Series([26, 31]),
+        "bonus": pl.Series([100, 200])
+    }).to_polars()
+
+    # age should be replaced
+    assert result["age"].to_list() == [26, 31]
+    # bonus should be added
+    assert result["bonus"].to_list() == [100, 200]
+
+def test_with_columns_with_invalid_series(local_session):
+    """Test replacing existing columns with Series."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    with pytest.raises(ExecutionError, match="Series length 2 doesn't match the DataFrame height of 3"):
+      df.with_columns({
+        "age": pl.Series([26, 31, 32]),
+        "bonus": pl.Series([100, 200])
+      }).to_polars()
+
+
+
+# Phase 3: Tests for pandas-specific edge cases
+
+
+def test_with_column_pandas_series_with_index(local_session):
+    """Test pandas Series with custom index is handled correctly."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create pandas Series with custom index (should be ignored, data used positionally)
+    bonus_series = pd.Series([100, 200], index=["x", "y"])
+
+    result = df.with_column("bonus", bonus_series).to_polars()
+
+    assert result["bonus"].to_list() == [100, 200]
+
+
+def test_with_column_pandas_series_nullable_dtypes(local_session):
+    """Test pandas Series with nullable integer types."""
+    data = {"name": ["Alice", "Bob", "Charlie"], "age": [25, 30, 35]}
+    df = local_session.create_dataframe(data)
+
+    # Create pandas Series with nullable integer type
+    score_series = pd.Series([100, None, 200], dtype="Int64")
+
+    result = df.with_column("score", score_series).to_polars()
+
+    assert result["score"][0] == 100
+    assert result["score"][1] is None
+    assert result["score"][2] == 200
+
+
+def test_with_column_pandas_categorical(local_session):
+    """Test pandas Series with categorical dtype."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create pandas Series with categorical dtype
+    category_series = pd.Series(["A", "B"], dtype="category")
+
+    result = df.with_column("category", category_series).to_polars()
+
+    # Polars should convert categorical to string
+    assert result["category"].to_list() == ["A", "B"]
+
+
+def test_with_column_pandas_datetime(local_session):
+    """Test pandas Series with datetime dtype."""
+    data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+    df = local_session.create_dataframe(data)
+
+    # Create pandas Series with datetime
+    date_series = pd.Series(pd.to_datetime(["2023-01-01", "2023-01-02"]))
+
+    result = df.with_column("date", date_series).to_polars()
+
+    assert "date" in result.columns
+    assert result["date"].dtype == pl.Datetime

@@ -425,6 +425,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticSummarizeExpr as SemanticSummarizeExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    SeriesLiteralExpr as SeriesLiteralExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SortExpr as SortExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
@@ -624,6 +627,7 @@ __all__ = [
     "LogicalExprProto",
     "ColumnExprProto",
     "LiteralExprProto",
+    "SeriesLiteralExprProto",
     "ScalarValueProto",
     "ScalarArrayProto",
     "ScalarStructProto",

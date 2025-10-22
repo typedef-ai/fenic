@@ -177,6 +177,9 @@ message LogicalExpr {
     FromUTCTimestampExpr from_utc_timestamp = 164;
 
     // Future expressions should use numbers after 190.
+
+    // Series literal (for direct Series data)
+    SeriesLiteralExpr series_literal = 191;
   }
 }
 
@@ -188,6 +191,11 @@ message ColumnExpr {
 
 message LiteralExpr {
   ScalarValue value = 1;
+  DataType data_type = 2;
+}
+
+message SeriesLiteralExpr {
+  bytes series_data = 1;  // Serialized Polars Series in Arrow IPC format
   DataType data_type = 2;
 }
 

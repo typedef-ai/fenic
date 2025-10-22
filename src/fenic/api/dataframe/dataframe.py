@@ -30,6 +30,7 @@ from fenic.api.io.writer import DataFrameWriter
 from fenic.api.lineage import Lineage
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions import (
+    SeriesLiteralExpr,
     SortExpr,
 )
 from fenic.core._logical_plan.plans import (
@@ -47,7 +48,10 @@ from fenic.core._logical_plan.plans import (
 from fenic.core._logical_plan.plans import (
     Union as UnionLogicalPlan,
 )
-from fenic.core.error import SessionError, ValidationError
+from fenic.core.error import (
+    SessionError,
+    ValidationError,
+)
 from fenic.core.metrics import QueryMetrics
 from fenic.core.types import Schema
 from fenic.core.types.enums import JoinType
@@ -562,16 +566,29 @@ class DataFrame:
             self._session_state,
         )
 
-    def with_column(self, col_name: str, col: Union[Any, Column]) -> DataFrame:
+    def with_column(self, col_name: str, col: Union[Any, Column, pl.Series, pd.Series]) -> DataFrame:
         """Add a new column or replace an existing column.
 
         Args:
             col_name: Name of the new column
-            col: Column expression or value to assign to the column. If not a Column,
-                it will be treated as a literal value.
+            col: Column expression, Series, or value to assign to the column:
+
+                - Column: A Column expression (e.g., `col("age") + 1`)
+                - `pl.Series` or `pd.Series`: A Polars or pandas Series with data
+                    - **Note: Series length MUST match the DataFrame height**
+                - Any other value: Treated as a literal value (broadcast to all rows)
 
         Returns:
             DataFrame: New DataFrame with added/replaced column
+
+        Raises:
+            ExecutionError:
+                - If a Series length does not match the DataFrame height
+            ValidationError:
+                - If the Series contains all null values and no dtype is specified
+                - If the Series has length 0
+        Notes:
+            - The name of the created column will be the name defined in col_name, even if input is a Series with a different name.
 
         Example: Add literal column
             ```python
@@ -632,9 +649,53 @@ class DataFrame:
             # |  Bob| 30|     middle|
             # +-----+---+------------+
             ```
+
+        Example: Add column from Polars Series
+            ```python
+            import polars as pl
+
+            # Create a DataFrame
+            df = session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30]})
+
+            # Add column from Polars Series
+            bonus = pl.Series([100, 200])
+            df.with_column("bonus", bonus).show()
+            # Output:
+            # +-----+---+-----+
+            # | name|age|bonus|
+            # +-----+---+-----+
+            # |Alice| 25|  100|
+            # |  Bob| 30|  200|
+            # +-----+---+-----+
+            ```
+
+        Example: Add column from pandas Series
+            ```python
+            import pandas as pd
+
+            # Create a DataFrame
+            df = session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30]})
+
+            # Add column from pandas Series
+            score = pd.Series([85.5, 92.0])
+            df.with_column("score", score).show()
+            # Output:
+            # +-----+---+-----+
+            # | name|age|score|
+            # +-----+---+-----+
+            # |Alice| 25| 85.5|
+            # |  Bob| 30| 92.0|
+            # +-----+---+-----+
+            ```
         """
         exprs = []
-        if not isinstance(col, Column):
+
+        # Handle different input types: Column, Series, or literal value
+        if isinstance(col, (pl.Series, pd.Series)):
+            # Wrap Series in SeriesLiteralExpr and then in Column
+            col = Column._from_logical_expr(SeriesLiteralExpr(col))
+        elif not isinstance(col, Column):
+            # Wrap other values as literals
             col = lit(col)
 
         for field in self.columns:
@@ -649,19 +710,31 @@ class DataFrame:
             self._session_state,
         )
 
-    def with_columns(self, cols_map: Dict[str, Union[Any, Column]]) -> DataFrame:
+    def with_columns(self, cols_map: Dict[str, Union[Any, Column, pl.Series, pd.Series]]) -> DataFrame:
         """Add multiple new columns or replace existing columns.
 
         Args:
-            cols_map: A dictionary where keys are column names and values are
-                Column expressions or literal values. Values that are not Column objects
-                will be treated as literal values.
+            cols_map: A dictionary where keys are column names and values are:
+
+                - Column: Column expressions (e.g., col("age") + 1)
+                - pl.Series or pd.Series: Series with data
+                    - **Note: Series length MUST match the DataFrame height**
+                - Any other value: Treated as literal values (broadcast to all rows)
 
         Returns:
             DataFrame: New DataFrame with added/replaced columns
 
+        Raises:
+            ValueError:
+                - If two columns being created in the same `with_columns` call depend on each other
+            ExecutionError:
+                - If any Series length does not match the DataFrame height
+            ValidationError:
+                - If any Series contains all null values and no dtype is specified
+                - If any Series has length 0
         Notes:
             - All columns are created at once, so new columns cannot depend on each other.
+            - The name of the created column will be the name defined in cols_map, even if input is a Series with a different name.
 
         Example: Add multiple columns
             ```python
@@ -718,6 +791,46 @@ class DataFrame:
             # +-----+---+------------+-----------+----------+
             ```
 
+        Example: Add columns from Series
+            ```python
+            import polars as pl
+
+            # Create a DataFrame
+            df = session.create_dataframe({"name": ["Alice", "Bob"], "age": [25, 30]})
+
+            # Add multiple columns from Series
+            df.with_columns({
+                "bonus": pl.Series([100, 200]),
+                "score": pl.Series([85.5, 92.0])
+            }).show()
+            # Output:
+            # +-----+---+-----+-----+
+            # | name|age|bonus|score|
+            # +-----+---+-----+-----+
+            # |Alice| 25|  100| 85.5|
+            # |  Bob| 30|  200| 92.0|
+            # +-----+---+-----+-----+
+            ```
+
+        Example: Mix Series with Column expressions
+            ```python
+            import polars as pl
+
+            # Mix Series with Column expressions
+            df.with_columns({
+                "bonus": pl.Series([100, 200]),
+                "double_age": col("age") * 2,
+                "constant": 1
+            }).show()
+            # Output:
+            # +-----+---+-----+----------+--------+
+            # | name|age|bonus|double_age|constant|
+            # +-----+---+-----+----------+--------+
+            # |Alice| 25|  100|        50|       1|
+            # |  Bob| 30|  200|        60|       1|
+            # +-----+---+-----+----------+--------+
+            ```
+
         Example: Error when adding columns that depend on each other
             ```python
             df.with_columns({
@@ -755,10 +868,14 @@ class DataFrame:
 
         # Add all new columns with aliases
         for col_name, col_expr in cols_map.items():
-            # Automatically wrap non-Column values (literals) with lit() for convenience
-            # This allows users to pass raw Python values like: {"constant": 100, "status": "active"}
-            # instead of requiring: {"constant": lit(100), "status": lit("active")}
-            if not isinstance(col_expr, Column):
+            # Handle different input types: Column, Series, or literal value
+            if isinstance(col_expr, (pl.Series, pd.Series)):
+                # Wrap Series in SeriesLiteralExpr and then in Column
+                col_expr = Column._from_logical_expr(SeriesLiteralExpr(col_expr))
+            elif not isinstance(col_expr, Column):
+                # Automatically wrap non-Column values (literals) with lit() for convenience
+                # This allows users to pass raw Python values like: {"constant": 100, "status": "active"}
+                # instead of requiring: {"constant": lit(100), "status": lit("active")}
                 col_expr = lit(col_expr)
             exprs.append(col_expr.alias(col_name)._logical_expr)
 

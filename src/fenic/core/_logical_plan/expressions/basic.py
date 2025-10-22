@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, List, Literal
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Union
+
+from fenic.core._utils.type_inference import infer_dtype_from_polars
 
 if TYPE_CHECKING:
     from fenic.core._logical_plan import LogicalPlan
+
+import pandas as pd
+import polars as pl
 
 from fenic.core._interfaces.session_state import BaseSessionState
 from fenic.core._logical_plan.expressions.base import (
@@ -84,6 +89,59 @@ class LiteralExpr(LogicalExpr):
 
     def _eq_specific(self, other: LiteralExpr) -> bool:
         return self.literal == other.literal and self.data_type == other.data_type
+
+
+class SeriesLiteralExpr(LogicalExpr):
+    """Expression representing a Polars or pandas Series as a literal column.
+
+    This expression allows users to directly add Series data to a DataFrame using
+    with_column or with_columns. The Series is stored as a Polars Series internally
+    and serialized via Arrow IPC format for cloud backend compatibility.
+
+    Works with both local and cloud backends.
+    """
+
+    def __init__(self, series: Union[pl.Series, pd.Series]):
+        """Initialize a SeriesLiteralExpr.
+
+        Args:
+            series: A Polars or pandas Series to be used as a literal column
+        """
+        if isinstance(series, pd.Series):
+            self.series = pl.from_pandas(series)
+        else:
+            self.series = series
+
+        if self.series.dtype == pl.Null:
+            raise ValidationError(
+                "Series cannot contain all nulls unless a dtype is specified. "
+                "Use `null(dtype)` (for primitive types) or `empty(ArrayType(...))` or `empty(StructType(...))` (for collections) instead, "
+                "or specify a dtype for the Series."
+            )
+        self.data_type = infer_dtype_from_polars(self.series.dtype)
+
+        if len(self.series) == 0:
+            if isinstance(self.data_type, (ArrayType, StructType)):
+                raise ValidationError(f"Series length cannot be 0. To add a column with empty values, use `empty({self.data_type})` instead.")
+            else:
+                raise ValidationError(f"Series length cannot be 0. To add a column with null values, use `null({self.data_type})` instead.")
+
+
+    def __str__(self) -> str:
+        return f"series(len={len(self.series)})"
+
+    def to_column_field(self, plan: LogicalPlan, session_state: BaseSessionState) -> ColumnField:
+        return ColumnField(str(self), self.data_type)
+
+    def children(self) -> List[LogicalExpr]:
+        return []
+
+    def _eq_specific(self, other: SeriesLiteralExpr) -> bool:
+        try:
+            return self.series.equals(other.series)
+        except Exception:
+            return False
+
 
 class UnresolvedLiteralExpr(LogicalExpr):
     def __init__(self, data_type: DataType, parameter_name: str):

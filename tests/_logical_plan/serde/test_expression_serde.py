@@ -4,6 +4,8 @@ import asyncio
 import datetime
 from typing import List, Literal, Optional, Type
 
+import pandas as pd
+import polars as pl
 import pytest
 from pydantic import BaseModel, Field
 
@@ -112,6 +114,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
+    SeriesLiteralExpr,
     SortExpr,
     SplitPartExpr,
     StartsWithExpr,
@@ -216,6 +219,13 @@ expression_examples = {
         UnresolvedLiteralExpr(IntegerType, "test_param_2"),
         UnresolvedLiteralExpr(ArrayType(StringType), "test_param_3"),
         UnresolvedLiteralExpr(StructType([StructField("name", StringType), StructField("age", IntegerType)]), "test_param_4"),
+    ],
+    SeriesLiteralExpr: [
+        SeriesLiteralExpr(pl.Series("test", [1, 2, 3])),
+        SeriesLiteralExpr(pl.Series([1.5, 2.5, 3.5])),
+        SeriesLiteralExpr(pl.Series(["a", "b", "c"])),
+        SeriesLiteralExpr(pl.Series([100, 200])),
+        SeriesLiteralExpr(pd.Series([100, 200])),
     ],
     AliasExpr: [
         AliasExpr(ColumnExpr("test_col"), "test_alias"),

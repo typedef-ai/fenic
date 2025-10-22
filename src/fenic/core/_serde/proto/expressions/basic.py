@@ -1,5 +1,9 @@
 """Basic expression serialization/deserialization."""
 
+from io import BytesIO
+
+import polars as pl
+
 from fenic.core._logical_plan.expressions.basic import (
     AliasExpr,
     ArrayExpr,
@@ -14,6 +18,7 @@ from fenic.core._logical_plan.expressions.basic import (
     LeastExpr,
     LiteralExpr,
     NotExpr,
+    SeriesLiteralExpr,
     SortExpr,
     StructExpr,
     UnresolvedLiteralExpr,
@@ -38,6 +43,7 @@ from fenic.core._serde.proto.types import (
     LiteralExprProto,
     LogicalExprProto,
     NotExprProto,
+    SeriesLiteralExprProto,
     SortExprProto,
     StructExprProto,
     UnresolvedLiteralExprProto,
@@ -83,12 +89,47 @@ def _serialize_literal_expr(
 def _deserialize_literal_expr(
     logical_proto: LiteralExprProto, context: SerdeContext
 ) -> LiteralExpr:
-    from fenic.core._logical_plan.expressions.basic import LiteralExpr
-
     return LiteralExpr(
         literal=context.deserialize_scalar_value(SerdeContext.VALUE, logical_proto.value),
         data_type=context.deserialize_data_type(SerdeContext.DATA_TYPE, logical_proto.data_type),
     )
+
+
+# =============================================================================
+# SeriesLiteralExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_series_literal_expr(
+    logical: SeriesLiteralExpr, context: SerdeContext
+) -> LogicalExprProto:
+    """Serialize SeriesLiteralExpr by converting Polars Series to bytes via Arrow IPC."""
+    # Serialize the Series to Arrow IPC binary format
+    # We convert to DataFrame first since write_ipc is a DataFrame method
+    buffer = BytesIO()
+    logical.series.to_frame().write_ipc(buffer)
+
+    return LogicalExprProto(
+        series_literal=SeriesLiteralExprProto(
+            series_data=buffer.getvalue(),
+            data_type=context.serialize_data_type(SerdeContext.DATA_TYPE, logical.data_type),
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_series_literal_expr(
+    logical_proto: SeriesLiteralExprProto, context: SerdeContext
+) -> SeriesLiteralExpr:
+    """Deserialize SeriesLiteralExpr from bytes back to Polars Series."""
+    # Deserialize the bytes back to a DataFrame, then extract the first column as Series
+    buffer = BytesIO(logical_proto.series_data)
+    df = pl.read_ipc(buffer)
+    series = df.to_series()
+
+    return SeriesLiteralExpr(series=series)
+
 
 # =============================================================================
 # UnresolvedLiteralExpr

@@ -1,6 +1,8 @@
 import datetime
 from typing import Any
 
+import polars as pl
+
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
@@ -135,3 +137,45 @@ def _find_common_supertype(type1: DataType, type2: DataType, path="") -> DataTyp
         return StructType(merged_fields)
 
     raise TypeInferenceError(f"Incompatible types: {type1} vs {type2}", path)
+
+
+def infer_dtype_from_polars(pl_dtype: pl.DataType) -> DataType:
+    """Convert a Polars data type to a Fenic DataType.
+
+    Args:
+        pl_dtype: A Polars data type
+
+    Returns:
+        The corresponding Fenic DataType
+
+    Raises:
+        TypeInferenceError: If the Polars dtype cannot be mapped to a Fenic type
+    """
+    if isinstance(pl_dtype, pl.Boolean):
+        return BooleanType
+    elif isinstance(pl_dtype, (pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.Int128, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)):
+        return IntegerType
+    elif isinstance(pl_dtype, pl.Float32):
+        return FloatType
+    elif isinstance(pl_dtype, (pl.Float64, pl.Decimal)):
+        return DoubleType
+    elif isinstance(pl_dtype, pl.Utf8):
+        return StringType
+    elif isinstance(pl_dtype, pl.Date):
+        return DateType
+    elif isinstance(pl_dtype, (pl.Datetime, pl.Time)):
+        return TimestampType
+    elif isinstance(pl_dtype, pl.Categorical):
+        # Categorical types are represented as strings in Fenic
+        return StringType
+    elif isinstance(pl_dtype, (pl.List, pl.Array)):
+        element_type = infer_dtype_from_polars(pl_dtype.inner)
+        return ArrayType(element_type)
+    elif isinstance(pl_dtype, pl.Struct):
+        fields = []
+        for field in pl_dtype.to_schema():
+            field_dtype = pl_dtype.to_schema()[field]
+            fields.append(StructField(name=field, data_type=infer_dtype_from_polars(field_dtype)))
+        return StructType(fields)
+    else:
+        raise TypeInferenceError(f"Unsupported Polars dtype: {pl_dtype}")

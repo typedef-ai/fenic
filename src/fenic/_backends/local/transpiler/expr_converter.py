@@ -135,6 +135,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticPredExpr,
     SemanticReduceExpr,
     SemanticSummarizeExpr,
+    SeriesLiteralExpr,
     SortExpr,
     SplitPartExpr,
     StartsWithExpr,
@@ -241,6 +242,16 @@ class ExprConverter:
             raise ValueError(f"Unsupported data type {data_type} for literal conversion")
 
         return _literal_to_polars_expr(logical.literal, logical.data_type)
+
+    @_convert_expr.register
+    def _convert_series_literal_expr(self, logical: SeriesLiteralExpr) -> pl.Expr:
+        """Convert a SeriesLiteralExpr to a Polars expression.
+
+        This wraps the Series in pl.lit() which allows Polars to handle:
+        - Length matching with the DataFrame (will raise an error if the length does not match)
+        - Type checking and coercion
+        """
+        return pl.lit(logical.series)
 
     @_convert_expr.register
     def _convert_unresolved_literal_expr(self, logical: UnresolvedLiteralExpr) -> pl.Expr:
