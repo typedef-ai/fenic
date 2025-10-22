@@ -504,6 +504,7 @@ class ModelCatalog:
                 max_output_tokens=16_384,
                 max_temperature=2,
                 supports_profiles=False,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gpt-4o-mini-2024-07-18"],
         )
@@ -519,6 +520,7 @@ class ModelCatalog:
                 max_output_tokens=16_384,
                 max_temperature=2,
                 supports_profiles=False,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
         )
@@ -595,6 +597,7 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_custom_temperature=False,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -624,6 +627,7 @@ class ModelCatalog:
                 max_output_tokens=100_000,
                 max_temperature=2.0,
                 supports_reasoning=True,
+                supports_pdf_parsing=True,
             ),
         )
 
@@ -641,6 +645,7 @@ class ModelCatalog:
                 supports_minimal_reasoning=True,
                 supports_custom_temperature=False,
                 supports_verbosity=True,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gpt-5-2025-08-07"],
         )
@@ -658,6 +663,7 @@ class ModelCatalog:
                 supports_minimal_reasoning=True,
                 supports_custom_temperature=False,
                 supports_verbosity=True,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gpt-5-mini-2025-08-07"],
         )
@@ -675,6 +681,7 @@ class ModelCatalog:
                 supports_minimal_reasoning=True,
                 supports_verbosity=True,
                 supports_custom_temperature=False,
+                supports_pdf_parsing=True,
             ),
             snapshots=["gpt-5-nano-2025-08-07"],
         )

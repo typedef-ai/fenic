@@ -19,12 +19,13 @@ basic_text_content = [
     "Content about war and peace, examining the complex relationship between conflict and harmony throughout human history. This analysis covers major historical conflicts, their causes and consequences, as well as the various peace movements and diplomatic efforts that have shaped our world. The discussion includes philosophical perspectives on violence, justice, and the pursuit of lasting peace.",
 ]
 
+# keeping the more expensive models off by default
 vlms_to_test = [
-    # TODO: add openai tests when adding openai parse_pdf support
-    #(OpenAILanguageModel, "gpt-5-nano"),
-    #(OpenAILanguageModel, "gpt-4o-mini"),
-    #(OpenAILanguageModel, "o3-mini"),
-    (GoogleDeveloperLanguageModel, "gemini-2.5-pro"),
+    (OpenAILanguageModel, "gpt-5-nano"),
+    (OpenAILanguageModel, "gpt-4o-mini"),
+    #(OpenAILanguageModel, "o3"),
+    (OpenAILanguageModel, "o4-mini"),
+    #(GoogleDeveloperLanguageModel, "gemini-2.5-pro"),
     (GoogleDeveloperLanguageModel, "gemini-2.0-flash-lite"),
     (GoogleDeveloperLanguageModel, "gemini-2.5-flash-lite"),
 ]
@@ -184,7 +185,7 @@ def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str):
         else:
             profile = test_model_class.Profile(reasoning_effort="low")
     config = SessionConfig(
-        app_name="test_app_google",
+        app_name="test_app_parse_pdf",
         semantic=SemanticConfig(
             language_models={"vlm": test_model_class(
                 model_name=model_name,

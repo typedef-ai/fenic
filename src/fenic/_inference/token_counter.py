@@ -2,14 +2,17 @@ from typing import Protocol, Union
 
 import tiktoken
 
-from fenic._constants import PREFIX_TOKENS_PER_MESSAGE, TOKENS_PER_NAME
-from fenic._inference.common_openai.openai_utils import convert_messages
+from fenic._constants import PREFIX_TOKENS_PER_MESSAGE
+from fenic._inference.request_utils import get_pdf_page_count, get_pdf_text
 from fenic._inference.types import LMRequestMessages
+from fenic.core.error import InternalError
 
 Tokenizable = Union[str | LMRequestMessages]
 
 class TokenCounter(Protocol):
     def count_tokens(self, messages: Tokenizable) -> int: ...
+    def count_file_input_tokens(self, messages: LMRequestMessages) -> int: ...
+    def count_file_output_tokens(self, messages: LMRequestMessages) -> int: ...
 
 class TiktokenTokenCounter(TokenCounter):
 
@@ -23,25 +26,50 @@ class TiktokenTokenCounter(TokenCounter):
         if isinstance(messages, str):
             return len(self.tokenizer.encode(messages))
         elif isinstance(messages, LMRequestMessages):
-            return self._count_message_tokens(convert_messages(messages))
+            return self._count_message_tokens(messages)
         else:
             raise TypeError(f"Expected str or LMRequestMessages, got {type(messages)}")
 
-    def _count_message_tokens(self, messages: list[dict[str, str]]) -> int:
+    def count_file_input_tokens(self, messages: LMRequestMessages) -> int:
+        # get file type from file extension
+        file_type = messages.user_file.path.split(".")[-1]
+        if file_type == "pdf":
+            text = get_pdf_text(messages.user_file)
+            page_count = get_pdf_page_count(messages.user_file)
+            text_tokens = self.count_tokens(text)
+            # OpenAI documentation states that they convert PDF pages into images and ingest both text and image into their VLM. 
+            # Based on experimentation, OpenAI seems to count no more than 1024 tokens per page.
+            image_tokens = page_count * 1024 
+            return text_tokens + image_tokens
+        else:
+            raise InternalError(f"File{messages.user_file.path}'s extension is not supported for llm completions.")
+
+    def count_file_output_tokens(self, messages: LMRequestMessages) -> int:
+        file_type = messages.user_file.path.split(".")[-1]
+        if file_type == "pdf":
+            # TODO: we do this twice, once for estimating input and once for estimating output.  We can cache the text in the LMFile object.
+            text = get_pdf_text(messages.user_file)
+            # Note: we currently aren't counting any text tokens for describing images, since that defaults to False.
+            # In our estimates we add buffer, both for markdown structure and in case we ask the model to describe images.
+            return self.count_tokens(text)
+        else:
+            raise InternalError(f"File{messages.user_file.path}'s extension is not supported for llm completions.")
+
+    def _count_message_tokens(self, messages: LMRequestMessages) -> int:
         num_tokens = 0
-        for message in messages:
-            if "content" in message and isinstance(message["content"], list):
-                num_tokens += self._count_message_tokens(messages=message["content"])
-                continue
-            if "type" in message and message["type"] == "file":
-                # providers count file tokens differently, so we leave that up to the client
-                continue
-            num_tokens += PREFIX_TOKENS_PER_MESSAGE  # Every message starts with <im_start>{role/name}\n{content}<im_end>\n
-            for key, value in message.items():
-                num_tokens += len(self.tokenizer.encode(value))
-                if key == "name":
-                    num_tokens -= TOKENS_PER_NAME  # Subtract one token if the 'name' field is present
-
+        message_count = 2 # system message and user parent message
+        num_tokens += self.count_tokens(messages.system)
+        if messages.user:
+            num_tokens += self.count_tokens(messages.user)
+            message_count += 1
+        for example in messages.examples:
+            num_tokens += self.count_tokens(example.user)
+            num_tokens += self.count_tokens(example.assistant)
+            message_count += 2
+        if messages.user_file:
+            num_tokens += self.count_file_input_tokens(messages)
+            message_count += 1
+        num_tokens += message_count * PREFIX_TOKENS_PER_MESSAGE
         num_tokens += 2  # Every assistant reply is primed with <im_start>assistant
-
+        
         return num_tokens

@@ -121,7 +121,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             input_tokens=self.token_counter.count_tokens(request.doc), output_tokens=0
         )
 
-    def _get_max_output_tokens(self, request: FenicEmbeddingsRequest) -> int:
+    def _get_max_output_token_request_limit(self, request: FenicEmbeddingsRequest) -> int:
         return 0
 
     def reset_metrics(self):

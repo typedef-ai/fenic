@@ -107,7 +107,7 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         """
         return self._core.get_metrics()
 
-    def _get_max_output_tokens(self, request: RequestT) -> int:
+    def _get_max_output_token_request_limit(self, request: RequestT) -> int:
         return 0
 
     async def validate_api_key(self):

@@ -171,7 +171,7 @@ class CohereBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             output_tokens=0
         )
 
-    def _get_max_output_tokens(self, request: FenicEmbeddingsRequest) -> int:
+    def _get_max_output_token_request_limit(self, request: FenicEmbeddingsRequest) -> int:
         """Get maximum output tokens (always 0 for embeddings).
         
         Returns:

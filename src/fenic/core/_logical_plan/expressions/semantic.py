@@ -631,11 +631,13 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         model_alias: Optional[ResolvedModelAlias] = None,
         page_separator: Optional[str] = None,
         describe_images: bool = False,
+        max_output_tokens: Optional[int] = None,
     ):
         self.expr = expr
         self.model_alias = model_alias
         self.page_separator = page_separator
         self.describe_images = describe_images
+        self.max_output_tokens = max_output_tokens
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -665,4 +667,5 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
     def _eq_specific(self, other: SemanticParsePDFExpr) -> bool:
         return (self.model_alias == other.model_alias
                 and self.page_separator == other.page_separator
-                and self.describe_images == other.describe_images)
+                and self.describe_images == other.describe_images
+                and self.max_output_tokens == other.max_output_tokens)

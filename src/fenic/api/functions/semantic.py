@@ -596,6 +596,7 @@ def parse_pdf(
     model_alias: Optional[Union[str, ModelAlias]] = None,
 	page_separator: Optional[str] = None,
 	describe_images: bool = False,  # for images that aren't tables
+	max_output_tokens: Optional[int] = None,
 ) -> Column:
     r"""Parses a column of PDF paths into markdown.
 
@@ -607,6 +608,7 @@ def parse_pdf(
         model_alias: Optional alias for the language model to use for the parsing. If None, will use the language model configured as the default.
         page_separator: Optional page separator to use for the parsing.  If the separator includes the {page} placeholder, the model will replace it with the current page number.
         describe_images:  Flag to describe images in the PDF. If True, the prompt will ask the model to include a description of the image in the markdown output.  If False, the prompt asks the model to ignore images that aren't tables or charts.
+        max_output_tokens: Optional maximum number of output tokens per ~3 pages of PDF (does not include reasoning tokens). If None, don't constrain the model's output.
 
     Note:
         For Gemini models, this function uses the google file API, uploading PDF files to Google's file store and deleting them after each request.
@@ -640,5 +642,6 @@ def parse_pdf(
             model_alias=resolved_model_alias,
             page_separator=page_separator,
             describe_images=describe_images,
+            max_output_tokens=max_output_tokens,
         )
     )

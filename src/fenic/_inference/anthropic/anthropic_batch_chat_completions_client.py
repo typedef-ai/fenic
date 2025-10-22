@@ -275,7 +275,7 @@ class AnthropicBatchCompletionsClient(
         """
         return self.estimate_response_format_tokens(response_format)
 
-    def _get_max_output_tokens(self, request: FenicCompletionsRequest) -> int:
+    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> int:
         """Get maximum output tokens including thinking budget.
 
         Args:
@@ -329,7 +329,7 @@ class AnthropicBatchCompletionsClient(
         input_tokens += self._count_auxiliary_input_tokens(request)
         
         # Estimate output tokens
-        output_tokens = self._get_max_output_tokens(request)
+        output_tokens = self._get_max_output_token_request_limit(request)
         
         return TokenEstimate(
             input_tokens=input_tokens,

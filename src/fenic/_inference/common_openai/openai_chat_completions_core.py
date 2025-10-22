@@ -90,9 +90,13 @@ class OpenAIChatCompletionsCore:
             common_params: dict[str, Any] = {
                 "model": self._model,
                 "messages": convert_messages(request.messages),
-                "max_completion_tokens": request.max_completion_tokens + profile_configuration.expected_additional_reasoning_tokens,
                 "n": 1,
             }
+
+            max_completion_tokens = self.get_max_output_token_request_limit(request, profile_configuration)
+            if max_completion_tokens is not None:
+                common_params["max_completion_tokens"] = max_completion_tokens
+
             if request.temperature:
                 common_params.update({"temperature": request.temperature})
 
@@ -213,3 +217,13 @@ class OpenAIChatCompletionsCore:
             A unique key for the request
         """
         return generate_completion_request_key(request)
+
+    def get_max_output_token_request_limit(self, request: FenicCompletionsRequest, profile_config:OpenAICompletionProfileConfiguration) -> Optional[int]:
+        """Return the maximum output token limit for a request.
+
+        Returns None if max_completion_tokens is not provided (no limit should be set).
+        If max_completion_tokens is provided, includes the thinking token budget with a safety margin.
+        """
+        if request.max_completion_tokens is None:
+            return None
+        return request.max_completion_tokens + profile_config.expected_additional_reasoning_tokens
