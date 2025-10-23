@@ -468,13 +468,16 @@ def test_regexp_invalid_pattern_with_column_pattern(local_session):
     )
     # raises an execution time error because we cannot validate the pattern when the logical plan is being
     # constructed.
+    # Functions that use Polars built-in methods produce "regex error: regex parse error:" messages
+    # Functions that use our Rust plugins produce "Invalid regex pattern" messages
     with pytest.raises(ExecutionError, match="Failed to execute query: regex error: regex parse error:"):
         df.select(text.regexp_count("text_col", col("pattern"))).to_polars()
     with pytest.raises(ExecutionError, match="Failed to execute query: regex error: regex parse error:"):
         df.select(text.regexp_extract("text_col", col("pattern"), 0)).to_polars()
-    with pytest.raises(ExecutionError, match="Failed to execute query: .* Invalid regex pattern .*"):
+    with pytest.raises(ExecutionError, match="Failed to execute query: .* Invalid regex pattern .* regex parse error"):
         df.select(text.regexp_extract_all("text_col", col("pattern"), 0)).to_polars()
-    with pytest.raises(ExecutionError, match="Failed to execute query: .* Invalid regex pattern .*"):
+    # regexp_instr with literal idx uses Polars str.extract (fast path), so error comes from Polars
+    with pytest.raises(ExecutionError, match="Failed to execute query: regex error: regex parse error:"):
         df.select(text.regexp_instr("text_col", col("pattern"), 0)).to_polars()
     with pytest.raises(ExecutionError, match="Failed to execute query: regex error: regex parse error:"):
         df.select(text.regexp_substr("text_col", col("pattern"))).to_polars()

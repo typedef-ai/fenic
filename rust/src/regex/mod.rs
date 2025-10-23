@@ -4,6 +4,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_polars::derive::polars_expr;
 use regex::Regex;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 #[pyfunction]
@@ -11,6 +12,25 @@ pub fn py_validate_regex(regex: &str) -> PyResult<()> {
     match Regex::new(regex) {
         Ok(_) => Ok(()),
         Err(error) => Err(PyValueError::new_err(error.to_string())),
+    }
+}
+
+/// Get or compile a regex from the cache.
+/// Uses the Entry API for efficient single-lookup caching.
+fn get_or_compile_regex<'a>(
+    regex_cache: &'a mut HashMap<String, Regex>,
+    pattern: &str,
+) -> PolarsResult<&'a Regex> {
+    match regex_cache.entry(pattern.to_string()) {
+        Entry::Occupied(entry) => Ok(entry.into_mut()),
+        Entry::Vacant(entry) => {
+            let regex = Regex::new(pattern).map_err(|e| {
+                PolarsError::ComputeError(
+                    format!("Invalid regex pattern '{}': {}", pattern, e).into(),
+                )
+            })?;
+            Ok(entry.insert(regex))
+        }
     }
 }
 
@@ -42,20 +62,7 @@ fn regexp_instr(inputs: &[Series]) -> PolarsResult<Series> {
                     Some(0)
                 } else {
                     // Get or compile regex, return error if invalid
-                    if !regex_cache.contains_key(pattern) {
-                        match Regex::new(pattern) {
-                            Ok(re) => {
-                                regex_cache.insert(pattern.to_string(), re);
-                            }
-                            Err(e) => {
-                                return Err(PolarsError::ComputeError(
-                                    format!("Invalid regex pattern '{}': {}", pattern, e).into(),
-                                ));
-                            }
-                        }
-                    }
-
-                    let regex = regex_cache.get(pattern).unwrap();
+                    let regex = get_or_compile_regex(&mut regex_cache, pattern)?;
 
                     // Try to find a match
                     if let Some(captures) = regex.captures(text) {
@@ -111,20 +118,7 @@ fn regexp_extract_all(inputs: &[Series]) -> PolarsResult<Series> {
                     Some(Series::new_empty(PlSmallStr::EMPTY, &DataType::String))
                 } else {
                     // Get or compile regex, return error if invalid
-                    if !regex_cache.contains_key(pattern) {
-                        match Regex::new(pattern) {
-                            Ok(re) => {
-                                regex_cache.insert(pattern.to_string(), re);
-                            }
-                            Err(e) => {
-                                return Err(PolarsError::ComputeError(
-                                    format!("Invalid regex pattern '{}': {}", pattern, e).into(),
-                                ));
-                            }
-                        }
-                    }
-
-                    let regex = regex_cache.get(pattern).unwrap();
+                    let regex = get_or_compile_regex(&mut regex_cache, pattern)?;
                     let idx_usize = idx as usize;
                     let mut matches = Vec::new();
 
@@ -137,7 +131,10 @@ fn regexp_extract_all(inputs: &[Series]) -> PolarsResult<Series> {
                     }
 
                     // Return as Series
-                    Some(Series::from_iter(matches))
+                    Some(
+                        StringChunked::from_iter_values(PlSmallStr::EMPTY, matches.into_iter())
+                            .into_series(),
+                    )
                 }
             }
             _ => None, // If any input is null, return null
@@ -156,4 +153,80 @@ fn extract_all_output_type(input_fields: &[Field]) -> PolarsResult<Field> {
         field.name().clone(),
         DataType::List(Box::new(DataType::String)),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Pure Rust tests - these can run with `cargo test`
+    #[test]
+    fn test_get_or_compile_regex_valid_pattern() {
+        let mut cache = HashMap::new();
+        let pattern = r"\d+";
+
+        let result = get_or_compile_regex(&mut cache, pattern);
+        assert!(result.is_ok());
+
+        let regex = result.unwrap();
+        assert!(regex.is_match("123"));
+        assert!(!regex.is_match("abc"));
+    }
+
+    #[test]
+    fn test_get_or_compile_regex_caches() {
+        let mut cache = HashMap::new();
+        let pattern = r"[a-z]+";
+
+        // First call should compile and cache
+        let result1 = get_or_compile_regex(&mut cache, pattern);
+        assert!(result1.is_ok());
+        assert_eq!(cache.len(), 1);
+
+        // Second call should use cache (verify cache size doesn't change)
+        let result2 = get_or_compile_regex(&mut cache, pattern);
+        assert!(result2.is_ok());
+        assert_eq!(cache.len(), 1);
+
+        // Different pattern should add to cache
+        let result3 = get_or_compile_regex(&mut cache, r"\d+");
+        assert!(result3.is_ok());
+        assert_eq!(cache.len(), 2);
+    }
+
+    #[test]
+    fn test_get_or_compile_regex_invalid_pattern() {
+        let mut cache = HashMap::new();
+        let pattern = r"[invalid(";
+
+        let result = get_or_compile_regex(&mut cache, pattern);
+        assert!(result.is_err());
+
+        // Verify error message format
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("Invalid regex pattern"));
+        assert!(err_msg.contains("[invalid("));
+    }
+
+    #[test]
+    fn test_get_or_compile_regex_special_patterns() {
+        let mut cache = HashMap::new();
+
+        // Test email pattern
+        let email_pattern = r"(\w+)@(\w+)\.(\w+)";
+        let result = get_or_compile_regex(&mut cache, email_pattern);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_match("test@example.com"));
+
+        // Test word boundary pattern
+        let word_boundary = r"\bword\b";
+        let result = get_or_compile_regex(&mut cache, word_boundary);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_match("a word here"));
+    }
+
+    // PyO3 tests - these are tested via Python integration tests
+    // Note: py_validate_regex is tested in tests/_backends/local/functions/test_regexp_functions.py
+    // because standalone PyO3 tests require Python runtime linking
 }
