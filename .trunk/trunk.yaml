@@ -69,6 +69,8 @@ lint:
         - examples/markdown_processing/attention_is_all_you_need.md
         - examples/**/README.md
         - .kiro/**
+        - .claude/agents/*
+        - .claude/AGENT_DEVELOPMENT_GUIDE.md
 actions:
   disabled:
     - trunk-upgrade-available
