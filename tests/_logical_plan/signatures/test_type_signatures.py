@@ -7,7 +7,9 @@ This tests all the TypeSignature classes that validate argument types.
 import pytest
 
 from fenic.core._logical_plan.signatures.type_signature import (
+    AnyExcludingStructs,
     ArrayOfAny,
+    ArrayOfPrimitives,
     ArrayWithMatchingElement,
     EqualTypes,
     Exact,
@@ -22,10 +24,15 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     BooleanType,
+    DocumentPathType,
+    DoubleType,
     EmbeddingType,
     FloatType,
     IntegerType,
     StringType,
+    StructField,
+    StructType,
+    _PrimitiveType,
 )
 
 
@@ -107,6 +114,45 @@ class TestVariadicAny:
         # Should still enforce minimum count
         with pytest.raises(ValidationError, match="test_func expects at least 1 arguments, got 0"):
             sig.validate([], "test_func")
+
+
+class TestArrayOfPrimitives:
+
+    def test_accepts_only_primitive_array_types(self):
+        sig = ArrayOfPrimitives()
+
+        # Should accept any array type
+        sig.validate([ArrayType(StringType)], "test_func")
+        sig.validate([ArrayType(IntegerType)], "test_func")
+        sig.validate([ArrayType(FloatType)], "test_func")
+        sig.validate([ArrayType(DoubleType)], "test_func")
+        sig.validate([ArrayType(BooleanType)], "test_func")
+
+        # Should reject non-array types
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an array type"):
+            sig.validate([StringType], "test_func")
+
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an array type"):
+            sig.validate([IntegerType], "test_func")
+
+        with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an array of primitive types"):
+            array_type = ArrayType(
+                element_type=StructType([StructField("name", StringType)])
+            )
+            sig.validate([array_type], "test_func")
+
+    def test_validates_argument_count(self):
+        sig = ArrayOfPrimitives(expected_num_args=2)
+
+        # Should require exactly 2 arguments
+        sig.validate([ArrayType(StringType), ArrayType(IntegerType)], "test_func")
+
+        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 1"):
+            sig.validate([ArrayType(StringType)], "test_func")
+
+        with pytest.raises(ValidationError, match="test_func expects 2 arguments, got 3"):
+            sig.validate([ArrayType(StringType), ArrayType(IntegerType), ArrayType(BooleanType)], "test_func")
+
 
 
 class TestArrayOfAny:
@@ -335,3 +381,22 @@ class TestInstanceOf:
         # Should reject non-embedding type
         with pytest.raises(TypeMismatchError, match="test_func expects argument 0 to be an instance of EmbeddingType"):
             sig.validate([StringType], "test_func")
+
+
+class TestAnyExcludingStructs:
+    """Test AnyExcludingStructs signature type."""
+
+    def test_validates_any_type_excluding_structs(self):
+        sig = AnyExcludingStructs(expected_num_args=1)
+        for type in _PrimitiveType.__subclasses__():
+            sig.validate([type], "test_func")
+
+        sig.validate([ArrayType(StringType)], "test_func")
+        sig.validate([ArrayType(DocumentPathType(format="pdf"))], "test_func")
+
+        # Should reject structs
+        with pytest.raises(TypeMismatchError, match="test_func expects a non-struct type at argument 0"):
+            sig.validate([StructType([StructField("name", StringType)])], "test_func")
+
+        with pytest.raises(TypeMismatchError, match="test_func expects an array of non-structs at argument 0"):
+            sig.validate([ArrayType(StructType([StructField("name", StringType)]))], "test_func")

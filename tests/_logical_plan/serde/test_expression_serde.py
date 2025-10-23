@@ -12,6 +12,8 @@ from fenic.core._logical_plan.expressions import (
     AliasExpr,
     # Semantic expressions
     AnalyzeSentimentExpr,
+    # Aggregate expressions
+    ApproxCountDistinctExpr,
     # Arithmetic expressions
     ArithmeticExpr,
     ArrayContainsExpr,
@@ -20,7 +22,6 @@ from fenic.core._logical_plan.expressions import (
     ArrayJoinExpr,
     ArrayLengthExpr,
     AsyncUDFExpr,
-    # Aggregate expressions
     AvgExpr,
     # Comparison expressions
     BooleanExpr,
@@ -31,6 +32,7 @@ from fenic.core._logical_plan.expressions import (
     ConcatExpr,
     ContainsAnyExpr,
     ContainsExpr,
+    CountDistinctExpr,
     CountExpr,
     CountTokensExpr,
     DateAddExpr,
@@ -98,6 +100,7 @@ from fenic.core._logical_plan.expressions import (
     StripCharsExpr,
     StrLengthExpr,
     StructExpr,
+    SumDistinctExpr,
     SumExpr,
     TextChunkExpr,
     TextractExpr,
@@ -273,6 +276,10 @@ expression_examples = {
         SumExpr(ColumnExpr("numeric_col")),
         SumExpr(LiteralExpr(42, IntegerType)),
     ],
+    SumDistinctExpr: [
+        SumDistinctExpr(ColumnExpr("numeric_col")),
+        SumDistinctExpr(LiteralExpr(42, IntegerType)),
+    ],
     AvgExpr: [
         AvgExpr(ColumnExpr("numeric_col")),
         AvgExpr(LiteralExpr(3.14, FloatType)),
@@ -288,6 +295,15 @@ expression_examples = {
     CountExpr: [
         CountExpr(ColumnExpr("any_col")),
         CountExpr(LiteralExpr("value", StringType)),
+    ],
+    CountDistinctExpr: [
+        CountDistinctExpr([ColumnExpr("any_col")]),
+        CountDistinctExpr([LiteralExpr("value", StringType)]),
+        CountDistinctExpr([ColumnExpr("col1"), ColumnExpr("col2")]),
+    ],
+    ApproxCountDistinctExpr: [
+        ApproxCountDistinctExpr(ColumnExpr("any_col")),
+        ApproxCountDistinctExpr(LiteralExpr("value", StringType)),
     ],
     ListExpr: [
         ListExpr(ColumnExpr("any_col")),

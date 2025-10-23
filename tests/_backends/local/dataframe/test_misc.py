@@ -144,7 +144,9 @@ def test_drop_duplicates(local_session):
     )
 
     df_unique_collected = df.drop_duplicates().to_polars()
+    df_distinct_collected = df.distinct().to_polars()
     assert len(df_unique_collected) == 3
+    assert len(df_distinct_collected) == 3
 
     df_unique_collected_subset = df.drop_duplicates(["c2", "c3"]).to_polars()
     assert len(df_unique_collected_subset) == 1

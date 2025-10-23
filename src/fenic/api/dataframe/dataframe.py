@@ -1225,6 +1225,35 @@ class DataFrame:
         """
         return self.group_by().agg(*exprs)
 
+    def distinct(self) -> DataFrame:
+        """Return a DataFrame with duplicate rows removed. Alias for drop_duplicates(subset=None).
+
+        Returns:
+            DataFrame: A new DataFrame with duplicate rows removed.
+
+        Example:
+            ```python
+            # Create sample DataFrame
+            df = session.create_dataframe({
+                "c1": [1, 2, 3, 1],
+                "c2": ["a", "a", "a", "a"],
+                "c3": ["b", "b", "b", "b"]
+            })
+
+            # Remove duplicates considering all columns
+            df.distinct().show()
+            # Output:
+            # +---+---+---+
+            # | c1| c2| c3|
+            # +---+---+---+
+            # |  1|  a|  b|
+            # |  2|  a|  b|
+            # |  3|  a|  b|
+            # +---+---+---+
+            ```
+        """
+        return self.drop_duplicates()
+
     def drop_duplicates(
         self,
         subset: Optional[List[str]] = None,

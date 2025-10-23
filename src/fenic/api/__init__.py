@@ -4,6 +4,7 @@ from fenic.api.catalog import Catalog
 from fenic.api.column import Column, ColumnOrName
 from fenic.api.dataframe import DataFrame, GroupedData, SemanticExtensions
 from fenic.api.functions import (
+    approx_count_distinct,
     array,
     array_agg,
     array_contains,
@@ -17,6 +18,7 @@ from fenic.api.functions import (
     col,
     collect_list,
     count,
+    count_distinct,
     desc,
     desc_nulls_first,
     desc_nulls_last,
@@ -37,6 +39,7 @@ from fenic.api.functions import (
     stddev,
     struct,
     sum,
+    sum_distinct,
     text,
     tool_param,
     udf,
@@ -109,9 +112,11 @@ __all__ = [
     "asc_nulls_last",
     "async_udf",
     "avg",
+    "approx_count_distinct",
     "coalesce",
     "collect_list",
     "count",
+    "count_distinct",
     "desc",
     "desc_nulls_first",
     "desc_nulls_last",
@@ -120,6 +125,7 @@ __all__ = [
     "mean",
     "min",
     "struct",
+    "sum_distinct",
     "sum",
     "stddev",
     "udf",

@@ -9,19 +9,28 @@ from fenic import (
     DoubleType,
     EmbeddingType,
     IntegerType,
+    Session,
     StringType,
+    approx_count_distinct,
     avg,
     col,
     count,
+    count_distinct,
     first,
     lit,
     max,
     mean,
     min,
     stddev,
+    struct,
     sum,
+    sum_distinct,
 )
-from fenic.core.error import PlanError
+from fenic.core.error import PlanError, TypeMismatchError
+from fenic.core.types.datatypes import (
+    JsonType,
+    MarkdownType,
+)
 
 
 def test_sum_aggregation(sample_df):
@@ -421,3 +430,212 @@ def test_stddev_aggregation(local_session):
 
     for res_val, exp_val in zip(result["stddev(salary)"], expected["stddev(salary)"], strict=True):
         assert res_val == pytest.approx(exp_val, rel=1e-9)
+
+
+def test_count_distinct_aggregation(local_session: Session):
+    # Larger dataset with numbers and strings
+    groups = ["A"] * 1000 + ["B"] * 1000
+    nums = [i % 10 for i in range(1000)] + [None if i % 50 == 0 else (i % 20) for i in range(1000)]
+    data = {
+        "group": groups,
+        "value": nums,
+        "text": [f"k{(i % 5)}" for i in range(2000)],
+    }
+    df = local_session.create_dataframe(data)
+    result = (
+        df.group_by("group")
+        .agg(
+            count_distinct("value").alias("cd"),
+            count_distinct("text").alias("cd_text"),
+        )
+        .sort("group")
+        .to_polars()
+    )
+
+    assert result.schema["cd"] in (pl.Int64, pl.UInt32, pl.Int32)
+    assert result.schema["cd_text"] in (pl.Int64, pl.UInt32, pl.Int32)
+
+    a_row = result.filter(pl.col("group") == "A").row(0)
+    b_row = result.filter(pl.col("group") == "B").row(0)
+
+    # For group A: value cycles 0..9 (10 distinct, no nulls)
+    assert a_row[result.columns.index("cd")] == 10
+    # For group B: value cycles 0..19 with some None; nulls are ignored for distinct
+    assert b_row[result.columns.index("cd")] == 20
+    # text cycles k0..k4 (5 distinct) in both groups (no nulls)
+    assert a_row[result.columns.index("cd_text")] == 5
+    assert b_row[result.columns.index("cd_text")] == 5
+
+
+def test_count_distinct_multi_columns(local_session: Session):
+    data = {
+        "a": [1, 1, 1, 2, 2, None],
+        "b": [1, 2, None, 1, 1, 2],
+    }
+    df = local_session.create_dataframe(data)
+    # Distinct pairs by PySpark semantics (ignore rows where any column is null):
+    # (1,1), (1,2), (2,1) => 3 distinct
+    result = df.agg(count_distinct("a", "b").alias("cd_pairs")).to_polars()
+    assert result["cd_pairs"][0] == 3
+
+def test_sum_distinct_with_bools(local_session: Session):
+    data = {
+        "k": ["x"] * 100 + ["y"] * 100,
+        "v": [True] * 100 + [False] * 100,
+    }
+    df = local_session.create_dataframe(data)
+    result = df.agg(sum_distinct("v").alias("sd")).to_polars()
+    assert result["sd"][0] == 1
+
+def test_sum_distinct_aggregation(local_session: Session):
+    data = {
+        "k": ["x"] * 100 + ["y"] * 100,
+        "v": [1] * 100 + [i % 5 for i in range(100)],
+        "arr": [[1, 2]] * 200,
+    }
+    df = local_session.create_dataframe(data)
+    result = (
+        df.group_by("k")
+        .agg(
+            sum_distinct("v").alias("sd"),
+        )
+        .sort("k")
+        .to_polars()
+    )
+
+    x_row = result.filter(pl.col("k") == "x").row(0)
+    y_row = result.filter(pl.col("k") == "y").row(0)
+    assert x_row[result.columns.index("sd")] == 1
+    # y group has v cycling 0..4, distinct sum is 0+1+2+3+4=10
+    assert y_row[result.columns.index("sd")] == 10
+
+    # Arrays are not supported for sum_distinct (should error at signature time if attempted)
+    with pytest.raises(TypeMismatchError):
+        # type checker/validator should reject arrays for sum_distinct
+        _ = df.group_by("k").agg(sum_distinct("arr")).to_polars()
+
+    # Structs are not supported for sum_distinct (should error at signature time if attempted)
+    with pytest.raises(TypeMismatchError):
+        _ = df.group_by("k").agg(sum_distinct(struct("v", "k"))).to_polars()
+
+@pytest.mark.parametrize("test_cardinality", [(1_000, "low cardinality"), (10_000, "medium cardinality"), (100_000, "high cardinality"), (1_000_000, "very high cardinality")])
+def test_approx_count_distinct_approximation(local_session: Session, test_cardinality: tuple[int, str]):
+    """Test that approx_count_distinct actually uses approximation with HyperLogLog++.
+
+    This test verifies that the approximation is close to the exact count (within expected error bounds)
+    """
+    cardinality, description = test_cardinality
+    # Create dataset with known cardinality
+    # Repeat values to ensure we have a reasonable dataset size
+    data = {
+        "value": list(range(cardinality)),
+    }
+    df = local_session.create_dataframe(data)
+
+    result = (
+        df
+        .agg(
+            count_distinct("value").alias("exact_count"),
+            approx_count_distinct("value").alias("approx_count"),
+        )
+        .to_polars()
+    )
+
+    exact = result["exact_count"][0]
+    approx = result["approx_count"][0]
+
+    # Verify exact count is correct
+    assert exact == cardinality, f"{description}: exact count should be {cardinality}"
+
+    # Calculate relative error
+    relative_error = abs(approx - exact) / exact
+    print(f"{description}: relative error {relative_error:.2%}")
+
+    # HyperLogLog++ typical error rate is around 1.15% with default settings
+    # We allow up to 5% to be safe (accounting for edge cases)
+    max_allowed_error = 0.05
+
+    assert relative_error <= max_allowed_error, (
+        f"{description}: approximation error {relative_error:.2%} exceeds max allowed "
+        f"{max_allowed_error:.2%} (exact={exact}, approx={approx})"
+    )
+
+    print(f"{description}: exact={exact}, approx={approx} relative error={relative_error:.2%}")
+
+def test_approx_count_distinct_with_nulls_and_duplicates(local_session: Session):
+    """Test that approx_count_distinct handles nulls correctly in approximate mode."""
+    # Create a dataset with known duplicates and nulls
+    data = {
+        "group": ["A"] * 20_000,
+        "value": (
+            # 10,000 unique values (0-9999)
+            list(range(10_000))
+            # 9,000 duplicates of existing values
+            + [i % 10_000 for i in range(9_000)]
+            # 1,000 nulls
+            + [None] * 1_000
+        ),
+    }
+    df = local_session.create_dataframe(data)
+
+    result = (
+        df.group_by("group")
+        .agg(
+            count_distinct("value").alias("exact_count"),
+            approx_count_distinct("value").alias("approx_count"),
+        )
+        .to_polars()
+    )
+
+    exact = result["exact_count"][0]
+    approx = result["approx_count"][0]
+
+    # Exact count should be 10,000 (nulls are ignored, duplicates are counted once)
+    assert exact == 10_000
+
+    # Approximation should be within 5% of exact
+    relative_error = abs(approx - exact) / exact
+    assert relative_error <= 0.05, (
+        f"Approximation error {relative_error:.2%} exceeds 5% "
+        f"(exact={exact}, approx={approx})"
+    )
+
+def test_datatype_compatibility_with_count_distinct(local_session: Session):
+    # tests if count distinct can handle structs/logical types, etc.
+    data = {
+        "v": [1] * 100 + [i % 5 for i in range(100)],
+        "arr": [[1, 2]] * 200,
+        "struct": [{"a": x, "b": y} for x, y in zip(range(200), range(200), strict=True)],
+        "markdown": ["# Hello"] * 200,
+        "json": ["{\"a\": 1, \"b\": 2}"] * 200,
+    }
+    df = local_session.create_dataframe(data)
+    df = df.select(
+        col("v"),
+        col("struct"),
+        col("markdown").cast(MarkdownType).alias("markdown"),
+        col("json").cast(JsonType).alias("json"),
+    )
+    result = df.agg(
+        count_distinct("v").alias("cd"),
+        count_distinct("struct").alias("cd_struct"),
+        count_distinct("markdown").alias("cd_markdown"),
+        count_distinct("json").alias("cd_json"),
+    ).to_polars()
+    print(result)
+    assert result["cd"][0] == 5
+    assert result["cd_struct"][0] == 200
+    assert result["cd_markdown"][0] == 1
+    assert result["cd_json"][0] == 1
+
+    result_approx = df.agg(
+        approx_count_distinct("v").alias("approx_cd"),
+        approx_count_distinct("markdown").alias("approx_cd_markdown"),
+        approx_count_distinct("json").alias("approx_cd_json"),
+    ).to_polars()
+    assert result_approx["approx_cd"][0] == 5
+    assert result_approx["approx_cd_markdown"][0] == 1
+    assert result_approx["approx_cd_json"][0] == 1
+
+    with pytest.raises(TypeMismatchError):
+        _ = df.agg(approx_count_distinct("struct")).to_polars()

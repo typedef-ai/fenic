@@ -163,3 +163,49 @@ class StdDevExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
 
     def children(self) -> List[LogicalExpr]:
         return [self.expr]
+
+
+class ApproxCountDistinctExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
+    function_name = "approx_count_distinct"
+
+    def __init__(self, expr: LogicalExpr):
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]
+
+
+class CountDistinctExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
+    function_name = "count_distinct"
+
+    def __init__(self, exprs: List[LogicalExpr], nulls_not_distinct: bool = False):
+        self.exprs = exprs
+        self._validator = SignatureValidator(self.function_name)
+        self.nulls_not_distinct = nulls_not_distinct
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return list(self.exprs)
+
+
+class SumDistinctExpr(ValidatedSignature, UnparameterizedExpr, AggregateExpr):
+    function_name = "sum_distinct"
+
+    def __init__(self, expr: LogicalExpr):
+        self.expr = expr
+        self._validator = SignatureValidator(self.function_name)
+
+    @property
+    def validator(self) -> SignatureValidator:
+        return self._validator
+
+    def children(self) -> List[LogicalExpr]:
+        return [self.expr]

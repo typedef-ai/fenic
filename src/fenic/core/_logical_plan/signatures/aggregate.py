@@ -10,10 +10,12 @@ from fenic.core._logical_plan.signatures.function_signature import (
 from fenic.core._logical_plan.signatures.registry import FunctionRegistry
 from fenic.core._logical_plan.signatures.type_signature import (
     Any,
+    AnyExcludingStructs,
     Exact,
     InstanceOf,
     Numeric,
     OneOf,
+    VariadicAny,
 )
 from fenic.core.types.datatypes import (
     BooleanType,
@@ -98,6 +100,31 @@ def register_aggregate_signatures():
             Exact([BooleanType])
         ]),
         return_type=DoubleType
+    ))
+
+    # Distinct aggregate functions
+    # approx_count_distinct - supports any type except StructType and ArrayType<StructType>
+    FunctionRegistry.register("approx_count_distinct", FunctionSignature(
+        function_name="approx_count_distinct",
+        type_signature=AnyExcludingStructs(expected_num_args=1),
+        return_type=IntegerType
+    ))
+
+    # count_distinct - supports variadic columns of any type.
+    FunctionRegistry.register("count_distinct", FunctionSignature(
+        function_name="count_distinct",
+        type_signature=VariadicAny(expected_min_args=1),
+        return_type=IntegerType
+    ))
+
+    # sum_distinct - numeric types (and Boolean for parity with sum), returns SAME_AS_INPUT
+    FunctionRegistry.register("sum_distinct", FunctionSignature(
+        function_name="sum_distinct",
+        type_signature=OneOf([
+            Numeric(1),
+            Exact([BooleanType])
+        ]),
+        return_type=ReturnTypeStrategy.SAME_AS_INPUT
     ))
 
 

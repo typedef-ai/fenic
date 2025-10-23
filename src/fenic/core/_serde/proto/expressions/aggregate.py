@@ -1,13 +1,16 @@
 """Aggregate expression serialization/deserialization."""
 
 from fenic.core._logical_plan.expressions.aggregate import (
+    ApproxCountDistinctExpr,
     AvgExpr,
+    CountDistinctExpr,
     CountExpr,
     FirstExpr,
     ListExpr,
     MaxExpr,
     MinExpr,
     StdDevExpr,
+    SumDistinctExpr,
     SumExpr,
 )
 from fenic.core._serde.proto.expression_serde import (
@@ -16,7 +19,9 @@ from fenic.core._serde.proto.expression_serde import (
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.proto.types import (
+    ApproxCountDistinctExprProto,
     AvgExprProto,
+    CountDistinctExprProto,
     CountExprProto,
     FirstExprProto,
     ListExprProto,
@@ -24,6 +29,7 @@ from fenic.core._serde.proto.types import (
     MaxExprProto,
     MinExprProto,
     StdDevExprProto,
+    SumDistinctExprProto,
     SumExprProto,
 )
 
@@ -213,5 +219,80 @@ def _deserialize_std_dev_expr(
     logical_proto: StdDevExprProto, context: SerdeContext
 ) -> StdDevExpr:
     return StdDevExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
+    )
+
+
+# =============================================================================
+# CountDistinctExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_count_distinct_expr(
+    logical: CountDistinctExpr, context: SerdeContext
+) -> LogicalExprProto:
+    return LogicalExprProto(
+        count_distinct=CountDistinctExprProto(
+            exprs=context.serialize_logical_expr_list(SerdeContext.EXPRS, logical.exprs)
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_count_distinct_expr(
+    logical_proto: CountDistinctExprProto, context: SerdeContext
+) -> CountDistinctExpr:
+    return CountDistinctExpr(
+        exprs=context.deserialize_logical_expr_list(SerdeContext.EXPRS, logical_proto.exprs)
+    )
+
+
+# =============================================================================
+# ApproxCountDistinctExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_approx_count_distinct_expr(
+    logical: ApproxCountDistinctExpr, context: SerdeContext
+) -> LogicalExprProto:
+    return LogicalExprProto(
+        approx_count_distinct=ApproxCountDistinctExprProto(
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr)
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_approx_count_distinct_expr(
+    logical_proto: ApproxCountDistinctExprProto, context: SerdeContext
+) -> ApproxCountDistinctExpr:
+    return ApproxCountDistinctExpr(
+        expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
+    )
+
+
+# =============================================================================
+# SumDistinctExpr
+# =============================================================================
+
+
+@serialize_logical_expr.register
+def _serialize_sum_distinct_expr(
+    logical: SumDistinctExpr, context: SerdeContext
+) -> LogicalExprProto:
+    return LogicalExprProto(
+        sum_distinct=SumDistinctExprProto(
+            expr=context.serialize_logical_expr(SerdeContext.EXPR, logical.expr)
+        )
+    )
+
+
+@_deserialize_logical_expr_helper.register
+def _deserialize_sum_distinct_expr(
+    logical_proto: SumDistinctExprProto, context: SerdeContext
+) -> SumDistinctExpr:
+    return SumDistinctExpr(
         expr=context.deserialize_logical_expr(SerdeContext.EXPR, logical_proto.expr)
     )

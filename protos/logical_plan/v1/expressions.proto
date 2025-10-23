@@ -100,6 +100,9 @@ message LogicalExpr {
     FirstExpr first = 115;
     ListExpr list = 116;
     StdDevExpr std_dev = 117;
+    CountDistinctExpr count_distinct = 118;
+    ApproxCountDistinctExpr approx_count_distinct = 119;
+    SumDistinctExpr sum_distinct = 120;
 
     // Date part expressions
     YearExpr year = 130;
@@ -543,6 +546,18 @@ message ListExpr {
 }
 
 message StdDevExpr {
+  LogicalExpr expr = 1;
+}
+
+message CountDistinctExpr {
+  repeated LogicalExpr exprs = 1;
+}
+
+message ApproxCountDistinctExpr {
+  LogicalExpr expr = 1;
+}
+
+message SumDistinctExpr {
   LogicalExpr expr = 1;
 }
 
