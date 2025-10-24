@@ -17,12 +17,14 @@ from fenic.core._logical_plan.expressions.aggregate import (
     SumExpr,
 )
 from fenic.core._logical_plan.expressions.arithmetic import ArithmeticExpr
+from fenic.core._logical_plan.expressions.array import (
+    ArrayContainsExpr,
+    ArrayLengthExpr,
+)
 from fenic.core._logical_plan.expressions.base import Operator
 from fenic.core._logical_plan.expressions.basic import (
     AliasExpr,
-    ArrayContainsExpr,
     ArrayExpr,
-    ArrayLengthExpr,
     AsyncUDFExpr,
     CastExpr,
     CoalesceExpr,

@@ -20,65 +20,65 @@ from fenic.core._logical_plan.expressions.aggregate import SumExpr as SumExpr
 from fenic.core._logical_plan.expressions.arithmetic import (
     ArithmeticExpr as ArithmeticExpr,
 )
+from fenic.core._logical_plan.expressions.array import (
+    ArrayCompactExpr as ArrayCompactExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayContainsExpr as ArrayContainsExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayDistinctExpr as ArrayDistinctExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayExceptExpr as ArrayExceptExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayIntersectExpr as ArrayIntersectExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayLengthExpr as ArrayLengthExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayMaxExpr as ArrayMaxExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayMinExpr as ArrayMinExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayRemoveExpr as ArrayRemoveExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayRepeatExpr as ArrayRepeatExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayReverseExpr as ArrayReverseExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArraySliceExpr as ArraySliceExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArraySortExpr as ArraySortExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArraysOverlapExpr as ArraysOverlapExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ArrayUnionExpr as ArrayUnionExpr,
+)
+from fenic.core._logical_plan.expressions.array import (
+    ElementAtExpr as ElementAtExpr,
+)
 from fenic.core._logical_plan.expressions.base import AggregateExpr as AggregateExpr
 from fenic.core._logical_plan.expressions.base import BinaryExpr as BinaryExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr as LogicalExpr
 from fenic.core._logical_plan.expressions.base import Operator as Operator
 from fenic.core._logical_plan.expressions.base import SemanticExpr as SemanticExpr
 from fenic.core._logical_plan.expressions.basic import AliasExpr as AliasExpr
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayCompactExpr as ArrayCompactExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayContainsExpr as ArrayContainsExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayDistinctExpr as ArrayDistinctExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayExceptExpr as ArrayExceptExpr,
-)
 from fenic.core._logical_plan.expressions.basic import ArrayExpr as ArrayExpr
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayIntersectExpr as ArrayIntersectExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayLengthExpr as ArrayLengthExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayMaxExpr as ArrayMaxExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayMinExpr as ArrayMinExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayRemoveExpr as ArrayRemoveExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayRepeatExpr as ArrayRepeatExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayReverseExpr as ArrayReverseExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArraySliceExpr as ArraySliceExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArraySortExpr as ArraySortExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArraysOverlapExpr as ArraysOverlapExpr,
-)
-from fenic.core._logical_plan.expressions.basic import (
-    ArrayUnionExpr as ArrayUnionExpr,
-)
 from fenic.core._logical_plan.expressions.basic import AsyncUDFExpr as AsyncUDFExpr
 from fenic.core._logical_plan.expressions.basic import CastExpr as CastExpr
 from fenic.core._logical_plan.expressions.basic import CoalesceExpr as CoalesceExpr
 from fenic.core._logical_plan.expressions.basic import ColumnExpr as ColumnExpr
-from fenic.core._logical_plan.expressions.basic import (
-    ElementAtExpr as ElementAtExpr,
-)
 from fenic.core._logical_plan.expressions.basic import (
     FlattenExpr as FlattenExpr,
 )

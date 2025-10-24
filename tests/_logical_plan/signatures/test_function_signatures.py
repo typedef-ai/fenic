@@ -10,8 +10,9 @@ import pytest
 from fenic.core._interfaces.catalog import BaseCatalog
 from fenic.core._interfaces.execution import BaseExecution
 from fenic.core._interfaces.session_state import BaseSessionState
+from fenic.core._logical_plan.expressions.array import ArrayLengthExpr
 from fenic.core._logical_plan.expressions.base import LogicalExpr
-from fenic.core._logical_plan.expressions.basic import ArrayLengthExpr, ColumnExpr
+from fenic.core._logical_plan.expressions.basic import ColumnExpr
 from fenic.core._logical_plan.signatures.function_signature import (
     FunctionSignature,
     ReturnTypeStrategy,
