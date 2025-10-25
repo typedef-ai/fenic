@@ -1,6 +1,9 @@
 """Client for making batch requests to OpenAI's chat completions API."""
 
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
+
+if TYPE_CHECKING:
+    from fenic._inference.cache.protocol import LLMResponseCache
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
@@ -25,7 +28,9 @@ from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 from fenic.core.metrics import LMMetrics
 
 
-class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
+class OpenAIBatchChatCompletionsClient(
+    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+):
     """Client for making batch requests to OpenAI's chat completions API."""
 
     def __init__(
@@ -36,6 +41,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         max_backoffs: int = 10,
         profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
         default_profile_name: Optional[str] = None,
+        cache: Optional["LLMResponseCache"] = None,
     ):
         """Initialize the OpenAI batch chat completions client.
 
@@ -46,8 +52,11 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             max_backoffs: Maximum number of backoff attempts
             profiles: Dictionary of profile configurations
             default_profile_name: Default profile to use when none specified
+            cache: Optional LLM response cache
         """
-        token_counter = TiktokenTokenCounter(model_name=model, fallback_encoding="o200k_base")
+        token_counter = TiktokenTokenCounter(
+            model_name=model, fallback_encoding="o200k_base"
+        )
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
@@ -56,6 +65,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=token_counter,
+            cache=cache,
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.OPENAI, model
@@ -98,7 +108,9 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """
         return self._core.get_request_key(request)
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
+    def estimate_tokens_for_request(
+        self, request: FenicCompletionsRequest
+    ) -> TokenEstimate:
         """Estimate the number of tokens for a request.
 
         Args:
@@ -109,7 +121,7 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         """
         return TokenEstimate(
             input_tokens=self.token_counter.count_tokens(request.messages),
-            output_tokens=self._estimate_output_tokens(request)
+            output_tokens=self._estimate_output_tokens(request),
         )
 
     def reset_metrics(self):
@@ -129,16 +141,24 @@ class OpenAIBatchChatCompletionsClient(ModelClient[FenicCompletionsRequest, Feni
         base_tokens = request.max_completion_tokens or 0
         if request.max_completion_tokens is None and request.messages.user_file:
             # TODO(DY): the semantic operator should dictate how the file affects the token estimate
-            base_tokens += self.token_counter.count_file_output_tokens(messages=request.messages)
-        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+            base_tokens += self.token_counter.count_file_output_tokens(
+                messages=request.messages
+            )
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
         return base_tokens + profile_config.expected_additional_reasoning_tokens
 
-    def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> int:
+    def _get_max_output_token_request_limit(
+        self, request: FenicCompletionsRequest
+    ) -> int:
         """Return the maximum output token limit for a request.
 
         For file parsing requests, use a guardrail limit of 8192 tokens (the lowest output limit of a VLM model we support).
 
         Include the thinking token budget with a safety margin.
         """
-        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
         return self._core.get_max_output_token_request_limit(request, profile_config)

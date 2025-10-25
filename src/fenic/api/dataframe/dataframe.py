@@ -390,8 +390,9 @@ class DataFrame:
         """Mark this DataFrame to be persisted after first computation.
 
         The persisted DataFrame will be cached after its first computation,
-        avoiding recomputation in subsequent operations. This is useful for DataFrames
-        that are reused multiple times in your workflow.
+        avoiding recomputation in subsequent operations. This is useful for:
+            - DataFrames that are created once and reused multiple times in your workflow
+            - DataFrames that are computationally expensive (large joins, aggregations, etc.)
 
         Returns:
             DataFrame: Same DataFrame, but marked for persistence

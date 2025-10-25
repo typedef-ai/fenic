@@ -1,14 +1,13 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
-
-import importlib.util
 import logging
+import importlib.util
 import math
 from json.decoder import JSONDecodeError
 from typing import Optional, Union
-
 from openai import APIConnectionError, APITimeoutError, OpenAIError, RateLimitError
 from pydantic import ValidationError as PydanticValidationError
 
+from fenic._inference.cache.protocol import LLMResponseCache
 from fenic._inference.common_openai.openai_utils import convert_messages
 from fenic._inference.common_openai.utils import handle_openai_compatible_response
 from fenic._inference.model_client import (
@@ -65,6 +64,7 @@ class OpenRouterBatchChatCompletionsClient(
         max_backoffs: int = 10,
         profiles: Optional[dict[str, object]] = None,
         default_profile_name: Optional[str] = None,
+        cache: Optional[LLMResponseCache] = None,
     ):
         # Choose token counter based on the model's provider
         token_counter = None
@@ -88,6 +88,7 @@ class OpenRouterBatchChatCompletionsClient(
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=token_counter,
+            cache=cache
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.OPENROUTER, model

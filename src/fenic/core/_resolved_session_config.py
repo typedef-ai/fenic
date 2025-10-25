@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Literal, Optional, Union
 
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core.types.enums import CacheBackend
 from fenic.core.types.provider_routing import (
     DataCollection,
     ModelQuantization,
@@ -151,6 +152,7 @@ ResolvedModelConfig = Union[
 class ResolvedSemanticConfig:
     language_models: Optional[ResolvedLanguageModelConfig] = None
     embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
+    llm_response_cache: Optional[ResolvedCacheConfig] = None
 
 
 @dataclass
@@ -168,6 +170,26 @@ class ResolvedEmbeddingModelConfig:
 @dataclass
 class ResolvedCloudConfig:
     size: Optional[CloudExecutorSize] = None
+
+
+@dataclass
+class ResolvedCacheConfig:
+    """Resolved cache configuration for LLM responses.
+
+    Attributes:
+        enabled: Whether caching is enabled.
+        ttl: Time-to-live duration string (e.g., "1h", "30m").
+        ttl_seconds: TTL converted to seconds.
+        max_size_mb: Maximum cache size in MB.
+        namespace: Cache namespace for isolation.
+    """
+
+    enabled: bool
+    backend: CacheBackend
+    ttl: str
+    ttl_seconds: int
+    max_size_mb: int
+    namespace: str
 
 
 @dataclass

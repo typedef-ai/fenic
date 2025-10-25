@@ -1,6 +1,8 @@
 
 """Enums used in the DataFrame API."""
+from __future__ import annotations
 
+from enum import Enum
 from typing import Literal
 
 SemanticSimilarityMetric = Literal["cosine", "l2", "dot"]
@@ -124,3 +126,13 @@ Valid values:
 - "second": Second.
 - "millisecond": Millisecond.
 """
+
+
+class CacheBackend(str, Enum):
+    """Cache backend implementations.
+
+    Attributes:
+        SQLITE: SQLite-based persistent cache.
+    """
+
+    SQLITE = "sqlite"
