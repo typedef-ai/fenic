@@ -53,6 +53,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
         model_alias: Optional[ResolvedModelAlias] = None,
         response_format: Optional[ResolvedResponseFormat] = None,
         examples: Optional[MapExampleCollection] = None,
+        request_timeout: Optional[float] = None,
     ):
         super().__init__(
             input,
@@ -64,6 +65,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
                     response_format=response_format,
                     temperature=temperature,
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
             ),
             jinja_template=jinja2.Template(jinja_template),

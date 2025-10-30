@@ -46,6 +46,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
         temperature: float,
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         super().__init__(
             input,
@@ -56,6 +57,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
                   response_format=PREDICATE_FORMAT,
                   temperature=temperature,
                   model_profile=model_alias.profile if model_alias else None,
+                  request_timeout=request_timeout,
                 ),
                 model=model,
             ),

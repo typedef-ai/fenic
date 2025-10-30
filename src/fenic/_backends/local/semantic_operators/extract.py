@@ -50,6 +50,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
         max_output_tokens: int,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.resolved_format = response_format
         super().__init__(
@@ -61,6 +62,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
                     temperature=temperature,
                     response_format=response_format,
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
                 model=model,
             ),

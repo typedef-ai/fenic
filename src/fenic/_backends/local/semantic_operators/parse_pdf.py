@@ -50,6 +50,7 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
         describe_images: bool = False,
         model_alias: Optional[ResolvedModelAlias] = None,
         max_output_tokens: Optional[int] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.page_separator = page_separator
         self.describe_images = describe_images
@@ -68,6 +69,7 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
                     max_output_tokens=max_output_tokens,
                     temperature=1.0,  # Use a higher temperature so gemini flash models can handle complex table formatting.  For more info see the conversation here: https://discuss.ai.google.dev/t/gemini-2-0-flash-has-a-weird-bug/65119/26
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
             ),
             examples=None,  # PDF parsing doesn't use examples

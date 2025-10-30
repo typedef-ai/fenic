@@ -78,6 +78,7 @@ class CompletionOnlyRequestSender(RequestSender[str]):
             response_format=self.inference_config.response_format,
             top_logprobs=self.inference_config.top_logprobs,
             model_profile=self.inference_config.model_profile,
+            request_timeout=self.inference_config.request_timeout,
         )
 
         completions = [

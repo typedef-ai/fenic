@@ -134,6 +134,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
         model: LanguageModel,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         super().__init__(
             input,
@@ -145,6 +146,7 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
                     temperature=temperature,
                     response_format=SENTIMENT_ANALYSIS_FORMAT,
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
             ),
             EXAMPLES,

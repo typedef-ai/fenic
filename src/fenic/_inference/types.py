@@ -69,8 +69,10 @@ class FenicCompletionsRequest:
     structured_output: Optional[ResolvedResponseFormat]  # Resolved JSON schema
     temperature: Optional[float]
     model_profile: Optional[str] = None
+    request_timeout: Optional[float] = None  # Timeout in seconds for a single LLM request
 
 @dataclass
 class FenicEmbeddingsRequest:
     doc: str
     model_profile: Optional[str] = None
+    request_timeout: Optional[float] = None  # Timeout in seconds for a single request

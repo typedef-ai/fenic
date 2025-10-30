@@ -26,6 +26,7 @@ from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
 )
+from fenic._inference.request_utils import DEFAULT_CLIENT_TIMEOUT
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -578,13 +579,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         try:
             try:
-                # TODO: make the timeout configurable, or dynamic based on request size.
+                timeout = queue_item.request.request_timeout or DEFAULT_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
-                    timeout=120.0,
+                    timeout=timeout,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Request for model {self.model} in batch {queue_item.batch_id} timed out. Retrying.")
+                logger.warning(
+                    f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
+                )
                 await self.retry_queue.put(queue_item)
                 return
 

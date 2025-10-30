@@ -2,8 +2,10 @@
 
 import logging
 
+import httpx
 from openai import AsyncOpenAI, OpenAI
 
+from fenic._inference.request_utils import MAX_CLIENT_TIMEOUT
 from fenic.core._inference.model_provider import ModelProviderClass
 
 logger = logging.getLogger(__name__)
@@ -18,11 +20,11 @@ class OpenAIModelProvider(ModelProviderClass):
 
     def create_client(self):
         """Create an OpenAI client instance."""
-        return OpenAI()
+        return OpenAI(http_client=httpx.AsyncClient(timeout=MAX_CLIENT_TIMEOUT))
 
     def create_aio_client(self):
         """Create an OpenAI async client instance."""
-        return AsyncOpenAI()
+        return AsyncOpenAI(http_client=httpx.AsyncClient(timeout=MAX_CLIENT_TIMEOUT))
 
     async def validate_api_key(self) -> None:
         """Validate OpenAI API key by listing models."""
