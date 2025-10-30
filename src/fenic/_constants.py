@@ -20,6 +20,10 @@ TOKENS_PER_NAME = 1
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE: float = 0
 
+# Model client timeout constants
+MAX_MODEL_CLIENT_TIMEOUT = 600  # 10 minutes
+DEFAULT_MODEL_CLIENT_TIMEOUT = 120  # 2 minutes
+
 # If the output type is known to us before runtime, this is a rough upper bound.
 # Higher than expected because Anthropic estimates output tokens differently than other providers
 # during tool use.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional, Union, get_args
 
+from fenic._inference.request_utils import validate_timeout
 from fenic.core.error import ValidationError
 from fenic.core.types import (
     JoinExampleCollection,
@@ -42,6 +43,7 @@ class SemanticExtensions:
         num_init: int = 1,
         label_column: str = "cluster_label",
         centroid_column: Optional[str] = None,
+        request_timeout: Optional[float] = None,
     ) -> DataFrame:
         """Cluster rows using K-means and add cluster metadata columns.
 
@@ -57,6 +59,7 @@ class SemanticExtensions:
             label_column: Name of the output column for cluster IDs. Default is "cluster_label".
             centroid_column: If provided, adds a column with this name containing the centroid embedding
                             for each row's assigned cluster.
+            request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
         Returns:
             A DataFrame with all original columns plus:
@@ -81,6 +84,9 @@ class SemanticExtensions:
             )
             ```
         """
+        # Validate request_timeout
+        request_timeout = validate_timeout(request_timeout)
+
         # Validate num_clusters
         if not isinstance(num_clusters, int) or num_clusters <= 0:
             raise ValidationError("`num_clusters` must be a positive integer.")
@@ -125,6 +131,7 @@ class SemanticExtensions:
                 label_column=label_column,
                 centroid_column=centroid_column,
                 session_state=self._df._session_state,
+                request_timeout=request_timeout,
             ),
             self._df._session_state,
         )
@@ -137,7 +144,8 @@ class SemanticExtensions:
         right_on: Column,
         strict: bool = True,
         examples: Optional[JoinExampleCollection] = None,
-        model_alias: Optional[Union[str, ModelAlias]] = None
+        model_alias: Optional[Union[str, ModelAlias]] = None,
+        request_timeout: Optional[float] = None,
     ) -> DataFrame:
         """Performs a semantic join between two DataFrames using a natural language predicate.
 
@@ -171,6 +179,7 @@ class SemanticExtensions:
                 - right: Sample value from the right column
                 - output: Boolean indicating whether this pair should be joined (True) or not (False)
             model_alias: Optional alias for the language model to use. If None, uses the default model.
+            request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
         Returns:
             DataFrame: A new DataFrame containing matched row pairs with all columns from both DataFrames.
@@ -232,6 +241,9 @@ class SemanticExtensions:
         if model_alias is not None and not isinstance(model_alias, (str, ModelAlias)):
             raise ValidationError(f"`model_alias` argument must be a string or ModelAlias, got {type(model_alias)} instead.")
 
+        # Validate request_timeout
+        request_timeout = validate_timeout(request_timeout)
+
         resolved_model_alias = _resolve_model_alias(model_alias)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
 
@@ -245,6 +257,7 @@ class SemanticExtensions:
                 strict=strict,
                 model_alias=resolved_model_alias,
                 examples=examples,
+                request_timeout=request_timeout,
                 session_state=self._df._session_state,
             ),
             self._df._session_state,
@@ -258,6 +271,7 @@ class SemanticExtensions:
         k: int = 1,
         similarity_metric: SemanticSimilarityMetric = "cosine",
         similarity_score_column: Optional[str] = None,
+        request_timeout: Optional[float] = None,
     ) -> DataFrame:
         """Performs a semantic similarity join between two DataFrames using embedding expressions.
 
@@ -272,6 +286,7 @@ class SemanticExtensions:
             similarity_metric: Similarity metric to use: "l2", "cosine", or "dot".
             similarity_score_column: If set, adds a column with this name containing similarity scores.
                 If None, the scores are omitted.
+            request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
         Returns:
             A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.
@@ -349,6 +364,8 @@ class SemanticExtensions:
         _validate_column(left_on, "left_on")
         _validate_column(right_on, "right_on")
 
+        # Validate request_timeout
+        request_timeout = validate_timeout(request_timeout)
         DataFrame._ensure_same_session(self._df._session_state, [other._session_state])
         return self._df._from_logical_plan(
             SemanticSimilarityJoin.from_session_state(
@@ -357,9 +374,10 @@ class SemanticExtensions:
                 Column._from_col_or_name(left_on)._logical_expr,
                 Column._from_col_or_name(right_on)._logical_expr,
                 k,
-                similarity_metric,
-                similarity_score_column,
-                self._df._session_state,
+                similarity_metric=similarity_metric,
+                similarity_score_column=similarity_score_column,
+                session_state=self._df._session_state,
+                request_timeout=request_timeout,
             ),
             self._df._session_state,
         )

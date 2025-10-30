@@ -4,9 +4,11 @@ import threading
 from functools import cached_property
 from typing import Any, Dict, Optional
 
+import httpx
 import requests
 from openai import AsyncOpenAI, OpenAI
 
+from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
@@ -55,6 +57,7 @@ class OpenRouterModelProvider(ModelProviderClass):
         return OpenAI(
             default_headers=self._headers,
             base_url=OPENROUTER_BASE_URL,
+            http_client=httpx.AsyncClient(timeout=MAX_MODEL_CLIENT_TIMEOUT),
         )
 
     @cached_property
@@ -63,6 +66,7 @@ class OpenRouterModelProvider(ModelProviderClass):
         return AsyncOpenAI(
             default_headers=self._headers,
             base_url=OPENROUTER_BASE_URL,
+            http_client=httpx.AsyncClient(timeout=MAX_MODEL_CLIENT_TIMEOUT),
         )
 
     def create_client(self):

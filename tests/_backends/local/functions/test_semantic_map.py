@@ -17,6 +17,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -242,6 +243,29 @@ def test_semantic_map_schema_validation_with_basemodel_examples(local_session):
     )
 
     _validate_product_summary_schema(result.schema, result.to_polars().schema)
+
+def test_semantic_map_fails_with_bad_request_timeouts(local_session):
+    source = local_session.create_dataframe(
+        {"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]}
+    )
+    with pytest.raises(ValidationError, match="The `request_timeout` argument must be a positive number."):
+        source.select(
+            semantic.map(
+                "Given product name {{name}} and details {{details}}, create a product summary.",
+                name=col("name"),
+                details=col("details"),
+                request_timeout=0
+            ).alias("summary")
+        )
+    with pytest.raises(ValidationError, match=f"The `request_timeout` argument can't be greater than the system's max timeout of {MAX_MODEL_CLIENT_TIMEOUT} seconds."):
+        source.select(
+            semantic.map(
+                "Given product name {{name}} and details {{details}}, create a product summary.",
+                name=col("name"),
+                details=col("details"),
+                request_timeout=MAX_MODEL_CLIENT_TIMEOUT + 1
+            ).alias("summary")
+        )
 
 def test_semantic_map_schema_validation_mismatch_error(local_session):
     """Test that semantic.map raises error when BaseModel examples don't match schema."""

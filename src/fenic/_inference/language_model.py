@@ -28,6 +28,7 @@ class InferenceConfiguration:
     top_logprobs: Optional[int] = None
     response_format: Optional[ResolvedResponseFormat] = None  # Resolved JSON schema
     model_profile: Optional[str] = None
+    request_timeout: Optional[float] = None  # Timeout in seconds for a single LLM request
 
 class LanguageModel:
     def __init__(self, client: ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
@@ -49,6 +50,7 @@ class LanguageModel:
         top_logprobs: Optional[int] = None,
         model_profile: Optional[str] = None,
         operation_name: Optional[str] = None,
+        request_timeout: Optional[float] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
         # Create batch requests
         requests = []
@@ -76,6 +78,7 @@ class LanguageModel:
         return self.client.make_batch_requests(
             requests,
             operation_name=operation_name,
+            request_timeout=request_timeout,
         )
 
     def count_tokens(self, messages: Tokenizable) -> int:

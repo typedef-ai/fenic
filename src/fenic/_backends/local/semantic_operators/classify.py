@@ -43,6 +43,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.classes = classes
         self.valid_labels = {class_def.label for class_def in classes}
@@ -59,6 +60,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                     temperature=temperature,
                     response_format=ResolvedResponseFormat.from_pydantic_model(self.output_model, generate_struct_type=False),
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
             ),
             examples,

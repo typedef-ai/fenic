@@ -21,7 +21,11 @@ from typing import (
 from tqdm import tqdm
 
 from fenic._backends.local.async_utils import EventLoopManager
-from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
+from fenic._constants import (
+    DEFAULT_MODEL_CLIENT_TIMEOUT,
+    MILLISECOND_IN_SECONDS,
+    MINUTE_IN_SECONDS,
+)
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -75,6 +79,7 @@ class QueueItem(Generic[RequestT]):
     future: Future
     estimated_tokens: TokenEstimate
     batch_id: str
+    request_timeout: float
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -294,6 +299,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             self,
             requests: List[Optional[RequestT]],
             operation_name: str,
+            request_timeout: Optional[float] = None,
     ) -> List[ResponseT]:
         """Submit and process a batch of requests asynchronously.
 
@@ -304,6 +310,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Args:
             requests: List of requests to process. None entries are handled as empty responses
             operation_name: Name for logging purposes to identify the operation
+            request_timeout: Timeout for each request in the batch in seconds.  Use default if not provided (embedding models)
 
         Returns:
             List[ResponseT]: List of responses in the same order as the input requests
@@ -312,7 +319,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         logger.info(
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
-        return self._make_batch_requests(requests, operation_name, batch_id)
+        return self._make_batch_requests(requests, operation_name, batch_id, request_timeout=request_timeout)
 
     #
     # Producer methods (run on the user thread)
@@ -409,7 +416,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     def _make_batch_requests(self,
                              requests: List[Optional[RequestT]],
                              operation_name: str,
-                             batch_id: Optional[str] = None) -> List[ResponseT]:
+                             batch_id: Optional[str] = None,
+                             request_timeout: Optional[float] = None) -> List[ResponseT]:
         """Standard batch processing without sampling (used by both sampling and non-sampling flows)."""
         if batch_id is None:
             batch_id = str(uuid.uuid4())
@@ -420,11 +428,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
         # Submit requests and get futures
         request_futures, num_unique_requests, total_token_estimate = self._submit_batch_requests(
-            requests, batch_id
+            requests, batch_id, request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
         )
 
         logger.info(
-            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate}"
+            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate} with timeout: {request_timeout}"
         )
 
         # Wait for responses
@@ -438,13 +446,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
     def _submit_batch_requests(self,
                              requests: List[Optional[RequestT]],
-                             batch_id: str) -> tuple[List[Future], int, TokenEstimate]:
+                             batch_id: str,
+                             request_timeout: float) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
         Args:
             requests: List of requests to submit
             batch_id: Batch identifier for tracking
-
+            request_timeout: Timeout for each request in the batch in seconds
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
@@ -491,6 +500,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         future=req_future,
                         estimated_tokens=estimated_tokens,
                         batch_id=batch_id,
+                        request_timeout=request_timeout,
                     )
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
                         self._enqueue_request(queue_item),
@@ -578,13 +588,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         try:
             try:
-                # TODO: make the timeout configurable, or dynamic based on request size.
+                timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
-                    timeout=120.0,
+                    timeout=timeout,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Request for model {self.model} in batch {queue_item.batch_id} timed out. Retrying.")
+                logger.warning(
+                    f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
+                )
                 await self.retry_queue.put(queue_item)
                 return
 

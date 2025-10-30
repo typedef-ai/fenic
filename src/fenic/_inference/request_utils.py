@@ -3,12 +3,32 @@
 import base64
 import hashlib
 import logging
+from typing import Annotated, Optional
 
 import fitz  # PyMuPDF
+from pydantic import BeforeValidator
 
+from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
 from fenic._inference.types import FenicCompletionsRequest, LMRequestFile
+from fenic.core.error import ValidationError
 
 logger = logging.getLogger(__name__)
+
+def validate_timeout(value: Optional[float]) -> Optional[float]:
+    """Validate timeout value using Pydantic constraints."""
+    if value is not None:
+        if value <= 0:
+            raise ValidationError("The `request_timeout` argument must be a positive number.")
+        if value > MAX_MODEL_CLIENT_TIMEOUT:
+            raise ValidationError(f"The `request_timeout` argument can't be greater than the system's max timeout of {MAX_MODEL_CLIENT_TIMEOUT} seconds.")
+    return value
+
+
+# Type alias for validated timeout parameter
+TimeoutParam = Annotated[
+    Optional[float],
+    BeforeValidator(validate_timeout),
+]
 
 def parse_openrouter_rate_limit_headers(
     headers: dict | None,

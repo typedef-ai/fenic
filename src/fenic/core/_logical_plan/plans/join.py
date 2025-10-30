@@ -204,6 +204,7 @@ class SemanticJoin(BaseSemanticJoin):
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
+        request_timeout: Optional[float] = None,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None,
     ):
@@ -212,6 +213,7 @@ class SemanticJoin(BaseSemanticJoin):
         self._examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
         validate_scalar_expr(left_on, "semantic.join")
         validate_scalar_expr(right_on, "semantic.join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
@@ -229,6 +231,7 @@ class SemanticJoin(BaseSemanticJoin):
         temperature: float = 0.0,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
+        request_timeout: Optional[float] = None,
         session_state: BaseSessionState = None) -> SemanticJoin:
         return SemanticJoin(left,
                 right,
@@ -239,6 +242,7 @@ class SemanticJoin(BaseSemanticJoin):
                 temperature,
                 model_alias,
                 examples,
+                request_timeout,
                 session_state)
 
     @classmethod
@@ -252,6 +256,7 @@ class SemanticJoin(BaseSemanticJoin):
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[JoinExampleCollection] = None,
+        request_timeout: Optional[float] = None,
         schema: Optional[Schema] = None) -> SemanticJoin:
         return SemanticJoin(left,
                 right,
@@ -262,6 +267,7 @@ class SemanticJoin(BaseSemanticJoin):
                 temperature,
                 model_alias,
                 examples,
+                request_timeout,
                 schema=schema)
 
 
@@ -310,6 +316,7 @@ class SemanticJoin(BaseSemanticJoin):
             examples=self._examples,
             temperature=self.temperature,
             model_alias=self.model_alias,
+            request_timeout=self.request_timeout,
             session_state=session_state,
         )
         result.set_cache_info(self.cache_info)
@@ -324,6 +331,7 @@ class SemanticJoin(BaseSemanticJoin):
             and self._examples == other._examples
             and self.temperature == other.temperature
             and self.model_alias == other.model_alias
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -337,12 +345,14 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
+        request_timeout: Optional[float] = None,
         session_state: Optional[BaseSessionState] = None,
         schema: Optional[Schema] = None,
     ):
         self._k = k
         self._similarity_metric = similarity_metric
         self._similarity_score_column = similarity_score_column
+        self.request_timeout = request_timeout
         validate_scalar_expr(left_on, "semantic.sim_join")
         validate_scalar_expr(right_on, "semantic.sim_join")
         super().__init__(left, right, left_on, right_on, session_state, schema)
@@ -356,6 +366,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
+        request_timeout: Optional[float] = None,
         session_state: BaseSessionState = None) -> SemanticSimilarityJoin:
         return SemanticSimilarityJoin(left,
                 right,
@@ -364,6 +375,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
                 k,
                 similarity_metric,
                 similarity_score_column,
+                request_timeout,
                 session_state)
 
     @classmethod
@@ -375,6 +387,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
         k: int,
         similarity_metric: SemanticSimilarityMetric,
         similarity_score_column: Optional[str] = None,
+            request_timeout: Optional[float] = None,
         schema: Optional[Schema] = None) -> SemanticSimilarityJoin:
         return SemanticSimilarityJoin(left,
                 right,
@@ -383,6 +396,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
                 k,
                 similarity_metric,
                 similarity_score_column,
+                request_timeout,
                 schema=schema)
 
     def _validate_columns(self, session_state: BaseSessionState) -> None:
@@ -443,6 +457,7 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             k=self._k,
             similarity_metric=self._similarity_metric,
             similarity_score_column=self._similarity_score_column,
+            request_timeout=self.request_timeout,
             session_state=session_state,
         )
         result.set_cache_info(self.cache_info)
@@ -455,4 +470,5 @@ class SemanticSimilarityJoin(BaseSemanticJoin):
             and self._k == other._k
             and self._similarity_metric == other._similarity_metric
             and self._similarity_score_column == other._similarity_score_column
+            and self.request_timeout == other.request_timeout
         )

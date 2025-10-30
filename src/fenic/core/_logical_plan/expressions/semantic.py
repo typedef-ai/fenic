@@ -70,6 +70,7 @@ class SemanticMapExpr(SemanticExpr):
         model_alias: Optional[ResolvedModelAlias] = None,
         response_format: Optional[ResolvedResponseFormat] = None,
         examples: Optional[MapExampleCollection] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.template = jinja_template
         self.strict = strict
@@ -81,6 +82,7 @@ class SemanticMapExpr(SemanticExpr):
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
+        self.request_timeout = request_timeout
         self.examples = None
         if examples:
             self._validate_example_response_format(examples)
@@ -150,6 +152,7 @@ class SemanticMapExpr(SemanticExpr):
             and self.examples == other.examples
             and self.template == other.template
             and self.strict == other.strict
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -163,12 +166,14 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
         temperature: float,
         response_format: ResolvedResponseFormat,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.expr = expr
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
         self.response_format = response_format
+        self.request_timeout = request_timeout
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
 
@@ -213,6 +218,7 @@ class SemanticExtractExpr(ValidatedDynamicSignature, SemanticExpr):
             and self.max_tokens == other.max_tokens
             and self.temperature == other.temperature
             and self.model_alias == other.model_alias
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -227,6 +233,7 @@ class SemanticPredExpr(SemanticExpr):
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
         examples: Optional[PredicateExampleCollection] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.template = jinja_template
         self.strict = strict
@@ -237,6 +244,7 @@ class SemanticPredExpr(SemanticExpr):
         self.examples = examples
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
 
     def children(self) -> List[LogicalExpr]:
         """Return the child expressions."""
@@ -277,6 +285,7 @@ class SemanticPredExpr(SemanticExpr):
             and self.examples == other.examples
             and self.template == other.template
             and self.strict == other.strict
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -290,6 +299,7 @@ class SemanticReduceExpr(SemanticExpr, AggregateExpr):
         group_context_exprs: List[Union[ColumnExpr, AliasExpr]],
         order_by_exprs: Optional[List[LogicalExpr]],
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         # Store basic attributes first
         self.instruction = instruction
@@ -297,6 +307,7 @@ class SemanticReduceExpr(SemanticExpr, AggregateExpr):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
 
         # Process group context
         self.variable_tree = VariableTree.from_jinja_template(instruction)
@@ -368,6 +379,7 @@ class SemanticReduceExpr(SemanticExpr, AggregateExpr):
             and self.model_alias == other.model_alias
             and self.instruction == other.instruction
             and self.max_tokens == other.max_tokens
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -381,6 +393,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
         temperature: float,
         examples: Optional[ClassifyExampleCollection] = None,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.expr = expr
         self.classes = classes
@@ -394,6 +407,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
 
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -430,6 +444,7 @@ class SemanticClassifyExpr(ValidatedSignature, SemanticExpr):
             and self.model_alias == other.model_alias
             and self.classes == other.classes
             and self.examples == other.examples
+            and self.request_timeout == other.request_timeout
         )
 
 
@@ -441,10 +456,12 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
         expr: LogicalExpr,
         temperature: float,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.expr = expr
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -475,7 +492,7 @@ class AnalyzeSentimentExpr(ValidatedSignature, SemanticExpr):
         )
 
     def _eq_specific(self, other: AnalyzeSentimentExpr) -> bool:
-        return self.temperature == other.temperature and self.model_alias == other.model_alias
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.request_timeout == other.request_timeout
 
 class EmbeddingsExpr(ValidatedDynamicSignature, SemanticExpr):
     """Expression for generating embeddings for a string column.
@@ -585,11 +602,13 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
         format: Union[KeyPoints, Paragraph],
         temperature: float,
         model_alias: Optional[ModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.expr = expr
         self.format = format
         self.temperature = temperature
         self.model_alias = model_alias
+        self.request_timeout = request_timeout
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -620,7 +639,7 @@ class SemanticSummarizeExpr(ValidatedSignature, SemanticExpr):
         return f"semantic.summarize({self.expr})"
 
     def _eq_specific(self, other: SemanticSummarizeExpr) -> bool:
-        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.format == other.format
+        return self.temperature == other.temperature and self.model_alias == other.model_alias and self.format == other.format and self.request_timeout == other.request_timeout
 
 class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
     function_name = "semantic.parse_pdf"
@@ -632,12 +651,14 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         page_separator: Optional[str] = None,
         describe_images: bool = False,
         max_output_tokens: Optional[int] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.expr = expr
         self.model_alias = model_alias
         self.page_separator = page_separator
         self.describe_images = describe_images
         self.max_output_tokens = max_output_tokens
+        self.request_timeout = request_timeout
 
         # Initialize validator for composition-based type validation
         self._validator = SignatureValidator(self.function_name)
@@ -668,4 +689,5 @@ class SemanticParsePDFExpr(ValidatedSignature, SemanticExpr):
         return (self.model_alias == other.model_alias
                 and self.page_separator == other.page_separator
                 and self.describe_images == other.describe_images
-                and self.max_output_tokens == other.max_output_tokens)
+                and self.max_output_tokens == other.max_output_tokens
+                and self.request_timeout == other.request_timeout)

@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, validate_call
 
+from fenic._inference.request_utils import TimeoutParam
 from fenic.api.column import Column, ColumnOrName
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
@@ -47,6 +48,7 @@ def map(
         model_alias: Optional[Union[str, ModelAlias]] = None,
         temperature: float = 0.0,
         max_output_tokens: int = 512,
+        request_timeout: TimeoutParam = None,
         **columns: Column,
 ) -> Column:
     """Applies a generation prompt to one or more columns, enabling rich summarization and generation tasks.
@@ -64,6 +66,7 @@ def map(
         model_alias: Optional language model alias. If None, uses the default model.
         temperature: Language model temperature (default: 0.0).
         max_output_tokens: Maximum tokens to generate (default: 512).
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
         **columns: Named column arguments that correspond to template variables.
             Keys must match the variable names used in the template.
 
@@ -133,6 +136,7 @@ def map(
             model_alias=resolved_model_alias,
             response_format=resolved_response_format,
             examples=examples,
+            request_timeout=request_timeout,
         )
     )
 
@@ -144,6 +148,7 @@ def extract(
         max_output_tokens: int = 1024,
         temperature: float = 0.0,
         model_alias: Optional[Union[str, ModelAlias]] = None,
+        request_timeout: TimeoutParam = None,
 ) -> Column:
     """Extracts structured information from unstructured text using a provided Pydantic model schema.
 
@@ -168,6 +173,7 @@ def extract(
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         max_output_tokens: Optional parameter to constrain the model to generate at most this many tokens. If None, fenic will calculate the expected max
             tokens, based on the model's context length and other operator-specific parameters.
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Returns:
         Column: A new column with structured values (a struct) based on the provided schema.
@@ -200,6 +206,7 @@ def extract(
             temperature=temperature,
             response_format=resolved_response_format,
             model_alias=resolved_model_alias,
+            request_timeout=request_timeout,
         )
     )
 
@@ -213,6 +220,7 @@ def predicate(
         examples: Optional[PredicateExampleCollection] = None,
         model_alias: Optional[Union[str, ModelAlias]] = None,
         temperature: float = 0.0,
+        request_timeout: TimeoutParam = None,
         **columns: Column,
 ) -> Column:
     r"""Applies a boolean predicate to one or more columns, typically used for filtering.
@@ -229,6 +237,7 @@ def predicate(
             Helps ensure consistent True/False decisions.
         model_alias: Optional language model alias. If None, uses the default model.
         temperature: Language model temperature (default: 0.0).
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
         **columns: Named column arguments that correspond to template variables.
             Keys must match the variable names used in the template.
 
@@ -304,6 +313,7 @@ def predicate(
             temperature=temperature,
             model_alias=resolved_model_alias,
             examples=examples,
+            request_timeout=request_timeout,
         )
     )
 
@@ -318,6 +328,7 @@ def reduce(
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
     max_output_tokens: int = 512,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     """Aggregate function: reduces a set of strings in a column to a single string using a natural language instruction.
 
@@ -337,6 +348,7 @@ def reduce(
         model_alias: Optional alias for the language model to use. If None, uses the default model.
         temperature: Temperature parameter for the language model (default: 0.0).
         max_output_tokens: Maximum tokens the model can generate (default: 512).
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Returns:
         Column: A column expression representing the semantic reduction operation.
@@ -398,6 +410,7 @@ def reduce(
             group_context_exprs=group_context_exprs,
             model_alias=resolved_model_alias,
             order_by_exprs=order_by_exprs,
+            request_timeout=request_timeout,
         )
     )
 
@@ -409,6 +422,7 @@ def classify(
     examples: Optional[ClassifyExampleCollection] = None,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     """Classifies a string column into one of the provided classes.
 
@@ -422,6 +436,7 @@ def classify(
             with instruction variables mapped to their expected classifications.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Returns:
         Column: Expression containing the classification results.
@@ -490,6 +505,7 @@ def classify(
             examples=examples,
             model_alias=resolved_model_alias,
             temperature=temperature,
+            request_timeout=request_timeout,
         )
     )
 
@@ -499,6 +515,7 @@ def analyze_sentiment(
     column: ColumnOrName,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     temperature: float = 0,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     """Analyzes the sentiment of a string column. Returns one of 'positive', 'negative', or 'neutral'.
 
@@ -506,6 +523,7 @@ def analyze_sentiment(
         column: Column or column name containing text for sentiment analysis.
         model_alias: Optional alias for the language model to use for the mapping. If None, will use the language model configured as the default.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Returns:
         Column: Expression containing sentiment results ('positive', 'negative', or 'neutral').
@@ -524,6 +542,7 @@ def analyze_sentiment(
             Column._from_col_or_name(column)._logical_expr,
             model_alias=resolved_model_alias,
             temperature=temperature,
+            request_timeout=request_timeout,
         )
     )
 
@@ -563,7 +582,8 @@ def summarize(
     column: ColumnOrName,
     format: Union[KeyPoints, Paragraph, None] = None,
     temperature: float = 0,
-    model_alias: Optional[Union[str, ModelAlias]] = None
+    model_alias: Optional[Union[str, ModelAlias]] = None,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     """Summarizes strings from a column.
 
@@ -572,6 +592,7 @@ def summarize(
         format: Format of the summary to generate. Can be either KeyPoints or Paragraph. If None, will default to Paragraph with a maximum of 120 words.
         temperature: Optional temperature parameter for the language model. If None, will use the default temperature (0.0).
         model_alias: Optional alias for the language model to use for the summarization. If None, will use the language model configured as the default.
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Returns:
         Column: Expression containing the summarized string
@@ -586,7 +607,7 @@ def summarize(
     resolved_model_alias = _resolve_model_alias(model_alias)
     return Column._from_logical_expr(
         SemanticSummarizeExpr(Column._from_col_or_name(column)._logical_expr, format, temperature,
-                              model_alias=resolved_model_alias)
+                              model_alias=resolved_model_alias, request_timeout=request_timeout)
     )
 
 
@@ -594,9 +615,10 @@ def summarize(
 def parse_pdf(
     column: ColumnOrName,
     model_alias: Optional[Union[str, ModelAlias]] = None,
-	page_separator: Optional[str] = None,
+    page_separator: Optional[str] = None,
 	describe_images: bool = False,  # for images that aren't tables
 	max_output_tokens: Optional[int] = None,
+	request_timeout: TimeoutParam = None,
 ) -> Column:
     r"""Parses a column of PDF paths into markdown.
 
@@ -609,6 +631,7 @@ def parse_pdf(
         page_separator: Optional page separator to use for the parsing.  If the separator includes the {page} placeholder, the model will replace it with the current page number.
         describe_images:  Flag to describe images in the PDF. If True, the prompt will ask the model to include a description of the image in the markdown output.  If False, the prompt asks the model to ignore images that aren't tables or charts.
         max_output_tokens: Optional maximum number of output tokens per ~3 pages of PDF (does not include reasoning tokens). If None, don't constrain the model's output.
+        request_timeout: Optional timeout in seconds for a single LLM request. If None, uses the default timeout (120 seconds).
 
     Note:
         For Gemini models, this function uses the google file API, uploading PDF files to Google's file store and deleting them after each request.
@@ -643,5 +666,6 @@ def parse_pdf(
             page_separator=page_separator,
             describe_images=describe_images,
             max_output_tokens=max_output_tokens,
+            request_timeout=request_timeout,
         )
     )

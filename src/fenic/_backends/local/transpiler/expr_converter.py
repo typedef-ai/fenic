@@ -581,6 +581,7 @@ class ExprConverter:
                 temperature=logical.temperature,
                 response_format=logical.response_format,
                 model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
@@ -680,6 +681,7 @@ class ExprConverter:
                 max_output_tokens=logical.max_tokens,
                 temperature=logical.temperature,
                 model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -700,6 +702,7 @@ class ExprConverter:
                 examples=logical.examples,
                 temperature=logical.temperature,
                 model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
@@ -722,6 +725,7 @@ class ExprConverter:
                 temperature=logical.temperature,
                 examples=logical.examples,
                 model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -737,6 +741,7 @@ class ExprConverter:
                 model=self.session_state.get_language_model(logical.model_alias),
                 temperature=logical.temperature,
                 model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -753,7 +758,7 @@ class ExprConverter:
                 format=logical.format,
                 temperature=logical.temperature,
                 model=self.session_state.get_language_model(logical.model_alias),
-
+                request_timeout=logical.request_timeout,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(
@@ -770,6 +775,7 @@ class ExprConverter:
                 describe_images=logical.describe_images,
                 model_alias=logical.model_alias,
                 max_output_tokens=logical.max_output_tokens,
+                request_timeout=logical.request_timeout,
             ).execute()
 
         return self._convert_expr(logical.expr).map_batches(

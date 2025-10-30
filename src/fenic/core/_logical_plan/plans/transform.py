@@ -736,6 +736,7 @@ class SemanticCluster(LogicalPlan):
             num_init: int,
             label_column: str,
             centroid_column: Optional[str],
+            request_timeout: Optional[float] = None,
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
         validate_scalar_expr(by_expr, "semantic.with_cluster_labels")
@@ -747,6 +748,7 @@ class SemanticCluster(LogicalPlan):
         self._label_column = label_column
         self._centroid_column = centroid_column
         self._centroid_info: Optional[CentroidInfo] = None
+        self.request_timeout = request_timeout
         super().__init__(session_state, schema)
 
     @classmethod
@@ -759,7 +761,8 @@ class SemanticCluster(LogicalPlan):
         num_init: int,
         label_column: str,
         centroid_column: Optional[str],
-        schema: Schema,
+        request_timeout: Optional[float] = None,
+        schema: Schema = None,
     ) -> SemanticCluster:
         return SemanticCluster(
             input,
@@ -769,6 +772,7 @@ class SemanticCluster(LogicalPlan):
             num_init,
             label_column,
             centroid_column,
+            request_timeout,
             schema=schema,
         )
 
@@ -783,6 +787,7 @@ class SemanticCluster(LogicalPlan):
         label_column: str,
         centroid_column: Optional[str],
         session_state: BaseSessionState,
+        request_timeout: Optional[float] = None,
     ) -> SemanticCluster:
         return SemanticCluster(
             input,
@@ -792,6 +797,7 @@ class SemanticCluster(LogicalPlan):
             num_init,
             label_column,
             centroid_column,
+            request_timeout,
             session_state=session_state,
         )
 
@@ -849,6 +855,7 @@ class SemanticCluster(LogicalPlan):
             label_column=self._label_column,
             centroid_column=self._centroid_column,
             session_state=session_state,
+            request_timeout=self.request_timeout,
         )
         result.set_cache_info(self.cache_info)
         return result
@@ -861,6 +868,7 @@ class SemanticCluster(LogicalPlan):
             and self._num_init == other._num_init
             and self._label_column == other._label_column
             and self._centroid_column == other._centroid_column
+            and self.request_timeout == other.request_timeout
         )
 
 DDL_DML_NODES = (

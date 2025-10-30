@@ -45,6 +45,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
         temperature: float,
         model: LanguageModel,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.format = format
 
@@ -56,6 +57,7 @@ class Summarize(BaseSingleColumnInputOperator[str, str]):
                     max_output_tokens=self.get_max_tokens(),
                     temperature=temperature,
                     model_profile=model_alias.profile if model_alias else None,
+                    request_timeout=request_timeout,
                 ),
                 model=model,
             ),

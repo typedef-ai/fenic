@@ -11,6 +11,7 @@ from fenic import (
     col,
     text,
 )
+from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -310,3 +311,10 @@ def test_semantic_join_invalid_prompt(local_session: Session):
 
     with pytest.raises(ValidationError, match="The `predicate` argument to `semantic.join` must contain exactly the variables 'left_on' and 'right_on'."):
         left.semantic.join(right, "{{left_on}} {{right_on}} {{foo}}", left_on=col("course_name"), right_on=col("skill"))
+
+def test_semantic_join_fails_with_bad_request_timeouts(local_session: Session):
+    left, right = _create_semantic_join_dataframe(local_session)
+    with pytest.raises(ValidationError, match="The `request_timeout` argument must be a positive number."):
+        left.semantic.join(right, "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("course_name"), right_on=col("skill"), request_timeout=0)
+    with pytest.raises(ValidationError, match=f"The `request_timeout` argument can't be greater than the system's max timeout of {MAX_MODEL_CLIENT_TIMEOUT} seconds."):
+        left.semantic.join(right, "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("course_name"), right_on=col("skill"), request_timeout=MAX_MODEL_CLIENT_TIMEOUT + 1)
