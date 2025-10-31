@@ -101,7 +101,7 @@ class OpenRouterModelProvider(ModelProviderClass):
             context_len = int(top_provider.get("context_length"))
         elif isinstance(model_obj.get("context_length"), int) and model_obj.get("context_length") > 0:
             context_len = int(model_obj.get("context_length"))
-        if context_len is None or context_len == 0:
+        if not context_len:
             return None
 
         max_tokens = None

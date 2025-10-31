@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import (
-    TYPE_CHECKING,
     Any,
     Dict,
     Generic,
@@ -27,6 +26,9 @@ from fenic._constants import (
     MILLISECOND_IN_SECONDS,
     MINUTE_IN_SECONDS,
 )
+from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
+from fenic._inference.cache.key_generator import CacheKeyGenerator
+from fenic._inference.cache.protocol import LLMResponseCache
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -39,15 +41,6 @@ from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
-
-if TYPE_CHECKING:
-    from fenic._inference.cache.protocol import LLMResponseCache
-
-# Import cache key generator at runtime
-try:
-    from fenic._inference.cache.key_generator import CacheKeyGenerator
-except ImportError:
-    CacheKeyGenerator = None
 
 # Type variables
 RequestT = TypeVar("RequestT")
@@ -488,7 +481,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         cache_key_to_idx = {}
         cached_responses = {}
 
-        if self.cache is not None and CacheKeyGenerator is not None:
+        if self.cache is not None:
             for idx, request in enumerate(requests):
                 if request is not None:
                     try:
@@ -541,7 +534,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 # Check cache if enabled
                 cache_key = None
                 cached = None
-                if self.cache is not None and CacheKeyGenerator is not None:
+                if self.cache is not None:
                     try:
                         cache_key = CacheKeyGenerator.compute_key(request, self.model)
                         cached = cached_responses.get(cache_key)

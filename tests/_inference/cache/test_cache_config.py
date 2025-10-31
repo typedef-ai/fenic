@@ -119,7 +119,7 @@ class TestLLMResponseCacheConfig:
         assert config.enabled is True
         assert config.backend == CacheBackend.SQLITE
         assert config.ttl == "1h"
-        assert config.max_size_mb == 1000
+        assert config.max_size_mb == 128
         assert config.namespace == "default"
 
 

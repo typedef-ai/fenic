@@ -1,9 +1,10 @@
 """Client for making batch requests to OpenRouter's chat completions API."""
-import logging
 import importlib.util
+import logging
 import math
 from json.decoder import JSONDecodeError
 from typing import Optional, Union
+
 from openai import APIConnectionError, APITimeoutError, OpenAIError, RateLimitError
 from pydantic import ValidationError as PydanticValidationError
 

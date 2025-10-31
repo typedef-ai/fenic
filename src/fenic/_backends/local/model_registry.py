@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference import (
@@ -31,9 +31,6 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
