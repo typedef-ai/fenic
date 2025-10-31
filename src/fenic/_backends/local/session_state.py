@@ -96,9 +96,7 @@ class LocalSessionState(BaseSessionState):
                     namespace=cache_config.namespace,
                 )
         except Exception as e:
-            logger.error(f"Failed to initialize LLM cache: {e}")
-            print(f"⚠️  Warning: LLM cache disabled due to initialization error: {e}")
-            return None
+            raise SessionError(f"Failed to initialize LLM cache: {e}") from e
 
     def _configure_models(
         self, semantic_config: ResolvedSemanticConfig, llm_cache
