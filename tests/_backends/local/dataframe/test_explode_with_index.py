@@ -14,15 +14,15 @@ def test_explode_with_index_basic(local_session):
     result = df.explode_with_index("tags").to_polars()
 
     # Check schema
-    assert "index" in result.columns
+    assert "col" in result.columns
     assert "id" in result.columns
-    assert "tags" in result.columns
+    assert "pos" in result.columns
 
     # Check values - empty arrays should be filtered out
     assert len(result) == 3
-    assert result["index"].to_list() == [0, 1, 0]
+    assert result["pos"].to_list() == [0, 1, 0]
     assert result["id"].to_list() == [1, 1, 2]
-    assert result["tags"].to_list() == ["red", "blue", "green"]
+    assert result["col"].to_list() == ["red", "blue", "green"]
 
 
 def test_explode_with_index_custom_names(local_session):
@@ -32,7 +32,7 @@ def test_explode_with_index_custom_names(local_session):
         "tags": [["red", "blue"], ["green"]],
     })
 
-    result = df.explode_with_index("tags", index_name="pos", value_name="tag").to_polars()
+    result = df.explode_with_index("tags", index_col_name="pos", value_col_name="tag").to_polars()
 
     # Check schema has custom names
     assert "pos" in result.columns
@@ -73,8 +73,8 @@ def test_explode_with_index_multiple_rows(local_session):
     result = df.explode_with_index("values").to_polars()
 
     # Check the indices reset for each row
-    assert result["index"].to_list() == [0, 1, 2, 0, 0, 1]
-    assert result["values"].to_list() == [10, 20, 30, 40, 50, 60]
+    assert result["pos"].to_list() == [0, 1, 2, 0, 0, 1]
+    assert result["col"].to_list() == [10, 20, 30, 40, 50, 60]
     assert result["id"].to_list() == [1, 1, 1, 2, 4, 4]
 
 
@@ -87,14 +87,14 @@ def test_explode_with_index_preserves_other_columns(local_session):
         "count": [10, 20],
     })
 
-    result = df.explode_with_index("tags", index_name="tag_idx").to_polars()
+    result = df.explode_with_index("tags", index_col_name="tag_idx").to_polars()
 
     # All original columns should be preserved
     assert "id" in result.columns
     assert "name" in result.columns
     assert "count" in result.columns
     assert "tag_idx" in result.columns
-    assert "tags" in result.columns
+    assert "col" in result.columns
 
     # Check values are correctly duplicated
     assert result["name"].to_list() == ["Alice", "Alice", "Bob"]
@@ -108,9 +108,9 @@ def test_explode_with_index_column_expression(local_session):
         "tags": [["a", "b"], ["c"]],
     })
 
-    result = df.explode_with_index(fc.col("tags")).to_polars()
+    result = df.explode_with_index(fc.col("tags"), value_col_name="tags").to_polars()
 
-    assert result["index"].to_list() == [0, 1, 0]
+    assert result["pos"].to_list() == [0, 1, 0]
     assert result["tags"].to_list() == ["a", "b", "c"]
 
 
@@ -127,8 +127,8 @@ def test_explode_with_index_with_some_empty_arrays(local_session):
 
     # Empty arrays should be filtered out
     assert len(result) == 2
-    assert result["index"].to_list() == [0, 0]
-    assert result["tags"].to_list() == ["a", "b"]
+    assert result["pos"].to_list() == [0, 0]
+    assert result["col"].to_list() == ["a", "b"]
     assert result["id"].to_list() == [1, 3]
 
 
@@ -139,10 +139,10 @@ def test_explode_with_index_integer_arrays(local_session):
         "numbers": [[1, 2, 3], [4, 5]],
     })
 
-    result = df.explode_with_index("numbers", index_name="num_idx").to_polars()
+    result = df.explode_with_index("numbers", index_col_name="num_idx").to_polars()
 
     assert result["num_idx"].to_list() == [0, 1, 2, 0, 1]
-    assert result["numbers"].to_list() == [1, 2, 3, 4, 5]
+    assert result["col"].to_list() == [1, 2, 3, 4, 5]
 
 
 def test_posexplode_preserves_column_order(local_session):
@@ -176,8 +176,8 @@ def test_explode_with_index_single_element_arrays(local_session):
     result = df.explode_with_index("tags").to_polars()
 
     # Each should have index 0
-    assert result["index"].to_list() == [0, 0, 0]
-    assert result["tags"].to_list() == ["only", "one", "element"]
+    assert result["pos"].to_list() == [0, 0, 0]
+    assert result["col"].to_list() == ["only", "one", "element"]
     assert result["id"].to_list() == [1, 2, 3]
 
 
@@ -188,13 +188,13 @@ def test_explode_with_index_value_name_only(local_session):
         "tags": [["x", "y"], ["z"]],
     })
 
-    result = df.explode_with_index("tags", value_name="tag").to_polars()
+    result = df.explode_with_index("tags", value_col_name="tag").to_polars()
 
-    # index should use default name
-    assert "index" in result.columns
+    # pos should use default name
+    assert "pos" in result.columns
     # value column should be renamed
     assert "tag" in result.columns and "tags" not in result.columns
-    assert result["index"].to_list() == [0, 1, 0]
+    assert result["pos"].to_list() == [0, 1, 0]
     assert result["tag"].to_list() == ["x", "y", "z"]
 
 
@@ -205,7 +205,7 @@ def test_explode_with_index_index_name_only_outer(local_session):
         "vals": [[10], [], None],
     })
 
-    result = df.explode_with_index("vals", index_name="pos", keep_null_and_empty=True).to_polars()
+    result = df.explode_with_index("vals", index_col_name="pos", value_col_name="vals", keep_null_and_empty=True).to_polars()
 
     assert result["id"].to_list() == [1, 2, 3]
     assert result["pos"].to_list() == [0, None, None]
@@ -220,7 +220,7 @@ def test_explode_with_index_both_names_outer(local_session):
         "letters": [["a", "b"], [], None],
     })
 
-    result = df.explode_with_index("letters", index_name="pos", value_name="val", keep_null_and_empty=True).to_polars()
+    result = df.explode_with_index("letters", index_col_name="pos", value_col_name="val", keep_null_and_empty=True).to_polars()
 
     # expect 4 rows: 2 from first, 1 for empty, 1 for null
     assert len(result) == 4
@@ -236,7 +236,7 @@ def test_explode_with_index_expr_custom_names(local_session):
         "arr": [[1, 2], [3]],
     })
 
-    result = df.explode_with_index(fc.col("arr"), index_name="idx", value_name="val").to_polars()
+    result = df.explode_with_index(fc.col("arr"), index_col_name="idx", value_col_name="val").to_polars()
 
     assert "idx" in result.columns and "val" in result.columns
     assert result["idx"].to_list() == [0, 1, 0]
@@ -265,28 +265,13 @@ def test_posexplode_outer_basic(local_session):
     })
 
     result = df.posexplode_outer("tags").to_polars()
+    result_with_index = df.explode_with_index("tags", keep_null_and_empty=True).to_polars()
 
     # Should preserve all rows with (pos, col) structure
-    assert len(result) == 4
-    assert result["pos"].to_list() == [0, 1, None, None]  # null for empty/null arrays
-    assert result["col"].to_list() == ["red", "blue", None, None]
-    assert result["id"].to_list() == [1, 1, 2, 3]
-
-
-def test_explode_with_index_outer_behavior(local_session):
-    """Test explode_with_index with keep_null_and_empty=True."""
-    df = local_session.create_dataframe({
-        "id": [1, 2, 3],
-        "tags": [["red"], [], None],
-    })
-
-    result = df.explode_with_index("tags", keep_null_and_empty=True).to_polars()
-
-    # Should preserve empty and null arrays
-    assert len(result) == 3
-    assert result["index"].to_list() == [0, None, None]  # null for empty/null arrays
-    assert result["tags"].to_list() == ["red", None, None]
-    assert result["id"].to_list() == [1, 2, 3]
+    assert len(result) == len(result_with_index)
+    assert result["pos"].to_list() == result_with_index["pos"].to_list() == [0, 1, None, None]
+    assert result["col"].to_list() == result_with_index["col"].to_list() == ["red", "blue", None, None]
+    assert result["id"].to_list() == result_with_index["id"].to_list() == [1, 1, 2, 3]
 
 
 def test_posexplode_outer_vs_posexplode(local_session):

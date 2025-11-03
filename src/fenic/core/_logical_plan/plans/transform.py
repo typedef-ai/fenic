@@ -360,7 +360,7 @@ class ExplodeWithIndex(LogicalPlan):
             input: LogicalPlan,
             expr: LogicalExpr,
             index_name: str,
-            value_name: Optional[str] = None,
+            value_name: str,
             keep_null_and_empty: bool = False,
             session_state: Optional[BaseSessionState] = None,
             schema: Optional[Schema] = None):
@@ -374,13 +374,13 @@ class ExplodeWithIndex(LogicalPlan):
 
     @classmethod
     def from_schema(cls, input: LogicalPlan, expr: LogicalExpr, index_name: str,
-                    value_name: Optional[str], schema: Schema,
+                    value_name: str, schema: Schema,
                     keep_null_and_empty: bool = False) -> ExplodeWithIndex:
         return ExplodeWithIndex(input, expr, index_name, value_name, keep_null_and_empty, schema=schema)
 
     @classmethod
     def from_session_state(cls, input: LogicalPlan, expr: LogicalExpr, index_name: str,
-                          value_name: Optional[str], session_state: BaseSessionState,
+                          value_name: str, session_state: BaseSessionState,
                           keep_null_and_empty: bool = False) -> ExplodeWithIndex:
         return ExplodeWithIndex(input, expr, index_name, value_name, keep_null_and_empty,
                                session_state=session_state)
@@ -402,35 +402,35 @@ class ExplodeWithIndex(LogicalPlan):
             )
 
         # Determine the value column name
-        actual_value_name = self.value_name if self.value_name is not None else exploded_field.name
 
         new_fields = []
         # Add index column first (0-based position within array)
         new_fields.append(ColumnField(name=self.index_name, data_type=IntegerType))
-
+        exploded_field_processed = False
         # Add or replace the exploded column
         for field in input_schema.column_fields:
             if field.name == exploded_field.name:
+                exploded_field_processed = True
                 if self.value_name is not None and self.value_name != field.name:
                     # Keep original column and add new value column
                     new_fields.append(field)
                     new_fields.append(ColumnField(
-                        name=actual_value_name,
+                        name=self.value_name,
                         data_type=exploded_field.data_type.element_type
                     ))
                 else:
                     # Replace the array column with its element type
                     new_fields.append(ColumnField(
-                        name=actual_value_name,
+                        name=self.value_name,
                         data_type=exploded_field.data_type.element_type
                     ))
             else:
                 new_fields.append(field)
 
         # If the exploded column wasn't in the original schema, add it
-        if exploded_field.name not in {f.name for f in input_schema.column_fields}:
+        if not exploded_field_processed:
             new_fields.append(ColumnField(
-                name=actual_value_name,
+                name=self.value_name,
                 data_type=exploded_field.data_type.element_type,
             ))
 
