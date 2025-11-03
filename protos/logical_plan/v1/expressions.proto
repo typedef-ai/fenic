@@ -29,7 +29,7 @@ message LogicalExpr {
     // Array Expressions
     // When adding new array functions:
     // - Add field definition here in this grouped section
-    // - Use next available number in 170-199 range
+    // - Use next available number in 170-189 range
     // - Follow naming pattern: array_<operation> or <operation> for general ops
     // - Add corresponding message definition below (search for "Array message definitions")
     // - Add serde in: src/fenic/core/_serde/proto/expressions/basic.py
@@ -39,11 +39,6 @@ message LogicalExpr {
     ArrayExpr array = 6;                      // Construct array from elements
     ArrayLengthExpr array_length = 13;        // Get array length (size)
 
-    // Array element operations
-    ArrayContainsExpr array_contains = 14;    // Check if array contains element
-    ElementAtExpr element_at = 182;           // Get element at index (1-based, PySpark compat)
-    ArraySliceExpr array_slice = 181;         // Extract subarray (start, length)
-
     // Array transformation operations
     ArrayDistinctExpr array_distinct = 18;    // Remove duplicates
     ArrayMaxExpr array_max = 170;             // Get max element (primitives only)
@@ -51,17 +46,22 @@ message LogicalExpr {
     ArraySortExpr array_sort = 172;           // Sort ascending (primitives only, no comparator)
     ArrayReverseExpr array_reverse = 173;     // Reverse array order
     ArrayRemoveExpr array_remove = 174;       // Remove all occurrences of element
-    ArrayCompactExpr array_compact = 178;     // Remove null values
-    ArrayRepeatExpr array_repeat = 179;       // Create array by repeating element n times
-    FlattenExpr flatten = 180;                // Flatten array of arrays (one level)
+    ArrayCompactExpr array_compact = 175;     // Remove null values
+    ArrayRepeatExpr array_repeat = 176;       // Create array by repeating element n times
+    FlattenExpr flatten = 177;                // Flatten array of arrays (one level)
 
     // Array set operations (return distinct elements)
-    ArrayUnionExpr array_union = 175;         // Union of two arrays (distinct)
-    ArrayIntersectExpr array_intersect = 176; // Intersection of two arrays
-    ArrayExceptExpr array_except = 177;       // Elements in first but not second
-    ArraysOverlapExpr arrays_overlap = 183;   // Check if arrays have common elements
+    ArrayUnionExpr array_union = 178;         // Union of two arrays (distinct)
+    ArrayIntersectExpr array_intersect = 179; // Intersection of two arrays
+    ArrayExceptExpr array_except = 180;       // Elements in first but not second
+    ArraysOverlapExpr arrays_overlap = 181;   // Check if arrays have common elements
 
-    // Reserved for future array functions: 184-199
+      // Array element operations
+    ArrayContainsExpr array_contains = 14;    // Check if array contains element
+    ElementAtExpr element_at = 182;           // Get element at index (1-based, PySpark compat)
+    ArraySliceExpr array_slice = 183;         // Extract subarray (start, length)
+
+    // Reserved for future array functions: 184-189
 
     // ============================================================================
     // Comparison and Logic Expressions
@@ -170,6 +170,8 @@ message LogicalExpr {
     DateFormatExpr date_format = 162;
     ToUTCTimestampExpr to_utc_timestamp = 163;
     FromUTCTimestampExpr from_utc_timestamp = 164;
+
+    // Future expressions should use numbers after 190.
   }
 }
 
