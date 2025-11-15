@@ -17,6 +17,7 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
+from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
                 model=model,
             ),
             None,
+            convert_custom_dtype_to_polars(self.resolved_format.struct_type)
         )
 
     def build_system_message(self) -> str:

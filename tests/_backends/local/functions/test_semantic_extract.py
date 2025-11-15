@@ -1,6 +1,8 @@
+import json
 from dataclasses import dataclass
 from textwrap import dedent
 from typing import List, Literal, Optional, Union
+from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
@@ -293,3 +295,59 @@ def test_semantic_extract_without_models(tmp_path):
     with pytest.raises(FenicValidationError, match="No language models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.extract(col("text"), ExtractSchema).alias("extracted_text"))
     session.stop()
+
+
+def test_semantic_extract_with_mismatched_rows(local_session: Session):
+    """Test that semantic.extract can handle rows with different structures."""
+    class Item(BaseModel):
+        """A simple item with optional metadata."""
+        name: str = Field(description="Item name")
+        count: Optional[int] = Field(None, description="Item count")
+        tags: List[str] = Field(default_factory=list, description="Item tags")
+
+    class Analysis(BaseModel):
+        """Analysis result with variable structure."""
+        items: List[Item] = Field(default_factory=list, description="List of items")
+        summary: Optional[str] = Field(None, description="Optional summary")
+
+    mock_responses = [
+        json.dumps({"items": [{"name": "item1"}]}),
+        json.dumps({
+            "items": [
+                {"name": "item2", "count": 5, "tags": ["tag1", "tag2"]}
+            ],
+            "summary": "Found 1 item"
+        }),
+    ]
+
+    df = local_session.create_dataframe({
+        "text": ["text1", "text2"]
+    })
+
+    response_iter = iter(mock_responses)
+
+    def mock_get_completions(messages, operation_name, **kwargs):
+        results = []
+        for _ in messages:
+            try:
+                response_text = next(response_iter)
+                mock_response = MagicMock()
+                mock_response.completion = response_text
+                results.append(mock_response)
+            except StopIteration:
+                results.append(None)
+        return results
+
+    with patch.object(
+        local_session._session_state.get_language_model(),
+        'get_completions',
+        side_effect=mock_get_completions
+    ):
+        result = df.with_column(
+            "analysis",
+            semantic.extract(col("text"), Analysis)
+        ).to_polars()
+
+        assert len(result) == 2
+        assert result["analysis"][0] is not None
+        assert result["analysis"][1] is not None

@@ -90,16 +90,27 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
 
     request_sender: RequestSender[ModelResponseType]
 
-    def __init__(self, input: pl.Series, request_sender: RequestSender[ModelResponseType], examples: Optional[BaseExampleCollection]):
+    def __init__(
+        self,
+        input: pl.Series,
+        request_sender: RequestSender[ModelResponseType],
+        examples: Optional[BaseExampleCollection],
+        output_type: Optional[pl.DataType]
+    ):
         """Initializes the component with a request sender.
 
         Args:
             request_sender (RequestSender[ModelResponseType]):
                 Component responsible for sending requests and retrieving model responses.
+            examples (Optional[BaseExampleCollection]):
+                Optional labeled examples to include in the prompt for few-shot learning.
+            output_type (Optional[pl.DataType]):
+                Optional output type for the operator.
         """
         self.request_sender = request_sender
         self.input = input
         self.examples = examples
+        self.output_type = output_type
 
 
     def execute(self) -> pl.Series:
@@ -112,7 +123,7 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         prompts = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
         postprocessed_responses = self.postprocess(responses)
-        return pl.Series(postprocessed_responses)
+        return pl.Series(postprocessed_responses, dtype=self.output_type) if self.output_type else pl.Series(postprocessed_responses)
 
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
         messages_batch = []
@@ -196,6 +207,7 @@ class BaseSingleColumnInputOperator(
         input: pl.Series,
         request_sender: RequestSender[ModelResponseType],
         examples: Optional[BaseExampleCollection],
+        output_type: pl.DataType
     ):
         """Initializes the component with input data, request sender, and optional examples.
 
@@ -206,8 +218,10 @@ class BaseSingleColumnInputOperator(
                 Component responsible for sending LLM requests.
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include in the prompt for few-shot learning.
+            output_type (Optional[pl.DataType]):
+                Optional output type for the operator.
         """
-        super().__init__(input, request_sender, examples)
+        super().__init__(input, request_sender, examples, output_type)
 
     def build_example(self, example) -> FewShotExample:
         """Build a few-shot example from a single input/output pair.
@@ -274,6 +288,7 @@ class BaseMultiColumnInputOperator(
         request_sender: RequestSender[ModelResponseType],
         jinja_template: Template,
         examples: Optional[BaseExampleCollection],
+        output_type: Optional[pl.DataType]
     ):
         """Initializes the request component with input data, a request sender, and optional examples.
 
@@ -285,7 +300,7 @@ class BaseMultiColumnInputOperator(
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include for few-shot prompting.
         """
-        super().__init__(input, request_sender, examples)
+        super().__init__(input, request_sender, examples, output_type)
         self.jinja_template = jinja_template
 
     def build_example(self, example) -> FewShotExample:

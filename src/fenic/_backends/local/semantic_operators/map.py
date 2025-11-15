@@ -18,6 +18,7 @@ from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
+from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core.error import InternalError
 from fenic.core.types import (
     MapExample,
@@ -67,6 +68,7 @@ class Map(BaseMultiColumnInputOperator[str, str]):
             ),
             jinja_template=jinja2.Template(jinja_template),
             examples=examples,
+            output_type=convert_custom_dtype_to_polars(response_format.struct_type) if response_format else None
         )
         self.response_format = response_format
 
