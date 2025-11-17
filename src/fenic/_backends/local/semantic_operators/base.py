@@ -94,8 +94,8 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         self,
         input: pl.Series,
         request_sender: RequestSender[ModelResponseType],
-        examples: Optional[BaseExampleCollection],
-        output_type: Optional[pl.DataType]
+        examples: Optional[BaseExampleCollection] = None,
+        output_type: Optional[pl.DataType] = None
     ):
         """Initializes the component with a request sender.
 
@@ -206,8 +206,8 @@ class BaseSingleColumnInputOperator(
         self,
         input: pl.Series,
         request_sender: RequestSender[ModelResponseType],
-        examples: Optional[BaseExampleCollection],
-        output_type: pl.DataType
+        examples: Optional[BaseExampleCollection] = None,
+        output_type: Optional[pl.DataType] = None
     ):
         """Initializes the component with input data, request sender, and optional examples.
 
@@ -287,8 +287,8 @@ class BaseMultiColumnInputOperator(
         input: pl.DataFrame,
         request_sender: RequestSender[ModelResponseType],
         jinja_template: Template,
-        examples: Optional[BaseExampleCollection],
-        output_type: Optional[pl.DataType]
+        examples: Optional[BaseExampleCollection] = None,
+        output_type: Optional[pl.DataType] = None
     ):
         """Initializes the request component with input data, a request sender, and optional examples.
 
