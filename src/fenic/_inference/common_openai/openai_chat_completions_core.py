@@ -94,8 +94,9 @@ class OpenAIChatCompletionsCore:
             }
 
             max_completion_tokens = self.get_max_output_token_request_limit(request, profile_configuration)
-            if max_completion_tokens is not None:
-                common_params["max_completion_tokens"] = max_completion_tokens
+            # Don't set any limit for lineage builder
+            #if max_completion_tokens is not None:
+            #    common_params["max_completion_tokens"] = max_completion_tokens
 
             if request.temperature:
                 common_params.update({"temperature": request.temperature})

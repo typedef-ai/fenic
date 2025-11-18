@@ -26,7 +26,7 @@ from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
 )
-from fenic._inference.request_utils import DEFAULT_CLIENT_TIMEOUT
+from fenic._inference.request_utils import MAX_CLIENT_TIMEOUT
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -579,7 +579,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         try:
             try:
-                timeout = queue_item.request.request_timeout or DEFAULT_CLIENT_TIMEOUT
+                timeout = MAX_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
                     timeout=timeout,
