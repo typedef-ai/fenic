@@ -179,7 +179,7 @@ message LogicalExpr {
     // Future expressions should use numbers after 190.
 
     // Series literal (for direct Series data)
-    SeriesLiteralExpr series_literal = 191;
+    SeriesLiteralExpr series_literal = 190;
   }
 }
 

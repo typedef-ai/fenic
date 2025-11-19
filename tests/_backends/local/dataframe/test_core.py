@@ -58,26 +58,39 @@ def test_with_column(sample_df):
 
 @pytest.fixture
 def with_column_sample_df(local_session):
-  data = {"name": ["Alice", "Bob"], "age": [25, 30]}
+  data = {"name": ["Alice", "Bob", "Charlie"], "age": [25, 30, 35]}
   return local_session.create_dataframe(data)
 
 def test_with_column_replace_existing(with_column_sample_df):
     """Test replacing an existing column."""
     result = with_column_sample_df.with_column("age", 50).to_polars()
-    assert result["age"].to_list() == [50, 50]
+    assert result["age"].to_list() == [50, 50, 50]
     # Replace with expression
     result = with_column_sample_df.with_column("age", col("age") * 2).to_polars()
-    assert result["age"].to_list() == [50, 60]
+    assert result["age"].to_list() == [50, 60, 70]
 
 def test_with_column_series_length_too_long(with_column_sample_df):
   """Test that a Series with a length longer than the DataFrame raises an error."""
-  with pytest.raises(ExecutionError, match="Failed to execute query: Series length 2 doesn't match the DataFrame height of 3"):
-    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1, 2, 3])).to_polars()
+  expected_msg = (
+    "Column 'next_age' was created from a Series of length 4, but the DataFrame has 3 rows. "
+    "Series data must match the DataFrame height."
+  )
+  with pytest.raises(ExecutionError, match=re.escape(expected_msg)):
+    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1, 2, 3, 4])).to_polars()
 
 def test_with_column_series_length_too_short(with_column_sample_df):
   """Test that a Series with a length shorter than the DataFrame raises an error."""
-  with pytest.raises(ExecutionError, match="Failed to execute query: Series next_age, length 1 doesn't match the DataFrame height of 2"):
-    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1])).to_polars()
+  expected_msg = (
+    "Column 'next_age' was created from a Series of length 2, but the DataFrame has 3 rows. "
+    "Series data must match the DataFrame height."
+  )
+  with pytest.raises(ExecutionError, match=re.escape(expected_msg)):
+    with_column_sample_df.with_column("next_age", pl.Series("next_age", [1, 2])).to_polars()
+
+def test_with_column_series_length_one_is_treated_as_literal(with_column_sample_df):
+  """Test that a Series with a length one is treated as a literal."""
+  result = with_column_sample_df.with_column("next_age", pl.Series("next_age", [1])).to_polars()
+  assert result["next_age"].to_list() == [1, 1, 1]
 
 def test_with_empty_series_raises_error(with_column_sample_df):
   """Test that a Series with an empty DataFrame raises an error."""
@@ -89,15 +102,15 @@ def test_with_empty_series_raises_error(with_column_sample_df):
 def test_with_series_all_nulls_raises_error_without_dtype(with_column_sample_df):
   """Test that a Series with all nulls raises an error."""
   # with dtype, should work
-  result = with_column_sample_df.with_column("age", pl.Series("age", [None, None], dtype=pl.Float64)).to_polars()
-  assert result["age"].to_list() == [None, None]
+  result = with_column_sample_df.with_column("age", pl.Series("age", [None, None, None], dtype=pl.Float64)).to_polars()
+  assert result["age"].to_list() == [None, None, None]
 
   with pytest.raises(
     ValidationError, match=re.escape(
       "Series cannot contain all nulls unless a dtype is specified. Use `null(dtype)` (for primitive types) or `empty(ArrayType(...))` or `empty(StructType(...))` (for collections) instead, or specify a dtype for the Series."
     )
   ):
-    with_column_sample_df.with_column("age", pl.Series("age", [None, None])).to_polars()
+    with_column_sample_df.with_column("age", pl.Series("age", [None, None, None])).to_polars()
 
 def test_with_columns_add_multiple(sample_df):
     """Test adding multiple new columns."""
@@ -492,7 +505,11 @@ def test_with_columns_with_invalid_series(local_session):
     data = {"name": ["Alice", "Bob"], "age": [25, 30]}
     df = local_session.create_dataframe(data)
 
-    with pytest.raises(ExecutionError, match="Series length 2 doesn't match the DataFrame height of 3"):
+    expected_msg = (
+      "Column 'age' was created from a Series of length 3, but the DataFrame has 2 rows. "
+      "Series data must match the DataFrame height."
+    )
+    with pytest.raises(ExecutionError, match=re.escape(expected_msg)):
       df.with_columns({
         "age": pl.Series([26, 31, 32]),
         "bonus": pl.Series([100, 200])

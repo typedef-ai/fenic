@@ -247,10 +247,13 @@ class ExprConverter:
     def _convert_series_literal_expr(self, logical: SeriesLiteralExpr) -> pl.Expr:
         """Convert a SeriesLiteralExpr to a Polars expression.
 
-        This wraps the Series in pl.lit() which allows Polars to handle:
-        - Length matching with the DataFrame (will raise an error if the length does not match)
-        - Type checking and coercion
+        This wraps the Series in pl.lit(). If the series is a single value, we return a literal of the single value so
+        that Polars can handle broadcasting. We've already checked upstream that the series is not empty.
+        We check at execution time that the series length matches the height of the DataFrame.
         """
+        if len(logical.series) == 1:
+            # If the Series has length 1, just return a literal of the single value.
+            return pl.lit(logical.series[0])
         return pl.lit(logical.series)
 
     @_convert_expr.register

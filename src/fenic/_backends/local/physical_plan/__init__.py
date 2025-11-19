@@ -48,6 +48,9 @@ from fenic._backends.local.physical_plan.transform import (
 from fenic._backends.local.physical_plan.transform import (
     SemanticClusterExec as SemanticClusterExec,
 )
+from fenic._backends.local.physical_plan.transform import (
+    SeriesLiteralCheck as SeriesLiteralCheck,
+)
 from fenic._backends.local.physical_plan.transform import SortExec as SortExec
 from fenic._backends.local.physical_plan.transform import SQLExec as SQLExec
 from fenic._backends.local.physical_plan.transform import UnionExec as UnionExec
@@ -72,6 +75,7 @@ __all__ = [
     "FilterExec",
     "LimitExec",
     "ProjectionExec",
+    "SeriesLiteralCheck",
     "SortExec",
     "UnionExec",
     "UnnestExec",

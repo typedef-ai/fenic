@@ -22,13 +22,16 @@ from fenic._backends.local.physical_plan import (
     SemanticClusterExec,
     SemanticJoinExec,
     SemanticSimilarityJoinExec,
+    SeriesLiteralCheck,
     SortExec,
     SQLExec,
     UnionExec,
     UnnestExec,
 )
 from fenic.core._logical_plan.expressions import (
+    AliasExpr,
     ColumnExpr,
+    SeriesLiteralExpr,
 )
 from fenic.core._logical_plan.optimizer import (
     LogicalPlanOptimizer,
@@ -107,15 +110,19 @@ class PlanConverter:
                 logical.children()[0],
                 cache_keys,
             )
-            physical_exprs = [
-                self.expr_converter.convert(log_expr)
-                for log_expr in logical.exprs()
-            ]
+            physical_exprs = []
+            series_literal_checks: list[SeriesLiteralCheck] = []
+            for log_expr in logical.exprs():
+                physical_exprs.append(self.expr_converter.convert(log_expr))
+                series_check = self._build_series_literal_check(log_expr)
+                if series_check and series_check.expected_length > 1:
+                    series_literal_checks.append(series_check)
             return ProjectionExec(
                 child_physical,
                 physical_exprs,
                 cache_info=logical.cache_info,
                 session_state=self.session_state,
+                series_literal_checks=series_literal_checks or None,
             )
 
         elif isinstance(logical, Filter):
@@ -460,3 +467,26 @@ class PlanConverter:
                 session_state=self.session_state,
                 view_names=logical.view_names,
             )
+
+        else:
+            raise ValueError(f"Unsupported logical plan type: {type(logical)}")
+
+    def _build_series_literal_check(
+        self,
+        logical_expr,
+    ) -> SeriesLiteralCheck | None:
+        alias_name = None
+        expr = logical_expr
+
+        while isinstance(expr, AliasExpr):
+            alias_name = expr.name
+            expr = expr.expr
+
+        if isinstance(expr, SeriesLiteralExpr):
+            column_name = alias_name or str(logical_expr)
+            return SeriesLiteralCheck(
+                column_name=column_name,
+                expected_length=len(expr.series),
+            )
+
+        return None

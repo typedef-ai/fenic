@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
 from typing import Union as TypeUnion
 
@@ -11,7 +12,7 @@ from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
 from fenic._backends.local.semantic_operators.cluster import Cluster
 from fenic.core._logical_plan.plans import CacheInfo, CentroidInfo
-from fenic.core.error import InternalError
+from fenic.core.error import ExecutionError, InternalError
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -23,6 +24,12 @@ from fenic._backends.local.physical_plan.base import (
 
 logger = logging.getLogger(__name__)
 
+@dataclass(frozen=True)
+class SeriesLiteralCheck:
+    column_name: str
+    expected_length: int
+
+
 class ProjectionExec(PhysicalPlan):
     def __init__(
         self,
@@ -30,14 +37,26 @@ class ProjectionExec(PhysicalPlan):
         projections: List[pl.Expr],
         cache_info: Optional[CacheInfo],
         session_state: LocalSessionState,
+        series_literal_checks: Optional[List[SeriesLiteralCheck]] = None,
     ):
         super().__init__([child], cache_info=cache_info, session_state=session_state)
         self.projections = projections
+        self.series_literal_checks = series_literal_checks or []
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ProjectionExec expects 1 child")
-        return child_dfs[0].select(self.projections)
+        child_df = child_dfs[0]
+        if self.series_literal_checks:
+            df_height = child_df.height
+            for check in self.series_literal_checks:
+                if check.expected_length != df_height:
+                    raise ExecutionError(
+                        f"Column '{check.column_name}' was created from a Series of length "
+                        f"{check.expected_length}, but the DataFrame has {df_height} rows. "
+                        "Series data must match the DataFrame height."
+                    )
+        return child_df.select(self.projections)
 
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
@@ -48,6 +67,7 @@ class ProjectionExec(PhysicalPlan):
             projections=self.projections,
             cache_info=self.cache_info,
             session_state=self.session_state,
+            series_literal_checks=self.series_literal_checks,
         )
 
     def build_node_lineage(
