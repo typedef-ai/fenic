@@ -1,4 +1,6 @@
 import hashlib
+import json
+from dataclasses import asdict
 from typing import List, Optional, Union
 
 from google.genai.errors import ClientError, ServerError
@@ -58,6 +60,16 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             profiles=profiles,
             default_profile_name=default_profile_name,
         )
+
+    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
+        """Get hash of the resolved profile configuration."""
+        try:
+            profile = self._profile_manager.get_profile_by_name(profile_name)
+            profile_data = asdict(profile)
+            serialized = json.dumps(profile_data, sort_keys=True, default=str)
+            return str(hash(serialized))
+        except Exception:
+            return None
 
     async def make_single_request(
         self, request: FenicEmbeddingsRequest

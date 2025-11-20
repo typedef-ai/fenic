@@ -2,9 +2,14 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol, Union
 
-from fenic._inference.types import FenicCompletionsResponse, ResponseUsage
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    FenicEmbeddingsRequest,
+    ResponseUsage,
+)
 
 
 @dataclass
@@ -143,9 +148,26 @@ class LLMResponseCache(Protocol):
         ```
     """
 
-    def get(self, cache_key: str) -> Optional[CachedResponse]:
-        """Retrieve cached response.
+    def compute_key(
+        self,
+        request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
+        model: str,
+        profile_hash: Optional[str] = None,
+    ) -> str:
+        """Compute a deterministic cache key for a request.
 
+        Args:
+            request: The request object (e.g. FenicCompletionsRequest or FenicEmbeddingsRequest).
+            model: The model name.
+            profile_hash: Optional hash of the resolved model profile configuration.
+
+        Returns:
+            A unique cache key string.
+        """
+        ...
+
+    def get(self, cache_key: str) -> Optional[CachedResponse]:
+        """Retrieve a cached response.
         Args:
             cache_key: Unique key for the cached response.
 

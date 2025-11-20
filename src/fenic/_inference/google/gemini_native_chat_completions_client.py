@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, Optional, Union
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
 
+import json
+from dataclasses import asdict
+
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
     FinishReason,
@@ -114,6 +117,19 @@ class GeminiNativeChatCompletionsClient(
             profile_configurations=profiles,
             default_profile_name=default_profile_name,
         )
+
+    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
+        """Get hash of the resolved profile configuration."""
+        try:
+            profile = self._profile_manager.get_profile_by_name(profile_name)
+            # Serialize profile to JSON string and hash it
+            # Using default=str to handle any non-serializable types if present
+            profile_data = asdict(profile)
+            serialized = json.dumps(profile_data, sort_keys=True, default=str)
+            return str(hash(serialized))
+        except Exception as e:
+            logger.warning(f"Failed to hash profile {profile_name}: {e}")
+            return None
 
     def reset_metrics(self):
         """Reset metrics to initial state."""

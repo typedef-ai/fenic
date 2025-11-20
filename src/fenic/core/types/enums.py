@@ -132,7 +132,7 @@ class CacheBackend(str, Enum):
     """Cache backend implementations.
 
     Attributes:
-        SQLITE: SQLite-based persistent cache.
+        LOCAL: Local persistent cache backend.
     """
 
-    SQLITE = "sqlite"
+    LOCAL = "local"

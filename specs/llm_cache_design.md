@@ -219,7 +219,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class CacheBackend(str, Enum):
     """Cache backend implementations."""
-    SQLITE = "sqlite"
+    LOCAL = "local"
     MEMORY = "memory"
     DISABLED = "disabled"
 
@@ -228,7 +228,7 @@ class CacheConfig(BaseModel):
 
     Attributes:
         enabled: Whether caching is enabled (default: True)
-        backend: Cache backend to use (default: SQLITE)
+        backend: Cache backend to use (default: LOCAL)
         ttl: Time-to-live duration string (default: "1h")
             Examples: "30m", "2h", "7d"
         max_size_mb: Maximum cache size before LRU eviction (default: 1000)
@@ -261,7 +261,7 @@ class CacheConfig(BaseModel):
     """
 
     enabled: bool = Field(default=True)
-    backend: CacheBackend = Field(default=CacheBackend.SQLITE)
+    backend: CacheBackend = Field(default=CacheBackend.LOCAL)
     ttl: str = Field(default="1h")
     max_size_mb: int = Field(default=1000, gt=0, le=100000)
     namespace: str = Field(default="default")

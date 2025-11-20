@@ -27,7 +27,6 @@ from fenic._constants import (
     MINUTE_IN_SECONDS,
 )
 from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
-from fenic._inference.cache.key_generator import CacheKeyGenerator
 from fenic._inference.cache.protocol import LLMResponseCache
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
@@ -37,14 +36,19 @@ from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
 )
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    FenicEmbeddingsRequest,
+)
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
 # Type variables
-RequestT = TypeVar("RequestT")
-ResponseT = TypeVar("ResponseT")
+RequestT = TypeVar("RequestT", bound=Union[FenicCompletionsRequest, FenicEmbeddingsRequest])
+ResponseT = TypeVar("ResponseT", bound=Union[FenicCompletionsResponse, list[float]])
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -234,6 +238,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         pass
 
+    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
+        """Get a hash of the resolved profile configuration.
+
+        Args:
+            profile_name: The name of the profile to look up.
+
+        Returns:
+            A hash string representing the profile configuration, or None if not found/supported.
+        """
+        return None
+
     @abstractmethod
     def get_metrics(self) -> LMMetrics:
         """Get the current metrics for this model client.
@@ -250,7 +265,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
     def _count_auxiliary_input_tokens(self, request: RequestT) -> int:
         """Count extra input tokens for structured output, tools, etc. Override as needed."""
-        if hasattr(request, "structured_output") and request.structured_output:
+        if isinstance(request, FenicCompletionsRequest) and request.structured_output:
             return self._estimate_structured_output_overhead(request.structured_output)
         return 0
 
@@ -485,7 +500,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             for idx, request in enumerate(requests):
                 if request is not None:
                     try:
-                        cache_key = CacheKeyGenerator.compute_key(request, self.model)
+                        # Get profile hash if applicable
+                        profile_hash = None
+                        if request.model_profile:
+                            profile_hash = self.get_profile_hash(request.model_profile)
+
+                        cache_key = self.cache.compute_key(
+                            request, self.model, profile_hash=profile_hash
+                        )
                         cache_lookups.append(cache_key)
                         cache_key_to_idx[cache_key] = idx
                     except Exception as e:
@@ -536,7 +558,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 cached = None
                 if self.cache is not None:
                     try:
-                        cache_key = CacheKeyGenerator.compute_key(request, self.model)
+                        # Get profile hash if applicable
+                        profile_hash = None
+                        if request.model_profile:
+                            profile_hash = self.get_profile_hash(request.model_profile)
+
+                        cache_key = self.cache.compute_key(
+                            request, self.model, profile_hash=profile_hash
+                        )
                         cached = cached_responses.get(cache_key)
                     except Exception as e:
                         logger.warning(f"Cache key generation failed: {e}")
@@ -716,7 +745,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             self._register_thread_exception(queue_item, maybe_response.exception)
         else:
             # Cache successful response if cache is enabled
-            if self.cache and hasattr(queue_item, "cache_key") and queue_item.cache_key:
+            if self.cache and queue_item.cache_key:
                 try:
                     self.cache.set(
                         queue_item.cache_key,
