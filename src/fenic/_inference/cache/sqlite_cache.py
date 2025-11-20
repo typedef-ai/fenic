@@ -1,5 +1,6 @@
 """SQLite-backed LLM response cache implementation."""
 
+import hashlib
 import json
 import logging
 import queue
@@ -7,10 +8,14 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
-from fenic._inference.types import FenicCompletionsResponse
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    FenicEmbeddingsRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +136,50 @@ class SQLiteLLMCache(LLMResponseCache):
             f"Initialized SQLite cache at {self.db_path} "
             f"(ttl={ttl_seconds}s, max_size={max_size_mb}MB, namespace={namespace}, pool_size={max_connections})"
         )
+
+    def compute_key(
+        self,
+        request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
+        model: str,
+        profile_hash: Optional[str] = None,
+    ) -> str:
+        """Compute SHA-256 hash of request parameters.
+
+        Args:
+            request: The completion or embedding request to hash. Currently only FenicCompletionsRequest
+                is supported. FenicEmbeddingsRequest support will be added in a future PR.
+            model: The model name.
+            profile_hash: Optional hash of the resolved model profile configuration.
+
+        Returns:
+            64-character hexadecimal SHA-256 hash string.
+        """
+        if isinstance(request, FenicCompletionsRequest):
+            # Build key data with all relevant parameters
+            key_data = {
+                "model": model,
+                "messages": request.messages.encode().hex(),
+                "max_tokens": request.max_completion_tokens,
+                "temperature": request.temperature,
+                "model_profile": request.model_profile,
+                "profile_hash": profile_hash,
+                "top_logprobs": request.top_logprobs,
+            }
+
+            # Include structured output schema if present
+            if request.structured_output:
+                key_data["structured_output"] = request.structured_output.schema_fingerprint
+
+        elif isinstance(request, FenicEmbeddingsRequest):
+            raise NotImplementedError("Embedding requests are not yet supported for caching.")
+        else:
+            raise ValueError(f"Unsupported request type for caching: {type(request)}")
+
+        # Serialize to JSON with deterministic ordering
+        serialized = json.dumps(key_data, sort_keys=True).encode("utf-8")
+
+        # Compute SHA-256 hash
+        return hashlib.sha256(serialized).hexdigest()
 
     def _create_connection(self) -> sqlite3.Connection:
         """Create a new database connection with proper settings.

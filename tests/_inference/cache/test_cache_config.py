@@ -117,7 +117,7 @@ class TestLLMResponseCacheConfig:
         """Test default configuration values."""
         config = LLMResponseCacheConfig()
         assert config.enabled is True
-        assert config.backend == CacheBackend.SQLITE
+        assert config.backend == CacheBackend.LOCAL
         assert config.ttl == "1h"
         assert config.max_size_mb == 128
         assert config.namespace == "default"

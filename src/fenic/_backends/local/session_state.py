@@ -88,7 +88,7 @@ class LocalSessionState(BaseSessionState):
             logger.info(
                 f"Initializing LLM cache at {cache_db_path} with TTL {cache_config.ttl}"
             )
-            if cache_config.backend == CacheBackend.SQLITE:
+            if cache_config.backend == CacheBackend.LOCAL:
                 return SQLiteLLMCache(
                     db_path=str(cache_db_path),
                     ttl_seconds=cache_config.ttl_seconds,

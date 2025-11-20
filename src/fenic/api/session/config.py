@@ -1318,7 +1318,7 @@ class LLMResponseCacheConfig(BaseModel):
 
     Attributes:
         enabled: Whether caching is enabled (default: True).
-        backend: Cache backend to use (default: SQLITE).
+        backend: Cache backend to use (default: LOCAL).
         ttl: Time-to-live duration string (default: "1h").
             Format: <number><unit> where unit is s/m/h/d.
             Examples: "30s", "15m", "2h", "7d".
@@ -1363,7 +1363,7 @@ class LLMResponseCacheConfig(BaseModel):
     """
 
     enabled: bool = Field(default=True)
-    backend: CacheBackend = Field(default=CacheBackend.SQLITE)
+    backend: CacheBackend = Field(default=CacheBackend.LOCAL)
     ttl: str = Field(default="1h")
     max_size_mb: int = Field(default=128, gt=0, le=100000)
     namespace: str = Field(default="default")
