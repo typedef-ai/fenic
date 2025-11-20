@@ -6,10 +6,13 @@ from pathlib import Path
 
 import pytest
 
+from fenic._inference.cache.protocol import ResponseType
 from fenic._inference.cache.sqlite_cache import SQLiteLLMCache
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
+    FenicEmbeddingsRequest,
+    FenicEmbeddingsResponse,
     FewShotExample,
     LMRequestMessages,
     ResponseUsage,
@@ -871,3 +874,143 @@ class TestSQLiteLLMCache:
         key2 = temp_cache.compute_key(request, "gpt-4o-mini", profile_hash="hash2")
 
         assert key1 != key2
+
+    def test_embedding_compute_key(self, temp_cache):
+        """Test cache key computation for embedding requests."""
+        request1 = FenicEmbeddingsRequest(doc="Hello, world!", model_profile=None)
+        request2 = FenicEmbeddingsRequest(doc="Hello, world!", model_profile=None)
+        request3 = FenicEmbeddingsRequest(doc="Different text", model_profile=None)
+
+        key1 = temp_cache.compute_key(request1, "text-embedding-3-small")
+        key2 = temp_cache.compute_key(request2, "text-embedding-3-small")
+        key3 = temp_cache.compute_key(request3, "text-embedding-3-small")
+
+        # Same request should generate same key
+        assert key1 == key2
+        # Different text should generate different key
+        assert key1 != key3
+
+    def test_embedding_compute_key_different_models(self, temp_cache):
+        """Test that different models generate different keys for same embedding request."""
+        request = FenicEmbeddingsRequest(doc="Hello, world!", model_profile=None)
+
+        key1 = temp_cache.compute_key(request, "text-embedding-3-small")
+        key2 = temp_cache.compute_key(request, "text-embedding-3-large")
+
+        assert key1 != key2
+
+    def test_embedding_compute_key_different_profiles(self, temp_cache):
+        """Test that different model profiles generate different keys."""
+        request1 = FenicEmbeddingsRequest(doc="Hello, world!", model_profile="profile1")
+        request2 = FenicEmbeddingsRequest(doc="Hello, world!", model_profile="profile2")
+
+        key1 = temp_cache.compute_key(request1, "text-embedding-3-small")
+        key2 = temp_cache.compute_key(request2, "text-embedding-3-small")
+
+        assert key1 != key2
+
+    def test_embedding_set_and_get(self, temp_cache):
+        """Test storing and retrieving embedding responses."""
+        embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+        response = FenicEmbeddingsResponse(
+            embedding=embedding,
+            usage=ResponseUsage(prompt_tokens=10, completion_tokens=0, total_tokens=10),
+        )
+
+        # Set
+        success = temp_cache.set("embedding_key", response, "text-embedding-3-small")
+        assert success
+
+        # Get
+        cached = temp_cache.get("embedding_key")
+        assert cached is not None
+        assert cached.response_type == ResponseType.EMBEDDING
+        assert cached.embedding == embedding
+        assert cached.model == "text-embedding-3-small"
+        assert cached.total_tokens == 10
+        assert cached.prompt_tokens == 10
+        assert cached.completion is None
+
+    def test_embedding_to_fenic_response(self, temp_cache):
+        """Test converting cached embedding response back to embedding list."""
+        embedding = [0.1, 0.2, 0.3]
+        response = FenicEmbeddingsResponse(embedding=embedding, usage=None)
+        temp_cache.set("embedding_key", response, "text-embedding-3-small")
+
+        cached = temp_cache.get("embedding_key")
+        assert cached is not None
+
+        # Convert back to embedding list
+        result_embedding = cached.to_fenic_embedding_response()
+        assert result_embedding == embedding
+
+        # Should raise error if trying to convert as completion
+        with pytest.raises(ValueError, match="not a completion response"):
+            cached.to_fenic_completion_response()
+
+    def test_embedding_batch_set_and_get(self, temp_cache):
+        """Test batch operations with embedding responses."""
+        embeddings = [
+            FenicEmbeddingsResponse(
+                embedding=[float(i), float(i + 1), float(i + 2)],
+                usage=ResponseUsage(prompt_tokens=10, completion_tokens=0, total_tokens=10),
+            )
+            for i in range(5)
+        ]
+
+        # Batch set
+        entries = [
+            (f"embedding_key_{i}", embedding, "text-embedding-3-small")
+            for i, embedding in enumerate(embeddings)
+        ]
+        stored = temp_cache.set_batch(entries)
+        assert stored == 5
+
+        # Batch get
+        keys = [f"embedding_key_{i}" for i in range(5)]
+        results = temp_cache.get_batch(keys)
+
+        assert len(results) == 5
+        for i, key in enumerate(keys):
+            assert results[key] is not None
+            assert results[key].response_type == ResponseType.EMBEDDING
+            assert results[key].embedding == [float(i), float(i + 1), float(i + 2)]
+
+    def test_mixed_batch_completions_and_embeddings(self, temp_cache):
+        """Test batch operations with mixed completion and embedding responses."""
+        # Create mixed entries
+        completion_response = FenicCompletionsResponse(
+            completion="Hello!", logprobs=None, usage=None
+        )
+        embedding_response = FenicEmbeddingsResponse(
+            embedding=[0.1, 0.2, 0.3], usage=None
+        )
+
+        entries = [
+            ("completion_key", completion_response, "gpt-4o-mini"),
+            ("embedding_key", embedding_response, "text-embedding-3-small"),
+        ]
+
+        stored = temp_cache.set_batch(entries)
+        assert stored == 2
+
+        # Retrieve both
+        results = temp_cache.get_batch(["completion_key", "embedding_key"])
+
+        assert results["completion_key"] is not None
+        assert results["completion_key"].response_type == ResponseType.COMPLETION
+        assert results["completion_key"].completion == "Hello!"
+
+        assert results["embedding_key"] is not None
+        assert results["embedding_key"].response_type == ResponseType.EMBEDDING
+        assert results["embedding_key"].embedding == [0.1, 0.2, 0.3]
+
+    def test_embedding_cache_key_deterministic(self, temp_cache):
+        """Test that embedding cache keys are deterministic."""
+        request = FenicEmbeddingsRequest(doc="Test document", model_profile=None)
+
+        key1 = temp_cache.compute_key(request, "text-embedding-3-small")
+        key2 = temp_cache.compute_key(request, "text-embedding-3-small")
+
+        assert key1 == key2
+        assert len(key1) == 64  # SHA-256 hex string length

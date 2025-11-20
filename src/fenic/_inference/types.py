@@ -62,6 +62,12 @@ class FenicCompletionsResponse:
 
 
 @dataclass
+class FenicEmbeddingsResponse:
+    embedding: List[float]
+    usage: Optional[ResponseUsage] = None
+
+
+@dataclass
 class FenicCompletionsRequest:
     messages: LMRequestMessages
     max_completion_tokens: Optional[int]

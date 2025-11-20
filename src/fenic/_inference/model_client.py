@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from fenic._backends.local.async_utils import EventLoopManager
 from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
-from fenic._inference.cache.protocol import LLMResponseCache
+from fenic._inference.cache.protocol import LLMResponseCache, ResponseType
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -35,6 +35,8 @@ from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
     FenicEmbeddingsRequest,
+    FenicEmbeddingsResponse,
+    ResponseUsage,
 )
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
@@ -565,7 +567,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     # Cache hit - return cached response immediately
                     req_future = Future()
                     request_futures.append(req_future)
-                    req_future.set_result(cached.to_fenic_response())
+                    # Handle embedding vs completion responses
+                    if cached.response_type == ResponseType.EMBEDDING:
+                        req_future.set_result(cached.to_fenic_embedding_response())
+                    else:
+                        req_future.set_result(cached.to_fenic_completion_response())
                     pbar.update(1)
                     pbar.set_postfix(
                         estimated_input_tokens=total_token_estimate.input_tokens,
@@ -737,11 +743,29 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # Cache successful response if cache is enabled
             if self.cache and queue_item.cache_key:
                 try:
-                    self.cache.set(
-                        queue_item.cache_key,
-                        maybe_response,
-                        self.model,
-                    )
+                    # Wrap embedding responses (list[float]) in FenicEmbeddingsResponse
+                    if isinstance(maybe_response, list) and all(
+                        isinstance(x, (int, float)) for x in maybe_response
+                    ):
+                        # This is an embedding response - wrap it
+                        # Note: We don't have usage info here, but that's okay
+                        # The cache will store it with None usage
+                        wrapped_response = FenicEmbeddingsResponse(
+                            embedding=maybe_response,
+                            usage=None,
+                        )
+                        self.cache.set(
+                            queue_item.cache_key,
+                            wrapped_response,
+                            self.model,
+                        )
+                    else:
+                        # This is a completion response
+                        self.cache.set(
+                            queue_item.cache_key,
+                            maybe_response,
+                            self.model,
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to cache response: {e}")
 

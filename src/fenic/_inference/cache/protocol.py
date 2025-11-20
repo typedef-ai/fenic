@@ -1,23 +1,42 @@
 """Protocol and types for LLM response caching."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Dict, List, Optional, Protocol, Union
 
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
     FenicEmbeddingsRequest,
+    FenicEmbeddingsResponse,
     ResponseUsage,
 )
+
+
+class ResponseType(str, Enum):
+    """Type of cached response.
+
+    Attributes:
+        COMPLETION: A completion response from a language model.
+        EMBEDDING: An embedding response from an embedding model.
+    """
+
+    COMPLETION = "completion"
+    EMBEDDING = "embedding"
 
 
 @dataclass
 class CachedResponse:
     """Cached LLM response with metadata.
 
+    Supports both completion and embedding responses. Either `completion` or
+    `embedding` must be set, determined by `response_type`.
+
     Attributes:
-        completion: The completion text from the LLM.
+        completion: The completion text from the LLM (for completion responses).
+        embedding: The embedding vector (for embedding responses).
+        response_type: Type of response (ResponseType enum).
         model: The model that generated this response.
         cached_at: Timestamp when this response was cached.
         prompt_tokens: Number of prompt tokens (if available).
@@ -25,15 +44,18 @@ class CachedResponse:
         total_tokens: Total number of tokens (if available).
         cached_tokens: Number of cached tokens (default: 0).
         thinking_tokens: Number of thinking tokens (default: 0).
-        logprobs: Token log probabilities (if available).
+        logprobs: Token log probabilities (if available, completion only).
         access_count: Number of times this cached response has been accessed.
 
     Example:
-        Creating a cached response:
+        Creating a cached completion response:
 
         ```python
+        from fenic._inference.cache.protocol import ResponseType
+
         cached = CachedResponse(
             completion="Hello, world!",
+            response_type=ResponseType.COMPLETION,
             model="gpt-4o-mini",
             cached_at=datetime.now(),
             prompt_tokens=10,
@@ -41,38 +63,63 @@ class CachedResponse:
             total_tokens=15,
         )
         ```
+
+        Creating a cached embedding response:
+
+        ```python
+        from fenic._inference.cache.protocol import ResponseType
+
+        cached = CachedResponse(
+            embedding=[0.1, 0.2, 0.3],
+            response_type=ResponseType.EMBEDDING,
+            model="text-embedding-3-small",
+            cached_at=datetime.now(),
+            prompt_tokens=10,
+            total_tokens=10,
+        )
+        ```
     """
 
-    completion: str
-    model: str
-    cached_at: datetime
-    prompt_tokens: Optional[int]
-    completion_tokens: Optional[int]
-    total_tokens: Optional[int]
+    completion: Optional[str] = None
+    embedding: Optional[List[float]] = None
+    response_type: ResponseType = ResponseType.COMPLETION
+    model: str = ""
+    cached_at: datetime = field(default_factory=datetime.now)
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
     cached_tokens: int = 0
     thinking_tokens: int = 0
     logprobs: Optional[list] = None
     access_count: int = 0
 
-    def to_fenic_response(self) -> FenicCompletionsResponse:
+    def to_fenic_completion_response(self) -> FenicCompletionsResponse:
         """Convert cached response to FenicCompletionsResponse.
 
         Returns:
             FenicCompletionsResponse with cached data and usage information.
 
+        Raises:
+            ValueError: If this is not a completion response.
+
         Example:
             ```python
+            from fenic._inference.cache.protocol import ResponseType
+
             cached = CachedResponse(
                 completion="Hello!",
+                response_type=ResponseType.COMPLETION,
                 model="gpt-4o-mini",
                 cached_at=datetime.now(),
                 prompt_tokens=10,
                 completion_tokens=5,
                 total_tokens=15,
             )
-            response = cached.to_fenic_response()
+            response = cached.to_fenic_completion_response()
             ```
         """
+        if self.response_type != ResponseType.COMPLETION or self.completion is None:
+            raise ValueError("This cached response is not a completion response")
         usage = None
         if self.prompt_tokens is not None:
             usage = ResponseUsage(
@@ -88,6 +135,50 @@ class CachedResponse:
             logprobs=self.logprobs,
             usage=usage,
         )
+
+    def to_fenic_embedding_response(self) -> List[float]:
+        """Convert cached response to embedding list.
+
+        Returns:
+            List of floats representing the embedding vector.
+
+        Raises:
+            ValueError: If this is not an embedding response.
+
+        Example:
+            ```python
+            from fenic._inference.cache.protocol import ResponseType
+
+            cached = CachedResponse(
+                embedding=[0.1, 0.2, 0.3],
+                response_type=ResponseType.EMBEDDING,
+                model="text-embedding-3-small",
+                cached_at=datetime.now(),
+                prompt_tokens=10,
+                total_tokens=10,
+            )
+            embedding = cached.to_fenic_embedding_response()
+            ```
+        """
+        if self.response_type != ResponseType.EMBEDDING or self.embedding is None:
+            raise ValueError("This cached response is not an embedding response")
+        return self.embedding
+
+    def to_fenic_response(self) -> Union[FenicCompletionsResponse, List[float]]:
+        """Convert cached response to appropriate Fenic response type.
+
+        Returns:
+            FenicCompletionsResponse for completion responses, or List[float] for embedding responses.
+
+        Example:
+            ```python
+            cached = CachedResponse(...)
+            response = cached.to_fenic_response()
+            ```
+        """
+        if self.response_type == ResponseType.EMBEDDING:
+            return self.to_fenic_embedding_response()
+        return self.to_fenic_completion_response()
 
 
 @dataclass
@@ -199,14 +290,14 @@ class LLMResponseCache(Protocol):
     def set(
         self,
         cache_key: str,
-        response: FenicCompletionsResponse,
+        response: Union[FenicCompletionsResponse, FenicEmbeddingsResponse],
         model: str,
     ) -> bool:
         """Store response in cache.
 
         Args:
             cache_key: Unique key for the response.
-            response: The response to cache.
+            response: The response to cache (completion or embedding).
             model: The model that generated this response.
 
         Returns:
@@ -219,12 +310,13 @@ class LLMResponseCache(Protocol):
         ...
 
     def set_batch(
-        self, entries: List[tuple[str, FenicCompletionsResponse, str]]
+        self, entries: List[tuple[str, Union[FenicCompletionsResponse, FenicEmbeddingsResponse], str]]
     ) -> int:
         """Store multiple responses in cache.
 
         Args:
-            entries: List of (cache_key, response, model) tuples.
+            entries: List of (cache_key, response, model) tuples. Responses can be
+                either FenicCompletionsResponse or FenicEmbeddingsResponse.
 
         Returns:
             Count of successfully stored entries.

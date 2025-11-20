@@ -10,11 +10,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
+from fenic._inference.cache.protocol import (
+    CachedResponse,
+    CacheStats,
+    LLMResponseCache,
+    ResponseType,
+)
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
     FenicEmbeddingsRequest,
+    FenicEmbeddingsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,8 +152,7 @@ class SQLiteLLMCache(LLMResponseCache):
         """Compute SHA-256 hash of request parameters.
 
         Args:
-            request: The completion or embedding request to hash. Currently only FenicCompletionsRequest
-                is supported. FenicEmbeddingsRequest support will be added in a future PR.
+            request: The completion or embedding request to hash.
             model: The model name.
             profile_hash: Optional hash of the resolved model profile configuration.
 
@@ -171,7 +176,13 @@ class SQLiteLLMCache(LLMResponseCache):
                 key_data["structured_output"] = request.structured_output.schema_fingerprint
 
         elif isinstance(request, FenicEmbeddingsRequest):
-            raise NotImplementedError("Embedding requests are not yet supported for caching.")
+            # Build key data for embedding requests
+            key_data = {
+                "model": model,
+                "doc": request.doc,
+                "model_profile": request.model_profile,
+                "profile_hash": profile_hash,
+            }
         else:
             raise ValueError(f"Unsupported request type for caching: {type(request)}")
 
@@ -260,7 +271,9 @@ class SQLiteLLMCache(LLMResponseCache):
                     cache_key TEXT NOT NULL,
                     namespace TEXT NOT NULL,
                     model TEXT NOT NULL,
-                    completion TEXT NOT NULL,
+                    completion TEXT,
+                    embedding_data BLOB,
+                    response_type TEXT DEFAULT 'completion',
                     cached_at TIMESTAMP NOT NULL,
                     last_accessed TIMESTAMP,
                     access_count INTEGER DEFAULT 0,
@@ -274,6 +287,27 @@ class SQLiteLLMCache(LLMResponseCache):
                     PRIMARY KEY (cache_key, namespace)
                 )
             """
+            )
+
+            # Migrate existing tables to add new columns if they don't exist
+            try:
+                conn.execute("ALTER TABLE llm_responses ADD COLUMN embedding_data BLOB")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            try:
+                conn.execute("ALTER TABLE llm_responses ADD COLUMN response_type TEXT DEFAULT 'completion'")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            # Update existing rows to have response_type = 'completion' if null
+            conn.execute(
+                """
+                UPDATE llm_responses
+                SET response_type = ?
+                WHERE response_type IS NULL
+                """,
+                (ResponseType.COMPLETION.value,),
             )
 
             # Create indices
@@ -310,7 +344,7 @@ class SQLiteLLMCache(LLMResponseCache):
             cursor = conn.execute(
                 """
                 SELECT
-                    completion, model, cached_at,
+                    completion, embedding_data, response_type, model, cached_at,
                     prompt_tokens, completion_tokens, total_tokens,
                     cached_tokens, thinking_tokens,
                     logprobs_data, access_count
@@ -335,16 +369,25 @@ class SQLiteLLMCache(LLMResponseCache):
                 )
                 conn.commit()
 
-                # Deserialize logprobs
+                # Deserialize logprobs (completion only)
                 logprobs = None
                 if row["logprobs_data"]:
                     logprobs = json.loads(row["logprobs_data"].decode("utf-8"))
+
+                # Deserialize embedding (embedding only)
+                embedding = None
+                response_type_str = row["response_type"] or ResponseType.COMPLETION.value
+                response_type = ResponseType(response_type_str)
+                if response_type == ResponseType.EMBEDDING and row["embedding_data"]:
+                    embedding = json.loads(row["embedding_data"].decode("utf-8"))
 
                 with self._stats_lock:
                     self._hits += 1
 
                 return CachedResponse(
                     completion=row["completion"],
+                    embedding=embedding,
+                    response_type=response_type,
                     model=row["model"],
                     cached_at=datetime.fromisoformat(row["cached_at"]),
                     prompt_tokens=row["prompt_tokens"],
@@ -390,7 +433,7 @@ class SQLiteLLMCache(LLMResponseCache):
             cursor = conn.execute(
                 f"""
                 SELECT
-                    cache_key, completion, model, cached_at,
+                    cache_key, completion, embedding_data, response_type, model, cached_at,
                     prompt_tokens, completion_tokens, total_tokens,
                     cached_tokens, thinking_tokens,
                     logprobs_data, access_count
@@ -408,12 +451,22 @@ class SQLiteLLMCache(LLMResponseCache):
                 key = row["cache_key"]
                 found_keys.add(key)
 
+                # Deserialize logprobs (completion only)
                 logprobs = None
                 if row["logprobs_data"]:
                     logprobs = json.loads(row["logprobs_data"].decode("utf-8"))
 
+                # Deserialize embedding (embedding only)
+                embedding = None
+                response_type_str = row["response_type"] or ResponseType.COMPLETION.value
+                response_type = ResponseType(response_type_str)
+                if response_type == ResponseType.EMBEDDING and row["embedding_data"]:
+                    embedding = json.loads(row["embedding_data"].decode("utf-8"))
+
                 result[key] = CachedResponse(
                     completion=row["completion"],
+                    embedding=embedding,
+                    response_type=response_type,
                     model=row["model"],
                     cached_at=datetime.fromisoformat(row["cached_at"]),
                     prompt_tokens=row["prompt_tokens"],
@@ -463,14 +516,14 @@ class SQLiteLLMCache(LLMResponseCache):
     def set(
         self,
         cache_key: str,
-        response: FenicCompletionsResponse,
+        response: Union[FenicCompletionsResponse, FenicEmbeddingsResponse],
         model: str,
     ) -> bool:
         """Store response in cache.
 
         Args:
             cache_key: Unique cache key.
-            response: The response to cache.
+            response: The response to cache (completion or embedding).
             model: The model that generated this response.
 
         Returns:
@@ -480,33 +533,48 @@ class SQLiteLLMCache(LLMResponseCache):
         try:
             now = datetime.now()
 
-            # Extract normalized fields
-            prompt_tokens = response.usage.prompt_tokens if response.usage else None
-            completion_tokens = (
-                response.usage.completion_tokens if response.usage else None
-            )
-            total_tokens = response.usage.total_tokens if response.usage else None
-            cached_tokens = response.usage.cached_tokens if response.usage else 0
-            thinking_tokens = response.usage.thinking_tokens if response.usage else 0
-
-            # Serialize logprobs as JSON
-            logprobs_data = None
-            if response.logprobs:
-                logprobs_data = json.dumps(response.logprobs).encode("utf-8")
+            # Determine response type and extract fields
+            if isinstance(response, FenicEmbeddingsResponse):
+                response_type = ResponseType.EMBEDDING
+                completion = None
+                embedding_data = json.dumps(response.embedding).encode("utf-8")
+                logprobs_data = None
+                prompt_tokens = response.usage.prompt_tokens if response.usage else None
+                completion_tokens = None
+                total_tokens = response.usage.total_tokens if response.usage else None
+                cached_tokens = response.usage.cached_tokens if response.usage else 0
+                thinking_tokens = response.usage.thinking_tokens if response.usage else 0
+            else:
+                response_type = ResponseType.COMPLETION
+                completion = response.completion
+                embedding_data = None
+                logprobs_data = None
+                if response.logprobs:
+                    logprobs_data = json.dumps(response.logprobs).encode("utf-8")
+                prompt_tokens = response.usage.prompt_tokens if response.usage else None
+                completion_tokens = (
+                    response.usage.completion_tokens if response.usage else None
+                )
+                total_tokens = response.usage.total_tokens if response.usage else None
+                cached_tokens = response.usage.cached_tokens if response.usage else 0
+                thinking_tokens = response.usage.thinking_tokens if response.usage else 0
 
             conn.execute(
                 """
                 INSERT OR REPLACE INTO llm_responses
-                (cache_key, namespace, model, completion, cached_at, last_accessed,
+                (cache_key, namespace, model, completion, embedding_data, response_type,
+                 cached_at, last_accessed,
                  prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
                  logprobs_data, response_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """,
                 (
                     cache_key,
                     self.namespace,
                     model,
-                    response.completion,
+                    completion,
+                    embedding_data,
+                    response_type.value,
                     now,
                     now,
                     prompt_tokens,
@@ -536,12 +604,13 @@ class SQLiteLLMCache(LLMResponseCache):
             self.release_connection(conn)
 
     def set_batch(
-        self, entries: List[tuple[str, FenicCompletionsResponse, str]]
+        self, entries: List[tuple[str, Union[FenicCompletionsResponse, FenicEmbeddingsResponse], str]]
     ) -> int:
         """Store multiple responses.
 
         Args:
-            entries: List of (cache_key, response, model) tuples.
+            entries: List of (cache_key, response, model) tuples. Responses can be
+                either FenicCompletionsResponse or FenicEmbeddingsResponse.
 
         Returns:
             Count of successfully stored entries.
@@ -557,39 +626,56 @@ class SQLiteLLMCache(LLMResponseCache):
 
             for cache_key, response, model in entries:
                 try:
-                    prompt_tokens = (
-                        response.usage.prompt_tokens if response.usage else None
-                    )
-                    completion_tokens = (
-                        response.usage.completion_tokens if response.usage else None
-                    )
-                    total_tokens = (
-                        response.usage.total_tokens if response.usage else None
-                    )
-                    cached_tokens = (
-                        response.usage.cached_tokens if response.usage else 0
-                    )
-                    thinking_tokens = (
-                        response.usage.thinking_tokens if response.usage else 0
-                    )
-
-                    logprobs_data = None
-                    if response.logprobs:
-                        logprobs_data = json.dumps(response.logprobs).encode("utf-8")
+                    # Determine response type and extract fields
+                    if isinstance(response, FenicEmbeddingsResponse):
+                        response_type = ResponseType.EMBEDDING
+                        completion = None
+                        embedding_data = json.dumps(response.embedding).encode("utf-8")
+                        logprobs_data = None
+                        prompt_tokens = response.usage.prompt_tokens if response.usage else None
+                        completion_tokens = None
+                        total_tokens = response.usage.total_tokens if response.usage else None
+                        cached_tokens = response.usage.cached_tokens if response.usage else 0
+                        thinking_tokens = response.usage.thinking_tokens if response.usage else 0
+                    else:
+                        response_type = ResponseType.COMPLETION
+                        completion = response.completion
+                        embedding_data = None
+                        logprobs_data = None
+                        if response.logprobs:
+                            logprobs_data = json.dumps(response.logprobs).encode("utf-8")
+                        prompt_tokens = (
+                            response.usage.prompt_tokens if response.usage else None
+                        )
+                        completion_tokens = (
+                            response.usage.completion_tokens if response.usage else None
+                        )
+                        total_tokens = (
+                            response.usage.total_tokens if response.usage else None
+                        )
+                        cached_tokens = (
+                            response.usage.cached_tokens if response.usage else 0
+                        )
+                        thinking_tokens = (
+                            response.usage.thinking_tokens if response.usage else 0
+                        )
 
                     conn.execute(
                         """
                         INSERT OR REPLACE INTO llm_responses
-                        (cache_key, namespace, model, completion, cached_at, last_accessed,
+                        (cache_key, namespace, model, completion, embedding_data, response_type,
+                         cached_at, last_accessed,
                          prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
                          logprobs_data, response_version)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                     """,
                         (
                             cache_key,
                             self.namespace,
                             model,
-                            response.completion,
+                            completion,
+                            embedding_data,
+                            response_type.value,
                             now,
                             now,
                             prompt_tokens,
