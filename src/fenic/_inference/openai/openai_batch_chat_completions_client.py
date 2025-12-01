@@ -5,13 +5,11 @@ from typing import TYPE_CHECKING, Optional, Union
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
 
-import json
-from dataclasses import asdict
-
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
 )
 from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionProfileConfiguration,
     OpenAICompletionsProfileManager,
 )
 from fenic._inference.model_client import (
@@ -20,6 +18,7 @@ from fenic._inference.model_client import (
     TransientException,
 )
 from fenic._inference.openai.openai_provider import OpenAIModelProvider
+from fenic._inference.profile_hash_mixin import ProfileHashMixin
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -32,7 +31,7 @@ from fenic.core.metrics import LMMetrics
 
 
 class OpenAIBatchChatCompletionsClient(
-    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+    ProfileHashMixin, ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Client for making batch requests to OpenAI's chat completions API."""
 
@@ -86,15 +85,7 @@ class OpenAIBatchChatCompletionsClient(
             client=self.model_provider_class.create_aio_client(),
         )
 
-    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
-        """Get hash of the resolved profile configuration."""
-        try:
-            profile = self._profile_manager.get_profile_by_name(profile_name)
-            profile_data = asdict(profile)
-            serialized = json.dumps(profile_data, sort_keys=True, default=str)
-            return str(hash(serialized))
-        except Exception:
-            return None
+
 
     async def make_single_request(
         self, request: FenicCompletionsRequest
@@ -109,17 +100,6 @@ class OpenAIBatchChatCompletionsClient(
         """
         profile = self._profile_manager.get_profile_by_name(request.model_profile)
         return await self._core.make_single_request(request, profile)
-
-    def get_request_key(self, request: FenicCompletionsRequest) -> str:
-        """Generate a unique key for request deduplication.
-
-        Args:
-            request: The request to generate a key for
-
-        Returns:
-            A unique key for the request
-        """
-        return self._core.get_request_key(request)
 
     def estimate_tokens_for_request(
         self, request: FenicCompletionsRequest
@@ -175,3 +155,6 @@ class OpenAIBatchChatCompletionsClient(
             request.model_profile
         )
         return self._core.get_max_output_token_request_limit(request, profile_config)
+
+    def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> OpenAICompletionProfileConfiguration:
+        return self._profile_manager.get_profile_by_name(profile_name)

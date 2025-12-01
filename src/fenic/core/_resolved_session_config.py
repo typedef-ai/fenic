@@ -184,7 +184,6 @@ class ResolvedCacheConfig:
         namespace: Cache namespace for isolation.
     """
 
-    enabled: bool
     backend: CacheBackend
     ttl: str
     ttl_seconds: int

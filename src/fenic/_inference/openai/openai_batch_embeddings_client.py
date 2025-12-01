@@ -72,17 +72,6 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         """
         return await self._core.make_single_request(request)
 
-    def get_request_key(self, request: FenicEmbeddingsRequest) -> str:
-        """Generate a unique key for request deduplication.
-
-        Args:
-            request: The request to generate a key for
-
-        Returns:
-            A unique key for the request
-        """
-        return self._core.get_request_key(request)
-
     def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
         """Estimate the number of tokens for a request. Overriding the behavior in the base class
            as Embedding models do not generate any output tokens.

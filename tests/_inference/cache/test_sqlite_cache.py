@@ -7,14 +7,7 @@ from pathlib import Path
 import pytest
 
 from fenic._inference.cache.sqlite_cache import SQLiteLLMCache
-from fenic._inference.types import (
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
-    FewShotExample,
-    LMRequestMessages,
-    ResponseUsage,
-)
-from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
+from fenic._inference.types import FenicCompletionsResponse, ResponseUsage
 
 
 class TestSQLiteLLMCache:
@@ -38,7 +31,7 @@ class TestSQLiteLLMCache:
         cache.close()
         Path(db_path).unlink(missing_ok=True)
 
-    def test_set_and_get(self, temp_cache):
+    def test_set_and_get(self, temp_cache: SQLiteLLMCache):
         """Test basic set and get operations."""
         response = FenicCompletionsResponse(
             completion="Hello!",
@@ -59,12 +52,12 @@ class TestSQLiteLLMCache:
         assert cached.prompt_tokens == 10
         assert cached.completion_tokens == 5
 
-    def test_cache_miss(self, temp_cache):
+    def test_cache_miss(self, temp_cache: SQLiteLLMCache):
         """Test that non-existent keys return None."""
         cached = temp_cache.get("nonexistent")
         assert cached is None
 
-    def test_ttl_expiration(self, temp_cache):
+    def test_ttl_expiration(self, temp_cache: SQLiteLLMCache):
         """Test that expired entries are not returned."""
         response = FenicCompletionsResponse(
             completion="Test", logprobs=None, usage=None
@@ -91,7 +84,7 @@ class TestSQLiteLLMCache:
         cached = temp_cache.get("test_key")
         assert cached is None
 
-    def test_access_count(self, temp_cache):
+    def test_access_count(self, temp_cache: SQLiteLLMCache):
         """Test that access count is incremented on get."""
         response = FenicCompletionsResponse(
             completion="Test", logprobs=None, usage=None
@@ -108,7 +101,7 @@ class TestSQLiteLLMCache:
         assert cached2 is not None
         assert cached2.access_count == 2
 
-    def test_batch_get(self, temp_cache):
+    def test_batch_get(self, temp_cache: SQLiteLLMCache):
         """Test batch get operations."""
         responses = [
             FenicCompletionsResponse(
@@ -130,7 +123,7 @@ class TestSQLiteLLMCache:
             assert results[key] is not None
             assert results[key].completion == f"Response {i}"
 
-    def test_batch_get_with_missing_keys(self, temp_cache):
+    def test_batch_get_with_missing_keys(self, temp_cache: SQLiteLLMCache):
         """Test batch get with some missing keys."""
         # Store only some keys
         for i in range(5):
@@ -143,15 +136,15 @@ class TestSQLiteLLMCache:
         keys = [f"key_{i}" for i in range(10)]
         results = temp_cache.get_batch(keys)
 
-        assert len(results) == 10
-        # First 5 should be present
+        # Only the 5 cached keys should be returned
+        assert len(results) == 5
         for i in range(5):
-            assert results[f"key_{i}"] is not None
-        # Last 5 should be None
+            assert results[f"key_{i}"].completion == f"Response {i}"
+        # Missing keys should not be in results
         for i in range(5, 10):
-            assert results[f"key_{i}"] is None
+            assert f"key_{i}" not in results
 
-    def test_batch_set(self, temp_cache):
+    def test_batch_set(self, temp_cache: SQLiteLLMCache):
         """Test batch set operations."""
         responses = [
             FenicCompletionsResponse(
@@ -171,28 +164,41 @@ class TestSQLiteLLMCache:
             assert cached is not None
             assert cached.completion == f"Response {i}"
 
-    def test_delete(self, temp_cache):
-        """Test delete operation."""
-        response = FenicCompletionsResponse(
-            completion="Test", logprobs=None, usage=None
-        )
-        temp_cache.set("test_key", response, "gpt-4o-mini")
+    def test_batch_set_skips_null_keys(self, temp_cache: SQLiteLLMCache):
+        """Ensure batch set ignores entries with null cache keys."""
+        responses = [
+            FenicCompletionsResponse(
+                completion=f"Response {i}", logprobs=None, usage=None
+            )
+            for i in range(3)
+        ]
 
-        # Verify it exists
-        assert temp_cache.get("test_key") is not None
+        entries = [
+            ("valid_key_0", responses[0], "gpt-4o-mini"),
+            (None, responses[1], "gpt-4o-mini"),
+            ("valid_key_1", responses[2], "gpt-4o-mini"),
+        ]
 
-        # Delete
-        deleted = temp_cache.delete("test_key")
-        assert deleted is True
+        stored = temp_cache.set_batch(entries)
+        assert stored == 2
 
-        # Verify it's gone
-        assert temp_cache.get("test_key") is None
+        for key in ("valid_key_0", "valid_key_1"):
+            cached = temp_cache.get(key)
+            assert cached is not None
+            assert cached.completion.startswith("Response")
 
-        # Delete non-existent key
-        deleted = temp_cache.delete("nonexistent")
-        assert deleted is False
+        conn = temp_cache.get_connection()
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM llm_responses WHERE namespace = ?",
+                (temp_cache.namespace,),
+            ).fetchone()[0]
+        finally:
+            temp_cache.release_connection(conn)
 
-    def test_clear(self, temp_cache):
+        assert count == 2
+
+    def test_clear(self, temp_cache: SQLiteLLMCache):
         """Test clear operation."""
         # Store multiple entries
         for i in range(10):
@@ -236,7 +242,7 @@ class TestSQLiteLLMCache:
         finally:
             Path(db_path).unlink(missing_ok=True)
 
-    def test_statistics(self, temp_cache):
+    def test_statistics(self, temp_cache: SQLiteLLMCache):
         """Test statistics tracking."""
         response = FenicCompletionsResponse(
             completion="Test", logprobs=None, usage=None
@@ -254,7 +260,7 @@ class TestSQLiteLLMCache:
         assert stats.hit_rate == 2 / 3
         assert stats.total_entries == 1
 
-    def test_with_usage_info(self, temp_cache):
+    def test_with_usage_info(self, temp_cache: SQLiteLLMCache):
         """Test caching responses with full usage information."""
         response = FenicCompletionsResponse(
             completion="Test response",
@@ -278,7 +284,7 @@ class TestSQLiteLLMCache:
         assert cached.cached_tokens == 20
         assert cached.thinking_tokens == 10
 
-    def test_with_logprobs(self, temp_cache):
+    def test_with_logprobs(self, temp_cache: SQLiteLLMCache):
         """Test caching responses with logprobs."""
         # Mock logprobs data (simplified version)
         logprobs_data = [
@@ -298,7 +304,7 @@ class TestSQLiteLLMCache:
         assert cached is not None
         assert cached.logprobs == logprobs_data
 
-    def test_to_fenic_response(self, temp_cache):
+    def test_to_fenic_response(self, temp_cache: SQLiteLLMCache):
         """Test conversion from CachedResponse to FenicCompletionsResponse."""
         original = FenicCompletionsResponse(
             completion="Test",
@@ -323,7 +329,7 @@ class TestSQLiteLLMCache:
         assert restored.usage.completion_tokens == original.usage.completion_tokens
         assert restored.usage.total_tokens == original.usage.total_tokens
 
-    def test_update_existing_entry(self, temp_cache):
+    def test_update_existing_entry(self, temp_cache: SQLiteLLMCache):
         """Test that setting same key updates the entry."""
         response1 = FenicCompletionsResponse(
             completion="First", logprobs=None, usage=None
@@ -341,7 +347,7 @@ class TestSQLiteLLMCache:
         cached2 = temp_cache.get("test_key")
         assert cached2.completion == "Second"
 
-    def test_empty_batch_operations(self, temp_cache):
+    def test_empty_batch_operations(self, temp_cache: SQLiteLLMCache):
         """Test batch operations with empty lists."""
         results = temp_cache.get_batch([])
         assert results == {}
@@ -387,7 +393,7 @@ class TestSQLiteLLMCache:
         finally:
             Path(db_path).unlink(missing_ok=True)
 
-    def test_connection_pool_concurrency(self, temp_cache):
+    def test_connection_pool_concurrency(self, temp_cache: SQLiteLLMCache):
         """Test that connection pool handles concurrent requests."""
         import threading
 
@@ -500,7 +506,7 @@ class TestSQLiteLLMCache:
             for path in [db_path, f"{db_path}-wal", f"{db_path}-shm"]:
                 Path(path).unlink(missing_ok=True)
 
-    def test_use_after_close(self, temp_cache):
+    def test_use_after_close(self, temp_cache: SQLiteLLMCache):
         """Test that operations fail after cache is closed."""
         response = FenicCompletionsResponse(
             completion="Test", logprobs=None, usage=None
@@ -519,7 +525,7 @@ class TestSQLiteLLMCache:
         with pytest.raises(ValueError, match="has been closed"):
             temp_cache.set("another_key", response, "gpt-4o-mini")
 
-    def test_close_idempotency(self, temp_cache):
+    def test_close_idempotency(self, temp_cache: SQLiteLLMCache):
         """Test that calling close multiple times is safe."""
         response = FenicCompletionsResponse(
             completion="Test", logprobs=None, usage=None
@@ -530,344 +536,3 @@ class TestSQLiteLLMCache:
         temp_cache.close()
         temp_cache.close()
         temp_cache.close()
-
-    def test_compute_key_deterministic(self, temp_cache):
-        """Test that identical requests generate identical keys."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        assert key1 == key2
-
-    def test_compute_key_different_models(self, temp_cache):
-        """Test that different models generate different keys."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request, "gpt-4o")
-
-        assert key1 != key2
-
-    def test_compute_key_different_messages(self, temp_cache):
-        """Test that different messages generate different keys."""
-        messages1 = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        messages2 = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Goodbye, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages1,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages2,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        assert key1 != key2
-
-    def test_compute_key_different_temperature(self, temp_cache):
-        """Test that different temperatures generate different keys."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.9,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        assert key1 != key2
-
-    def test_compute_key_different_max_tokens(self, temp_cache):
-        """Test that different max_completion_tokens generate different keys."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=200,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        assert key1 != key2
-
-    def test_compute_key_different_profile(self, temp_cache):
-        """Test that different model profiles generate different keys."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-            model_profile="fast",
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-            model_profile="thorough",
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        assert key1 != key2
-
-    def test_compute_key_with_examples(self, temp_cache):
-        """Test that examples are included in key generation."""
-        messages1 = LMRequestMessages(
-            system="You are helpful",
-            examples=[
-                FewShotExample(user="Hi", assistant="Hello"),
-            ],
-            user="Hello, world!",
-        )
-
-        messages2 = LMRequestMessages(
-            system="You are helpful",
-            examples=[
-                FewShotExample(user="Hi", assistant="Greetings"),
-            ],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages1,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages2,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        # Different examples should produce different keys
-        assert key1 != key2
-
-    def test_compute_key_with_structured_output(self, temp_cache):
-        """Test that structured output schema is included in key generation."""
-        from pydantic import BaseModel
-
-        # Create simple Pydantic models for testing
-        class Model1(BaseModel):
-            name: str
-
-        class Model2(BaseModel):
-            age: int
-
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        # Create ResolvedResponseFormat instances
-        format1 = ResolvedResponseFormat(
-            pydantic_model=Model1,
-            json_schema=Model1.model_json_schema(),
-            prompt_schema_definition="",
-        )
-
-        format2 = ResolvedResponseFormat(
-            pydantic_model=Model2,
-            json_schema=Model2.model_json_schema(),
-            prompt_schema_definition="",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=format1,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=format2,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        # Different schemas should produce different keys
-        assert key1 != key2
-
-    def test_compute_key_format(self, temp_cache):
-        """Test that generated keys are valid SHA-256 hashes."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key = temp_cache.compute_key(request, "gpt-4o-mini")
-
-        # SHA-256 produces 64 hex characters
-        assert len(key) == 64
-        assert all(c in "0123456789abcdef" for c in key)
-
-    def test_compute_key_with_top_logprobs(self, temp_cache):
-        """Test that top_logprobs affects key generation."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request1 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        request2 = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=5,
-            structured_output=None,
-            temperature=0.7,
-        )
-
-        key1 = temp_cache.compute_key(request1, "gpt-4o-mini")
-        key2 = temp_cache.compute_key(request2, "gpt-4o-mini")
-
-        # Different top_logprobs should produce different keys
-        assert key1 != key2
-
-    def test_compute_key_different_profile_hash(self, temp_cache):
-        """Test that different profile hashes generate different keys even with same profile name."""
-        messages = LMRequestMessages(
-            system="You are helpful",
-            examples=[],
-            user="Hello, world!",
-        )
-
-        request = FenicCompletionsRequest(
-            messages=messages,
-            max_completion_tokens=100,
-            top_logprobs=None,
-            structured_output=None,
-            temperature=0.7,
-            model_profile="default",
-        )
-
-        # Same request, same profile name, but different profile hash
-        key1 = temp_cache.compute_key(request, "gpt-4o-mini", profile_hash="hash1")
-        key2 = temp_cache.compute_key(request, "gpt-4o-mini", profile_hash="hash2")
-
-        assert key1 != key2

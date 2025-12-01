@@ -17,18 +17,17 @@ from fenic._inference.model_client import (
     TransientException,
 )
 from fenic._inference.openrouter.openrouter_profile_manager import (
+    OpenRouterCompletionProfileConfiguration,
     OpenRouterCompletionsProfileManager,
 )
 from fenic._inference.openrouter.openrouter_provider import OpenRouterModelProvider
+from fenic._inference.profile_hash_mixin import ProfileHashMixin
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
     RateLimitStrategy,
     TokenEstimate,
 )
-from fenic._inference.request_utils import (
-    generate_completion_request_key,
-    parse_openrouter_rate_limit_headers,
-)
+from fenic._inference.request_utils import parse_openrouter_rate_limit_headers
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import (
     FenicCompletionsRequest,
@@ -48,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenRouterBatchChatCompletionsClient(
+    ProfileHashMixin,
     ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Client for making batch requests to OpenRouter's chat completions API.
@@ -250,10 +250,6 @@ class OpenRouterBatchChatCompletionsClient(
         except OpenAIError as e:
             return FatalException(e)
 
-    def get_request_key(self, request: FenicCompletionsRequest) -> str:
-        """Generate a unique key for request deduplication."""
-        return generate_completion_request_key(request)
-
     def estimate_tokens_for_request(
         self, request: FenicCompletionsRequest
     ) -> TokenEstimate:
@@ -317,3 +313,6 @@ class OpenRouterBatchChatCompletionsClient(
         elif profile_config.reasoning_effort == "high":
             additional_reasoning_tokens = math.ceil(0.60 * self._model_parameters.max_output_tokens)
         return additional_reasoning_tokens
+
+    def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> OpenRouterCompletionProfileConfiguration:
+        return self._profile_manager.get_profile_by_name(profile_name)

@@ -5,9 +5,6 @@ from typing import TYPE_CHECKING, Optional, Union
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
 
-import json
-from dataclasses import asdict
-
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
     FinishReason,
@@ -18,6 +15,7 @@ from google.genai.types import (
 
 from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
 from fenic._inference.google.google_profile_manager import (
+    GoogleCompletionsProfileConfig,
     GoogleCompletionsProfileManager,
 )
 from fenic._inference.google.google_provider import (
@@ -33,11 +31,11 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
+from fenic._inference.profile_hash_mixin import ProfileHashMixin
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
 )
-from fenic._inference.request_utils import generate_completion_request_key
 from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
@@ -57,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiNativeChatCompletionsClient(
-    ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
+    ProfileHashMixin, ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
 ):
     """Native (google-genai) Google Gemini chat-completions client.
 
@@ -118,18 +116,6 @@ class GeminiNativeChatCompletionsClient(
             default_profile_name=default_profile_name,
         )
 
-    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
-        """Get hash of the resolved profile configuration."""
-        try:
-            profile = self._profile_manager.get_profile_by_name(profile_name)
-            # Serialize profile to JSON string and hash it
-            # Using default=str to handle any non-serializable types if present
-            profile_data = asdict(profile)
-            serialized = json.dumps(profile_data, sort_keys=True, default=str)
-            return str(hash(serialized))
-        except Exception as e:
-            logger.warning(f"Failed to hash profile {profile_name}: {e}")
-            return None
 
     def reset_metrics(self):
         """Reset metrics to initial state."""
@@ -156,17 +142,6 @@ class GeminiNativeChatCompletionsClient(
         """
         # Re-expose for mypy – same implementation as parent.
         return super().count_tokens(messages, ignore_file=ignore_file)
-
-    def get_request_key(self, request: FenicCompletionsRequest) -> str:
-        """Generate a unique key for the request.
-
-        Args:
-            request: The completion request
-
-        Returns:
-            Unique request key for caching
-        """
-        return generate_completion_request_key(request)
 
     def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
         """Estimate the number of tokens for a request.
@@ -418,3 +393,6 @@ class GeminiNativeChatCompletionsClient(
             request.model_profile
         )
         return int(1.5 * profile_config.thinking_token_budget)
+
+    def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> GoogleCompletionsProfileConfig:
+        return self._profile_manager.get_profile_by_name(profile_name)

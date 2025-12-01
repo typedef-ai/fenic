@@ -1,6 +1,5 @@
 """SQLite-backed LLM response cache implementation."""
 
-import hashlib
 import json
 import logging
 import queue
@@ -8,17 +7,13 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
-from fenic._inference.types import (
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
-    FenicEmbeddingsRequest,
-)
+from fenic._inference.types import FenicCompletionsResponse
 
 logger = logging.getLogger(__name__)
-
+SQLITE_MAX_CONNECTIONS_DEFAULT = 3
 
 class SQLiteLLMCache(LLMResponseCache):
     """SQLite-backed LLM response cache with normalized storage.
@@ -86,7 +81,7 @@ class SQLiteLLMCache(LLMResponseCache):
         ttl_seconds: int = 3600,
         max_size_mb: int = 1000,
         namespace: str = "default",
-        max_connections: int = 3,
+        max_connections: int = SQLITE_MAX_CONNECTIONS_DEFAULT,
     ):
         """Initialize SQLite cache.
 
@@ -136,50 +131,6 @@ class SQLiteLLMCache(LLMResponseCache):
             f"Initialized SQLite cache at {self.db_path} "
             f"(ttl={ttl_seconds}s, max_size={max_size_mb}MB, namespace={namespace}, pool_size={max_connections})"
         )
-
-    def compute_key(
-        self,
-        request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
-        model: str,
-        profile_hash: Optional[str] = None,
-    ) -> str:
-        """Compute SHA-256 hash of request parameters.
-
-        Args:
-            request: The completion or embedding request to hash. Currently only FenicCompletionsRequest
-                is supported. FenicEmbeddingsRequest support will be added in a future PR.
-            model: The model name.
-            profile_hash: Optional hash of the resolved model profile configuration.
-
-        Returns:
-            64-character hexadecimal SHA-256 hash string.
-        """
-        if isinstance(request, FenicCompletionsRequest):
-            # Build key data with all relevant parameters
-            key_data = {
-                "model": model,
-                "messages": request.messages.encode().hex(),
-                "max_tokens": request.max_completion_tokens,
-                "temperature": request.temperature,
-                "model_profile": request.model_profile,
-                "profile_hash": profile_hash,
-                "top_logprobs": request.top_logprobs,
-            }
-
-            # Include structured output schema if present
-            if request.structured_output:
-                key_data["structured_output"] = request.structured_output.schema_fingerprint
-
-        elif isinstance(request, FenicEmbeddingsRequest):
-            raise NotImplementedError("Embedding requests are not yet supported for caching.")
-        else:
-            raise ValueError(f"Unsupported request type for caching: {type(request)}")
-
-        # Serialize to JSON with deterministic ordering
-        serialized = json.dumps(key_data, sort_keys=True).encode("utf-8")
-
-        # Compute SHA-256 hash
-        return hashlib.sha256(serialized).hexdigest()
 
     def _create_connection(self) -> sqlite3.Connection:
         """Create a new database connection with proper settings.
@@ -368,14 +319,14 @@ class SQLiteLLMCache(LLMResponseCache):
         finally:
             self.release_connection(conn)
 
-    def get_batch(self, cache_keys: List[str]) -> Dict[str, Optional[CachedResponse]]:
+    def get_batch(self, cache_keys: List[str]) -> Dict[str, CachedResponse]:
         """Retrieve multiple cached responses.
 
         Args:
             cache_keys: List of cache keys to retrieve.
 
         Returns:
-            Dictionary mapping cache keys to responses (None if not found).
+            Dictionary mapping cache keys to responses (only includes hits).
         """
         result = {}
 
@@ -441,11 +392,6 @@ class SQLiteLLMCache(LLMResponseCache):
                 )
                 conn.commit()
 
-            # Add None for missing keys
-            for key in cache_keys:
-                if key not in result:
-                    result[key] = None
-
             with self._stats_lock:
                 self._hits += len(found_keys)
                 self._misses += len(cache_keys) - len(found_keys)
@@ -454,7 +400,6 @@ class SQLiteLLMCache(LLMResponseCache):
             with self._stats_lock:
                 self._errors += 1
             logger.warning(f"Cache get_batch error: {e}")
-            result = {key: None for key in cache_keys}
         finally:
             self.release_connection(conn)
 
@@ -556,54 +501,55 @@ class SQLiteLLMCache(LLMResponseCache):
             now = datetime.now()
 
             for cache_key, response, model in entries:
-                try:
-                    prompt_tokens = (
-                        response.usage.prompt_tokens if response.usage else None
-                    )
-                    completion_tokens = (
-                        response.usage.completion_tokens if response.usage else None
-                    )
-                    total_tokens = (
-                        response.usage.total_tokens if response.usage else None
-                    )
-                    cached_tokens = (
-                        response.usage.cached_tokens if response.usage else 0
-                    )
-                    thinking_tokens = (
-                        response.usage.thinking_tokens if response.usage else 0
-                    )
+                if cache_key:
+                    try:
+                        prompt_tokens = (
+                            response.usage.prompt_tokens if response.usage else None
+                        )
+                        completion_tokens = (
+                            response.usage.completion_tokens if response.usage else None
+                        )
+                        total_tokens = (
+                            response.usage.total_tokens if response.usage else None
+                        )
+                        cached_tokens = (
+                            response.usage.cached_tokens if response.usage else 0
+                        )
+                        thinking_tokens = (
+                            response.usage.thinking_tokens if response.usage else 0
+                        )
 
-                    logprobs_data = None
-                    if response.logprobs:
-                        logprobs_data = json.dumps(response.logprobs).encode("utf-8")
+                        logprobs_data = None
+                        if response.logprobs:
+                            logprobs_data = json.dumps(response.logprobs).encode("utf-8")
 
-                    conn.execute(
-                        """
-                        INSERT OR REPLACE INTO llm_responses
-                        (cache_key, namespace, model, completion, cached_at, last_accessed,
-                         prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
-                         logprobs_data, response_version)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                    """,
-                        (
-                            cache_key,
-                            self.namespace,
-                            model,
-                            response.completion,
-                            now,
-                            now,
-                            prompt_tokens,
-                            completion_tokens,
-                            total_tokens,
-                            cached_tokens,
-                            thinking_tokens,
-                            logprobs_data,
-                        ),
-                    )
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO llm_responses
+                            (cache_key, namespace, model, completion, cached_at, last_accessed,
+                            prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
+                            logprobs_data, response_version)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                        """,
+                            (
+                                cache_key,
+                                self.namespace,
+                                model,
+                                response.completion,
+                                now,
+                                now,
+                                prompt_tokens,
+                                completion_tokens,
+                                total_tokens,
+                                cached_tokens,
+                                thinking_tokens,
+                                logprobs_data,
+                            ),
+                        )
 
-                    stored += 1
-                except Exception as e:
-                    logger.warning(f"Error storing cache entry {cache_key[:8]}...: {e}")
+                        stored += 1
+                    except Exception as e:
+                        logger.warning(f"Error storing cache entry {cache_key[:8]}...: {e}")
 
             conn.commit()
 
@@ -621,31 +567,6 @@ class SQLiteLLMCache(LLMResponseCache):
 
         return stored
 
-    def delete(self, cache_key: str) -> bool:
-        """Delete cached entry.
-
-        Args:
-            cache_key: Key of entry to delete.
-
-        Returns:
-            True if found and deleted, False otherwise.
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.execute(
-                """
-                DELETE FROM llm_responses
-                WHERE cache_key = ? AND namespace = ?
-            """,
-                (cache_key, self.namespace),
-            )
-            conn.commit()
-            return cursor.rowcount > 0
-        except Exception as e:
-            logger.warning(f"Cache delete error: {e}")
-            return False
-        finally:
-            self.release_connection(conn)
 
     def clear(self) -> int:
         """Clear all entries in namespace.

@@ -26,8 +26,8 @@ from fenic._constants import (
     MILLISECOND_IN_SECONDS,
     MINUTE_IN_SECONDS,
 )
-from fenic._constants import MILLISECOND_IN_SECONDS, MINUTE_IN_SECONDS
-from fenic._inference.cache.protocol import LLMResponseCache
+from fenic._inference.cache.key_builder import compute_request_fingerprint
+from fenic._inference.cache.protocol import CachedResponse, LLMResponseCache
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -89,7 +89,7 @@ class QueueItem(Generic[RequestT]):
     estimated_tokens: TokenEstimate
     batch_id: str
     request_timeout: float
-    cache_key: Optional[str] = None
+    request_fingerprint: Optional[str] = None
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -223,20 +223,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         return self.token_counter.count_tokens(messages, ignore_file=ignore_file)
 
-    @abstractmethod
-    def get_request_key(self, request: RequestT) -> Any:
-        """Generate a unique key for request deduplication.
-
-        This method must be implemented by subclasses to provide a hashable key that
-        uniquely identifies a request for deduplication purposes.
-
+    def get_profile_hash_for_request(self, request: RequestT) -> Optional[str]:
+        """Get a hash of the resolved profile configuration for a request.
         Args:
             request: The request to generate a key for
 
         Returns:
-            Any: A hashable value that uniquely identifies this request
+            A hash string representing the profile configuration, or None if not found/supported.
         """
-        pass
+        return self.get_profile_hash(request.model_profile)
 
     def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
         """Get a hash of the resolved profile configuration.
@@ -248,6 +243,37 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             A hash string representing the profile configuration, or None if not found/supported.
         """
         return None
+
+    def _build_request_key(self, request: RequestT) -> str:
+        """Build the canonical cache/deduplication key for a request."""
+        profile_hash = self.get_profile_hash_for_request(request)
+        return compute_request_fingerprint(request, self.model, profile_hash=profile_hash)
+
+    def _safe_build_request_key(
+        self, request: RequestT, request_index: Optional[int] = None
+    ) -> Optional[str]:
+        """Best-effort request key computation that never raises."""
+        try:
+            return self._build_request_key(request)
+        except NotImplementedError:
+            logger.debug(
+                "Request key generation not implemented for request type %s",
+                type(request),
+            )
+        except Exception as exc:
+            if request_index is not None:
+                logger.warning(
+                    "Failed to compute request key for request %d: %s",
+                    request_index,
+                    exc,
+                )
+            else:
+                logger.warning("Failed to compute request key: %s", exc)
+        return None
+
+    def get_request_key(self, request: RequestT) -> str:
+        """Public helper for generating request keys outside the cache path."""
+        return self._safe_build_request_key(request) or f"opaque:{id(request)}"
 
     @abstractmethod
     def get_metrics(self) -> LMMetrics:
@@ -353,7 +379,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     # Producer methods (run on the user thread)
     #
     def _get_or_create_request_future(
-        self, unique_futures: Dict[Any, Future], request: RequestT
+        self,
+        unique_futures: Dict[Any, Future],
+        request: RequestT,
+        request_key: Optional[str] = None,
     ) -> tuple[Future, TokenEstimate | None]:
         """Retrieves an existing future for a duplicate request or creates a new one.
 
@@ -364,7 +393,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             A tuple of the future for the request and the estimated number of tokens (0 for duplicates).
         """
-        key = self.get_request_key(request)
+        key = request_key
+        if key is None:
+            key = self._safe_build_request_key(request)
+        if key is None:
+            key = f"opaque:{id(request)}"
 
         # Return existing future for duplicate requests
         if key in unique_futures:
@@ -491,41 +524,32 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         num_unique_requests = 0
         total_token_estimate = TokenEstimate()
 
-        # Batch cache lookup if cache is enabled
-        cache_lookups = []
-        cache_key_to_idx = {}
-        cached_responses = {}
+        request_keys: List[Optional[str]] = []
+        for idx, request in enumerate(requests):
+            if request is None:
+                request_keys.append(None)
+                continue
+            request_keys.append(self._safe_build_request_key(request, idx))
 
+        cached_responses: Dict[str, CachedResponse] = {}
         if self.cache is not None:
-            for idx, request in enumerate(requests):
-                if request is not None:
-                    try:
-                        # Get profile hash if applicable
-                        profile_hash = None
-                        if request.model_profile:
-                            profile_hash = self.get_profile_hash(request.model_profile)
+            cacheable_keys: List[str] = []
+            for idx, key in enumerate(request_keys):
+                if key is None:
+                    continue
+                req = requests[idx]
+                if isinstance(req, FenicCompletionsRequest): # TODO(bc): remove this once we can cache embeddings requests
+                    cacheable_keys.append(key)
 
-                        cache_key = self.cache.compute_key(
-                            request, self.model, profile_hash=profile_hash
-                        )
-                        cache_lookups.append(cache_key)
-                        cache_key_to_idx[cache_key] = idx
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to compute cache key for request {idx}: {e}"
-                        )
-
+            cache_lookups = list(dict.fromkeys(cacheable_keys))
             if cache_lookups:
                 try:
                     cached_responses = self.cache.get_batch(cache_lookups)
-                    cache_hits = sum(
-                        1 for v in cached_responses.values() if v is not None
-                    )
-
+                    cache_hits = len(cached_responses)
                     if cache_hits > 0:
                         logger.info(
-                            f"Batch {batch_id}: {cache_hits}/{len(cache_lookups)} cache hits "
-                            f"({cache_hits / len(cache_lookups):.1%})"
+                            f"Batch {batch_id}: {cache_hits}/{len(requests)} cache hits "
+                            f"({cache_hits / len(requests):.1%})"
                         )
                 except Exception as e:
                     logger.warning(f"Cache batch lookup failed: {e}")
@@ -537,7 +561,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             desc=f"Submitting requests for batch: {batch_id} (model: {self.model})",
             unit="req",
         ) as pbar:
-            for request in requests:
+            for idx, request in enumerate(requests):
                 # Check for exceptions from the event loop thread
                 self._maybe_raise_thread_exception()
 
@@ -554,21 +578,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     continue
 
                 # Check cache if enabled
-                cache_key = None
+                request_fingerprint = request_keys[idx]
                 cached = None
-                if self.cache is not None:
-                    try:
-                        # Get profile hash if applicable
-                        profile_hash = None
-                        if request.model_profile:
-                            profile_hash = self.get_profile_hash(request.model_profile)
-
-                        cache_key = self.cache.compute_key(
-                            request, self.model, profile_hash=profile_hash
-                        )
-                        cached = cached_responses.get(cache_key)
-                    except Exception as e:
-                        logger.warning(f"Cache key generation failed: {e}")
+                if (
+                    self.cache is not None
+                    and request_fingerprint is not None
+                    and isinstance(request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+                ):
+                    cached = cached_responses.get(request_fingerprint)
 
                 if cached is not None:
                     # Cache hit - return cached response immediately
@@ -584,7 +601,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
                 # Cache miss - normal processing
                 req_future, estimated_tokens = self._get_or_create_request_future(
-                    unique_futures, request
+                    unique_futures, request, request_fingerprint
                 )
                 request_futures.append(req_future)
 
@@ -598,7 +615,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         future=req_future,
                         estimated_tokens=estimated_tokens,
                         batch_id=batch_id,
-                        cache_key=cache_key,  # Store cache key for later
+                        request_fingerprint=request_fingerprint,
                         request_timeout=request_timeout,
                     )
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
@@ -745,10 +762,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             self._register_thread_exception(queue_item, maybe_response.exception)
         else:
             # Cache successful response if cache is enabled
-            if self.cache and queue_item.cache_key:
+            if (
+                maybe_response
+                and self.cache
+                and queue_item.request_fingerprint
+                and isinstance(queue_item.request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+            ):
                 try:
                     self.cache.set(
-                        queue_item.cache_key,
+                        queue_item.request_fingerprint,
                         maybe_response,
                         self.model,
                     )

@@ -1,6 +1,3 @@
-import hashlib
-import json
-from dataclasses import asdict
 from typing import List, Optional, Union
 
 from google.genai.errors import ClientError, ServerError
@@ -8,6 +5,7 @@ from google.genai.types import ContentEmbedding
 
 from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
 from fenic._inference.google.google_profile_manager import (
+    GoogleEmbeddingsProfileConfig,
     GoogleEmbeddingsProfileManager,
 )
 from fenic._inference.google.google_provider import (
@@ -19,6 +17,7 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
+from fenic._inference.profile_hash_mixin import ProfileHashMixin
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
@@ -29,7 +28,9 @@ from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.metrics import RMMetrics
 
 
-class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
+class GoogleBatchEmbeddingsClient(
+    ProfileHashMixin, ModelClient[FenicEmbeddingsRequest, List[float]]
+):
     def __init__(
         self,
         rate_limit_strategy: UnifiedTokenRateLimitStrategy,
@@ -61,15 +62,7 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             default_profile_name=default_profile_name,
         )
 
-    def get_profile_hash(self, profile_name: Optional[str]) -> Optional[str]:
-        """Get hash of the resolved profile configuration."""
-        try:
-            profile = self._profile_manager.get_profile_by_name(profile_name)
-            profile_data = asdict(profile)
-            serialized = json.dumps(profile_data, sort_keys=True, default=str)
-            return str(hash(serialized))
-        except Exception:
-            return None
+
 
     async def make_single_request(
         self, request: FenicEmbeddingsRequest
@@ -109,25 +102,6 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
             else:
                 return FatalException(e)
 
-    def get_request_key(self, request: FenicEmbeddingsRequest) -> str:
-        """Generate a unique key for request deduplication.
-        
-        Args:
-            request: The request to generate a key for
-            
-        Returns:
-            A unique key for the request
-        """
-        # Include profile information in the key for proper deduplication
-        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
-        key_components = [
-            request.doc,
-            str(profile_config.additional_embedding_config.get("output_dimensionality", "default")),
-            profile_config.additional_embedding_config.get("task_type", "default"),
-        ]
-        combined_key = "|".join(key_components)
-        return hashlib.sha256(combined_key.encode()).hexdigest()[:10]
-
     def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
         return TokenEstimate(
             input_tokens=self.token_counter.count_tokens(request.doc), output_tokens=0
@@ -141,3 +115,6 @@ class GoogleBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, List[float
 
     def get_metrics(self) -> RMMetrics:
         return self._metrics
+
+    def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> GoogleEmbeddingsProfileConfig:
+        return self._profile_manager.get_profile_by_name(profile_name)

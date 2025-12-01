@@ -12,7 +12,7 @@ class TestLLMResponseCacheConfig:
 
     def test_default_ttl(self):
         """Test that default TTL is 1 hour."""
-        config = LLMResponseCacheConfig(enabled=True)
+        config = LLMResponseCacheConfig()
         assert config.ttl == "1h"
         assert config.ttl_seconds() == 3600
 
@@ -116,7 +116,6 @@ class TestLLMResponseCacheConfig:
     def test_default_config(self):
         """Test default configuration values."""
         config = LLMResponseCacheConfig()
-        assert config.enabled is True
         assert config.backend == CacheBackend.LOCAL
         assert config.ttl == "1h"
         assert config.max_size_mb == 128

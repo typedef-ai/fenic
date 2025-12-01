@@ -9,6 +9,7 @@ from fenic.api.session.config import (
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
     GoogleVertexLanguageModel,
+    LLMResponseCacheConfig,
     ModelConfig,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
@@ -34,4 +35,5 @@ __all__ = [
     "CloudExecutorSize",
     "CohereEmbeddingModel",
     "OpenRouterLanguageModel",
+    "LLMResponseCacheConfig",
 ]

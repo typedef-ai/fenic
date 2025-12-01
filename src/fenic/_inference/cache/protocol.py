@@ -2,14 +2,9 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Protocol, Union
+from typing import Dict, List, Optional, Protocol
 
-from fenic._inference.types import (
-    FenicCompletionsRequest,
-    FenicCompletionsResponse,
-    FenicEmbeddingsRequest,
-    ResponseUsage,
-)
+from fenic._inference.types import FenicCompletionsResponse, ResponseUsage
 
 
 @dataclass
@@ -148,24 +143,6 @@ class LLMResponseCache(Protocol):
         ```
     """
 
-    def compute_key(
-        self,
-        request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
-        model: str,
-        profile_hash: Optional[str] = None,
-    ) -> str:
-        """Compute a deterministic cache key for a request.
-
-        Args:
-            request: The request object (e.g. FenicCompletionsRequest or FenicEmbeddingsRequest).
-            model: The model name.
-            profile_hash: Optional hash of the resolved model profile configuration.
-
-        Returns:
-            A unique cache key string.
-        """
-        ...
-
     def get(self, cache_key: str) -> Optional[CachedResponse]:
         """Retrieve a cached response.
         Args:
@@ -180,15 +157,14 @@ class LLMResponseCache(Protocol):
         """
         ...
 
-    def get_batch(self, cache_keys: List[str]) -> Dict[str, Optional[CachedResponse]]:
+    def get_batch(self, cache_keys: List[str]) -> Dict[str, CachedResponse]:
         """Retrieve multiple cached responses.
 
         Args:
             cache_keys: List of cache keys to retrieve.
 
         Returns:
-            Dictionary mapping cache keys to responses. Keys with no cached
-            response should map to None.
+            Dictionary mapping cache keys to responses (only includes hits).
 
         Note:
             This method should never raise exceptions. All errors should be
@@ -232,17 +208,6 @@ class LLMResponseCache(Protocol):
         Note:
             This method should never raise exceptions. All errors should be
             logged and partial success count returned.
-        """
-        ...
-
-    def delete(self, cache_key: str) -> bool:
-        """Delete cached entry.
-
-        Args:
-            cache_key: Key of entry to delete.
-
-        Returns:
-            True if found and deleted, False otherwise.
         """
         ...
 

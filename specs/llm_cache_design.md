@@ -52,22 +52,30 @@ Provide persistent caching of LLM responses in Fenic's batch processing pipeline
 
 ```python
 from fenic.api import Session
-from fenic.api.session.config import SessionConfig, CacheConfig
-
-# Default: 1 hour TTL
-config = SessionConfig(
-    app_name="my_batch_job",
-    cache=CacheConfig(enabled=True)
+from fenic.api.session.config import (
+    LLMResponseCacheConfig,
+    OpenAILanguageModel,
+    SemanticConfig,
+    SessionConfig,
 )
 
-# Custom TTL
 config = SessionConfig(
-    app_name="my_app",
-    cache=CacheConfig(
-        enabled=True,
-        ttl="30m",  # 30 minutes
-        max_size_mb=5000
-    )
+    app_name="my_batch_job",
+    semantic=SemanticConfig(
+        language_models={
+            "default": OpenAILanguageModel(
+                model_name="gpt-4o-mini",
+                rpm=100,
+                tpm=1000,
+            )
+        },
+        default_language_model="default",
+        llm_response_cache=LLMResponseCacheConfig(
+            ttl="30m",  # 30 minutes
+            max_size_mb=5000,
+            namespace="batch-job",
+        ),
+    ),
 )
 
 session = Session.get_or_create(config)
@@ -167,172 +175,68 @@ CREATE INDEX idx_token_usage ON llm_responses(namespace, total_tokens);
 
 ### Cache Key Generation
 
+The cache key is produced by the cache backend itself. `SQLiteLLMCache`
+implements `compute_key(request, model, profile_hash)` and always hashes the
+following normalized payload (language completion requests only; embedding
+requests use the same fingerprinting logic for deduplication but are not yet
+persisted in the cache):
+
+- Model name
+- Full encoded message payload (system, user, examples, tool calls)
+- Max completion tokens and temperature
+- Structured output fingerprint (if supplied)
+- Requested top-logprobs
+- Profile metadata: both the `request.model_profile` name and (critically) the
+  serialized profile contents via `profile_hash`
+
 ```python
-import hashlib
-import json
-from fenic._inference.types import FenicCompletionsRequest
-
-class CacheKeyGenerator:
-    """Generates deterministic cache keys from LLM requests."""
-
-    @staticmethod
-    def compute_key(request: FenicCompletionsRequest, model: str) -> str:
-        """Compute SHA-256 hash of request parameters.
-
-        Includes: model, messages, max_tokens, temperature, structured_output,
-                  model_profile, top_logprobs
-
-        Returns:
-            64-character hex string
-        """
-        key_data = {
-            "model": model,
-            "messages": request.messages.encode().hex(),
-            "max_tokens": request.max_completion_tokens,
-            "temperature": request.temperature,
-            "model_profile": request.model_profile,
-            "top_logprobs": request.top_logprobs,
-        }
-
-        if request.structured_output:
-            key_data["structured_output"] = json.dumps(
-                request.structured_output.schema,
-                sort_keys=True,
-                separators=(',', ':')
-            )
-
-        serialized = json.dumps(key_data, sort_keys=True).encode('utf-8')
-        return hashlib.sha256(serialized).hexdigest()
+key_data = {
+    "model": model,
+    "messages": request.messages.encode().hex(),
+    "max_tokens": request.max_completion_tokens,
+    "temperature": request.temperature,
+    "model_profile": request.model_profile,
+    "profile_hash": profile_hash,
+    "top_logprobs": request.top_logprobs,
+}
+if request.structured_output:
+    key_data["structured_output"] = (
+        request.structured_output.schema_fingerprint
+    )
+serialized = json.dumps(key_data, sort_keys=True).encode("utf-8")
+return hashlib.sha256(serialized).hexdigest()
 ```
+
+`profile_hash` is produced in `ModelClient` via the `ProfileHashMixin`. Each
+provider resolves the requested profile, serializes the dataclass with
+`dataclasses.asdict`, and feeds it through SHA-256. This guarantees that two
+profiles with the same name but different parameters will never collide in the
+cache (and ensures the deduplication keys for embeddings also evolve when
+profiles change, even though we defer storing their vectors until we add schema
+support).
 
 ---
 
 ## Configuration
 
-### CacheConfig
+### LLMResponseCacheConfig
 
-````python
-from enum import Enum
-from pathlib import Path
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+The config object lives in `src/fenic/api/session/config.py` under the semantic
+section of `SessionConfig`. Key behaviors:
 
-class CacheBackend(str, Enum):
-    """Cache backend implementations."""
-    LOCAL = "local"
-    MEMORY = "memory"
-    DISABLED = "disabled"
-
-class CacheConfig(BaseModel):
-    """Configuration for LLM response caching.
-
-    Attributes:
-        enabled: Whether caching is enabled (default: True)
-        backend: Cache backend to use (default: LOCAL)
-        ttl: Time-to-live duration string (default: "1h")
-            Examples: "30m", "2h", "7d"
-        max_size_mb: Maximum cache size before LRU eviction (default: 1000)
-        namespace: Cache namespace for isolation (default: "default")
-
-    Note:
-        The cache database is automatically stored alongside the session's DuckDB
-        database with the name `_{app_name}_llm_cache.db`. The location is determined
-        by the session's `db_path` configuration (defaults to current directory).
-        The underscore prefix indicates it's a system database.
-
-    Example:
-        ```python
-        # Default (1 hour TTL)
-        cache = CacheConfig(enabled=True)
-
-        # Custom TTL
-        cache = CacheConfig(
-            enabled=True,
-            ttl="30m",  # 30 minutes
-            max_size_mb=5000
-        )
-
-        # Long-running project (7 day TTL)
-        cache = CacheConfig(
-            enabled=True,
-            ttl="7d"
-        )
-        ```
-    """
-
-    enabled: bool = Field(default=True)
-    backend: CacheBackend = Field(default=CacheBackend.LOCAL)
-    ttl: str = Field(default="1h")
-    max_size_mb: int = Field(default=1000, gt=0, le=100000)
-    namespace: str = Field(default="default")
-
-    @field_validator("ttl")
-    @classmethod
-    def validate_ttl(cls, v: str) -> str:
-        """Validate TTL duration string format.
-
-        Format: <number><unit> where unit is s/m/h/d
-        Examples: "30s", "15m", "2h", "7d"
-
-        Raises:
-            ValueError: If format is invalid
-        """
-        import re
-
-        pattern = r'^(\d+)([smhd])$'
-        match = re.match(pattern, v.lower())
-
-        if not match:
-            raise ValueError(
-                f"Invalid TTL format: '{v}'. "
-                "Expected: <number><unit> where unit is s/m/h/d. "
-                "Examples: '30m', '2h', '1d'"
-            )
-
-        value, unit = match.groups()
-        value = int(value)
-
-        # Validate ranges
-        if unit == 's' and value < 1:
-            raise ValueError("TTL must be at least 1 second")
-        if unit == 'h' and value > 720:  # 30 days
-            raise ValueError("TTL cannot exceed 720 hours")
-        if unit == 'd' and value > 30:
-            raise ValueError("TTL cannot exceed 30 days")
-
-        return v
-
-    def ttl_seconds(self) -> int:
-        """Convert TTL string to seconds."""
-        import re
-
-        pattern = r'^(\d+)([smhd])$'
-        match = re.match(pattern, self.ttl.lower())
-
-        if not match:
-            raise ValueError(f"Invalid TTL format: '{self.ttl}'")
-
-        value, unit = match.groups()
-        value = int(value)
-
-        multipliers = {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}
-        return value * multipliers[unit]
-````
+- `backend`, `ttl`, `max_size_mb`, and `namespace` are the main knobs; omitting
+  the config disables caching entirely.
+- TTL strings must match `<number><unit>` (s/m/h/d) with guardrails
+  (≥1s, ≤720h, ≤30d). Invalid entries raise during validation.
+- `max_size_mb` is clamped to `(0, 100_000]` to protect from runaway local DBs.
+- `ttl_seconds()` converts the duration into an integer for backends.
 
 ### SessionConfig Integration
 
-```python
-# In src/fenic/api/session/config.py
-
-class SessionConfig(BaseModel):
-    """Configuration for a user session."""
-
-    app_name: str = "default_app"
-    db_path: Optional[Path] = None
-    semantic: Optional[SemanticConfig] = None
-    cloud: Optional[CloudConfig] = None
-    cache: Optional[CacheConfig] = None  # NEW
-```
+`SessionConfig.semantic.llm_response_cache` wires the cache into the session
+pipeline. When present, `Session.get_or_create()` initializes the configured
+backend (currently SQLite) and exposes it through the session state so every
+`DataFrame.semantic` action transparently participates in caching.
 
 ---
 
@@ -340,568 +244,41 @@ class SessionConfig(BaseModel):
 
 ### Protocol Interface
 
-```python
-from typing import Protocol, Optional, List, Dict
-from dataclasses import dataclass
-from datetime import datetime
+`src/fenic/_inference/cache/protocol.py` defines three lightweight types:
 
-@dataclass
-class CachedResponse:
-    """Cached LLM response with metadata."""
-    completion: str
-    model: str
-    cached_at: datetime
-    prompt_tokens: Optional[int]
-    completion_tokens: Optional[int]
-    total_tokens: Optional[int]
-    cached_tokens: int = 0
-    thinking_tokens: int = 0
-    logprobs: Optional[list] = None
-    access_count: int = 0
-
-    def to_fenic_response(self) -> FenicCompletionsResponse:
-        """Convert to FenicCompletionsResponse."""
-        from fenic._inference.types import ResponseUsage
-
-        usage = None
-        if self.prompt_tokens is not None:
-            usage = ResponseUsage(
-                prompt_tokens=self.prompt_tokens,
-                completion_tokens=self.completion_tokens,
-                total_tokens=self.total_tokens or 0,
-                cached_tokens=self.cached_tokens,
-                thinking_tokens=self.thinking_tokens,
-            )
-
-        return FenicCompletionsResponse(
-            completion=self.completion,
-            logprobs=self.logprobs,
-            usage=usage,
-        )
-
-@dataclass
-class CacheStats:
-    """Cache performance statistics."""
-    hits: int
-    misses: int
-    stores: int
-    errors: int
-    hit_rate: float
-    total_entries: int = 0
-    size_bytes: int = 0
-
-class LLMResponseCache(Protocol):
-    """Protocol for LLM response caching.
-
-    All implementations must be thread-safe.
-    """
-
-    def get(self, cache_key: str) -> Optional[CachedResponse]:
-        """Retrieve cached response. Returns None if not found or expired."""
-        ...
-
-    def get_batch(self, cache_keys: List[str]) -> Dict[str, Optional[CachedResponse]]:
-        """Retrieve multiple responses. Returns dict with all keys."""
-        ...
-
-    def set(
-        self,
-        cache_key: str,
-        response: FenicCompletionsResponse,
-        model: str,
-    ) -> bool:
-        """Store response. Returns True if successful."""
-        ...
-
-    def set_batch(
-        self,
-        entries: List[tuple[str, FenicCompletionsResponse, str]]
-    ) -> int:
-        """Store multiple responses. Returns count of successful stores."""
-        ...
-
-    def delete(self, cache_key: str) -> bool:
-        """Delete entry. Returns True if found and deleted."""
-        ...
-
-    def clear(self) -> int:
-        """Clear all entries. Returns count cleared."""
-        ...
-
-    def stats(self) -> CacheStats:
-        """Get performance statistics."""
-        ...
-
-    def close(self) -> None:
-        """Release resources."""
-        ...
-```
+- `CachedResponse` mirrors `FenicCompletionsResponse` plus metadata (timestamps,
+  access counts, token accounting) and exposes `to_fenic_response()`.
+- `CacheStats` aggregates hits, misses, stores, errors, and basic size info so
+  backends can expose telemetry without leaking implementation details.
+- `LLMResponseCache` is a thin `Protocol` that mandates `get`, `get_batch`,
+  `set`, `set_batch`, `delete`, `clear`, `stats`, and `close`. All methods must
+  swallow backend failures and default to safe fallbacks (e.g., empty dict on
+  batch get), ensuring cache outages never break user pipelines.
 
 ### SQLite Implementation
 
-```python
-import logging
-import sqlite3
-import threading
-import json
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional
-
-logger = logging.getLogger(__name__)
-
-class SQLiteLLMCache:
-    """SQLite-backed LLM response cache with normalized storage.
-
-    Thread-safe implementation using thread-local connections and WAL mode.
-    """
-
-    def __init__(
-        self,
-        db_path: Optional[str] = None,
-        ttl_seconds: int = 3600,
-        max_size_mb: int = 1000,
-        namespace: str = "default",
-    ):
-        if db_path is None:
-            cache_dir = Path.home() / ".fenic"
-            cache_dir.mkdir(exist_ok=True)
-            db_path = str(cache_dir / "llm_cache.db")
-
-        self.db_path = db_path
-        self.ttl_seconds = ttl_seconds
-        self.max_size_mb = max_size_mb
-        self.namespace = namespace
-
-        # Thread-local connections
-        self._local = threading.local()
-
-        # Statistics
-        self._stats_lock = threading.Lock()
-        self._hits = 0
-        self._misses = 0
-        self._stores = 0
-        self._errors = 0
-
-        self._init_db()
-
-        logger.info(
-            f"Initialized SQLite cache at {self.db_path} "
-            f"(ttl={ttl_seconds}s, max_size={max_size_mb}MB, namespace={namespace})"
-        )
-
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get thread-local database connection."""
-        if not hasattr(self._local, 'conn'):
-            self._local.conn = sqlite3.connect(
-                self.db_path,
-                check_same_thread=False,
-                timeout=30.0,
-                isolation_level="DEFERRED"
-            )
-            self._local.conn.row_factory = sqlite3.Row
-
-            # Enable WAL mode for concurrent access
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA synchronous=NORMAL")
-            self._local.conn.execute("PRAGMA cache_size=-64000")  # 64MB
-            self._local.conn.execute("PRAGMA temp_store=MEMORY")
-
-        return self._local.conn
-
-    def _init_db(self):
-        """Initialize normalized schema."""
-        conn = self._get_connection()
-
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS llm_responses (
-                cache_key TEXT NOT NULL,
-                namespace TEXT NOT NULL,
-                model TEXT NOT NULL,
-                completion TEXT NOT NULL,
-                cached_at TIMESTAMP NOT NULL,
-                last_accessed TIMESTAMP,
-                access_count INTEGER DEFAULT 0,
-                prompt_tokens INTEGER,
-                completion_tokens INTEGER,
-                total_tokens INTEGER,
-                cached_tokens INTEGER DEFAULT 0,
-                thinking_tokens INTEGER DEFAULT 0,
-                logprobs_data BLOB,
-                response_version INTEGER DEFAULT 1,
-                PRIMARY KEY (cache_key, namespace)
-            )
-        """)
-
-        # Create indices
-        for idx, cols in [
-            ("idx_cached_at", "(namespace, cached_at)"),
-            ("idx_last_accessed", "(namespace, last_accessed)"),
-            ("idx_model", "(model)"),
-            ("idx_token_usage", "(namespace, total_tokens)"),
-        ]:
-            conn.execute(f"""
-                CREATE INDEX IF NOT EXISTS {idx}
-                ON llm_responses{cols}
-            """)
-
-        conn.commit()
-
-    def get(self, cache_key: str) -> Optional[CachedResponse]:
-        """Retrieve cached response."""
-        try:
-            conn = self._get_connection()
-            cutoff = datetime.now() - timedelta(seconds=self.ttl_seconds)
-
-            cursor = conn.execute("""
-                SELECT
-                    completion, model, cached_at,
-                    prompt_tokens, completion_tokens, total_tokens,
-                    cached_tokens, thinking_tokens,
-                    logprobs_data, access_count
-                FROM llm_responses
-                WHERE cache_key = ? AND namespace = ? AND cached_at > ?
-            """, (cache_key, self.namespace, cutoff))
-
-            row = cursor.fetchone()
-
-            if row:
-                # Update access stats
-                conn.execute("""
-                    UPDATE llm_responses
-                    SET access_count = access_count + 1,
-                        last_accessed = ?
-                    WHERE cache_key = ? AND namespace = ?
-                """, (datetime.now(), cache_key, self.namespace))
-                conn.commit()
-
-                # Deserialize logprobs
-                logprobs = None
-                if row['logprobs_data']:
-                    logprobs = json.loads(row['logprobs_data'].decode('utf-8'))
-
-                with self._stats_lock:
-                    self._hits += 1
-
-                return CachedResponse(
-                    completion=row['completion'],
-                    model=row['model'],
-                    cached_at=datetime.fromisoformat(row['cached_at']),
-                    prompt_tokens=row['prompt_tokens'],
-                    completion_tokens=row['completion_tokens'],
-                    total_tokens=row['total_tokens'],
-                    cached_tokens=row['cached_tokens'] or 0,
-                    thinking_tokens=row['thinking_tokens'] or 0,
-                    logprobs=logprobs,
-                    access_count=row['access_count'] + 1
-                )
-            else:
-                with self._stats_lock:
-                    self._misses += 1
-                return None
-
-        except Exception as e:
-            with self._stats_lock:
-                self._errors += 1
-            logger.warning(f"Cache get error for key {cache_key[:8]}...: {e}")
-            return None
-
-    def get_batch(self, cache_keys: List[str]) -> Dict[str, Optional[CachedResponse]]:
-        """Retrieve multiple cached responses."""
-        result = {}
-
-        if not cache_keys:
-            return result
-
-        try:
-            conn = self._get_connection()
-            cutoff = datetime.now() - timedelta(seconds=self.ttl_seconds)
-
-            placeholders = ','.join('?' * len(cache_keys))
-            cursor = conn.execute(f"""
-                SELECT
-                    cache_key, completion, model, cached_at,
-                    prompt_tokens, completion_tokens, total_tokens,
-                    cached_tokens, thinking_tokens,
-                    logprobs_data, access_count
-                FROM llm_responses
-                WHERE cache_key IN ({placeholders})
-                  AND namespace = ?
-                  AND cached_at > ?
-            """, (*cache_keys, self.namespace, cutoff))
-
-            found_keys = set()
-
-            for row in cursor:
-                key = row['cache_key']
-                found_keys.add(key)
-
-                logprobs = None
-                if row['logprobs_data']:
-                    logprobs = json.loads(row['logprobs_data'].decode('utf-8'))
-
-                result[key] = CachedResponse(
-                    completion=row['completion'],
-                    model=row['model'],
-                    cached_at=datetime.fromisoformat(row['cached_at']),
-                    prompt_tokens=row['prompt_tokens'],
-                    completion_tokens=row['completion_tokens'],
-                    total_tokens=row['total_tokens'],
-                    cached_tokens=row['cached_tokens'] or 0,
-                    thinking_tokens=row['thinking_tokens'] or 0,
-                    logprobs=logprobs,
-                    access_count=row['access_count'] + 1
-                )
-
-            # Update access stats
-            if found_keys:
-                now = datetime.now()
-                placeholders = ','.join('?' * len(found_keys))
-                conn.execute(f"""
-                    UPDATE llm_responses
-                    SET access_count = access_count + 1,
-                        last_accessed = ?
-                    WHERE cache_key IN ({placeholders})
-                      AND namespace = ?
-                """, (now, *found_keys, self.namespace))
-                conn.commit()
-
-            # Add None for missing keys
-            for key in cache_keys:
-                if key not in result:
-                    result[key] = None
-
-            with self._stats_lock:
-                self._hits += len(found_keys)
-                self._misses += len(cache_keys) - len(found_keys)
-
-        except Exception as e:
-            with self._stats_lock:
-                self._errors += 1
-            logger.warning(f"Cache get_batch error: {e}")
-            result = {key: None for key in cache_keys}
-
-        return result
-
-    def set(
-        self,
-        cache_key: str,
-        response: FenicCompletionsResponse,
-        model: str,
-    ) -> bool:
-        """Store response in cache."""
-        try:
-            conn = self._get_connection()
-            now = datetime.now()
-
-            # Extract normalized fields
-            prompt_tokens = response.usage.prompt_tokens if response.usage else None
-            completion_tokens = response.usage.completion_tokens if response.usage else None
-            total_tokens = response.usage.total_tokens if response.usage else None
-            cached_tokens = response.usage.cached_tokens if response.usage else 0
-            thinking_tokens = response.usage.thinking_tokens if response.usage else 0
-
-            # Serialize logprobs as JSON
-            logprobs_data = None
-            if response.logprobs:
-                logprobs_data = json.dumps(response.logprobs).encode('utf-8')
-
-            conn.execute("""
-                INSERT OR REPLACE INTO llm_responses
-                (cache_key, namespace, model, completion, cached_at, last_accessed,
-                 prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
-                 logprobs_data, response_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (
-                cache_key, self.namespace, model, response.completion, now, now,
-                prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
-                logprobs_data
-            ))
-
-            conn.commit()
-
-            with self._stats_lock:
-                self._stores += 1
-
-            self._maybe_evict()
-
-            return True
-
-        except Exception as e:
-            with self._stats_lock:
-                self._errors += 1
-            logger.warning(f"Cache set error for key {cache_key[:8]}...: {e}")
-            return False
-
-    def set_batch(
-        self,
-        entries: List[tuple[str, FenicCompletionsResponse, str]]
-    ) -> int:
-        """Store multiple responses."""
-        stored = 0
-
-        if not entries:
-            return 0
-
-        try:
-            conn = self._get_connection()
-            now = datetime.now()
-
-            for cache_key, response, model in entries:
-                try:
-                    prompt_tokens = response.usage.prompt_tokens if response.usage else None
-                    completion_tokens = response.usage.completion_tokens if response.usage else None
-                    total_tokens = response.usage.total_tokens if response.usage else None
-                    cached_tokens = response.usage.cached_tokens if response.usage else 0
-                    thinking_tokens = response.usage.thinking_tokens if response.usage else 0
-
-                    logprobs_data = None
-                    if response.logprobs:
-                        logprobs_data = json.dumps(response.logprobs).encode('utf-8')
-
-                    conn.execute("""
-                        INSERT OR REPLACE INTO llm_responses
-                        (cache_key, namespace, model, completion, cached_at, last_accessed,
-                         prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
-                         logprobs_data, response_version)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                    """, (
-                        cache_key, self.namespace, model, response.completion, now, now,
-                        prompt_tokens, completion_tokens, total_tokens, cached_tokens, thinking_tokens,
-                        logprobs_data
-                    ))
-
-                    stored += 1
-                except Exception as e:
-                    logger.warning(f"Error storing cache entry {cache_key[:8]}...: {e}")
-
-            conn.commit()
-
-            with self._stats_lock:
-                self._stores += stored
-
-            self._maybe_evict()
-
-        except Exception as e:
-            with self._stats_lock:
-                self._errors += 1
-            logger.warning(f"Cache set_batch error: {e}")
-
-        return stored
-
-    def delete(self, cache_key: str) -> bool:
-        """Delete cached entry."""
-        try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                DELETE FROM llm_responses
-                WHERE cache_key = ? AND namespace = ?
-            """, (cache_key, self.namespace))
-            conn.commit()
-            return cursor.rowcount > 0
-        except Exception as e:
-            logger.warning(f"Cache delete error: {e}")
-            return False
-
-    def clear(self) -> int:
-        """Clear all entries in namespace."""
-        try:
-            conn = self._get_connection()
-            cursor = conn.execute("""
-                DELETE FROM llm_responses WHERE namespace = ?
-            """, (self.namespace,))
-            conn.commit()
-
-            cleared = cursor.rowcount
-            logger.info(f"Cleared {cleared} entries from namespace '{self.namespace}'")
-            return cleared
-        except Exception as e:
-            logger.warning(f"Cache clear error: {e}")
-            return 0
-
-    def stats(self) -> CacheStats:
-        """Get performance statistics."""
-        try:
-            conn = self._get_connection()
-
-            cursor = conn.execute("""
-                SELECT COUNT(*) as count FROM llm_responses WHERE namespace = ?
-            """, (self.namespace,))
-            total_entries = cursor.fetchone()['count']
-
-            cursor = conn.execute("""
-                SELECT page_count * page_size as size
-                FROM pragma_page_count(), pragma_page_size()
-            """)
-            size_bytes = cursor.fetchone()['size']
-
-            with self._stats_lock:
-                total = self._hits + self._misses
-                hit_rate = self._hits / total if total > 0 else 0.0
-
-                return CacheStats(
-                    hits=self._hits,
-                    misses=self._misses,
-                    stores=self._stores,
-                    errors=self._errors,
-                    hit_rate=hit_rate,
-                    total_entries=total_entries,
-                    size_bytes=size_bytes
-                )
-        except Exception as e:
-            logger.warning(f"Error getting cache stats: {e}")
-            return CacheStats(
-                hits=0, misses=0, stores=0, errors=0, hit_rate=0.0,
-                total_entries=0, size_bytes=0
-            )
-
-    def _maybe_evict(self):
-        """Evict LRU entries if cache exceeds max size."""
-        try:
-            conn = self._get_connection()
-
-            cursor = conn.execute("""
-                SELECT page_count * page_size as size
-                FROM pragma_page_count(), pragma_page_size()
-            """)
-            size_bytes = cursor.fetchone()['size']
-            size_mb = size_bytes / (1024 * 1024)
-
-            if size_mb > self.max_size_mb:
-                cursor = conn.execute("""
-                    SELECT COUNT(*) as count FROM llm_responses WHERE namespace = ?
-                """, (self.namespace,))
-                total_count = cursor.fetchone()['count']
-                evict_count = max(1, total_count // 10)  # Evict 10%
-
-                conn.execute("""
-                    DELETE FROM llm_responses
-                    WHERE cache_key IN (
-                        SELECT cache_key FROM llm_responses
-                        WHERE namespace = ?
-                        ORDER BY last_accessed ASC
-                        LIMIT ?
-                    )
-                """, (self.namespace, evict_count))
-                conn.commit()
-
-                logger.info(
-                    f"Evicted {evict_count} LRU entries "
-                    f"(size: {size_mb:.1f}MB > {self.max_size_mb}MB)"
-                )
-
-        except Exception as e:
-            logger.warning(f"Cache eviction error: {e}")
-
-    def close(self):
-        """Close database connection."""
-        try:
-            if hasattr(self._local, 'conn'):
-                self._local.conn.close()
-                del self._local.conn
-        except Exception as e:
-            logger.warning(f"Error closing cache: {e}")
-```
+`SQLiteLLMCache` (`src/fenic/_inference/cache/sqlite_cache.py`) provides the
+reference backend. Highlights:
+
+- **Storage layout**: single normalized table (`llm_responses`) keyed by
+  `(cache_key, namespace)` with JSON blobs for logprobs and integer columns for
+  token analytics. Indices cover `cached_at`, `last_accessed`, `model`, and
+  token usage.
+- **Concurrency**: uses a small connection pool (default 3) with WAL mode,
+  `synchronous=NORMAL`, and in-memory temp storage to keep lookups <10 ms while
+  still being thread-safe.
+- **TTL + eviction**: every `get`/`get_batch` filters by `cached_at >
+now - ttl`, increments access counters, and lazily updates `last_accessed`.
+  `_maybe_evict` trims ~10 % of least-recently-used rows when the DB exceeds
+  `max_size_mb`. Currently, this is done lazily when new items are fetched from
+  the cache -- as a future add on, we can add logic that sits in the background
+  and performs cache cleanup.
+- **Error handling**: all operations catch exceptions, increment `errors`, and
+  return safe defaults (e.g., empty dict). Corrupted databases are deleted and
+  rebuilt automatically on init.
+- **Stats**: `stats()` queries SQLite metadata for entry counts and file size,
+  then combines it with the in-memory hit/miss/store counters maintained under a
+  lock.
 
 ---
 
@@ -909,351 +286,52 @@ class SQLiteLLMCache:
 
 ### ModelClient Changes
 
-#### 1. Add Cache to ModelClient
+Caching responsibilities inside `ModelClient` are intentionally compact:
 
-```python
-# In src/fenic/_inference/model_client.py
-
-class ModelClient(Generic[RequestT, ResponseT], ABC):
-    def __init__(
-        self,
-        model: str,
-        model_provider: ModelProvider,
-        model_provider_class: ModelProviderClass,
-        rate_limit_strategy: RateLimitStrategy,
-        token_counter: TokenCounter,
-        queue_size: int = 100,
-        initial_backoff_seconds: float = 1,
-        backoff_factor: float = 2,
-        max_backoffs: int = 10,
-        cache: Optional[LLMResponseCache] = None,  # NEW
-    ):
-        # ... existing init ...
-        self.cache = cache  # NEW
-
-        if self.cache:
-            logger.info(f"LLM response caching enabled for model {model}")
-```
-
-#### 2. Update QueueItem
-
-```python
-@dataclass
-class QueueItem(Generic[RequestT]):
-    thread_id: int
-    request: RequestT
-    future: Future
-    estimated_tokens: TokenEstimate
-    batch_id: str
-    cache_key: Optional[str] = None  # NEW
-```
-
-#### 3. Cache Lookup in \_submit_batch_requests
-
-```python
-def _submit_batch_requests(
-    self,
-    requests: List[Optional[RequestT]],
-    batch_id: str
-) -> tuple[List[Future], int, TokenEstimate]:
-    request_futures: List[Future] = []
-    current_thread_id = threading.get_ident()
-    unique_futures: Dict[Any, Future] = {}
-    num_unique_requests = 0
-    total_token_estimate = TokenEstimate()
-
-    # NEW: Batch cache lookup
-    cache_lookups = []
-    cache_key_to_idx = {}
-
-    if self.cache is not None:
-        for idx, request in enumerate(requests):
-            if request is not None:
-                cache_key = CacheKeyGenerator.compute_key(request, self.model)
-                cache_lookups.append(cache_key)
-                cache_key_to_idx[cache_key] = idx
-
-        cached_responses = self.cache.get_batch(cache_lookups)
-        cache_hits = sum(1 for v in cached_responses.values() if v is not None)
-
-        if cache_hits > 0:
-            logger.info(
-                f"Batch {batch_id}: {cache_hits}/{len(cache_lookups)} cache hits "
-                f"({cache_hits/len(cache_lookups):.1%})"
-            )
-    else:
-        cached_responses = {}
-
-    with tqdm(
-        total=len(requests),
-        desc=f"Submitting requests (batch: {batch_id}, model: {self.model})",
-        unit="req",
-    ) as pbar:
-        for idx, request in enumerate(requests):
-            self._maybe_raise_thread_exception()
-
-            if request is None:
-                req_future = Future()
-                request_futures.append(req_future)
-                req_future.set_result(None)
-                pbar.update(1)
-                continue
-
-            # NEW: Check cache
-            cache_key = CacheKeyGenerator.compute_key(request, self.model)
-            cached = cached_responses.get(cache_key)
-
-            if cached is not None:
-                # Cache hit
-                req_future = Future()
-                request_futures.append(req_future)
-                req_future.set_result(cached.to_fenic_response())
-                pbar.update(1)
-                continue
-
-            # Cache miss - normal processing
-            req_future, estimated_tokens = self._get_or_create_request_future(
-                unique_futures, request
-            )
-            request_futures.append(req_future)
-
-            if estimated_tokens is not None:
-                num_unique_requests += 1
-                total_token_estimate += estimated_tokens
-                queue_item = QueueItem(
-                    thread_id=current_thread_id,
-                    request=request,
-                    future=req_future,
-                    estimated_tokens=estimated_tokens,
-                    batch_id=batch_id,
-                    cache_key=cache_key,  # NEW
-                )
-                enqueue_future = asyncio.run_coroutine_threadsafe(
-                    self._enqueue_request(queue_item),
-                    self._event_loop,
-                )
-                enqueue_future.result()
-
-            pbar.update(1)
-
-    return request_futures, num_unique_requests, total_token_estimate
-```
-
-#### 4. Cache Storage in \_handle_response
-
-```python
-async def _handle_response(
-    self,
-    queue_item: QueueItem[RequestT],
-    maybe_response: Union[None, ResponseT, TransientException, FatalException],
-):
-    if isinstance(maybe_response, TransientException):
-        # Retry logic (unchanged)
-        if self.num_backoffs >= self.max_backoffs:
-            self._register_thread_exception(queue_item, ...)
-        else:
-            await self.retry_queue.put(queue_item)
-
-    elif isinstance(maybe_response, FatalException):
-        # Error handling (unchanged)
-        self._register_thread_exception(queue_item, maybe_response.exception)
-
-    else:
-        # NEW: Cache successful response
-        if self.cache and hasattr(queue_item, 'cache_key') and queue_item.cache_key:
-            try:
-                self.cache.set(
-                    queue_item.cache_key,
-                    maybe_response,
-                    self.model,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to cache response: {e}")
-
-        # Set result (unchanged)
-        if not queue_item.future.done():
-            queue_item.future.set_result(maybe_response)
-```
+- **Fingerprints everywhere**: `_build_request_key()` calls
+  `generate_request_fingerprint()` for every request (completion or embedding).
+  The value is stored on `QueueItem.request_fingerprint`, ensuring deduplication
+  and caching share the same key without re-hashing later.
+- **Batch lookups**: `_submit_batch_requests()` precomputes fingerprints, runs a
+  single `cache.get_batch()` for completion fingerprints, and immediately
+  short-circuits futures that hit. Embeddings are never handed to the cache but
+  still dedup thanks to shared fingerprints.
+- **Writes on success**: `_handle_response()` only calls `cache.set()` for
+  successful completion responses. Any caching error is logged and ignored so
+  the main future still resolves.
+- **Cache optionality**: because fingerprints live entirely within
+  `ModelClient`, disabling the cache still deduplicates identical requests—the
+  cache simply doesn't see the `get_batch`/`set` calls.
 
 ---
 
 ## Testing
 
-### Unit Tests
+### Test Suite Overview
 
-```python
-# tests/unit/test_cache_config.py
+We split validation across focused layers to keep coverage high without redundant
+end-to-end scenarios:
 
-import pytest
-from fenic.api.session.config import CacheConfig
-
-class TestCacheConfig:
-    def test_default_ttl(self):
-        config = CacheConfig(enabled=True)
-        assert config.ttl == "1h"
-        assert config.ttl_seconds() == 3600
-
-    def test_duration_parsing(self):
-        cases = [
-            ("30s", 30),
-            ("15m", 900),
-            ("2h", 7200),
-            ("7d", 604800),
-        ]
-        for ttl_str, expected_seconds in cases:
-            config = CacheConfig(ttl=ttl_str)
-            assert config.ttl_seconds() == expected_seconds
-
-    def test_invalid_ttl_format(self):
-        with pytest.raises(ValueError, match="Invalid TTL format"):
-            CacheConfig(ttl="invalid")
-
-        with pytest.raises(ValueError, match="Invalid TTL format"):
-            CacheConfig(ttl="1x")
-
-    def test_ttl_range_validation(self):
-        with pytest.raises(ValueError, match="cannot exceed 30 days"):
-            CacheConfig(ttl="31d")
-
-        with pytest.raises(ValueError, match="cannot exceed 720 hours"):
-            CacheConfig(ttl="721h")
-
-
-# tests/unit/test_sqlite_cache.py
-
-import pytest
-import tempfile
-from pathlib import Path
-from datetime import datetime, timedelta
-
-from fenic._inference.cache.sqlite_cache import SQLiteLLMCache
-from fenic._inference.types import FenicCompletionsResponse, ResponseUsage
-
-class TestSQLiteCache:
-    @pytest.fixture
-    def temp_cache(self):
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        cache = SQLiteLLMCache(
-            db_path=db_path,
-            ttl_seconds=3600,
-            max_size_mb=100,
-            namespace="test"
-        )
-
-        yield cache
-
-        cache.close()
-        Path(db_path).unlink(missing_ok=True)
-
-    def test_set_and_get(self, temp_cache):
-        response = FenicCompletionsResponse(
-            completion="Hello!",
-            logprobs=None,
-            usage=ResponseUsage(
-                prompt_tokens=10,
-                completion_tokens=5,
-                total_tokens=15
-            )
-        )
-
-        # Set
-        success = temp_cache.set("test_key", response, "gpt-4o-mini")
-        assert success
-
-        # Get
-        cached = temp_cache.get("test_key")
-        assert cached is not None
-        assert cached.completion == "Hello!"
-        assert cached.model == "gpt-4o-mini"
-        assert cached.total_tokens == 15
-
-    def test_cache_miss(self, temp_cache):
-        cached = temp_cache.get("nonexistent")
-        assert cached is None
-
-    def test_ttl_expiration(self, temp_cache):
-        response = FenicCompletionsResponse(completion="Test", logprobs=None)
-        temp_cache.set("test_key", response, "gpt-4o-mini")
-
-        # Manually expire
-        conn = temp_cache._get_connection()
-        old_date = datetime.now() - timedelta(hours=2)
-        conn.execute("""
-            UPDATE llm_responses
-            SET cached_at = ?
-            WHERE cache_key = ?
-        """, (old_date, "test_key"))
-        conn.commit()
-
-        # Should be expired
-        cached = temp_cache.get("test_key")
-        assert cached is None
-
-    def test_batch_operations(self, temp_cache):
-        responses = [
-            FenicCompletionsResponse(completion=f"Response {i}", logprobs=None)
-            for i in range(10)
-        ]
-
-        # Batch set
-        entries = [
-            (f"key_{i}", responses[i], "gpt-4o-mini")
-            for i in range(10)
-        ]
-        stored = temp_cache.set_batch(entries)
-        assert stored == 10
-
-        # Batch get
-        keys = [f"key_{i}" for i in range(10)]
-        results = temp_cache.get_batch(keys)
-
-        assert len(results) == 10
-        for i, key in enumerate(keys):
-            assert results[key] is not None
-            assert results[key].completion == f"Response {i}"
-
-    def test_statistics(self, temp_cache):
-        response = FenicCompletionsResponse(completion="Test", logprobs=None)
-
-        temp_cache.set("key1", response, "gpt-4o-mini")
-        temp_cache.get("key1")  # Hit
-        temp_cache.get("key1")  # Hit
-        temp_cache.get("key2")  # Miss
-
-        stats = temp_cache.stats()
-        assert stats.hits == 2
-        assert stats.misses == 1
-        assert stats.stores == 1
-        assert stats.hit_rate == 2/3
-```
-
-### Integration Tests
-
-```python
-# tests/integration/test_model_client_cache.py
-
-import pytest
-from unittest.mock import Mock, patch
-
-@pytest.mark.integration
-class TestModelClientCacheIntegration:
-    def test_cache_hit_skips_api_call(self):
-        """Verify cache hits don't make API calls."""
-        # TODO: Full integration test
-        pass
-
-    def test_cache_miss_makes_api_call(self):
-        """Verify cache misses result in API calls."""
-        # TODO: Full integration test
-        pass
-
-    def test_successful_response_cached(self):
-        """Verify successful responses are stored."""
-        # TODO: Full integration test
-        pass
-```
+- `tests/_inference/cache/test_cache_config.py` ensures the declarative
+  configuration (`LLMResponseCacheConfig`) accepts only valid TTL strings,
+  namespaces, and size limits.
+- `tests/_inference/cache/test_sqlite_cache.py` covers the storage engine in
+  isolation (set/get TTL behavior, TTL expiry, batch ops, connection pooling,
+  WAL handling, corruption recovery). These tests operate directly on
+  `SQLiteLLMCache` and do not involve `ModelClient`.
+- `tests/_inference/cache/test_request_fingerprint.py` validates the
+  deterministic key builder across prompts, models, temperatures, structured
+  output schemas, profile hashes, etc., ensuring cache/dedup fingerprints remain
+  stable.
+- `tests/_inference/test_model_client_cache_behavior.py` exercises the model
+  client orchestration layer with lightweight fakes: completion requests are
+  shown to deduplicate and reuse cached responses, embedding requests are proven
+  to deduplicate without touching the cache, and profile hash mutations generate
+  distinct cache keys.
+- `tests/_inference/cache/test_cache_end_to_end_semantic.py` now acts as a smoke
+  test verifying semantic operators produce cache hits on repeated execution.
+  Detailed profile-hash scenarios are covered in the unit suite so this file
+  can remain lean and fast.
 
 ---
 
@@ -1263,8 +341,8 @@ class TestModelClientCacheIntegration:
 
 **Day 1-2**: Cache infrastructure
 
-- [ ] Implement `CacheConfig` with validation
-- [ ] Implement `CacheKeyGenerator`
+- [ ] Implement `LLMResponseCacheConfig` with validation
+- [ ] Implement deterministic key generation inside `SQLiteLLMCache`
 - [ ] Implement `SQLiteLLMCache`
 - [ ] Unit tests
 
@@ -1305,7 +383,11 @@ session = Session.get_or_create(SessionConfig(app_name="my_app"))
 session = Session.get_or_create(
     SessionConfig(
         app_name="my_app",
-        cache=CacheConfig(enabled=True, ttl="1h")
+        semantic=SemanticConfig(
+            language_models={...},
+            default_language_model="default",
+            llm_response_cache=LLMResponseCacheConfig(ttl="1h"),
+        ),
     )
 )
 ```

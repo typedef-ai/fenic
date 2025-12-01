@@ -374,7 +374,7 @@ def main(config: Optional[fc.SessionConfig] = None):
             group_context = {
                 "news_outlet": fc.col("source"),
             },
-            max_output_tokens=512,
+            max_output_tokens=1024,
         ).alias("source_profile"),
     ).select(fc.col("source"), fc.col("source_profile")).cache()
 

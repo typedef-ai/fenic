@@ -74,7 +74,7 @@ class LocalSessionState(BaseSessionState):
         """
         cache_config = config.semantic.llm_response_cache if config.semantic else None
 
-        if not cache_config or not cache_config.enabled:
+        if not cache_config:
             return None
 
         try:

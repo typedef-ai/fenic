@@ -27,6 +27,7 @@ from fenic.core._resolved_session_config import (
     ReasoningEffort,
     ResolvedAnthropicModelConfig,
     ResolvedAnthropicModelProfile,
+    ResolvedCacheConfig,
     ResolvedCloudConfig,
     ResolvedCohereModelConfig,
     ResolvedCohereModelProfile,
@@ -1396,7 +1397,6 @@ class LLMResponseCacheConfig(BaseModel):
         ```
     """
 
-    enabled: bool = Field(default=True)
     backend: CacheBackend = Field(default=CacheBackend.LOCAL)
     ttl: str = Field(default="1h")
     max_size_mb: int = Field(default=128, gt=0, le=100000)
@@ -1674,11 +1674,9 @@ class SessionConfig(BaseModel):
         # Resolve cache config from semantic config
         resolved_cache = None
         if self.semantic and self.semantic.llm_response_cache:
-            from fenic.core._resolved_session_config import ResolvedCacheConfig
 
             cache_cfg = self.semantic.llm_response_cache
             resolved_cache = ResolvedCacheConfig(
-                enabled=cache_cfg.enabled,
                 backend=cache_cfg.backend,
                 ttl=cache_cfg.ttl,
                 ttl_seconds=cache_cfg.ttl_seconds(),

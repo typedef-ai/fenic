@@ -64,6 +64,7 @@ from fenic.api.session import (
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
     GoogleVertexLanguageModel,
+    LLMResponseCacheConfig,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
     OpenRouterLanguageModel,
@@ -149,6 +150,7 @@ __all__ = [
     "run_mcp_server_async",
     "run_mcp_server_asgi",
     "SystemToolConfig",
+    "LLMResponseCacheConfig",
     # Date and time functions
     "dt",
 ]
