@@ -10,6 +10,7 @@ on:
       - .github/actions/maturin-build/**
       - rust/**
       - src/**
+      - pyproject.toml
   push:
     tags:
       - v*
