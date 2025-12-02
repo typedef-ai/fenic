@@ -514,6 +514,22 @@ def test_model_profile_validation():
             )
         )
 
+    # Test that gpt-5.1 works with 'none' reasoning (default)
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-5.1": OpenAILanguageModel(model_name="gpt-5.1", profiles={"disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")}, rpm=100, tpm=1000)}
+        )
+    )
+    # Test that previous models that support reasoning cannot disable reasoning
+    with pytest.raises(ConfigurationError, match="Model 'gpt-5-nano' does not support 'none' \\(disabled\\) reasoning. Please set reasoning_effort on 'disabled_reasoning' to 'minimal', 'low', 'medium', or 'high' instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gpt-5-nano": OpenAILanguageModel(model_name="gpt-5-nano", rpm=100, tpm=1000, profiles={"disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")})}
+            )
+        )
+
 def test_session_config_with_invalid_api_keys(tmp_path, monkeypatch):
     """Test that session configuration validation rejects models with invalid API keys."""
     monkeypatch.setenv("OPENAI_API_KEY", "__invalid__")

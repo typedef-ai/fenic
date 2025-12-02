@@ -295,32 +295,31 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
     model_parameters = model_catalog.get_completion_model_parameters(
         model_provider, model_name
     )
+
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if model_provider == ModelProvider.OPENAI:
-        if model_parameters.supports_minimal_reasoning and model_parameters.supports_verbosity:
+        if model_parameters.supports_reasoning:
+            profiles = {
+                "low": OpenAILanguageModel.Profile(reasoning_effort="low", verbosity="low" if model_parameters.supports_verbosity else None),
+                "medium": OpenAILanguageModel.Profile(reasoning_effort="medium", verbosity="low" if model_parameters.supports_verbosity else None),
+                "high": OpenAILanguageModel.Profile(reasoning_effort="high", verbosity="low" if model_parameters.supports_verbosity else None),
+            }
+            default_profile = "low"
+            if model_parameters.supports_minimal_reasoning:
+                # gpt-5 and up (supports minimal and verbosity, but gpt-5 does NOT support disabled reasoning)
+                profiles["minimal"] = OpenAILanguageModel.Profile(reasoning_effort="minimal", verbosity="low" if model_parameters.supports_verbosity else None)
+                default_profile = "minimal"
+            if model_parameters.supports_disabled_reasoning:
+                # gpt-5.1 and up supports disabled reasoning
+                profiles["disabled_reasoning"] = OpenAILanguageModel.Profile(reasoning_effort="none", verbosity="low" if model_parameters.supports_verbosity else None)
+                default_profile = "disabled_reasoning"
+
             language_model = OpenAILanguageModel(
-                model_name=model_name,
-                rpm=500,
-                tpm=100_000,
-                profiles={
-                    "minimal": OpenAILanguageModel.Profile(reasoning_effort="minimal", verbosity="low"),
-                    "low": OpenAILanguageModel.Profile(reasoning_effort="low", verbosity="low"),
-                    "medium": OpenAILanguageModel.Profile(reasoning_effort="medium", verbosity="low"),
-                    "high": OpenAILanguageModel.Profile(reasoning_effort="high", verbosity="low"),
-                },
-                default_profile="minimal",
-            )
-        elif model_parameters.supports_reasoning:
-            language_model = OpenAILanguageModel(
-                model_name=model_name,
-                rpm=500,
-                tpm=100_000,
-                profiles={
-                    "low": OpenAILanguageModel.Profile(reasoning_effort="low"),
-                    "medium": OpenAILanguageModel.Profile(reasoning_effort="medium"),
-                    "high": OpenAILanguageModel.Profile(reasoning_effort="high"),
-                },
-                default_profile="low",
+                    model_name=model_name,
+                    rpm=500,
+                    tpm=100_000,
+                    profiles=profiles,
+                    default_profile=default_profile,
             )
         else:
             language_model = OpenAILanguageModel(

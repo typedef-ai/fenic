@@ -490,15 +490,18 @@ class OpenAILanguageModel(BaseModel):
 
         Attributes:
             reasoning_effort: Provide a reasoning effort. Only for gpt5 and o-series models.
-                If reasoning effort is not provided, the `reasoning_effort` will default to `low`
-                (for o-series models) or `minimal` (for gpt5 models).
-            verbosity: Provide a verbosity level. Only for gpt5 models.
+                Valid values: 'none', 'minimal', 'low', 'medium', 'high'.
+                - For gpt-5.1 models: defaults to 'none' (disabled reasoning), does NOT support 'minimal'
+                - For gpt-5 models: defaults to 'minimal', does NOT support 'none'
+                - For o-series models: defaults to 'low', does NOT support 'none' or 'minimal'
+            verbosity: Provide a verbosity level. Only for gpt5/gpt5.1 models.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
-            When using an o-series or gpt5 reasoning model, the `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+            When using an o-series or gpt5 reasoning model with reasoning enabled, the `temperature` cannot be customized.
+            For gpt-5.1 models with reasoning_effort='none', temperature CAN be customized.
 
         Example:
             Configuring a profile with medium reasoning effort:
@@ -1421,6 +1424,9 @@ def _validate_language_profile(
 ) -> None:
     """Validate the language profile against the language model."""
     if isinstance(language_model, OpenAILanguageModel):
+        if not completion_model_params.supports_disabled_reasoning and profile.reasoning_effort == "none":
+            minimal_str = "'minimal', " if completion_model_params.supports_minimal_reasoning else "" # can't nest quotes in python < 3.12
+            raise ConfigurationError(f"Model '{model_alias}' does not support 'none' (disabled) reasoning. Please set reasoning_effort on '{profile_alias}' to {minimal_str}'low', 'medium', or 'high' instead.")
         if not completion_model_params.supports_minimal_reasoning and profile.reasoning_effort == "minimal":
             raise ConfigurationError(f"Model '{model_alias}' does not support 'minimal' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:

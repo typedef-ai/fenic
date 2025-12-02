@@ -47,6 +47,7 @@ class CompletionModelParameters:
         supports_profiles: Whether the model supports parameter profiles.
         supports_reasoning: Whether the model supports reasoning parameter.
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
+        supports_disabled_reasoning: Whether the model supports disabling reasoning with 'none'. (Introduced with OpenAI gpt5.1 models)
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
@@ -153,6 +154,9 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5.1",
+    "gpt-5.1-2025-11-13",
+    "gpt-5.1-codex",
     "gpt-5",
     "gpt-5-2025-08-07",
     "gpt-5-mini",
@@ -643,6 +647,7 @@ class ModelCatalog:
                 max_output_tokens=128_000,
                 supports_reasoning=True,
                 supports_minimal_reasoning=True,
+                supports_disabled_reasoning=False,
                 supports_custom_temperature=False,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
@@ -661,6 +666,7 @@ class ModelCatalog:
                 max_output_tokens=128_000,
                 supports_reasoning=True,
                 supports_minimal_reasoning=True,
+                supports_disabled_reasoning=False,
                 supports_custom_temperature=False,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
@@ -679,11 +685,50 @@ class ModelCatalog:
                 max_output_tokens=128_000,
                 supports_reasoning=True,
                 supports_minimal_reasoning=True,
+                supports_disabled_reasoning=False,
                 supports_verbosity=True,
                 supports_custom_temperature=False,
                 supports_pdf_parsing=True,
             ),
             snapshots=["gpt-5-nano-2025-08-07"],
+        )
+
+        # GPT-5.1 models - support 'none' reasoning effort (disabled reasoning), default to 'none'
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.1",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens
+                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,  # Supports temperature when reasoning_effort='none'
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+            snapshots=["gpt-5.1-2025-11-13"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.1-codex",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens
+                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,  # Supports temperature when reasoning_effort='none'
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
         )
 
         # OpenAI Embedding Models

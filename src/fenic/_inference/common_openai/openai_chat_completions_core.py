@@ -97,17 +97,29 @@ class OpenAIChatCompletionsCore:
             if max_completion_tokens is not None:
                 common_params["max_completion_tokens"] = max_completion_tokens
 
+            reasoning_effort = profile_configuration.additional_parameters.get("reasoning_effort") if profile_configuration else None
+            # Temperature is only allowed when reasoning_effort is 'none' for models that support it
             if request.temperature:
-                common_params.update({"temperature": request.temperature})
+                if self._model_parameters.supports_reasoning and reasoning_effort != "none":
+                    logger.warning(
+                        f"Model {self._model} does not support custom temperature when reasoning is enabled.  Ignoring temperature parameter."
+                    )
+                else:
+                    common_params.update({"temperature": request.temperature})
 
             # Determine if we need logprobs
             if request.top_logprobs:
-                common_params.update(
-                    {
-                        "logprobs": True,
-                        "top_logprobs": request.top_logprobs,
-                    }
-                )
+                if self._model_parameters.supports_reasoning and reasoning_effort != "none":
+                    logger.warning(
+                        f"Model {self._model} does not support logprobs when reasoning is enabled.  Ignoring logprobs parameter."
+                    )
+                else:
+                    common_params.update(
+                        {
+                            "logprobs": True,
+                            "top_logprobs": request.top_logprobs,
+                        }
+                    )
             if profile_configuration:
                 common_params.update(profile_configuration.additional_parameters)
 
