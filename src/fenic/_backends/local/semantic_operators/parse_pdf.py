@@ -13,6 +13,7 @@ from fenic._backends.local.semantic_operators.base import (
 from fenic._backends.local.utils.doc_loader import DocFolderLoader
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import LMRequestFile, LMRequestMessages
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,10 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
 
         DocFolderLoader.check_file_extensions(input.to_list(), "pdf")
 
+        temperature = 0.0
+        if model.provider == ModelProvider.GOOGLE_DEVELOPER or model.provider == ModelProvider.GOOGLE_VERTEX or (model.provider == ModelProvider.OPENROUTER and model.model.split("/")[0] == "google"):
+            temperature = 1.0  # Use a higher temperature so gemini flash models can handle complex table formatting.  For more info see the conversation here: https://discuss.ai.google.dev/t/gemini-2-0-flash-has-a-weird-bug/65119/26
+
         super().__init__(
             input=input,
             request_sender=CompletionOnlyRequestSender(
@@ -67,8 +72,8 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
                 operator_name="semantic.parse_pdf",
                 inference_config=InferenceConfiguration(
                     max_output_tokens=max_output_tokens,
-                    temperature=1.0,  # Use a higher temperature so gemini flash models can handle complex table formatting.  For more info see the conversation here: https://discuss.ai.google.dev/t/gemini-2-0-flash-has-a-weird-bug/65119/26
                     model_profile=model_alias.profile if model_alias else None,
+                    temperature=temperature,
                     request_timeout=request_timeout,
                 ),
             ),
