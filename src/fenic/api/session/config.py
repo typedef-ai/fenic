@@ -209,27 +209,26 @@ class GoogleDeveloperLanguageModel(BaseModel):
                 the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
+                Note: For gemini-3 models, use thinking_level instead.
+            thinking_level: For gemini-3+ models, set the thinking level to high or low.
+                This parameter is mutually exclusive with thinking_token_budget.
+            media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
+                Can be "low", "medium", or "high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Example:
-            Configuring a profile with a fixed thinking budget:
+            Configuring a profile with a fixed thinking budget (gemini-2.5 and earlier):
 
             ```python
             profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=4096)
             ```
 
-            Configuring a profile with automatic thinking budget:
+            Configuring a profile with thinking level (gemini-3+):
 
             ```python
-            profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1)
-            ```
-
-            Configuring a profile with thinking disabled:
-
-            ```python
-            profile = GoogleDeveloperLanguageModel.Profile(thinking_token_budget=0)
+            profile = GoogleDeveloperLanguageModel.Profile(thinking_level="high")
             ```
         """
 
@@ -237,6 +236,12 @@ class GoogleDeveloperLanguageModel(BaseModel):
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
+        )
+        thinking_level: Optional[Literal["high", "low"]] = Field(
+            default=None, description="The thinking level for gemini-3+ models (high or low)."
+        )
+        media_resolution: Optional[Literal["low", "medium", "high"]] = Field(
+            default=None, description="The media resolution for PDF processing in gemini-3+ models."
         )
 
 
@@ -376,33 +381,38 @@ class GoogleVertexLanguageModel(BaseModel):
                 the prompt, set this to -1. Note that Gemini models take this as a suggestion -- and not a hard limit.
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
+                Note: For gemini-3 models, use thinking_level instead.
+            thinking_level: For gemini-3+ models, set the thinking level to high or low.
+                This parameter is mutually exclusive with thinking_token_budget.
+            media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
+                Can be "low", "medium", or "high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Example:
-            Configuring a profile with a fixed thinking budget:
+            Configuring a profile with a fixed thinking budget (gemini-2.5 and earlier):
 
             ```python
             profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=4096)
             ```
 
-            Configuring a profile with automatic thinking budget:
+            Configuring a profile with thinking level (gemini-3+):
 
             ```python
-            profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=-1)
-            ```
-
-            Configuring a profile with thinking disabled:
-
-            ```python
-            profile = GoogleVertexLanguageModel.Profile(thinking_token_budget=0)
+            profile = GoogleVertexLanguageModel.Profile(thinking_level="high")
             ```
         """
         model_config = ConfigDict(extra="forbid")
 
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
+        )
+        thinking_level: Optional[Literal["high", "low"]] = Field(
+            default=None, description="The thinking level for gemini-3+ models (high or low)."
+        )
+        media_resolution: Optional[Literal["low", "medium", "high"]] = Field(
+            default=None, description="The media resolution for PDF processing in gemini-3+ models."
         )
 
 
@@ -1025,12 +1035,35 @@ class SemanticConfig(BaseModel):
 
         This hook runs after the model is initialized and validated.
         It sets the default language and embedding models if they are not set
-        and there is only one model available.
+        and there is only one model available. For Google models that support
+        thinking_level, it auto-creates "low" and "high" profiles if no profiles
+        are configured.
         """
         if self.language_models:
             # Set default language model if not set and only one model exists
             if self.default_language_model is None and len(self.language_models) == 1:
                 self.default_language_model = list(self.language_models.keys())[0]
+
+            # Auto-create profiles for Google models that support thinking_level
+            for model_config in self.language_models.values():
+                if isinstance(model_config, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
+                    model_provider = _get_model_provider_for_model_config(model_config)
+                    model_params = model_catalog.get_completion_model_parameters(
+                        model_provider, model_config.model_name
+                    )
+                    if model_params and model_params.supports_thinking_level and model_config.profiles is None:
+                        # Auto-create "low" and "high" profiles for thinking_level models
+                        if isinstance(model_config, GoogleDeveloperLanguageModel):
+                            model_config.profiles = {
+                                "low": GoogleDeveloperLanguageModel.Profile(thinking_level="low"),
+                                "high": GoogleDeveloperLanguageModel.Profile(thinking_level="high"),
+                            }
+                        else:
+                            model_config.profiles = {
+                                "low": GoogleVertexLanguageModel.Profile(thinking_level="low"),
+                                "high": GoogleVertexLanguageModel.Profile(thinking_level="high"),
+                            }
+                        model_config.default_profile = "low"
 
             # Set default profile for each model if not set and only one profile exists
             for model_config in self.language_models.values():
@@ -1292,7 +1325,11 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
                 profiles = {
-                    profile: ResolvedGoogleModelProfile(thinking_token_budget=profile_config.thinking_token_budget) for
+                    profile: ResolvedGoogleModelProfile(
+                        thinking_token_budget=profile_config.thinking_token_budget,
+                        thinking_level=profile_config.thinking_level,
+                        media_resolution=profile_config.media_resolution,
+                    ) for
                     profile, profile_config in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedGoogleModelConfig(
@@ -1432,8 +1469,22 @@ def _validate_language_profile(
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
-        if (not profile.thinking_token_budget or profile.thinking_token_budget == 0) and not completion_model_params.supports_disabled_reasoning:
-            raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
+        if completion_model_params.supports_thinking_level:
+            # For gemini-3+ models, thinking_level must be used instead of thinking_token_budget
+            if profile.thinking_token_budget is not None:
+                raise ConfigurationError(
+                    f"Model '{model_alias}' uses thinking_level (high/LOW) instead of thinking_token_budget. "
+                    f"Please set thinking_level on '{profile_alias}' instead."
+                )
+        else:
+            # For older models, thinking_token_budget is used
+            if profile.thinking_level is not None:
+                raise ConfigurationError(
+                    f"Model '{model_alias}' does not support thinking_level. "
+                    f"Please use thinking_token_budget on '{profile_alias}' instead."
+                )
+            if (not profile.thinking_token_budget or profile.thinking_token_budget == 0) and not completion_model_params.supports_disabled_reasoning:
+                raise ConfigurationError(f"Model '{model_alias}' does not support disabling reasoning. Please set thinking_token_budget on '{profile_alias}' to a non-zero value.")
     elif isinstance(language_model, OpenRouterLanguageModel):
         # For OpenRouter, validate pass-through parameters against capabilities
         if (

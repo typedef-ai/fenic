@@ -514,6 +514,25 @@ def test_model_profile_validation():
             )
         )
 
+    # test that you cannot set thinking_level on a model that doesn't support it
+    with pytest.raises(ConfigurationError, match="Model 'gemini-2.5-pro' does not support thinking_level. Please use thinking_token_budget on 'high' instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gemini-2.5-pro": GoogleVertexLanguageModel(model_name="gemini-2.5-pro", rpm=100, tpm=1000, profiles={"high": GoogleVertexLanguageModel.Profile(thinking_level="high")})}
+            )
+        )
+
+    # test that you cannot set both thinking_token_budget and thinking_level
+    with pytest.raises(ConfigurationError, match="Model 'gemini-3-pro-preview' uses thinking_level \\(high/LOW\\) instead of thinking_token_budget. Please set thinking_level on 'high' instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gemini-3-pro-preview": GoogleDeveloperLanguageModel(model_name="gemini-3-pro-preview", rpm=100, tpm=1000, profiles={"high": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=100)})}
+            )
+        )
+
+
     # Test that gpt-5.1 works with 'none' reasoning (default)
     SessionConfig(
         app_name="test_model_profile_validation",

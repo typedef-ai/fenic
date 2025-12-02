@@ -34,7 +34,18 @@ class GeminiLocalTokenCounter(TokenCounter):
             does not recognize `model_name`.
     """
 
+    # Token costs per page for PDF inputs, by media resolution.
+    # See https://docs.cloud.google.com/vertex-ai/generative-ai/docs/start/get-started-with-gemini-3#media_resolution
+    GEMINI_3_PDF_TOKENS_PER_PAGE = {
+        "low": 280,
+        "medium": 560,
+        "high": 1120,
+    }
+    # For older models (gemini-2.x and earlier), costs are fixed at 258 tokens per page.  See https://gemini-api.apidog.io/doc-965859#technical-details for more details.
+    GEMINI_2_PDF_TOKENS_PER_PAGE = 258
+
     def __init__(self, model_name: str, fallback_encoding: str = "gemini-2.5-flash") -> None:
+        self.model_name = model_name
         try:
             self.google_tokenizer: LocalTokenizer = LocalTokenizer(model_name=model_name)
         except ValueError:
@@ -55,11 +66,30 @@ class GeminiLocalTokenCounter(TokenCounter):
         elif isinstance(messages, LMRequestMessages):
             return self._count_request_tokens(messages, ignore_file)
 
-    def count_file_input_tokens(self, messages: LMRequestMessages) -> int:
-        # Gemini 2.0 charges 258 tokens per page for all PDF inputs.  For more detail, see https://gemini-api.apidog.io/doc-965859#technical-details
+    def count_file_input_tokens(self, messages: LMRequestMessages, media_resolution: str | None = None) -> int:
+        """Count tokens for file input (PDF).
+
+        Args:
+            messages: The request messages containing the file.
+            media_resolution: Optional media resolution ("low", "medium", "high").
+                Only used for gemini-3+ models.
+
+        Returns:
+            Estimated token count for the file input.
+        """
         page_count = get_pdf_page_count(messages.user_file)
-        tokens = page_count * 258
-        return tokens
+
+        # Check if this is a gemini-3+ model
+        if self.model_name.startswith("gemini-3"):
+            # Use the new cost model for gemini-3+ models
+            # Default to "low" if media_resolution is not specified
+            resolution = media_resolution or "low"
+            tokens_per_page = self.GEMINI_3_PDF_TOKENS_PER_PAGE.get(resolution, self.GEMINI_3_PDF_TOKENS_PER_PAGE["low"])
+        else:
+            # Use the old cost model for gemini-2.x and earlier 
+            tokens_per_page = self.GEMINI_2_PDF_TOKENS_PER_PAGE
+
+        return page_count * tokens_per_page
 
     def count_file_output_tokens(self, messages: LMRequestMessages) -> int:
         # TODO: we do this twice, once for estimating input and once for estimating output.  We can cache the text in the LMFile object.

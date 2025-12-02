@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 from google.genai.types import (
     EmbedContentConfigDict,
     GenerateContentConfigDict,
     ThinkingConfigDict,
+    ThinkingLevel,
 )
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
@@ -23,10 +24,12 @@ class GoogleCompletionsProfileConfig(BaseProfileConfiguration):
         thinking_enabled: Whether thinking/reasoning is enabled for this profile
         thinking_token_budget: Token budget allocated for thinking/reasoning
         additional_generation_config: Additional Google-specific generation configuration
+        media_resolution: Media resolution for PDF processing (gemini-3+ models)
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
     additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
+    media_resolution: Optional[Literal["low", "medium", "high"]] = None
 
 @dataclass
 class GoogleEmbeddingsProfileConfig(BaseProfileConfiguration):
@@ -102,7 +105,29 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         expected_thinking_tokens = 0
 
         if self.model_parameters.supports_reasoning:
-            if profile.thinking_token_budget is None or profile.thinking_token_budget == 0:
+            if self.model_parameters.supports_thinking_level:
+                # Gemini 3+ models use thinking_level (high/LOW) instead of thinking_budget
+                # thinking_token_budget must be None for these models
+                if profile.thinking_level is not None:
+                    thinking_level = profile.thinking_level
+                else:
+                    # Default to low if not specified
+                    thinking_level = "low"
+
+                thinking_enabled = True
+
+                # Estimate expected thinking tokens based on level
+                if thinking_level == "high":
+                    thinking_level_enum = ThinkingLevel.HIGH
+                    expected_thinking_tokens = 32768
+                else:  # low
+                    thinking_level_enum = ThinkingLevel.LOW
+                    expected_thinking_tokens = 8192
+                thinking_config: ThinkingConfigDict = {
+                    "thinking_level": thinking_level_enum
+                }
+                additional_generation_config.update({"thinking_config": thinking_config})
+            elif profile.thinking_token_budget is None or profile.thinking_token_budget == 0:
                 # Thinking disabled
                 thinking_enabled = False
                 thinking_config: ThinkingConfigDict = {
@@ -111,7 +136,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 }
                 additional_generation_config.update({"thinking_config": thinking_config})
             else:
-                # Thinking enabled
+                # Thinking enabled with budget
                 thinking_enabled = True
                 thinking_config: ThinkingConfigDict = {
                     "include_thoughts": False,
@@ -125,10 +150,16 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                     # Dynamic budget - approximate with default value
                     expected_thinking_tokens = 16384
 
+        # Handle media_resolution for gemini-3+ models
+        media_resolution = None
+        if self.model_parameters.supports_media_resolution:
+            media_resolution = profile.media_resolution or "low"  # Default to "low" for gemini-3+ models
+
         return GoogleCompletionsProfileConfig(
             thinking_enabled=thinking_enabled,
             thinking_token_budget=expected_thinking_tokens,
-            additional_generation_config=additional_generation_config
+            additional_generation_config=additional_generation_config,
+            media_resolution=media_resolution,
         )
 
     def get_default_profile(self) -> GoogleCompletionsProfileConfig:
@@ -137,8 +168,23 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         Returns:
             Default configuration with thinking disabled if supported, otherwise default to low reasoning
         """
+        # Default media_resolution for gemini-3+ models
+        media_resolution = "low" if self.model_parameters.supports_media_resolution else None
+
         if self.model_parameters.supports_reasoning:
-            if self.model_parameters.supports_disabled_reasoning:
+            if self.model_parameters.supports_thinking_level:
+                # Gemini 3+ models use thinking_level (high/LOW) - default to low
+                return GoogleCompletionsProfileConfig(
+                    thinking_enabled=True,
+                    thinking_token_budget=8192,  # Estimated for low
+                    additional_generation_config=GenerateContentConfigDict(
+                        thinking_config=ThinkingConfigDict(
+                            thinking_level=ThinkingLevel.LOW
+                        )
+                    ),
+                    media_resolution=media_resolution,
+                )
+            elif self.model_parameters.supports_disabled_reasoning:
                 return GoogleCompletionsProfileConfig(
                     thinking_enabled=False,
                     thinking_token_budget=0,
@@ -147,7 +193,8 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                             include_thoughts=False,
                             thinking_budget=0
                         )
-                    )
+                    ),
+                    media_resolution=media_resolution,
                 )
             else:
                 # default to low reasoning
@@ -159,6 +206,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                             include_thoughts=True,
                             thinking_budget=1024
                         )
-                    )
+                    ),
+                    media_resolution=media_resolution,
                 )
-        return GoogleCompletionsProfileConfig()
+        return GoogleCompletionsProfileConfig(media_resolution=media_resolution)

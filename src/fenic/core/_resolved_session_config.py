@@ -45,8 +45,10 @@ class ResolvedAnthropicModelProfile:
 @dataclass
 class ResolvedGoogleModelProfile:
     thinking_token_budget: Optional[int] = None
+    thinking_level: Optional[Literal["high", "low"]] = None
     embedding_dimensionality: Optional[int] = None
     embedding_task_type: Optional[str] = None
+    media_resolution: Optional[Literal["low", "medium", "high"]] = None
 
 
 @dataclass

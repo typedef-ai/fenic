@@ -47,10 +47,12 @@ class CompletionModelParameters:
         supports_profiles: Whether the model supports parameter profiles.
         supports_reasoning: Whether the model supports reasoning parameter.
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
-        supports_disabled_reasoning: Whether the model supports disabling reasoning with 'none'. (Introduced with OpenAI gpt5.1 models)
+        supports_disabled_reasoning: Whether the model supports disabling reasoning.
+        supports_thinking_level: Whether the model uses thinking_level (high/LOW) instead of thinking_budget. (Google Gemini 3+)
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
+        supports_media_resolution: Whether the model supports media_resolution setting for PDF processing. (Google Gemini 3+)
     """
 
     def __init__(
@@ -67,9 +69,11 @@ class CompletionModelParameters:
         supports_reasoning=False,
         supports_minimal_reasoning=False,
         supports_disabled_reasoning = True,
+        supports_thinking_level = False,
         supports_custom_temperature = True,
         supports_verbosity = False,
         supports_pdf_parsing = False,
+        supports_media_resolution = False,
         supported_parameters: Optional[set[str]] = None,
     ):
         self.input_token_cost = input_token_cost
@@ -85,9 +89,11 @@ class CompletionModelParameters:
         self.supports_reasoning = supports_reasoning
         self.supports_minimal_reasoning = supports_minimal_reasoning
         self.supports_disabled_reasoning = supports_disabled_reasoning
+        self.supports_thinking_level = supports_thinking_level
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
+        self.supports_media_resolution = supports_media_resolution
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
 
@@ -240,6 +246,7 @@ CohereEmbeddingModelName = Literal[
 
 
 GoogleDeveloperLanguageModelName = Literal[
+    "gemini-3-pro-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -792,6 +799,25 @@ class ModelCatalog:
         """Initialize the Google Vertex Models."""
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
+            "gemini-3-pro-preview",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens (placeholder)
+                cached_input_token_read_cost=0.03125
+                / 1_000_000,  # $0.03125 per 1M tokens (placeholder)
+                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens (placeholder)
+                context_window_length=1_048_576,
+                max_output_tokens=65_535,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supports_thinking_level=True,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
             "gemini-2.5-pro",
             CompletionModelParameters(
                 input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
@@ -914,6 +940,25 @@ class ModelCatalog:
     def _initialize_google_gla_models(self):
         """Initialize Google models in the catalog."""
         # Google GLA Models (same models, possibly different pricing)
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3-pro-preview",
+            CompletionModelParameters(
+                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens (placeholder)
+                cached_input_token_read_cost=0.03125
+                / 1_000_000,  # $0.03125 per 1M tokens (placeholder)
+                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens (placeholder)
+                context_window_length=1_048_576,
+                max_output_tokens=65_535,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supports_thinking_level=True,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-2.5-pro",

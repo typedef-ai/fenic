@@ -29,6 +29,7 @@ basic_text_content = [
 # keeping the more expensive models off by default
 # test_processing_engine is an OpenRouter tool choice for processing PDFs
 vlms_to_test = [
+    #(GoogleDeveloperLanguageModel, "gemini-3-pro-preview", None),
     (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "mistral-ocr"),
     (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "pdf-text"),
     (OpenRouterLanguageModel, "google/gemini-2.0-flash-lite-001", "native"),
@@ -194,7 +195,9 @@ def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str, proces
     # Set up the profile with the lowest reasoning effort allowed by the model
     profile = None
     if test_model_class == GoogleDeveloperLanguageModel:
-        if model_parameters.supports_disabled_reasoning:
+        if model_parameters.supports_thinking_level:
+            profile = test_model_class.Profile(thinking_level="low")
+        elif model_parameters.supports_disabled_reasoning:
             profile = test_model_class.Profile(thinking_token_budget=0)
         else:
             # gemini-2.5-pro doesn't support disabled reasoning and needs a minimum of 128 tokens

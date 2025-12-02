@@ -7,6 +7,7 @@ from google.genai.types import (
     FinishReason,
     GenerateContentConfigDict,
     GenerateContentResponse,
+    MediaResolution,
 )
 
 from fenic._inference.google.gemini_token_counter import GeminiLocalTokenCounter
@@ -118,7 +119,7 @@ class GeminiNativeChatCompletionsClient(
         """
         return self._metrics
 
-    def count_tokens(self, messages: Tokenizable) -> int:  # type: ignore[override]
+    def count_tokens(self, messages: Tokenizable, ignore_file: bool = False) -> int:  # type: ignore[override]
         """Count tokens in messages.
 
         Re-exposes the parent implementation for type checking.
@@ -130,7 +131,7 @@ class GeminiNativeChatCompletionsClient(
             Token count
         """
         # Re-expose for mypy – same implementation as parent.
-        return super().count_tokens(messages)
+        return super().count_tokens(messages, ignore_file=ignore_file)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
         """Generate a unique key for the request.
@@ -154,7 +155,16 @@ class GeminiNativeChatCompletionsClient(
         Returns:
             TokenEstimate: The estimated token usage
         """
-        input_tokens = self.count_tokens(request.messages)
+        # Count text tokens (excluding file) so we can handle file tokens separately with media_resolution
+        input_tokens = self.count_tokens(request.messages, ignore_file=True)
+
+        # Add file tokens with media_resolution from profile if there's a file
+        if request.messages.user_file:
+            profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+            input_tokens += self._token_counter.count_file_input_tokens(
+                request.messages, media_resolution=profile_config.media_resolution
+            )
+
         input_tokens += self._count_auxiliary_input_tokens(request)
         output_tokens = self._estimate_output_tokens(request)
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
@@ -188,6 +198,16 @@ class GeminiNativeChatCompletionsClient(
             generation_config["max_output_tokens"] = max_output_tokens
 
         generation_config.update(profile_config.additional_generation_config)
+
+        # Add media_resolution from profile if specified (for PDF processing)
+        if profile_config.media_resolution is not None:
+            media_resolution_map = {
+                "low": MediaResolution.MEDIA_RESOLUTION_LOW,
+                "medium": MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+                "high": MediaResolution.MEDIA_RESOLUTION_HIGH,
+            }
+            generation_config["media_resolution"] = media_resolution_map[profile_config.media_resolution]
+
         if request.structured_output is not None:
             generation_config.update(
                 response_mime_type="application/json",

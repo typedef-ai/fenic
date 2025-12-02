@@ -315,11 +315,11 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 default_profile = "disabled_reasoning"
 
             language_model = OpenAILanguageModel(
-                    model_name=model_name,
-                    rpm=500,
-                    tpm=100_000,
-                    profiles=profiles,
-                    default_profile=default_profile,
+                model_name=model_name,
+                rpm=500,
+                tpm=100_000,
+                profiles=profiles,
+                default_profile=default_profile,
             )
         else:
             language_model = OpenAILanguageModel(
@@ -350,7 +350,20 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 output_tpm=75_000,
             )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
-        if model_parameters.supports_reasoning:
+        if model_parameters.supports_thinking_level:
+            # For gemini-3+ models, use thinking_level (high/LOW) instead of thinking_token_budget
+            # Default media_resolution to "low" for gemini-3+ models
+            language_model = GoogleDeveloperLanguageModel(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+                profiles={
+                    "low": GoogleDeveloperLanguageModel.Profile(thinking_level="low", media_resolution="low"),
+                    "high": GoogleDeveloperLanguageModel.Profile(thinking_level="high", media_resolution="low"),
+                },
+                default_profile="low",
+            )
+        elif model_parameters.supports_reasoning:
             profiles = {
                 "auto": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=-1),
                 "low": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=1024),
@@ -373,19 +386,34 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 tpm=500_000,
             )
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
-        if model_parameters.supports_reasoning:
+        if model_parameters.supports_thinking_level:
+            # For gemini-3+ models, use thinking_level (high/LOW) instead of thinking_token_budget
+            # Default media_resolution to "low" for gemini-3+ models
             language_model = GoogleVertexLanguageModel(
                 model_name=model_name,
                 rpm=1000,
                 tpm=500_000,
                 profiles={
-                    "thinking_disabled": GoogleVertexLanguageModel.Profile(),
-                    "auto": GoogleVertexLanguageModel.Profile(thinking_token_budget=-1),
-                    "low": GoogleVertexLanguageModel.Profile(thinking_token_budget=1024),
-                    "medium": GoogleVertexLanguageModel.Profile(thinking_token_budget=4096),
-                    "high": GoogleVertexLanguageModel.Profile(thinking_token_budget=8192),
+                    "low": GoogleVertexLanguageModel.Profile(thinking_level="low", media_resolution="low"),
+                    "high": GoogleVertexLanguageModel.Profile(thinking_level="high", media_resolution="low"),
                 },
-                default_profile="auto",
+                default_profile="low",
+            )
+        elif model_parameters.supports_reasoning:
+            profiles = {
+                "auto": GoogleVertexLanguageModel.Profile(thinking_token_budget=-1),
+                "low": GoogleVertexLanguageModel.Profile(thinking_token_budget=1024),
+                "medium": GoogleVertexLanguageModel.Profile(thinking_token_budget=4096),
+                "high": GoogleVertexLanguageModel.Profile(thinking_token_budget=8192),
+            }
+            if model_parameters.supports_disabled_reasoning:
+                profiles["thinking_disabled"] = GoogleVertexLanguageModel.Profile()
+            language_model = GoogleVertexLanguageModel(
+                model_name=model_name,
+                rpm=1000,
+                tpm=500_000,
+                profiles=profiles,
+                default_profile="thinking_disabled" if "thinking_disabled" in profiles else "auto",
             )
         else:
             language_model = GoogleVertexLanguageModel(

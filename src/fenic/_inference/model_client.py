@@ -196,16 +196,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         pass
 
-    def count_tokens(self, messages: Tokenizable) -> int:
+    def count_tokens(self, messages: Tokenizable, ignore_file: bool = False) -> int:
         """Count the number of tokens in a tokenizable object.
 
         Args:
             messages: The tokenizable object to count tokens for
+            ignore_file: If True, skip counting file tokens
 
         Returns:
             int: The number of tokens in the object
         """
-        return self.token_counter.count_tokens(messages)
+        return self.token_counter.count_tokens(messages, ignore_file=ignore_file)
 
     @abstractmethod
     def get_request_key(self, request: RequestT) -> Any:

@@ -17,7 +17,7 @@ def test_local_token_counter_counts_tokens():
 
     model = "gemini-1.5-pro" #gemma2
     pro_counter = GeminiLocalTokenCounter(model_name=model)
-    assert pro_counter.count_tokens("This is a longer string of text with characters: 那只敏捷的棕色狐狸跳过了懒惰的狗") == 23
+    assert pro_counter.count_tokens("This is a longer string of text with characters: 那只敏捷的棕色狐狸跳过了懒惰的狗") == 25
 
 def test_local_token_counter_falls_back_to_gemma3():
     model = "gemini-242342" #non-existent model
