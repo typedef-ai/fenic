@@ -204,12 +204,16 @@ GoogleDeveloperEmbeddingModelName = Literal[
 ]
 
 AnthropicLanguageModelName = Literal[
+    "claude-opus-4-5",
+    "claude-opus-4-5-20251101",
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-5-20250929",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
     "claude-3-5-haiku-latest",
     "claude-3-5-haiku-20241022",
-    "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4-5",
     "claude-sonnet-4-20250514",
     "claude-sonnet-4-0",
     "claude-4-sonnet-20250514",
@@ -331,6 +335,38 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        # Claude 4.5 models
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-5",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                cached_input_token_write_cost=6.25 / 1_000_000,  # $6.25 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=64_000,
+                supports_reasoning=True,
+            ),
+            snapshots=["claude-opus-4-5-20251101"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-haiku-4-5",
+            CompletionModelParameters(
+                input_token_cost=1.00 / 1_000_000,  # $1 per 1M tokens
+                cached_input_token_write_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                cached_input_token_read_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
+                output_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=64_000,
+                supports_reasoning=True,
+            ),
+            snapshots=["claude-haiku-4-5-20251001"],
+        )
+
+        # Claude 4.1 models
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-opus-4-1",
