@@ -15,7 +15,6 @@
 5. [Implementation](#implementation)
 6. [Integration](#integration)
 7. [Testing](#testing)
-8. [Deployment](#deployment)
 
 ---
 
@@ -115,7 +114,9 @@ LIMIT 10;
 ### Cache Flow
 
 ```markdown
-Request → Check Cache → Hit? Return cached : Call API → Store in cache → Return
+Request Batch → Pull Cache hits for entire batch
+For Each Request:
+Check Cache → Hit? Return cached : Call API → Store in cache → Return
 ↓
 Miss
 ↓
@@ -334,44 +335,6 @@ end-to-end scenarios:
   can remain lean and fast.
 
 ---
-
-## Deployment
-
-### Phase 1: Core Implementation (Week 1)
-
-**Day 1-2**: Cache infrastructure
-
-- [ ] Implement `LLMResponseCacheConfig` with validation
-- [ ] Implement deterministic key generation inside `SQLiteLLMCache`
-- [ ] Implement `SQLiteLLMCache`
-- [ ] Unit tests
-
-**Day 3-4**: ModelClient integration
-
-- [ ] Update `ModelClient.__init__` to accept cache
-- [ ] Add cache lookup in `_submit_batch_requests`
-- [ ] Add cache storage in `_handle_response`
-- [ ] Integration tests
-
-**Day 5**: Documentation & polish
-
-- [ ] API documentation
-- [ ] Usage examples
-- [ ] Performance benchmarks
-
-### Phase 2: Beta Testing (Week 2)
-
-- [ ] Deploy to development environment
-- [ ] Monitor metrics (hit rate, error rate, latency)
-- [ ] Gather user feedback
-- [ ] Iterate based on findings
-
-### Phase 3: Production (Week 3)
-
-- [ ] Enable for all users (opt-in)
-- [ ] Monitor production metrics
-- [ ] Document best practices
-- [ ] Consider enabling by default
 
 ### Migration Guide
 

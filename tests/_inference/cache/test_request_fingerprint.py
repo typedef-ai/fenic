@@ -4,9 +4,11 @@ from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FewShotExample,
+    LMRequestFile,
     LMRequestMessages,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
+from tests.conftest import _save_pdf_file
 
 
 def _build_request(
@@ -125,6 +127,28 @@ def test_request_fingerprint_includes_structured_output():
     assert _fingerprint(
         _build_request(messages=messages, structured_output=format1)
     ) != _fingerprint(_build_request(messages=messages, structured_output=format2))
+
+
+def test_request_fingerprint_accounts_for_pdf_files(tmp_path):
+    pdf_path = tmp_path / "sample.pdf"
+    _save_pdf_file(pdf_path, page_count=2, text_content="PDF content")
+
+    messages_one = LMRequestMessages(
+        system="You are helpful",
+        examples=[],
+        user=None,
+        user_file=LMRequestFile(path=str(pdf_path), page_range=(0, 1)),
+    )
+    messages_two = LMRequestMessages(
+        system="You are helpful",
+        examples=[],
+        user=None,
+        user_file=LMRequestFile(path=str(pdf_path), page_range=(1, 2)),
+    )
+
+    assert _fingerprint(_build_request(messages=messages_one)) != _fingerprint(
+        _build_request(messages=messages_two)
+    )
 
 
 def test_request_fingerprint_is_valid_sha256():
