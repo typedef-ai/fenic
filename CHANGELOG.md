@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.6.0](https://github.com/typedef-ai/fenic/compare/v0.5.0...v0.6.0) (2025-12-04)
+
+
+### Features
+
+* add `with_columns` with parallel execution ([#246](https://github.com/typedef-ai/fenic/issues/246)) ([16aea46](https://github.com/typedef-ai/fenic/commit/16aea46ee5d685424187713dcb7282d965f73bfe))
+* add array_* functions ([#243](https://github.com/typedef-ai/fenic/issues/243)) ([727074b](https://github.com/typedef-ai/fenic/commit/727074be674e91e6254d110adcde028e49606322))
+* Add openai support for semantic parse_pdf ([#253](https://github.com/typedef-ai/fenic/issues/253)) ([e3f58cd](https://github.com/typedef-ai/fenic/commit/e3f58cd9389f4c61513d3d6bf004a1b7c06996e0))
+* Add pdf_parsing to openrouter ([#257](https://github.com/typedef-ai/fenic/issues/257)) ([8935115](https://github.com/typedef-ai/fenic/commit/893511513acc2724e72bdb16c8657ed9f73420cc))
+* Add support for claude opus 4.5 and haiku 4.5 ([#280](https://github.com/typedef-ai/fenic/issues/280)) ([e1b620e](https://github.com/typedef-ai/fenic/commit/e1b620e84099901cb17270443b4876702b077892))
+* add support for gemini3 pro ([#279](https://github.com/typedef-ai/fenic/issues/279)) ([eb68769](https://github.com/typedef-ai/fenic/commit/eb68769d3256c9e2ec0762156d6dd3727a56088c))
+* add support for gpt-5.1 ([#278](https://github.com/typedef-ai/fenic/issues/278)) ([88602ac](https://github.com/typedef-ai/fenic/commit/88602ac0ccb955aca33ff5477080475d50d99e3f))
+* add support for pyspark equivalent `explode_outer`, `posexplode`/`posexplode_outer` (via explode_with_index) ([#249](https://github.com/typedef-ai/fenic/issues/249)) ([8b035ca](https://github.com/typedef-ai/fenic/commit/8b035cad615ef76dce0aa94ed344de7292fce8c5))
+* add support for sum_distinct, count_distinct, approx_count_distinct ([#242](https://github.com/typedef-ai/fenic/issues/242)) ([538dfa7](https://github.com/typedef-ai/fenic/commit/538dfa7cc314bad1801af1aff9fe4347a9d7c69d))
+* fenic agents ([#267](https://github.com/typedef-ai/fenic/issues/267)) ([03bda18](https://github.com/typedef-ai/fenic/commit/03bda186bc703354bf8306138f94f0ce275e3421))
+* implement regexp_* text functions ([#247](https://github.com/typedef-ai/fenic/issues/247)) ([87ef261](https://github.com/typedef-ai/fenic/commit/87ef2613f2942a147afb4a98b969384c5e426c64))
+* llm response caching ([#269](https://github.com/typedef-ai/fenic/issues/269)) ([54f2f3e](https://github.com/typedef-ai/fenic/commit/54f2f3e656f09798aefed4a9f19744119cde94b9))
+* Make timeouts configurable in semantic LLM operations ([#270](https://github.com/typedef-ai/fenic/issues/270)) ([cbf16eb](https://github.com/typedef-ai/fenic/commit/cbf16eb0ab707676329100951bb65aecaeed0967))
+* pdf parsing evaluation tool and test pipeline ([#260](https://github.com/typedef-ai/fenic/issues/260)) ([20f2801](https://github.com/typedef-ai/fenic/commit/20f280181b00e5b15aaee1bd363044a9cafbec41))
+* tweak pdf parser for corner cases and add 120s demo ([#259](https://github.com/typedef-ai/fenic/issues/259)) ([7c7454a](https://github.com/typedef-ai/fenic/commit/7c7454af9ebd56a599a161abb392d7339eeb330e))
+
+
+### Bug Fixes
+
+* assumptions about model attributes returned by OpenRouter API ([#261](https://github.com/typedef-ai/fenic/issues/261)) ([ab260bc](https://github.com/typedef-ai/fenic/commit/ab260bce6ba85f92774cfe8717770f0b33c46f08))
+* embedded image links in 120s demo notebooks ([#255](https://github.com/typedef-ai/fenic/issues/255)) ([d44974b](https://github.com/typedef-ai/fenic/commit/d44974b9c91dd811c1a68e72311cab7ed8ee5ced))
+* gemini vertex 2.0 flash models don't support profiles ([#254](https://github.com/typedef-ai/fenic/issues/254)) ([c99b9ac](https://github.com/typedef-ai/fenic/commit/c99b9acb3a48cb7bc7c819c9b1483fda9d2878f7))
+* pin lancedb to avoid breaking change 0.25.0 ([#276](https://github.com/typedef-ai/fenic/issues/276)) ([5e4e861](https://github.com/typedef-ai/fenic/commit/5e4e861731e91e948dbbec758272a377b5766366))
+* Semantic parse should only set higher temperature for google models ([#277](https://github.com/typedef-ai/fenic/issues/277)) ([8c71da3](https://github.com/typedef-ai/fenic/commit/8c71da3603b9c363b1fb0d1809f23dba4b07ecc7))
+
+
+### Documentation
+
+* clarify limitations of lit ([#262](https://github.com/typedef-ai/fenic/issues/262)) ([f2170a5](https://github.com/typedef-ai/fenic/commit/f2170a5d060686d372eca4ce245c229dc36ec0c3))
+* page for timestamps, timezones, and dates ([#258](https://github.com/typedef-ai/fenic/issues/258)) ([893e866](https://github.com/typedef-ai/fenic/commit/893e866c59e1c670be9029362e6d84a6e5094663))
+
 ## [0.5.0](https://github.com/typedef-ai/fenic/compare/v0.4.2...v0.5.0) (2025-10-06)
 
 
