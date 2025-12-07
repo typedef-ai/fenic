@@ -14,7 +14,7 @@
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/GdqF3J7huR)
 
 > **Turn any agent framework into a context engineering framework.**
->
+
 > Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading. No framework lock-in and no rewrites.
 
 fenic is a **context construction layer** that works with any agent framework. Declare what your agent should see, build it with deterministic + semantic transforms, and serve it as bounded tools, all while **offloading inference** so context operations don't consume your agent's token budget.
@@ -66,17 +66,17 @@ fenic is a **context construction layer** that works with any agent framework. D
 
 Context engineering is the practice of managing everything that goes into an LLM's context window, retrieval, memory, conversation history, tool responses, prompts. It's all tokens in, tokens out. And it's both a **data problem** (what information, in what structure) and an **optimization problem** (how much, when to compress, what to forget).
 
-Fenic's declarative approach fits naturally here. Instead of writing imperative code for each context operation, you describe _what_ your context should look like—and iterate quickly as you learn what works. Combine deterministic transforms (filter, join, window) with semantic ones (extract, embed, summarize) in a single composable flow.
+fenic's declarative approach fits naturally here. Instead of writing imperative code for each context operation, you describe _what_ your context should look like—and iterate quickly as you learn what works. Combine deterministic transforms (filter, join, window) with semantic ones (extract, embed, summarize) in a single composable flow.
 
 Critically, fenic **offloads inference**: summarization, extraction, and embedding happen outside your agent's context window. Your runtime gets the results without the token cost.
 
-### The Fenic Approach
+### The fenic Approach
 
-| Without Fenic                                        | With Fenic                                        |
+| Without fenic                                        | With fenic                                        |
 | ---------------------------------------------------- | ------------------------------------------------- |
-| Agent summarizes conversation → tokens consumed      | Fenic summarizes → agent gets result, zero tokens |
-| Agent extracts facts → tokens consumed               | Fenic extracts → agent gets structured data       |
-| Agent searches, filters, joins → multiple tool calls | Fenic pre-computes → agent gets precise rows      |
+| Agent summarizes conversation → tokens consumed      | fenic summarizes → agent gets result, zero tokens |
+| Agent extracts facts → tokens consumed               | fenic extracts → agent gets structured data       |
+| Agent searches, filters, joins → multiple tool calls | fenic pre-computes → agent gets precise rows      |
 | Context ops compete with reasoning                   | Context ops are **offloaded**                     |
 
 ### Example: PDF → Typed Q&A → Bounded Tools
@@ -145,7 +145,7 @@ server = fc.create_mcp_server(
 
 **What happened here:**
 
-- PDF parsing, extraction, embedding → **inference offloaded to Fenic**
+- PDF parsing, extraction, embedding → **inference offloaded to fenic**
 - Agent context → **only receives small, shaped results**
 - Token cost for context construction → **zero agent tokens**
 - Framework dependency → **none—works with any runtime**
@@ -450,7 +450,7 @@ server = fc.create_mcp_server(
 | Principle                   | What It Means                                                                |
 | --------------------------- | ---------------------------------------------------------------------------- |
 | **Framework-agnostic**      | Works with any runtime that can call tools or functions                      |
-| **Inference offloading**    | Context operations happen in Fenic, not your agent's context window          |
+| **Inference offloading**    | Context operations happen in fenic, not your agent's context window          |
 | **Context as typed tables** | Model context relationally; query it precisely                               |
 | **Declarative transforms**  | Focus on _what_ context to build, not _how_—iterate fast on context strategy |
 | **Bounded tool surfaces**   | Minimal, auditable interfaces with result caps                               |
@@ -463,10 +463,10 @@ server = fc.create_mcp_server(
 
 ### Inference Offloading
 
-The core differentiator: LLM operations for context management happen in Fenic, not in your agent's context.
+The core differentiator: LLM operations for context management happen in fenic, not in your agent's context.
 
 ```python
-# This summarization happens in Fenic's inference—
+# This summarization happens in fenic's inference—
 # your agent receives only the result, zero token cost
 summary = (
     session.table("conversations")
@@ -481,7 +481,7 @@ summary = (
 ```
 
 **Traditional approach:** Agent performs the summarization or it delegates to a sub-agent → tokens consumed from agent budget or complexity is increased by having to manage the context of multiple agents
-**Fenic approach:** fenic handles summarization → agent receives summary → zero agent tokens
+**fenic approach:** fenic handles summarization → agent receives summary → zero agent tokens
 
 ---
 
@@ -607,7 +607,7 @@ async def search_with_summary(query: str, k: int = 20):
 See inside tools, not just inputs/outputs:
 
 ```python
-# Fenic tracks operations inside tools
+# fenic tracks operations inside tools
 # Close the loop between runtime traces and tool internals
 
 metrics = df.write.save_as_table("context", mode="overwrite")
@@ -720,7 +720,7 @@ Local files, S3, Hugging Face Datasets, in-memory (Polars/Pandas/PyArrow)
 
 ### Outputs
 
-CSV/Parquet, Fenic catalog (DuckDB), DataFrame exports, MCP servers, Python functions
+CSV/Parquet, fenic native storage, DataFrame exports, MCP servers, Python functions
 
 ### Agent Frameworks
 
