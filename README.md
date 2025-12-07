@@ -6,80 +6,748 @@
     </picture>
 </div>
 
-# fenic: the dataframe (re)built for LLM inference
+# fenic — context construction for any agent framework
 
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/GdqF3J7huR)
 
+> **Turn any agent framework into a context engineering framework.**
+>
+> Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading. No framework lock-in and no rewrites.
+
+fenic is a **context construction layer** that works with any agent framework. Declare what your agent should see, build it with deterministic + semantic transforms, and serve it as bounded tools, all while **offloading inference** so context operations don't consume your agent's token budget.
+
+<p align="center">
+  <b>Quick links:</b>
+  <a href="#what-you-can-build">Use Cases</a> •
+  <a href="#quick-introduction">Intro</a> •
+  <a href="#quickstart-pick-your-path">Quickstart</a> •
+  <a href="#core-concepts">Concepts</a> •
+  <a href="#key-capabilities">Capabilities</a>
+</p>
+
 ---
 
-## **Documentation**: [docs.fenic.ai](https://docs.fenic.ai/)
+## What You Can Build
 
-fenic is an opinionated, PySpark-inspired DataFrame framework from typedef.ai for building AI and agentic applications. Transform unstructured and structured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
+### Memory & Personalization
 
-## Quick Start with AI-Guided Learning & Development
+- **Curated memory packs** — extract/dedupe/redact facts; serve read-only for recall
+- **Blocks & episodes** — persistent profile + recent event timeline; scoped snapshots
+- **Decaying resolution memory** — window functions for temporal compression (daily → weekly → monthly)
+- **Cross-agent shared memory** — typed tables accessible by multiple agents in your framework
 
-fenic provides an MCP server that gives AI assistants deep understanding of the fenic API. This enables AI tools to provide accurate, context-aware assistance with:
+### Retrieval & Knowledge
 
-- Learning fenic's API and features
-- Understanding usage patterns and best practices
-- Writing code using the correct functions and patterns
-- Debugging issues with real knowledge of the codebase
+- **Policy / KB Q&A** — parse PDFs → `extract(Schema)` → `embed` → neighbors with citations
+- **Chunked retrieval** — chunk/overlap you control, hybrid filter, optional re-rank
 
-### Connect Your AI Assistant
+### Context Operations (Inference Offloaded)
 
-The easiest way to get started is using our hosted MCP server at <https://mcp.fenic.ai>.
+- **Summarization** — deterministic or LLM-powered, without agent token cost
+- **Trajectory storage** — complete context evolution with rollback
+- **Invariant management** — store facts that should persist; re-inject at decision points
+- **Token-budget-aware truncation** — shape tool responses to fit budgets
 
-**Example with Claude Code:**
+### Data Pipelines for Agents
 
-```bash
-claude mcp add -t http fenic-docs https://mcp.fenic.ai
+- **Semantic joins** — connect data by meaning across systems
+- **Entity matching** — resolve duplicates and link records without exact keys
+- **Theme extraction** — cluster and label patterns automatically
+- …and more — fenic's declarative API supports any data transformation your agents need
+
+**Governance & operations:** versioned snapshots, PII redaction, eval datasets, tool-level observability — all built in.
+
+---
+
+## Quick Introduction
+
+Context engineering is the practice of managing everything that goes into an LLM's context window, retrieval, memory, conversation history, tool responses, prompts. It's all tokens in, tokens out. And it's both a **data problem** (what information, in what structure) and an **optimization problem** (how much, when to compress, what to forget).
+
+Fenic's declarative approach fits naturally here. Instead of writing imperative code for each context operation, you describe _what_ your context should look like—and iterate quickly as you learn what works. Combine deterministic transforms (filter, join, window) with semantic ones (extract, embed, summarize) in a single composable flow.
+
+Critically, fenic **offloads inference**: summarization, extraction, and embedding happen outside your agent's context window. Your runtime gets the results without the token cost.
+
+### The Fenic Approach
+
+| Without Fenic                                        | With Fenic                                        |
+| ---------------------------------------------------- | ------------------------------------------------- |
+| Agent summarizes conversation → tokens consumed      | Fenic summarizes → agent gets result, zero tokens |
+| Agent extracts facts → tokens consumed               | Fenic extracts → agent gets structured data       |
+| Agent searches, filters, joins → multiple tool calls | Fenic pre-computes → agent gets precise rows      |
+| Context ops compete with reasoning                   | Context ops are **offloaded**                     |
+
+### Example: PDF → Typed Q&A → Bounded Tools
+
+Build the exact context your agent is allowed to use with typed Q/A facts distilled from policy PDFs, then expose it as a narrow tool surface.
+
+```python
+import fenic as fc
+from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
+from pydantic import BaseModel
+
+# 1) Typed schema for extraction
+class FAQSchema(BaseModel):
+    question: str
+    answer: str
+
+session = fc.Session.get_or_create(fc.SessionConfig(
+    app_name="faq_app",
+    semantic=SemanticConfig(
+        language_models={
+            "gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)
+        },
+        embedding_models={
+            "embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)
+        },
+        default_embedding_model="embed"
+    )
+))
+
+# 2) Hydrate → shape with deterministic + semantic transforms
+rows = [
+    {"id": 1, "pdf_path": "data/policies/eu_refund_policy.pdf"},
+    {"id": 2, "pdf_path": "data/policies/password_reset_guide.pdf"},
+]
+df = session.create_dataframe(rows)
+
+ctx = (
+    df.select(
+        fc.col("id"),
+        fc.col("pdf_path"),
+        fc.semantic.parse_pdf(fc.col("pdf_path")).alias("text")  # parse to markdown
+    )
+    .filter(fc.col("text").contains("policy"))                    # deterministic filter
+    .select(
+        fc.col("id"),
+        fc.semantic.extract(fc.col("text"), FAQSchema).alias("facts"),  # typed extraction
+        fc.semantic.embed(fc.col("text")).alias("vec")                  # embedding
+    )
+    .unnest("facts")  # -> id, question, answer, vec
+)
+
+# 3) Serve as bounded tools (MCP or direct functions)
+ctx.write.save_as_table("faq_context", mode="overwrite")
+
+server = fc.create_mcp_server(
+    session,
+    "FAQ Server",
+    system_tools=fc.SystemToolConfig(
+        table_names=["faq_context"],
+        max_result_rows=100,
+    ),
+)
 ```
 
-Once connected, you can ask questions like:
+**The result:** Agents fetch small, precise rows—not entire PDFs. Runs are faster, cheaper, reproducible, and more accurate.
 
-- "How do I use semantic.extract() to parse JSON from text?"
-- "Show me how to implement a custom async UDF"
-- "What's the difference between semantic.map() and semantic.filter()?"
-- "How do I set up batch inference with multiple LLM providers?"
+**What happened here:**
 
-The AI assistant will have direct access to fenic's complete API documentation and architectural details to provide accurate, helpful responses specific to fenic rather than generic Python advice.
+- PDF parsing, extraction, embedding → **inference offloaded to Fenic**
+- Agent context → **only receives small, shaped results**
+- Token cost for context construction → **zero agent tokens**
+- Framework dependency → **none—works with any runtime**
 
-For self-hosting, see the [docs-server example](examples/mcp/docs-server/).
+**Works with:** LangChain, LangGraph, CrewAI, AutoGen, Haystack, Claude Code, or any Python runtime. fenic exposes MCP tools or Python functions, if your framework can call tools, it can use fenic.
+
+---
+
+## Quickstart (Pick Your Path)
+
+Four core context construction patterns—each works with any framework:
+
+| Pattern                           | What It Shows                        |
+| --------------------------------- | ------------------------------------ |
+| **Memory — facts**                | Extract → embed → semantic recall    |
+| **Memory — blocks & episodes**    | Persistent profile + recent timeline |
+| **Retrieval — schema-first rows** | Typed extraction with citations      |
+| **Retrieval — semantic spans**    | Chunked docs with neighbors          |
+
+Each builds a typed table and exposes tools via MCP or direct Python functions.
+
+---
+
+### 1) Memory — Facts _(extract → embed → recall)_
+
+Turn free-form chat into typed facts and recall them semantically—agents don't carry giant histories.
+
+**Tools exposed:** `mem_recall` (semantic query), plus system tools over `preferences`
+
+```python
+import fenic as fc
+from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
+from pydantic import BaseModel
+from fenic.core.mcp.types import SystemTool
+
+class Preference(BaseModel):
+    category: str
+    value: str
+
+session = fc.Session.get_or_create(fc.SessionConfig(
+    app_name="mem_facts",
+    semantic=SemanticConfig(
+        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
+        default_embedding_model="embed"
+    )
+))
+
+msgs = session.create_dataframe([
+    {"user_id": "user123", "message": "I'm vegetarian and allergic to nuts."},
+    {"user_id": "user123", "message": "I prefer morning meetings."},
+])
+
+prefs = (
+    msgs.select(
+        fc.col("user_id"),
+        fc.semantic.extract(fc.col("message"), Preference).alias("pref"),
+        fc.semantic.embed(fc.col("message")).alias("vec"),
+    )
+    .unnest("pref")
+)
+prefs.write.save_as_table("preferences", mode="overwrite")
+
+async def mem_recall(user_id: str, query: str, k: int = 3):
+    user_prefs = session.table("preferences").filter(fc.col("user_id") == fc.lit(user_id))
+    q = session.create_dataframe([{"q": query}])
+    res = q.semantic.sim_join(
+        user_prefs,
+        left_on=fc.semantic.embed(fc.col("q")),
+        right_on=fc.col("vec"),
+        k=k,
+        similarity_score_column="relevance",
+    ).select("category", "value", "relevance")
+    return res._plan
+
+server = fc.create_mcp_server(
+    session,
+    "Memory (Facts)",
+    user_defined_tools=[SystemTool(name="mem_recall", description="Semantic memory recall", fn=mem_recall)],
+    system_tools=fc.SystemToolConfig(table_names=["preferences"], tool_namespace="mem", max_result_rows=100),
+)
+```
+
+---
+
+### 2) Memory — Blocks & Episodes _(profile + timeline)_
+
+Maintain a profile block alongside a recent event timeline; return scoped snapshots.
+
+**Tools exposed:** `get_user_context` (profile + last N events), plus system tools
+
+```python
+import fenic as fc
+from fenic import SemanticConfig, OpenAILanguageModel
+from pydantic import BaseModel
+from datetime import datetime
+from fenic.core.mcp.types import SystemTool
+
+class MemoryBlock(BaseModel):
+    block_name: str
+    content: str
+    last_updated: str
+
+class AccountEvent(BaseModel):
+    event_type: str
+    amount: float | None = None
+    status: str | None = None
+    description: str | None = None
+
+session = fc.Session.get_or_create(fc.SessionConfig(
+    app_name="mem_blocks",
+    semantic=SemanticConfig(
+        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)}
+    )
+))
+
+blocks = session.create_dataframe([
+    {"user_id": "user123", "block_name": "profile", "content": "Name: Taylor; Dept: Finance",
+     "last_updated": datetime.now().isoformat()}
+])
+blocks.write.save_as_table("memory_blocks", mode="overwrite")
+
+ev = session.create_dataframe([
+    {"user_id": "user123", "event": "Failed transaction of $99.99", "timestamp": "2025-01-01"},
+    {"user_id": "user123", "event": "Card expired",                   "timestamp": "2025-01-05"},
+    {"user_id": "user123", "event": "Account suspended",              "timestamp": "2025-01-06"},
+])
+timeline = (
+    ev.select(
+        fc.col("user_id"),
+        fc.col("timestamp"),
+        fc.semantic.extract(fc.col("event"), AccountEvent).alias("data"),
+    )
+    .unnest("data")
+)
+timeline.write.save_as_table("account_timeline", mode="overwrite")
+
+async def get_user_context(user_id: str, last_n: int = 3):
+    profile = (
+        session.table("memory_blocks")
+        .filter((fc.col("user_id") == fc.lit(user_id)) & (fc.col("block_name") == fc.lit("profile")))
+        .select("block_name", "content", "last_updated")
+    )
+    recent = (
+        session.table("account_timeline")
+        .filter(fc.col("user_id") == fc.lit(user_id))
+        .sort(fc.col("timestamp").desc())
+        .limit(last_n)
+        .select("timestamp", "event_type", "status", "amount", "description")
+    )
+    return {"profile": profile._plan, "recent_events": recent._plan}
+
+server = fc.create_mcp_server(
+    session,
+    "Memory (Blocks & Episodes)",
+    user_defined_tools=[SystemTool(name="get_user_context", description="Profile + recent events", fn=get_user_context)],
+    system_tools=fc.SystemToolConfig(
+        table_names=["memory_blocks", "account_timeline"],
+        tool_namespace="memctx",
+        max_result_rows=100,
+    ),
+)
+```
+
+---
+
+### 3) Retrieval — From unstructured to structured data
+
+Turn unstructured sources into typed rows (Q&A, policies, products), pre-embed, and retrieve with citations.
+
+**Tools exposed:** `qa_neighbors(query, k)` with citations, plus system tools
+
+```python
+import fenic as fc
+from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
+from pydantic import BaseModel
+from fenic.core.mcp.types import SystemTool
+
+class QAPair(BaseModel):
+    question: str
+    answer: str
+
+session = fc.Session.get_or_create(fc.SessionConfig(
+    app_name="policy_qa",
+    semantic=SemanticConfig(
+        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
+        default_embedding_model="embed"
+    )
+))
+
+qa_pairs = (
+    session.read.pdf_metadata("policies/*.pdf")
+    .select(fc.col("file_path").alias("source"),
+            fc.semantic.parse_pdf(fc.col("file_path")).alias("content"))
+    .select(fc.col("source"),
+            fc.semantic.extract(fc.col("content"), QAPair).alias("qa"))
+    .unnest("qa")
+    .select("source",
+            "question",
+            "answer",
+            fc.semantic.embed(fc.col("question")).alias("embedding"))
+)
+qa_pairs.write.save_as_table("policy_qa", mode="overwrite")
+
+async def qa_neighbors(query: str, k: int = 3):
+    q = session.create_dataframe([{"q": query}])
+    res = q.semantic.sim_join(
+        session.table("policy_qa"),
+        left_on=fc.semantic.embed(fc.col("q")),
+        right_on=fc.col("embedding"),
+        k=k,
+        similarity_score_column="relevance",
+    ).select("question", "answer", "source", "relevance")
+    return res._plan
+
+server = fc.create_mcp_server(
+    session,
+    "Policy QA",
+    user_defined_tools=[SystemTool(name="qa_neighbors", description="Semantic Q/A retrieval", fn=qa_neighbors)],
+    system_tools=fc.SystemToolConfig(table_names=["policy_qa"], tool_namespace="qa", max_result_rows=50),
+)
+```
+
+---
+
+### 4) Retrieval — Semantic Spans
+
+Break long documents into overlapping spans, embed once, serve semantic top-K.
+
+**Tools exposed:** `docs_neighbors(query, k)`, plus system tools
+
+```python
+import fenic as fc
+from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
+from fenic.core.mcp.types import SystemTool
+
+session = fc.Session.get_or_create(fc.SessionConfig(
+    app_name="docs",
+    semantic=SemanticConfig(
+        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
+        default_embedding_model="embed"
+    )
+))
+
+exploded = (
+    session.read.pdf_metadata("docs/**/*.pdf")
+    .select(fc.col("file_path").alias("source"),
+            fc.semantic.parse_pdf(fc.col("file_path")).alias("content"))
+    .select(fc.col("source"),
+            fc.text.recursive_word_chunk(
+                fc.col("content"),
+                chunk_size=500,
+                chunk_overlap_percentage=10
+            ).alias("chunks"))
+    .explode("chunks")
+)
+
+# Use SQL to generate unique chunk IDs with ROW_NUMBER()
+chunks = (
+    session.sql("SELECT ROW_NUMBER() OVER () as chunk_id, * FROM {df}", df=exploded)
+    .select("chunk_id",
+            "source",
+            fc.col("chunks").alias("text"),
+            fc.semantic.embed(fc.col("chunks")).alias("embedding"))
+)
+chunks.write.save_as_table("chunks", mode="overwrite")
+
+async def docs_neighbors(query: str, k: int = 3):
+    q = session.create_dataframe([{"q": query}])
+    res = q.semantic.sim_join(
+        session.table("chunks"),
+        left_on=fc.semantic.embed(fc.col("q")),
+        right_on=fc.col("embedding"),
+        k=k,
+        similarity_score_column="relevance",
+    ).select("chunk_id", "source", "text", "relevance")
+    return res._plan
+
+server = fc.create_mcp_server(
+    session,
+    "Docs",
+    user_defined_tools=[SystemTool(name="docs_neighbors", description="Semantic chunk retrieval", fn=docs_neighbors)],
+    system_tools=fc.SystemToolConfig(table_names=["chunks"], tool_namespace="docs", max_result_rows=100),
+)
+```
+
+---
+
+## Core Concepts
+
+### Lifecycle: Hydrate → Shape → Serve → Operate
+
+1. **Hydrate** — Load sources (PDF/MD/CSV/DB)
+2. **Shape** — Transform with deterministic ops (select/filter/join/window) + semantic ops (extract/embed/summarize)
+3. **Serve** — Expose as bounded tools (MCP or Python functions) with result caps
+4. **Operate** — Version with snapshots/tags; rollback instantly
+
+### Design Principles
+
+| Principle                   | What It Means                                                                |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| **Framework-agnostic**      | Works with any runtime that can call tools or functions                      |
+| **Inference offloading**    | Context operations happen in Fenic, not your agent's context window          |
+| **Context as typed tables** | Model context relationally; query it precisely                               |
+| **Declarative transforms**  | Focus on _what_ context to build, not _how_—iterate fast on context strategy |
+| **Bounded tool surfaces**   | Minimal, auditable interfaces with result caps                               |
+| **Immutable snapshots**     | Version context                                                              |
+| **Runtime enablement**      | Provide primitives; let your framework orchestrate                           |
+
+---
+
+## Key Capabilities
+
+### Inference Offloading
+
+The core differentiator: LLM operations for context management happen in Fenic, not in your agent's context.
+
+```python
+# This summarization happens in Fenic's inference—
+# your agent receives only the result, zero token cost
+summary = (
+    session.table("conversations")
+    .select(
+        fc.col("user_id"),
+        fc.semantic.map(
+            "Summarize this conversation in 2 sentences: {{ messages }}",
+            messages=fc.col("messages")
+        ).alias("summary")
+    )
+)
+```
+
+**Traditional approach:** Agent performs the summarization or it delegates to a sub-agent → tokens consumed from agent budget or complexity is increased by having to manage the context of multiple agents
+**Fenic approach:** fenic handles summarization → agent receives summary → zero agent tokens
+
+---
+
+### Token Budget Awareness
+
+Track and manage token budgets across your context operations:
+
+```python
+# Token statistics available throughout the pipeline
+metrics = df.write.save_as_table("context", mode="overwrite")
+
+print(f"Total cost: ${metrics.total_lm_metrics.cost:.4f}")
+print(f"Input tokens: {metrics.total_lm_metrics.num_uncached_input_tokens}")
+print(f"Output tokens: {metrics.total_lm_metrics.num_output_tokens}")
+
+# Tool responses shaped to fit budgets
+server = fc.create_mcp_server(
+    session,
+    "Budget-Aware Tools",
+    system_tools=fc.SystemToolConfig(
+        table_names=["context"],
+        max_result_rows=50,  # Cap response size
+    ),
+)
+```
+
+---
+
+### State Management & Rollback
+
+Relational model with versioned tables:
+
+```python
+# Version your context with dated table names
+ctx.write.save_as_table("policy_qa_2025_11_06", mode="overwrite")
+ctx.write.save_as_table("policy_qa_2025_11_12", mode="overwrite")
+
+# Point prod to a version by copying
+ctx.write.save_as_table("policy_qa_prod", mode="overwrite")
+
+# Rollback instantly by repointing prod to an older version
+old_ctx = session.table("policy_qa_2025_11_06")
+old_ctx.write.save_as_table("policy_qa_prod", mode="overwrite")
+```
+
+---
+
+### Temporal Memory with Window Functions
+
+Implement sophisticated memory patterns like decaying resolution:
+
+```python
+from datetime import date, timedelta
+
+# Define temporal boundaries
+today = date.today()
+week_start = today - timedelta(days=today.weekday())
+
+# Window functions for temporal processing
+daily_summary = (
+    session.table("events")
+    .filter(fc.col("timestamp") >= fc.lit(today))
+    .select(
+        fc.col("user_id"),
+        fc.semantic.reduce(
+            "Summarize today's events",
+            fc.col("event_text")
+        ).alias("daily_summary")
+    )
+)
+
+# Weekly rollup from daily summaries
+weekly_summary = (
+    session.table("daily_summaries")
+    .filter(fc.col("date") >= fc.lit(week_start))
+    .group_by("user_id")
+    .agg(
+        fc.semantic.reduce(
+            "Summarize this week's key events",
+            fc.col("daily_summary")
+        ).alias("weekly_summary")
+    )
+)
+```
+
+---
+
+### Tool Response Shaping
+
+Elaborate truncation strategies without agent token cost:
+
+```python
+# Deterministic: pagination and filtering
+async def search_with_pagination(query: str, page: int = 0, page_size: int = 10):
+    filtered = (
+        session.table("documents")
+        .filter(fc.col("content").contains(query))
+    )
+    # Use SQL for OFFSET support
+    return session.sql(
+        f"SELECT * FROM {{df}} ORDER BY relevance DESC LIMIT {page_size} OFFSET {page * page_size}",
+        df=filtered
+    )._plan
+
+# Semantic: summarize large results (inference offloaded)
+async def search_with_summary(query: str, k: int = 20):
+    results = session.table("documents").limit(k)
+    return (
+        results.select(
+            fc.col("id"),
+            fc.semantic.map(
+                f"Extract the part most relevant to: {query}\n\nContent: {{{{ content }}}}",
+                content=fc.col("content")
+            ).alias("relevant_excerpt")
+        )
+    )._plan
+```
+
+---
+
+### Tool-Level Observability
+
+See inside tools, not just inputs/outputs:
+
+```python
+# Fenic tracks operations inside tools
+# Close the loop between runtime traces and tool internals
+
+metrics = df.write.save_as_table("context", mode="overwrite")
+
+# Aggregated LM metrics across all operators
+lm = metrics.total_lm_metrics
+print(f"Tokens: {lm.num_uncached_input_tokens + lm.num_output_tokens}, Cost: ${lm.cost:.4f}")
+
+# Detailed execution plan with per-operator metrics
+print(metrics.get_execution_plan_details())
+```
+
+---
+
+## Declarative Shaping
+
+### Deterministic Transforms
+
+`select`, `filter`, `sort`, `limit`, `join`, `group_by`, `agg`, `window`, `unnest`, `explode`
+
+### Semantic Transforms
+
+`semantic.extract` (to Pydantic), `semantic.embed`, `semantic.classify`, `semantic.map` (template-driven),
+`semantic.reduce` (multi-row), `semantic.predicate` (NL filters), `semantic.sim_join`, `semantic.parse_pdf`
+
+```python
+from pydantic import BaseModel
+
+class PolicyInfo(BaseModel):
+    category: str
+    date: str
+    summary: str
+
+# Combine both—works with any framework
+results = (
+    session.read.pdf_metadata("docs/*.pdf")
+    .select(
+        fc.semantic.parse_pdf(fc.col("file_path")).alias("content")  # semantic
+    )
+    .filter(fc.col("content").contains("policy"))                     # deterministic
+    .select(
+        fc.semantic.extract(fc.col("content"), PolicyInfo).alias("data"),  # semantic
+        fc.semantic.embed(fc.col("content")).alias("vec")                  # semantic
+    )
+    .filter(fc.col("data").category == fc.lit("refund"))              # deterministic
+    .sort(fc.col("data").date.desc())                                 # deterministic
+    .limit(10)                                                        # deterministic
+)
+```
+
+---
+
+## Production Operations
+
+### Batching & Rate Limiting
+
+```python
+config = fc.SessionConfig(
+    semantic=fc.SemanticConfig(
+        language_models={
+            "gpt4": fc.OpenAILanguageModel(
+                model_name="gpt-4o-mini",
+                rpm=1000,  # requests per minute
+                tpm=1_000_000  # tokens per minute
+            )
+        }
+    )
+)
+```
+
+### Async UDFs with Concurrency Control
+
+```python
+@fc.async_udf(
+    return_type=fc.StringType,
+    max_concurrency=50,
+    timeout_seconds=10,
+    num_retries=3
+)
+async def fetch_user_profile(user_id: str) -> str:
+    async with aiohttp.ClientSession() as s:
+        async with s.get(f"https://api.example.com/{user_id}") as resp:
+            return await resp.text()
+```
+
+### Error Handling
+
+- Automatic retries for transient failures
+- Graceful degradation: failed rows return `None`
+- Per-op timeouts
+- Schema validation before execution
+
+---
+
+## Integrations
+
+### AI Providers
+
+| Provider      | Type             | Models                                      |
+| ------------- | ---------------- | ------------------------------------------- |
+| OpenAI        | LLM + Embeddings | GPT-4, GPT-5, o-series, text-embedding-3-\* |
+| Anthropic     | LLM              | Claude (Haiku/Sonnet/Opus)                  |
+| Google Gemini | LLM + Embeddings | Gemini 2.0/2.5 Flash                        |
+| OpenRouter    | LLM (aggregator) | 200+ models                                 |
+| Cohere        | LLM + Embeddings | embed-v4.0                                  |
+
+### Data Sources
+
+Local files, S3, Hugging Face Datasets, in-memory (Polars/Pandas/PyArrow)
+
+### Outputs
+
+CSV/Parquet, Fenic catalog (DuckDB), DataFrame exports, MCP servers, Python functions
+
+### Agent Frameworks
+
+LangChain, LangGraph, CrewAI, AutoGen, Haystack, Claude Code, custom harnesses
+
+---
 
 ## Install
 
-fenic supports Python `[3.10, 3.11, 3.12]`
-
 ```bash
-pip install fenic
+uv add fenic
+# Requires Python 3.10+
 ```
 
-### LLM Provider Setup
+---
 
-fenic requires an API key from at least one LLM provider. Set the appropriate environment variable for your chosen provider:
+## Configuration
 
 ```bash
-# For OpenAI
-export OPENAI_API_KEY="your-openai-api-key"
-
-# For Anthropic
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
-
-# For Google
-export GOOGLE_API_KEY="your-google-api-key"
-
-# For Cohere
-export COHERE_API_KEY="your-cohere-api-key"
+export OPENAI_API_KEY=...
+export ANTHROPIC_API_KEY=...
+export GOOGLE_API_KEY=...
 ```
 
-## Quickstart
+---
 
-The fastest way to learn about fenic is by checking the examples.
-
-Below is a quick list of the examples in this repo:
+## Examples
 
 | Example                                                                 | Description                                                                                                                         |                                                                                          Colab                                                                                          |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -95,80 +763,12 @@ Below is a quick list of the examples in this repo:
 | [Feedback Clustering](examples/feedback_clustering)                     | Group and analyze feedback using semantic similarity and clustering operations.                                                     |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/feedback_clustering/feedback_clustering.ipynb)       |
 | [Document Extraction](examples/document_extraction)                     | Extract structured information from various document formats using semantic operators.                                              |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb)       |
 
-(Feel free to click any example above to jump right to its folder.)
+### Agent Projects ([fenic-examples](https://github.com/typedef-ai/fenic-examples))
 
-## Why use fenic?
+- **hn_agent** — deep research agent for Hacker News
+- **oncall_triage_agent** — log triage with LangGraph
 
-fenic is an opinionated, PySpark-inspired DataFrame framework for building production AI and agentic applications.
-
-Unlike traditional data tools retrofitted for LLMs, fenic's query engine is built from the ground up with inference in mind.
-
-Transform structured and unstructured data into insights using familiar DataFrame operations enhanced with semantic intelligence. With first-class support for markdown, transcripts, and semantic operators, plus efficient batch inference across any model provider.
-
-fenic brings the reliability of traditional data pipelines to AI workloads.
-
-### Key Features
-
-#### Purpose-Built for LLM Inference
-
-- Query engine designed from scratch for AI workloads, not retrofitted
-- Automatic batch optimization for API calls
-- Built-in retry logic and rate limiting
-- Token counting and cost tracking
-
-#### Semantic Operators as First-Class Citizens
-
-- `semantic.analyze_sentiment` - Built-in sentiment analysis
-- `semantic.classify` - Categorize text with few-shot examples
-- `semantic.extract` - Transform unstructured text into structured data with schemas
-- `semantic.with_cluster_labels` - Cluster each row by embedding column
-- `semantic.join` - Join DataFrames on meaning, not just values
-- `semantic.map` - Apply natural language transformations
-- `semantic.predicate` - Create predicates using natural language to filter rows
-- `semantic.reduce` - Aggregate grouped data with LLM operations
-
-#### Native Unstructured Data Support
-
-Goes beyond typical multimodal data types (audio, images) by creating specialized types for text-heavy workloads:
-
-- Markdown parsing and extraction as a first-class data type
-- Transcript processing (SRT, WebVTT, generic formats) with speaker and timestamp awareness
-- JSON manipulation with JQ expressions for nested data
-- Automatic text chunking with configurable overlap for long documents
-
-#### Production-Ready Infrastructure
-
-- Multi-provider support (OpenAI, Anthropic, Gemini)
-- Local and cloud execution backends
-- Comprehensive error handling and logging
-- Pydantic integration for type safety
-
-#### Familiar DataFrame API
-
-- PySpark-compatible operations
-- Lazy evaluation and query optimization
-- SQL support for complex queries
-- Seamless integration with existing data pipelines
-
-### Why DataFrames for LLM and Agentic Applications?
-
-AI and agentic applications are fundamentally pipelines and workflows - exactly what DataFrame APIs were designed to handle. Rather than reinventing patterns for data transformation, filtering, and aggregation, fenic leverages decades of proven engineering practices.
-
-#### Decoupled Architecture for Better Agents
-
-fenic creates a clear separation between heavy inference tasks and real-time agent interactions. By moving batch processing out of the agent runtime, you get:
-
-- More predictable and responsive agents
-- Better resource utilization with batched LLM calls
-- Cleaner separation between planning/orchestration and execution
-
-#### Built for All Engineers
-
-DataFrames aren't just for data practitioners. The fluent, composable API design makes it accessible to any engineer:
-
-- Chain operations naturally: `df.filter(...).semantic.with_cluster_labels(...)`
-- Mix imperative and declarative styles seamlessly
-- Get started quickly with familiar patterns from pandas/PySpark or SQL
+---
 
 ## Support
 
