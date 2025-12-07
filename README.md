@@ -13,9 +13,9 @@
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/GdqF3J7huR)
 
-> **Turn any agent framework into a context engineering framework.**
+**Turn any agent framework into a context engineering framework.**
 
-> Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading. No framework lock-in and no rewrites.
+Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading. No framework lock-in and no rewrites.
 
 fenic is a **context construction layer** that works with any agent framework. Declare what your agent should see, build it with deterministic + semantic transforms, and serve it as bounded tools, all while **offloading inference** so context operations don't consume your agent's token budget.
 
