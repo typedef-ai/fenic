@@ -6,7 +6,7 @@
     </picture>
 </div>
 
-# fenic — context construction for any agent framework
+# fenic: context construction for any agent framework
 
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
