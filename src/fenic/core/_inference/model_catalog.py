@@ -162,7 +162,6 @@ EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
     "gpt-5.1",
     "gpt-5.1-2025-11-13",
-    "gpt-5.1-codex",
     "gpt-5",
     "gpt-5-2025-08-07",
     "gpt-5-mini",
@@ -754,24 +753,6 @@ class ModelCatalog:
                 supports_pdf_parsing=True,
             ),
             snapshots=["gpt-5.1-2025-11-13"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "gpt-5.1-codex",
-            CompletionModelParameters(
-                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
-                cached_input_token_read_cost=0.125 / 1_000_000,  # $0.125 per 1M tokens
-                output_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
-                context_window_length=400_000,
-                max_output_tokens=128_000,
-                supports_reasoning=True,
-                supports_minimal_reasoning=False,
-                supports_disabled_reasoning=True,
-                supports_custom_temperature=True,  # Supports temperature when reasoning_effort='none'
-                supports_verbosity=True,
-                supports_pdf_parsing=True,
-            ),
         )
 
         # OpenAI Embedding Models
