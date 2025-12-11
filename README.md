@@ -28,6 +28,8 @@ fenic is a **context construction layer** that works with any agent framework. Y
   <a href="#key-capabilities">Capabilities</a>
 </p>
 
+## Quick Install
+
 ```bash
 pip install fenic
 # or
