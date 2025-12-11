@@ -6,18 +6,18 @@
     </picture>
 </div>
 
-# fenic: context construction for any agent framework
+# fenic: Declarative context engineering for agents (works with any agent framework)
 
 [![PyPI version](https://img.shields.io/pypi/v/fenic.svg)](https://pypi.org/project/fenic/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/GdqF3J7huR)
 
-**Turn any agent framework into a context engineering framework.**
+**Apply context ops in Python and SQL (extract, chunk, retrieve, store, compact, summarize) to produce typed, tool-bounded outputs your agents can use.**
 
-Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading. No framework lock-in and no rewrites.
+Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading—no framework lock-in and no rewrites.
 
-fenic is a **context construction layer** that works with any agent framework. Declare what your agent should see, build it with deterministic + semantic transforms, and serve it as bounded tools, all while **offloading inference** so context operations don't consume your agent's token budget.
+fenic is a **context construction layer** that works with any agent framework. You declare what your agent should see, build it with deterministic + semantic transforms, and expose it as **typed, bounded tools**—while **offloading inference** so context work happens outside your agent's prompt/context window. This reduces context bloat so agents stay focused on reasoning.
 
 <p align="center">
   <b>Quick links:</b>
@@ -27,6 +27,12 @@ fenic is a **context construction layer** that works with any agent framework. D
   <a href="#core-concepts">Concepts</a> •
   <a href="#key-capabilities">Capabilities</a>
 </p>
+
+```bash
+pip install fenic
+# or
+uv add fenic
+```
 
 ---
 
@@ -46,36 +52,38 @@ fenic is a **context construction layer** that works with any agent framework. D
 
 ### Context Operations (Inference Offloaded)
 
-- **Summarization** — deterministic or LLM-powered, without agent token cost
+- **Summarization** — deterministic or LLM-powered, reducing context bloat so agents stay focused on reasoning
 - **Invariant management** — store facts that should persist; re-inject at decision points
 - **Token-budget-aware truncation** — shape tool responses to fit budgets
 - ...and more - fenic's API allows you to define any context operation you might need
 
-### Data Pipelines for Agents
+### Structured Context from Data
 
-- **Semantic joins** — connect data by meaning across systems
-- **Entity matching** — resolve duplicates and link records without exact keys
-- **Theme extraction** — cluster and label patterns automatically
+- **Entity matching** — resolve duplicates / link records
+- **Theme extraction** — cluster + label patterns
+- **Semantic linking** — connect records across systems by meaning
 - …and more — fenic's declarative API supports any data transformation your agents need
 
 ---
 
 ## Quick Introduction
 
-Context engineering is the practice of managing everything that goes into an LLM's context window, retrieval, memory, conversation history, tool responses, prompts. It's all tokens in, tokens out. And it's both a **data problem** (what information, in what structure) and an **optimization problem** (how much, when to compress, what to forget).
+Context engineering is the practice of managing everything that goes into an LLM's context window, retrieval, memory, conversation history, tool responses, prompts. It's all tokens in, tokens out. And it's both an **information problem** (what information, in what structure) and an **optimization problem** (how much, when to compress, what to forget).
 
-fenic's declarative approach fits naturally here. Instead of writing imperative code for each context operation, you describe _what_ your context should look like—and iterate quickly as you learn what works. Combine deterministic transforms (filter, join, window) with semantic ones (extract, embed, summarize) in a single composable flow.
+fenic's declarative approach fits naturally here. Instead of writing imperative code for each context operation, you describe _what_ your context should look like—and iterate quickly as you learn what works. Combine deterministic transforms (filters, aggregations, windows) with semantic ones (extract, embed, summarize) in a single composable flow.
 
-Critically, fenic **offloads inference**: summarization, extraction, and embedding happen outside your agent's context window. Your runtime gets the results without the token cost.
+Critically, fenic **offloads inference**: summarization, extraction, and embedding happen outside your agent's context window. Your runtime gets the results with less context bloat, so agents stay focused on reasoning.
+
+> **Note:** LLM calls still cost tokens/$, but fenic keeps that work out of your agent's prompt/context window.
 
 ### The fenic Approach
 
-| Without fenic                                        | With fenic                                        |
-| ---------------------------------------------------- | ------------------------------------------------- |
-| Agent summarizes conversation → tokens consumed      | fenic summarizes → agent gets result, zero tokens |
-| Agent extracts facts → tokens consumed               | fenic extracts → agent gets structured data       |
-| Agent searches, filters, joins → multiple tool calls | fenic pre-computes → agent gets precise rows      |
-| Context ops compete with reasoning                   | Context ops are **offloaded**                     |
+| Without fenic                                             | With fenic                                               |
+| --------------------------------------------------------- | -------------------------------------------------------- |
+| Agent summarizes conversation → tokens consumed           | fenic summarizes → agent gets result; less context bloat |
+| Agent extracts facts → tokens consumed                    | fenic extracts → agent gets structured data              |
+| Agent searches, filters, aggregates → multiple tool calls | fenic pre-computes → agent gets precise rows             |
+| Context ops compete with reasoning                        | Less context bloat → agents stay focused on reasoning    |
 
 ### Example: PDF → Typed Q&A → Bounded Tools
 
@@ -145,10 +153,10 @@ server = fc.create_mcp_server(
 
 - PDF parsing, extraction, embedding → **inference offloaded to fenic**
 - Agent context → **only receives small, shaped results**
-- Token cost for context construction → **zero agent tokens**
+- Context construction → **less context bloat** (agents stay focused on reasoning)
 - Framework dependency → **none—works with any runtime**
 
-**Works with:** LangChain, LangGraph, CrewAI, AutoGen, Haystack, Claude Code, or any Python runtime. fenic exposes MCP tools or Python functions, if your framework can call tools, it can use fenic.
+**Works with any agentic framework** (LangGraph, PydanticAI, CrewAI, ...) — fenic exposes MCP tools or Python functions.
 
 ---
 
@@ -172,6 +180,9 @@ Each builds a typed table and exposes tools via MCP or direct Python functions.
 Turn free-form chat into typed facts and recall them semantically—agents don't carry giant histories.
 
 **Tools exposed:** `mem_recall` (semantic query), plus system tools over `preferences`
+
+<details>
+<summary><b>Show code</b></summary>
 
 ```python
 import fenic as fc
@@ -227,6 +238,8 @@ server = fc.create_mcp_server(
 )
 ```
 
+</details>
+
 ---
 
 ### 2) Memory — Blocks & Episodes _(profile + timeline)_
@@ -234,6 +247,9 @@ server = fc.create_mcp_server(
 Maintain a profile block alongside a recent event timeline; return scoped snapshots.
 
 **Tools exposed:** `get_user_context` (profile + last N events), plus system tools
+
+<details>
+<summary><b>Show code</b></summary>
 
 ```python
 import fenic as fc
@@ -308,6 +324,8 @@ server = fc.create_mcp_server(
 )
 ```
 
+</details>
+
 ---
 
 ### 3) Retrieval — From unstructured to structured data
@@ -315,6 +333,9 @@ server = fc.create_mcp_server(
 Turn unstructured sources into typed rows (Q&A, policies, products), pre-embed, and retrieve with citations.
 
 **Tools exposed:** `qa_neighbors(query, k)` with citations, plus system tools
+
+<details>
+<summary><b>Show code</b></summary>
 
 ```python
 import fenic as fc
@@ -368,6 +389,8 @@ server = fc.create_mcp_server(
 )
 ```
 
+</details>
+
 ---
 
 ### 4) Retrieval — Semantic Spans
@@ -375,6 +398,9 @@ server = fc.create_mcp_server(
 Break long documents into overlapping spans, embed once, serve semantic top-K.
 
 **Tools exposed:** `docs_neighbors(query, k)`, plus system tools
+
+<details>
+<summary><b>Show code</b></summary>
 
 ```python
 import fenic as fc
@@ -432,6 +458,8 @@ server = fc.create_mcp_server(
 )
 ```
 
+</details>
+
 ---
 
 ## Core Concepts
@@ -459,13 +487,12 @@ server = fc.create_mcp_server(
 
 ## Key Capabilities
 
-### Inference Offloading
-
-The core differentiator: LLM operations for context management happen in fenic, not in your agent's context.
+<details>
+<summary><b>Inference Offloading</b> — LLM ops happen in fenic, not your agent's context</summary>
 
 ```python
 # This summarization happens in fenic's inference—
-# your agent receives only the result, zero token cost
+# your agent receives only the result, with less context bloat
 summary = (
     session.table("conversations")
     .select(
@@ -479,11 +506,12 @@ summary = (
 ```
 
 **Traditional approach:** Agent performs the summarization or it delegates to a sub-agent → tokens consumed from agent budget or complexity is increased by having to manage the context of multiple agents
-**fenic approach:** fenic handles summarization → agent receives summary → zero agent tokens
+**fenic approach:** fenic handles summarization → agent receives the result → less context bloat, so agents stay focused on reasoning
 
----
+</details>
 
-### Token Budget Awareness
+<details>
+<summary><b>Token Budget Awareness</b> — Track and manage token budgets</summary>
 
 Track and manage token budgets across your context operations:
 
@@ -506,11 +534,10 @@ server = fc.create_mcp_server(
 )
 ```
 
----
+</details>
 
-### State Management & Rollback
-
-Relational model with versioned tables:
+<details>
+<summary><b>State Management & Rollback</b> — Relational model with versioned tables</summary>
 
 ```python
 # Version your context with dated table names
@@ -525,11 +552,10 @@ old_ctx = session.table("policy_qa_2025_11_06")
 old_ctx.write.save_as_table("policy_qa_prod", mode="overwrite")
 ```
 
----
+</details>
 
-### Temporal Memory with Window Functions
-
-Implement sophisticated memory patterns like decaying resolution:
+<details>
+<summary><b>Temporal Memory with Window Functions</b> — Decaying resolution patterns</summary>
 
 ```python
 from datetime import date, timedelta
@@ -565,11 +591,10 @@ weekly_summary = (
 )
 ```
 
----
+</details>
 
-### Tool Response Shaping
-
-Elaborate truncation strategies without agent token cost:
+<details>
+<summary><b>Tool Response Shaping</b> — Truncation strategies, less context bloat</summary>
 
 ```python
 # Deterministic: pagination and filtering
@@ -598,11 +623,10 @@ async def search_with_summary(query: str, k: int = 20):
     )._plan
 ```
 
----
+</details>
 
-### Tool-Level Observability
-
-See inside tools, not just inputs/outputs:
+<details>
+<summary><b>Tool-Level Observability</b> — See inside tools, not just inputs/outputs</summary>
 
 ```python
 # fenic tracks operations inside tools
@@ -617,6 +641,8 @@ print(f"Tokens: {lm.num_uncached_input_tokens + lm.num_output_tokens}, Cost: ${l
 # Detailed execution plan with per-operator metrics
 print(metrics.get_execution_plan_details())
 ```
+
+</details>
 
 ---
 
@@ -660,6 +686,9 @@ results = (
 
 ## Production Operations
 
+<details>
+<summary><b>Show production features</b> — Batching, rate limiting, async UDFs, error handling</summary>
+
 ### Batching & Rate Limiting
 
 ```python
@@ -697,10 +726,14 @@ async def fetch_user_profile(user_id: str) -> str:
 - Graceful degradation: failed rows return `None`
 - Per-op timeouts
 - Schema validation before execution
+</details>
 
 ---
 
 ## Integrations
+
+<details>
+<summary><b>Show integrations</b> — AI providers, data sources, outputs, agent frameworks</summary>
 
 ### AI Providers
 
@@ -722,13 +755,17 @@ CSV/Parquet, fenic native storage, DataFrame exports, MCP servers, Python functi
 
 ### Agent Frameworks
 
-LangChain, LangGraph, CrewAI, AutoGen, Haystack, Claude Code, custom harnesses
+Any agentic framework (LangGraph, PydanticAI, CrewAI, ...)
+
+</details>
 
 ---
 
 ## Install
 
 ```bash
+pip install fenic
+# or
 uv add fenic
 # Requires Python 3.10+
 ```
@@ -746,6 +783,9 @@ export GOOGLE_API_KEY=...
 ---
 
 ## Examples
+
+<details>
+<summary><b>Show all examples</b> — 11 notebooks with Colab links</summary>
 
 | Example                                                                 | Description                                                                                                                         |                                                                                          Colab                                                                                          |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -765,6 +805,7 @@ export GOOGLE_API_KEY=...
 
 - **hn_agent** — deep research agent for Hacker News
 - **oncall_triage_agent** — log triage with LangGraph
+</details>
 
 ---
 
