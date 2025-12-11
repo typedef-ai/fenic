@@ -15,9 +15,9 @@
 
 **Apply context ops in Python and SQL (extract, chunk, retrieve, store, compact, summarize) to produce typed, tool-bounded outputs your agents can use.**
 
-Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading—no framework lock-in and no rewrites.
+Keep your runtime. Add fenic. Get sophisticated context construction with inference offloading with no framework lock-in and no rewrites.
 
-fenic is a **context construction layer** that works with any agent framework. You declare what your agent should see, build it with deterministic + semantic transforms, and expose it as **typed, bounded tools**—while **offloading inference** so context work happens outside your agent's prompt/context window. This reduces context bloat so agents stay focused on reasoning.
+fenic is a **context construction layer** that works with any agent framework. You declare what your agent should see, build it with deterministic + semantic transforms, and expose it as **typed**, **bounded tools**, while **offloading inference** so context work happens outside your agent's prompt/context window. This reduces context bloat so agents stay focused on reasoning.
 
 <p align="center">
   <b>Quick links:</b>
@@ -686,9 +686,6 @@ results = (
 
 ## Production Operations
 
-<details>
-<summary><b>Show production features</b> — Batching, rate limiting, async UDFs, error handling</summary>
-
 ### Batching & Rate Limiting
 
 ```python
@@ -704,6 +701,9 @@ config = fc.SessionConfig(
     )
 )
 ```
+
+<details>
+<summary><b>Show more production features</b> — async UDFs, error handling...</summary>
 
 ### Async UDFs with Concurrency Control
 
@@ -732,9 +732,6 @@ async def fetch_user_profile(user_id: str) -> str:
 
 ## Integrations
 
-<details>
-<summary><b>Show integrations</b> — AI providers, data sources, outputs, agent frameworks</summary>
-
 ### AI Providers
 
 | Provider      | Type             | Models                                      |
@@ -745,6 +742,13 @@ async def fetch_user_profile(user_id: str) -> str:
 | OpenRouter    | LLM (aggregator) | 200+ models                                 |
 | Cohere        | LLM + Embeddings | embed-v4.0                                  |
 
+### Agent Frameworks
+
+Any agentic framework (LangGraph, PydanticAI, CrewAI, ...)
+
+<details>
+<summary><b>Show more integrations</b> — AI providers, data sources, outputs, agent frameworks</summary>
+
 ### Data Sources
 
 Local files, S3, Hugging Face Datasets, in-memory (Polars/Pandas/PyArrow)
@@ -752,10 +756,6 @@ Local files, S3, Hugging Face Datasets, in-memory (Polars/Pandas/PyArrow)
 ### Outputs
 
 CSV/Parquet, fenic native storage, DataFrame exports, MCP servers, Python functions
-
-### Agent Frameworks
-
-Any agentic framework (LangGraph, PydanticAI, CrewAI, ...)
 
 </details>
 
@@ -784,8 +784,14 @@ export GOOGLE_API_KEY=...
 
 ## Examples
 
+### Agent Projects ([fenic-examples](https://github.com/typedef-ai/fenic-examples))
+
+- A deep research agent for Hacker News
+- A log triage with LangGraph
+- How to do AI Feature Engineering for RecSys
+
 <details>
-<summary><b>Show all examples</b> — 11 notebooks with Colab links</summary>
+<summary><b>Show more examples</b> — 11 notebooks with Colab links</summary>
 
 | Example                                                                 | Description                                                                                                                         |                                                                                          Colab                                                                                          |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
@@ -801,10 +807,6 @@ export GOOGLE_API_KEY=...
 | [Feedback Clustering](examples/feedback_clustering)                     | Group and analyze feedback using semantic similarity and clustering operations.                                                     |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/feedback_clustering/feedback_clustering.ipynb)       |
 | [Document Extraction](examples/document_extraction)                     | Extract structured information from various document formats using semantic operators.                                              |       [![Open in Colab](docs/images/colab-badge.svg)](https://colab.research.google.com/github/typedef-ai/fenic/blob/main/examples/document_extraction/document_extraction.ipynb)       |
 
-### Agent Projects ([fenic-examples](https://github.com/typedef-ai/fenic-examples))
-
-- **hn_agent** — deep research agent for Hacker News
-- **oncall_triage_agent** — log triage with LangGraph
 </details>
 
 ---
