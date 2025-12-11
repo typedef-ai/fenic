@@ -47,9 +47,9 @@ fenic is a **context construction layer** that works with any agent framework. D
 ### Context Operations (Inference Offloaded)
 
 - **Summarization** — deterministic or LLM-powered, without agent token cost
-- **Trajectory storage** — complete context evolution with rollback
 - **Invariant management** — store facts that should persist; re-inject at decision points
 - **Token-budget-aware truncation** — shape tool responses to fit budgets
+  -...and more - fenic's API allows you to define any context operation you might need
 
 ### Data Pipelines for Agents
 
@@ -57,8 +57,6 @@ fenic is a **context construction layer** that works with any agent framework. D
 - **Entity matching** — resolve duplicates and link records without exact keys
 - **Theme extraction** — cluster and label patterns automatically
 - …and more — fenic's declarative API supports any data transformation your agents need
-
-**Governance & operations:** versioned snapshots, PII redaction, eval datasets, tool-level observability — all built in.
 
 ---
 
