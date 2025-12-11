@@ -49,7 +49,7 @@ fenic is a **context construction layer** that works with any agent framework. D
 - **Summarization** — deterministic or LLM-powered, without agent token cost
 - **Invariant management** — store facts that should persist; re-inject at decision points
 - **Token-budget-aware truncation** — shape tool responses to fit budgets
-  -...and more - fenic's API allows you to define any context operation you might need
+- ...and more - fenic's API allows you to define any context operation you might need
 
 ### Data Pipelines for Agents
 
