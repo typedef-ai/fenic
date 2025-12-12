@@ -315,7 +315,7 @@ def test_write_with_no_aws_credentials(local_session_config, temp_dir):
     with pytest.raises(ConfigurationError, match=re.escape("AWS credentials were not found. Configure AWS credentials (env/aws_config) to read or write to S3.")):
         df1.write.parquet("s3://test-bucket/test-file.parquet", mode="overwrite")
 
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_write_with_invalid_file_path(local_session, temp_dir):
     """Test that write queries to invalid file paths will fail."""

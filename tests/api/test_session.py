@@ -41,7 +41,7 @@ def test_session_with_db_path(temp_dir, local_session_config):
     ):
         # s3 path may not exist until duckdb writes to it
         assert Path(db_path).exists()
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 def test_create_dataframe_from_polars(local_session):
@@ -155,7 +155,7 @@ def test_local_session_with_language_models_only(tmp_path):
         db_path=tmp_path,
     )
     session = Session.get_or_create(session_config)
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_local_session_with_no_semantic_config(tmp_path):
     """Verify that a local_session is created successfully if we supply no semantic config."""
@@ -165,7 +165,7 @@ def test_local_session_with_no_semantic_config(tmp_path):
     )
     session = Session.get_or_create(session_config)
     session.create_dataframe({"text": ["hello"]}).select((col("text")).alias("text"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_local_session_with_embedding_models_only(tmp_path):
     """Verify that a local_session is created successfully if we supply only embedding models."""
@@ -175,7 +175,7 @@ def test_local_session_with_embedding_models_only(tmp_path):
         semantic=SemanticConfig(embedding_models={"oai-small": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=3000, tpm=1_000_000)}),
     )
     session = Session.get_or_create(session_config)
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_local_session_with_single_lm_no_explicit_default(tmp_path):
     """Verify that a local_session is created successfully if we supply one language model and no default."""
@@ -189,7 +189,7 @@ def test_local_session_with_single_lm_no_explicit_default(tmp_path):
     assert session_config.semantic.default_language_model == "mini"
     assert session_config.semantic.language_models["mini"].model_name == "gpt-4o-mini"
     session = Session.get_or_create(session_config)
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_local_session_with_ambiguous_default_lm(tmp_path):
     """Verify that a local session creation error is raised if we supply two language models with no default."""

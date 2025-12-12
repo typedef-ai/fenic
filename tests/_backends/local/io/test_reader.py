@@ -776,7 +776,7 @@ def test_read_queries_with_no_aws_credentials(local_session_config, temp_dir):
             "File loader error: Failed to read from S3, the object is not publicly readable and no AWS credentials were provided. Configure AWS credentials (env/aws_config) or ensure the object is publicly readable. (Status code: 403)"
     )
 
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 # =============================================================================
@@ -803,7 +803,7 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
     assert "401" in str(exc_info.value.__cause__)
 
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 # =============================================================================
@@ -867,7 +867,7 @@ def test_read_public_huggingface_datasets(request, local_session_config, temp_di
     assert df.count() == 10
     assert df.schema == TEST_PARQUET_SCHEMA
 
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_read_public_huggingface_datasets_with_other_sources(request, local_session_config, temp_dir):
     """Test that read queries to public huggingface datasets will succeed with other schemes."""
@@ -886,7 +886,7 @@ Francis
     assert df.count() == 13
     assert df.schema == TEST_CSV_SCHEMA
 
-    session.stop()
+    session.stop(skip_usage_summary=True)
 # =============================================================================
 # Ingestion Type Coercions Tests
 # =============================================================================

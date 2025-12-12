@@ -258,7 +258,7 @@ def multi_model_local_session(multi_model_local_session_config):
     configure_logging()
     session = Session.get_or_create(multi_model_local_session_config)
     yield session
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 @pytest.fixture
@@ -465,7 +465,7 @@ def local_session(local_session_config):
     configure_logging()
     session = Session.get_or_create(local_session_config)
     yield session
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 @pytest.fixture
 def temp_dir(request):

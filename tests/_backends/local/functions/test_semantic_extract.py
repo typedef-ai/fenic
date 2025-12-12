@@ -282,7 +282,7 @@ def test_semantic_extract_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(FenicValidationError, match="No language models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.extract(col("text"), ExtractSchema).alias("extracted_text"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="semantic_extract_with_models",
@@ -294,7 +294,7 @@ def test_semantic_extract_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(FenicValidationError, match="No language models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.extract(col("text"), ExtractSchema).alias("extracted_text"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 def test_semantic_extract_with_mismatched_rows(local_session: Session):

@@ -175,6 +175,6 @@ def test_multiple_sessions_different_metrics(tmp_path, local_session_config: Ses
 
     finally:
         # Clean up sessions
-        session1.stop()
-        session2.stop()
+        session1.stop(skip_usage_summary=True)
+        session2.stop(skip_usage_summary=True)
 

@@ -26,8 +26,8 @@ def test_multiple_sessions(tmp_path, local_session_config):
     session3 = Session.get_or_create(session_config3)
 
     # make sure multiple sessions can coexist
-    session.stop()
-    session3.stop()
+    session.stop(skip_usage_summary=True)
+    session3.stop(skip_usage_summary=True)
 
     with pytest.raises(SessionError, match="This session 'test_app' has been stopped"):
         df = session.create_dataframe(
@@ -109,7 +109,7 @@ def test_stopped_session_remains_stopped_after_new_session_same_name(tmp_path):
     df1 = session1.create_dataframe(pl.DataFrame({"x": [1, 2, 3]}))
 
     # Stop the first session
-    session1.stop()
+    session1.stop(skip_usage_summary=True)
 
     # Verify the first session is stopped
     with pytest.raises(SessionError, match="This session 'reused_app_name' has been stopped"):
@@ -127,4 +127,4 @@ def test_stopped_session_remains_stopped_after_new_session_same_name(tmp_path):
     with pytest.raises(SessionError, match="This session 'reused_app_name' has been stopped"):
         df1.to_polars()
 
-    session2.stop()
+    session2.stop(skip_usage_summary=True)

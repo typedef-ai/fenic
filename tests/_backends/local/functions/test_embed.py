@@ -73,7 +73,7 @@ def test_embedding_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No embedding models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.embed(col("text")).alias("embeddings"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="embedding_with_models",
@@ -85,7 +85,7 @@ def test_embedding_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No embedding models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.embed(col("text")).alias("embeddings"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 
 def test_normalization(local_session):
