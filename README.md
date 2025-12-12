@@ -32,8 +32,6 @@ fenic is a **context construction layer** that works with any agent framework. Y
 
 ```bash
 pip install fenic
-# or
-uv add fenic
 ```
 
 ---
@@ -164,7 +162,7 @@ server = fc.create_mcp_server(
 
 ## Quickstart (Pick Your Path)
 
-Four core context construction patterns—each works with any framework:
+Four core context construction patterns, each works with any agent framework:
 
 | Pattern                           | What It Shows                        |
 | --------------------------------- | ------------------------------------ |
@@ -179,7 +177,7 @@ Each builds a typed table and exposes tools via MCP or direct Python functions.
 
 ### 1) Memory — Facts _(extract → embed → recall)_
 
-Turn free-form chat into typed facts and recall them semantically—agents don't carry giant histories.
+Add structure to free-form chats by extracting them into typed facts and recall them semantically so agents don't carry giant histories.
 
 **Tools exposed:** `mem_recall` (semantic query), plus system tools over `preferences`
 
