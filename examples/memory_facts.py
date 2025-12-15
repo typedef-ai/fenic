@@ -7,15 +7,18 @@ giant histories.
 Tools exposed: `mem_recall` (semantic query), plus system tools over `preferences`
 """
 
+from pydantic import BaseModel, Field
+
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
-from pydantic import BaseModel
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
 from fenic.core.mcp.types import SystemTool
 
 
 class Preference(BaseModel):
-    category: str
-    value: str
+    category: str = Field(description="The category of the preference")
+    value: str = Field(description="The value of the preference")
 
 
 def main():
@@ -51,6 +54,9 @@ def main():
         fc.semantic.embed(fc.col("message")).alias("vec"),
     ).unnest("pref")
     prefs.write.save_as_table("preferences", mode="overwrite")
+    session.catalog.set_table_description(
+        "preferences", "User preferences extracted from messages with embeddings"
+    )
 
     async def mem_recall(user_id: str, query: str, k: int = 3):
         user_prefs = session.table("preferences").filter(
@@ -66,17 +72,23 @@ def main():
         ).select("category", "value", "relevance")
         return res._plan
 
-    server = fc.create_mcp_server(
-        session,
-        "Memory (Facts)",
-        user_defined_tools=[
+    generated_system_tools = auto_generate_system_tools_from_tables(
+        ["preferences"], session, tool_namespace="mem", max_result_limit=100
+    )
+
+    server = FenicMCPServer(
+        session._session_state,
+        user_defined_tools=[],
+        system_tools=[
             SystemTool(
-                name="mem_recall", description="Semantic memory recall", fn=mem_recall
-            )
+                name="mem_recall",
+                description="Semantic memory recall",
+                max_result_limit=100,
+                func=mem_recall,
+            ),
+            *generated_system_tools,
         ],
-        system_tools=fc.SystemToolConfig(
-            table_names=["preferences"], tool_namespace="mem", max_result_rows=100
-        ),
+        server_name="Memory (Facts)",
     )
 
     print("Memory Facts example completed. Preferences table created.")
