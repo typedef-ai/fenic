@@ -46,7 +46,7 @@ Once connected, you can ask questions like:
 
 The AI assistant will have direct access to fenic's complete API documentation and architectural details to provide accurate, helpful responses specific to fenic rather than generic Python advice.
 
-For self-hosting, see the [docs-server example](https://github.com/typedef-ai/fenic/tree/main/examples/mcp/docs-server/).
+For self-hosting, see the [docs-server example](https://github.com/typedef-ai/fenic/tree/main/examples/mcp_server/docs-server/).
 
 ## Install
 
