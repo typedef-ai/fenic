@@ -156,7 +156,7 @@ def test_semantic_predicate_without_models(tmp_path):
         )
         predicate_prompt = "The name: {{name}} has 10 letters."
         source.select(semantic.predicate(predicate_prompt, name=col("name")).alias("predicate"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="semantic_predicate_with_models",
@@ -172,7 +172,7 @@ def test_semantic_predicate_without_models(tmp_path):
         )
         predicate_prompt = "The name: {{name}} has 10 letters."
         source.select(semantic.predicate(predicate_prompt, name=col("name")).alias("predicate"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_semantic_predicate_complex_jinja_template(local_session):
     source = local_session.create_dataframe({

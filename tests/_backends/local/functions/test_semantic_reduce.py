@@ -155,7 +155,7 @@ def test_semantic_reduce_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from the notes.", col("notes")).alias("summary"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="semantic_reduce_with_models",
@@ -167,7 +167,7 @@ def test_semantic_reduce_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes": ["hello"]}).agg(semantic.reduce("Summarize the main action items from the notes.", col("notes")).alias("summary"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_semantic_reduce_invalid_prompt(local_session):
     with pytest.raises(ValidationError, match="The `prompt` argument to `semantic.reduce` cannot be empty."):

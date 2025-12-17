@@ -47,7 +47,7 @@ class TestCacheEndToEndSemantic:
         
         session = Session.get_or_create(config)
         yield session
-        session.stop()
+        session.stop(skip_usage_summary=True)
 
     def test_semantic_map_cache_hits(self, session_with_cache):
         """Test that repeated semantic.map operations result in expected cache hits."""

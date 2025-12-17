@@ -334,12 +334,15 @@ class Session:
             self._session_state,
         )
 
-    def stop(self):
+    def stop(self, skip_usage_summary: bool = False):
         """Stops the session and closes all connections.
 
-        A summary of your session's metrics will print once you stop your session.
+        Args:
+            skip_usage_summary: Whether to skip printing the usage summary.
+
+        Unless `skip_usage_summary` is set, a summary of your session's metrics will print once you stop your session.
         """
-        self._session_state.stop()
+        self._session_state.stop(skip_usage_summary=skip_usage_summary)
 
 Session.createDataFrame = Session.create_dataframe
 Session.get_or_create = validate_call(config=ConfigDict(strict=True))(

@@ -88,7 +88,7 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test
                         assert line in markdown_result.data["markdown_content"][i]
                 assert "Image" not in markdown_result.data["markdown_content"][i]
     finally:
-        local_session.stop()
+        local_session.stop(skip_usage_summary=True)
 
 
 @pytest.mark.parametrize("pdf_chunk_size", [1, 0])
@@ -143,7 +143,7 @@ def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request, 
                 #else:
                 #    assert "Image" in markdown_result.data["markdown_content"][i]
     finally:
-        local_session.stop()
+        local_session.stop(skip_usage_summary=True)
 
 
 def test_semantic_parse_pdf_without_models():
@@ -154,7 +154,7 @@ def test_semantic_parse_pdf_without_models():
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"pdf_path": ["test.pdf"]}).select(semantic.parse_pdf(col("pdf_path")).alias("markdown_content"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def _make_test_pdf_paths(text_content: list[str],
                         temp_dir: str,

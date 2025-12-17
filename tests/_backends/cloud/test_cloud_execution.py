@@ -293,7 +293,7 @@ def cloud_session(
         session = Session.get_or_create(cloud_session_config)
 
     yield session
-    session.stop()
+    session.stop(skip_usage_summary=True)
     if os.path.exists(f"{cloud_session_config.app_name}.duckdb"):
         os.remove(f"{cloud_session_config.app_name}.duckdb")
 

@@ -177,7 +177,7 @@ def test_semantic_map_without_models(tmp_path):
         )
         state_prompt = "What state does {{name}} live in?"
         source.select(semantic.map(state_prompt, name=col("name")).alias("map"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="semantic_map_with_models",
@@ -193,7 +193,7 @@ def test_semantic_map_without_models(tmp_path):
         )
         state_prompt = "What state does {{name}} live in?"
         source.select(semantic.map(state_prompt, name=col("name")).alias("map"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_semantic_map_with_response_format(local_session):
     source = local_session.create_dataframe(

@@ -98,7 +98,7 @@ def test_semantic_summarize_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.summarize(col("text")).alias("summarized_text"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
     session_config = SessionConfig(
         app_name="semantic_summarize_without_models",
@@ -110,4 +110,4 @@ def test_semantic_summarize_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"text": ["hello"]}).select(semantic.summarize(col("text")).alias("summarized_text"))
-    session.stop()
+    session.stop(skip_usage_summary=True)

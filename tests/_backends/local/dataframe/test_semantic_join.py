@@ -285,7 +285,7 @@ def test_semantic_join_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
     session_config = SessionConfig(
         app_name="semantic_join_with_models",
         semantic=SemanticConfig(
@@ -296,7 +296,7 @@ def test_semantic_join_without_models(tmp_path):
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
         session.create_dataframe({"notes1": ["hello"]}).semantic.join(session.create_dataframe({"notes2": ["hello"]}), "Taking {{left_on}} will help me learn {{right_on}}", left_on=col("notes1"), right_on=col("notes2"))
-    session.stop()
+    session.stop(skip_usage_summary=True)
 
 def test_semantic_join_invalid_prompt(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)

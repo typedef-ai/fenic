@@ -152,13 +152,13 @@ class LocalSessionState(BaseSessionState):
         """Get the catalog object."""
         return LocalCatalog(self.duckdb_conn)
 
-    def stop(self):
+    def stop(self, skip_usage_summary: bool):
         """Clean up the session state.
 
         Shutdown order (CRITICAL):
         1. Shutdown models (stop accepting requests, finish in-flight)
         2. Close cache (flush WAL, close connections)
-        3. Print usage summary
+        3. Print usage summary (if not skipped)
         4. Remove from session manager
         """
         # STEP 1: Shutdown models FIRST to prevent them from trying to cache after cache is closed
@@ -174,7 +174,8 @@ class LocalSessionState(BaseSessionState):
                 logger.error(f"Failed to close LLM cache: {e}")
 
         # STEP 3: Print session usage summary
-        self._print_session_usage_summary()
+        if not skip_usage_summary:
+            self._print_session_usage_summary()
 
         # STEP 4: Remove from session manager
         from fenic._backends.local.manager import LocalSessionManager
