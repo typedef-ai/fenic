@@ -92,12 +92,14 @@ Build the exact context your agent is allowed to use with typed Q/A facts distil
 ```python
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
-from pydantic import BaseModel
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
+from pydantic import BaseModel, Field
 
 # 1) Typed schema for extraction
 class FAQSchema(BaseModel):
-    question: str
-    answer: str
+    question: str = Field(description="A question extracted from the document")
+    answer: str = Field(description="The answer to the question")
 
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="faq_app",
@@ -125,11 +127,11 @@ ctx = (
         fc.col("pdf_path"),
         fc.semantic.parse_pdf(fc.col("pdf_path")).alias("text")  # parse to markdown
     )
-    .filter(fc.col("text").contains("policy"))                    # deterministic filter
+    .filter(fc.col("text").cast(fc.StringType).contains("policy"))  # deterministic filter
     .select(
         fc.col("id"),
-        fc.semantic.extract(fc.col("text"), FAQSchema).alias("facts"),  # typed extraction
-        fc.semantic.embed(fc.col("text")).alias("vec")                  # embedding
+        fc.semantic.extract(fc.col("text").cast(fc.StringType), FAQSchema).alias("facts"),  # typed extraction
+        fc.semantic.embed(fc.col("text").cast(fc.StringType)).alias("vec")                  # embedding
     )
     .unnest("facts")  # -> id, question, answer, vec
 )
@@ -137,13 +139,15 @@ ctx = (
 # 3) Serve as bounded tools (MCP or direct functions)
 ctx.write.save_as_table("faq_context", mode="overwrite")
 
-server = fc.create_mcp_server(
-    session,
-    "FAQ Server",
-    system_tools=fc.SystemToolConfig(
-        table_names=["faq_context"],
-        max_result_rows=100,
-    ),
+generated_tools = auto_generate_system_tools_from_tables(
+    ["faq_context"], session, tool_namespace="faq", max_result_limit=100
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=generated_tools,
+    server_name="FAQ Server",
 )
 ```
 
@@ -187,12 +191,14 @@ Add structure to free-form chats by extracting them into typed facts and recall 
 ```python
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
-from pydantic import BaseModel
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
 from fenic.core.mcp.types import SystemTool
+from pydantic import BaseModel, Field
 
 class Preference(BaseModel):
-    category: str
-    value: str
+    category: str = Field(description="The category of the preference")
+    value: str = Field(description="The value of the preference")
 
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="mem_facts",
@@ -230,11 +236,23 @@ async def mem_recall(user_id: str, query: str, k: int = 3):
     ).select("category", "value", "relevance")
     return res._plan
 
-server = fc.create_mcp_server(
-    session,
-    "Memory (Facts)",
-    user_defined_tools=[SystemTool(name="mem_recall", description="Semantic memory recall", fn=mem_recall)],
-    system_tools=fc.SystemToolConfig(table_names=["preferences"], tool_namespace="mem", max_result_rows=100),
+generated_system_tools = auto_generate_system_tools_from_tables(
+    ["preferences"], session, tool_namespace="mem", max_result_limit=100
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=[
+        SystemTool(
+            name="mem_recall",
+            description="Semantic memory recall",
+            max_result_limit=100,
+            func=mem_recall,
+        ),
+        *generated_system_tools,
+    ],
+    server_name="Memory (Facts)",
 )
 ```
 
@@ -252,22 +270,26 @@ Maintain a profile block alongside a recent event timeline; return scoped snapsh
 <summary><b>Show code</b></summary>
 
 ```python
+from datetime import datetime
+from typing import Optional
+
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel
-from pydantic import BaseModel
-from datetime import datetime
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
 from fenic.core.mcp.types import SystemTool
+from pydantic import BaseModel, Field
 
 class MemoryBlock(BaseModel):
-    block_name: str
-    content: str
-    last_updated: str
+    block_name: str = Field(description="Name of the memory block")
+    content: str = Field(description="Content stored in the memory block")
+    last_updated: str = Field(description="Timestamp of last update")
 
 class AccountEvent(BaseModel):
-    event_type: str
-    amount: float | None = None
-    status: str | None = None
-    description: str | None = None
+    event_type: str = Field(description="Type of account event")
+    amount: Optional[float] = Field(default=None, description="Amount involved in the event")
+    status: Optional[str] = Field(default=None, description="Status of the event")
+    description: Optional[str] = Field(default=None, description="Description of the event")
 
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="mem_blocks",
@@ -312,15 +334,26 @@ async def get_user_context(user_id: str, last_n: int = 3):
     )
     return {"profile": profile._plan, "recent_events": recent._plan}
 
-server = fc.create_mcp_server(
+generated_system_tools = auto_generate_system_tools_from_tables(
+    ["memory_blocks", "account_timeline"],
     session,
-    "Memory (Blocks & Episodes)",
-    user_defined_tools=[SystemTool(name="get_user_context", description="Profile + recent events", fn=get_user_context)],
-    system_tools=fc.SystemToolConfig(
-        table_names=["memory_blocks", "account_timeline"],
-        tool_namespace="memctx",
-        max_result_rows=100,
-    ),
+    tool_namespace="memctx",
+    max_result_limit=100,
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=[
+        SystemTool(
+            name="get_user_context",
+            description="Profile + recent events",
+            max_result_limit=100,
+            func=get_user_context,
+        ),
+        *generated_system_tools,
+    ],
+    server_name="Memory (Blocks & Episodes)",
 )
 ```
 
@@ -340,12 +373,14 @@ Turn unstructured sources into typed rows (Q&A, policies, products), pre-embed, 
 ```python
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
-from pydantic import BaseModel
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
 from fenic.core.mcp.types import SystemTool
+from pydantic import BaseModel, Field
 
 class QAPair(BaseModel):
-    question: str
-    answer: str
+    question: str = Field(description="A question extracted from the document")
+    answer: str = Field(description="The answer to the question")
 
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="policy_qa",
@@ -361,7 +396,7 @@ qa_pairs = (
     .select(fc.col("file_path").alias("source"),
             fc.semantic.parse_pdf(fc.col("file_path")).alias("content"))
     .select(fc.col("source"),
-            fc.semantic.extract(fc.col("content"), QAPair).alias("qa"))
+            fc.semantic.extract(fc.col("content").cast(fc.StringType), QAPair).alias("qa"))
     .unnest("qa")
     .select("source",
             "question",
@@ -381,11 +416,23 @@ async def qa_neighbors(query: str, k: int = 3):
     ).select("question", "answer", "source", "relevance")
     return res._plan
 
-server = fc.create_mcp_server(
-    session,
-    "Policy QA",
-    user_defined_tools=[SystemTool(name="qa_neighbors", description="Semantic Q/A retrieval", fn=qa_neighbors)],
-    system_tools=fc.SystemToolConfig(table_names=["policy_qa"], tool_namespace="qa", max_result_rows=50),
+generated_system_tools = auto_generate_system_tools_from_tables(
+    ["policy_qa"], session, tool_namespace="qa", max_result_limit=50
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=[
+        SystemTool(
+            name="qa_neighbors",
+            description="Semantic Q/A retrieval",
+            max_result_limit=50,
+            func=qa_neighbors,
+        ),
+        *generated_system_tools,
+    ],
+    server_name="Policy QA",
 )
 ```
 
@@ -405,6 +452,8 @@ Break long documents into overlapping spans, embed once, serve semantic top-K.
 ```python
 import fenic as fc
 from fenic import SemanticConfig, OpenAILanguageModel, OpenAIEmbeddingModel
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
 from fenic.core.mcp.types import SystemTool
 
 session = fc.Session.get_or_create(fc.SessionConfig(
@@ -422,9 +471,9 @@ exploded = (
             fc.semantic.parse_pdf(fc.col("file_path")).alias("content"))
     .select(fc.col("source"),
             fc.text.recursive_word_chunk(
-                fc.col("content"),
+                fc.col("content").cast(fc.StringType),
                 chunk_size=500,
-                chunk_overlap_percentage=10
+                chunk_overlap_percentage=10,
             ).alias("chunks"))
     .explode("chunks")
 )
@@ -450,11 +499,23 @@ async def docs_neighbors(query: str, k: int = 3):
     ).select("chunk_id", "source", "text", "relevance")
     return res._plan
 
-server = fc.create_mcp_server(
-    session,
-    "Docs",
-    user_defined_tools=[SystemTool(name="docs_neighbors", description="Semantic chunk retrieval", fn=docs_neighbors)],
-    system_tools=fc.SystemToolConfig(table_names=["chunks"], tool_namespace="docs", max_result_rows=100),
+generated_system_tools = auto_generate_system_tools_from_tables(
+    ["chunks"], session, tool_namespace="docs", max_result_limit=100
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=[
+        SystemTool(
+            name="docs_neighbors",
+            description="Semantic chunk retrieval",
+            max_result_limit=100,
+            func=docs_neighbors,
+        ),
+        *generated_system_tools,
+    ],
+    server_name="Docs",
 )
 ```
 
@@ -524,13 +585,18 @@ print(f"Input tokens: {metrics.total_lm_metrics.num_uncached_input_tokens}")
 print(f"Output tokens: {metrics.total_lm_metrics.num_output_tokens}")
 
 # Tool responses shaped to fit budgets
-server = fc.create_mcp_server(
-    session,
-    "Budget-Aware Tools",
-    system_tools=fc.SystemToolConfig(
-        table_names=["context"],
-        max_result_rows=50,  # Cap response size
-    ),
+from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
+from fenic.core.mcp._server import FenicMCPServer
+
+generated_tools = auto_generate_system_tools_from_tables(
+    ["context"], session, tool_namespace="ctx", max_result_limit=50  # Cap response size
+)
+
+server = FenicMCPServer(
+    session._session_state,
+    user_defined_tools=[],
+    system_tools=generated_tools,
+    server_name="Budget-Aware Tools",
 )
 ```
 
