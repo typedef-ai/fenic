@@ -350,8 +350,8 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 output_tpm=75_000,
             )
     elif model_provider == ModelProvider.GOOGLE_DEVELOPER:
-        if model_parameters.supports_thinking_level:
-            # For gemini-3+ models, use thinking_level (high/LOW) instead of thinking_token_budget
+        if model_parameters.supported_thinking_levels:
+            # For gemini-3+ models, use thinking_level instead of thinking_token_budget
             # Default media_resolution to "low" for gemini-3+ models
             language_model = GoogleDeveloperLanguageModel(
                 model_name=model_name,
@@ -386,8 +386,8 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 tpm=500_000,
             )
     elif model_provider == ModelProvider.GOOGLE_VERTEX:
-        if model_parameters.supports_thinking_level:
-            # For gemini-3+ models, use thinking_level (high/LOW) instead of thinking_token_budget
+        if model_parameters.supported_thinking_levels:
+            # For gemini-3+ models, use thinking_level instead of thinking_token_budget
             # Default media_resolution to "low" for gemini-3+ models
             language_model = GoogleVertexLanguageModel(
                 model_name=model_name,

@@ -29,7 +29,6 @@ basic_text_content = [
 # keeping the more expensive models off by default
 # test_processing_engine is an OpenRouter tool choice for processing PDFs
 vlms_to_test = [
-    #(GoogleDeveloperLanguageModel, "gemini-3-pro-preview", None),
     (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "mistral-ocr"),
     (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "pdf-text"),
     (OpenRouterLanguageModel, "google/gemini-2.0-flash-lite-001", "native"),
@@ -40,11 +39,21 @@ vlms_to_test = [
     #(GoogleDeveloperLanguageModel, "gemini-2.5-pro", None),
     (GoogleDeveloperLanguageModel, "gemini-2.0-flash-lite", None),
     (GoogleDeveloperLanguageModel, "gemini-2.5-flash-lite", None),
+    (GoogleDeveloperLanguageModel, "gemini-3-flash-preview", None),
 ]
 
 @pytest.mark.parametrize("pdf_chunk_size", [1, 0])
 @pytest.mark.parametrize("test_model_class, test_model_name, test_processing_engine", vlms_to_test)
-def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test_model_class, test_model_name, test_processing_engine, pdf_chunk_size, monkeypatch):
+def test_semantic_parse_pdf_basic_markdown(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    temp_dir_just_one_file: str,
+    test_model_class: BaseModel,
+    test_model_name: str,
+    test_processing_engine: Optional[str],
+    pdf_chunk_size: int,
+    monkeypatch: pytest.MonkeyPatch,
+):
     """Test basic PDF parsing functionality.
 
     By default, just parse the PDFS and make sure non-empty markdown is returned.
@@ -61,7 +70,12 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test
         # Mock PDF_MAX_PAGES_CHUNK
         monkeypatch.setattr("fenic._backends.local.semantic_operators.parse_pdf.PDF_MAX_PAGES_CHUNK", pdf_chunk_size)
 
-    local_session = _setup_session_with_vlm(test_model_class=test_model_class, model_name=test_model_name, processing_engine=test_processing_engine)
+    local_session = _setup_session_with_vlm(
+        tmp_path=tmp_path,
+        test_model_class=test_model_class,
+        model_name=test_model_name,
+        processing_engine=test_processing_engine,
+    )
     pdf_paths = _make_test_pdf_paths(basic_text_content,
                                     temp_dir_just_one_file,
                                     pdf_count=pdf_count,
@@ -93,7 +107,16 @@ def test_semantic_parse_pdf_basic_markdown(request, temp_dir_just_one_file, test
 
 @pytest.mark.parametrize("pdf_chunk_size", [1, 0])
 @pytest.mark.parametrize("test_model_class, test_model_name, test_processing_engine", vlms_to_test)
-def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request, temp_dir_just_one_file, test_model_class, test_model_name, test_processing_engine, pdf_chunk_size, monkeypatch):
+def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    temp_dir_just_one_file: str,
+    test_model_class: BaseModel,
+    test_model_name: str,
+    test_processing_engine: Optional[str],
+    pdf_chunk_size: int,
+    monkeypatch: pytest.MonkeyPatch,
+):
     """Test basic PDF parsing functionality with page separators and image descriptions.
 
     By default, just parse the PDFS and make sure non-empty markdown is returned.
@@ -110,7 +133,12 @@ def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request, 
         # Mock PDF_MAX_PAGES_CHUNK
         monkeypatch.setattr("fenic._backends.local.semantic_operators.parse_pdf.PDF_MAX_PAGES_CHUNK", pdf_chunk_size)
 
-    local_session = _setup_session_with_vlm(test_model_class=test_model_class, model_name=test_model_name, processing_engine=test_processing_engine)
+    local_session = _setup_session_with_vlm(
+        tmp_path=tmp_path,
+        test_model_class=test_model_class,
+        model_name=test_model_name,
+        processing_engine=test_processing_engine,
+    )
     pdf_paths = _make_test_pdf_paths(basic_text_content,
                                     temp_dir_just_one_file,
                                     pdf_count=pdf_count,
@@ -146,10 +174,11 @@ def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(request, 
         local_session.stop(skip_usage_summary=True)
 
 
-def test_semantic_parse_pdf_without_models():
+def test_semantic_parse_pdf_without_models(tmp_path: Path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(
         app_name="semantic_parse_pdf_without_models",
+        db_path=tmp_path
     )
     session = Session.get_or_create(session_config)
     with pytest.raises(ValidationError, match="No language models configured."):
@@ -179,7 +208,12 @@ def _make_test_pdf_paths(text_content: list[str],
     return pdf_paths
 
 # Test Utility Functions
-def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str, processing_engine: Optional[str] = None):
+def _setup_session_with_vlm(
+    tmp_path: Path,
+    test_model_class: BaseModel,
+    model_name: str,
+    processing_engine: Optional[str] = None,
+):
     # Lookup the model provider and parameters
 
     if test_model_class == OpenRouterLanguageModel:
@@ -195,7 +229,7 @@ def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str, proces
     # Set up the profile with the lowest reasoning effort allowed by the model
     profile = None
     if test_model_class == GoogleDeveloperLanguageModel:
-        if model_parameters.supports_thinking_level:
+        if model_parameters.supported_thinking_levels:
             profile = test_model_class.Profile(thinking_level="low")
         elif model_parameters.supports_disabled_reasoning:
             profile = test_model_class.Profile(thinking_token_budget=0)
@@ -212,6 +246,7 @@ def _setup_session_with_vlm(test_model_class: BaseModel, model_name: str, proces
 
     config = SessionConfig(
         app_name="test_app_parse_pdf",
+        db_path=tmp_path,
         semantic=SemanticConfig(
             language_models={"vlm": test_model_class(
                 model_name=model_name,
