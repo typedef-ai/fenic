@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Dict, Final, Literal, Optional
 
 from google.genai.types import (
     EmbedContentConfigDict,
@@ -14,6 +14,16 @@ from fenic.core._inference.model_catalog import (
     EmbeddingModelParameters,
 )
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
+
+# Estimated thinking token budgets for each level (used for cost estimation).
+# These are approximations based on typical model behavior - actual token usage
+# varies based on prompt complexity and model decisions.
+THINKING_TOKEN_ESTIMATES: Final[Dict[str, int]] = {
+    "high": 32768,     # Maximum thinking, most thorough reasoning
+    "medium": 16384,   # Balanced thinking
+    "low": 8192,       # Reduced thinking, faster responses
+    "minimal": 2048,   # Minimal thinking, quickest responses
+}
 
 
 @dataclass
@@ -105,8 +115,8 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         expected_thinking_tokens = 0
 
         if self.model_parameters.supports_reasoning:
-            if self.model_parameters.supports_thinking_level:
-                # Gemini 3+ models use thinking_level (high/LOW) instead of thinking_budget
+            if self.model_parameters.supported_thinking_levels:
+                # Gemini 3+ models use thinking_level instead of thinking_budget
                 # thinking_token_budget must be None for these models
                 if profile.thinking_level is not None:
                     thinking_level = profile.thinking_level
@@ -116,13 +126,15 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
 
                 thinking_enabled = True
 
-                # Estimate expected thinking tokens based on level
-                if thinking_level == "high":
-                    thinking_level_enum = ThinkingLevel.HIGH
-                    expected_thinking_tokens = 32768
-                else:  # low
-                    thinking_level_enum = ThinkingLevel.LOW
-                    expected_thinking_tokens = 8192
+                # Map thinking level to enum and estimate token budget
+                thinking_level_map = {
+                    "high": ThinkingLevel.HIGH,
+                    "medium": ThinkingLevel.MEDIUM,
+                    "low": ThinkingLevel.LOW,
+                    "minimal": ThinkingLevel.MINIMAL,
+                }
+                thinking_level_enum = thinking_level_map[thinking_level]
+                expected_thinking_tokens = THINKING_TOKEN_ESTIMATES[thinking_level]
                 thinking_config: ThinkingConfigDict = {
                     "thinking_level": thinking_level_enum
                 }
@@ -172,8 +184,8 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         media_resolution = "low" if self.model_parameters.supports_media_resolution else None
 
         if self.model_parameters.supports_reasoning:
-            if self.model_parameters.supports_thinking_level:
-                # Gemini 3+ models use thinking_level (high/LOW) - default to low
+            if self.model_parameters.supported_thinking_levels:
+                # Gemini 3+ models use thinking_level - default to low
                 return GoogleCompletionsProfileConfig(
                     thinking_enabled=True,
                     thinking_token_budget=8192,  # Estimated for low

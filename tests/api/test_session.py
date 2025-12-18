@@ -524,7 +524,7 @@ def test_model_profile_validation():
         )
 
     # test that you cannot set both thinking_token_budget and thinking_level
-    with pytest.raises(ConfigurationError, match="Model 'gemini-3-pro-preview' uses thinking_level \\(high/LOW\\) instead of thinking_token_budget. Please set thinking_level on 'high' instead."):
+    with pytest.raises(ConfigurationError, match="Model 'gemini-3-pro-preview' uses thinking_level instead of thinking_token_budget. Please set thinking_level on 'high' instead."):
         SessionConfig(
             app_name="test_model_profile_validation",
             semantic=SemanticConfig(

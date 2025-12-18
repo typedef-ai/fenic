@@ -12,7 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider, ThinkingLevelType
 from fenic.core.types.enums import CacheBackend
 from fenic.core.types.provider_routing import (
     DataCollection,
@@ -46,7 +46,7 @@ class ResolvedAnthropicModelProfile:
 @dataclass
 class ResolvedGoogleModelProfile:
     thinking_token_budget: Optional[int] = None
-    thinking_level: Optional[Literal["high", "low"]] = None
+    thinking_level: Optional[ThinkingLevelType] = None
     embedding_dimensionality: Optional[int] = None
     embedding_task_type: Optional[str] = None
     media_resolution: Optional[Literal["low", "medium", "high"]] = None

@@ -1,11 +1,18 @@
 import logging
 import threading
 from enum import Enum
-from typing import Callable, Dict, Literal, Optional, TypeAlias, Union
+from typing import Callable, Dict, Final, Literal, Optional, Set, TypeAlias, Union
 
 from fenic.core.error import InternalError
 
 logger = logging.getLogger(__name__)
+
+# Type for supported thinking levels (Gemini 3+ models)
+ThinkingLevelType = Literal["high", "medium", "low", "minimal"]
+
+# Thinking level sets for Gemini 3 models
+GEMINI_3_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "low"}
+GEMINI_3_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
 
 
 class ModelProvider(Enum):
@@ -48,7 +55,8 @@ class CompletionModelParameters:
         supports_reasoning: Whether the model supports reasoning parameter.
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
         supports_disabled_reasoning: Whether the model supports disabling reasoning.
-        supports_thinking_level: Whether the model uses thinking_level (high/LOW) instead of thinking_budget. (Google Gemini 3+)
+        supported_thinking_levels: Set of thinking levels supported by the model (Gemini 3+).
+            None means the model uses thinking_budget instead. Valid values: "high", "medium", "low", "minimal".
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
@@ -68,9 +76,9 @@ class CompletionModelParameters:
         supports_profiles=True,
         supports_reasoning=False,
         supports_minimal_reasoning=False,
-        supports_disabled_reasoning = True,
-        supports_thinking_level = False,
-        supports_custom_temperature = True,
+        supports_disabled_reasoning=True,
+        supported_thinking_levels: Optional[Set[ThinkingLevelType]] = None,
+        supports_custom_temperature=True,
         supports_verbosity = False,
         supports_pdf_parsing = False,
         supports_media_resolution = False,
@@ -89,7 +97,7 @@ class CompletionModelParameters:
         self.supports_reasoning = supports_reasoning
         self.supports_minimal_reasoning = supports_minimal_reasoning
         self.supports_disabled_reasoning = supports_disabled_reasoning
-        self.supports_thinking_level = supports_thinking_level
+        self.supported_thinking_levels = supported_thinking_levels
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
@@ -246,6 +254,7 @@ CohereEmbeddingModelName = Literal[
 
 GoogleDeveloperLanguageModelName = Literal[
     "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -782,16 +791,40 @@ class ModelCatalog:
             ModelProvider.GOOGLE_VERTEX,
             "gemini-3-pro-preview",
             CompletionModelParameters(
-                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens (placeholder)
-                cached_input_token_read_cost=0.03125
-                / 1_000_000,  # $0.03125 per 1M tokens (placeholder)
-                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens (placeholder)
+                input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
+                cached_input_token_read_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                output_token_cost=12.00 / 1_000_000,  # $12.00 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_535,
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supports_thinking_level=True,
+                supported_thinking_levels=GEMINI_3_PRO_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+                tiered_token_costs={
+                    200_000: TieredTokenCost(
+                        input_token_cost=4.00 / 1_000_000,  # $4.00 per 1M tokens
+                        cached_input_token_read_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
+                        output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-3-flash-preview",
+            CompletionModelParameters(
+                input_token_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                cached_input_token_read_cost=0.05 / 1_000_000,  # $0.05 per 1M tokens
+                output_token_cost=3.00 / 1_000_000,  # $3.00 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
             ),
@@ -925,16 +958,40 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3-pro-preview",
             CompletionModelParameters(
-                input_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens (placeholder)
-                cached_input_token_read_cost=0.03125
-                / 1_000_000,  # $0.03125 per 1M tokens (placeholder)
-                output_token_cost=10 / 1_000_000,  # $10 per 1M tokens (placeholder)
+                input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
+                cached_input_token_read_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                output_token_cost=12.00 / 1_000_000,  # $12.00 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_535,
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supports_thinking_level=True,
+                supported_thinking_levels=GEMINI_3_PRO_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+                tiered_token_costs={
+                    200_000: TieredTokenCost(
+                        input_token_cost=4.00 / 1_000_000,  # $4.00 per 1M tokens
+                        cached_input_token_read_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
+                        output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3-flash-preview",
+            CompletionModelParameters(
+                input_token_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                cached_input_token_read_cost=0.05 / 1_000_000,  # $0.05 per 1M tokens
+                output_token_cost=3.00 / 1_000_000,  # $3.00 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
             ),
