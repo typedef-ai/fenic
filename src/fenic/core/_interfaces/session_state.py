@@ -22,6 +22,6 @@ class BaseSessionState(ABC):
         pass
 
     @abstractmethod
-    def stop(self) -> None:
+    def stop(self, skip_usage_summary: bool) -> None:
         """Clean up the session state."""
         pass

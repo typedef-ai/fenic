@@ -95,8 +95,10 @@ class CloudSessionState(BaseSessionState):
         self._execution = CloudExecution(self, self.engine_stub)
         logger.debug("Initialized CloudSessionState")
 
-    def stop(self):
-        """Stop a cloud session and clean up resources."""
+    def stop(self, skip_usage_summary: bool):
+        """Stop a cloud session and clean up resources.
+        
+        Note: There is currently no usage summary printed for cloud sessions, so skip_usage_summary is ignored."""
         from fenic._backends.cloud.manager import CloudSessionManager
 
         logger.info(f"Terminating session {self.app_name}:{self.session_uuid}")
