@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.7.0](https://github.com/typedef-ai/fenic/compare/v0.6.0...v0.7.0) (2025-12-19)
+
+
+### Features
+
+* update google-genai for thinking level, add support for gemini-3-flash preview, fix pricing for gemini-3-pro ([#289](https://github.com/typedef-ai/fenic/issues/289)) ([cea180f](https://github.com/typedef-ai/fenic/commit/cea180f2a13ec2d27624dfb8e517e5f5aada17cb))
+
+
+### Bug Fixes
+
+* cloud session and interface respects skip_usage_summary ([#288](https://github.com/typedef-ai/fenic/issues/288)) ([7978ea5](https://github.com/typedef-ai/fenic/commit/7978ea5ef4b839aa22766c2ab0e45d7d767b52ce))
+* remove gpt-5.1 codex since fenic doesn't currently support its responses API ([#281](https://github.com/typedef-ai/fenic/issues/281)) ([54f7ec8](https://github.com/typedef-ai/fenic/commit/54f7ec80f69cb3bf20ffd3ffaa006b8ebab70b23))
+
+
+### Documentation
+
+* Readme updates ([#283](https://github.com/typedef-ai/fenic/issues/283)) ([65fdc84](https://github.com/typedef-ai/fenic/commit/65fdc84e1d5194c9c0165e822f20ec6f6b5d4525))
+
 ## [0.6.0](https://github.com/typedef-ai/fenic/compare/v0.5.0...v0.6.0) (2025-12-04)
 
 
