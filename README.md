@@ -105,7 +105,7 @@ session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="faq_app",
     semantic=SemanticConfig(
         language_models={
-            "gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)
+            "gpt": OpenAILanguageModel(model_name="gpt-5-nano", rpm=100, tpm=100_000)
         },
         embedding_models={
             "embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)
@@ -203,7 +203,7 @@ class Preference(BaseModel):
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="mem_facts",
     semantic=SemanticConfig(
-        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        language_models={"gpt": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
         embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
         default_embedding_model="embed"
     )
@@ -294,7 +294,7 @@ class AccountEvent(BaseModel):
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="mem_blocks",
     semantic=SemanticConfig(
-        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)}
+        language_models={"gpt": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)}
     )
 ))
 
@@ -385,7 +385,7 @@ class QAPair(BaseModel):
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="policy_qa",
     semantic=SemanticConfig(
-        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        language_models={"gpt": OpenAILanguageModel(model_name="gpt-5-nano", rpm=100, tpm=100_000)},
         embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
         default_embedding_model="embed"
     )
@@ -459,7 +459,7 @@ from fenic.core.mcp.types import SystemTool
 session = fc.Session.get_or_create(fc.SessionConfig(
     app_name="docs",
     semantic=SemanticConfig(
-        language_models={"gpt4": OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100_000)},
+        language_models={"gpt": OpenAILanguageModel(model_name="gpt-5-nano", rpm=100, tpm=100_000)},
         embedding_models={"embed": OpenAIEmbeddingModel(model_name="text-embedding-3-small", rpm=100, tpm=100_000)},
         default_embedding_model="embed"
     )
@@ -758,7 +758,7 @@ results = (
 config = fc.SessionConfig(
     semantic=fc.SemanticConfig(
         language_models={
-            "gpt4": fc.OpenAILanguageModel(
+            "gpt": fc.OpenAILanguageModel(
                 model_name="gpt-4o-mini",
                 rpm=1000,  # requests per minute
                 tpm=1_000_000  # tokens per minute
