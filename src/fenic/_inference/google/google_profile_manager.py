@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Final, Literal, Optional
+from typing import Dict, Final, Optional
 
 from google.genai.types import (
     EmbedContentConfigDict,
@@ -12,6 +12,7 @@ from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileMa
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     EmbeddingModelParameters,
+    MediaResolutionType,
 )
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 
@@ -39,7 +40,7 @@ class GoogleCompletionsProfileConfig(BaseProfileConfiguration):
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
     additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
-    media_resolution: Optional[Literal["low", "medium", "high"]] = None
+    media_resolution: Optional[MediaResolutionType] = None
 
 @dataclass
 class GoogleEmbeddingsProfileConfig(BaseProfileConfiguration):

@@ -18,9 +18,11 @@ from fenic.core._inference.model_catalog import (
     GoogleDeveloperLanguageModelName,
     GoogleVertexEmbeddingModelName,
     GoogleVertexLanguageModelName,
+    MediaResolutionType,
     ModelProvider,
     OpenAIEmbeddingModelName,
     OpenAILanguageModelName,
+    ThinkingLevelType,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
@@ -231,10 +233,10 @@ class GoogleDeveloperLanguageModel(BaseModel):
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
                 Note: For gemini-3 models, use thinking_level instead.
-            thinking_level: For gemini-3+ models, set the thinking level to high or low.
+            thinking_level: For gemini-3+ models, set the thinking level to high, medium, low, or minimal.
                 This parameter is mutually exclusive with thinking_token_budget.
             media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
-                Can be "low", "medium", or "high". Affects token cost per page.
+                Can be "low", "medium", "high", or "ultra_high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
@@ -258,10 +260,10 @@ class GoogleDeveloperLanguageModel(BaseModel):
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
-        thinking_level: Optional[Literal["high", "medium", "low", "minimal"]] = Field(
+        thinking_level: Optional[ThinkingLevelType] = Field(
             default=None, description="The thinking level for gemini-3+ models (high, medium, low, or minimal)."
         )
-        media_resolution: Optional[Literal["low", "medium", "high"]] = Field(
+        media_resolution: Optional[MediaResolutionType] = Field(
             default=None, description="The media resolution for PDF processing in gemini-3+ models."
         )
 
@@ -422,10 +424,10 @@ class GoogleVertexLanguageModel(BaseModel):
                 It is very possible for the model to generate far more thinking tokens than the suggested budget, and for the
                 model to generate reasoning tokens even if thinking is disabled.
                 Note: For gemini-3 models, use thinking_level instead.
-            thinking_level: For gemini-3+ models, set the thinking level to high or low.
+            thinking_level: For gemini-3+ models, set the thinking level to high, medium, low, or minimal.
                 This parameter is mutually exclusive with thinking_token_budget.
             media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
-                Can be "low", "medium", or "high". Affects token cost per page.
+                Can be "low", "medium", "high", or "ultra_high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
@@ -449,10 +451,10 @@ class GoogleVertexLanguageModel(BaseModel):
         thinking_token_budget: Optional[int] = Field(
             default=None, description="The thinking budget in tokens.", ge=-1, lt=32768
         )
-        thinking_level: Optional[Literal["high", "medium", "low", "minimal"]] = Field(
+        thinking_level: Optional[ThinkingLevelType] = Field(
             default=None, description="The thinking level for gemini-3+ models (high, medium, low, or minimal)."
         )
-        media_resolution: Optional[Literal["low", "medium", "high"]] = Field(
+        media_resolution: Optional[MediaResolutionType] = Field(
             default=None, description="The media resolution for PDF processing in gemini-3+ models."
         )
 

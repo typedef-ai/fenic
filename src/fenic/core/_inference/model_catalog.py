@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Type for supported thinking levels (Gemini 3+ models)
 ThinkingLevelType = Literal["high", "medium", "low", "minimal"]
+MediaResolutionType = Literal["low", "medium", "high", "ultra_high"]
 
 # Thinking level sets for Gemini 3 models
 GEMINI_3_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "low"}
