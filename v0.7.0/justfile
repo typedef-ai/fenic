@@ -1,0 +1,41 @@
+# NOTE: mike is not verbose at all, which will make you think it's not doing
+#  anything when it probably is.
+
+# deploy docs to github pages for the given release version
+docs-deploy version latest="false": docs-setup docs-fetch
+  #!/usr/bin/env bash
+  set -euo pipefail
+  uv run mike deploy \
+    --push --update-aliases {{ version }} \
+    {{ if latest == "true" { "latest" } else { "" } }}
+  if [[ "{{ latest }}" == "true" ]]; then
+    uv run mike set-default --push latest
+  fi
+
+# setup docs deps
+docs-setup:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    uv sync --only-group docs
+  else
+    uv sync --group docs
+  fi
+
+# build and serve docs locally (gh-pages)
+docs-serve-mike: docs-setup
+  uv run mike serve
+
+# build and serve docs locally (mkdocs)
+docs-serve:
+  uv run --group docs mkdocs serve
+
+# list currently deployed docs
+docs-list: docs-setup
+  uv run mike list
+
+# fetch gh-pages branch for deploy
+[private]
+docs-fetch:
+  git fetch origin gh-pages --depth=1
+
