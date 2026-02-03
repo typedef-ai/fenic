@@ -10,6 +10,8 @@ on:
       - rust/**
       - src/**
       - tests/**
+      - pyproject.toml
+      - uv.lock
   schedule:
     # daily at 8am Pacific (15:00 UTC)
     - cron: 0 15 * * *
