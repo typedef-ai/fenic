@@ -280,8 +280,8 @@ def get_model_configs():
             )},
             default_profile="disabled_thinking"
         )
-        model_configs["gemini-3-pro-preview"] = GoogleDeveloperLanguageModel(
-            model_name="gemini-3-pro-preview",
+        model_configs["gemini-3.1-pro-preview"] = GoogleDeveloperLanguageModel(
+            model_name="gemini-3.1-pro-preview",
             rpm=100,
             tpm=200000,
             profiles={"disabled_thinking": GoogleDeveloperLanguageModel.Profile(
@@ -290,8 +290,8 @@ def get_model_configs():
             )},
             default_profile="disabled_thinking"
         )
-        model_configs["gemini-3-pro-preview-high-res"] = GoogleDeveloperLanguageModel(
-            model_name="gemini-3-pro-preview",
+        model_configs["gemini-3.1-pro-preview-high-res"] = GoogleDeveloperLanguageModel(
+            model_name="gemini-3.1-pro-preview",
             rpm=100,
             tpm=200000,
             profiles={"disabled_thinking": GoogleDeveloperLanguageModel.Profile(
