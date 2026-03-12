@@ -636,7 +636,7 @@ def test_session_config_with_invalid_cohere_api_key(tmp_path, monkeypatch):
 
     monkeypatch.setenv("COHERE_API_KEY", "__invalid__")
     # test cohere embedding client
-    with pytest.raises(ConfigurationError, match="invalid api token"):
+    with pytest.raises(ConfigurationError, match="Incorrect API key provided"):
         config = SessionConfig(
             app_name="test_session_config_with_invalid_cohere_api_key",
             db_path=tmp_path,
