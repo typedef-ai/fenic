@@ -27,6 +27,7 @@ from fenic.core._logical_plan.signatures.type_signature import (
     InstanceOf,
     Numeric,
     OneOf,
+    StringLikeType,
     # Core signatures
     TypeSignature,
     Uniform,
@@ -43,6 +44,7 @@ __all__ = [
     "VariadicAny",
     "Numeric",
     "OneOf",
+    "StringLikeType",
     # Specialized type signatures
     "ArrayOfAny",
     "ArrayWithMatchingElement",
