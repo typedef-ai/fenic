@@ -1,7 +1,4 @@
-"""Tests that text functions work on Markdown and Json types without explicit casting.
-
-Covers TD-1830: text functions (regex, ilike/rlike, etc) should work on Markdown and Json types.
-"""
+"""Tests that text functions work on Markdown and Json types without explicit casting."""
 import pytest
 
 from fenic import col, text
