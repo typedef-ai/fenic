@@ -16,6 +16,7 @@ from fenic.core._logical_plan.signatures.type_signature import (
     InstanceOf,
     Numeric,
     OneOf,
+    StringLikeType,
     Uniform,
     VariadicAny,
     VariadicUniform,
@@ -29,6 +30,8 @@ from fenic.core.types.datatypes import (
     EmbeddingType,
     FloatType,
     IntegerType,
+    JsonType,
+    MarkdownType,
     StringType,
     StructField,
     StructType,
@@ -400,3 +403,38 @@ class TestAnyExcludingStructs:
 
         with pytest.raises(TypeMismatchError, match="test_func expects an array of non-structs at argument 0"):
             sig.validate([ArrayType(StructType([StructField("name", StringType)]))], "test_func")
+
+
+class TestStringLikeType:
+    """Test StringLikeType marker in Exact signatures."""
+
+    def test_accepts_string_like_types(self):
+        sig = Exact([StringLikeType])
+
+        sig.validate([StringType], "test_func")
+        sig.validate([MarkdownType], "test_func")
+        sig.validate([JsonType], "test_func")
+
+    def test_rejects_non_string_like_types(self):
+        sig = Exact([StringLikeType])
+
+        with pytest.raises(TypeMismatchError, match="expects a string-like type"):
+            sig.validate([IntegerType], "test_func")
+
+        with pytest.raises(TypeMismatchError, match="expects a string-like type"):
+            sig.validate([BooleanType], "test_func")
+
+    def test_mixed_string_like_and_exact(self):
+        sig = Exact([StringLikeType, StringType])
+
+        sig.validate([MarkdownType, StringType], "test_func")
+        sig.validate([JsonType, StringType], "test_func")
+
+        with pytest.raises(TypeMismatchError):
+            sig.validate([MarkdownType, IntegerType], "test_func")
+
+    def test_rejects_string_like_marker_as_actual_arg(self):
+        sig = Exact([StringLikeType])
+
+        with pytest.raises(InternalError, match="StringLikeType is a signature marker"):
+            sig.validate([StringLikeType], "test_func")

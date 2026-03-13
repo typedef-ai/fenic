@@ -22,10 +22,10 @@ from fenic.core.types.datatypes import (
 _STRING_LIKE_TYPES = frozenset({StringType, MarkdownType, JsonType})
 
 
-class _StringLikeMarker(DataType):
-    """Sentinel type used in Exact signatures to accept any string-like type.
+class _StringLikeMarker:
+    """Sentinel marker used in Exact signatures to accept any string-like type.
 
-    Not a real DataType — only used as a marker in type signature validation.
+    Not a DataType — only used as a marker in type signature validation.
     Matches StringType, MarkdownType, and JsonType.
 
     Example:
@@ -37,15 +37,12 @@ class _StringLikeMarker(DataType):
     def __str__(self) -> str:
         return "StringLikeType"
 
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, _StringLikeMarker)
-
-    def __hash__(self) -> int:
-        return hash("StringLikeType")
+    def __repr__(self) -> str:
+        return "StringLikeType"
 
 
 StringLikeType = _StringLikeMarker()
-"""Marker type for use in Exact signatures to accept StringType, MarkdownType, or JsonType."""
+"""Marker for use in Exact signatures to accept StringType, MarkdownType, or JsonType."""
 
 
 class TypeSignature(ABC):
@@ -74,6 +71,11 @@ class Exact(TypeSignature):
             )
 
         for i, (expected, actual) in enumerate(zip(self.expected_arg_types, actual_arg_types, strict=False)):
+            if isinstance(actual, _StringLikeMarker):
+                raise InternalError(
+                    f"{func_name} received StringLikeType as an actual argument type at position {i}. "
+                    "StringLikeType is a signature marker, not a real DataType."
+                )
             if expected is StringLikeType:
                 if actual not in _STRING_LIKE_TYPES:
                     raise TypeMismatchError.from_message(
