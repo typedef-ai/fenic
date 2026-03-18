@@ -170,6 +170,8 @@ CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
     "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
     "gpt-5.2",
     "gpt-5.1",
     "gpt-5.1-2025-11-13",
@@ -829,6 +831,44 @@ class ModelCatalog:
                 cached_input_token_read_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
                 output_token_cost=15.00 / 1_000_000,  # $15.00 per 1M tokens
                 context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
+        # GPT-5.4 Mini - optimized for high-volume workloads
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.4-mini",
+            CompletionModelParameters(
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=4.50 / 1_000_000,  # $4.50 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
+        # GPT-5.4 Nano - optimized for speed and cost
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.4-nano",
+            CompletionModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                cached_input_token_read_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
+                output_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                context_window_length=400_000,
                 max_output_tokens=128_000,
                 supports_reasoning=True,
                 supports_minimal_reasoning=False,
