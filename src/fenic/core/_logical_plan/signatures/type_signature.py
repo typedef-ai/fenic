@@ -11,10 +11,38 @@ from fenic.core.error import InternalError, TypeMismatchError, ValidationError
 from fenic.core.types.datatypes import (
     ArrayType,
     DataType,
+    JsonType,
+    MarkdownType,
+    StringType,
     StructType,
     _is_dtype_numeric,
     _PrimitiveType,
 )
+
+_STRING_LIKE_TYPES = frozenset({StringType, MarkdownType, JsonType})
+
+
+class _StringLikeMarker:
+    """Sentinel marker used in Exact signatures to accept any string-like type.
+
+    Not a DataType — only used as a marker in type signature validation.
+    Matches StringType, MarkdownType, and JsonType.
+
+    Example:
+        Exact([StringLikeType, StringType])     # first arg is string-like, second is exact StringType
+        Exact([StringLikeType])                  # single string-like arg
+        Exact([StringLikeType, StringLikeType])  # both args accept string-like types
+    """
+
+    def __str__(self) -> str:
+        return "StringLikeType"
+
+    def __repr__(self) -> str:
+        return "StringLikeType"
+
+
+StringLikeType = _StringLikeMarker()
+"""Marker for use in Exact signatures to accept StringType, MarkdownType, or JsonType."""
 
 
 class TypeSignature(ABC):
@@ -26,7 +54,11 @@ class TypeSignature(ABC):
         pass
 
 class Exact(TypeSignature):
-    """Exact argument types for functions (e.g., length(str) -> int)."""
+    """Exact argument types for functions (e.g., length(str) -> int).
+
+    Supports StringLikeType as a marker to accept any string-like type
+    (StringType, MarkdownType, JsonType) at a given argument position.
+    """
 
     def __init__(self, expected_arg_types: List[DataType]):
         self.expected_arg_types = expected_arg_types
@@ -39,12 +71,24 @@ class Exact(TypeSignature):
             )
 
         for i, (expected, actual) in enumerate(zip(self.expected_arg_types, actual_arg_types, strict=False)):
-            if actual != expected:
+            if isinstance(actual, _StringLikeMarker):
+                raise InternalError(
+                    f"{func_name} received StringLikeType as an actual argument type at position {i}. "
+                    "StringLikeType is a signature marker, not a real DataType."
+                )
+            if isinstance(expected, _StringLikeMarker):
+                if actual not in _STRING_LIKE_TYPES:
+                    raise TypeMismatchError.from_message(
+                        f"{func_name} expects a string-like type (StringType, MarkdownType, or JsonType) "
+                        f"for argument {i}, got {actual}"
+                    )
+            elif actual != expected:
                 raise TypeMismatchError(
                     expected=expected,
                     actual=actual,
                     context=f"{func_name} Argument {i}",
                 )
+
 
 class Any(TypeSignature):
     """All arguments can be of any type, but an exact number of arguments is required."""
