@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 ThinkingLevelType = Literal["high", "medium", "low", "minimal"]
 MediaResolutionType = Literal["low", "medium", "high", "ultra_high"]
 
-# Thinking level sets for Gemini 3 models
-GEMINI_3_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "low"}
-GEMINI_3_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
+# Thinking level sets for Gemini 3.x models
+GEMINI_3X_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
+GEMINI_3X_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
 
 
 class ModelProvider(Enum):
@@ -169,6 +169,10 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5.2",
     "gpt-5.1",
     "gpt-5.1-2025-11-13",
     "gpt-5",
@@ -205,6 +209,7 @@ OpenAIEmbeddingModelName = Literal[
 ]
 
 GoogleVertexEmbeddingModelName = Literal[
+    "gemini-embedding-2-preview",
     "gemini-embedding-001",
     "gemini-embedding-exp-03-07",
     "text-multilingual-embedding-002",
@@ -212,12 +217,15 @@ GoogleVertexEmbeddingModelName = Literal[
 ]
 
 GoogleDeveloperEmbeddingModelName = Literal[
+    "gemini-embedding-2-preview",
     "gemini-embedding-001",
     "gemini-embedding-exp-03-07",
     "text-embedding-004"
 ]
 
 AnthropicLanguageModelName = Literal[
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     "claude-opus-4-5",
     "claude-opus-4-5-20251101",
     "claude-sonnet-4-5",
@@ -254,7 +262,8 @@ CohereEmbeddingModelName = Literal[
 
 
 GoogleDeveloperLanguageModelName = Literal[
-    "gemini-3-pro-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
@@ -351,6 +360,35 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        # Claude 4.6 models
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-6",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                cached_input_token_write_cost=6.25 / 1_000_000,  # $6.25 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-4-6",
+            CompletionModelParameters(
+                input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
+                cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
+                cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
+                output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
+                context_window_length=200_000,
+                max_output_tokens=64_000,
+                supports_reasoning=True,
+            ),
+        )
+
         # Claude 4.5 models
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
@@ -765,6 +803,82 @@ class ModelCatalog:
             snapshots=["gpt-5.1-2025-11-13"],
         )
 
+        # GPT-5.2 - support 'none' reasoning effort (disabled reasoning, default)
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.2",
+            CompletionModelParameters(
+                input_token_cost=1.75 / 1_000_000,  # $1.75 per 1M tokens
+                cached_input_token_read_cost=0.175 / 1_000_000,  # $0.175 per 1M tokens
+                output_token_cost=14.00 / 1_000_000,  # $14.00 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
+        # GPT-5.4 - frontier model for complex professional work
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.4",
+            CompletionModelParameters(
+                input_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
+                cached_input_token_read_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
+                output_token_cost=15.00 / 1_000_000,  # $15.00 per 1M tokens
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
+        # GPT-5.4 Mini - optimized for high-volume workloads
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.4-mini",
+            CompletionModelParameters(
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
+                output_token_cost=4.50 / 1_000_000,  # $4.50 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
+        # GPT-5.4 Nano - optimized for speed and cost
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.4-nano",
+            CompletionModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                cached_input_token_read_cost=0.02 / 1_000_000,  # $0.02 per 1M tokens
+                output_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
+                context_window_length=400_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+            ),
+        )
+
         # OpenAI Embedding Models
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
@@ -790,17 +904,17 @@ class ModelCatalog:
         """Initialize the Google Vertex Models."""
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
-            "gemini-3-pro-preview",
+            "gemini-3.1-pro-preview",
             CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
                 cached_input_token_read_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
                 output_token_cost=12.00 / 1_000_000,  # $12.00 per 1M tokens
                 context_window_length=1_048_576,
-                max_output_tokens=65_535,
+                max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supported_thinking_levels=GEMINI_3_PRO_THINKING_LEVELS,
+                supported_thinking_levels=GEMINI_3X_PRO_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
                 tiered_token_costs={
@@ -810,6 +924,24 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
+            "gemini-3.1-flash-lite-preview",
+            CompletionModelParameters(
+                input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
+                cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
+                output_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
             ),
         )
 
@@ -825,7 +957,7 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supported_thinking_levels=GEMINI_3_FLASH_THINKING_LEVELS,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
             ),
@@ -919,6 +1051,17 @@ class ModelCatalog:
         )
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
+            "gemini-embedding-2-preview",
+            EmbeddingModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                allowed_output_dimensions=[768, 1536, 3072],
+                max_input_size=8192,
+                default_dimensionality=3072,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
             "gemini-embedding-001",
             EmbeddingModelParameters(
                 input_token_cost=0.00015 / 1_000,  # $0.00015 per 1k tokens
@@ -957,17 +1100,17 @@ class ModelCatalog:
         # Google GLA Models (same models, possibly different pricing)
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-3-pro-preview",
+            "gemini-3.1-pro-preview",
             CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
                 cached_input_token_read_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
                 output_token_cost=12.00 / 1_000_000,  # $12.00 per 1M tokens
                 context_window_length=1_048_576,
-                max_output_tokens=65_535,
+                max_output_tokens=65_536,
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supported_thinking_levels=GEMINI_3_PRO_THINKING_LEVELS,
+                supported_thinking_levels=GEMINI_3X_PRO_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
                 tiered_token_costs={
@@ -977,6 +1120,24 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3.1-flash-lite-preview",
+            CompletionModelParameters(
+                input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
+                cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
+                output_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
             ),
         )
 
@@ -992,7 +1153,7 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
-                supported_thinking_levels=GEMINI_3_FLASH_THINKING_LEVELS,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
             ),
@@ -1081,6 +1242,17 @@ class ModelCatalog:
                 supports_pdf_parsing=True,
             ),
             snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-embedding-2-preview",
+            EmbeddingModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M tokens
+                allowed_output_dimensions=[768, 1536, 3072],
+                max_input_size=8192,
+                default_dimensionality=3072,
+            ),
         )
 
         self._add_model_to_catalog(
