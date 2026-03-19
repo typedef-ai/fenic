@@ -76,7 +76,7 @@ class Exact(TypeSignature):
                     f"{func_name} received StringLikeType as an actual argument type at position {i}. "
                     "StringLikeType is a signature marker, not a real DataType."
                 )
-            if expected is StringLikeType:
+            if isinstance(expected, _StringLikeMarker):
                 if actual not in _STRING_LIKE_TYPES:
                     raise TypeMismatchError.from_message(
                         f"{func_name} expects a string-like type (StringType, MarkdownType, or JsonType) "
