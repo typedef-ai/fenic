@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/typedef-ai/fenic/compare/v0.7.0...v0.8.0) (2026-03-26)
+
+
+### Features
+
+* Accept Markdown and Json types in text functions ([#297](https://github.com/typedef-ai/fenic/issues/297)) ([1be58f4](https://github.com/typedef-ai/fenic/commit/1be58f43baea7065dceb697477bc744d89fa8444))
+* add new models to the model catalog ([#295](https://github.com/typedef-ai/fenic/issues/295)) ([1557d2f](https://github.com/typedef-ai/fenic/commit/1557d2f97fb6bc2174a0237ca0b6479d868e897f))
+
+
+### Bug Fixes
+
+* update cohere test to match current SDK error message ([#296](https://github.com/typedef-ai/fenic/issues/296)) ([077da4c](https://github.com/typedef-ai/fenic/commit/077da4c0940470ef6bb83dfbf5801f94ff414d5c))
+
 ## [0.7.0](https://github.com/typedef-ai/fenic/compare/v0.6.0...v0.7.0) (2025-12-19)
 
 
