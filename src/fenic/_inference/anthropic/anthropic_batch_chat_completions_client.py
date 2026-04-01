@@ -78,6 +78,7 @@ class AnthropicBatchCompletionsClient(
         profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None,
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
+        base_url: Optional[str] = None,
     ):
         """Initialize the Anthropic batch completions client.
 
@@ -89,11 +90,13 @@ class AnthropicBatchCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
             cache: Optional LLM response cache
+            base_url: Custom base URL for the Anthropic API
         """
+        model_provider_class = AnthropicModelProvider(base_url=base_url)
         super().__init__(
             model=model,
             model_provider=ModelProvider.ANTHROPIC,
-            model_provider_class=AnthropicModelProvider(),
+            model_provider_class=model_provider_class,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,

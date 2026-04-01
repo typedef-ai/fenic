@@ -34,8 +34,9 @@ def _fingerprint(
     request: FenicCompletionsRequest,
     model: str = "gpt-4o-mini",
     profile_hash: str | None = None,
+    base_url: str | None = None,
 ) -> str:
-    return compute_request_fingerprint(request, model, profile_hash=profile_hash)
+    return compute_request_fingerprint(request, model, profile_hash=profile_hash, base_url=base_url)
 
 
 def test_request_fingerprint_is_deterministic():
@@ -174,4 +175,26 @@ def test_request_fingerprint_respects_profile_hash_even_without_profile_name():
     assert _fingerprint(request, profile_hash="hash1") != _fingerprint(
         request, profile_hash="hash2"
     )
+
+
+def test_request_fingerprint_changes_with_base_url():
+    """Different base_url values produce different cache keys."""
+    messages = LMRequestMessages(system="You are helpful", examples=[], user="Hello")
+    request = _build_request(messages=messages)
+
+    key_default = _fingerprint(request)
+    key_proxy = _fingerprint(request, base_url="https://proxy.example.com/v1")
+    key_other = _fingerprint(request, base_url="https://other-proxy.example.com/v1")
+
+    assert key_default != key_proxy
+    assert key_default != key_other
+    assert key_proxy != key_other
+
+
+def test_request_fingerprint_none_base_url_matches_default():
+    """Explicitly passing base_url=None produces the same key as omitting it."""
+    messages = LMRequestMessages(system="You are helpful", examples=[], user="Hello")
+    request = _build_request(messages=messages)
+
+    assert _fingerprint(request) == _fingerprint(request, base_url=None)
 

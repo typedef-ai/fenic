@@ -76,7 +76,10 @@ class SessionModelRegistry:
             for alias, model_config in language_model_config.model_configs.items():
                 model = self._initialize_language_model(model_config, cache)
                 models[alias] = model
-                validate_providers.add(model.client.model_provider_class)
+                # Skip API key validation for providers with custom base URLs,
+                # since the proxy may not expose the /models endpoint.
+                if not getattr(model.client.model_provider_class, "_base_url", None):
+                    validate_providers.add(model.client.model_provider_class)
             self.language_model_registry = LanguageModelRegistry(
                 models=models,
                 default_model=models[language_model_config.default_model],
@@ -88,7 +91,8 @@ class SessionModelRegistry:
             for alias, model_config in embedding_model_config.model_configs.items():
                 model = self._initialize_embedding_model(model_config)
                 models[alias] = model
-                validate_providers.add(model.client.model_provider_class)
+                if not getattr(model.client.model_provider_class, "_base_url", None):
+                    validate_providers.add(model.client.model_provider_class)
             self.embedding_model_registry = EmbeddingModelRegistry(
                 models=models,
                 default_model=models[embedding_model_config.default_model],
@@ -235,6 +239,7 @@ class SessionModelRegistry:
                 client = OpenAIBatchEmbeddingsClient(
                     rate_limit_strategy=rate_limit_strategy,
                     model=model_config.model_name,
+                    base_url=model_config.base_url,
                 )
             elif isinstance(model_config, ResolvedGoogleModelConfig):
                 try:
@@ -311,6 +316,7 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                     cache=cache,
+                    base_url=model_config.base_url,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
@@ -333,6 +339,7 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                     cache=cache,
+                    base_url=model_config.base_url,
                 )
 
             elif isinstance(model_config, ResolvedGoogleModelConfig):

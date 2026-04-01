@@ -34,6 +34,7 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
         model: str,
         queue_size: int = 500,
         max_backoffs: int = 10,
+        base_url: str | None = None,
     ):
         """Initialize the OpenAI batch embeddings client.
 
@@ -42,11 +43,13 @@ class OpenAIBatchEmbeddingsClient(ModelClient[FenicEmbeddingsRequest, list[float
             queue_size: Size of the request queue
             model: The model to use
             max_backoffs: Maximum number of backoff attempts
+            base_url: Custom base URL for the OpenAI API
         """
+        model_provider_class = OpenAIModelProvider(base_url=base_url)
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
-            model_provider_class=OpenAIModelProvider(),
+            model_provider_class=model_provider_class,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,

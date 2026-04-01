@@ -247,7 +247,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     def _build_request_key(self, request: RequestT) -> str:
         """Build the canonical cache/deduplication key for a request."""
         profile_hash = self.get_profile_hash_for_request(request)
-        return compute_request_fingerprint(request, self.model, profile_hash=profile_hash)
+        base_url = getattr(self.model_provider_class, "_base_url", None)
+        return compute_request_fingerprint(request, self.model, profile_hash=profile_hash, base_url=base_url)
 
     def _safe_build_request_key(
         self, request: RequestT, request_index: Optional[int] = None
