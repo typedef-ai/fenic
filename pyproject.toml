@@ -70,7 +70,7 @@ cloud = [
   "pydantic_settings",
   "fenic-cloud>=0.1.3",
 ]
-mcp = ["fastmcp>=2.11.3"]
+mcp = ["fastmcp>=3.2.0,<4"]
 eval = ["markdown-it-py>=4.0.0"]
 
 [build-system]
