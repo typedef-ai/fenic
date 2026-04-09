@@ -137,6 +137,11 @@ class OpenRouterCompletionsProfileManager(
                 "and will be removed in a future release. Use 'cloudflare-ai' instead."
             )
             parsing_engine = "cloudflare-ai"
+        if parsing_engine == "cloudflare-ai":
+            logger.warning(
+                "The 'cloudflare-ai' parsing engine has known reliability issues on "
+                "OpenRouter. Consider using 'mistral-ocr' or 'native' instead."
+            )
 
         pdf_page_processing_cost = None
         if parsing_engine == "mistral-ocr":

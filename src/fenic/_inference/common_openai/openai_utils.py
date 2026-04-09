@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 
 from fenic._inference.request_utils import pdf_to_base64
@@ -21,7 +22,7 @@ def convert_messages(lm_request_messages: LMRequestMessages) -> List[Dict[str, s
             {
                 "type": "file",
                 "file": {
-                    "filename": lm_request_messages.user_file.path,
+                    "filename": os.path.basename(lm_request_messages.user_file.path),
                     "file_data": f"data:application/pdf;base64,{pdf_to_base64(lm_request_messages.user_file)}",
                 }
             }
