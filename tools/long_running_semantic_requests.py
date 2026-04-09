@@ -199,7 +199,7 @@ def main():
                     tpm=1000000,
                     profiles={
                         "default": OpenRouterLanguageModel.Profile(
-                            parsing_engine="pdf-text"
+                            parsing_engine="cloudflare-ai"
                         )
                     },
                     default_profile="default"
