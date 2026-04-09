@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
-ParsingEngine = Literal["mistral-ocr", "pdf-text", "native"]
+ParsingEngine = Literal["mistral-ocr", "cloudflare-ai", "pdf-text", "native"]
 
 class ModelAlias(BaseModel):
     """A combination of a model name and a required profile for that model.

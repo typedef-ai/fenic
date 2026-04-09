@@ -30,8 +30,7 @@ basic_text_content = [
 # test_processing_engine is an OpenRouter tool choice for processing PDFs
 vlms_to_test = [
     (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "mistral-ocr"),
-    pytest.param(OpenRouterLanguageModel, "openai/gpt-4.1-nano", "pdf-text",
-                 marks=pytest.mark.xfail(reason="OpenRouter pdf-text engine returning 400 errors since ~2025-04-05")),
+    (OpenRouterLanguageModel, "openai/gpt-4.1-nano", "cloudflare-ai"),
     (OpenRouterLanguageModel, "google/gemini-2.0-flash-lite-001", "native"),
     #(OpenAILanguageModel, "gpt-5-nano", None),
     (OpenAILanguageModel, "gpt-4o-mini", None),

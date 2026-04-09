@@ -721,7 +721,7 @@ class AnthropicLanguageModel(BaseModel):
             ge=1024,
         )
 
-ParsingEngine = Literal["mistral-ocr", "pdf-text", "native"]
+ParsingEngine = Literal["mistral-ocr", "cloudflare-ai", "pdf-text", "native"]
 
 class OpenRouterLanguageModel(BaseModel):
     """Configuration for OpenRouter language models.

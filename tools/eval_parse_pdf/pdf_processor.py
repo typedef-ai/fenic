@@ -34,7 +34,7 @@ def process_pdfs(input_glob_pattern, test_id, output_dir, app_name, model_name, 
         app_name (str): Application name for Fenic session
         model_name (str): Name of the language model to use for parsing
         model_alias (str): Model alias for semantic parsing
-        parse_engine (str): Parse engine to use for parsing PDFs (for OpenRouter models only). Options are: mistral-ocr, pdf-text, native
+        parse_engine (str): Parse engine to use for parsing PDFs (for OpenRouter models only). Options are: mistral-ocr, cloudflare-ai, native
     """
     print(f"Starting PDF processing with test_id: {test_id}")
     print(f"Input pattern: {input_glob_pattern}")
@@ -350,8 +350,8 @@ Examples:
     parser.add_argument(
         '--parse-engine', '-e',
         default='native',
-        choices=['mistral-ocr', 'pdf-text', 'native'],
-        help='Parse engine to use for parsing PDFs (for OpenRouter models only). Options are: mistral-ocr, pdf-text, native'
+        choices=['mistral-ocr', 'cloudflare-ai', 'native'],
+        help='Parse engine to use for parsing PDFs (for OpenRouter models only). Options are: mistral-ocr, cloudflare-ai, native'
     )
     
     args = parser.parse_args()

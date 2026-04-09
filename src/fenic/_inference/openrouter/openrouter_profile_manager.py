@@ -9,6 +9,7 @@ References:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from pydantic.dataclasses import dataclass
@@ -21,6 +22,8 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.types.provider_routing import StructuredOutputStrategy
 from fenic.core.types.semantic import ParsingEngine
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -127,10 +130,18 @@ class OpenRouterCompletionsProfileManager(
             ):
                 profile.reasoning_effort = "low"
         
+        parsing_engine = profile.parsing_engine
+        if parsing_engine == "pdf-text":
+            logger.warning(
+                "The 'pdf-text' parsing engine is deprecated by OpenRouter "
+                "and will be removed in a future release. Use 'cloudflare-ai' instead."
+            )
+            parsing_engine = "cloudflare-ai"
+
         pdf_page_processing_cost = None
-        if profile.parsing_engine and profile.parsing_engine == "mistral-ocr":
+        if parsing_engine == "mistral-ocr":
             pdf_page_processing_cost = 2/1000
-        elif profile.parsing_engine and profile.parsing_engine == "pdf-text":
+        elif parsing_engine == "cloudflare-ai":
             pdf_page_processing_cost = 0
 
         return OpenRouterCompletionProfileConfiguration(
@@ -139,7 +150,7 @@ class OpenRouterCompletionsProfileManager(
             reasoning_effort=profile.reasoning_effort,
             reasoning_max_tokens=profile.reasoning_max_tokens,
             structured_output_strategy=profile.structured_output_strategy,
-            parsing_engine=profile.parsing_engine,
+            parsing_engine=parsing_engine,
             pdf_page_processing_cost=pdf_page_processing_cost,
         )
 
