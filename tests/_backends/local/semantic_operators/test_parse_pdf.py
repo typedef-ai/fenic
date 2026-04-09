@@ -159,7 +159,7 @@ class TestParsePDF:
                     {
                         "type": "file",
                         "file": {
-                            "filename": file_path_1,
+                            "filename": os.path.basename(file_path_1),
                             "file_data": "dummy_value", # checked separately in _check_base64_string
                         },
                     }
@@ -176,7 +176,7 @@ class TestParsePDF:
                     {
                         "type": "file",
                         "file": {
-                            "filename": file_path_2,
+                            "filename": os.path.basename(file_path_2),
                             "file_data": "dummy_value", # checked separately in _check_base64_string
                         },
                     }
@@ -223,7 +223,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path_1,
+                                "filename": os.path.basename(file_path_1),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -241,7 +241,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path_2,
+                                "filename": os.path.basename(file_path_2),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -259,7 +259,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path_2,
+                                "filename": os.path.basename(file_path_2),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -300,7 +300,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path,
+                                "filename": os.path.basename(file_path),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -341,7 +341,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path,
+                                "filename": os.path.basename(file_path),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -391,7 +391,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path,
+                                "filename": os.path.basename(file_path),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
@@ -409,7 +409,7 @@ class TestParsePDF:
                         {
                             "type": "file",
                             "file": {
-                                "filename": file_path,
+                                "filename": os.path.basename(file_path),
                                 "file_data": "dummy_value", # checked separately in _check_base64_string
                             },
                         }
