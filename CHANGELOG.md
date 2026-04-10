@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/typedef-ai/fenic/compare/v0.8.0...v0.9.0) (2026-04-10)
+
+
+### Features
+
+* add base_url support for OpenAI and Anthropic model configs ([#301](https://github.com/typedef-ai/fenic/issues/301)) ([0bb7bc6](https://github.com/typedef-ai/fenic/commit/0bb7bc651324c70ef156bfb63f5d71e53071ad02))
+
+
+### Bug Fixes
+
+* replace deprecated OpenRouter pdf-text engine with cloudflare-ai ([#303](https://github.com/typedef-ai/fenic/issues/303)) ([1a6bf19](https://github.com/typedef-ai/fenic/commit/1a6bf1933d95f916c7a5d4cfae182f26c3f95df9))
+
 ## [0.8.0](https://github.com/typedef-ai/fenic/compare/v0.7.0...v0.8.0) (2026-03-26)
 
 
