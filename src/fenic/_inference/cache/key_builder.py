@@ -16,6 +16,7 @@ def compute_request_fingerprint(
     request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
     model: str,
     profile_hash: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> str:
     """Build a deterministic SHA-256 key for the given request.
 
@@ -23,6 +24,7 @@ def compute_request_fingerprint(
         request: The request object to fingerprint.
         model: The model name for the request.
         profile_hash: Optional hash of the resolved profile configuration.
+        base_url: Optional custom base URL for the provider endpoint.
 
     Returns:
         A 64-character hexadecimal string representing the request.
@@ -34,6 +36,7 @@ def compute_request_fingerprint(
     if isinstance(request, FenicCompletionsRequest):
         key_data = {
             "model": model,
+            "base_url": base_url,
             "messages": request.messages.encode().hex(),
             "max_tokens": request.max_completion_tokens,
             "temperature": request.temperature,
@@ -47,6 +50,7 @@ def compute_request_fingerprint(
     elif isinstance(request, FenicEmbeddingsRequest):
         key_data = {
             "model": model,
+            "base_url": base_url,
             "doc_hash": hashlib.sha256(request.doc.encode("utf-8")).hexdigest(),
             "model_profile": request.model_profile,
             "profile_hash": profile_hash,

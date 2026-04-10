@@ -44,6 +44,7 @@ class OpenAIBatchChatCompletionsClient(
         profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None,
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
+        base_url: Optional[str] = None,
     ):
         """Initialize the OpenAI batch chat completions client.
 
@@ -55,14 +56,16 @@ class OpenAIBatchChatCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Default profile to use when none specified
             cache: Optional LLM response cache
+            base_url: Custom base URL for the OpenAI API
         """
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
         )
+        model_provider_class = OpenAIModelProvider(base_url=base_url)
         super().__init__(
             model=model,
             model_provider=ModelProvider.OPENAI,
-            model_provider_class=OpenAIModelProvider(),
+            model_provider_class=model_provider_class,
             rate_limit_strategy=rate_limit_strategy,
             queue_size=queue_size,
             max_backoffs=max_backoffs,

@@ -660,3 +660,132 @@ def test_session_config_with_invalid_anthropic_api_key(tmp_path, monkeypatch):
             )
         )
         _ = Session.get_or_create(config)
+
+
+# --- base_url resolution tests ---
+
+
+def test_openai_language_model_base_url_resolves():
+    """Test that base_url on OpenAILanguageModel is threaded through to the resolved config."""
+    config = SessionConfig(
+        app_name="test_openai_base_url",
+        semantic=SemanticConfig(
+            language_models={
+                "gpt": OpenAILanguageModel(
+                    model_name="gpt-4o-mini",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://my-proxy.example.com/v1",
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.language_models.model_configs["gpt"]
+    assert model_config.base_url == "https://my-proxy.example.com/v1"
+
+
+def test_openai_language_model_base_url_defaults_to_none():
+    """Test that base_url defaults to None when not provided."""
+    config = SessionConfig(
+        app_name="test_openai_base_url_default",
+        semantic=SemanticConfig(
+            language_models={
+                "gpt": OpenAILanguageModel(
+                    model_name="gpt-4o-mini", rpm=100, tpm=100
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.language_models.model_configs["gpt"]
+    assert model_config.base_url is None
+
+
+def test_openai_embedding_model_base_url_resolves():
+    """Test that base_url on OpenAIEmbeddingModel is threaded through to the resolved config."""
+    config = SessionConfig(
+        app_name="test_openai_embedding_base_url",
+        semantic=SemanticConfig(
+            embedding_models={
+                "embed": OpenAIEmbeddingModel(
+                    model_name="text-embedding-3-small",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://my-proxy.example.com/v1",
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.embedding_models.model_configs["embed"]
+    assert model_config.base_url == "https://my-proxy.example.com/v1"
+
+
+def test_anthropic_language_model_base_url_resolves():
+    """Test that base_url on AnthropicLanguageModel is threaded through to the resolved config."""
+    config = SessionConfig(
+        app_name="test_anthropic_base_url",
+        semantic=SemanticConfig(
+            language_models={
+                "claude": AnthropicLanguageModel(
+                    model_name="claude-sonnet-4-20250514",
+                    rpm=100,
+                    input_tpm=100,
+                    output_tpm=100,
+                    base_url="https://my-proxy.example.com",
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.language_models.model_configs["claude"]
+    assert model_config.base_url == "https://my-proxy.example.com"
+
+
+def test_anthropic_language_model_base_url_defaults_to_none():
+    """Test that base_url defaults to None on Anthropic when not provided."""
+    config = SessionConfig(
+        app_name="test_anthropic_base_url_default",
+        semantic=SemanticConfig(
+            language_models={
+                "claude": AnthropicLanguageModel(
+                    model_name="claude-sonnet-4-20250514",
+                    rpm=100,
+                    input_tpm=100,
+                    output_tpm=100,
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.language_models.model_configs["claude"]
+    assert model_config.base_url is None
+
+
+def test_base_url_preserved_in_multi_model_config():
+    """Test that base_url is preserved per-model when mixing models with and without custom URLs."""
+    config = SessionConfig(
+        app_name="test_multi_model_base_url",
+        semantic=SemanticConfig(
+            language_models={
+                "gpt-proxy": OpenAILanguageModel(
+                    model_name="gpt-4o-mini",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://proxy.example.com/v1",
+                ),
+                "gpt-direct": OpenAILanguageModel(
+                    model_name="gpt-4.1-nano",
+                    rpm=100,
+                    tpm=100,
+                ),
+            },
+            default_language_model="gpt-proxy",
+        ),
+    )
+    resolved = config._to_resolved_config()
+    proxy_config = resolved.semantic.language_models.model_configs["gpt-proxy"]
+    direct_config = resolved.semantic.language_models.model_configs["gpt-direct"]
+    assert proxy_config.base_url == "https://proxy.example.com/v1"
+    assert direct_config.base_url is None

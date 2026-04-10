@@ -94,6 +94,7 @@ class ResolvedOpenAIModelConfig:
     model_provider: ModelProvider = ModelProvider.OPENAI
     profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
     default_profile: Optional[str] = None
+    base_url: Optional[str] = None
 
 
 @dataclass
@@ -105,6 +106,7 @@ class ResolvedAnthropicModelConfig:
     model_provider: ModelProvider = ModelProvider.ANTHROPIC
     profiles: Optional[dict[str, ResolvedAnthropicModelProfile]] = None
     default_profile: Optional[str] = None
+    base_url: Optional[str] = None
 
 
 @dataclass

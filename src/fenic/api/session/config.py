@@ -539,6 +539,10 @@ class OpenAILanguageModel(BaseModel):
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    base_url: Optional[str] = Field(
+        default=None,
+        description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
+    )
     profiles: Optional[dict[str, Profile]] = Field(
         default=None, description=profiles_desc
     )
@@ -611,6 +615,10 @@ class OpenAIEmbeddingModel(BaseModel):
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    base_url: Optional[str] = Field(
+        default=None,
+        description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
+    )
 
 
 class AnthropicLanguageModel(BaseModel):
@@ -675,6 +683,10 @@ class AnthropicLanguageModel(BaseModel):
     )
     output_tpm: int = Field(
         ..., gt=0, description="Output tokens per minute; must be > 0"
+    )
+    base_url: Optional[str] = Field(
+        default=None,
+        description="Custom base URL for the Anthropic API (e.g., for proxies)",
     )
     profiles: Optional[dict[str, Profile]] = Field(
         default=None, description=profiles_desc
@@ -1548,6 +1560,7 @@ class SessionConfig(BaseModel):
                     model_name=model.model_name,
                     rpm=model.rpm,
                     tpm=model.tpm,
+                    base_url=model.base_url,
                 )
             elif isinstance(model, OpenAILanguageModel):
                 profiles = {
@@ -1560,6 +1573,7 @@ class SessionConfig(BaseModel):
                     tpm=model.tpm,
                     profiles=profiles,
                     default_profile=model.default_profile,
+                    base_url=model.base_url,
                 )
             elif isinstance(model, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
                 profiles = {
@@ -1606,6 +1620,7 @@ class SessionConfig(BaseModel):
                     output_tpm=model.output_tpm,
                     profiles=profiles,
                     default_profile=model.default_profile,
+                    base_url=model.base_url,
                 )
             elif isinstance(model, CohereEmbeddingModel):
                 profiles = {
