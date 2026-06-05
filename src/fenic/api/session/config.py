@@ -186,7 +186,7 @@ class GoogleDeveloperLanguageModel(BaseModel):
 
         ```python
         config = GoogleDeveloperLanguageModel(
-            model_name="gemini-2.0-flash",
+            model_name="gemini-2.5-flash",
             rpm=100,
             tpm=1000
         )
@@ -377,7 +377,7 @@ class GoogleVertexLanguageModel(BaseModel):
 
         ```python
         config = GoogleVertexLanguageModel(
-            model_name="gemini-2.0-flash", rpm=100, tpm=1000
+            model_name="gemini-2.5-flash", rpm=100, tpm=1000
         )
         ```
 
@@ -1066,7 +1066,7 @@ class SemanticConfig(BaseModel):
                     output_tpm=100,
                 ),
                 "gemini": GoogleDeveloperLanguageModel(
-                    model_name="gemini-2.0-flash", rpm=100, tpm=1000
+                    model_name="gemini-2.5-flash", rpm=100, tpm=1000
                 ),
             },
             default_language_model="gpt4",

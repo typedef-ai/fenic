@@ -25,7 +25,7 @@ This tool orchestrates end-to-end evaluation of PDF parsing by:
 ```bash
 python eval_models.py \
   --app-name "my_pdf_evaluation" \
-  --models "gemini-2.0-flash" "gpt-4o-mini" "openrouter/meta-llama/llama-3.3-70b-instruct" \
+  --models "gemini-2.5-flash" "gpt-4o-mini" "openrouter/meta-llama/llama-3.3-70b-instruct" \
   --input-pdfs "/path/to/pdfs/*.pdf" \
   --output-path "./evaluation_results" \
   --test-id "experiment_2025_01_15"
@@ -36,20 +36,20 @@ python eval_models.py \
 ```bash
 Starting PDF Evaluation Test Harness
 Test ID: experiment_2025_01_15
-Models to evaluate: gemini-2.0-flash, gpt-4o-mini, openrouter/meta-llama/llama-3.3-70b-instruct
+Models to evaluate: gemini-2.5-flash, gpt-4o-mini, openrouter/meta-llama/llama-3.3-70b-instruct
 PDF glob: /path/to/pdfs/*.pdf
 Output path: ./evaluation_results
 
 ######################################################################
-# Evaluating Model: gemini-2.0-flash
+# Evaluating Model: gemini-2.5-flash
 # Test ID: experiment_2025_01_15
 ######################################################################
 
-Processing PDFs with model gemini-2.0-flash...
+Processing PDFs with model gemini-2.5-flash...
 Found 12 PDF files
-Parsing PDF content using model: gemini-2.0-flash
+Parsing PDF content using model: gemini-2.5-flash
 Parsed 12 PDFs successfully
-✓ PDF processing completed for gemini-2.0-flash
+✓ PDF processing completed for gemini-2.5-flash
 
 Grading markdown for test experiment_2025_01_15...
 ✓ Grading completed for experiment_2025_01_15
@@ -59,7 +59,7 @@ Grading markdown for test experiment_2025_01_15...
 ======================================================================
 PROCESSING SUMMARY
 ======================================================================
-✓ gemini-2.0-flash: PDF=✓ Grade=✓
+✓ gemini-2.5-flash: PDF=✓ Grade=✓
 ✓ gpt-4o-mini: PDF=✓ Grade=✓
 ✓ openrouter/meta-llama/llama-3.3-70b-instruct: PDF=✓ Grade=✓
 
@@ -69,7 +69,7 @@ EVALUATION RESULTS FOR TEST_ID: experiment_2025_01_15
 ┌──────────────────────────────────────────────────┬───────────────┬─────────────┬────────────┬──────────┬─────────┬─────────────────────┬────────────────────┬───────────────┬─────────────┐
 │ model_name                                       │ overall_score │ structure_f1│ text_score │ lm_cost  │ time_ms │ uncached_input_tokens│ cached_input_tokens│ output_tokens │ total_pages │
 ├──────────────────────────────────────────────────┼───────────────┼─────────────┼────────────┼──────────┼─────────┼─────────────────────┼────────────────────┼───────────────┼─────────────┤
-│ gemini-2.0-flash                                 │ 0.924         │ 0.891       │ 0.957      │ 0.0234   │ 45230   │ 234567              │ 0                  │ 123456        │ 156         │
+│ gemini-2.5-flash                                 │ 0.924         │ 0.891       │ 0.957      │ 0.0234   │ 45230   │ 234567              │ 0                  │ 123456        │ 156         │
 │ gpt-4o-mini                                      │ 0.887         │ 0.843       │ 0.931      │ 0.0456   │ 52341   │ 245678              │ 12345              │ 134567        │ 156         │
 │ openrouter/meta-llama/llama-3.3-70b-instruct     │ 0.856         │ 0.812       │ 0.901      │ 0.0123   │ 38912   │ 223456              │ 0                  │ 112345        │ 156         │
 └──────────────────────────────────────────────────┴───────────────┴─────────────┴────────────┴──────────┴─────────┴─────────────────────┴────────────────────┴───────────────┴─────────────┘
@@ -106,7 +106,7 @@ Results are automatically joined across these tables to provide comprehensive ev
 
 ```bash
 # Built-in models (configured in pdf_processor.py)
---models "gemini-2.0-flash" "gpt-4o-mini"
+--models "gemini-2.5-flash" "gpt-4o-mini"
 ```
 
 #### Supported models include
@@ -329,17 +329,17 @@ python eval_models.py \
 python pdf_processor.py \
   -i "docs/*.pdf" \
   -a "my_app" \
-  -m "gemini-2.0-flash" \
+  -m "gemini-2.5-flash" \
   -t "test_001" \
   -o "./outputs"
 
 # 2. Grade existing outputs
 python grade_md.py \
   --pdf_dir "docs/" \
-  --md_dir "./outputs/test_001/gemini-2.0-flash" \
+  --md_dir "./outputs/test_001/gemini-2.5-flash" \
   --test_id "test_001" \
   -a "my_app" \
-  -m "gemini-2.0-flash"
+  -m "gemini-2.5-flash"
 ```
 
 ### Querying Results from Fenic
@@ -367,7 +367,7 @@ comparison = session.table("eval_results").select(
 comparison.show()
 
 # Access parsed content
-parsed = session.table("parsed_output_test_experiment_2025_01_15_gemini-2.0-flash")
+parsed = session.table("parsed_output_test_experiment_2025_01_15_gemini-2.5-flash")
 parsed.show()
 ```
 

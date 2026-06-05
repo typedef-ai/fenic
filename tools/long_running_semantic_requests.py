@@ -194,7 +194,7 @@ def main():
                     default_profile="default"
                 ),
                 "openrouter-parser": OpenRouterLanguageModel(
-                    model_name="google/gemini-2.0-flash-lite-001",
+                    model_name="google/gemini-2.5-flash-lite",
                     rpm=100,
                     tpm=1000000,
                     profiles={

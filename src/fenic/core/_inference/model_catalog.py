@@ -265,11 +265,6 @@ GoogleDeveloperLanguageModelName = Literal[
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-lite-001",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-exp",
 ]
 GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
@@ -1004,37 +999,6 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
-            "gemini-2.0-flash-lite",
-            CompletionModelParameters(
-                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
-                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_profiles=False,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-lite-001"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
-            "gemini-2.0-flash",
-            CompletionModelParameters(
-                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                cached_input_token_read_cost=0.0375
-                / 1_000_000,  # $0.0375 per 1M tokens
-                output_token_cost=0.60 / 1_000_000,  # $0.60 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_profiles=False,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
-        )
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
             "gemini-embedding-2",
             EmbeddingModelParameters(
                 input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M text tokens
@@ -1224,36 +1188,6 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_pdf_parsing=True,
             ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-2.0-flash-lite",
-            CompletionModelParameters(
-                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
-                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-lite-001"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-2.0-flash",
-            CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
-                cached_input_token_read_cost=0.0375
-                / 1_000_000,  # $0.0375 per 1M tokens
-                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
 
         self._add_model_to_catalog(

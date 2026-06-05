@@ -98,16 +98,16 @@ def mock_openrouter_models(monkeypatch):
             "supported_parameters": ["reasoning", "temperature", "max_tokens", "tool_choice", "tools"],
         },
         {
-            "id": "google/gemini-2.0-flash-001",
+            "id": "google/gemini-2.5-flash",
             "pricing": {
-                "prompt": 0.10 / 1_000_000,
-                "completion": 0.40 / 1_000_000,
+                "prompt": 0.15 / 1_000_000,
+                "completion": 2.50 / 1_000_000,
             },
             "top_provider": {
                 "context_length": 1_048_576,
-                "max_completion_tokens": 8_192,
+                "max_completion_tokens": 65_536,
             },
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output", "reasoning"],
         },
         {
             "id": "google/gemini-2.5-pro",
@@ -232,6 +232,12 @@ def test_latest_frontier_models_are_registered():
     assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-20250514") is None
     assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-4-opus-20250514") is None
     assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-0") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite-001") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-001") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash-lite") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash") is None
     assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-flash-lite-preview") is None
     assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro-preview-06-05") is None
     assert catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-embedding-exp-03-07") is None
@@ -294,8 +300,8 @@ def test_openrouter_provider_loads_google_models_correctly(mock_openrouter_model
     catalog = model_catalog
 
     # Google models
-    openrouter_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.OPENROUTER, "google/gemini-2.0-flash-001")
-    standard_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-001")
+    openrouter_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.OPENROUTER, "google/gemini-2.5-flash")
+    standard_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-flash")
     assert math.isclose(openrouter_flash_parameters.input_token_cost, standard_flash_parameters.input_token_cost)
     assert math.isclose(openrouter_flash_parameters.output_token_cost, standard_flash_parameters.output_token_cost)
     assert openrouter_flash_parameters.context_window_length == standard_flash_parameters.context_window_length
