@@ -129,11 +129,11 @@ Run all tests against a different **language model provider/model name**:
 uv run pytest --language-model-provider=openai --language-model-name='gpt-4.1-nano'
 ```
 
-- Anthropic/claude-3-5-haiku-latest
+- Anthropic/claude-haiku-4-5
 
 ```bash
 uv sync --extra=anthropic
-uv run pytest --language-model-provider=anthropic --language-model-name='claude-3-5-haiku-latest'
+uv run pytest --language-model-provider=anthropic --language-model-name='claude-haiku-4-5'
 ```
 
 - Google/2.5-flash-lite

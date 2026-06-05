@@ -43,7 +43,7 @@ def main(config: Optional[fc.SessionConfig] = None):
                 #     tpm=1_000_000
                 # ),
                 # "anthropic": fc.AnthropicLanguageModel(
-                #     model_name="claude-3-5-haiku-latest",
+                #     model_name="claude-haiku-4-5",
                 #     rpm=500,
                 #     input_tpm=80_000,
                 #     output_tpm=32_000,
