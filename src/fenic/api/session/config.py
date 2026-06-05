@@ -558,8 +558,10 @@ class OpenAILanguageModel(BaseModel):
 
         Attributes:
             reasoning_effort: Provide a reasoning effort. Only for gpt5 and o-series models.
-                Valid values: 'none', 'minimal', 'low', 'medium', 'high'.
-                - For gpt-5.1 models: defaults to 'none' (disabled reasoning), does NOT support 'minimal'
+                Valid values: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'.
+                - For gpt-5.5 models: defaults to 'medium', supports 'xhigh'
+                - For gpt-5.4 models: defaults to 'none' (disabled reasoning), supports 'xhigh'
+                - For gpt-5.1 and gpt-5.2 models: defaults to 'none' (disabled reasoning), does NOT support 'minimal' or 'xhigh'
                 - For gpt-5 models: defaults to 'minimal', does NOT support 'none'
                 - For o-series models: defaults to 'low', does NOT support 'none' or 'minimal'
             verbosity: Provide a verbosity level. Only for gpt5/gpt5.1 models.
@@ -640,7 +642,7 @@ class AnthropicLanguageModel(BaseModel):
 
         ```python
         config = AnthropicLanguageModel(
-            model_name="claude-3-5-haiku-latest", rpm=100, input_tpm=100, output_tpm=100
+            model_name="claude-haiku-4-5", rpm=100, input_tpm=100, output_tpm=100
         )
         ```
 
@@ -651,7 +653,7 @@ class AnthropicLanguageModel(BaseModel):
             semantic=SemanticConfig(
                 language_models={
                     "claude": AnthropicLanguageModel(
-                        model_name="claude-opus-4-0",
+                        model_name="claude-sonnet-4-6",
                         rpm=100,
                         input_tpm=100,
                         output_tpm=100,
@@ -771,7 +773,7 @@ class OpenRouterLanguageModel(BaseModel):
     Example:
     ```python
     OpenRouterLanguageModel(
-        model_name="anthropic/claude-sonnet-4-0-latest",
+        model_name="anthropic/claude-sonnet-4.5",
         profiles={
             "default": OpenRouterLanguageModel.Profile(
                 provider=OpenRouterLanguageModel.Provider(
@@ -1058,7 +1060,7 @@ class SemanticConfig(BaseModel):
                     model_name="gpt-4.1-nano", rpm=100, tpm=100
                 ),
                 "claude": AnthropicLanguageModel(
-                    model_name="claude-3-5-haiku-latest",
+                    model_name="claude-haiku-4-5",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100,
@@ -1095,7 +1097,7 @@ class SemanticConfig(BaseModel):
                     default_profile="fast",
                 ),
                 "claude": AnthropicLanguageModel(
-                    model_name="claude-3-5-haiku-latest",
+                    model_name="claude-haiku-4-5",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100,
@@ -1525,7 +1527,7 @@ class SessionConfig(BaseModel):
                         model_name="gpt-4.1-nano", rpm=100, tpm=100
                     ),
                     "claude": AnthropicLanguageModel(
-                        model_name="claude-3-5-haiku-latest",
+                        model_name="claude-haiku-4-5",
                         rpm=100,
                         input_tpm=100,
                         output_tpm=100,
@@ -1736,8 +1738,13 @@ def _validate_language_profile(
             raise ConfigurationError(f"Model '{model_alias}' does not support 'none' (disabled) reasoning. Please set reasoning_effort on '{profile_alias}' to {minimal_str}'low', 'medium', or 'high' instead.")
         if not completion_model_params.supports_minimal_reasoning and profile.reasoning_effort == "minimal":
             raise ConfigurationError(f"Model '{model_alias}' does not support 'minimal' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
+        if not completion_model_params.supports_xhigh_reasoning and profile.reasoning_effort == "xhigh":
+            raise ConfigurationError(f"Model '{model_alias}' does not support 'xhigh' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
+    elif isinstance(language_model, AnthropicLanguageModel):
+        if profile.thinking_token_budget and not completion_model_params.supports_reasoning:
+            raise ConfigurationError(f"Model '{model_alias}' does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from '{profile_alias}'.")
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
         if completion_model_params.supported_thinking_levels:
             # For gemini-3+ models, thinking_level must be used instead of thinking_token_budget

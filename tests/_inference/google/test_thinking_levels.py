@@ -48,6 +48,14 @@ class TestModelCatalogThinkingLevels:
         assert params is not None
         assert params.supported_thinking_levels == GEMINI_3X_FLASH_THINKING_LEVELS
 
+    def test_gemini_3_5_flash_thinking_levels(self):
+        """Gemini 3.5 Flash should support all four levels."""
+        params = model_catalog.get_completion_model_parameters(
+            ModelProvider.GOOGLE_DEVELOPER, "gemini-3.5-flash"
+        )
+        assert params is not None
+        assert params.supported_thinking_levels == GEMINI_3X_FLASH_THINKING_LEVELS
+
     def test_gemini_25_pro_no_thinking_levels(self):
         """Gemini 2.5 Pro should use thinking_budget, not thinking_level."""
         params = model_catalog.get_completion_model_parameters(
@@ -68,6 +76,25 @@ class TestAutoProfileCreation:
                 language_models={
                     "flash": GoogleDeveloperLanguageModel(
                         model_name="gemini-3-flash-preview",
+                        rpm=100,
+                        tpm=1000,
+                    )
+                }
+            ),
+        )
+        model = config.semantic.language_models["flash"]
+        assert model.profiles is not None
+        assert set(model.profiles.keys()) == {"high", "medium", "low", "minimal"}
+        assert model.default_profile == "low"
+
+    def test_gemini_3_5_flash_auto_profiles(self):
+        """Gemini 3.5 Flash should auto-create profiles for all 4 thinking levels."""
+        config = SessionConfig(
+            app_name="test_auto_profiles",
+            semantic=SemanticConfig(
+                language_models={
+                    "flash": GoogleDeveloperLanguageModel(
+                        model_name="gemini-3.5-flash",
                         rpm=100,
                         tpm=1000,
                     )
