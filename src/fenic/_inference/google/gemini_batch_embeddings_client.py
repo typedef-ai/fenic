@@ -71,7 +71,7 @@ class GoogleBatchEmbeddingsClient(
             additional_config = self._profile_manager.get_profile_by_name(request.model_profile)
             contents = request.doc
             response = await self._client.models.embed_content(
-                model=self.model, contents=contents, config=additional_config.additional_embedding_config
+                model=self.model, contents=contents, config=additional_config.embedding_config
             )
             if response.embeddings:
                 embedding_data: ContentEmbedding = response.embeddings[0]

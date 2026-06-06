@@ -1,15 +1,20 @@
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Optional
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
 from fenic.core._inference.output_token_limits import OPENAI_REASONING_TOKEN_ESTIMATES
-from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
+from fenic.core._resolved_session_config import (
+    ReasoningEffort,
+    ResolvedOpenAIModelProfile,
+    Verbosity,
+)
 
 
 @dataclass
 class OpenAICompletionProfileConfiguration(BaseProfileConfiguration):
-    additional_parameters: dict[str, Any] = field(default_factory=dict)
+    reasoning_effort: Optional[ReasoningEffort] = None
+    verbosity: Optional[Verbosity] = None
     expected_additional_reasoning_tokens: int = 0
 
 
@@ -28,7 +33,8 @@ class OpenAICompletionsProfileManager(
 
     def _process_profile(self, profile: ResolvedOpenAIModelProfile) -> OpenAICompletionProfileConfiguration:
         """Process OpenAI profile configuration."""
-        additional_parameters = {}
+        resolved_reasoning_effort = None
+        resolved_verbosity = None
         additional_reasoning_tokens = 0
 
         if self.model_parameters.supports_reasoning:
@@ -45,14 +51,15 @@ class OpenAICompletionsProfileManager(
                     reasoning_effort = "minimal"
                 else:
                     reasoning_effort = "low"
-            additional_parameters["reasoning_effort"] = reasoning_effort
+            resolved_reasoning_effort = reasoning_effort
             additional_reasoning_tokens = self._get_reasoning_tokens(reasoning_effort)
 
         if self.model_parameters.supports_verbosity and profile.verbosity:
-            additional_parameters["verbosity"] = profile.verbosity
+            resolved_verbosity = profile.verbosity
 
         return OpenAICompletionProfileConfiguration(
-            additional_parameters=additional_parameters,
+            reasoning_effort=resolved_reasoning_effort,
+            verbosity=resolved_verbosity,
             expected_additional_reasoning_tokens=additional_reasoning_tokens
         )
 
@@ -75,9 +82,7 @@ class OpenAICompletionsProfileManager(
             else:
                 reasoning_effort = "low"
             return OpenAICompletionProfileConfiguration(
-                additional_parameters={
-                    "reasoning_effort": reasoning_effort
-                },
+                reasoning_effort=reasoning_effort,
                 expected_additional_reasoning_tokens=self._get_reasoning_tokens(reasoning_effort)
             )
         else:

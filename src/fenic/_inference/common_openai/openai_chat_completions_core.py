@@ -101,7 +101,11 @@ class OpenAIChatCompletionsCore:
             if max_completion_tokens is not None:
                 common_params["max_completion_tokens"] = max_completion_tokens
 
-            reasoning_effort = profile_configuration.additional_parameters.get("reasoning_effort") if profile_configuration else None
+            reasoning_effort = (
+                profile_configuration.reasoning_effort
+                if profile_configuration
+                else None
+            )
             # Temperature is only allowed when reasoning_effort is 'none' for models that support it
             if request.temperature:
                 if self._model_parameters.supports_reasoning and reasoning_effort != "none":
@@ -124,8 +128,12 @@ class OpenAIChatCompletionsCore:
                             "top_logprobs": request.top_logprobs,
                         }
                     )
-            if profile_configuration:
-                common_params.update(profile_configuration.additional_parameters)
+            if profile_configuration and profile_configuration.reasoning_effort:
+                common_params["reasoning_effort"] = (
+                    profile_configuration.reasoning_effort
+                )
+            if profile_configuration and profile_configuration.verbosity:
+                common_params["verbosity"] = profile_configuration.verbosity
 
             # Choose between parse and create based on structured_output
             if request.structured_output:

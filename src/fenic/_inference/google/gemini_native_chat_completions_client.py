@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
     FinishReason,
-    GenerateContentConfigDict,
+    GenerateContentConfig,
     GenerateContentResponse,
     MediaResolution,
 )
@@ -191,36 +191,34 @@ class GeminiNativeChatCompletionsClient(
         profile_config = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
-        generation_config: GenerateContentConfigDict = {
-            "temperature": request.temperature,
-            "response_logprobs": request.top_logprobs is not None,
-            "logprobs": request.top_logprobs,
-            "system_instruction": request.messages.system,
-        }
-
         try:
             max_output_tokens = self._get_max_output_token_request_limit(request)
         except ValidationError as e:
             # Deterministic request-construction failure: retrying cannot help.
             return FatalException(e)
-        if max_output_tokens is not None:
-            generation_config["max_output_tokens"] = max_output_tokens
-
-        generation_config.update(profile_config.additional_generation_config)
-
-        # Add media_resolution from profile if specified (for PDF processing)
+        media_resolution = None
         if profile_config.media_resolution is not None:
             media_resolution_map = {
                 "low": MediaResolution.MEDIA_RESOLUTION_LOW,
                 "medium": MediaResolution.MEDIA_RESOLUTION_MEDIUM,
                 "high": MediaResolution.MEDIA_RESOLUTION_HIGH,
             }
-            generation_config["media_resolution"] = media_resolution_map[profile_config.media_resolution]
+            media_resolution = media_resolution_map[profile_config.media_resolution]
+
+        generation_config = GenerateContentConfig(
+            temperature=request.temperature,
+            response_logprobs=request.top_logprobs is not None,
+            logprobs=request.top_logprobs,
+            system_instruction=request.messages.system,
+            max_output_tokens=max_output_tokens,
+            thinking_config=profile_config.thinking_config,
+            media_resolution=media_resolution,
+        )
 
         if request.structured_output is not None:
-            generation_config.update(
-                response_mime_type="application/json",
-                response_schema=request.structured_output.pydantic_model,
+            generation_config.response_mime_type = "application/json"
+            generation_config.response_schema = (
+                request.structured_output.pydantic_model
             )
 
         file_obj = None
