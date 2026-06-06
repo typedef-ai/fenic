@@ -238,7 +238,7 @@ class GoogleDeveloperLanguageModel(BaseModel):
             thinking_level: For gemini-3+ models, set the thinking level to high, medium, low, or minimal.
                 This parameter is mutually exclusive with thinking_token_budget.
             media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
-                Can be "low", "medium", "high", or "ultra_high". Affects token cost per page.
+                Can be "low", "medium", or "high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
@@ -429,7 +429,7 @@ class GoogleVertexLanguageModel(BaseModel):
             thinking_level: For gemini-3+ models, set the thinking level to high, medium, low, or minimal.
                 This parameter is mutually exclusive with thinking_token_budget.
             media_resolution: For gemini-3+ models, set the media resolution for PDF processing.
-                Can be "low", "medium", "high", or "ultra_high". Affects token cost per page.
+                Can be "low", "medium", or "high". Affects token cost per page.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
@@ -1786,6 +1786,10 @@ def _validate_language_profile(
                     f"Model '{model_alias}' does not support effort='{profile.effort}'. Please set effort on '{profile_alias}' to one of '{supported_efforts}' instead."
                 )
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
+        if profile.media_resolution is not None and not completion_model_params.supports_media_resolution:
+            raise ConfigurationError(
+                f"Model '{model_alias}' does not support media_resolution. Please remove media_resolution from '{profile_alias}'."
+            )
         if completion_model_params.supported_thinking_levels:
             # For gemini-3+ models, thinking_level must be used instead of thinking_token_budget
             if profile.thinking_token_budget is not None:
