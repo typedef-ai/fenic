@@ -773,7 +773,7 @@ class OpenRouterLanguageModel(BaseModel):
     Example:
     ```python
     OpenRouterLanguageModel(
-        model_name="anthropic/claude-sonnet-4.5",
+        model_name="anthropic/claude-sonnet-4",
         profiles={
             "default": OpenRouterLanguageModel.Profile(
                 provider=OpenRouterLanguageModel.Provider(
@@ -1739,7 +1739,14 @@ def _validate_language_profile(
         if not completion_model_params.supports_minimal_reasoning and profile.reasoning_effort == "minimal":
             raise ConfigurationError(f"Model '{model_alias}' does not support 'minimal' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
         if not completion_model_params.supports_xhigh_reasoning and profile.reasoning_effort == "xhigh":
-            raise ConfigurationError(f"Model '{model_alias}' does not support 'xhigh' reasoning. Please set reasoning_effort on '{profile_alias}' to 'low', 'medium', or 'high' instead.")
+            supported_efforts = []
+            if completion_model_params.supports_disabled_reasoning:
+                supported_efforts.append("'none'")
+            if completion_model_params.supports_minimal_reasoning:
+                supported_efforts.append("'minimal'")
+            supported_efforts.extend(["'low'", "'medium'", "'high'"])
+            supported_efforts_str = f"{', '.join(supported_efforts[:-1])}, or {supported_efforts[-1]}"
+            raise ConfigurationError(f"Model '{model_alias}' does not support 'xhigh' reasoning. Please set reasoning_effort on '{profile_alias}' to {supported_efforts_str} instead.")
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
     elif isinstance(language_model, AnthropicLanguageModel):

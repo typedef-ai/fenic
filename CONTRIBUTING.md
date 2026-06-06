@@ -140,7 +140,7 @@ uv run pytest --language-model-provider=anthropic --language-model-name='claude-
 
 ```bash
 uv sync --extra=google
-uv run pytest --embedding-model-provider=google-developer --language-model-name='gemini-2.5-flash-lite'
+uv run pytest --language-model-provider=google-developer --language-model-name='gemini-2.5-flash-lite'
 ```
 
 Run all tests against a different **embeddings model provider/model name**:

@@ -556,7 +556,7 @@ def test_model_profile_validation():
         )
     )
     # Test that older OpenAI reasoning models reject xhigh reasoning
-    with pytest.raises(ConfigurationError, match="Model 'gpt-5.2' does not support 'xhigh' reasoning. Please set reasoning_effort on 'deep' to 'low', 'medium', or 'high' instead."):
+    with pytest.raises(ConfigurationError, match="Model 'gpt-5.2' does not support 'xhigh' reasoning. Please set reasoning_effort on 'deep' to 'none', 'low', 'medium', or 'high' instead."):
         SessionConfig(
             app_name="test_model_profile_validation",
             semantic=SemanticConfig(

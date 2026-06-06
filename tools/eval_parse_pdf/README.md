@@ -367,7 +367,7 @@ comparison = session.table("eval_results").select(
 comparison.show()
 
 # Access parsed content
-parsed = session.table("parsed_output_test_experiment_2025_01_15_gemini-2.5-flash")
+parsed = session.table("parsed_output_test_experiment_2025_01_15_gemini-2_5-flash")
 parsed.show()
 ```
 

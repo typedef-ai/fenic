@@ -291,11 +291,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python eval_parse_pdf_processor.py --input-glob-pattern "/data/pdfs/**/*.pdf" --app-name my_pdf_app --model-name gemini-2.5-flash --test-id experiment_1 --output-dir /output/results
+  python pdf_processor.py --input-glob-pattern "/data/pdfs/**/*.pdf" --app-name my_pdf_app --model-name gemini-2.5-flash --test-id experiment_1 --output-dir /output/results
   
-  python eval_parse_pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m o3-mini -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
+  python pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m o3-mini -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
   
-  python eval_parse_pdf_processor.py --input-glob-pattern "/research/papers/**/*.pdf" --app-name research_app --model-name gemini-2.5-pro --test-id paper_analysis --output-dir /results/analysis
+  python pdf_processor.py --input-glob-pattern "/research/papers/**/*.pdf" --app-name research_app --model-name gemini-2.5-pro --test-id paper_analysis --output-dir /results/analysis
         """
     )
     
