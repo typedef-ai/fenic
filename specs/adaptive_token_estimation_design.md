@@ -1,7 +1,7 @@
 # Adaptive Output-Token Estimation & Settlement Design Specification
 
-**Version:** 1.0 Draft
-**Status:** Awaiting review
+**Version:** 1.0
+**Status:** Implemented (`f1ef4ef`…`a359815`)
 **Last Updated:** 2026-06-05
 
 ---
@@ -401,7 +401,10 @@ num_reserved_output_tokens: int = 0   # output tokens debited from the TPM bucke
 # (num_output_tokens already tracks ACTUAL output)
 ```
 
-Update `__add__`, `QueryMetrics.to_dict`, and the summary strings. Reservation efficiency
+Update `__add__` and the human-readable summary strings (`QueryMetrics.__str__` and
+`get_execution_plan_details`). `to_dict()` is intentionally left unchanged to avoid a
+metrics-table schema migration; the value stays accessible via the dataclass field and the
+summaries. Reservation efficiency
 = `num_output_tokens / num_reserved_output_tokens` (→ 1 means tight; the old static behavior
 produces a small ratio). `_record_reservation_metrics` increments
 `num_reserved_output_tokens` by `reserved.output_tokens` so users can watch the gap shrink
