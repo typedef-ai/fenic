@@ -29,6 +29,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._resolved_session_config import (
     OpenRouterReasoningEffort,
     ReasoningEffort,
+    ResolvedAdaptiveTokenEstimationConfig,
     ResolvedAnthropicModelConfig,
     ResolvedAnthropicModelProfile,
     ResolvedCacheConfig,
@@ -1140,6 +1141,7 @@ class SemanticConfig(BaseModel):
     embedding_models: Optional[dict[str, EmbeddingModel]] = None
     default_embedding_model: Optional[str] = None
     llm_response_cache: Optional[LLMResponseCacheConfig] = None
+    adaptive_token_estimation: Optional[AdaptiveTokenEstimationConfig] = None
 
     def model_post_init(self, __context) -> None:
         """Post initialization hook to set defaults.
@@ -1498,6 +1500,28 @@ class LLMResponseCacheConfig(BaseModel):
         return value * multipliers[unit]
 
 
+class AdaptiveTokenEstimationConfig(BaseModel):
+    """Tunes adaptive output-token reservation for rate limiting.
+
+    Output-token reservations are learned from observed usage and clamped to the
+    request's max_completion_tokens ceiling, then corrected after each response
+    (settlement). Enabled by default; disabling reverts to static worst-case
+    reservation with no settlement.
+    """
+
+    enabled: bool = True
+    safety_margin: float = Field(
+        default=1.15,
+        ge=1.0,
+        le=4.0,
+        description=(
+            "Multiplier on the modeled output-token reservation. Higher reserves "
+            "more (safer, lower throughput); lower reserves less (higher throughput, "
+            "higher 429 risk)."
+        ),
+    )
+
+
 class SessionConfig(BaseModel):
     """Configuration for a user session.
 
@@ -1727,10 +1751,21 @@ class SessionConfig(BaseModel):
                 namespace=cache_cfg.namespace,
             )
 
+        ate_cfg = self.semantic.adaptive_token_estimation if self.semantic else None
+        resolved_ate = (
+            ResolvedAdaptiveTokenEstimationConfig(
+                enabled=ate_cfg.enabled,
+                safety_margin=ate_cfg.safety_margin,
+            )
+            if ate_cfg
+            else ResolvedAdaptiveTokenEstimationConfig()
+        )
+
         resolved_semantic = ResolvedSemanticConfig(
             language_models=language_models,
             embedding_models=embedding_models,
             llm_response_cache=resolved_cache,
+            adaptive_token_estimation=resolved_ate,
         )
 
         resolved_cloud = (

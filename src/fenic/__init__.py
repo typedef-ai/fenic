@@ -1,6 +1,7 @@
 """Fenic is an opinionated, PySpark-inspired DataFrame framework for building production AI and agentic applications."""
 
 from fenic.api import (
+    AdaptiveTokenEstimationConfig,
     AnthropicLanguageModel,
     Catalog,
     CloudConfig,
@@ -132,6 +133,7 @@ __all__ = [
     "SessionConfig",
     "CloudConfig",
     "LLMResponseCacheConfig",
+    "AdaptiveTokenEstimationConfig",
     "OpenAIEmbeddingModel",
     "OpenAILanguageModel",
     "AnthropicLanguageModel",
