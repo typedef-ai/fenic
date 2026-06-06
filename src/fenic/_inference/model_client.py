@@ -28,6 +28,7 @@ from fenic._constants import (
 )
 from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.cache.protocol import CachedResponse, LLMResponseCache
+from fenic._inference.output_token_estimator import OutputTokenEstimator
 from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
@@ -44,6 +45,7 @@ from fenic._inference.types import (
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
+from fenic.core._resolved_session_config import ResolvedAdaptiveTokenEstimationConfig
 from fenic.core.metrics import LMMetrics
 
 # Type variables
@@ -123,6 +125,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         backoff_factor: float = 2,
         max_backoffs: int = 10,
         cache: Optional["LLMResponseCache"] = None,
+        adaptive_estimation: Optional[ResolvedAdaptiveTokenEstimationConfig] = None,
     ):
         """Initialize the ModelClient with configuration for model interaction.
 
@@ -138,6 +141,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             backoff_factor: Factor by which backoff time increases (default: 2)
             max_backoffs: Maximum number of retry attempts (default: 10)
             cache: Optional LLM response cache for storing/retrieving responses
+            adaptive_estimation: Optional config for adaptive output-token estimation
         """
         self.model = model
         self.model_provider = model_provider
@@ -146,6 +150,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.context_tokens_per_minute = rate_limit_strategy.context_tokens_per_minute()
         self.token_counter = token_counter
         self.cache = cache
+        _ate = adaptive_estimation or ResolvedAdaptiveTokenEstimationConfig()
+        self._output_estimator = OutputTokenEstimator(
+            enabled=_ate.enabled,
+            safety_margin=_ate.safety_margin,
+        )
         # Async queues
         self.request_queue = asyncio.Queue(maxsize=queue_size)
         self.retry_queue = asyncio.Queue()  # No size limit to avoid deadlocking
@@ -289,6 +298,48 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
     def reset_metrics(self):
         """Reset all metrics for this model client to their initial values."""
         pass
+
+    def _estimator_key(self, request: RequestT):
+        """Key for the output-token estimator: (profile_hash, max_completion_tokens)."""
+        max_tokens = getattr(request, "max_completion_tokens", None)
+        return (self.get_profile_hash_for_request(request), max_tokens)
+
+    def _adaptive_output_reservation(
+        self, request: RequestT, *, static_ceiling: int, reasoning: bool
+    ) -> int:
+        """Learned output-token reservation, clamped to the static ceiling."""
+        return self._output_estimator.reserve(
+            self._estimator_key(request),
+            static_ceiling=static_ceiling,
+            reasoning=reasoning,
+        )
+
+    def _reconcile_completion(
+        self, request: RequestT, reserved: TokenEstimate, usage
+    ) -> None:
+        """Feed actuals to the estimator and settle the bucket after a response.
+
+        Event-loop thread only (called from _handle_response). Skips dedup hits
+        that reserved nothing. This is opportunistic post-success bookkeeping, so
+        any failure here is logged and swallowed — it must never fail a request
+        that already succeeded.
+        """
+        if reserved.total_tokens <= 0:
+            return
+        try:
+            actual = TokenEstimate(
+                input_tokens=usage.prompt_tokens,
+                output_tokens=usage.completion_tokens + usage.thinking_tokens,
+            )
+            self._output_estimator.observe(
+                self._estimator_key(request), actual.output_tokens
+            )
+            self.rate_limit_strategy.settle(reserved, actual)
+            self.get_metrics().num_reserved_output_tokens += reserved.output_tokens
+        except Exception as e:
+            logger.warning(
+                f"Token reconciliation failed for model {self.model}: {e}"
+            )
 
     def _count_auxiliary_input_tokens(self, request: RequestT) -> int:
         """Count extra input tokens for structured output, tools, etc. Override as needed."""
@@ -777,6 +828,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                 except Exception as e:
                     logger.warning(f"Failed to cache response: {e}")
+
+            # Reconcile reserved vs actual tokens (adaptive estimation + settlement)
+            if (
+                isinstance(maybe_response, FenicCompletionsResponse)
+                and maybe_response.usage is not None
+            ):
+                self._reconcile_completion(
+                    queue_item.request,
+                    queue_item.estimated_tokens,
+                    maybe_response.usage,
+                )
 
             # Set result
             if not queue_item.future.done():
