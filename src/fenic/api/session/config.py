@@ -1764,6 +1764,8 @@ def _validate_language_profile(
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
     elif isinstance(language_model, AnthropicLanguageModel):
+        if profile.thinking_token_budget and completion_model_params.uses_adaptive_thinking:
+            raise ConfigurationError(f"Model '{model_alias}' uses adaptive thinking and does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from '{profile_alias}' and set effort instead.")
         if profile.thinking_token_budget and not completion_model_params.supports_reasoning:
             raise ConfigurationError(f"Model '{model_alias}' does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from '{profile_alias}'.")
         if profile.effort is not None:
