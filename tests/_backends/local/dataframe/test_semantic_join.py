@@ -259,6 +259,119 @@ def test_semantic_join_empty_result(local_session: Session):
         "other_col_right": pl.String,
     }
 
+
+def test_semantic_join_golden_output_with_nulls_and_explicit_sort(local_session: Session, monkeypatch):
+    from fenic._backends.local.semantic_operators.predicate import Predicate
+
+    left = local_session.create_dataframe(
+        {
+            "course_id": [3, 1, 2, 4],
+            "course_name": ["Intro to Computer Networks", "Riemann Geometry", "Operating Systems", None],
+            "left_payload": ["networks", "math", "systems", "missing"],
+        }
+    )
+    right = local_session.create_dataframe(
+        {
+            "skill_id": [20, 10, 30],
+            "skill": ["Computer Science", "Math", None],
+            "right_payload": ["cs", "math", "missing"],
+        }
+    )
+
+    def fake_execute(self):
+        return pl.Series(
+            [
+                ("Riemann Geometry" in rendered and "Math" in rendered)
+                or ("Operating Systems" in rendered and "Computer Science" in rendered)
+                or ("Intro to Computer Networks" in rendered and "Computer Science" in rendered)
+                for rendered in self.input.to_list()
+            ]
+        )
+
+    monkeypatch.setattr(Predicate, "execute", fake_execute)
+
+    result_df = left.semantic.join(
+        right,
+        "Does {{left_on}} belong to {{right_on}}?",
+        left_on=col("course_name"),
+        right_on=col("skill"),
+    )
+    assert result_df.schema.column_fields == [
+        ColumnField(name="course_id", data_type=IntegerType),
+        ColumnField(name="course_name", data_type=StringType),
+        ColumnField(name="left_payload", data_type=StringType),
+        ColumnField(name="skill_id", data_type=IntegerType),
+        ColumnField(name="skill", data_type=StringType),
+        ColumnField(name="right_payload", data_type=StringType),
+    ]
+
+    # semantic.join survivor order is tied to block iteration; sort explicitly so
+    # this golden-output test pins correspondence, not incidental execution order.
+    result = result_df.to_polars().sort(["course_id", "skill_id"])
+    assert result.schema == {
+        "course_id": pl.Int64,
+        "course_name": pl.String,
+        "left_payload": pl.String,
+        "skill_id": pl.Int64,
+        "skill": pl.String,
+        "right_payload": pl.String,
+    }
+    assert len(result) == 3
+    assert result.to_dicts() == [
+        {
+            "course_id": 1,
+            "course_name": "Riemann Geometry",
+            "left_payload": "math",
+            "skill_id": 10,
+            "skill": "Math",
+            "right_payload": "math",
+        },
+        {
+            "course_id": 2,
+            "course_name": "Operating Systems",
+            "left_payload": "systems",
+            "skill_id": 20,
+            "skill": "Computer Science",
+            "right_payload": "cs",
+        },
+        {
+            "course_id": 3,
+            "course_name": "Intro to Computer Networks",
+            "left_payload": "networks",
+            "skill_id": 20,
+            "skill": "Computer Science",
+            "right_payload": "cs",
+        },
+    ]
+
+
+def test_semantic_join_all_false_golden_empty_result(local_session: Session, monkeypatch):
+    from fenic._backends.local.semantic_operators.predicate import Predicate
+
+    monkeypatch.setattr(
+        Predicate,
+        "execute",
+        lambda self: pl.Series([False for _ in self.input.to_list()]),
+    )
+
+    left, right = _create_semantic_join_dataframe(local_session)
+    result = left.semantic.join(
+        right,
+        "Taking {{left_on}} will help me learn {{right_on}}",
+        left_on=col("course_name"),
+        right_on=col("skill"),
+    ).to_polars()
+    assert result.is_empty()
+    assert result.schema == {
+        "course_id": pl.Int64,
+        "course_name": pl.String,
+        "other_col_left": pl.String,
+        "skill_id": pl.Int64,
+        "skill": pl.String,
+        "other_col_right": pl.String,
+    }
+
+
 def test_semantic_join_with_derived_columns(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
