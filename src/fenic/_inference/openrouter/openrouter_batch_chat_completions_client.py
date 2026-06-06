@@ -39,6 +39,7 @@ from fenic.core._inference.output_token_limits import (
     OPENROUTER_REASONING_EFFORT_RATIOS,
     validate_effective_output_token_limit,
 )
+from fenic.core._resolved_session_config import ResolvedAdaptiveTokenEstimationConfig
 from fenic.core.error import ConfigurationError, ValidationError
 from fenic.core.metrics import LMMetrics
 
@@ -70,6 +71,7 @@ class OpenRouterBatchChatCompletionsClient(
         profiles: Optional[dict[str, object]] = None,
         default_profile_name: Optional[str] = None,
         cache: Optional[LLMResponseCache] = None,
+        adaptive_estimation: Optional[ResolvedAdaptiveTokenEstimationConfig] = None,
     ):
         # Choose token counter based on the model's provider
         token_counter = None
@@ -93,7 +95,8 @@ class OpenRouterBatchChatCompletionsClient(
             queue_size=queue_size,
             max_backoffs=max_backoffs,
             token_counter=token_counter,
-            cache=cache
+            cache=cache,
+            adaptive_estimation=adaptive_estimation,
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.OPENROUTER, model

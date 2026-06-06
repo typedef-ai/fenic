@@ -4,6 +4,9 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
+    from fenic.core._resolved_session_config import (
+        ResolvedAdaptiveTokenEstimationConfig,
+    )
 
 import anthropic
 from anthropic import (
@@ -85,6 +88,7 @@ class AnthropicBatchCompletionsClient(
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
         base_url: Optional[str] = None,
+        adaptive_estimation: Optional["ResolvedAdaptiveTokenEstimationConfig"] = None,
     ):
         """Initialize the Anthropic batch completions client.
 
@@ -97,6 +101,7 @@ class AnthropicBatchCompletionsClient(
             default_profile_name: Name of the default profile to use
             cache: Optional LLM response cache
             base_url: Custom base URL for the Anthropic API
+            adaptive_estimation: Optional config for adaptive output-token estimation
         """
         model_provider_class = AnthropicModelProvider(base_url=base_url)
         super().__init__(
@@ -110,6 +115,7 @@ class AnthropicBatchCompletionsClient(
                 model_name=model, fallback_encoding="cl100k_base"
             ),
             cache=cache,
+            adaptive_estimation=adaptive_estimation,
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
