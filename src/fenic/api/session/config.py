@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
+    AnthropicReasoningEffortType,
     CohereEmbeddingModelName,
     CompletionModelParameters,
     EmbeddingModelParameters,
@@ -26,6 +27,7 @@ from fenic.core._inference.model_catalog import (
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
+    OpenRouterReasoningEffort,
     ReasoningEffort,
     ResolvedAnthropicModelConfig,
     ResolvedAnthropicModelProfile,
@@ -701,17 +703,20 @@ class AnthropicLanguageModel(BaseModel):
         """Anthropic-specific profile configurations.
 
         This class defines profile configurations for Anthropic models, allowing
-        different thinking token budget settings to be applied to the same model.
+        different thinking and effort settings to be applied to the same model.
 
         Attributes:
             thinking_token_budget: Provide a default thinking budget in tokens. If not provided,
                 thinking will be disabled for the profile. The minimum token budget supported by Anthropic is 1024 tokens.
+                For Claude models that use adaptive thinking, use `effort` instead.
+            effort: Provider-native Anthropic effort level. Supported values vary by model:
+                low, medium, high, xhigh, and max.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
-            If `thinking_token_budget` is set, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+            If `thinking_token_budget` or `effort` enables thinking, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
 
         Example:
             Configuring a profile with a thinking budget:
@@ -725,6 +730,12 @@ class AnthropicLanguageModel(BaseModel):
             ```python
             profile = AnthropicLanguageModel.Profile(thinking_token_budget=8192)
             ```
+
+            Configuring a profile with effort:
+
+            ```python
+            profile = AnthropicLanguageModel.Profile(effort="xhigh")
+            ```
         """
 
         model_config = ConfigDict(extra="forbid")
@@ -733,6 +744,10 @@ class AnthropicLanguageModel(BaseModel):
             default=None,
             description="The thinking budget in tokens for the profile",
             ge=1024,
+        )
+        effort: Optional[AnthropicReasoningEffortType] = Field(
+            default=None,
+            description="The Anthropic effort level for the profile",
         )
 
 ParsingEngine = Literal["mistral-ocr", "cloudflare-ai", "pdf-text", "native"]
@@ -879,7 +894,7 @@ class OpenRouterLanguageModel(BaseModel):
                 ([OpenRouter Documentation](https://openrouter.ai/docs/features/model-routing#the-models-parameter)).
             provider: Provider routing preferences (include/exclude specific providers, set provider ranking method preference)
                 ([OpenRouter Documentation](https://openrouter.ai/docs/features/provider-routing)).
-            reasoning_effort: OpenAI Style reasoning effort configuration (low, medium, high).
+            reasoning_effort: OpenRouter reasoning effort configuration (none, minimal, low, medium, high, xhigh).
                 If the model does support reasoning, but not `reasoning_effort`, a `reasoning_max_tokens` will be calculated
                 that is roughly equivalent as a percentage of the model's maximum output size
                 ([OpenRouter Documentation](https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level))
@@ -893,7 +908,7 @@ class OpenRouterLanguageModel(BaseModel):
 
         model_config = ConfigDict(extra="forbid")
 
-        reasoning_effort: Optional[Literal["high", "medium", "low"]] = Field(
+        reasoning_effort: Optional[OpenRouterReasoningEffort] = Field(
             default=None, description="OpenAI-style reasoning effort"
         )
         reasoning_max_tokens: Optional[int] = Field(
@@ -1102,12 +1117,8 @@ class SemanticConfig(BaseModel):
                     input_tpm=100,
                     output_tpm=100,
                     profiles={
-                        "fast": AnthropicLanguageModel.Profile(
-                            thinking_token_budget=1024
-                        ),
-                        "thorough": AnthropicLanguageModel.Profile(
-                            thinking_token_budget=4096
-                        ),
+                        "fast": AnthropicLanguageModel.Profile(effort="low"),
+                        "thorough": AnthropicLanguageModel.Profile(effort="high"),
                     },
                     default_profile="fast",
                 ),
@@ -1612,7 +1623,10 @@ class SessionConfig(BaseModel):
                 )
             elif isinstance(model, AnthropicLanguageModel):
                 profiles = {
-                    profile_name: ResolvedAnthropicModelProfile(thinking_token_budget=profile.thinking_token_budget) for
+                    profile_name: ResolvedAnthropicModelProfile(
+                        thinking_token_budget=profile.thinking_token_budget,
+                        effort=profile.effort,
+                    ) for
                     profile_name, profile in model.profiles.items()
                 } if model.profiles else None
                 return ResolvedAnthropicModelConfig(
@@ -1752,6 +1766,16 @@ def _validate_language_profile(
     elif isinstance(language_model, AnthropicLanguageModel):
         if profile.thinking_token_budget and not completion_model_params.supports_reasoning:
             raise ConfigurationError(f"Model '{model_alias}' does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from '{profile_alias}'.")
+        if profile.effort is not None:
+            if not completion_model_params.supported_reasoning_efforts:
+                raise ConfigurationError(
+                    f"Model '{model_alias}' does not support effort profiles. Please remove effort from '{profile_alias}'."
+                )
+            if profile.effort not in completion_model_params.supported_reasoning_efforts:
+                supported_efforts = "', '".join(sorted(completion_model_params.supported_reasoning_efforts))
+                raise ConfigurationError(
+                    f"Model '{model_alias}' does not support effort='{profile.effort}'. Please set effort on '{profile_alias}' to one of '{supported_efforts}' instead."
+                )
     elif isinstance(language_model, GoogleDeveloperLanguageModel) or isinstance(language_model, GoogleVertexLanguageModel):
         if completion_model_params.supported_thinking_levels:
             # For gemini-3+ models, thinking_level must be used instead of thinking_token_budget

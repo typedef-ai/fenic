@@ -12,7 +12,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
 
-from fenic.core._inference.model_catalog import ModelProvider, ThinkingLevelType
+from fenic.core._inference.model_catalog import (
+    AnthropicReasoningEffortType,
+    ModelProvider,
+    ThinkingLevelType,
+)
 from fenic.core.types.enums import CacheBackend
 from fenic.core.types.provider_routing import (
     DataCollection,
@@ -23,6 +27,7 @@ from fenic.core.types.provider_routing import (
 from fenic.core.types.semantic import ParsingEngine
 
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+OpenRouterReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Verbosity = Literal["low", "medium", "high"]
 
 # --- Enums ---
@@ -41,6 +46,7 @@ class CloudExecutorSize(str, Enum):
 @dataclass
 class ResolvedAnthropicModelProfile:
     thinking_token_budget: Optional[int] = None
+    effort: Optional[AnthropicReasoningEffortType] = None
 
 
 @dataclass
@@ -78,7 +84,7 @@ class ResolvedOpenRouterProviderRouting:
 
 @dataclass
 class ResolvedOpenRouterModelProfile:
-    reasoning_effort: Optional[Literal["high", "medium", "low"]] = None
+    reasoning_effort: Optional[OpenRouterReasoningEffort] = None
     reasoning_max_tokens: Optional[int] = None
     models: Optional[list[str]] = None
     provider: Optional[ResolvedOpenRouterProviderRouting] = None

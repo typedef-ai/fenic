@@ -16,11 +16,13 @@ class AnthropicProfileConfiguration(BaseProfileConfiguration):
         thinking_enabled: Whether thinking/reasoning is enabled for this profile
         thinking_token_budget: Token budget allocated for thinking/reasoning
         thinking_config: Anthropic-specific thinking configuration
+        output_config: Anthropic output configuration for effort.
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
     thinking_config: anthropic.types.ThinkingConfigParam = field(
         default_factory=lambda: anthropic.types.ThinkingConfigDisabledParam(type="disabled"))
+    output_config: Optional[anthropic.types.OutputConfigParam] = None
 
 
 class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelProfile, AnthropicProfileConfiguration]):
@@ -65,7 +67,20 @@ class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelPr
                 thinking_config=anthropic.types.ThinkingConfigEnabledParam(
                     type="enabled",
                     budget_tokens=profile.thinking_token_budget
-                )
+                ),
+                output_config={"effort": profile.effort} if profile.effort else None,
+            )
+        elif profile.effort and self.model_parameters.uses_adaptive_thinking:
+            return AnthropicProfileConfiguration(
+                thinking_enabled=True,
+                thinking_config=anthropic.types.ThinkingConfigAdaptiveParam(
+                    type="adaptive"
+                ),
+                output_config={"effort": profile.effort},
+            )
+        elif profile.effort:
+            return AnthropicProfileConfiguration(
+                output_config={"effort": profile.effort},
             )
         else:
             return AnthropicProfileConfiguration()

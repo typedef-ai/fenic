@@ -155,6 +155,10 @@ class AnthropicBatchCompletionsClient(
             "max_tokens": request_max_tokens,
             "thinking": profile_configuration.thinking_config,
         }
+        if profile_configuration.output_config:
+            messages_creation_payload["output_config"] = (
+                profile_configuration.output_config
+            )
         if request.structured_output:
             tool_param = self.create_response_format_tool(request.structured_output)
             messages_creation_payload.update({"tools": [tool_param]})

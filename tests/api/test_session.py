@@ -17,6 +17,7 @@ from fenic import (
     IntegerType,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
+    OpenRouterLanguageModel,
     SemanticConfig,
     Session,
     SessionConfig,
@@ -571,6 +572,88 @@ def test_model_profile_validation():
                 language_models={"claude-opus-4-8": AnthropicLanguageModel(model_name="claude-opus-4-8", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
             )
         )
+    # Test that latest Claude models support effort profiles
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-opus-4-8": AnthropicLanguageModel(
+                    model_name="claude-opus-4-8",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={"deep": AnthropicLanguageModel.Profile(effort="xhigh")},
+                )
+            }
+        ),
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-sonnet-4-6": AnthropicLanguageModel(
+                    model_name="claude-sonnet-4-6",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={"deep": AnthropicLanguageModel.Profile(effort="max")},
+                )
+            }
+        ),
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-opus-4-5": AnthropicLanguageModel(
+                    model_name="claude-opus-4-5",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={
+                        "deep": AnthropicLanguageModel.Profile(
+                            thinking_token_budget=4096,
+                            effort="high",
+                        )
+                    },
+                )
+            }
+        ),
+    )
+    with pytest.raises(ConfigurationError, match="Model 'claude-sonnet-4-6' does not support effort='xhigh'."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={
+                    "claude-sonnet-4-6": AnthropicLanguageModel(
+                        model_name="claude-sonnet-4-6",
+                        rpm=100,
+                        input_tpm=1000,
+                        output_tpm=1000,
+                        profiles={"deep": AnthropicLanguageModel.Profile(effort="xhigh")},
+                    )
+                }
+            ),
+        )
+    with pytest.raises(ConfigurationError, match="Model 'claude-haiku-4-5' does not support effort profiles."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={
+                    "claude-haiku-4-5": AnthropicLanguageModel(
+                        model_name="claude-haiku-4-5",
+                        rpm=100,
+                        input_tpm=1000,
+                        output_tpm=1000,
+                        profiles={"fast": AnthropicLanguageModel.Profile(effort="low")},
+                    )
+                }
+            ),
+        )
+    # OpenRouter supports the expanded reasoning.effort enum from its current chat API.
+    OpenRouterLanguageModel.Profile(reasoning_effort="none")
+    OpenRouterLanguageModel.Profile(reasoning_effort="minimal")
+    OpenRouterLanguageModel.Profile(reasoning_effort="xhigh")
 
 def test_session_config_with_invalid_api_keys(tmp_path, monkeypatch):
     """Test that session configuration validation rejects models with invalid API keys."""
