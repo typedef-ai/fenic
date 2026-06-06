@@ -1,16 +1,19 @@
 import os
 import tempfile
 import uuid
+from typing import TYPE_CHECKING
 
-import lancedb
 import polars as pl
-from lancedb.db import DBConnection, Table
 
 from fenic._backends.local.semantic_operators.utils import (
     filter_invalid_embeddings_expr,
 )
 from fenic._constants import VECTOR_INDEX_DIR
+from fenic._optional_dependencies import import_optional_dependency
 from fenic.core.types.enums import SemanticSimilarityMetric
+
+if TYPE_CHECKING:
+    from lancedb.db import DBConnection, Table
 
 # LanceDB column names
 DISTANCE_COL_NAME = "_distance"
@@ -75,6 +78,11 @@ class SimJoin:
     ) -> pl.DataFrame:
         os.makedirs(VECTOR_INDEX_DIR, exist_ok=True)
         table_name = uuid.uuid4().hex
+        lancedb = import_optional_dependency(
+            "lancedb",
+            extra="sim-join",
+            feature="semantic similarity joins",
+        )
         with tempfile.TemporaryDirectory(
             prefix="sim_join_", dir=VECTOR_INDEX_DIR
         ) as lance_table_dir:

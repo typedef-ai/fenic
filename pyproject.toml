@@ -25,19 +25,17 @@ dependencies = [
   "duckdb>=1.1.3,<1.5",
   "numpy>=2.0.0",
   "polars>=1.34.0,<1.36.0",
+  "pyarrow<23.0.2,>=23.0.1",
   "tiktoken>=0.11.0",
-  "lancedb>=0.22.0,<0.25.0",
   "openai>=1.101.0",
   "sqlglot>=29.0.1,<31.0.0",
   "pandas>=2.2.2",
   "cloudpickle>=3.1.1",
   "jinja2>=3.1.6",
-  "scikit-learn>=1.7.1",
   "protobuf>=5.29.5",
   "types-protobuf>=5.29.1.20250403",
   "zstandard>=0.23.0",
   "json-schema-to-pydantic>=0.4.1",
-  "pymupdf>=1.26.4",
 ]
 
 [project.urls]
@@ -50,6 +48,9 @@ dev = [
   "maturin>=1.8.6",
   "requests>=2.32.0",
   "ipykernel>=6.29.0",
+  "lancedb>=0.22.0,<0.25.0",
+  "pymupdf>=1.26.4",
+  "scikit-learn>=1.7.1",
 ]
 docs = [
   "mike>=2.1.3",
@@ -64,6 +65,9 @@ docs = [
 anthropic = ["anthropic>=0.106.0"]
 google = ["google-genai[local-tokenizer]>=1.56.0"]
 cohere = ["cohere>=5.16.1"]
+cluster = ["scikit-learn>=1.7.1"]
+pdf = ["pymupdf>=1.26.4"]
+sim-join = ["lancedb>=0.22.0,<0.25.0"]
 cloud = [
   "pyarrow<23.0.2,>=23.0.1",
   "grpcio>=1.60.0",

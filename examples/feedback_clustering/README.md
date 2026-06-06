@@ -173,6 +173,9 @@ config = fc.SessionConfig(
 # Ensure you have OpenAI API key configured
 export OPENAI_API_KEY="your-api-key"
 
+# Install the clustering extra for semantic.with_cluster_labels
+pip install "fenic[cluster]"
+
 # Run the feedback clustering analysis
 python feedback_clustering.py
 ```

@@ -4,11 +4,11 @@ from typing import Optional
 import numpy as np
 import polars as pl
 import pyarrow as pa
-from sklearn.cluster import KMeans
 
 from fenic._backends.local.semantic_operators.utils import (
     filter_invalid_embeddings_expr,
 )
+from fenic._optional_dependencies import import_optional_dependency
 from fenic.core._logical_plan.plans import CentroidInfo
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,11 @@ class Cluster:
 
         centroids = None
         if not valid_df.is_empty():
+            KMeans = import_optional_dependency(
+                "sklearn.cluster",
+                extra="cluster",
+                feature="semantic clustering",
+            ).KMeans
             embeddings = np.stack(valid_df[self.embedding_column_name])
 
             # Using sklearn KMeans with k-means++ initialization (default)

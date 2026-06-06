@@ -763,7 +763,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "jinja2" },
     { name = "json-schema-to-pydantic" },
-    { name = "lancedb" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -772,9 +771,7 @@ dependencies = [
     { name = "pandas", version = "3.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "polars" },
     { name = "protobuf" },
-    { name = "pymupdf" },
-    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pyarrow" },
     { name = "sqlglot" },
     { name = "tiktoken" },
     { name = "types-protobuf" },
@@ -791,6 +788,10 @@ cloud = [
     { name = "pyarrow" },
     { name = "pydantic-settings" },
 ]
+cluster = [
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 cohere = [
     { name = "cohere" },
 ]
@@ -803,13 +804,23 @@ google = [
 mcp = [
     { name = "fastmcp" },
 ]
+pdf = [
+    { name = "pymupdf" },
+]
+sim-join = [
+    { name = "lancedb" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "ipykernel" },
+    { name = "lancedb" },
     { name = "maturin" },
+    { name = "pymupdf" },
     { name = "pytest" },
     { name = "requests" },
+    { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scikit-learn", version = "1.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 docs = [
     { name = "mike" },
@@ -834,30 +845,34 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'cloud'", specifier = ">=1.60.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "json-schema-to-pydantic", specifier = ">=0.4.1" },
-    { name = "lancedb", specifier = ">=0.22.0,<0.25.0" },
+    { name = "lancedb", marker = "extra == 'sim-join'", specifier = ">=0.22.0,<0.25.0" },
     { name = "markdown-it-py", marker = "extra == 'eval'", specifier = ">=4.0.0" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "openai", specifier = ">=1.101.0" },
     { name = "pandas", specifier = ">=2.2.2" },
     { name = "polars", specifier = ">=1.34.0,<1.36.0" },
     { name = "protobuf", specifier = ">=5.29.5" },
+    { name = "pyarrow", specifier = ">=23.0.1,<23.0.2" },
     { name = "pyarrow", marker = "extra == 'cloud'", specifier = ">=23.0.1,<23.0.2" },
     { name = "pydantic-settings", marker = "extra == 'cloud'" },
-    { name = "pymupdf", specifier = ">=1.26.4" },
-    { name = "scikit-learn", specifier = ">=1.7.1" },
+    { name = "pymupdf", marker = "extra == 'pdf'", specifier = ">=1.26.4" },
+    { name = "scikit-learn", marker = "extra == 'cluster'", specifier = ">=1.7.1" },
     { name = "sqlglot", specifier = ">=29.0.1,<31.0.0" },
     { name = "tiktoken", specifier = ">=0.11.0" },
     { name = "types-protobuf", specifier = ">=5.29.1.20250403" },
     { name = "zstandard", specifier = ">=0.23.0" },
 ]
-provides-extras = ["anthropic", "google", "cohere", "cloud", "mcp", "eval"]
+provides-extras = ["anthropic", "google", "cohere", "cluster", "pdf", "sim-join", "cloud", "mcp", "eval"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=6.29.0" },
+    { name = "lancedb", specifier = ">=0.22.0,<0.25.0" },
     { name = "maturin", specifier = ">=1.8.6" },
+    { name = "pymupdf", specifier = ">=1.26.4" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "requests", specifier = ">=2.32.0" },
+    { name = "scikit-learn", specifier = ">=1.7.1" },
 ]
 docs = [
     { name = "mike", specifier = ">=2.1.3" },

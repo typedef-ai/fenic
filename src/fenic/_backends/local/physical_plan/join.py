@@ -7,7 +7,6 @@ import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.semantic_operators import Join as SemanticJoin
-from fenic._backends.local.semantic_operators import SimJoin as SemanticSimJoin
 from fenic._backends.local.semantic_operators.sim_join import (
     DISTANCE_COL_NAME,
     LEFT_ON_COL_NAME,
@@ -259,6 +258,10 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         )
 
         # TODO(rohitrastogi): Avoid regenerating embeddings if semantic index already exists
+        from fenic._backends.local.semantic_operators.sim_join import (
+            SimJoin as SemanticSimJoin,
+        )
+
         result = SemanticSimJoin(
             left_df,
             right_df,

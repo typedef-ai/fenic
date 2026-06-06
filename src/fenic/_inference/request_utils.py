@@ -5,11 +5,11 @@ import hashlib
 import logging
 from typing import Annotated, Optional
 
-import fitz  # PyMuPDF
 from pydantic import BeforeValidator
 
 from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
 from fenic._inference.types import FenicCompletionsRequest, LMRequestFile
+from fenic._optional_dependencies import import_optional_dependency
 from fenic.core.error import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,11 @@ def pdf_to_base64(file: LMRequestFile) -> bytes:
             pdf_content = pdf_file.read()
             return base64.b64encode(pdf_content).decode('utf-8')
     else:
+        fitz = import_optional_dependency(
+            "fitz",
+            extra="pdf",
+            feature="PDF request encoding",
+        )
         pdf_chunk = fitz.open(stream=file.pdf_chunk_bytes, filetype="pdf")
         pdf_bytes = pdf_chunk.tobytes()
         pdf_chunk.close()
@@ -104,6 +109,11 @@ def get_pdf_page_count(file: LMRequestFile) -> int:
 
 def get_pdf_text(file: LMRequestFile) -> str:
     """Extract text content from a PDF file."""
+    fitz = import_optional_dependency(
+        "fitz",
+        extra="pdf",
+        feature="PDF text extraction",
+    )
     text_content = []
     # Open the PDF
     if file.pdf_chunk_bytes is None:

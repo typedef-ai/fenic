@@ -56,6 +56,20 @@ fenic supports Python `[3.10, 3.11, 3.12]`
 pip install fenic
 ```
 
+Install optional feature extras when you need operators with heavier dependencies:
+
+```bash
+pip install "fenic[pdf]"       # semantic.parse_pdf and PDF metadata loading
+pip install "fenic[cluster]"   # DataFrame.semantic.with_cluster_labels
+pip install "fenic[sim-join]"  # semantic.sim_join
+```
+
+Extras can be combined with model provider extras:
+
+```bash
+pip install "fenic[google,pdf,cluster,sim-join]"
+```
+
 ### LLM Provider Setup
 
 fenic requires an API key from at least one LLM provider. Set the appropriate environment variable for your chosen provider:
