@@ -379,8 +379,10 @@ class GeminiNativeChatCompletionsClient(
             estimated_output_tokens = self.token_counter.count_file_output_tokens(
                 request.messages
             )
-        return estimated_output_tokens + self._get_expected_additional_reasoning_tokens(
-            request
+        reasoning_tokens = self._get_expected_additional_reasoning_tokens(request)
+        static_ceiling = estimated_output_tokens + reasoning_tokens
+        return self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=reasoning_tokens > 0
         )
 
     def _get_max_output_token_request_limit(

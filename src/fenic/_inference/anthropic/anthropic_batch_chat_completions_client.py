@@ -389,16 +389,7 @@ class AnthropicBatchCompletionsClient(
         )
 
     def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
-        """Estimate the number of tokens for a request.
-
-        Args:
-            request: The request to estimate tokens for
-
-        Returns:
-            TokenEstimate: The estimated token usage
-        """
-
-        # Count input tokens
+        """Estimate the number of tokens for a request."""
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
@@ -406,9 +397,15 @@ class AnthropicBatchCompletionsClient(
         # separate from the provider-side max_tokens budget: adaptive thinking
         # can have a very large maximum window, but reserving that maximum for
         # throttling would make small-output requests impossible under normal
-        # output TPM limits.
-        output_tokens = self._estimate_output_tokens(request)
-
+        # output TPM limits. Route the decoupled estimate through the adaptive
+        # estimator (which clamps to this ceiling and learns from actuals).
+        static_ceiling = self._estimate_output_tokens(request)
+        thinking_budget = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        ).thinking_token_budget
+        output_tokens = self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=thinking_budget > 0
+        )
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
     def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:

@@ -146,10 +146,12 @@ class OpenAIBatchChatCompletionsClient(
             base_tokens += self.token_counter.count_file_output_tokens(
                 messages=request.messages
             )
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        reasoning_tokens = profile_config.expected_additional_reasoning_tokens
+        static_ceiling = base_tokens + reasoning_tokens
+        return self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=reasoning_tokens > 0
         )
-        return base_tokens + profile_config.expected_additional_reasoning_tokens
 
     def _get_max_output_token_request_limit(
         self, request: FenicCompletionsRequest

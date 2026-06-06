@@ -281,7 +281,11 @@ class OpenRouterBatchChatCompletionsClient(
         if request.max_completion_tokens is None and request.messages.user_file:
             # TODO(DY): the semantic operator should dictate how the file affects the token estimate
             base_tokens += self.token_counter.count_file_output_tokens(messages=request.messages)
-        return base_tokens + self._get_expected_additional_reasoning_tokens(request)
+        reasoning_tokens = self._get_expected_additional_reasoning_tokens(request)
+        static_ceiling = base_tokens + reasoning_tokens
+        return self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=reasoning_tokens > 0
+        )
 
     def _get_max_output_token_request_limit(self, request: FenicCompletionsRequest) -> Optional[int]:
         """Return the maximum output token limit for a request.
