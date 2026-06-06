@@ -31,7 +31,8 @@ def _openai_client(margin=1.0):
     )
 
 
-def test_openai_output_estimate_drops_after_learning():
+def test_openai_output_estimate_drops_after_learning(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     client = _openai_client(margin=1.0)
     try:
         req = _req(512)

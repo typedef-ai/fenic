@@ -13,6 +13,7 @@ async def _noop_validate(providers):
 
 
 def _registry(adaptive, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     # SessionModelRegistry.__init__ validates provider API keys with a LIVE network
     # call. Stub it out so the test is hermetic.
     monkeypatch.setattr(

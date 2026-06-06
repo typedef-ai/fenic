@@ -1,8 +1,15 @@
 from fenic._inference.openai.openai_batch_chat_completions_client import (
     OpenAIBatchChatCompletionsClient,
 )
-from fenic._inference.rate_limit_strategy import UnifiedTokenRateLimitStrategy, TokenEstimate
-from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages, ResponseUsage
+from fenic._inference.rate_limit_strategy import (
+    TokenEstimate,
+    UnifiedTokenRateLimitStrategy,
+)
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    LMRequestMessages,
+    ResponseUsage,
+)
 from fenic.core._resolved_session_config import ResolvedAdaptiveTokenEstimationConfig
 
 
@@ -16,7 +23,8 @@ def _req():
     )
 
 
-def test_disabled_matches_static_ceiling_after_observations():
+def test_disabled_matches_static_ceiling_after_observations(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     client = OpenAIBatchChatCompletionsClient(
         model="gpt-4o-mini",
         rate_limit_strategy=UnifiedTokenRateLimitStrategy(rpm=1000, tpm=1_000_000),
