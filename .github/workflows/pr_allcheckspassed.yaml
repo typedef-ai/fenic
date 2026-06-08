@@ -13,12 +13,15 @@ jobs:
   allcheckspassed:
     runs-on: ubuntu-latest
     permissions:
+      actions: read # required to ignore superseded workflow runs
       checks: read # required to poll checks
       contents: read # required for actions/checkout
     steps:
       # yamllint disable-line rule:line-length
-      - uses: wechuli/allcheckspassed@f423b273f5fdf73582e41f8f6f0f204d69c27379 # v2
+      - uses: wechuli/allcheckspassed@204ff63e89eabdc8086f0c50b91f675bcf37c8f6 # v2.4.0
         with:
           delay: "3" # default: 1
           retries: "15" # default: 10
           polling_interval: "1" # default
+          checks_exclude: Graphite / mergeability_check
+          ignore_superseded_runs: "true"

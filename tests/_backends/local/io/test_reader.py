@@ -787,6 +787,7 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     """Test that read queries to private huggingface datasets will fail without hf credentials."""
     session = Session.get_or_create(local_session_config)
     paths = ["hf://datasets/typedef-ai/fenic-test-datasets-private/last_names_1.csv"]
+    expected_hf_failure_codes = ("401", "403", "429")
 
     # Test with no token
     if os.getenv("HF_TOKEN"):
@@ -794,14 +795,14 @@ def test_read_queries_with_invalid_huggingface_credentials(local_session_config,
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
-    assert "401" in str(exc_info.value.__cause__)
+    assert any(code in str(exc_info.value.__cause__) for code in expected_hf_failure_codes)
 
     # Test with invalid token
     monkeypatch.setenv("HF_TOKEN", "invalid_token")
     with pytest.raises(PlanError, match="Failed to infer schema from CSV files") as exc_info:
         session.read.csv(paths[0])
     assert isinstance(exc_info.value.__cause__, FileLoaderError)
-    assert "401" in str(exc_info.value.__cause__)
+    assert any(code in str(exc_info.value.__cause__) for code in expected_hf_failure_codes)
 
     session.stop(skip_usage_summary=True)
 

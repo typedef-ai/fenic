@@ -34,7 +34,7 @@ lint:
     - markdownlint@0.45.0
     - osv-scanner@2.2.2
     - prettier@3.6.2
-    - trivy@0.65.0
+    - trivy@0.71.0
     - trufflehog@3.90.5
     - yamllint@1.37.1
     - bandit@1.8.6

@@ -36,7 +36,9 @@ class OpenAICompletionsProfileManager(
             # - gpt-5.1 models: support 'none' to disable reasoning, default to 'none'
             reasoning_effort = profile.reasoning_effort
             if not reasoning_effort:
-                if self.model_parameters.supports_disabled_reasoning:
+                if self.model_parameters.default_reasoning_effort:
+                    reasoning_effort = self.model_parameters.default_reasoning_effort
+                elif self.model_parameters.supports_disabled_reasoning:
                     reasoning_effort = "none"
                 elif self.model_parameters.supports_minimal_reasoning:
                     reasoning_effort = "minimal"
@@ -65,6 +67,8 @@ class OpenAICompletionsProfileManager(
             return 8192
         elif reasoning_effort == "high":
             return 16384
+        elif reasoning_effort == "xhigh":
+            return 32768
         return 0
 
     def get_default_profile(self) -> OpenAICompletionProfileConfiguration:
@@ -73,7 +77,9 @@ class OpenAICompletionsProfileManager(
             # Reasoning effort behavior varies by model:
             # - o-series/gpt-5 models: do not support disabling reasoning, default to lowest effort (minimal or low)
             # - gpt-5.1 models: support 'none' to disable reasoning, default to 'none'
-            if self.model_parameters.supports_disabled_reasoning:
+            if self.model_parameters.default_reasoning_effort:
+                reasoning_effort = self.model_parameters.default_reasoning_effort
+            elif self.model_parameters.supports_disabled_reasoning:
                 reasoning_effort = "none"
             elif self.model_parameters.supports_minimal_reasoning:
                 reasoning_effort = "minimal"

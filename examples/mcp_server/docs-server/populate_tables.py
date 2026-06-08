@@ -33,7 +33,7 @@ def _setup_session(work_dir: str) -> fc.Session:
             language_models={
                 "flash": fc.GoogleDeveloperLanguageModel(
                     api_key=os.environ.get("GEMINI_API_KEY"),
-                    model_name="gemini-2.0-flash-exp",
+                    model_name="gemini-2.5-flash",
                     rpm=2000,
                     tpm=4_000_000,
                 ),

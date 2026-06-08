@@ -22,7 +22,7 @@ from fenic.core.types.provider_routing import (
 )
 from fenic.core.types.semantic import ParsingEngine
 
-ReasoningEffort = Literal["none", "minimal", "low", "medium", "high"]
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 Verbosity = Literal["low", "medium", "high"]
 
 # --- Enums ---

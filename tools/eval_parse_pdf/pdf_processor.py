@@ -253,24 +253,6 @@ def get_model_configs():
             )},
             default_profile="minimal_thinking"
         )
-        model_configs["gemini-2.0-flash"] = GoogleDeveloperLanguageModel(
-            model_name="gemini-2.0-flash",
-            rpm=100,
-            tpm=200000,
-            profiles={"disabled_thinking": GoogleDeveloperLanguageModel.Profile(
-                thinking_token_budget=0
-            )},
-            default_profile="disabled_thinking"
-        )
-        model_configs["gemini-2.0-flash-lite"] = GoogleDeveloperLanguageModel(
-            model_name="gemini-2.0-flash-lite",
-            rpm=100,
-            tpm=200000,
-            profiles={"disabled_thinking": GoogleDeveloperLanguageModel.Profile(
-                thinking_token_budget=0
-            )},
-            default_profile="disabled_thinking"
-        )
         model_configs["gemini-2.5-flash-lite"] = GoogleDeveloperLanguageModel(
             model_name="gemini-2.5-flash-lite",
             rpm=100,
@@ -309,11 +291,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python eval_parse_pdf_processor.py --input-glob-pattern "/data/pdfs/**/*.pdf" --app-name my_pdf_app --model-name gemini-2.0-flash --test-id experiment_1 --output-dir /output/results
+  python pdf_processor.py --input-glob-pattern "/data/pdfs/**/*.pdf" --app-name my_pdf_app --model-name gemini-2.5-flash --test-id experiment_1 --output-dir /output/results
   
-  python eval_parse_pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m o3-mini -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
+  python pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m o3-mini -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
   
-  python eval_parse_pdf_processor.py --input-glob-pattern "/research/papers/**/*.pdf" --app-name research_app --model-name gemini-2.5-pro --test-id paper_analysis --output-dir /results/analysis
+  python pdf_processor.py --input-glob-pattern "/research/papers/**/*.pdf" --app-name research_app --model-name gemini-2.5-pro --test-id paper_analysis --output-dir /results/analysis
         """
     )
     
@@ -332,7 +314,7 @@ Examples:
     parser.add_argument(
         '--model-name', '-m',
         required=True,
-        help='Name of the language model to use for parsing (e.g., gemini-2.0-flash, o3-mini)'
+        help='Name of the language model to use for parsing (e.g., gemini-2.5-flash, o3-mini)'
     )
     
     parser.add_argument(

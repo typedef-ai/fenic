@@ -4,6 +4,9 @@ from typing import get_args
 
 import pytest
 
+from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionsProfileManager,
+)
 from fenic.core._inference.model_catalog import (
     AnthropicLanguageModelName,
     CohereEmbeddingModelName,
@@ -95,16 +98,16 @@ def mock_openrouter_models(monkeypatch):
             "supported_parameters": ["reasoning", "temperature", "max_tokens", "tool_choice", "tools"],
         },
         {
-            "id": "google/gemini-2.0-flash-001",
+            "id": "google/gemini-2.5-flash",
             "pricing": {
-                "prompt": 0.10 / 1_000_000,
-                "completion": 0.40 / 1_000_000,
+                "prompt": 0.15 / 1_000_000,
+                "completion": 2.50 / 1_000_000,
             },
             "top_provider": {
                 "context_length": 1_048_576,
-                "max_completion_tokens": 8_192,
+                "max_completion_tokens": 65_536,
             },
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output", "reasoning"],
         },
         {
             "id": "google/gemini-2.5-pro",
@@ -186,6 +189,68 @@ def test_all_embedding_models_have_valid_parameters(models: Enum, provider: Mode
         )
         assert params.output_dimensions, f"Missing output_dimensions for {provider} embedding model: {model_name}"
 
+def test_latest_frontier_models_are_registered():
+    """Sanity-check newly released frontier model IDs and snapshots."""
+    catalog = model_catalog
+
+    openai_gpt_55 = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
+    openai_gpt_55_snapshot = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5-2026-04-23")
+    assert openai_gpt_55 is openai_gpt_55_snapshot
+    assert openai_gpt_55.supports_xhigh_reasoning
+    assert openai_gpt_55.context_window_length == 1_050_000
+
+    anthropic_opus_48 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-8")
+    assert anthropic_opus_48.context_window_length == 1_000_000
+    assert anthropic_opus_48.max_output_tokens == 128_000
+    assert not anthropic_opus_48.supports_custom_temperature
+
+    google_flash = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.5-flash")
+    assert google_flash.context_window_length == 1_048_576
+    assert google_flash.max_output_tokens == 65_536
+
+    google_flash_lite = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-flash-lite")
+    assert google_flash_lite.context_window_length == 1_048_576
+
+    google_pro = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-pro-preview")
+    google_pro_customtools = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-pro-preview-customtools")
+    assert google_pro is google_pro_customtools
+
+    google_embedding = catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-embedding-2")
+    assert google_embedding.supports_dimensions(3072)
+    assert google_embedding.supports_dimensions(128)
+
+    assert catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-4-0314") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-7-sonnet-20250219") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-5-sonnet-20241022") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-5-sonnet-20240620") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-5-haiku-20241022") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-opus-20240229") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-3-haiku-20240307") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-4-20250514") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-4-sonnet-20250514") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-4-0") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-20250514") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-4-opus-20250514") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-0") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-lite-001") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-001") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash-lite") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_VERTEX, "gemini-2.0-flash") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-flash-lite-preview") is None
+    assert catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro-preview-06-05") is None
+    assert catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-embedding-exp-03-07") is None
+    assert catalog.get_embedding_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "text-embedding-004") is None
+
+def test_gpt_55_default_profile_uses_provider_default_reasoning():
+    """GPT-5.5 defaults to medium reasoning unless the user configures a profile."""
+    params = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
+    profile = OpenAICompletionsProfileManager(params).get_default_profile()
+
+    assert profile.additional_parameters["reasoning_effort"] == "medium"
+    assert profile.expected_additional_reasoning_tokens == 8192
+
 def test_openrouter_provider_loads_models(mock_openrouter_models):
     """Test that the OpenRouter provider can fetch the models from the OpenRouter API."""
     catalog = model_catalog
@@ -222,7 +287,7 @@ def test_openrouter_provider_loads_anthropic_models_correctly(mock_openrouter_mo
 
     # Anthropic models
     openrouter_sonnet_4_parameters = catalog.get_completion_model_parameters(ModelProvider.OPENROUTER, "anthropic/claude-sonnet-4")
-    standard_sonnet_4_parameters = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-4-0")
+    standard_sonnet_4_parameters = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-4-5")
     assert math.isclose(openrouter_sonnet_4_parameters.input_token_cost, standard_sonnet_4_parameters.input_token_cost)
     assert math.isclose(openrouter_sonnet_4_parameters.output_token_cost, standard_sonnet_4_parameters.output_token_cost)
     # assert openrouter_sonnet_4_parameters.context_window_length == standard_sonnet_4_parameters.context_window_length # TODO: add 1m context window support for sonnet in standard anthropic client
@@ -235,8 +300,8 @@ def test_openrouter_provider_loads_google_models_correctly(mock_openrouter_model
     catalog = model_catalog
 
     # Google models
-    openrouter_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.OPENROUTER, "google/gemini-2.0-flash-001")
-    standard_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.0-flash-001")
+    openrouter_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.OPENROUTER, "google/gemini-2.5-flash")
+    standard_flash_parameters = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-flash")
     assert math.isclose(openrouter_flash_parameters.input_token_cost, standard_flash_parameters.input_token_cost)
     assert math.isclose(openrouter_flash_parameters.output_token_cost, standard_flash_parameters.output_token_cost)
     assert openrouter_flash_parameters.context_window_length == standard_flash_parameters.context_window_length

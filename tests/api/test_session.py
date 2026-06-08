@@ -548,6 +548,29 @@ def test_model_profile_validation():
                 language_models={"gpt-5-nano": OpenAILanguageModel(model_name="gpt-5-nano", rpm=100, tpm=1000, profiles={"disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")})}
             )
         )
+    # Test that latest OpenAI models support xhigh reasoning
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-5.5": OpenAILanguageModel(model_name="gpt-5.5", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="xhigh")}, rpm=100, tpm=1000)}
+        )
+    )
+    # Test that older OpenAI reasoning models reject xhigh reasoning
+    with pytest.raises(ConfigurationError, match="Model 'gpt-5.2' does not support 'xhigh' reasoning. Please set reasoning_effort on 'deep' to 'none', 'low', 'medium', or 'high' instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gpt-5.2": OpenAILanguageModel(model_name="gpt-5.2", rpm=100, tpm=1000, profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="xhigh")})}
+            )
+        )
+    # Test that Claude Opus 4.8 rejects legacy manual thinking budget profiles
+    with pytest.raises(ConfigurationError, match="Model 'claude-opus-4-8' does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from 'deep'."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"claude-opus-4-8": AnthropicLanguageModel(model_name="claude-opus-4-8", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
+            )
+        )
 
 def test_session_config_with_invalid_api_keys(tmp_path, monkeypatch):
     """Test that session configuration validation rejects models with invalid API keys."""
@@ -729,7 +752,7 @@ def test_anthropic_language_model_base_url_resolves():
         semantic=SemanticConfig(
             language_models={
                 "claude": AnthropicLanguageModel(
-                    model_name="claude-sonnet-4-20250514",
+                    model_name="claude-sonnet-4-6",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100,
@@ -750,7 +773,7 @@ def test_anthropic_language_model_base_url_defaults_to_none():
         semantic=SemanticConfig(
             language_models={
                 "claude": AnthropicLanguageModel(
-                    model_name="claude-sonnet-4-20250514",
+                    model_name="claude-sonnet-4-6",
                     rpm=100,
                     input_tpm=100,
                     output_tpm=100,

@@ -56,6 +56,8 @@ class CompletionModelParameters:
         supports_reasoning: Whether the model supports reasoning parameter.
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
         supports_disabled_reasoning: Whether the model supports disabling reasoning.
+        supports_xhigh_reasoning: Whether the model supports xhigh reasoning effort.
+        default_reasoning_effort: Default reasoning effort when a profile does not specify one.
         supported_thinking_levels: Set of thinking levels supported by the model (Gemini 3+).
             None means the model uses thinking_budget instead. Valid values: "high", "medium", "low", "minimal".
         supports_custom_temperature: Whether the model supports custom temperature.
@@ -78,6 +80,8 @@ class CompletionModelParameters:
         supports_reasoning=False,
         supports_minimal_reasoning=False,
         supports_disabled_reasoning=True,
+        supports_xhigh_reasoning=False,
+        default_reasoning_effort: Optional[str] = None,
         supported_thinking_levels: Optional[Set[ThinkingLevelType]] = None,
         supports_custom_temperature=True,
         supports_verbosity = False,
@@ -98,6 +102,8 @@ class CompletionModelParameters:
         self.supports_reasoning = supports_reasoning
         self.supports_minimal_reasoning = supports_minimal_reasoning
         self.supports_disabled_reasoning = supports_disabled_reasoning
+        self.supports_xhigh_reasoning = supports_xhigh_reasoning
+        self.default_reasoning_effort = default_reasoning_effort
         self.supported_thinking_levels = supported_thinking_levels
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
@@ -110,7 +116,7 @@ class CompletionModelParameters:
         repr = (
             f"CompletionModelParameters(input_token_cost=${self.input_token_cost}, output_token_cost=${self.output_token_cost}, context_window_length={self.context_window_length}, max_output_tokens={self.max_output_tokens}, "
             f"max_temperature={self.max_temperature}, cached_input_token_write_cost=${self.cached_input_token_write_cost}, cached_input_token_read_cost=${self.cached_input_token_read_cost}, tiered_input_token_costs={self.tiered_input_token_costs}, "
-            f"supports_profiles={self.supports_profiles}, supports_reasoning={self.supports_reasoning}, supports_minimal_reasoning={self.supports_minimal_reasoning}, supports_custom_temperature={self.supports_custom_temperature}, "
+            f"supports_profiles={self.supports_profiles}, supports_reasoning={self.supports_reasoning}, supports_minimal_reasoning={self.supports_minimal_reasoning}, supports_xhigh_reasoning={self.supports_xhigh_reasoning}, supports_custom_temperature={self.supports_custom_temperature}, "
             f"supports_verbosity={self.supports_verbosity}, supported_parameters={self.supported_parameters})"
         )
         return repr
@@ -169,9 +175,14 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5.5",
+    "gpt-5.5-2026-04-23",
     "gpt-5.4",
+    "gpt-5.4-2026-03-05",
     "gpt-5.4-mini",
+    "gpt-5.4-mini-2026-03-17",
     "gpt-5.4-nano",
+    "gpt-5.4-nano-2026-03-17",
     "gpt-5.2",
     "gpt-5.1",
     "gpt-5.1-2025-11-13",
@@ -196,7 +207,6 @@ OpenAILanguageModelName = Literal[
     "gpt-4-turbo",
     "gpt-4-turbo-2024-04-09",
     "gpt-4",
-    "gpt-4-0314",
     "gpt-4-0613",
     "o1",
     "o3",
@@ -209,21 +219,22 @@ OpenAIEmbeddingModelName = Literal[
 ]
 
 GoogleVertexEmbeddingModelName = Literal[
+    "gemini-embedding-2",
     "gemini-embedding-2-preview",
     "gemini-embedding-001",
-    "gemini-embedding-exp-03-07",
     "text-multilingual-embedding-002",
     "text-embedding-005",
 ]
 
 GoogleDeveloperEmbeddingModelName = Literal[
+    "gemini-embedding-2",
     "gemini-embedding-2-preview",
     "gemini-embedding-001",
-    "gemini-embedding-exp-03-07",
-    "text-embedding-004"
 ]
 
 AnthropicLanguageModelName = Literal[
+    "claude-opus-4-8",
+    "claude-opus-4-7",
     "claude-opus-4-6",
     "claude-sonnet-4-6",
     "claude-opus-4-5",
@@ -232,24 +243,8 @@ AnthropicLanguageModelName = Literal[
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5",
     "claude-haiku-4-5-20251001",
-    "claude-3-7-sonnet-latest",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-5-haiku-latest",
-    "claude-3-5-haiku-20241022",
-    "claude-sonnet-4-20250514",
-    "claude-sonnet-4-0",
-    "claude-4-sonnet-20250514",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-sonnet-20240620",
     "claude-opus-4-1",
     "claude-opus-4-1-20250805",
-    "claude-opus-4-0",
-    "claude-opus-4-20250514",
-    "claude-4-opus-20250514",
-    "claude-3-opus-latest",
-    "claude-3-opus-20240229",
-    "claude-3-haiku-20240307",
 ]
 
 CohereEmbeddingModelName = Literal[
@@ -262,17 +257,14 @@ CohereEmbeddingModelName = Literal[
 
 
 GoogleDeveloperLanguageModelName = Literal[
+    "gemini-3.5-flash",
     "gemini-3.1-pro-preview",
-    "gemini-3.1-flash-lite-preview",
+    "gemini-3.1-pro-preview-customtools",
+    "gemini-3.1-flash-lite",
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-lite-001",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-exp",
 ]
 GoogleVertexLanguageModelName = GoogleDeveloperLanguageModelName
 
@@ -360,6 +352,37 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        # Claude Opus 4.8 and 4.7 use adaptive thinking rather than manual thinking budgets.
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-8",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                cached_input_token_write_cost=6.25 / 1_000_000,  # $6.25 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supports_custom_temperature=False,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-4-7",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                cached_input_token_write_cost=6.25 / 1_000_000,  # $6.25 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supports_custom_temperature=False,
+            ),
+        )
+
         # Claude 4.6 models
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
@@ -438,21 +461,6 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
-            "claude-opus-4-0",
-            CompletionModelParameters(
-                input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
-                cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
-                output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=32_000,
-                supports_reasoning=True,
-            ),
-            snapshots=["claude-opus-4-20250514", "claude-4-opus-20250514"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
             "claude-sonnet-4-5",
             CompletionModelParameters(
                 input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
@@ -464,95 +472,6 @@ class ModelCatalog:
                 supports_reasoning=True,
             ),
             snapshots=["claude-sonnet-4-5-20250929"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-sonnet-4-0",
-            CompletionModelParameters(
-                input_token_cost=3.00 / 1_000_000,  # $3 per 1M tokens
-                cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
-                cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=64_000,
-                supports_reasoning=True,
-            ),
-            snapshots=["claude-sonnet-4-20250514", "claude-4-sonnet-20250514"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-3-7-sonnet-latest",
-            CompletionModelParameters(
-                input_token_cost=3.0 / 1_000_000,  # $3 per 1M tokens
-                cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
-                cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=128_000,
-                supports_reasoning=True,
-            ),
-            snapshots=["claude-3-7-sonnet-20250219"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-3-5-sonnet-latest",
-            CompletionModelParameters(
-                input_token_cost=3 / 1_000_000,  # $3 per 1M tokens
-                cached_input_token_write_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens
-                cached_input_token_read_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                output_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=8_192,
-                supports_profiles=False,
-            ),
-            snapshots=["claude-3-5-sonnet-20241022", "claude-3-5-sonnet-20240620"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-3-5-haiku-latest",
-            CompletionModelParameters(
-                input_token_cost=0.80 / 1_000_000,  # $0.80 per 1M tokens
-                cached_input_token_write_cost=1.00 / 1_000_000,  # $1.00 per 1M tokens
-                cached_input_token_read_cost=0.08 / 1_000_000,  # $0.08 per 1M tokens
-                output_token_cost=4.00 / 1_000_000,  # $4 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=8_000,
-                supports_profiles=False,
-            ),
-            snapshots=["claude-3-5-haiku-20241022"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-3-opus-latest",
-            CompletionModelParameters(
-                input_token_cost=15.00 / 1_000_000,  # $15 per 1M tokens
-                cached_input_token_write_cost=18.75 / 1_000_000,  # $18.75 per 1M tokens
-                cached_input_token_read_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
-                output_token_cost=75.00 / 1_000_000,  # $75 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=4_096,
-                supports_profiles=False,
-            ),
-            snapshots=["claude-3-opus-20240229"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.ANTHROPIC,
-            "claude-3-haiku-20240307",
-            CompletionModelParameters(
-                input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
-                cached_input_token_write_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                cached_input_token_read_cost=0.03 / 1_000_000,  # $0.03 per 1M tokens
-                output_token_cost=1.25 / 1_000_000,  # $1.25 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=4_096,
-                supports_profiles=False,
-            ),
         )
 
     def _initialize_openai_models(self):
@@ -569,7 +488,7 @@ class ModelCatalog:
                 max_temperature=2,
                 supports_profiles=False,
             ),
-            snapshots=["gpt-4-0314", "gpt-4-0613"],
+            snapshots=["gpt-4-0613"],
         )
 
         self._add_model_to_catalog(
@@ -822,6 +741,35 @@ class ModelCatalog:
             ),
         )
 
+        # GPT-5.5 - newest frontier model for complex professional work
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.5",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5.00 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=30.00 / 1_000_000,  # $30.00 per 1M tokens
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
+                        cached_input_token_read_cost=1.00 / 1_000_000,  # $1.00 per 1M tokens
+                        output_token_cost=45.00 / 1_000_000,  # $45.00 per 1M tokens
+                    )
+                },
+            ),
+            snapshots=["gpt-5.5-2026-04-23"],
+        )
+
         # GPT-5.4 - frontier model for complex professional work
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
@@ -835,10 +783,19 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_minimal_reasoning=False,
                 supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=5.00 / 1_000_000,  # $5.00 per 1M tokens
+                        cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                        output_token_cost=22.50 / 1_000_000,  # $22.50 per 1M tokens
+                    )
+                },
             ),
+            snapshots=["gpt-5.4-2026-03-05"],
         )
 
         # GPT-5.4 Mini - optimized for high-volume workloads
@@ -854,10 +811,12 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_minimal_reasoning=False,
                 supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
             ),
+            snapshots=["gpt-5.4-mini-2026-03-17"],
         )
 
         # GPT-5.4 Nano - optimized for speed and cost
@@ -873,10 +832,12 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_minimal_reasoning=False,
                 supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
             ),
+            snapshots=["gpt-5.4-nano-2026-03-17"],
         )
 
         # OpenAI Embedding Models
@@ -904,6 +865,24 @@ class ModelCatalog:
         """Initialize the Google Vertex Models."""
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
+            "gemini-3.5-flash",
+            CompletionModelParameters(
+                input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                cached_input_token_read_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                output_token_cost=9.00 / 1_000_000,  # $9.00 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
             "gemini-3.1-pro-preview",
             CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
@@ -925,11 +904,12 @@ class ModelCatalog:
                     )
                 },
             ),
+            snapshots=["gemini-3.1-pro-preview-customtools"],
         )
 
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
-            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
                 cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
@@ -986,7 +966,6 @@ class ModelCatalog:
                 },
                 supports_pdf_parsing=True,
             ),
-            snapshots=["gemini-2.5-pro-preview-06-05"],
         )
 
         self._add_model_to_catalog(
@@ -1020,35 +999,15 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
-            "gemini-2.0-flash-lite",
-            CompletionModelParameters(
-                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
-                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_profiles=False,
-                supports_pdf_parsing=True,
+            "gemini-embedding-2",
+            EmbeddingModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M text tokens
+                allowed_output_dimensions=[128, 256, 512, 768, 1536, 3072],
+                max_input_size=8192,
+                default_dimensionality=3072,
             ),
-            snapshots=["gemini-2.0-flash-lite-001"],
         )
 
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_VERTEX,
-            "gemini-2.0-flash",
-            CompletionModelParameters(
-                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                cached_input_token_read_cost=0.0375
-                / 1_000_000,  # $0.0375 per 1M tokens
-                output_token_cost=0.60 / 1_000_000,  # $0.60 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_profiles=False,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
-        )
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
             "gemini-embedding-2-preview",
@@ -1069,7 +1028,6 @@ class ModelCatalog:
                 max_input_size=2048,
                 default_dimensionality=3072,
             ),
-            snapshots=["gemini-embedding-exp-03-07"],
         )
 
         self._add_model_to_catalog(
@@ -1100,6 +1058,24 @@ class ModelCatalog:
         # Google GLA Models (same models, possibly different pricing)
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3.5-flash",
+            CompletionModelParameters(
+                input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
+                cached_input_token_read_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
+                output_token_cost=9.00 / 1_000_000,  # $9.00 per 1M tokens
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3X_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.1-pro-preview",
             CompletionModelParameters(
                 input_token_cost=2.00 / 1_000_000,  # $2.00 per 1M tokens
@@ -1121,11 +1097,12 @@ class ModelCatalog:
                     )
                 },
             ),
+            snapshots=["gemini-3.1-pro-preview-customtools"],
         )
 
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-flash-lite",
             CompletionModelParameters(
                 input_token_cost=0.25 / 1_000_000,  # $0.25 per 1M tokens
                 cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
@@ -1182,7 +1159,6 @@ class ModelCatalog:
                 },
                 supports_pdf_parsing=True,
             ),
-            snapshots=["gemini-2.5-pro-preview-06-05"],
         )
 
         self._add_model_to_catalog(
@@ -1216,32 +1192,13 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-2.0-flash-lite",
-            CompletionModelParameters(
-                input_token_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens
-                output_token_cost=0.30 / 1_000_000,  # $0.30 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_pdf_parsing=True,
+            "gemini-embedding-2",
+            EmbeddingModelParameters(
+                input_token_cost=0.20 / 1_000_000,  # $0.20 per 1M text tokens
+                allowed_output_dimensions=[128, 256, 512, 768, 1536, 3072],
+                max_input_size=8192,
+                default_dimensionality=3072,
             ),
-            snapshots=["gemini-2.0-flash-lite-001"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
-            "gemini-2.0-flash",
-            CompletionModelParameters(
-                input_token_cost=0.10 / 1_000_000,  # $0.10 per 1M tokens
-                cached_input_token_read_cost=0.0375
-                / 1_000_000,  # $0.0375 per 1M tokens
-                output_token_cost=0.40 / 1_000_000,  # $0.40 per 1M tokens
-                context_window_length=1_048_576,
-                max_output_tokens=8_192,
-                max_temperature=2.0,
-                supports_pdf_parsing=True,
-            ),
-            snapshots=["gemini-2.0-flash-001", "gemini-2.0-flash-exp"],
         )
 
         self._add_model_to_catalog(
@@ -1263,17 +1220,6 @@ class ModelCatalog:
                 allowed_output_dimensions=[768, 1536, 3072],
                 max_input_size=2048,
                 default_dimensionality=3072,
-            ),
-            snapshots=["gemini-embedding-exp-03-07"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.GOOGLE_DEVELOPER,
-            "text-embedding-004",
-            EmbeddingModelParameters(
-                input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                allowed_output_dimensions=768,
-                max_input_size=2048,
             ),
         )
 

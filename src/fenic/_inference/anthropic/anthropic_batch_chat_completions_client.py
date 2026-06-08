@@ -168,7 +168,11 @@ class AnthropicBatchCompletionsClient(
                     }
                 )
 
-        if not profile_configuration.thinking_enabled:
+        if (
+            not profile_configuration.thinking_enabled
+            and self._model_parameters.supports_custom_temperature
+            and request.temperature is not None
+        ):
             # Anthropic does not allow configuring temperature if thinking is enabled.
             messages_creation_payload.update({"temperature": request.temperature})
 
