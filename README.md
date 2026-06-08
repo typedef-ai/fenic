@@ -17,7 +17,7 @@
 
 It's a DataFrame query engine for semantic data processing, with AI operators — `extract`, `classify`, `summarize`, `embed`, semantic `join`, and more — built into the query model. Use it to turn documents, transcripts, logs, eval traces, tickets, tables, and APIs into typed rows and repeatable workflows.
 
-The point is a shift in what your data work _produces_. Humans author, inspect, and validate fenic pipelines. Agents discover, compose, and reuse them. The result isn't a one-off prompt or a brittle regex script that has to be reverse-engineered later — it's a durable artifact: typed, inspectable, rerunnable, and callable.
+The point is a shift in what your data work _produces_. Humans and agents work on the same pipelines — both can author, inspect, and reuse them. The result isn't a one-off prompt or a brittle regex script that has to be reverse-engineered later — it's a durable artifact: typed, inspectable, rerunnable, and callable.
 
 > **From exploration to artifact.**
 
