@@ -17,7 +17,7 @@
 
 It's a DataFrame query engine for semantic data processing, with AI operators — `extract`, `classify`, `summarize`, `embed`, semantic `join`, and more — built into the query model. Use it to turn documents, transcripts, logs, eval traces, tickets, tables, and APIs into typed rows and repeatable workflows.
 
-The point is a shift in what your data work *produces*. Humans author, inspect, and validate fenic pipelines. Agents discover, compose, and reuse them. The result isn't a one-off prompt or a brittle regex script that has to be reverse-engineered later — it's a durable artifact: typed, inspectable, rerunnable, and callable.
+The point is a shift in what your data work _produces_. Humans author, inspect, and validate fenic pipelines. Agents discover, compose, and reuse them. The result isn't a one-off prompt or a brittle regex script that has to be reverse-engineered later — it's a durable artifact: typed, inspectable, rerunnable, and callable.
 
 > **From exploration to artifact.**
 
@@ -29,7 +29,7 @@ pip install fenic
 
 ## What is fenic?
 
-fenic is a **semantic DataFrame engine**. You write the PySpark/SQL-style operations you already know — `select`, `filter`, `join`, `group_by`, `agg` — alongside *semantic operators* that call language models as a first-class part of the query. You configure models once on a `Session`, build a pipeline lazily, and fenic compiles and runs it on a query engine built for inference: automatic batching, rate limiting, retries, token/cost accounting, and response caching.
+fenic is a **semantic DataFrame engine**. You write the PySpark/SQL-style operations you already know — `select`, `filter`, `join`, `group_by`, `agg` — alongside _semantic operators_ that call language models as a first-class part of the query. You configure models once on a `Session`, build a pipeline lazily, and fenic compiles and runs it on a query engine built for inference: automatic batching, rate limiting, retries, token/cost accounting, and response caching.
 
 Two ideas make it different from gluing an LLM onto pandas:
 
@@ -92,17 +92,17 @@ export OPENAI_API_KEY=...        # or ANTHROPIC_API_KEY / GOOGLE_API_KEY / COHER
 
 **Agents made exploration easy and introduced a new problem.** An agent can dig through messy data and find something useful — but unless that discovery becomes code, data, or a pipeline, it dies as a chat transcript. The next person has to reverse-engineer what happened.
 
-**fenic gives semantic data work a DataFrame abstraction.** Express the exploration as fenic operators and it's *already* the artifact:
+**fenic gives semantic data work a DataFrame abstraction.** Express the exploration as fenic operators and it's _already_ the artifact:
 
-| | Without fenic | With fenic |
-| --- | --- | --- |
-| **Extraction** | regex + one-off prompts, re-derived each time | `extract(Schema)` → typed columns, validated at plan time |
-| **Reproducibility** | "what did the agent do?" | a lazy plan you can `explain()` and rerun |
-| **Inspection** | scroll the transcript | row-level `lineage()`, typed rows, per-query cost/tokens |
-| **Reuse** | copy/paste the script | promote to a table, view, or MCP tool |
-| **Humans vs. agents** | separate, incompatible workflows | one shared pipeline both can read and run |
+|                       | Without fenic                                 | With fenic                                                |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| **Extraction**        | regex + one-off prompts, re-derived each time | `extract(Schema)` → typed columns, validated at plan time |
+| **Reproducibility**   | "what did the agent do?"                      | a lazy plan you can `explain()` and rerun                 |
+| **Inspection**        | scroll the transcript                         | row-level `lineage()`, typed rows, per-query cost/tokens  |
+| **Reuse**             | copy/paste the script                         | promote to a table, view, or MCP tool                     |
+| **Humans vs. agents** | separate, incompatible workflows              | one shared pipeline both can read and run                 |
 
-The model is still probabilistic — but the *pipeline* around it is typed, bounded, cached, replayable, and inspectable.
+The model is still probabilistic — but the _pipeline_ around it is typed, bounded, cached, replayable, and inspectable.
 
 ---
 
@@ -165,7 +165,7 @@ The exploration is now **cumulative**: rerun it on the next model version to det
 
 ## Query meaning and metadata together
 
-The interesting questions usually need both structured and unstructured data — customer metadata *and* support tickets, eval scores *and* trajectories, CRM fields *and* call transcripts. fenic does relational and semantic work in the same pipeline, including joins on *meaning* rather than exact keys.
+The interesting questions usually need both structured and unstructured data — customer metadata _and_ support tickets, eval scores _and_ trajectories, CRM fields _and_ call transcripts. fenic does relational and semantic work in the same pipeline, including joins on _meaning_ rather than exact keys.
 
 ```python
 # Match on meaning, not exact values
@@ -243,25 +243,25 @@ fenic-serve --app-name eval_triage --port 8000
 
 Column operators (via `fc.semantic.*`), used inside `select` / `with_column` / `filter` / `agg`:
 
-| Operator | What it does |
-| --- | --- |
-| `extract(col, Schema)` | Unstructured text → a typed struct from a Pydantic schema |
-| `classify(col, classes)` | Label text into predefined classes (optionally with descriptions + examples) |
-| `predicate(prompt, **cols)` | Natural-language boolean — use it to `filter` rows |
-| `map(prompt, **cols)` | Apply a templated generation prompt per row (optionally typed output) |
-| `reduce(prompt, column)` | Aggregate many rows in a group into one result (great after `group_by`) |
-| `analyze_sentiment(col)` | positive / negative / neutral |
-| `summarize(col)` | Paragraph or key-points summary |
-| `embed(col)` | Embeddings for similarity, clustering, and search |
-| `parse_pdf(col)` | PDF paths → Markdown |
+| Operator                    | What it does                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `extract(col, Schema)`      | Unstructured text → a typed struct from a Pydantic schema                    |
+| `classify(col, classes)`    | Label text into predefined classes (optionally with descriptions + examples) |
+| `predicate(prompt, **cols)` | Natural-language boolean — use it to `filter` rows                           |
+| `map(prompt, **cols)`       | Apply a templated generation prompt per row (optionally typed output)        |
+| `reduce(prompt, column)`    | Aggregate many rows in a group into one result (great after `group_by`)      |
+| `analyze_sentiment(col)`    | positive / negative / neutral                                                |
+| `summarize(col)`            | Paragraph or key-points summary                                              |
+| `embed(col)`                | Embeddings for similarity, clustering, and search                            |
+| `parse_pdf(col)`            | PDF paths → Markdown                                                         |
 
 DataFrame operators (via `df.semantic.*`):
 
-| Operator | What it does |
-| --- | --- |
+| Operator                                    | What it does                                        |
+| ------------------------------------------- | --------------------------------------------------- |
 | `join(other, predicate, left_on, right_on)` | Join two DataFrames on a natural-language predicate |
-| `sim_join(other, left_on, right_on, k)` | Top-k embedding-similarity join |
-| `with_cluster_labels(by, num_clusters)` | K-means clustering over an embedding column |
+| `sim_join(other, left_on, right_on, k)`     | Top-k embedding-similarity join                     |
+| `with_cluster_labels(by, num_clusters)`     | K-means clustering over an embedding column         |
 
 All of it composes with ordinary DataFrame operations — `select`, `filter`, `with_columns`, `join`, `group_by`/`agg`, `order_by`, `limit`, `unnest`, `explode` — and full **SQL** via `session.sql("... {df} ...", df=df)`. Few-shot examples, per-model aliases/profiles, and structured output are built in.
 
@@ -306,12 +306,12 @@ result.backwards(["<row-id>"])   # which source rows produced this output?
 
 ## Providers
 
-| Provider | Type | Notes |
-| --- | --- | --- |
-| OpenAI | LLM + embeddings | GPT, o-series, GPT-5 family; `text-embedding-3-*` |
-| Anthropic | LLM | Claude (Haiku / Sonnet / Opus), with thinking budgets |
-| Google | LLM + embeddings | Gemini (AI Studio *and* Vertex) |
-| Cohere | Embeddings | `embed-v4.0` |
+| Provider   | Type             | Notes                                                  |
+| ---------- | ---------------- | ------------------------------------------------------ |
+| OpenAI     | LLM + embeddings | GPT, o-series, GPT-5 family; `text-embedding-3-*`      |
+| Anthropic  | LLM              | Claude (Haiku / Sonnet / Opus), with thinking budgets  |
+| Google     | LLM + embeddings | Gemini (AI Studio _and_ Vertex)                        |
+| Cohere     | Embeddings       | `embed-v4.0`                                           |
 | OpenRouter | LLM (aggregator) | provider routing, fallbacks, price/throughput controls |
 
 Reasoning/thinking effort is configurable per model via profiles, and you can register multiple models and pick per operator with `model_alias`.
@@ -329,19 +329,19 @@ End-to-end agent projects live in [**fenic-examples**](https://github.com/typede
 <details>
 <summary><b>In-repo notebooks (with Colab links)</b></summary>
 
-| Example | Description |
-| --- | --- |
-| [Hello World!](examples/hello_world) | Semantic extraction and classification through error-log analysis |
-| [Enrichment](examples/enrichment) | Multi-stage pipelines: template extraction, joins, LLM transforms |
-| [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing + Pydantic schemas + aggregations |
-| [News Analysis](examples/news_analysis) | Bias detection with classify/extract/reduce |
-| [Podcast Summarization](examples/podcast_summarization) | Speaker-aware, multi-level summarization |
-| [Semantic Join](examples/semantic_joins) | Match records across tables by meaning |
-| [Named Entity Recognition](examples/named_entity_recognition) | Multi-stage entity extraction + classification |
-| [Markdown Processing](examples/markdown_processing) | Structure extraction from Markdown |
-| [JSON Processing](examples/json_processing) | Nested JSON with `jq` |
-| [Feedback Clustering](examples/feedback_clustering) | Embeddings + clustering + summarization |
-| [Document Extraction](examples/document_extraction) | Structured metadata from diverse documents |
+| Example                                                                 | Description                                                       |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [Hello World!](examples/hello_world)                                    | Semantic extraction and classification through error-log analysis |
+| [Enrichment](examples/enrichment)                                       | Multi-stage pipelines: template extraction, joins, LLM transforms |
+| [Meeting Transcript Processing](examples/meeting_transcript_processing) | Native transcript parsing + Pydantic schemas + aggregations       |
+| [News Analysis](examples/news_analysis)                                 | Bias detection with classify/extract/reduce                       |
+| [Podcast Summarization](examples/podcast_summarization)                 | Speaker-aware, multi-level summarization                          |
+| [Semantic Join](examples/semantic_joins)                                | Match records across tables by meaning                            |
+| [Named Entity Recognition](examples/named_entity_recognition)           | Multi-stage entity extraction + classification                    |
+| [Markdown Processing](examples/markdown_processing)                     | Structure extraction from Markdown                                |
+| [JSON Processing](examples/json_processing)                             | Nested JSON with `jq`                                             |
+| [Feedback Clustering](examples/feedback_clustering)                     | Embeddings + clustering + summarization                           |
+| [Document Extraction](examples/document_extraction)                     | Structured metadata from diverse documents                        |
 
 </details>
 
