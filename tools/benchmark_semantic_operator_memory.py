@@ -4,7 +4,21 @@
 This harness is intentionally opt-in and local-only. It runs each requested case
 in an isolated child process, records the child process peak RSS via
 ``resource.getrusage(RUSAGE_SELF).ru_maxrss``, and emits copyable JSON evidence
-that can be compared before/after a change.
+that can be compared before/after a change. See
+``tools/benchmark_semantic_operator_memory_protocol.md`` for the full benchmark
+matrix, PR evidence protocol, and reviewer checklist.
+
+Default benchmark matrix:
+    ``--cases all`` runs ``sim_join``, ``semantic_reduce``, ``semantic_join``, and
+    ``map_extract_chain`` using ``--rows 64 --right-rows 32 --groups 8
+    --embedding-dimensions 8 --k 2``. These defaults are the starting point for
+    evidence-grade local before/after runs.
+
+Smoke-test boundary:
+    Pytest-sized cases such as ``--rows 2`` prove that the harness works and does
+    not call external providers. They are smoke tests only, not evidence for
+    memory-improvement claims. Increase sizes when process/session startup RSS
+    dominates the operator signal.
 
 Polars allocation note:
     Polars does not currently expose a stable process peak allocator counter
@@ -12,10 +26,19 @@ Polars allocation note:
     treats peak RSS as the authoritative memory signal and reports Polars
     allocation as unavailable instead of inventing allocator precision.
 
-Examples:
-    uv run python tools/benchmark_semantic_operator_memory.py --rows 64
-    uv run python tools/benchmark_semantic_operator_memory.py --json --label before
-    uv run python tools/benchmark_semantic_operator_memory.py --cases sim_join,semantic_reduce
+Evidence examples (wrap as needed):
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --json --label TD-XXXX-before-default
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --json --label TD-XXXX-after-default
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --cases sim_join --json --label TD-XXXX-before-sim-join
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --cases semantic_reduce --json --label TD-XXXX-before-semantic-reduce
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --cases semantic_join --json --label TD-XXXX-before-semantic-join
+    uv run python tools/benchmark_semantic_operator_memory.py
+        --cases map_extract_chain --json --label TD-XXXX-before-map-extract-chain
 """
 
 from __future__ import annotations
@@ -522,7 +545,10 @@ def _format_markdown(payload: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--cases", type=_parse_cases, default=list(ALL_CASES))
     parser.add_argument("--rows", type=int, default=64)
     parser.add_argument("--right-rows", type=int, default=32)
