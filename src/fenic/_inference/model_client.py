@@ -41,6 +41,7 @@ from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
     FenicEmbeddingsRequest,
+    ResponseUsage,
 )
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
@@ -53,17 +54,6 @@ RequestT = TypeVar("RequestT", bound=Union[FenicCompletionsRequest, FenicEmbeddi
 ResponseT = TypeVar("ResponseT", bound=Union[FenicCompletionsResponse, list[float]])
 # Configure logging
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ResponseUsage:
-    """Token usage information from API response."""
-
-    prompt_tokens: int
-    completion_tokens: int  # Actual completion tokens (non-thinking)
-    total_tokens: int
-    cached_tokens: int = 0
-    thinking_tokens: int = 0  # Separate thinking token count
 
 
 # Exception classes
@@ -299,7 +289,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """Reset all metrics for this model client to their initial values."""
         pass
 
-    def _estimator_key(self, request: RequestT):
+    def _estimator_key(self, request: RequestT) -> tuple[Optional[str], Optional[int]]:
         """Key for the output-token estimator: (profile_hash, max_completion_tokens)."""
         max_tokens = getattr(request, "max_completion_tokens", None)
         return (self.get_profile_hash_for_request(request), max_tokens)
@@ -315,7 +305,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         )
 
     def _reconcile_completion(
-        self, request: RequestT, reserved: TokenEstimate, usage
+        self, request: RequestT, reserved: TokenEstimate, usage: ResponseUsage
     ) -> None:
         """Feed actuals to the estimator and settle the bucket after a response.
 
@@ -323,9 +313,18 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         that reserved nothing. This is opportunistic post-success bookkeeping, so
         any failure here is logged and swallowed — it must never fail a request
         that already succeeded.
+
+        Settlement (bucket reconciliation to actual usage) runs regardless of
+        whether adaptive estimation is enabled. Settlement is pure accounting that
+        can only refund unused reservation — it never increases 429 risk.
+        ``enabled=False`` only affects the up-front *reservation size* (falls back
+        to the static ceiling); the settle() call always executes.
         """
         if reserved.total_tokens <= 0:
             return
+        # Record the reservation unconditionally so the metric is populated even
+        # if observe() or settle() raise below.
+        self.get_metrics().num_reserved_output_tokens += reserved.output_tokens
         try:
             actual = TokenEstimate(
                 input_tokens=usage.prompt_tokens,
@@ -335,7 +334,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 self._estimator_key(request), actual.output_tokens
             )
             self.rate_limit_strategy.settle(reserved, actual)
-            self.get_metrics().num_reserved_output_tokens += reserved.output_tokens
         except Exception as e:
             logger.warning(
                 f"Token reconciliation failed for model {self.model}: {e}"

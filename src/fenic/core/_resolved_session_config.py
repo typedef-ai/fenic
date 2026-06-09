@@ -158,6 +158,8 @@ ResolvedModelConfig = Union[
 
 @dataclass
 class ResolvedAdaptiveTokenEstimationConfig:
+    """Resolved adaptive output-token estimation config (always populated; never None)."""
+
     enabled: bool = True
     safety_margin: float = 1.15
 

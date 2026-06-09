@@ -15,10 +15,14 @@ class LMMetrics:
     """Tracks language model usage metrics including token counts and costs.
 
     Attributes:
-        num_uncached_input_tokens: Number of uncached tokens in the prompt/input
-        num_cached_input_tokens: Number of cached tokens in the prompt/input,
-        num_output_tokens: Number of tokens in the completion/output
-        cost: Total cost in USD for the LM API call
+        num_uncached_input_tokens: Number of uncached tokens in the prompt/input.
+        num_cached_input_tokens: Number of cached tokens in the prompt/input.
+        num_output_tokens: Number of tokens in the completion/output (actual usage).
+        cost: Total cost in USD for the LM API call.
+        num_requests: Total number of LM API requests made.
+        num_reserved_output_tokens: Output tokens debited from the TPM bucket at
+            reservation time. Compare against num_output_tokens to measure
+            reservation efficiency (actual / reserved → 1 is tight).
     """
 
     num_uncached_input_tokens: int = 0

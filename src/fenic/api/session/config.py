@@ -1141,7 +1141,13 @@ class SemanticConfig(BaseModel):
     embedding_models: Optional[dict[str, EmbeddingModel]] = None
     default_embedding_model: Optional[str] = None
     llm_response_cache: Optional[LLMResponseCacheConfig] = None
-    adaptive_token_estimation: Optional[AdaptiveTokenEstimationConfig] = None
+    adaptive_token_estimation: Optional[AdaptiveTokenEstimationConfig] = Field(
+        default=None,
+        description=(
+            "Adaptive output-token estimation config. None means enabled with defaults "
+            "(contrast llm_response_cache, where None means disabled)."
+        ),
+    )
 
     def model_post_init(self, __context) -> None:
         """Post initialization hook to set defaults.
@@ -1505,8 +1511,13 @@ class AdaptiveTokenEstimationConfig(BaseModel):
 
     Output-token reservations are learned from observed usage and clamped to the
     request's max_completion_tokens ceiling, then corrected after each response
-    (settlement). Enabled by default; disabling reverts to static worst-case
-    reservation with no settlement.
+    (settlement). Enabled by default.
+
+    Setting ``enabled=False`` disables adaptive *estimation* — reservations fall
+    back to the static worst-case ceiling instead of the learned distribution.
+    Settlement (reconciling the token bucket to actual usage after each response)
+    is **always on** regardless of this flag, because settlement is pure accounting
+    that can only refund unused reservation and cannot increase 429 risk.
     """
 
     enabled: bool = True

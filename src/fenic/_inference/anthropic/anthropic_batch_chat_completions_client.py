@@ -388,7 +388,7 @@ class AnthropicBatchCompletionsClient(
             super().count_tokens(messages) * self._tokenizer_adjustment_ratio
         )
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
+    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
         """Estimate the number of tokens for a request."""
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)

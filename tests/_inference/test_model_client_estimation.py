@@ -135,3 +135,30 @@ def test_disabled_reservation_returns_ceiling_even_after_observations():
         assert client._adaptive_output_reservation(req, static_ceiling=8704, reasoning=False) == 8704
     finally:
         client.shutdown()
+
+
+def test_settlement_runs_when_disabled():
+    """Settlement (bucket reconciliation) is always-on even when estimation is disabled.
+
+    enabled=False only disables adaptive *estimation* (reservations use the static
+    ceiling). Settlement still refunds over-reservation because it is pure accounting
+    that cannot increase 429 risk.
+    """
+    import time
+
+    client = _client(enabled=False)
+    try:
+        req = _request(512)
+        reserved = TokenEstimate(input_tokens=10, output_tokens=8704)
+        client.rate_limit_strategy.check_and_consume_rate_limit(reserved)
+        before = client.rate_limit_strategy.unified_tokens_bucket._get_available_capacity(time.time())
+        client._reconcile_completion(
+            req,
+            reserved,
+            ResponseUsage(prompt_tokens=10, completion_tokens=50, total_tokens=60),
+        )
+        after = client.rate_limit_strategy.unified_tokens_bucket._get_available_capacity(time.time())
+        # Settlement must have refunded the over-reservation even though estimation is disabled.
+        assert after > before
+    finally:
+        client.shutdown()

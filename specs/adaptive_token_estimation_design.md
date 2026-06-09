@@ -70,8 +70,8 @@ This design closes that loop with two complementary mechanisms and one structura
 
 4. **Default-on with a single conservative dial.** Ship enabled by default with a
    `safety_margin` knob (default `1.15`). The reservation is always clamped `≤` the old
-   static ceiling, so we only ever reserve _less_, never more. Disabling reverts to exact
-   prior behavior.
+   static ceiling, so we only ever reserve _less_, never more. Disabling turns off adaptive
+   estimation (reservations use the static ceiling) but settlement remains always-on.
 
 5. **Smallest seam.** No scheduler changes. Configuration lives at the shared
    `SemanticConfig` level (mirroring `llm_response_cache`) and threads through the model
@@ -81,7 +81,7 @@ This design closes that loop with two complementary mechanisms and one structura
 
 - **Higher TPM utilization** on large batches (reserved-vs-actual output ratio approaches
   the safety margin instead of the old ceiling), surfaced via new `LMMetrics` fields.
-- **No regression** for small batches or when disabled (byte-for-byte prior behavior).
+- **No regression** for small batches or when disabled (static-ceiling reservation, settlement still runs).
 - **Bounded 429 risk:** background 429 rate stays low; occasional misses are absorbed by
   the existing retry queue + backoff.
 
@@ -123,7 +123,7 @@ semantic = SemanticConfig(
 )
 ```
 
-Revert to the previous static-ceiling behavior:
+Disable adaptive estimation (reservations use the static ceiling; settlement is still always-on):
 
 ```python
 adaptive_token_estimation=AdaptiveTokenEstimationConfig(enabled=False)
@@ -198,8 +198,9 @@ class AdaptiveTokenEstimationConfig(BaseModel):
 
     Output-token reservations are learned from observed usage and clamped to the
     request's max_completion_tokens ceiling, then corrected after each response
-    (settlement). Enabled by default; disabling reverts to static worst-case
-    reservation with no settlement.
+    (settlement). Enabled by default. Setting enabled=False disables adaptive
+    estimation (reservations use the static ceiling); settlement is always-on
+    regardless and cannot increase 429 risk.
     """
     enabled: bool = True
     safety_margin: float = Field(
@@ -484,7 +485,8 @@ Surfaced during peer review; **out of scope** for this change but recorded:
 - Extend an existing semantic smoke test to assert `num_reserved_output_tokens` is populated
   (`> 0`). (Aggregate `reserved ≥ actual` holds for typical distributions but is not
   guaranteed under heavy tail-row clustering, so don't assert it as an invariant.)
-- Regression: with `enabled=False`, reservations and metrics match prior static behavior.
+- Regression: with `enabled=False`, reservations use the static ceiling (no adaptive estimation);
+  settlement still runs (always-on) and refunds over-reservation to the bucket.
 
 ---
 
