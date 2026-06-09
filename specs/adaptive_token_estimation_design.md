@@ -1,8 +1,8 @@
 # Adaptive Output-Token Estimation & Settlement Design Specification
 
-**Version:** 1.0
-**Status:** Implemented (`f1ef4ef`…`a359815`)
-**Last Updated:** 2026-06-05
+**Version:** 1.1
+**Status:** Implemented (see PR for commit range)
+**Last Updated:** 2026-06-09
 
 ---
 
@@ -439,13 +439,14 @@ the four completion providers; shared config; observability counter.
 
 ## Risks & Mitigations
 
-| Risk                                                                                                                                                                     | Mitigation                                                                                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reserving less ⇒ more concurrent dispatch ⇒ genuinely higher 429 risk. Settlement does **not** prevent under-reservation 429s (tokens already spent before settle runs). | High quantile (p95/p99) × margin (default 1.15), clamped ≤ old ceiling. Existing retry queue + backoff absorb the residual. `safety_margin` and `enabled=False` are user escape hatches. |
-| Reasoning models have correlated, bursty thinking spikes that a pooled p95 may under-cover.                                                                              | Use p99 for reasoning-enabled profiles; reservation still clamped ≤ the full thinking budget ceiling; settlement corrects after.                                                         |
-| Concurrency: estimator read (producer thread) vs write (event loop).                                                                                                     | Dedicated `threading.Lock` in the estimator. `settle()` is event-loop-only and documented as such.                                                                                       |
-| Behavior change for existing users (default-on).                                                                                                                         | Reservation is always ≤ prior ceiling (never more aggressive than today on a per-request basis beyond the intended throughput gain); conservative default margin; one-line disable.      |
-| Small batches (< `min_samples`) never warm up.                                                                                                                           | Documented: they transparently use the static ceiling (no regression, no surprise); settlement still applies.                                                                            |
+| Risk                                                                                                                                                                     | Mitigation                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reserving less ⇒ more concurrent dispatch ⇒ genuinely higher 429 risk. Settlement does **not** prevent under-reservation 429s (tokens already spent before settle runs). | High quantile (p95/p99) × margin (default 1.15), clamped ≤ old ceiling. Existing retry queue + backoff absorb the residual. `safety_margin` and `enabled=False` are user escape hatches.                                                 |
+| Reasoning models have correlated, bursty thinking spikes that a pooled p95 may under-cover.                                                                              | Use p99 for reasoning-enabled profiles; reservation still clamped ≤ the full thinking budget ceiling; settlement corrects after.                                                                                                         |
+| Concurrency: estimator read (producer thread) vs write (event loop).                                                                                                     | Dedicated `threading.Lock` in the estimator. `settle()` is event-loop-only and documented as such.                                                                                                                                       |
+| Behavior change for existing users (default-on).                                                                                                                         | Reservation is always ≤ prior ceiling (never more aggressive than today on a per-request basis beyond the intended throughput gain); conservative default margin; one-line disable.                                                      |
+| Small batches (< `min_samples`) never warm up.                                                                                                                           | Documented: they transparently use the static ceiling (no regression, no surprise); settlement still applies.                                                                                                                            |
+| During an active 429 backoff, in-flight successes that complete after `backoff()` zeroed the bucket still `settle()` and re-inject capacity the backoff meant to drain.  | Measured by the harness at ~0.4% of the bucket per event when the estimator is warm; only occurs when the client is over-provisioned vs. the true limit. Deferred — tracked in TD-3375 (backoff-generation guard sketch included there). |
 
 ---
 
@@ -487,6 +488,36 @@ Surfaced during peer review; **out of scope** for this change but recorded:
   guaranteed under heavy tail-row clustering, so don't assert it as an invariant.)
 - Regression: with `enabled=False`, reservations use the static ceiling (no adaptive estimation);
   settlement still runs (always-on) and refunds over-reservation to the bucket.
+- `tests/_inference/test_provider_routing_coverage.py` — hermetic Anthropic/Gemini/OpenRouter
+  routing (learned estimate drops, API cap unchanged, disabled stays at ceiling) and
+  thinking-token settlement (`actual = completion + thinking`).
+- `tests/_inference/rate_limit_harness/` + `test_rate_limit_performance.py` — hermetic
+  performance harness: a `SimulatedCompletionsClient` drives the **real**
+  queue/backoff/settle path against a simulated server-side limiter with configurable output
+  distributions; counts logical completions (never retried attempts) and emits a per-event
+  trace (dispatch/success/429/backoff/settle).
+
+---
+
+## Measured Results (performance harness)
+
+From `test_rate_limit_performance.py` (n=840 rows, ceiling 200, actual output ~80, real clock):
+
+| Mode                                     | Wall-clock | Reservation efficiency |
+| ---------------------------------------- | ---------- | ---------------------- |
+| Pre-feature (ceiling reserve, no settle) | 3.14s      | 0.40                   |
+| Settlement only (`enabled=False`)        | 0.14s      | 0.40                   |
+| Estimation + settlement (`enabled=True`) | 0.13s      | **0.79**               |
+
+- **Settlement alone is ~23× throughput** on this workload; adaptive estimation roughly
+  doubles reservation efficiency on top. This is why settlement is always-on.
+- Configured ≤ true provider limit ⇒ **0 server-side 429s**; over-provisioned configs
+  correctly engage the 429 → backoff → retry path and still drain the batch.
+- Regime-shift workloads (estimator-key pooling under-reserves after a tiny→large output
+  shift) leaked **0 server-side 429s** — per-success settlement closes the overshoot window
+  before the server is hit.
+- Settle-after-backoff re-injection (see Risks) measured at ~12 tokens/event ≈ 0.4% of the
+  bucket when warm — basis for deferring the backoff-generation guard (TD-3375).
 
 ---
 
