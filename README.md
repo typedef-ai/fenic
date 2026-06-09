@@ -25,20 +25,6 @@ The point is a shift in what your data work _produces_. Humans and agents work o
 pip install fenic
 ```
 
-Optional feature extras install heavier dependencies only when you need them:
-
-```bash
-pip install "fenic[pdf]"       # semantic.parse_pdf and PDF metadata loading
-pip install "fenic[cluster]"   # DataFrame.semantic.with_cluster_labels
-pip install "fenic[sim-join]"  # semantic.sim_join
-```
-
-Extras can be combined with model provider extras, for example:
-
-```bash
-pip install "fenic[google,pdf,cluster,sim-join]"
-```
-
 > **Writing fenic with an AI coding agent?** Run `fenic skill install` so Claude Code / Cursor / Codex write it correctly, and `fenic check` to lint it — [details below](#writing-fenic-with-an-ai-coding-agent).
 
 ---
@@ -341,6 +327,10 @@ result = df.lineage()
 result.backwards(["<row-id>"])   # which source rows produced this output?
 ```
 
+---
+
+## Optional Feature Extras
+
 Install optional feature extras when you use heavier operators:
 
 | Extra      | Enables                                       |
@@ -353,6 +343,12 @@ Install optional feature extras when you use heavier operators:
 pip install "fenic[pdf,cluster,sim-join]"
 # or
 uv add "fenic[pdf,cluster,sim-join]"
+```
+
+Extras can be combined with model provider extras, for example:
+
+```bash
+pip install "fenic[google,pdf,cluster,sim-join]"
 ```
 
 ---
