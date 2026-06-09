@@ -145,14 +145,11 @@ class AnthropicBatchCompletionsClient(
         profile_configuration = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
-        request_max_tokens = (
-            request.max_completion_tokens + profile_configuration.thinking_token_budget
-        )
         messages_creation_payload: dict[str, Any] = {
             "model": self.model,
             "system": [system_prompt],
             "messages": message_params,
-            "max_tokens": request_max_tokens,
+            "max_tokens": self._get_max_output_token_request_limit(request),
             "thinking": profile_configuration.thinking_config,
         }
         if profile_configuration.output_config:
@@ -344,12 +341,13 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
-        return (
+        requested_max_tokens = (
             request.max_completion_tokens
             + self._profile_manager.get_profile_by_name(
                 request.model_profile
             ).thinking_token_budget
         )
+        return min(requested_max_tokens, self._model_parameters.max_output_tokens)
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
     # This is a rough estimate, but it's good enough for our purposes.

@@ -716,7 +716,11 @@ class AnthropicLanguageModel(BaseModel):
             ConfigurationError: If a profile is set with parameters that are not supported by the model.
 
         Note:
-            If `thinking_token_budget` or `effort` enables thinking, `temperature` cannot be customized -- any changes to `temperature` will be ignored.
+            If `thinking_token_budget` or adaptive `effort` enables thinking,
+            `temperature` cannot be customized -- any changes to `temperature`
+            will be ignored. Effort-only profiles on non-adaptive models
+            configure Anthropic `output_config` without enabling thinking, so
+            custom `temperature` remains available when the model supports it.
 
         Example:
             Configuring a profile with a thinking budget:

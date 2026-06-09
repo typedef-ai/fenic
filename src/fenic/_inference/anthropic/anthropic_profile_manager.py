@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -6,6 +7,14 @@ import anthropic
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
 from fenic.core._resolved_session_config import ResolvedAnthropicModelProfile
+
+ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS = {
+    "low": 0.20,
+    "medium": 0.50,
+    "high": 0.80,
+    "xhigh": 0.95,
+    "max": 1.00,
+}
 
 
 @dataclass
@@ -73,6 +82,10 @@ class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelPr
         elif profile.effort and self.model_parameters.uses_adaptive_thinking:
             return AnthropicProfileConfiguration(
                 thinking_enabled=True,
+                thinking_token_budget=math.ceil(
+                    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS[profile.effort]
+                    * self.model_parameters.max_output_tokens
+                ),
                 thinking_config=anthropic.types.ThinkingConfigAdaptiveParam(
                     type="adaptive"
                 ),
