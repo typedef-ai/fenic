@@ -35,6 +35,10 @@ from fenic._inference.types import (
     ResponseUsage,
 )
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.output_token_limits import (
+    OPENROUTER_REASONING_EFFORT_RATIOS,
+    validate_effective_output_token_limit,
+)
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
 
@@ -279,7 +283,13 @@ class OpenRouterBatchChatCompletionsClient(
         If max_completion_tokens is provided, includes the thinking token budget with a safety margin."""
         if request.max_completion_tokens is None:
             return None
-        return request.max_completion_tokens + self._get_expected_additional_reasoning_tokens(request)
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=self._get_expected_additional_reasoning_tokens(request),
+        )
 
     def _estimate_input_tokens(self, request: FenicCompletionsRequest) -> int:
         """Estimate the number of input tokens for a request."""
@@ -304,18 +314,11 @@ class OpenRouterBatchChatCompletionsClient(
         additional_reasoning_tokens = 0
         if profile_config.reasoning_max_tokens:
             additional_reasoning_tokens = profile_config.reasoning_max_tokens
-        elif profile_config.reasoning_effort == "none":
-            additional_reasoning_tokens = 0
-        elif profile_config.reasoning_effort == "minimal":
-            additional_reasoning_tokens = math.ceil(0.10 * self._model_parameters.max_output_tokens)
-        elif profile_config.reasoning_effort == "low":
-            additional_reasoning_tokens = math.ceil(0.20 * self._model_parameters.max_output_tokens)
-        elif profile_config.reasoning_effort == "medium":
-            additional_reasoning_tokens = math.ceil(0.50 * self._model_parameters.max_output_tokens)
-        elif profile_config.reasoning_effort == "high":
-            additional_reasoning_tokens = math.ceil(0.80 * self._model_parameters.max_output_tokens)
-        elif profile_config.reasoning_effort == "xhigh":
-            additional_reasoning_tokens = math.ceil(0.95 * self._model_parameters.max_output_tokens)
+        elif profile_config.reasoning_effort:
+            additional_reasoning_tokens = math.ceil(
+                OPENROUTER_REASONING_EFFORT_RATIOS[profile_config.reasoning_effort]
+                * self._model_parameters.max_output_tokens
+            )
         return additional_reasoning_tokens
 
     def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> OpenRouterCompletionProfileConfiguration:

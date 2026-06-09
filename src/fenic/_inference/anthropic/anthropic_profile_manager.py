@@ -6,15 +6,10 @@ import anthropic
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
+from fenic.core._inference.output_token_limits import (
+    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
+)
 from fenic.core._resolved_session_config import ResolvedAnthropicModelProfile
-
-ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS = {
-    "low": 0.20,
-    "medium": 0.50,
-    "high": 0.80,
-    "xhigh": 0.95,
-    "max": 1.00,
-}
 
 
 @dataclass

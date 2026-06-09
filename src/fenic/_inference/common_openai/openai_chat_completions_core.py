@@ -33,6 +33,9 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    validate_effective_output_token_limit,
+)
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -230,7 +233,11 @@ class OpenAIChatCompletionsCore:
         """
         return generate_completion_request_key(request)
 
-    def get_max_output_token_request_limit(self, request: FenicCompletionsRequest, profile_config:OpenAICompletionProfileConfiguration) -> Optional[int]:
+    def get_max_output_token_request_limit(
+        self,
+        request: FenicCompletionsRequest,
+        profile_config: OpenAICompletionProfileConfiguration,
+    ) -> Optional[int]:
         """Return the maximum output token limit for a request.
 
         Returns None if max_completion_tokens is not provided (no limit should be set).
@@ -238,4 +245,10 @@ class OpenAIChatCompletionsCore:
         """
         if request.max_completion_tokens is None:
             return None
-        return request.max_completion_tokens + profile_config.expected_additional_reasoning_tokens
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=profile_config.expected_additional_reasoning_tokens,
+        )

@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
+from fenic.core._inference.output_token_limits import OPENAI_REASONING_TOKEN_ESTIMATES
 from fenic.core._resolved_session_config import ResolvedOpenAIModelProfile
 
 
@@ -57,19 +58,7 @@ class OpenAICompletionsProfileManager(
 
     def _get_reasoning_tokens(self, reasoning_effort: str) -> int:
         """Get the expected additional reasoning tokens for a given reasoning effort level."""
-        if reasoning_effort == "none":
-            return 0
-        elif reasoning_effort == "minimal":
-            return 2048
-        elif reasoning_effort == "low":
-            return 4096
-        elif reasoning_effort == "medium":
-            return 8192
-        elif reasoning_effort == "high":
-            return 16384
-        elif reasoning_effort == "xhigh":
-            return 32768
-        return 0
+        return OPENAI_REASONING_TOKEN_ESTIMATES[reasoning_effort]
 
     def get_default_profile(self) -> OpenAICompletionProfileConfiguration:
         """Get default OpenAI configuration."""

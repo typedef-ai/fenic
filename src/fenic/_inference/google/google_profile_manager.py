@@ -14,17 +14,15 @@ from fenic.core._inference.model_catalog import (
     EmbeddingModelParameters,
     MediaResolutionType,
 )
+from fenic.core._inference.output_token_limits import (
+    GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES,
+)
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 
 # Estimated thinking token budgets for each level (used for cost estimation).
 # These are approximations based on typical model behavior - actual token usage
 # varies based on prompt complexity and model decisions.
-THINKING_TOKEN_ESTIMATES: Final[Dict[str, int]] = {
-    "high": 32768,     # Maximum thinking, most thorough reasoning
-    "medium": 16384,   # Balanced thinking
-    "low": 8192,       # Reduced thinking, faster responses
-    "minimal": 2048,   # Minimal thinking, quickest responses
-}
+THINKING_TOKEN_ESTIMATES: Final[Dict[str, int]] = GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES
 
 
 @dataclass

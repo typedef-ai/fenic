@@ -12,6 +12,7 @@ from fenic._inference.anthropic.anthropic_profile_manager import (
 from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._resolved_session_config import ResolvedAnthropicModelProfile
+from fenic.core.error import ValidationError
 
 
 def test_adaptive_effort_profile_uses_output_config():
@@ -56,11 +57,13 @@ def test_manual_thinking_budget_profile_still_uses_budget_tokens():
     assert profile.output_config == {"effort": "high"}
 
 
-def test_adaptive_effort_profile_clamps_max_tokens_to_model_limit():
+def test_adaptive_effort_profile_rejects_max_tokens_above_model_limit():
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, "claude-opus-4-8"
     )
     client = AnthropicBatchCompletionsClient.__new__(AnthropicBatchCompletionsClient)
+    client.model_provider = ModelProvider.ANTHROPIC
+    client.model = "claude-opus-4-8"
     client._model_parameters = params
     client._profile_manager = AnthropicCompletionsProfileManager(
         model_parameters=params,
@@ -77,4 +80,5 @@ def test_adaptive_effort_profile_clamps_max_tokens_to_model_limit():
         temperature=None,
     )
 
-    assert client._get_max_output_token_request_limit(request) == params.max_output_tokens
+    with pytest.raises(ValidationError, match="plus estimated reasoning tokens"):
+        client._get_max_output_token_request_limit(request)

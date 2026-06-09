@@ -46,6 +46,9 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    validate_effective_output_token_limit,
+)
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
 from fenic.core.error import ExecutionError
@@ -380,9 +383,12 @@ class GeminiNativeChatCompletionsClient(
         If max_completion_tokens is provided, includes the thinking token budget with a safety margin."""
         if request.max_completion_tokens is None:
             return None
-        return (
-            request.max_completion_tokens
-            + self._get_expected_additional_reasoning_tokens(request)
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=self._get_expected_additional_reasoning_tokens(request),
         )
 
     def _get_expected_additional_reasoning_tokens(

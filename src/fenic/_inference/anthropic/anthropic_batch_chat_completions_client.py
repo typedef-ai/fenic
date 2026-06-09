@@ -50,6 +50,9 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    validate_effective_output_token_limit,
+)
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
@@ -341,13 +344,15 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
-        requested_max_tokens = (
-            request.max_completion_tokens
-            + self._profile_manager.get_profile_by_name(
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=self._profile_manager.get_profile_by_name(
                 request.model_profile
-            ).thinking_token_budget
+            ).thinking_token_budget,
         )
-        return min(requested_max_tokens, self._model_parameters.max_output_tokens)
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
     # This is a rough estimate, but it's good enough for our purposes.
