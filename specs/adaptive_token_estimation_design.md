@@ -33,7 +33,7 @@ so throughput sits far below the provider's true limit.
 
 Concretely, for every request the limiter reserves:
 
-```
+```text
 output_tokens = max_completion_tokens + reasoning_budget
 ```
 
@@ -135,7 +135,7 @@ adaptive_token_estimation=AdaptiveTokenEstimationConfig(enabled=False)
 
 ### Two mechanisms, one structural change
 
-```
+```text
                           ┌─────────────────────────── ModelClient (event loop) ──────────────────────────┐
 Producer thread           │                                                                                │
 ─────────────────         │  _process_queue (dispatch)            _handle_response (settle + observe)       │
