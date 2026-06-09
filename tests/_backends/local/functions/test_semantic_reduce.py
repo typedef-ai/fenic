@@ -12,7 +12,7 @@ from fenic import (
     semantic,
     sum,
 )
-from fenic._inference.types import FenicCompletionsResponse
+from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -39,6 +39,57 @@ def _install_deterministic_reduce_model(local_session, monkeypatch):
         return responses
 
     monkeypatch.setattr(model, "get_completions", fake_get_completions)
+
+
+def test_semantic_reduce_calls_model_client_completion_api(local_session, monkeypatch):
+    """Tripwire semantic.reduce's call into LanguageModel/ModelClient completions."""
+    model = local_session._session_state.get_language_model()
+    monkeypatch.setattr(model, "count_tokens", lambda _: 1)
+
+    captured_batches = []
+
+    def fake_make_batch_requests(requests, operation_name, request_timeout=None):
+        captured_batches.append(
+            {
+                "requests": requests,
+                "operation_name": operation_name,
+                "request_timeout": request_timeout,
+            }
+        )
+        return [FenicCompletionsResponse(completion="tripwire summary", logprobs=None)]
+
+    monkeypatch.setattr(model.client, "make_batch_requests", fake_make_batch_requests)
+
+    result = local_session.create_dataframe({"notes": ["alpha", "beta"]}).agg(
+        semantic.reduce(
+            "Summarize the tripwire notes.",
+            col("notes"),
+            max_output_tokens=37,
+            temperature=0.25,
+        ).alias("summary")
+    ).to_polars()
+
+    assert result.to_dicts() == [{"summary": "tripwire summary"}]
+    assert len(captured_batches) == 1
+
+    batch = captured_batches[0]
+    assert batch["operation_name"] == "semantic.reduce(group=0)"
+    assert batch["request_timeout"] is None
+
+    requests = batch["requests"]
+    assert len(requests) == 1
+    request = requests[0]
+    assert isinstance(request, FenicCompletionsRequest)
+    assert request.max_completion_tokens == 37
+    assert request.top_logprobs is None
+    assert request.structured_output is None
+    assert request.model_profile is None
+    assert request.temperature in (0.25, None)
+    user_message = request.messages.user
+    assert user_message is not None
+    assert "Summarize the tripwire notes." in user_message
+    assert "<document1>\nalpha\n</document1>" in user_message
+    assert "<document2>\nbeta\n</document2>" in user_message
 
 
 def test_semantic_reduce(local_session):
