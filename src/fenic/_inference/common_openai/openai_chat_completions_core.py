@@ -17,7 +17,10 @@ from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionProfileConfiguration,
 )
 from fenic._inference.common_openai.openai_utils import convert_messages
-from fenic._inference.common_openai.utils import handle_openai_compatible_response
+from fenic._inference.common_openai.utils import (
+    handle_openai_compatible_response,
+    is_insufficient_quota_error,
+)
 from fenic._inference.model_client import (
     FatalException,
     TransientException,
@@ -211,7 +214,7 @@ class OpenAIChatCompletionsCore:
             return TransientException(e)
 
         except RateLimitError as e:
-            if e.response and e.response.json()["error"]["type"] == "insufficient_quota":
+            if is_insufficient_quota_error(e):
                 logger.error(f"Insufficient quota on {self._model_provider.value} provider: {e}")
                 return FatalException(e)
             return TransientException(e)
