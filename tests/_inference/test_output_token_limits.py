@@ -1,3 +1,6 @@
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
@@ -69,6 +72,79 @@ def test_openai_core_output_limit_uses_internal_model_identity():
         )
         == 512
     )
+
+
+class FakeOpenAICompletions:
+    def __init__(self):
+        self.kwargs = None
+
+    async def create(self, **kwargs):
+        self.kwargs = kwargs
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="ok", refusal=None),
+                    finish_reason="stop",
+                    logprobs=None,
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=1,
+                prompt_tokens_details=None,
+                completion_tokens=1,
+                completion_tokens_details=None,
+            ),
+        )
+
+
+def _make_openai_core_with_fake_completions():
+    fake_completions = FakeOpenAICompletions()
+    return (
+        OpenAIChatCompletionsCore(
+            model="gpt-4.1-nano",
+            model_provider=ModelProvider.OPENAI,
+            token_counter=None,
+            client=SimpleNamespace(
+                chat=SimpleNamespace(completions=fake_completions),
+                beta=None,
+            ),
+        ),
+        fake_completions,
+    )
+
+
+def test_openai_core_omits_zero_temperature():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=0,
+    )
+
+    asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert "temperature" not in fake_completions.kwargs
+
+
+def test_openai_core_sends_nonzero_temperature():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=0.2,
+    )
+
+    asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert fake_completions.kwargs["temperature"] == 0.2
 
 
 def test_openrouter_effort_estimate_uses_model_output_ratio():
@@ -323,3 +399,39 @@ def test_google_plan_estimate_matches_runtime_safety_margin():
         )
         == int(GOOGLE_REASONING_SAFETY_MARGIN * 20_000)
     )
+
+
+def test_openai_core_sends_verbosity_when_configured():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    asyncio.run(
+        core.make_single_request(
+            request, OpenAICompletionProfileConfiguration(verbosity="high")
+        )
+    )
+
+    assert fake_completions.kwargs["verbosity"] == "high"
+
+
+def test_openai_core_omits_verbosity_when_unset():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert "verbosity" not in fake_completions.kwargs

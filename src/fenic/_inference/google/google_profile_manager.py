@@ -2,9 +2,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from google.genai.types import (
-    EmbedContentConfigDict,
-    GenerateContentConfigDict,
-    ThinkingConfigDict,
+    EmbedContentConfig,
+    ThinkingConfig,
     ThinkingLevel,
 )
 
@@ -27,18 +26,18 @@ class GoogleCompletionsProfileConfig(BaseProfileConfiguration):
     Attributes:
         thinking_enabled: Whether thinking/reasoning is enabled for this profile
         thinking_token_budget: Token budget allocated for thinking/reasoning
-        additional_generation_config: Additional Google-specific generation configuration
+        thinking_config: Google thinking configuration
         media_resolution: Media resolution for PDF processing (gemini-3+ models)
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
-    additional_generation_config: GenerateContentConfigDict = field(default_factory=GenerateContentConfigDict)
+    thinking_config: Optional[ThinkingConfig] = None
     media_resolution: Optional[MediaResolutionType] = None
 
 @dataclass
 class GoogleEmbeddingsProfileConfig(BaseProfileConfiguration):
     """Configuration for Google Gemini embeddings model profiles."""
-    additional_embedding_config: EmbedContentConfigDict = field(default_factory=EmbedContentConfigDict)
+    embedding_config: EmbedContentConfig = field(default_factory=EmbedContentConfig)
 
 class GoogleEmbeddingsProfileManager(ProfileManager[ResolvedGoogleModelProfile, GoogleEmbeddingsProfileConfig]):
 
@@ -53,15 +52,11 @@ class GoogleEmbeddingsProfileManager(ProfileManager[ResolvedGoogleModelProfile, 
 
 
     def _process_profile(self, profile: ResolvedGoogleModelProfile) -> GoogleEmbeddingsProfileConfig:
-        config_dict = EmbedContentConfigDict()
-        if profile.embedding_dimensionality:
-            config_dict["output_dimensionality"] = profile.embedding_dimensionality
-
-        if profile.embedding_task_type:
-            config_dict["task_type"] = profile.embedding_task_type
-
         return GoogleEmbeddingsProfileConfig(
-           additional_embedding_config=config_dict,
+           embedding_config=EmbedContentConfig(
+               output_dimensionality=profile.embedding_dimensionality,
+               task_type=profile.embedding_task_type,
+           ),
         )
 
     def get_default_profile(self) -> GoogleEmbeddingsProfileConfig:
@@ -104,7 +99,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         Returns:
             Google-specific profile configuration
         """
-        additional_generation_config: GenerateContentConfigDict = {}
+        thinking_config = None
         thinking_enabled = False
         expected_thinking_tokens = 0
 
@@ -129,26 +124,21 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 }
                 thinking_level_enum = thinking_level_map[thinking_level]
                 expected_thinking_tokens = GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES[thinking_level]
-                thinking_config: ThinkingConfigDict = {
-                    "thinking_level": thinking_level_enum
-                }
-                additional_generation_config.update({"thinking_config": thinking_config})
+                thinking_config = ThinkingConfig(thinking_level=thinking_level_enum)
             elif profile.thinking_token_budget is None or profile.thinking_token_budget == 0:
                 # Thinking disabled
                 thinking_enabled = False
-                thinking_config: ThinkingConfigDict = {
-                    "include_thoughts": False,
-                    "thinking_budget": 0
-                }
-                additional_generation_config.update({"thinking_config": thinking_config})
+                thinking_config = ThinkingConfig(
+                    include_thoughts=False,
+                    thinking_budget=0,
+                )
             else:
                 # Thinking enabled with budget
                 thinking_enabled = True
-                thinking_config: ThinkingConfigDict = {
-                    "include_thoughts": False,
-                    "thinking_budget": profile.thinking_token_budget
-                }
-                additional_generation_config.update({"thinking_config": thinking_config})
+                thinking_config = ThinkingConfig(
+                    include_thoughts=False,
+                    thinking_budget=profile.thinking_token_budget,
+                )
 
                 if profile.thinking_token_budget > 0:
                     expected_thinking_tokens = profile.thinking_token_budget
@@ -164,7 +154,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
         return GoogleCompletionsProfileConfig(
             thinking_enabled=thinking_enabled,
             thinking_token_budget=expected_thinking_tokens,
-            additional_generation_config=additional_generation_config,
+            thinking_config=thinking_config,
             media_resolution=media_resolution,
         )
 
@@ -183,10 +173,8 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 return GoogleCompletionsProfileConfig(
                     thinking_enabled=True,
                     thinking_token_budget=8192,  # Estimated for low
-                    additional_generation_config=GenerateContentConfigDict(
-                        thinking_config=ThinkingConfigDict(
-                            thinking_level=ThinkingLevel.LOW
-                        )
+                    thinking_config=ThinkingConfig(
+                        thinking_level=ThinkingLevel.LOW
                     ),
                     media_resolution=media_resolution,
                 )
@@ -194,11 +182,9 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 return GoogleCompletionsProfileConfig(
                     thinking_enabled=False,
                     thinking_token_budget=0,
-                    additional_generation_config=GenerateContentConfigDict(
-                        thinking_config=ThinkingConfigDict(
-                            include_thoughts=False,
-                            thinking_budget=0
-                        )
+                    thinking_config=ThinkingConfig(
+                        include_thoughts=False,
+                        thinking_budget=0,
                     ),
                     media_resolution=media_resolution,
                 )
@@ -207,11 +193,9 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                 return GoogleCompletionsProfileConfig(
                     thinking_enabled=True,
                     thinking_token_budget=1024,
-                    additional_generation_config=GenerateContentConfigDict(
-                        thinking_config=ThinkingConfigDict(
-                            include_thoughts=True,
-                            thinking_budget=1024
-                        )
+                    thinking_config=ThinkingConfig(
+                        include_thoughts=True,
+                        thinking_budget=1024,
                     ),
                     media_resolution=media_resolution,
                 )

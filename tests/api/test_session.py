@@ -532,6 +532,15 @@ def test_model_profile_validation():
                 language_models={"gemini-3.1-pro-preview": GoogleDeveloperLanguageModel(model_name="gemini-3.1-pro-preview", rpm=100, tpm=1000, profiles={"high": GoogleDeveloperLanguageModel.Profile(thinking_token_budget=100)})}
             )
         )
+    with pytest.raises(PydanticValidationError, match="Input should be 'low', 'medium' or 'high'"):
+        GoogleDeveloperLanguageModel.Profile(media_resolution="ultra_high")
+    with pytest.raises(ConfigurationError, match="Model 'gemini-2.5-flash' does not support media_resolution. Please remove media_resolution from 'high'."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gemini-2.5-flash": GoogleDeveloperLanguageModel(model_name="gemini-2.5-flash", rpm=100, tpm=1000, profiles={"high": GoogleDeveloperLanguageModel.Profile(media_resolution="high")})}
+            )
+        )
 
 
     # Test that gpt-5.1 works with 'none' reasoning (default)

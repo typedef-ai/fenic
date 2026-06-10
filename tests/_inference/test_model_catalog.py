@@ -248,7 +248,8 @@ def test_gpt_55_default_profile_uses_provider_default_reasoning():
     params = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
     profile = OpenAICompletionsProfileManager(params).get_default_profile()
 
-    assert profile.additional_parameters["reasoning_effort"] == "medium"
+    assert profile.reasoning_effort == "medium"
+    assert profile.verbosity is None
     assert profile.expected_additional_reasoning_tokens == 8192
 
 def test_openrouter_provider_loads_models(mock_openrouter_models):
