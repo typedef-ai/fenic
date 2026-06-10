@@ -58,6 +58,7 @@ import time
 import traceback
 from collections.abc import Callable
 from pathlib import Path
+from queue import Empty
 from typing import Any, Literal
 
 CaseName = Literal["sim_join", "semantic_reduce", "semantic_join", "map_extract_chain"]
@@ -447,14 +448,22 @@ def _run_case(case: CaseName, config: BenchmarkConfig) -> dict[str, Any]:
     process = ctx.Process(target=_run_case_child, args=(case, config, queue))
     process.start()
     process.join()
-    if queue.empty():
+    try:
+        result = queue.get_nowait()
+    except Empty:
         return {
             "ok": False,
             "case": case,
             "error": f"child exited with code {process.exitcode} before reporting",
             "peak_rss_bytes": 0,
         }
-    result = queue.get()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "case": case,
+            "error": f"failed to read child result after exit code {process.exitcode}: {exc!r}",
+            "peak_rss_bytes": 0,
+        }
     result["exit_code"] = process.exitcode
     return result
 
@@ -489,7 +498,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     payload = {
         "schema_version": 1,
         "label": args.label,
-        "generated_at": dt.datetime.now(dt.UTC).isoformat(),
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "git": {
             "branch": _git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
             "commit": _git_value(["rev-parse", "HEAD"]),
