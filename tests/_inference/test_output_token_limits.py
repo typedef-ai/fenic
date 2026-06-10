@@ -399,3 +399,39 @@ def test_google_plan_estimate_matches_runtime_safety_margin():
         )
         == int(GOOGLE_REASONING_SAFETY_MARGIN * 20_000)
     )
+
+
+def test_openai_core_sends_verbosity_when_configured():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    asyncio.run(
+        core.make_single_request(
+            request, OpenAICompletionProfileConfiguration(verbosity="high")
+        )
+    )
+
+    assert fake_completions.kwargs["verbosity"] == "high"
+
+
+def test_openai_core_omits_verbosity_when_unset():
+    core, fake_completions = _make_openai_core_with_fake_completions()
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert "verbosity" not in fake_completions.kwargs
