@@ -264,10 +264,11 @@ class AnthropicBatchCompletionsClient(
         except (APITimeoutError, APIConnectionError) as e:
             return TransientException(e)
         except APIStatusError as e:
-            # 529 overloaded_error is transient by definition. The async client in
-            # anthropic sdk 0.54.0 maps 529 to InternalServerError (it has no 529
-            # branch, unlike the sync client which raises OverloadedError), so match
-            # on the status code to be robust to both SDK paths.
+            # 529 overloaded_error is transient by definition. Match on the status
+            # code rather than the OverloadedError class: the anthropic SDK has
+            # mapped 529 differently across releases (InternalServerError vs.
+            # OverloadedError) and does not export OverloadedError from its top-level
+            # namespace, so status-code matching stays robust across versions.
             if e.status_code == 529:
                 return TransientException(e)
             return FatalException(e)
