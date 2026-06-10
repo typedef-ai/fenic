@@ -1,6 +1,5 @@
 import logging
 import math
-from concurrent.futures import ThreadPoolExecutor
 from textwrap import dedent
 from typing import List, Optional, Tuple
 
@@ -82,12 +81,25 @@ class Reduce:
             self._user_instruction_template = jinja2.Template(self.user_instruction)
 
     def execute(self) -> pl.Series:
-        """Execute parallel reduction across all groups."""
-        with ThreadPoolExecutor(max_workers=min(10, len(self.input))) as executor:
-            results = list(
-                executor.map(lambda x: self._reduce_group(*x), enumerate(self.input))
-            )
-        return pl.Series(results)
+        """Execute reduction over Polars group batches.
+
+        ``expr_converter`` calls this from ``map_batches`` after ``implode``. With
+        current Polars, the callback receives one Series of struct rows for the
+        current group, and ``returns_scalar=True`` expects one output value for
+        that group. Unit tests and direct callers may still pass a Series whose
+        items are grouped Series values; preserve that shape as multiple groups.
+        """
+        if len(self.input) == 0:
+            return pl.Series([None])
+
+        first_group = self.input[0]
+        if isinstance(first_group, pl.Series):
+            return pl.Series([
+                self._reduce_group(group_index, group)
+                for group_index, group in enumerate(self.input)
+            ])
+
+        return pl.Series([self._reduce_group(0, self.input)])
 
     def _reduce_group(self, group_index: int, group: pl.Series) -> str | None:
         """Reduces a single group of documents hierarchically until a single output is obtained.
@@ -143,9 +155,11 @@ class Reduce:
 
     def _preprocess_group(self, group: pl.Series) -> Tuple[str, pl.Series]:
         """Preprocess group by adding context and ordering the data column."""
+        group_df = pl.DataFrame(group.to_list())
+
         # Step 0: Build user instruction from group context if present
         if self.group_context_names:
-            first_row_data = group.first()
+            first_row_data = group_df.row(0, named=True)
             group_context = {name: first_row_data[name] for name in self.group_context_names}
             user_instruction = self._user_instruction_template.render(**group_context)
         else:
@@ -155,14 +169,7 @@ class Reduce:
         if self.descending:
             sort_column_names = [f"{SORT_KEY_COLUMN_NAME}_{i}" for i in range(len(self.descending))]
 
-            # Build a dict of sort key name -> Series extracted from struct field
-            sort_key_columns = {
-                name: group.struct.field(name)
-                for name in sort_column_names
-            }
-
-            # Create a DataFrame from those sort keys (no copy)
-            sort_keys_df = pl.DataFrame(sort_key_columns)
+            sort_keys_df = group_df.select(sort_column_names)
 
             # Compute sorted indices with arg_sort_by
             sorted_idx = sort_keys_df.select(
@@ -174,9 +181,9 @@ class Reduce:
             ).to_series()
 
             # Gather the data column in sorted order
-            sorted_data = group.struct.field(DATA_COLUMN_NAME).gather(sorted_idx)
+            sorted_data = group_df[DATA_COLUMN_NAME].gather(sorted_idx)
         else:
-            sorted_data = group.struct.field(DATA_COLUMN_NAME)
+            sorted_data = group_df[DATA_COLUMN_NAME]
 
         return user_instruction, sorted_data
 
