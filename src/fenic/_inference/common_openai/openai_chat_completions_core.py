@@ -246,9 +246,13 @@ class OpenAIChatCompletionsCore:
         if request.max_completion_tokens is None:
             return None
         return validate_effective_output_token_limit(
-            model_provider=self.model_provider,
-            model_name=self.model,
+            model_provider=self._model_provider,
+            model_name=self._model,
             model_max_output_tokens=self._model_parameters.max_output_tokens,
             requested_completion_tokens=request.max_completion_tokens,
-            estimated_reasoning_tokens=profile_config.expected_additional_reasoning_tokens,
+            estimated_reasoning_tokens=(
+                profile_config.expected_additional_reasoning_tokens
+                if profile_config
+                else 0
+            ),
         )

@@ -1,5 +1,12 @@
 import pytest
 
+from fenic._inference.common_openai.openai_chat_completions_core import (
+    OpenAIChatCompletionsCore,
+)
+from fenic._inference.common_openai.openai_profile_manager import (
+    OpenAICompletionProfileConfiguration,
+)
+from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
 from fenic.core._inference.model_catalog import (
     CompletionModelParameters,
     ModelProvider,
@@ -35,6 +42,32 @@ def test_effective_output_token_limit_rejects_reasoning_overflow():
             requested_completion_tokens=70,
             estimated_reasoning_tokens=40,
         )
+
+
+def test_openai_core_output_limit_uses_internal_model_identity():
+    core = OpenAIChatCompletionsCore(
+        model="gpt-4.1-nano",
+        model_provider=ModelProvider.OPENAI,
+        token_counter=None,
+        client=None,
+    )
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    assert (
+        core.get_max_output_token_request_limit(
+            request,
+            OpenAICompletionProfileConfiguration(
+                expected_additional_reasoning_tokens=0
+            ),
+        )
+        == 512
+    )
 
 
 def test_openrouter_effort_estimate_uses_model_output_ratio():
