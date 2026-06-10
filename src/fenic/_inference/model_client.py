@@ -289,10 +289,43 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """Reset all metrics for this model client to their initial values."""
         pass
 
-    def _estimator_key(self, request: RequestT) -> tuple[Optional[str], Optional[int]]:
-        """Key for the output-token estimator: (profile_hash, max_completion_tokens)."""
+    def _estimator_key(
+        self, request: RequestT
+    ) -> tuple[Optional[str], Optional[int], Optional[str]]:
+        """Key for the output-token estimator.
+
+        ``(profile_hash, max_completion_tokens, schema_fingerprint)``.
+
+        ``max_completion_tokens`` is a free per-request proxy for operator shape —
+        most operators already differ in it (``semantic.map`` 512, ``extract`` 1024,
+        ``parse`` None). ``schema_fingerprint`` (present on every structured request,
+        ``None`` otherwise; the same identifier used as the response cache key)
+        separates structured ops with different output schemas, and separates
+        structured from unstructured ops that share a ``max_completion_tokens``.
+
+        We deliberately do NOT key on operator type: ``operation_name`` isn't on the
+        request, and finer keys fragment the sample pool — each key needs its own
+        ``min_samples`` warm-up, so over-splitting just keeps the estimator cold and
+        falling back to the static ceiling. Residual pooling (distinct ops sharing
+        profile + max + schema with different output-length distributions) only
+        under-reserves the heavier op when it is a *minority* of the pooled window
+        (otherwise the lighter op is over-reserved). That under-reservation is NOT
+        bounded by the static-ceiling clamp (which only caps over-reservation) — it is
+        absorbed by the retry queue, while always-on settlement keeps the bucket
+        honest. So a misfit only dampens the adaptive accelerator; it never breaks the
+        settlement backbone. Per-row input-aware estimation is the better future
+        lever (see specs/adaptive_token_estimation_design.md).
+        """
         max_tokens = getattr(request, "max_completion_tokens", None)
-        return (self.get_profile_hash_for_request(request), max_tokens)
+        structured_output = getattr(request, "structured_output", None)
+        schema_fingerprint = (
+            structured_output.schema_fingerprint if structured_output is not None else None
+        )
+        return (
+            self.get_profile_hash_for_request(request),
+            max_tokens,
+            schema_fingerprint,
+        )
 
     def _adaptive_output_reservation(
         self, request: RequestT, *, static_ceiling: int, reasoning: bool
@@ -322,8 +355,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         if reserved.total_tokens <= 0:
             return
-        # Record the reservation unconditionally so the metric is populated even
-        # if observe() or settle() raise below.
+        # Record the reservation unconditionally so the metric is populated even if
+        # observe() or settle() raise below. Counted once per successful logical
+        # request: a retried request re-consumes the bucket on each dispatch but is
+        # only counted here on eventual success, so reservation-efficiency
+        # (actual / reserved) can read optimistic under retry storms (see TD-3375).
         self.get_metrics().num_reserved_output_tokens += reserved.output_tokens
         try:
             actual = TokenEstimate(

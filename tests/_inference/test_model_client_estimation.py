@@ -63,11 +63,39 @@ def _client(enabled=True, margin=1.0):
     return _FakeCompletionsClient(strategy, adaptive_estimation=cfg)
 
 
-def test_estimator_key_uses_profile_and_max_tokens():
+class _FakeStructuredOutput:
+    def __init__(self, fingerprint: str):
+        self.schema_fingerprint = fingerprint
+
+
+def _structured_request(max_tokens=512, fingerprint="schema-a"):
+    return FenicCompletionsRequest(
+        messages=LMRequestMessages(system="s", examples=[], user="u"),
+        max_completion_tokens=max_tokens,
+        top_logprobs=None,
+        structured_output=_FakeStructuredOutput(fingerprint),
+        temperature=0.0,
+    )
+
+
+def test_estimator_key_uses_profile_max_tokens_and_schema():
     client = _client()
     try:
-        key = client._estimator_key(_request(512))
-        assert key == (client.get_profile_hash_for_request(_request(512)), 512)
+        profile_hash = client.get_profile_hash_for_request(_request(512))
+        # Unstructured request: schema fingerprint is None.
+        assert client._estimator_key(_request(512)) == (profile_hash, 512, None)
+        # Structured request carries its schema fingerprint.
+        assert client._estimator_key(_structured_request(512, "schema-a")) == (
+            profile_hash, 512, "schema-a",
+        )
+        # Same profile + max but different schemas → different keys (don't pool).
+        assert client._estimator_key(_structured_request(512, "schema-a")) != client._estimator_key(
+            _structured_request(512, "schema-b")
+        )
+        # Structured vs unstructured at the same max → different keys.
+        assert client._estimator_key(_structured_request(512, "schema-a")) != client._estimator_key(
+            _request(512)
+        )
     finally:
         client.shutdown()
 
