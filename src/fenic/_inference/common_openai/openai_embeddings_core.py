@@ -102,7 +102,16 @@ class OpenAIEmbeddingsCore:
             )
             return response.data[0].embedding
 
-        except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+        except (APITimeoutError, APIConnectionError) as e:
+            return TransientException(e)
+
+        except RateLimitError as e:
+            # Mirrors the chat-completions path: an exhausted account quota cannot
+            # be resolved by retrying, so fail fast instead of burning the full
+            # exponential-backoff budget (~minutes of sleeps per request batch).
+            if e.response and e.response.json()["error"]["type"] == "insufficient_quota":
+                logger.error(f"Insufficient quota on {self._model_provider.value} provider: {e}")
+                return FatalException(e)
             return TransientException(e)
         
         except NotFoundError as e:
