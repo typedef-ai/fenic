@@ -519,6 +519,21 @@ From `test_rate_limit_performance.py` (n=840 rows, ceiling 200, actual output ~8
 - Settle-after-backoff re-injection (see Risks) measured at ~12 tokens/event ≈ 0.4% of the
   bucket when warm — basis for deferring the backoff-generation guard (TD-3375).
 
+### Live-API confirmation (`benchmarks/rate_limit_stress.py`)
+
+Real OpenAI run (gpt-4.1-nano, tpm=20k, naive `max_output_tokens=2048`, 40 rows/phase of a
+varied-output color-extraction task averaging ~12 actual output tokens/row):
+
+| Mode                    | Wall-clock | Reserved out tokens | Efficiency |
+| ----------------------- | ---------- | ------------------- | ---------- |
+| Pre-feature             | 207.6s     | 81,920              | 0.006      |
+| Settlement only         | 3.2s       | 81,920              | 0.006      |
+| Adaptive (post-warm-up) | 1.2s       | 1,160               | 0.409      |
+
+**174.6× end-to-end**, identical results and cost, zero provider 429s. Settlement delivers
+the bulk (65×); adaptive estimation tightens reservations ~70× and adds another ~2.7× of
+wall-clock by admitting the whole batch in one burst.
+
 ---
 
 ## Summary
