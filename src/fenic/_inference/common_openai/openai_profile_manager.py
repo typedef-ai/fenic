@@ -3,7 +3,10 @@ from typing import Optional
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
 from fenic.core._inference.model_catalog import CompletionModelParameters
-from fenic.core._inference.output_token_limits import OPENAI_REASONING_TOKEN_ESTIMATES
+from fenic.core._inference.output_token_limits import (
+    OPENAI_REASONING_TOKEN_ESTIMATES,
+    resolve_openai_reasoning_effort,
+)
 from fenic.core._resolved_session_config import (
     ReasoningEffort,
     ResolvedOpenAIModelProfile,
@@ -33,35 +36,24 @@ class OpenAICompletionsProfileManager(
 
     def _process_profile(self, profile: ResolvedOpenAIModelProfile) -> OpenAICompletionProfileConfiguration:
         """Process OpenAI profile configuration."""
-        resolved_reasoning_effort = None
-        resolved_verbosity = None
-        additional_reasoning_tokens = 0
+        if not self.model_parameters.supports_reasoning:
+            return OpenAICompletionProfileConfiguration(
+                verbosity=self._resolve_verbosity(profile),
+            )
 
-        if self.model_parameters.supports_reasoning:
-            # Reasoning effort behavior varies by model:
-            # - o-series/gpt-5 models: do not support disabling reasoning, default to lowest effort (minimal or low)
-            # - gpt-5.1 models: support 'none' to disable reasoning, default to 'none'
-            reasoning_effort = profile.reasoning_effort
-            if not reasoning_effort:
-                if self.model_parameters.default_reasoning_effort:
-                    reasoning_effort = self.model_parameters.default_reasoning_effort
-                elif self.model_parameters.supports_disabled_reasoning:
-                    reasoning_effort = "none"
-                elif self.model_parameters.supports_minimal_reasoning:
-                    reasoning_effort = "minimal"
-                else:
-                    reasoning_effort = "low"
-            resolved_reasoning_effort = reasoning_effort
-            additional_reasoning_tokens = self._get_reasoning_tokens(reasoning_effort)
-
-        if self.model_parameters.supports_verbosity and profile.verbosity:
-            resolved_verbosity = profile.verbosity
-
-        return OpenAICompletionProfileConfiguration(
-            reasoning_effort=resolved_reasoning_effort,
-            verbosity=resolved_verbosity,
-            expected_additional_reasoning_tokens=additional_reasoning_tokens
+        reasoning_effort = resolve_openai_reasoning_effort(
+            self.model_parameters, profile.reasoning_effort
         )
+        return OpenAICompletionProfileConfiguration(
+            reasoning_effort=reasoning_effort,
+            verbosity=self._resolve_verbosity(profile),
+            expected_additional_reasoning_tokens=self._get_reasoning_tokens(reasoning_effort)
+        )
+
+    def _resolve_verbosity(self, profile: ResolvedOpenAIModelProfile) -> Optional[Verbosity]:
+        if self.model_parameters.supports_verbosity and profile.verbosity:
+            return profile.verbosity
+        return None
 
     def _get_reasoning_tokens(self, reasoning_effort: str) -> int:
         """Get the expected additional reasoning tokens for a given reasoning effort level."""
@@ -69,21 +61,11 @@ class OpenAICompletionsProfileManager(
 
     def get_default_profile(self) -> OpenAICompletionProfileConfiguration:
         """Get default OpenAI configuration."""
-        if self.model_parameters.supports_reasoning:
-            # Reasoning effort behavior varies by model:
-            # - o-series/gpt-5 models: do not support disabling reasoning, default to lowest effort (minimal or low)
-            # - gpt-5.1 models: support 'none' to disable reasoning, default to 'none'
-            if self.model_parameters.default_reasoning_effort:
-                reasoning_effort = self.model_parameters.default_reasoning_effort
-            elif self.model_parameters.supports_disabled_reasoning:
-                reasoning_effort = "none"
-            elif self.model_parameters.supports_minimal_reasoning:
-                reasoning_effort = "minimal"
-            else:
-                reasoning_effort = "low"
-            return OpenAICompletionProfileConfiguration(
-                reasoning_effort=reasoning_effort,
-                expected_additional_reasoning_tokens=self._get_reasoning_tokens(reasoning_effort)
-            )
-        else:
+        if not self.model_parameters.supports_reasoning:
             return OpenAICompletionProfileConfiguration()
+
+        reasoning_effort = resolve_openai_reasoning_effort(self.model_parameters, None)
+        return OpenAICompletionProfileConfiguration(
+            reasoning_effort=reasoning_effort,
+            expected_additional_reasoning_tokens=self._get_reasoning_tokens(reasoning_effort)
+        )
