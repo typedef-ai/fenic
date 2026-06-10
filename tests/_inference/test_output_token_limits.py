@@ -12,6 +12,7 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
 )
 from fenic.core._inference.output_token_limits import (
+    GOOGLE_REASONING_SAFETY_MARGIN,
     estimate_reasoning_tokens_for_resolved_profile,
     validate_effective_output_token_limit,
 )
@@ -125,7 +126,7 @@ def test_google_explicit_empty_budget_profile_estimates_no_reasoning_tokens():
             completion_parameters=params,
             profile_name=None,
         )
-        == 1024
+        == 1536  # 1024 expected thinking tokens with the 1.5x safety margin
     )
 
 
@@ -143,13 +144,13 @@ def test_google_explicit_empty_budget_profile_estimates_no_reasoning_tokens():
         ),
         (
             ResolvedAnthropicModelConfig(
-                model_name="claude-opus-4-8",
+                model_name="claude-opus-4-5",
                 rpm=100,
                 input_tpm=1000,
                 output_tpm=1000,
-                profiles={"deep": ResolvedAnthropicModelProfile(effort="xhigh")},
+                profiles={"deep": ResolvedAnthropicModelProfile(thinking_token_budget=60_000)},
             ),
-            100_000,
+            10_000,
         ),
         (
             ResolvedGoogleModelConfig(
@@ -263,3 +264,62 @@ def test_openrouter_effort_estimate_rejects_reasoning_overflow():
             requested_completion_tokens=60_000,
             estimated_reasoning_tokens=estimated_reasoning_tokens,
         )
+
+
+def test_adaptive_anthropic_profile_passes_completion_parameter_validation():
+    session_config = ResolvedSessionConfig(
+        app_name="test",
+        db_path=None,
+        semantic=ResolvedSemanticConfig(
+            language_models=ResolvedLanguageModelConfig(
+                model_configs={
+                    "model": ResolvedAnthropicModelConfig(
+                        model_name="claude-opus-4-8",
+                        rpm=100,
+                        input_tpm=1000,
+                        output_tpm=1000,
+                        profiles={"deepest": ResolvedAnthropicModelProfile(effort="max")},
+                    )
+                },
+                default_model="model",
+            )
+        ),
+    )
+
+    # Adaptive thinking shares the output window, so even effort="max" admits
+    # any visible budget within the model limit.
+    validate_completion_parameters(
+        ResolvedModelAlias(name="model", profile="deepest"),
+        session_config,
+        temperature=0,
+        max_tokens=100_000,
+    )
+
+
+def test_google_plan_estimate_matches_runtime_safety_margin():
+    params = CompletionModelParameters(
+        input_token_cost=0,
+        output_token_cost=0,
+        context_window_length=100_000,
+        max_output_tokens=100_000,
+        supports_reasoning=True,
+        supports_disabled_reasoning=False,
+    )
+    model_config = ResolvedGoogleModelConfig(
+        model_name="gemini-test",
+        model_provider=ModelProvider.GOOGLE_DEVELOPER,
+        rpm=100,
+        tpm=1000,
+        profiles={"budget": ResolvedGoogleModelProfile(thinking_token_budget=20_000)},
+    )
+
+    # Plan-layer estimate must equal the runtime request construction estimate
+    # (expected thinking budget scaled by the shared safety margin).
+    assert (
+        estimate_reasoning_tokens_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=params,
+            profile_name="budget",
+        )
+        == int(GOOGLE_REASONING_SAFETY_MARGIN * 20_000)
+    )

@@ -711,6 +711,9 @@ class AnthropicLanguageModel(BaseModel):
                 For Claude models that use adaptive thinking, use `effort` instead.
             effort: Provider-native Anthropic effort level. Supported values vary by model:
                 low, medium, high, xhigh, and max.
+                On adaptive-thinking models the thinking budget shares the request's
+                output token window rather than being reserved on top of it, so very
+                high effort levels can consume part of the visible completion budget.
 
         Raises:
             ConfigurationError: If a profile is set with parameters that are not supported by the model.

@@ -7,6 +7,7 @@ from fenic.core._inference.model_catalog import (
 )
 from fenic.core._inference.output_token_limits import (
     estimate_reasoning_tokens_for_resolved_profile,
+    reasoning_shares_output_window_for_resolved_profile,
     validate_effective_output_token_limit,
 )
 from fenic.core._logical_plan.expressions import AggregateExpr, LogicalExpr, SortExpr
@@ -95,11 +96,12 @@ def validate_completion_parameters(
         ValidationError: If temperature or max_tokens are out of bounds for the model.
     """
     model_config, model_provider, completion_parameters = fetch_model_and_completion_parameters(model_alias, resolved_session_config)
+    profile_name = model_alias.profile if model_alias else None
     estimated_reasoning_tokens = (
         estimate_reasoning_tokens_for_resolved_profile(
             model_config=model_config,
             completion_parameters=completion_parameters,
-            profile_name=model_alias.profile if model_alias else None,
+            profile_name=profile_name,
         )
         if max_tokens is not None
         else 0
@@ -110,6 +112,11 @@ def validate_completion_parameters(
         model_max_output_tokens=completion_parameters.max_output_tokens,
         requested_completion_tokens=max_tokens,
         estimated_reasoning_tokens=estimated_reasoning_tokens,
+        reasoning_shares_output_window=reasoning_shares_output_window_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=completion_parameters,
+            profile_name=profile_name,
+        ),
     )
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(

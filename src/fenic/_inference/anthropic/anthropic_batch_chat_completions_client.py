@@ -59,6 +59,7 @@ from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
+from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
 
 
@@ -150,11 +151,16 @@ class AnthropicBatchCompletionsClient(
         profile_configuration = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
+        try:
+            request_max_tokens = self._get_max_output_token_request_limit(request)
+        except ValidationError as e:
+            # Deterministic request-construction failure: retrying cannot help.
+            return FatalException(e)
         messages_creation_payload: dict[str, Any] = {
             "model": self.model,
             "system": [system_prompt],
             "messages": message_params,
-            "max_tokens": self._get_max_output_token_request_limit(request),
+            "max_tokens": request_max_tokens,
             "thinking": profile_configuration.thinking_config,
         }
         if profile_configuration.output_config:
@@ -346,14 +352,16 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
+        profile_configuration = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
         return validate_effective_output_token_limit(
             model_provider=self.model_provider,
             model_name=self.model,
             model_max_output_tokens=self._model_parameters.max_output_tokens,
             requested_completion_tokens=request.max_completion_tokens,
-            estimated_reasoning_tokens=self._profile_manager.get_profile_by_name(
-                request.model_profile
-            ).thinking_token_budget,
+            estimated_reasoning_tokens=profile_configuration.thinking_token_budget,
+            reasoning_shares_output_window=profile_configuration.uses_adaptive_thinking,
         )
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.

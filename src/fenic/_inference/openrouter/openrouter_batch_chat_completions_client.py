@@ -39,7 +39,7 @@ from fenic.core._inference.output_token_limits import (
     OPENROUTER_REASONING_EFFORT_RATIOS,
     validate_effective_output_token_limit,
 )
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, ValidationError
 from fenic.core.metrics import LMMetrics
 
 TOOLS = "tools"
@@ -118,7 +118,11 @@ class OpenRouterBatchChatCompletionsClient(
                 "n": 1,
             }
 
-        max_completion_tokens = self._get_max_output_token_request_limit(request)
+        try:
+            max_completion_tokens = self._get_max_output_token_request_limit(request)
+        except ValidationError as e:
+            # Deterministic request-construction failure: retrying cannot help.
+            return FatalException(e)
         if max_completion_tokens is not None:
             common_params["max_completion_tokens"] = max_completion_tokens
 

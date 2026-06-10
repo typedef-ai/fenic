@@ -36,6 +36,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._inference.output_token_limits import (
     validate_effective_output_token_limit,
 )
+from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -220,6 +221,10 @@ class OpenAIChatCompletionsCore:
                 return FatalException(e)
 
         except OpenAIError as e:
+            return FatalException(e)
+
+        except ValidationError as e:
+            # Deterministic request-construction failure: retrying cannot help.
             return FatalException(e)
 
     def get_request_key(self, request: FenicCompletionsRequest) -> str:
