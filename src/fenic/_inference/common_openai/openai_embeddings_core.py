@@ -13,6 +13,7 @@ from openai import (
     RateLimitError,
 )
 
+from fenic._inference.common_openai.utils import is_insufficient_quota_error
 from fenic._inference.model_client import (
     FatalException,
     TransientException,
@@ -102,7 +103,16 @@ class OpenAIEmbeddingsCore:
             )
             return response.data[0].embedding
 
-        except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+        except (APITimeoutError, APIConnectionError) as e:
+            return TransientException(e)
+
+        except RateLimitError as e:
+            # Mirrors the chat-completions path: an exhausted account quota cannot
+            # be resolved by retrying, so fail fast instead of burning the full
+            # exponential-backoff budget (~minutes of sleeps per request batch).
+            if is_insufficient_quota_error(e):
+                logger.error(f"Insufficient quota on {self._model_provider.value} provider: {e}")
+                return FatalException(e)
             return TransientException(e)
         
         except NotFoundError as e:

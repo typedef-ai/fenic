@@ -4,6 +4,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
+    from fenic.core._resolved_session_config import (
+        ResolvedAdaptiveTokenEstimationConfig,
+    )
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
@@ -45,6 +48,7 @@ class OpenAIBatchChatCompletionsClient(
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
         base_url: Optional[str] = None,
+        adaptive_estimation: Optional["ResolvedAdaptiveTokenEstimationConfig"] = None,
     ):
         """Initialize the OpenAI batch chat completions client.
 
@@ -57,6 +61,7 @@ class OpenAIBatchChatCompletionsClient(
             default_profile_name: Default profile to use when none specified
             cache: Optional LLM response cache
             base_url: Custom base URL for the OpenAI API
+            adaptive_estimation: Optional config for adaptive output-token estimation
         """
         token_counter = TiktokenTokenCounter(
             model_name=model, fallback_encoding="o200k_base"
@@ -71,6 +76,7 @@ class OpenAIBatchChatCompletionsClient(
             max_backoffs=max_backoffs,
             token_counter=token_counter,
             cache=cache,
+            adaptive_estimation=adaptive_estimation,
         )
         self._model_parameters = model_catalog.get_completion_model_parameters(
             ModelProvider.OPENAI, model
@@ -140,10 +146,12 @@ class OpenAIBatchChatCompletionsClient(
             base_tokens += self.token_counter.count_file_output_tokens(
                 messages=request.messages
             )
-        profile_config = self._profile_manager.get_profile_by_name(
-            request.model_profile
+        profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
+        reasoning_tokens = profile_config.expected_additional_reasoning_tokens
+        static_ceiling = base_tokens + reasoning_tokens
+        return self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=reasoning_tokens > 0
         )
-        return base_tokens + profile_config.expected_additional_reasoning_tokens
 
     def _get_max_output_token_request_limit(
         self, request: FenicCompletionsRequest

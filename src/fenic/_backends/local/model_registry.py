@@ -73,8 +73,9 @@ class SessionModelRegistry:
         if config.language_models:
             language_model_config = config.language_models
             models: dict[str, LanguageModel] = {}
+            adaptive_estimation = config.adaptive_token_estimation
             for alias, model_config in language_model_config.model_configs.items():
-                model = self._initialize_language_model(model_config, cache)
+                model = self._initialize_language_model(model_config, cache, adaptive_estimation)
                 models[alias] = model
                 # Skip API key validation for providers with custom base URLs,
                 # since the proxy may not expose the /models endpoint.
@@ -289,13 +290,14 @@ class SessionModelRegistry:
         return EmbeddingModel(client=client)
 
     def _initialize_language_model(
-        self, model_config: ResolvedModelConfig, cache=None
+        self, model_config: ResolvedModelConfig, cache=None, adaptive_estimation=None
     ) -> LanguageModel:
         """Initialize a language client model with the given configuration.
 
         Args:
             model_config (ModelConfig): Configuration for the language model.
             cache: Optional LLM response cache instance.
+            adaptive_estimation: Optional resolved adaptive token estimation config, threaded to language model clients.
 
         Returns:
             LanguageModel: Initialized language model.
@@ -317,6 +319,7 @@ class SessionModelRegistry:
                     default_profile_name=model_config.default_profile,
                     cache=cache,
                     base_url=model_config.base_url,
+                    adaptive_estimation=adaptive_estimation,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
@@ -340,6 +343,7 @@ class SessionModelRegistry:
                     default_profile_name=model_config.default_profile,
                     cache=cache,
                     base_url=model_config.base_url,
+                    adaptive_estimation=adaptive_estimation,
                 )
 
             elif isinstance(model_config, ResolvedGoogleModelConfig):
@@ -361,6 +365,7 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                     cache=cache,
+                    adaptive_estimation=adaptive_estimation,
                 )
             elif isinstance(model_config, ResolvedOpenRouterModelConfig):
                 rate_limit_strategy = AdaptiveBackoffRateLimitStrategy()
@@ -370,6 +375,7 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                     cache=cache,
+                    adaptive_estimation=adaptive_estimation,
                 )
             else:
                 raise ConfigurationError(

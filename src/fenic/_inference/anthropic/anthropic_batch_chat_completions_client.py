@@ -1,14 +1,19 @@
 import functools
+import logging
 import math
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
+    from fenic.core._resolved_session_config import (
+        ResolvedAdaptiveTokenEstimationConfig,
+    )
 
 import anthropic
 from anthropic import (
     AnthropicError,
     APIConnectionError,
+    APIStatusError,
     APITimeoutError,
     RateLimitError,
 )
@@ -62,6 +67,8 @@ from fenic.core._resolved_session_config import (
 from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
 
+logger = logging.getLogger(__name__)
+
 
 class AnthropicBatchCompletionsClient(
     ProfileHashMixin, ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]
@@ -85,6 +92,7 @@ class AnthropicBatchCompletionsClient(
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
         base_url: Optional[str] = None,
+        adaptive_estimation: Optional["ResolvedAdaptiveTokenEstimationConfig"] = None,
     ):
         """Initialize the Anthropic batch completions client.
 
@@ -97,6 +105,7 @@ class AnthropicBatchCompletionsClient(
             default_profile_name: Name of the default profile to use
             cache: Optional LLM response cache
             base_url: Custom base URL for the Anthropic API
+            adaptive_estimation: Optional config for adaptive output-token estimation
         """
         model_provider_class = AnthropicModelProvider(base_url=base_url)
         super().__init__(
@@ -110,6 +119,7 @@ class AnthropicBatchCompletionsClient(
                 model_name=model, fallback_encoding="cl100k_base"
             ),
             cache=cache,
+            adaptive_estimation=adaptive_estimation,
         )
         # Apply this factor to the estimated token count to approximate Anthropic's encoding.
         self._tokenizer_adjustment_ratio = 1.05
@@ -236,12 +246,32 @@ class AnthropicBatchCompletionsClient(
                     cached_input_tokens_written=usage_data.cache_creation_input_tokens,
                     output_tokens=output_tokens,
                 )
-        except (
-            RateLimitError,
-            APITimeoutError,
-            APIConnectionError,
-        ) as e:  # consider the various APIStatusErrors
+        except RateLimitError as e:
+            # Anthropic marks non-retryable 429s (e.g. a hard org spend-cap breach)
+            # with `x-should-retry: false`; genuine per-minute rate limits are
+            # retryable. Failing fast here avoids burning the full exponential
+            # backoff budget on an error retries cannot fix.
+            non_retryable = (
+                e.response is not None
+                and e.response.headers.get("x-should-retry", "").lower() == "false"
+            )
+            if non_retryable:
+                logger.error(
+                    f"Non-retryable rate limit error on anthropic provider: {e}"
+                )
+                return FatalException(e)
             return TransientException(e)
+        except (APITimeoutError, APIConnectionError) as e:
+            return TransientException(e)
+        except APIStatusError as e:
+            # 529 overloaded_error is transient by definition. Match on the status
+            # code rather than the OverloadedError class: the anthropic SDK has
+            # mapped 529 differently across releases (InternalServerError vs.
+            # OverloadedError) and does not export OverloadedError from its top-level
+            # namespace, so status-code matching stays robust across versions.
+            if e.status_code == 529:
+                return TransientException(e)
+            return FatalException(e)
         except AnthropicError as e:
             return FatalException(e)
 
@@ -382,17 +412,8 @@ class AnthropicBatchCompletionsClient(
             super().count_tokens(messages) * self._tokenizer_adjustment_ratio
         )
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest):
-        """Estimate the number of tokens for a request.
-
-        Args:
-            request: The request to estimate tokens for
-
-        Returns:
-            TokenEstimate: The estimated token usage
-        """
-
-        # Count input tokens
+    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
+        """Estimate the number of tokens for a request."""
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
@@ -400,9 +421,15 @@ class AnthropicBatchCompletionsClient(
         # separate from the provider-side max_tokens budget: adaptive thinking
         # can have a very large maximum window, but reserving that maximum for
         # throttling would make small-output requests impossible under normal
-        # output TPM limits.
-        output_tokens = self._estimate_output_tokens(request)
-
+        # output TPM limits. Route the decoupled estimate through the adaptive
+        # estimator (which clamps to this ceiling and learns from actuals).
+        static_ceiling = self._estimate_output_tokens(request)
+        thinking_budget = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        ).thinking_token_budget
+        output_tokens = self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=thinking_budget > 0
+        )
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
 
     def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:

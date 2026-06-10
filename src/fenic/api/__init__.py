@@ -57,6 +57,7 @@ from fenic.api.mcp import (
     run_mcp_server_sync,
 )
 from fenic.api.session import (
+    AdaptiveTokenEstimationConfig,
     AnthropicLanguageModel,
     CloudConfig,
     CohereEmbeddingModel,
@@ -88,6 +89,7 @@ __all__ = [
     "OpenRouterLanguageModel",
     "SemanticConfig",
     "CloudConfig",
+    "AdaptiveTokenEstimationConfig",
     # IO
     "DataFrameReader",
     "DataFrameWriter",

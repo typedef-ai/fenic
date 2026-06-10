@@ -15,10 +15,14 @@ class LMMetrics:
     """Tracks language model usage metrics including token counts and costs.
 
     Attributes:
-        num_uncached_input_tokens: Number of uncached tokens in the prompt/input
-        num_cached_input_tokens: Number of cached tokens in the prompt/input,
-        num_output_tokens: Number of tokens in the completion/output
-        cost: Total cost in USD for the LM API call
+        num_uncached_input_tokens: Number of uncached tokens in the prompt/input.
+        num_cached_input_tokens: Number of cached tokens in the prompt/input.
+        num_output_tokens: Number of tokens in the completion/output (actual usage).
+        cost: Total cost in USD for the LM API call.
+        num_requests: Total number of LM API requests made.
+        num_reserved_output_tokens: Output tokens debited from the TPM bucket at
+            reservation time. Compare against num_output_tokens to measure
+            reservation efficiency (actual / reserved → 1 is tight).
     """
 
     num_uncached_input_tokens: int = 0
@@ -26,6 +30,7 @@ class LMMetrics:
     num_output_tokens: int = 0
     cost: float = 0.0
     num_requests: int = 0
+    num_reserved_output_tokens: int = 0
 
     def __add__(self, other: "LMMetrics") -> "LMMetrics":
         """Add two LMMetrics instances together.
@@ -43,6 +48,7 @@ class LMMetrics:
             num_output_tokens=self.num_output_tokens + other.num_output_tokens,
             cost=self.cost + other.cost,
             num_requests=self.num_requests + other.num_requests,
+            num_reserved_output_tokens=self.num_reserved_output_tokens + other.num_reserved_output_tokens,
         )
 
 
@@ -194,7 +200,7 @@ class QueryMetrics:
             if op.lm_metrics.cost > 0:
                 details.extend(
                     [
-                        f"{indent_str}  Language Model Usage: {op.lm_metrics.num_uncached_input_tokens:,} input tokens, {op.lm_metrics.num_cached_input_tokens:,} cached input tokens, {op.lm_metrics.num_output_tokens:,} output tokens",
+                        f"{indent_str}  Language Model Usage: {op.lm_metrics.num_uncached_input_tokens:,} input tokens, {op.lm_metrics.num_cached_input_tokens:,} cached input tokens, {op.lm_metrics.num_output_tokens:,} output tokens ({op.lm_metrics.num_reserved_output_tokens:,} reserved)",
                         f"{indent_str}  Language Model Cost: ${op.lm_metrics.cost:.6f}",
                     ]
                 )
@@ -226,7 +232,7 @@ class QueryMetrics:
             f"Execution time: {self.execution_time_ms:.2f}ms\n"
             f"Num Output Rows: {self.num_output_rows:,}\n"
             f"Language Model Cost: ${self.total_lm_metrics.cost:.6f}\n"
-            f"Language Model Tokens: {self.total_lm_metrics.num_uncached_input_tokens:,} input tokens, {self.total_lm_metrics.num_cached_input_tokens:,} cached input tokens, {self.total_lm_metrics.num_output_tokens:,} output tokens\n"
+            f"Language Model Tokens: {self.total_lm_metrics.num_uncached_input_tokens:,} input tokens, {self.total_lm_metrics.num_cached_input_tokens:,} cached input tokens, {self.total_lm_metrics.num_output_tokens:,} output tokens ({self.total_lm_metrics.num_reserved_output_tokens:,} reserved)\n"
             f"Language Model Requests: {self.total_lm_metrics.num_requests}\n"
             f"Embedding Model Cost: ${self.total_rm_metrics.cost:.6f}\n"
             f"Embedding Model Tokens: {self.total_rm_metrics.num_input_tokens:,} input tokens\n\n"

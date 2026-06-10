@@ -108,6 +108,19 @@ class RateLimitStrategy(ABC):
         """
         pass
 
+    # Not abstract: token-tracking subclasses override; token-less strategies inherit this no-op.
+    def settle(self, reserved: "TokenEstimate", actual: "TokenEstimate") -> None:  # noqa: B027
+        """Correct reserved capacity against actual usage after a response.
+
+        Refunds (reserved - actual) when over-reserved, debits further when
+        under-reserved. Base implementation is a no-op for strategies that do not
+        track tokens (e.g. AdaptiveBackoff). MUST be called on the asyncio event
+        loop thread only (same thread as check_and_consume_rate_limit), so it needs
+        no additional locking. Does not adjust the requests bucket — a request slot
+        is consumed at dispatch and not refunded here.
+        """
+        pass
+
 
 class AdaptiveBackoffRateLimitStrategy(RateLimitStrategy):
     """Adaptive RPM limiter with multiplicative backoff and optional additive increase.
@@ -303,6 +316,15 @@ class UnifiedTokenRateLimitStrategy(RateLimitStrategy):
         if self.tpm < token_estimate.total_tokens:
             raise ExecutionError(f"Insufficient capacity to handle the request. TPM limit is {self.tpm} but request requires an estimated {token_estimate.total_tokens} tokens.  Please configure the model with more capacity.")
 
+    def settle(self, reserved: TokenEstimate, actual: TokenEstimate) -> None:
+        now = time.time()
+        delta = reserved.total_tokens - actual.total_tokens
+        # _get_available_capacity is read-only: returns the would-be-refilled value without mutating bucket state.
+        available = self.unified_tokens_bucket._get_available_capacity(now)
+        self.unified_tokens_bucket._set_capacity(
+            min(self.tpm, max(0, available + delta)), now
+        )
+
     def context_tokens_per_minute(self) -> int:
         """Returns the total token rate limit per minute.
 
@@ -384,6 +406,20 @@ class SeparatedTokenRateLimitStrategy(RateLimitStrategy):
             raise ExecutionError(f"Insufficient capacity to handle the request. Input TPM limit is {self.input_tpm} but request requires an estimated {token_estimate.input_tokens} input tokens.  Please configure the model with more capacity.")
         if self.output_tpm < token_estimate.output_tokens:
             raise ExecutionError(f"Insufficient capacity to handle the request. Output TPM limit is {self.output_tpm} but request requires an estimated {token_estimate.output_tokens} output tokens.  Please configure the model with more capacity.")
+
+    def settle(self, reserved: TokenEstimate, actual: TokenEstimate) -> None:
+        now = time.time()
+        in_delta = reserved.input_tokens - actual.input_tokens
+        out_delta = reserved.output_tokens - actual.output_tokens
+        # _get_available_capacity is read-only: returns the would-be-refilled value without mutating bucket state.
+        in_avail = self.input_tokens_bucket._get_available_capacity(now)
+        out_avail = self.output_tokens_bucket._get_available_capacity(now)
+        self.input_tokens_bucket._set_capacity(
+            min(self.input_tpm, max(0, in_avail + in_delta)), now
+        )
+        self.output_tokens_bucket._set_capacity(
+            min(self.output_tpm, max(0, out_avail + out_delta)), now
+        )
 
     def context_tokens_per_minute(self) -> int:
         """Returns the total token rate limit per minute.

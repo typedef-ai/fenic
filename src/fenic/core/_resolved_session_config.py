@@ -7,7 +7,7 @@ used internally after the user creates a SessionConfig in the API layer.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -157,10 +157,21 @@ ResolvedModelConfig = Union[
 
 
 @dataclass
+class ResolvedAdaptiveTokenEstimationConfig:
+    """Resolved adaptive output-token estimation config (always populated; never None)."""
+
+    enabled: bool = True
+    safety_margin: float = 1.15
+
+
+@dataclass
 class ResolvedSemanticConfig:
     language_models: Optional[ResolvedLanguageModelConfig] = None
     embedding_models: Optional[ResolvedEmbeddingModelConfig] = None
     llm_response_cache: Optional[ResolvedCacheConfig] = None
+    adaptive_token_estimation: ResolvedAdaptiveTokenEstimationConfig = field(
+        default_factory=ResolvedAdaptiveTokenEstimationConfig
+    )
 
 
 @dataclass

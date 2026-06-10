@@ -4,6 +4,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     from fenic._inference.cache.protocol import LLMResponseCache
+    from fenic.core._resolved_session_config import (
+        ResolvedAdaptiveTokenEstimationConfig,
+    )
 
 from google.genai.errors import ClientError, ServerError
 from google.genai.types import (
@@ -80,6 +83,7 @@ class GeminiNativeChatCompletionsClient(
         profiles: Optional[dict[str, ResolvedGoogleModelProfile]] = None,
         default_profile_name: Optional[str] = None,
         cache: Optional["LLMResponseCache"] = None,
+        adaptive_estimation: Optional["ResolvedAdaptiveTokenEstimationConfig"] = None,
     ):
         """Initialize the Gemini native chat completions client.
 
@@ -92,6 +96,7 @@ class GeminiNativeChatCompletionsClient(
             profiles: Dictionary of profile configurations
             default_profile_name: Name of the default profile to use
             cache: Optional LLM response cache
+            adaptive_estimation: Optional config for adaptive output-token estimation
         """
         token_counter = GeminiLocalTokenCounter(model_name=model)
         super().__init__(
@@ -105,6 +110,7 @@ class GeminiNativeChatCompletionsClient(
             max_backoffs=max_backoffs,
             token_counter=token_counter,
             cache=cache,
+            adaptive_estimation=adaptive_estimation,
         )
 
         self._client = self.model_provider_class.create_aio_client()
@@ -373,8 +379,10 @@ class GeminiNativeChatCompletionsClient(
             estimated_output_tokens = self.token_counter.count_file_output_tokens(
                 request.messages
             )
-        return estimated_output_tokens + self._get_expected_additional_reasoning_tokens(
-            request
+        reasoning_tokens = self._get_expected_additional_reasoning_tokens(request)
+        static_ceiling = estimated_output_tokens + reasoning_tokens
+        return self._adaptive_output_reservation(
+            request, static_ceiling=static_ceiling, reasoning=reasoning_tokens > 0
         )
 
     def _get_max_output_token_request_limit(

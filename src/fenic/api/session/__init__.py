@@ -1,6 +1,7 @@
 """Session module for managing query execution context and state."""
 
 from fenic.api.session.config import (
+    AdaptiveTokenEstimationConfig,
     AnthropicLanguageModel,
     CloudConfig,
     CloudExecutorSize,
@@ -36,4 +37,5 @@ __all__ = [
     "CohereEmbeddingModel",
     "OpenRouterLanguageModel",
     "LLMResponseCacheConfig",
+    "AdaptiveTokenEstimationConfig",
 ]
