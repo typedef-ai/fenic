@@ -1,7 +1,7 @@
 """Helpers for validating visible completion and reasoning token budgets."""
 
 import math
-from typing import Optional
+from typing import Final, Optional
 
 from fenic.core._inference.model_catalog import CompletionModelParameters, ModelProvider
 from fenic.core._resolved_session_config import (
@@ -13,7 +13,7 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ValidationError
 
-OPENAI_REASONING_TOKEN_ESTIMATES = {
+OPENAI_REASONING_TOKEN_ESTIMATES: Final[dict[str, int]] = {
     "none": 0,
     "minimal": 2048,
     "low": 4096,
@@ -22,7 +22,7 @@ OPENAI_REASONING_TOKEN_ESTIMATES = {
     "xhigh": 32768,
 }
 
-OPENROUTER_REASONING_EFFORT_RATIOS = {
+OPENROUTER_REASONING_EFFORT_RATIOS: Final[dict[str, float]] = {
     "none": 0.0,
     "minimal": 0.10,
     "low": 0.20,
@@ -31,14 +31,14 @@ OPENROUTER_REASONING_EFFORT_RATIOS = {
     "xhigh": 0.95,
 }
 
-GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES = {
+GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES: Final[dict[str, int]] = {
     "minimal": 2048,
     "low": 8192,
     "medium": 16384,
     "high": 32768,
 }
 
-ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS = {
+ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS: Final[dict[str, float]] = {
     "low": 0.20,
     "medium": 0.50,
     "high": 0.80,

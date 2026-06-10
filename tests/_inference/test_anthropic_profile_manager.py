@@ -6,11 +6,13 @@ from fenic._inference.anthropic.anthropic_batch_chat_completions_client import (
     AnthropicBatchCompletionsClient,
 )
 from fenic._inference.anthropic.anthropic_profile_manager import (
-    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
     AnthropicCompletionsProfileManager,
 )
 from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
 from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.output_token_limits import (
+    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
+)
 from fenic.core._resolved_session_config import ResolvedAnthropicModelProfile
 from fenic.core.error import ValidationError
 
@@ -118,6 +120,26 @@ def test_adaptive_effort_profile_uses_request_sized_rate_limit_estimate():
     assert profile.thinking_token_budget == 121_600
     assert client._get_max_output_token_request_limit(request) == 122_112
     assert client._estimate_output_tokens(request) == 999
+
+
+def test_effort_only_profile_on_non_adaptive_model_does_not_enable_thinking():
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-opus-4-5"
+    )
+    profile = AnthropicCompletionsProfileManager(
+        model_parameters=params,
+        profile_configurations={
+            "effort_only": ResolvedAnthropicModelProfile(effort="high"),
+        },
+        default_profile_name="effort_only",
+    ).get_profile_by_name(None)
+
+    assert not profile.thinking_enabled
+    assert profile.thinking_token_budget == 0
+    assert not profile.uses_adaptive_thinking
+    assert profile.effort == "high"
+    assert profile.thinking_config["type"] == "disabled"
+    assert profile.output_config == {"effort": "high"}
 
 
 def test_manual_thinking_budget_profile_uses_budget_for_rate_limit_estimate():

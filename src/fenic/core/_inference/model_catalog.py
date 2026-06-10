@@ -90,7 +90,7 @@ class CompletionModelParameters:
         default_reasoning_effort: Optional[str] = None,
         supported_reasoning_efforts: Optional[Set[str]] = None,
         supported_thinking_levels: Optional[Set[ThinkingLevelType]] = None,
-        uses_adaptive_thinking=False,
+        uses_adaptive_thinking: bool = False,
         supports_custom_temperature=True,
         supports_verbosity = False,
         supports_pdf_parsing = False,

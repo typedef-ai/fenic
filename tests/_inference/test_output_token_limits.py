@@ -184,3 +184,82 @@ def test_completion_parameter_validation_rejects_reasoning_overflow(
             temperature=0,
             max_tokens=max_tokens,
         )
+
+
+def test_openai_default_profile_estimate_disables_reasoning_when_supported():
+    params = CompletionModelParameters(
+        input_token_cost=0,
+        output_token_cost=0,
+        context_window_length=1000,
+        max_output_tokens=1000,
+        supports_reasoning=True,
+        supports_disabled_reasoning=True,
+    )
+    model_config = ResolvedOpenAIModelConfig(
+        model_name="gpt-test",
+        rpm=100,
+        tpm=1000,
+    )
+
+    assert (
+        estimate_reasoning_tokens_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=params,
+            profile_name=None,
+        )
+        == 0
+    )
+
+
+def test_anthropic_estimate_without_profile_reserves_no_reasoning_tokens():
+    params = CompletionModelParameters(
+        input_token_cost=0,
+        output_token_cost=0,
+        context_window_length=1000,
+        max_output_tokens=1000,
+        supports_reasoning=True,
+    )
+    model_config = ResolvedAnthropicModelConfig(
+        model_name="claude-test",
+        rpm=100,
+        input_tpm=1000,
+        output_tpm=1000,
+    )
+
+    assert (
+        estimate_reasoning_tokens_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=params,
+            profile_name=None,
+        )
+        == 0
+    )
+
+
+def test_openrouter_effort_estimate_rejects_reasoning_overflow():
+    params = CompletionModelParameters(
+        input_token_cost=0,
+        output_token_cost=0,
+        context_window_length=100_000,
+        max_output_tokens=100_000,
+        supports_reasoning=True,
+        supports_disabled_reasoning=False,
+    )
+    model_config = ResolvedOpenRouterModelConfig(
+        model_name="openai/gpt-test",
+        profiles={"deep": ResolvedOpenRouterModelProfile(reasoning_effort="high")},
+    )
+    estimated_reasoning_tokens = estimate_reasoning_tokens_for_resolved_profile(
+        model_config=model_config,
+        completion_parameters=params,
+        profile_name="deep",
+    )
+
+    with pytest.raises(ValidationError, match="plus estimated reasoning tokens"):
+        validate_effective_output_token_limit(
+            model_provider=ModelProvider.OPENROUTER,
+            model_name=model_config.model_name,
+            model_max_output_tokens=params.max_output_tokens,
+            requested_completion_tokens=60_000,
+            estimated_reasoning_tokens=estimated_reasoning_tokens,
+        )

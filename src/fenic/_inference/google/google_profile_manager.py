@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Final, Optional
+from typing import Optional
 
 from google.genai.types import (
     EmbedContentConfigDict,
@@ -18,11 +18,6 @@ from fenic.core._inference.output_token_limits import (
     GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES,
 )
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
-
-# Estimated thinking token budgets for each level (used for cost estimation).
-# These are approximations based on typical model behavior - actual token usage
-# varies based on prompt complexity and model decisions.
-THINKING_TOKEN_ESTIMATES: Final[Dict[str, int]] = GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES
 
 
 @dataclass
@@ -133,7 +128,7 @@ class GoogleCompletionsProfileManager(ProfileManager[ResolvedGoogleModelProfile,
                     "minimal": ThinkingLevel.MINIMAL,
                 }
                 thinking_level_enum = thinking_level_map[thinking_level]
-                expected_thinking_tokens = THINKING_TOKEN_ESTIMATES[thinking_level]
+                expected_thinking_tokens = GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES[thinking_level]
                 thinking_config: ThinkingConfigDict = {
                     "thinking_level": thinking_level_enum
                 }

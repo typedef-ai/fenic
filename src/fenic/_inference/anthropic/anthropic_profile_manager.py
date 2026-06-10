@@ -5,7 +5,10 @@ from typing import Optional
 import anthropic
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
-from fenic.core._inference.model_catalog import CompletionModelParameters
+from fenic.core._inference.model_catalog import (
+    AnthropicReasoningEffortType,
+    CompletionModelParameters,
+)
 from fenic.core._inference.output_token_limits import (
     ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
 )
@@ -26,7 +29,7 @@ class AnthropicProfileConfiguration(BaseProfileConfiguration):
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
     uses_adaptive_thinking: bool = False
-    effort: Optional[str] = None
+    effort: Optional[AnthropicReasoningEffortType] = None
     thinking_config: anthropic.types.ThinkingConfigParam = field(
         default_factory=lambda: anthropic.types.ThinkingConfigDisabledParam(type="disabled"))
     output_config: Optional[anthropic.types.OutputConfigParam] = None

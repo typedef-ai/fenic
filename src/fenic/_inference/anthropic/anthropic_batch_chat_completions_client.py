@@ -20,6 +20,7 @@ from anthropic.types import (
 
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
+    AnthropicProfileConfiguration,
 )
 from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.anthropic.anthropic_utils import (
@@ -407,7 +408,7 @@ class AnthropicBatchCompletionsClient(
         )
 
     def _estimate_thinking_tokens_for_rate_limit(
-        self, profile_config, completion_tokens: int
+        self, profile_config: AnthropicProfileConfiguration, completion_tokens: int
     ) -> int:
         """Estimate thinking tokens for throttling without using adaptive maxima."""
         if not profile_config.thinking_enabled:
