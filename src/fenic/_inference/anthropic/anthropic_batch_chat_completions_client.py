@@ -51,6 +51,7 @@ from fenic.core._inference.model_catalog import (
     model_catalog,
 )
 from fenic.core._inference.output_token_limits import (
+    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
     validate_effective_output_token_limit,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -386,10 +387,40 @@ class AnthropicBatchCompletionsClient(
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
-        # Estimate output tokens
-        output_tokens = self._get_max_output_token_request_limit(request)
+        # Estimate output tokens for rate limiting. This is intentionally
+        # separate from the provider-side max_tokens budget: adaptive thinking
+        # can have a very large maximum window, but reserving that maximum for
+        # throttling would make small-output requests impossible under normal
+        # output TPM limits.
+        output_tokens = self._estimate_output_tokens(request)
 
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
+
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate output tokens for rate limiting."""
+        completion_tokens = request.max_completion_tokens or 0
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return completion_tokens + self._estimate_thinking_tokens_for_rate_limit(
+            profile_config, completion_tokens
+        )
+
+    def _estimate_thinking_tokens_for_rate_limit(
+        self, profile_config, completion_tokens: int
+    ) -> int:
+        """Estimate thinking tokens for throttling without using adaptive maxima."""
+        if not profile_config.thinking_enabled:
+            return 0
+        if profile_config.uses_adaptive_thinking and profile_config.effort:
+            return min(
+                profile_config.thinking_token_budget,
+                math.ceil(
+                    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS[profile_config.effort]
+                    * completion_tokens
+                ),
+            )
+        return profile_config.thinking_token_budget
 
     def get_metrics(self) -> LMMetrics:
         """Get current metrics.
