@@ -274,6 +274,20 @@ def test_posexplode_outer_basic(local_session):
     assert result["id"].to_list() == result_with_index["id"].to_list() == [1, 1, 2, 3]
 
 
+def test_posexplode_outer_null_elements_keep_positions(local_session):
+    """Test posexplode_outer keeps positions for null elements inside arrays."""
+    df = local_session.create_dataframe({
+        "id": [1, 2, 3],
+        "tags": [["red", None], [], None],
+    })
+
+    result = df.posexplode_outer("tags").to_polars()
+
+    assert result["id"].to_list() == [1, 1, 2, 3]
+    assert result["pos"].to_list() == [0, 1, None, None]
+    assert result["col"].to_list() == ["red", None, None, None]
+
+
 def test_posexplode_outer_vs_posexplode(local_session):
     """Test the difference between posexplode and posexplode_outer."""
     df = local_session.create_dataframe({
@@ -292,4 +306,3 @@ def test_posexplode_outer_vs_posexplode(local_session):
     assert len(outer_result) == 4  # All rows preserved
     assert outer_result["pos"].to_list() == [0, 1, None, None]
     assert outer_result["col"].to_list() == ["red", "blue", None, None]
-

@@ -273,43 +273,20 @@ class ExplodeWithIndexExec(PhysicalPlan):
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 1:
             raise ValueError("Unreachable: ExplodeWithIndexExec expects 1 child")
-        child_df = child_dfs[0]
+        return self._explode_with_index(child_dfs[0])
 
-        # Add the array column if it's an expression
-        child_df = child_df.with_columns(self.physical_expr)
-
-        # Add a temporary row index to track original rows
-        child_df = child_df.with_row_index("__explode_row_id")
-
-        # Explode the array column
-        exploded_df = child_df.explode(self.col_name)
-
-        if self.keep_null_and_empty:
-            # For outer explode, we need to handle null/empty arrays specially
-            # Add the position column, but set it to null for null/empty arrays
-            exploded_df = exploded_df.with_columns(
-                pl.when(pl.col(self.col_name).is_not_null())
-                .then(pl.int_range(pl.len(), dtype=pl.Int64).over("__explode_row_id", mapping_strategy="group_to_rows"))
-                .otherwise(None)
-                .alias(self.index_name)
-            )
-        else:
-            # Filter out nulls in the exploded column for regular explode
+    def _explode_with_index(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = df.with_columns(self.physical_expr)
+        df = df.with_columns(
+            pl.int_ranges(
+                0, pl.col(self.col_name).list.len(), dtype=pl.Int64
+            ).alias(self.index_name)
+        )
+        exploded_df = df.explode([self.col_name, self.index_name])
+        if not self.keep_null_and_empty:
             exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
-            # Add the position column (0-based index within each original row)
-            exploded_df = exploded_df.with_columns(
-                pl.int_range(pl.len(), dtype=pl.Int64)
-                .over("__explode_row_id", mapping_strategy="group_to_rows")
-                .alias(self.index_name)
-            )
-
-        # Drop the temporary row index
-        exploded_df = exploded_df.drop("__explode_row_id")
-
-        # Rename the exploded column if needed
         if self.value_name != self.col_name:
             exploded_df = exploded_df.rename({self.col_name: self.value_name})
-
         return exploded_df
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
@@ -331,10 +308,7 @@ class ExplodeWithIndexExec(PhysicalPlan):
         leaf_nodes: List[OperatorLineage],
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         child_operator, child_df = self.children[0].build_node_lineage(leaf_nodes)
-        exploded_df = child_df.explode(self.col_name)
-        # Filter out nulls unless keep_null_and_empty is True
-        if not self.keep_null_and_empty:
-            exploded_df = exploded_df.filter(pl.col(self.col_name).is_not_null())
+        exploded_df = self._explode_with_index(child_df)
         exploded_df = exploded_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
         )

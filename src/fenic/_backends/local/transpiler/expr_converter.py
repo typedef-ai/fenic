@@ -350,10 +350,9 @@ class ExprConverter:
                 arrow_type = pa.list_(pa.float32(), embedding_dim)
                 return pl.from_arrow(pa.array(result, type=arrow_type))
 
-            return converted_expr.map_batches(
+            return converted_expr.implode().map_batches(
                 lambda batch: embedding_avg(batch, logical.input_type.dimensions),
                 return_dtype=pl.Array(pl.Float32, logical.input_type.dimensions),
-                agg_list=True,
                 returns_scalar=True
             )
         else:
@@ -431,8 +430,8 @@ class ExprConverter:
                     descending=descending,
                     nulls_last=nulls_last,
                 ).execute()
-            return struct.map_batches(
-                sem_reduce_fn, return_dtype=pl.Utf8, agg_list=True, returns_scalar=True
+            return struct.implode().map_batches(
+                sem_reduce_fn, return_dtype=pl.Utf8, returns_scalar=True
             )
 
         raise NotImplementedError(f"Unsupported aggregate function: {type(logical)}")
@@ -444,6 +443,9 @@ class ExprConverter:
         prior to performing the distinct count across the row tuple.
         """
         converted_inputs = [self._convert_expr(e) for e in logical.exprs]
+        if len(converted_inputs) == 1:
+            return converted_inputs[0].drop_nulls().n_unique()
+
         struct_expr = pl.struct(converted_inputs)
         # Compute a null mask directly from input expressions (avoid struct field introspection)
         any_null = pl.any_horizontal([expr.is_null() for expr in converted_inputs])
@@ -497,7 +499,10 @@ class ExprConverter:
 
                 return pl.Series(results_generator(), dtype=convert_custom_dtype_to_polars(logical.return_type))
 
-        return input_struct.map_batches(execute_async_udf)
+        return input_struct.map_batches(
+            execute_async_udf,
+            return_dtype=convert_custom_dtype_to_polars(logical.return_type),
+        )
 
     @_convert_expr.register(StructExpr)
     def _convert_struct_expr(self, logical: StructExpr) -> pl.Expr:
@@ -1131,20 +1136,8 @@ class ExprConverter:
     def _convert_array_repeat_expr(self, logical: ArrayRepeatExpr) -> pl.Expr:
         element_expr = self._convert_expr(logical.element)
         count_expr = self._convert_expr(logical.count)
-
-        def _repeat_elements(s: pl.Series) -> pl.Series:
-            """Repeat elements based on count values in struct series."""
-            elem_series = s.struct.field("_elem")
-            count_series = s.struct.field("_count")
-
-            return pl.Series([
-                [elem] * count if count is not None else None
-                for elem, count in zip(elem_series, count_series, strict=True)
-            ], dtype=pl.List(elem_series.dtype))
-
-        return pl.struct([element_expr.alias("_elem"), count_expr.alias("_count")]).map_batches(
-            _repeat_elements
-        )
+        repeat_count = pl.when(count_expr < 0).then(0).otherwise(count_expr)
+        return element_expr.repeat_by(repeat_count)
 
     @_convert_expr.register(FlattenExpr)
     def _convert_flatten_expr(self, logical: FlattenExpr) -> pl.Expr:

@@ -10,14 +10,14 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 anyhow = "1.0.98"
 memchr = "2.7.4"
-polars-arrow = "0.48.1"
-pyo3 = { version = "0.24.2", features = ["abi3-py39"] }
-pyo3-polars = { version = "0.21.0", features = ["derive", "dtype-struct"] }
+polars-arrow = "0.51.0"
+pyo3 = { version = "0.25", features = ["abi3-py39"] }
+pyo3-polars = { version = "0.24.0", features = ["derive", "dtype-struct"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 regex = "1.10.0"
 tiktoken-rs = "0.7.0"
-polars = { version = "0.48.1", features = [
+polars = { version = "0.51.0", features = [
   "dtype-struct",
   "dtype-array",
   "timezones",

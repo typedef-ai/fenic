@@ -215,6 +215,16 @@ def test_array_repeat(local_session):
     assert repeated_col[0] == ["x", "x", "x"]
     assert repeated_col[1] == ["y", "y"]
 
+def test_array_repeat_edge_counts(local_session):
+    """Test array_repeat with negative, zero, null counts, and null elements."""
+    df = local_session.create_dataframe({
+        "val": ["x", "y", "z", None],
+        "count": [-1, 0, None, 2],
+    })
+    result = df.select(fc.arr.repeat(fc.col("val"), fc.col("count")).alias("repeated")).to_polars()
+
+    assert result["repeated"].to_list() == [[], [], None, [None, None]]
+
 def test_array_repeat_nested(local_session):
     """Test array_repeat function with nested arrays."""
     df = local_session.create_dataframe({"val": [["x", "y"], ["z"]], "count": [3, 2]})
