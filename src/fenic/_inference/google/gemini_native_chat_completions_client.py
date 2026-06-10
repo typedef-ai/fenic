@@ -46,9 +46,13 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    GOOGLE_REASONING_SAFETY_MARGIN,
+    validate_effective_output_token_limit,
+)
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import ResolvedGoogleModelProfile
-from fenic.core.error import ExecutionError
+from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -194,7 +198,11 @@ class GeminiNativeChatCompletionsClient(
             "system_instruction": request.messages.system,
         }
 
-        max_output_tokens = self._get_max_output_token_request_limit(request)
+        try:
+            max_output_tokens = self._get_max_output_token_request_limit(request)
+        except ValidationError as e:
+            # Deterministic request-construction failure: retrying cannot help.
+            return FatalException(e)
         if max_output_tokens is not None:
             generation_config["max_output_tokens"] = max_output_tokens
 
@@ -380,9 +388,12 @@ class GeminiNativeChatCompletionsClient(
         If max_completion_tokens is provided, includes the thinking token budget with a safety margin."""
         if request.max_completion_tokens is None:
             return None
-        return (
-            request.max_completion_tokens
-            + self._get_expected_additional_reasoning_tokens(request)
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=self._get_expected_additional_reasoning_tokens(request),
         )
 
     def _get_expected_additional_reasoning_tokens(
@@ -392,7 +403,7 @@ class GeminiNativeChatCompletionsClient(
         profile_config = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
-        return int(1.5 * profile_config.thinking_token_budget)
+        return int(GOOGLE_REASONING_SAFETY_MARGIN * profile_config.thinking_token_budget)
 
     def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> GoogleCompletionsProfileConfig:
         return self._profile_manager.get_profile_by_name(profile_name)

@@ -20,6 +20,7 @@ from anthropic.types import (
 
 from fenic._inference.anthropic.anthropic_profile_manager import (
     AnthropicCompletionsProfileManager,
+    AnthropicProfileConfiguration,
 )
 from fenic._inference.anthropic.anthropic_provider import AnthropicModelProvider
 from fenic._inference.anthropic.anthropic_utils import (
@@ -50,10 +51,15 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
+    validate_effective_output_token_limit,
+)
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import (
     ResolvedAnthropicModelProfile,
 )
+from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
 
 
@@ -145,9 +151,11 @@ class AnthropicBatchCompletionsClient(
         profile_configuration = self._profile_manager.get_profile_by_name(
             request.model_profile
         )
-        request_max_tokens = (
-            request.max_completion_tokens + profile_configuration.thinking_token_budget
-        )
+        try:
+            request_max_tokens = self._get_max_output_token_request_limit(request)
+        except ValidationError as e:
+            # Deterministic request-construction failure: retrying cannot help.
+            return FatalException(e)
         messages_creation_payload: dict[str, Any] = {
             "model": self.model,
             "system": [system_prompt],
@@ -155,6 +163,10 @@ class AnthropicBatchCompletionsClient(
             "max_tokens": request_max_tokens,
             "thinking": profile_configuration.thinking_config,
         }
+        if profile_configuration.output_config:
+            messages_creation_payload["output_config"] = (
+                profile_configuration.output_config
+            )
         if request.structured_output:
             tool_param = self.create_response_format_tool(request.structured_output)
             messages_creation_payload.update({"tools": [tool_param]})
@@ -340,11 +352,16 @@ class AnthropicBatchCompletionsClient(
         Returns:
             Maximum output tokens (completion + thinking budget)
         """
-        return (
-            request.max_completion_tokens
-            + self._profile_manager.get_profile_by_name(
-                request.model_profile
-            ).thinking_token_budget
+        profile_configuration = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return validate_effective_output_token_limit(
+            model_provider=self.model_provider,
+            model_name=self.model,
+            model_max_output_tokens=self._model_parameters.max_output_tokens,
+            requested_completion_tokens=request.max_completion_tokens,
+            estimated_reasoning_tokens=profile_configuration.thinking_token_budget,
+            reasoning_shares_output_window=profile_configuration.uses_adaptive_thinking,
         )
 
     # Override default behavior to account for the fact that Anthropic's encoding is slightly different from OpenAI's.
@@ -379,10 +396,40 @@ class AnthropicBatchCompletionsClient(
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)
 
-        # Estimate output tokens
-        output_tokens = self._get_max_output_token_request_limit(request)
+        # Estimate output tokens for rate limiting. This is intentionally
+        # separate from the provider-side max_tokens budget: adaptive thinking
+        # can have a very large maximum window, but reserving that maximum for
+        # throttling would make small-output requests impossible under normal
+        # output TPM limits.
+        output_tokens = self._estimate_output_tokens(request)
 
         return TokenEstimate(input_tokens=input_tokens, output_tokens=output_tokens)
+
+    def _estimate_output_tokens(self, request: FenicCompletionsRequest) -> int:
+        """Estimate output tokens for rate limiting."""
+        completion_tokens = request.max_completion_tokens or 0
+        profile_config = self._profile_manager.get_profile_by_name(
+            request.model_profile
+        )
+        return completion_tokens + self._estimate_thinking_tokens_for_rate_limit(
+            profile_config, completion_tokens
+        )
+
+    def _estimate_thinking_tokens_for_rate_limit(
+        self, profile_config: AnthropicProfileConfiguration, completion_tokens: int
+    ) -> int:
+        """Estimate thinking tokens for throttling without using adaptive maxima."""
+        if not profile_config.thinking_enabled:
+            return 0
+        if profile_config.uses_adaptive_thinking and profile_config.effort:
+            return min(
+                profile_config.thinking_token_budget,
+                math.ceil(
+                    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS[profile_config.effort]
+                    * completion_tokens
+                ),
+            )
+        return profile_config.thinking_token_budget
 
     def get_metrics(self) -> LMMetrics:
         """Get current metrics.

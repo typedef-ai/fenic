@@ -58,9 +58,8 @@ config = SessionConfig(
 OpenRouter profiles support the following configuration options:
 
 - **`models`**: List of fallback models to use if the primary model is unavailable
-- **`reasoning_effort`**: For reasoning-capable models, set to `"low"`, `"medium"`, or `"high"` for OpenAI models.
+- **`reasoning_effort`**: For reasoning-capable models, set to `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, or `"xhigh"`.
 - **`reasoning_max_tokens`**: Token budget for reasoning for Gemini/Anthropic models
-- \*\*`
 - **`provider`**: Provider routing preferences with these options:
   - `sort`: Route by `"price"`, `"throughput"`, or `"latency"`
   - `only`: List of providers to exclusively use (e.g., `["OpenAI", "Anthropic"]`)

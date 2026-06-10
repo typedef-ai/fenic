@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 # Type for supported thinking levels (Gemini 3+ models)
 ThinkingLevelType = Literal["high", "medium", "low", "minimal"]
 MediaResolutionType = Literal["low", "medium", "high", "ultra_high"]
+AnthropicReasoningEffortType = Literal["low", "medium", "high", "xhigh", "max"]
 
 # Thinking level sets for Gemini 3.x models
 GEMINI_3X_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
 GEMINI_3X_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
+ANTHROPIC_OPUS_4_7_PLUS_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "xhigh", "max"}
+ANTHROPIC_4_6_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "max"}
+ANTHROPIC_OPUS_4_5_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high"}
 
 
 class ModelProvider(Enum):
@@ -58,8 +62,10 @@ class CompletionModelParameters:
         supports_disabled_reasoning: Whether the model supports disabling reasoning.
         supports_xhigh_reasoning: Whether the model supports xhigh reasoning effort.
         default_reasoning_effort: Default reasoning effort when a profile does not specify one.
+        supported_reasoning_efforts: Set of provider-native reasoning efforts supported by the model.
         supported_thinking_levels: Set of thinking levels supported by the model (Gemini 3+).
             None means the model uses thinking_budget instead. Valid values: "high", "medium", "low", "minimal".
+        uses_adaptive_thinking: Whether the model uses Anthropic adaptive thinking rather than manual thinking budgets.
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
@@ -82,7 +88,9 @@ class CompletionModelParameters:
         supports_disabled_reasoning=True,
         supports_xhigh_reasoning=False,
         default_reasoning_effort: Optional[str] = None,
+        supported_reasoning_efforts: Optional[Set[str]] = None,
         supported_thinking_levels: Optional[Set[ThinkingLevelType]] = None,
+        uses_adaptive_thinking: bool = False,
         supports_custom_temperature=True,
         supports_verbosity = False,
         supports_pdf_parsing = False,
@@ -104,7 +112,9 @@ class CompletionModelParameters:
         self.supports_disabled_reasoning = supports_disabled_reasoning
         self.supports_xhigh_reasoning = supports_xhigh_reasoning
         self.default_reasoning_effort = default_reasoning_effort
+        self.supported_reasoning_efforts = supported_reasoning_efforts
         self.supported_thinking_levels = supported_thinking_levels
+        self.uses_adaptive_thinking = uses_adaptive_thinking
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
@@ -364,6 +374,8 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
                 supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
                 supports_custom_temperature=False,
             ),
         )
@@ -379,6 +391,8 @@ class ModelCatalog:
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
                 supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
                 supports_custom_temperature=False,
             ),
         )
@@ -395,6 +409,8 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=128_000,
                 supports_reasoning=True,
+                supported_reasoning_efforts=ANTHROPIC_4_6_EFFORTS,
+                uses_adaptive_thinking=True,
             ),
         )
 
@@ -409,6 +425,8 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=64_000,
                 supports_reasoning=True,
+                supported_reasoning_efforts=ANTHROPIC_4_6_EFFORTS,
+                uses_adaptive_thinking=True,
             ),
         )
 
@@ -424,6 +442,7 @@ class ModelCatalog:
                 context_window_length=200_000,
                 max_output_tokens=64_000,
                 supports_reasoning=True,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_5_EFFORTS,
             ),
             snapshots=["claude-opus-4-5-20251101"],
         )

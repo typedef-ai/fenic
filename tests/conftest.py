@@ -328,7 +328,20 @@ def configure_language_model(model_provider: ModelProvider, model_name: str) -> 
                 tpm=100_000,
             )
     elif model_provider == ModelProvider.ANTHROPIC:
-        if model_parameters.supports_reasoning:
+        if model_parameters.uses_adaptive_thinking:
+            language_model = AnthropicLanguageModel(
+                model_name=model_name,
+                rpm=500,
+                input_tpm=100_000,
+                output_tpm=75_000,
+                profiles={
+                    "low": AnthropicLanguageModel.Profile(effort="low"),
+                    "medium": AnthropicLanguageModel.Profile(effort="medium"),
+                    "high": AnthropicLanguageModel.Profile(effort="high"),
+                },
+                default_profile="low",
+            )
+        elif model_parameters.supports_reasoning:
             language_model = AnthropicLanguageModel(
                 model_name=model_name,
                 rpm=500,

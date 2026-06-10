@@ -61,7 +61,7 @@ docs = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.52.2"]
+anthropic = ["anthropic>=0.106.0"]
 google = ["google-genai[local-tokenizer]>=1.56.0"]
 cohere = ["cohere>=5.16.1"]
 cloud = [

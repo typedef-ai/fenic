@@ -5,6 +5,11 @@ from fenic.core._inference.model_catalog import (
     ModelProvider,
     model_catalog,
 )
+from fenic.core._inference.output_token_limits import (
+    estimate_reasoning_tokens_for_resolved_profile,
+    reasoning_shares_output_window_for_resolved_profile,
+    validate_effective_output_token_limit,
+)
 from fenic.core._logical_plan.expressions import AggregateExpr, LogicalExpr, SortExpr
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._resolved_session_config import (
@@ -91,10 +96,28 @@ def validate_completion_parameters(
         ValidationError: If temperature or max_tokens are out of bounds for the model.
     """
     model_config, model_provider, completion_parameters = fetch_model_and_completion_parameters(model_alias, resolved_session_config)
-    if max_tokens is not None and max_tokens > completion_parameters.max_output_tokens:
-        raise ValidationError(
-            f"[{model_provider.value}:{model_config.model_name}] max_output_tokens must be a positive integer less than or equal to {completion_parameters.max_output_tokens}"
+    profile_name = model_alias.profile if model_alias else None
+    estimated_reasoning_tokens = (
+        estimate_reasoning_tokens_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=completion_parameters,
+            profile_name=profile_name,
         )
+        if max_tokens is not None
+        else 0
+    )
+    validate_effective_output_token_limit(
+        model_provider=model_provider,
+        model_name=model_config.model_name,
+        model_max_output_tokens=completion_parameters.max_output_tokens,
+        requested_completion_tokens=max_tokens,
+        estimated_reasoning_tokens=estimated_reasoning_tokens,
+        reasoning_shares_output_window=reasoning_shares_output_window_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=completion_parameters,
+            profile_name=profile_name,
+        ),
+    )
     if temperature is not None and (temperature < 0 or temperature > completion_parameters.max_temperature):
         raise ValidationError(
             f"[{model_provider.value}:{model_config.model_name}] temperature must be between 0 and {completion_parameters.max_temperature}"

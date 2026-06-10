@@ -1,10 +1,17 @@
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
 import anthropic
 
 from fenic._inference.profile_manager import BaseProfileConfiguration, ProfileManager
-from fenic.core._inference.model_catalog import CompletionModelParameters
+from fenic.core._inference.model_catalog import (
+    AnthropicReasoningEffortType,
+    CompletionModelParameters,
+)
+from fenic.core._inference.output_token_limits import (
+    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS,
+)
 from fenic.core._resolved_session_config import ResolvedAnthropicModelProfile
 
 
@@ -15,12 +22,17 @@ class AnthropicProfileConfiguration(BaseProfileConfiguration):
     Attributes:
         thinking_enabled: Whether thinking/reasoning is enabled for this profile
         thinking_token_budget: Token budget allocated for thinking/reasoning
+        uses_adaptive_thinking: Whether thinking_token_budget is an adaptive maximum rather than a fixed budget
         thinking_config: Anthropic-specific thinking configuration
+        output_config: Anthropic output configuration for effort.
     """
     thinking_enabled: bool = False
     thinking_token_budget: int = 0
+    uses_adaptive_thinking: bool = False
+    effort: Optional[AnthropicReasoningEffortType] = None
     thinking_config: anthropic.types.ThinkingConfigParam = field(
         default_factory=lambda: anthropic.types.ThinkingConfigDisabledParam(type="disabled"))
+    output_config: Optional[anthropic.types.OutputConfigParam] = None
 
 
 class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelProfile, AnthropicProfileConfiguration]):
@@ -65,7 +77,28 @@ class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelPr
                 thinking_config=anthropic.types.ThinkingConfigEnabledParam(
                     type="enabled",
                     budget_tokens=profile.thinking_token_budget
-                )
+                ),
+                effort=profile.effort,
+                output_config={"effort": profile.effort} if profile.effort else None,
+            )
+        elif profile.effort and self.model_parameters.uses_adaptive_thinking:
+            return AnthropicProfileConfiguration(
+                thinking_enabled=True,
+                thinking_token_budget=math.ceil(
+                    ANTHROPIC_ADAPTIVE_THINKING_EFFORT_RATIOS[profile.effort]
+                    * self.model_parameters.max_output_tokens
+                ),
+                thinking_config=anthropic.types.ThinkingConfigAdaptiveParam(
+                    type="adaptive"
+                ),
+                uses_adaptive_thinking=True,
+                effort=profile.effort,
+                output_config={"effort": profile.effort},
+            )
+        elif profile.effort:
+            return AnthropicProfileConfiguration(
+                effort=profile.effort,
+                output_config={"effort": profile.effort},
             )
         else:
             return AnthropicProfileConfiguration()
