@@ -1,4 +1,17 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: ['github>typedef-ai/renovate:default.json5'],
+  packageRules: [
+    {
+      // The polars Rust crate family must be upgraded in lockstep: pyo3-polars
+      // pins specific polars/polars-arrow versions, so bumping any one of them
+      // alone puts two incompatible copies of the polars crates in the dep
+      // graph (see PR #251). pyo3 is included because pyo3-polars also pins a
+      // specific pyo3 minor version.
+      description: 'Group polars Rust crates (and pyo3) into a single lockstep PR',
+      matchManagers: ['cargo'],
+      matchPackageNames: ['polars', 'polars-arrow', 'pyo3-polars', 'pyo3'],
+      groupName: 'polars rust crates',
+    },
+  ],
 }
