@@ -1,4 +1,5 @@
 import functools
+import logging
 import math
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -12,6 +13,7 @@ import anthropic
 from anthropic import (
     AnthropicError,
     APIConnectionError,
+    APIStatusError,
     APITimeoutError,
     RateLimitError,
 )
@@ -64,6 +66,8 @@ from fenic.core._resolved_session_config import (
 )
 from fenic.core.error import ValidationError
 from fenic.core.metrics import LMMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicBatchCompletionsClient(
@@ -242,12 +246,31 @@ class AnthropicBatchCompletionsClient(
                     cached_input_tokens_written=usage_data.cache_creation_input_tokens,
                     output_tokens=output_tokens,
                 )
-        except (
-            RateLimitError,
-            APITimeoutError,
-            APIConnectionError,
-        ) as e:  # consider the various APIStatusErrors
+        except RateLimitError as e:
+            # Anthropic marks non-retryable 429s (e.g. a hard org spend-cap breach)
+            # with `x-should-retry: false`; genuine per-minute rate limits are
+            # retryable. Failing fast here avoids burning the full exponential
+            # backoff budget on an error retries cannot fix.
+            non_retryable = (
+                e.response is not None
+                and e.response.headers.get("x-should-retry", "").lower() == "false"
+            )
+            if non_retryable:
+                logger.error(
+                    f"Non-retryable rate limit error on anthropic provider: {e}"
+                )
+                return FatalException(e)
             return TransientException(e)
+        except (APITimeoutError, APIConnectionError) as e:
+            return TransientException(e)
+        except APIStatusError as e:
+            # 529 overloaded_error is transient by definition. The async client in
+            # anthropic sdk 0.54.0 maps 529 to InternalServerError (it has no 529
+            # branch, unlike the sync client which raises OverloadedError), so match
+            # on the status code to be robust to both SDK paths.
+            if e.status_code == 529:
+                return TransientException(e)
+            return FatalException(e)
         except AnthropicError as e:
             return FatalException(e)
 

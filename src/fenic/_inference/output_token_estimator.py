@@ -48,7 +48,13 @@ class OutputTokenEstimator:
         self._lock = threading.Lock()
 
     def reserve(self, key: Hashable, *, static_ceiling: int, reasoning: bool) -> int:
-        """Output-token reservation. Always in [1, static_ceiling]."""
+        """Output-token reservation in [1, static_ceiling] (or the ceiling itself when <= 0).
+
+        A non-positive ceiling (e.g. max_completion_tokens=None with no file
+        estimate) is preserved as-is so behavior matches the static path exactly.
+        """
+        if static_ceiling <= 0:
+            return static_ceiling
         if not self._enabled:
             return static_ceiling
         with self._lock:

@@ -80,3 +80,12 @@ def test_concurrent_observe_and_reserve_is_safe():
     for t in threads:
         t.join()
     assert 1 <= est.reserve(("p", 512), static_ceiling=8704, reasoning=False) <= 8704
+
+
+def test_zero_ceiling_preserved_even_when_warm():
+    # max_completion_tokens=None with no file estimate yields a 0 ceiling; the
+    # old static path reserved 0, so the learned path must too (not 1).
+    est = _estimator()
+    for _ in range(50):
+        est.observe(("p", None), 25)
+    assert est.reserve(("p", None), static_ceiling=0, reasoning=False) == 0
