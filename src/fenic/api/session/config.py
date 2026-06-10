@@ -1516,8 +1516,11 @@ class AdaptiveTokenEstimationConfig(BaseModel):
     Setting ``enabled=False`` disables adaptive *estimation* — reservations fall
     back to the static worst-case ceiling instead of the learned distribution.
     Settlement (reconciling the token bucket to actual usage after each response)
-    is **always on** regardless of this flag, because settlement is pure accounting
-    that can only refund unused reservation and cannot increase 429 risk.
+    is **always on** regardless of this flag. It corrects the bucket in both
+    directions — refunding the over-reservation (the common case) and debiting
+    further when a request exceeds its reservation — and neither direction increases
+    429 risk: a refund only returns capacity the provider never charged, and a debit
+    only makes the limiter more conservative.
     """
 
     enabled: bool = True

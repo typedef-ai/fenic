@@ -348,8 +348,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         that already succeeded.
 
         Settlement (bucket reconciliation to actual usage) runs regardless of
-        whether adaptive estimation is enabled. Settlement is pure accounting that
-        can only refund unused reservation — it never increases 429 risk.
+        whether adaptive estimation is enabled. It corrects the bucket in both
+        directions — refunding the over-reservation (the common case) and debiting
+        further when a request exceeds its reservation (the p95 tail) — and neither
+        direction increases 429 risk: a refund only returns capacity the provider
+        never charged, and a debit only makes the limiter more conservative.
         ``enabled=False`` only affects the up-front *reservation size* (falls back
         to the static ceiling); the settle() call always executes.
         """
