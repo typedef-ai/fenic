@@ -107,7 +107,7 @@ class OpenAIChatCompletionsCore:
                 else None
             )
             # Temperature is only allowed when reasoning_effort is 'none' for models that support it
-            if request.temperature is not None:
+            if request.temperature:
                 if self._model_parameters.supports_reasoning and reasoning_effort != "none":
                     logger.warning(
                         f"Model {self._model} does not support custom temperature when reasoning is enabled.  Ignoring temperature parameter."
