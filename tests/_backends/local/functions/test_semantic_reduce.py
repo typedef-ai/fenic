@@ -18,7 +18,7 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
-from fenic.core.error import ExecutionError, PlanError, ValidationError
+from fenic.core.error import PlanError, ValidationError
 
 
 def _install_deterministic_reduce_model(local_session, monkeypatch):
@@ -175,10 +175,6 @@ def test_semantic_reduce_golden_output_ordering_and_nulls(local_session, monkeyp
     ]
 
 
-@pytest.mark.xfail(
-    raises=ExecutionError,
-    reason="semantic.reduce currently creates a ThreadPoolExecutor with max_workers=0 for empty grouped inputs.",
-)
 def test_semantic_reduce_golden_empty_result(local_session, monkeypatch):
     _install_deterministic_reduce_model(local_session, monkeypatch)
 

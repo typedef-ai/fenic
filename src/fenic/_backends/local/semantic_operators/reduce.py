@@ -155,7 +155,10 @@ class Reduce:
 
     def _preprocess_group(self, group: pl.Series) -> Tuple[str, pl.Series]:
         """Preprocess group by adding context and ordering the data column."""
-        group_df = pl.DataFrame(group.to_list())
+        if not self.group_context_names and not self.descending:
+            return self.user_instruction, group.struct.field(DATA_COLUMN_NAME)
+
+        group_df = group.struct.unnest()
 
         # Step 0: Build user instruction from group context if present
         if self.group_context_names:
