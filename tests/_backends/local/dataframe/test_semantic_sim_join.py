@@ -3,6 +3,7 @@ import pytest
 
 from fenic import (
     ColumnField,
+    DoubleType,
     EmbeddingType,
     IntegerType,
     StringType,
@@ -443,6 +444,79 @@ def test_semantic_sim_join_with_invalid_custom_embeddings(local_session):
     # there should be no match with a None value on the right side.
     assert len(result) == 3
     assert None not in result["skill"].to_list()
+
+
+def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
+    left = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "left_id": [1, 2, 3, 4],
+                "left_label": ["x", "y", "null-vector", "nan-vector"],
+                "left_vec": [
+                    [0.0, 0.0],
+                    [10.0, 0.0],
+                    None,
+                    [float("nan"), 0.0],
+                ],
+            },
+            schema={
+                "left_id": pl.Int64,
+                "left_label": pl.String,
+                "left_vec": pl.List(pl.Float32),
+            },
+        )
+    ).with_column("left_vec", col("left_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")))
+    right = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "right_id": [10, 20, 30],
+                "right_label": ["near-x", "near-y", "null-vector"],
+                "right_vec": [[1.0, 0.0], [9.0, 0.0], None],
+            },
+            schema={
+                "right_id": pl.Int64,
+                "right_label": pl.String,
+                "right_vec": pl.List(pl.Float32),
+            },
+        )
+    ).with_column("right_vec", col("right_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")))
+
+    df = left.semantic.sim_join(
+        right,
+        left_on="left_vec",
+        right_on="right_vec",
+        k=2,
+        similarity_metric="l2",
+        similarity_score_column="distance",
+    )
+    assert df.schema.column_fields == [
+        ColumnField("left_id", IntegerType),
+        ColumnField("left_label", StringType),
+        ColumnField("left_vec", EmbeddingType(dimensions=2, embedding_model="test")),
+        ColumnField("right_id", IntegerType),
+        ColumnField("right_label", StringType),
+        ColumnField("right_vec", EmbeddingType(dimensions=2, embedding_model="test")),
+        ColumnField("distance", DoubleType),
+    ]
+
+    result = df.drop("left_vec", "right_vec").to_polars()
+    assert result.schema == pl.Schema(
+        {
+            "left_id": pl.Int64,
+            "left_label": pl.String,
+            "right_id": pl.Int64,
+            "right_label": pl.String,
+            "distance": pl.Float64,
+        }
+    )
+    assert len(result) == 4
+    assert result.to_dicts() == [
+        {"left_id": 1, "left_label": "x", "right_id": 10, "right_label": "near-x", "distance": 1.0},
+        {"left_id": 1, "left_label": "x", "right_id": 20, "right_label": "near-y", "distance": 81.0},
+        {"left_id": 2, "left_label": "y", "right_id": 20, "right_label": "near-y", "distance": 1.0},
+        {"left_id": 2, "left_label": "y", "right_id": 10, "right_label": "near-x", "distance": 81.0},
+    ]
+
 
 def test_semantic_sim_join_with_incompatible_embeddings(local_session):
     df = local_session.create_dataframe(
