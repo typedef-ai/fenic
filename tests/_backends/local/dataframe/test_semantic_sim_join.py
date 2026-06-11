@@ -12,6 +12,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic._backends.local.semantic_operators import sim_join as sim_join_module
 from fenic.core.error import TypeMismatchError
 
 
@@ -108,7 +109,7 @@ def _create_semantic_join_dataframe_invalid_custom_embeddings(local_session):
                 "course_embeddings": [
                     [float(1.0)],
                     [None],
-                    [float('nan')],
+                    [float("nan")],
                     [float(3.0)],
                     [float(6.0)],
                     None,
@@ -121,7 +122,12 @@ def _create_semantic_join_dataframe_invalid_custom_embeddings(local_session):
                 "course_embeddings": pl.List(pl.Float32),
             },
         )
-    ).with_column("course_embeddings", col("course_embeddings").cast(EmbeddingType(dimensions=1, embedding_model="test")))
+    ).with_column(
+        "course_embeddings",
+        col("course_embeddings").cast(
+            EmbeddingType(dimensions=1, embedding_model="test")
+        ),
+    )
     right = local_session.create_dataframe(
         pl.DataFrame(
             {
@@ -131,7 +137,7 @@ def _create_semantic_join_dataframe_invalid_custom_embeddings(local_session):
                 "skill_embeddings": [
                     [float(1.0)],
                     [None],
-                    [float('nan')],
+                    [float("nan")],
                     None,
                 ],
             },
@@ -142,7 +148,12 @@ def _create_semantic_join_dataframe_invalid_custom_embeddings(local_session):
                 "skill_embeddings": pl.List(pl.Float32),
             },
         )
-    ).with_column("skill_embeddings", col("skill_embeddings").cast(EmbeddingType(dimensions=1, embedding_model="test")))
+    ).with_column(
+        "skill_embeddings",
+        col("skill_embeddings").cast(
+            EmbeddingType(dimensions=1, embedding_model="test")
+        ),
+    )
     return left, right
 
 
@@ -155,29 +166,39 @@ def _create_semantic_sim_join_supplement(local_session):
     )
     return df_supplement
 
+
 @pytest.mark.parametrize("metric", ["dot", "cosine", "l2"])
 def test_semantic_sim_join(local_session, metric, embedding_model_name_and_dimensions):
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     left, right = _create_semantic_join_dataframe(local_session)
-    df = (
-        left.with_column("course_embeddings", semantic.embed(col("course_name")))
-        .semantic.sim_join(
-            right.with_column("skill_embeddings", semantic.embed(col("skill"))),
-            left_on="course_embeddings",
-            right_on="skill_embeddings",
-            k=1,
-            similarity_metric=metric,
-        )
+    df = left.with_column(
+        "course_embeddings", semantic.embed(col("course_name"))
+    ).semantic.sim_join(
+        right.with_column("skill_embeddings", semantic.embed(col("skill"))),
+        left_on="course_embeddings",
+        right_on="skill_embeddings",
+        k=1,
+        similarity_metric=metric,
     )
     assert df.schema.column_fields == [
         ColumnField("course_id", IntegerType),
         ColumnField("course_name", StringType),
         ColumnField("other_col_left", StringType),
-        ColumnField("course_embeddings", EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name)),
+        ColumnField(
+            "course_embeddings",
+            EmbeddingType(
+                dimensions=embedding_dimensions, embedding_model=embedding_model_name
+            ),
+        ),
         ColumnField("skill_id", IntegerType),
         ColumnField("skill", StringType),
         ColumnField("other_col_right", StringType),
-        ColumnField("skill_embeddings", EmbeddingType(dimensions=embedding_dimensions, embedding_model=embedding_model_name)),
+        ColumnField(
+            "skill_embeddings",
+            EmbeddingType(
+                dimensions=embedding_dimensions, embedding_model=embedding_model_name
+            ),
+        ),
     ]
     result = df.to_polars()
     assert result.schema == pl.Schema(
@@ -422,7 +443,9 @@ def test_semantic_sim_join_with_right_none(local_session):
 
 def test_semantic_sim_join_with_invalid_custom_embeddings(local_session):
     """Test that we can perform a sim join where a user brings their own embeddings."""
-    left, right = _create_semantic_join_dataframe_invalid_custom_embeddings(local_session)
+    left, right = _create_semantic_join_dataframe_invalid_custom_embeddings(
+        local_session
+    )
     df = left.semantic.sim_join(
         right,
         left_on="course_embeddings",
@@ -465,7 +488,10 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
                 "left_vec": pl.List(pl.Float32),
             },
         )
-    ).with_column("left_vec", col("left_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")))
+    ).with_column(
+        "left_vec",
+        col("left_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")),
+    )
     right = local_session.create_dataframe(
         pl.DataFrame(
             {
@@ -479,7 +505,10 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
                 "right_vec": pl.List(pl.Float32),
             },
         )
-    ).with_column("right_vec", col("right_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")))
+    ).with_column(
+        "right_vec",
+        col("right_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")),
+    )
 
     df = left.semantic.sim_join(
         right,
@@ -511,10 +540,151 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
     )
     assert len(result) == 4
     assert result.to_dicts() == [
-        {"left_id": 1, "left_label": "x", "right_id": 10, "right_label": "near-x", "distance": 1.0},
-        {"left_id": 1, "left_label": "x", "right_id": 20, "right_label": "near-y", "distance": 81.0},
-        {"left_id": 2, "left_label": "y", "right_id": 20, "right_label": "near-y", "distance": 1.0},
-        {"left_id": 2, "left_label": "y", "right_id": 10, "right_label": "near-x", "distance": 81.0},
+        {
+            "left_id": 1,
+            "left_label": "x",
+            "right_id": 10,
+            "right_label": "near-x",
+            "distance": 1.0,
+        },
+        {
+            "left_id": 1,
+            "left_label": "x",
+            "right_id": 20,
+            "right_label": "near-y",
+            "distance": 81.0,
+        },
+        {
+            "left_id": 2,
+            "left_label": "y",
+            "right_id": 20,
+            "right_label": "near-y",
+            "distance": 1.0,
+        },
+        {
+            "left_id": 2,
+            "left_label": "y",
+            "right_id": 10,
+            "right_label": "near-x",
+            "distance": 81.0,
+        },
+    ]
+
+
+def test_semantic_sim_join_removes_lancedb_temp_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(sim_join_module, "VECTOR_INDEX_DIR", str(tmp_path))
+    left = pl.DataFrame(
+        {
+            sim_join_module.LEFT_ON_COL_NAME: [[0.0, 0.0], [10.0, 0.0]],
+            "left_payload": ["x", "y"],
+        },
+        schema={
+            sim_join_module.LEFT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "left_payload": pl.String,
+        },
+    )
+    right = pl.DataFrame(
+        {
+            sim_join_module.RIGHT_ON_COL_NAME: [[1.0, 0.0], [9.0, 0.0]],
+            "right_payload": ["near-x", "near-y"],
+        },
+        schema={
+            sim_join_module.RIGHT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "right_payload": pl.String,
+        },
+    )
+
+    result = sim_join_module.SimJoin(left, right, k=1, similarity_metric="l2").execute()
+
+    assert result.height == 2
+    assert list(tmp_path.iterdir()) == []
+
+
+def _create_direct_sim_join_inputs():
+    left = pl.DataFrame(
+        {
+            sim_join_module.LEFT_ON_COL_NAME: [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]],
+            "left_payload": ["x", "y", "z"],
+        },
+        schema={
+            sim_join_module.LEFT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "left_payload": pl.String,
+        },
+    )
+    right = pl.DataFrame(
+        {
+            sim_join_module.RIGHT_ON_COL_NAME: [[1.0, 0.0], [9.0, 0.0]],
+            "right_payload": ["near-x", "near-y"],
+        },
+        schema={
+            sim_join_module.RIGHT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "right_payload": pl.String,
+        },
+    )
+    return left, right
+
+
+def test_semantic_sim_join_left_batching_preserves_output():
+    left, right = _create_direct_sim_join_inputs()
+
+    result = sim_join_module.SimJoin(
+        left, right, k=2, similarity_metric="l2", left_batch_size=1
+    ).execute()
+
+    assert result.select(
+        "left_payload", "right_payload", sim_join_module.DISTANCE_COL_NAME
+    ).to_dicts() == [
+        {
+            "left_payload": "x",
+            "right_payload": "near-x",
+            sim_join_module.DISTANCE_COL_NAME: 1.0,
+        },
+        {
+            "left_payload": "x",
+            "right_payload": "near-y",
+            sim_join_module.DISTANCE_COL_NAME: 81.0,
+        },
+        {
+            "left_payload": "y",
+            "right_payload": "near-y",
+            sim_join_module.DISTANCE_COL_NAME: 1.0,
+        },
+        {
+            "left_payload": "y",
+            "right_payload": "near-x",
+            sim_join_module.DISTANCE_COL_NAME: 81.0,
+        },
+        {
+            "left_payload": "z",
+            "right_payload": "near-y",
+            sim_join_module.DISTANCE_COL_NAME: 121.0,
+        },
+        {
+            "left_payload": "z",
+            "right_payload": "near-x",
+            sim_join_module.DISTANCE_COL_NAME: 361.0,
+        },
+    ]
+
+
+def test_semantic_sim_join_can_skip_normalized_vector_columns():
+    left, right = _create_direct_sim_join_inputs()
+
+    result = sim_join_module.SimJoin(
+        left,
+        right,
+        k=1,
+        similarity_metric="l2",
+        include_left_on=False,
+        include_right_on=False,
+    ).execute()
+
+    assert sim_join_module.LEFT_ON_COL_NAME not in result.columns
+    assert sim_join_module.RIGHT_ON_COL_NAME not in result.columns
+    assert result.columns == [
+        "left_payload",
+        "right_payload",
+        sim_join_module.DISTANCE_COL_NAME,
     ]
 
 
@@ -535,13 +705,23 @@ def test_semantic_sim_join_with_incompatible_embeddings(local_session):
                 [7.0, 8.0, 9.0],
                 [10.0, 11.0, 12.0],
                 [13.0, 14.0, 15.0],
-            ]
+            ],
         }
     )
-    left = df.select(col("course_embeddings").cast(EmbeddingType(dimensions=3, embedding_model="oai-small")).alias("left_embeddings"))
-    right = df.select(col("course_embeddings").cast(EmbeddingType(dimensions=3, embedding_model="oai-large")).alias("right_embeddings"))
+    left = df.select(
+        col("course_embeddings")
+        .cast(EmbeddingType(dimensions=3, embedding_model="oai-small"))
+        .alias("left_embeddings")
+    )
+    right = df.select(
+        col("course_embeddings")
+        .cast(EmbeddingType(dimensions=3, embedding_model="oai-large"))
+        .alias("right_embeddings")
+    )
     with pytest.raises(
         TypeMismatchError,
         match="Cannot apply semantic.sim_join with mismatched types",
     ):
-        left.semantic.sim_join(right, left_on="left_embeddings", right_on="right_embeddings", k=1)
+        left.semantic.sim_join(
+            right, left_on="left_embeddings", right_on="right_embeddings", k=1
+        )
