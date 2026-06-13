@@ -1,7 +1,15 @@
 import logging
 import math
+import sys
+import time
+from collections.abc import Callable
 from textwrap import dedent
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - resource is unavailable on Windows.
+    resource = None
 
 import jinja2
 import polars as pl
@@ -19,6 +27,39 @@ logger = logging.getLogger(__name__)
 CONTEXT_WINDOW_REDUCTION_FACTOR = 0.7
 DATA_COLUMN_NAME = "__data__"
 SORT_KEY_COLUMN_NAME = "__sort_key__"
+_REDUCE_PROFILE_COLLECTOR: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_reduce_profile_collector(
+    collector: Callable[[dict[str, Any]], None] | None,
+) -> None:
+    """Install an optional benchmark-only collector for semantic.reduce phase metrics."""
+    global _REDUCE_PROFILE_COLLECTOR
+    _REDUCE_PROFILE_COLLECTOR = collector
+
+
+def _ru_maxrss_to_bytes(ru_maxrss: int) -> int:
+    return ru_maxrss if sys.platform == "darwin" else ru_maxrss * 1024
+
+
+def _peak_rss_bytes() -> int:
+    if resource is None:
+        return 0
+    return _ru_maxrss_to_bytes(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+
+def _record_reduce_phase(name: str, started: float, **metadata: Any) -> None:
+    if _REDUCE_PROFILE_COLLECTOR is None:
+        return
+    _REDUCE_PROFILE_COLLECTOR(
+        {
+            "name": name,
+            "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
+            "rss_after_bytes": _peak_rss_bytes(),
+            **metadata,
+        }
+    )
+
 
 class Reduce:
     """Hierarchical document reduction for handling context window limitations.
@@ -121,7 +162,15 @@ class Reduce:
             logger.warning(f"No documents in group {group_index}")
             return None
 
+        started = time.perf_counter()
         user_instruction, series = self._preprocess_group(group)
+        _record_reduce_phase(
+            "preprocess_group",
+            started,
+            group_index=group_index,
+            input_rows=len(group),
+            output_docs=len(series),
+        )
         operation_name = f"semantic.reduce(group={group_index})"
         docs = series.to_list()
         tree_level = 0
@@ -133,11 +182,22 @@ class Reduce:
                 f"Tree level {tree_level}: processing {len(docs)} documents for group {group_index}"
             )
 
+            started = time.perf_counter()
+            input_doc_count = len(docs)
             messages_batch = self._build_request_messages_batch(user_instruction, docs, tree_level)
+            _record_reduce_phase(
+                "build_request_messages",
+                started,
+                group_index=group_index,
+                tree_level=tree_level,
+                input_docs=input_doc_count,
+                request_count=0 if messages_batch is None else len(messages_batch),
+            )
             if not messages_batch:
                 logger.warning(f"No valid documents to process in group {group_index}")
                 return None
 
+            started = time.perf_counter()
             responses = self.model.get_completions(
                 messages=messages_batch,
                 operation_name=operation_name,
@@ -145,10 +205,26 @@ class Reduce:
                 temperature=self.temperature,
                 model_profile=self.model_profile,
             )
+            _record_reduce_phase(
+                "model_completions",
+                started,
+                group_index=group_index,
+                tree_level=tree_level,
+                request_count=len(messages_batch),
+                response_count=len(responses),
+            )
 
             # Extract completions for next level
+            started = time.perf_counter()
             reduced_docs = [response.completion for response in responses]
             docs = reduced_docs
+            _record_reduce_phase(
+                "prepare_next_level",
+                started,
+                group_index=group_index,
+                tree_level=tree_level,
+                output_docs=len(docs),
+            )
             tree_level += 1
 
         return docs[0]

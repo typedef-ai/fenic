@@ -1,5 +1,13 @@
 import logging
-from typing import Optional
+import sys
+import time
+from collections.abc import Callable
+from typing import Any, Optional
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - resource is unavailable on Windows.
+    resource = None
 
 import polars as pl
 
@@ -20,6 +28,39 @@ RENDERED_INSTRUCTION_KEY = "__rendered_instruction__"
 MATCH_RESULT_KEY = "__match_result__"
 LEFT_ID_KEY = "__left_id__"
 RIGHT_ID_KEY = "__right_id__"
+_JOIN_PROFILE_COLLECTOR: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_join_profile_collector(
+    collector: Callable[[dict[str, Any]], None] | None,
+) -> None:
+    """Install an optional benchmark-only collector for semantic.join phase metrics."""
+    global _JOIN_PROFILE_COLLECTOR
+    _JOIN_PROFILE_COLLECTOR = collector
+
+
+def _ru_maxrss_to_bytes(ru_maxrss: int) -> int:
+    return ru_maxrss if sys.platform == "darwin" else ru_maxrss * 1024
+
+
+def _peak_rss_bytes() -> int:
+    if resource is None:
+        return 0
+    return _ru_maxrss_to_bytes(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+
+def _record_join_phase(name: str, started: float, **metadata: Any) -> None:
+    if _JOIN_PROFILE_COLLECTOR is None:
+        return
+    _JOIN_PROFILE_COLLECTOR(
+        {
+            "name": name,
+            "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
+            "rss_after_bytes": _peak_rss_bytes(),
+            **metadata,
+        }
+    )
+
 
 class Join:
     def __init__(
@@ -43,7 +84,13 @@ class Join:
         self.model_alias = model_alias
 
     def execute(self) -> pl.DataFrame:
+        started = time.perf_counter()
         join_inputs = self._build_join_pairs_df()
+        _record_join_phase(
+            "build_join_pairs",
+            started,
+            output_rows=0 if join_inputs is None else len(join_inputs),
+        )
         if join_inputs is None:
             return self._empty_result_with_schema(self.left_df, self.right_df)
         semantic_predicate = Predicate(
@@ -54,8 +101,18 @@ class Join:
             model=self.model,
             model_alias=self.model_alias,
         )
+        started = time.perf_counter()
         results = semantic_predicate.execute()
-        return self._postprocess(join_inputs, results)
+        _record_join_phase(
+            "predicate_execute",
+            started,
+            input_rows=len(join_inputs),
+            result_rows=len(results),
+        )
+        started = time.perf_counter()
+        result = self._postprocess(join_inputs, results)
+        _record_join_phase("postprocess_join", started, output_rows=len(result))
+        return result
 
     def _build_join_pairs_df(self) -> pl.DataFrame | None:
         if self.left_df.is_empty() or self.right_df.is_empty():

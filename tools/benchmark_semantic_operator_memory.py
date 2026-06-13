@@ -84,6 +84,7 @@ class BenchmarkConfig:
     embedding_dimensions: int
     k: int
     label: str
+    profile_phases: bool
 
 
 def _ru_maxrss_to_bytes(ru_maxrss: int) -> int:
@@ -286,7 +287,13 @@ def _run_sim_join(config: BenchmarkConfig) -> dict[str, Any]:
 def _run_semantic_reduce(config: BenchmarkConfig) -> dict[str, Any]:
     from fenic import col, semantic
     from fenic import sum as fenic_sum
+    from fenic._backends.local.semantic_operators.reduce import (
+        set_reduce_profile_collector,
+    )
 
+    phase_profile: list[dict[str, Any]] = []
+    if config.profile_phases:
+        set_reduce_profile_collector(phase_profile.append)
     with tempfile.TemporaryDirectory() as tmpdir:
         session = _new_session(tmpdir, with_language_model=True)
         try:
@@ -315,17 +322,25 @@ def _run_semantic_reduce(config: BenchmarkConfig) -> dict[str, Any]:
                 )
                 .to_polars()
             )
-            return {
+            details: dict[str, Any] = {
                 "result_rows": len(result),
                 "result_columns": result.columns,
             }
+            if config.profile_phases:
+                details["phase_profile"] = phase_profile
+            return details
         finally:
+            set_reduce_profile_collector(None)
             session.stop(skip_usage_summary=True)
 
 
 def _run_semantic_join(config: BenchmarkConfig) -> dict[str, Any]:
     from fenic import col
+    from fenic._backends.local.semantic_operators.join import set_join_profile_collector
 
+    phase_profile: list[dict[str, Any]] = []
+    if config.profile_phases:
+        set_join_profile_collector(phase_profile.append)
     with tempfile.TemporaryDirectory() as tmpdir:
         session = _new_session(tmpdir, with_language_model=True)
         try:
@@ -350,11 +365,15 @@ def _run_semantic_join(config: BenchmarkConfig) -> dict[str, Any]:
                 left_on=col("course_name"),
                 right_on=col("skill"),
             ).to_polars()
-            return {
+            details: dict[str, Any] = {
                 "result_rows": len(result),
                 "result_columns": result.columns,
             }
+            if config.profile_phases:
+                details["phase_profile"] = phase_profile
+            return details
         finally:
+            set_join_profile_collector(None)
             session.stop(skip_usage_summary=True)
 
 
@@ -420,6 +439,11 @@ def _run_case_child(case: CaseName, config: BenchmarkConfig, queue: mp.Queue) ->
                 "peak_rss_bytes": _peak_rss_bytes(),
                 "result_rows": details["result_rows"],
                 "result_columns": details["result_columns"],
+                **(
+                    {"phase_profile": details["phase_profile"]}
+                    if "phase_profile" in details
+                    else {}
+                ),
                 "parameters": {
                     "rows": config.rows,
                     "right_rows": config.right_rows,
@@ -492,6 +516,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         embedding_dimensions=args.embedding_dimensions,
         k=args.k,
         label=args.label,
+        profile_phases=args.profile_phases,
     )
     case_results = [_run_case(case, config) for case in args.cases]
     failures = [case for case in case_results if not case.get("ok")]
@@ -565,6 +590,11 @@ def main() -> None:
     parser.add_argument("--embedding-dimensions", type=int, default=8)
     parser.add_argument("--k", type=int, default=2)
     parser.add_argument("--label", default="local")
+    parser.add_argument(
+        "--profile-phases",
+        action="store_true",
+        help="Emit operator phase-level RSS/timing profiles where instrumented.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit raw JSON only.")
     args = parser.parse_args()
 
