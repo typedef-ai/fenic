@@ -259,20 +259,30 @@ class SemanticSimilarityJoinExec(PhysicalPlan):
         )
 
         # TODO(rohitrastogi): Avoid regenerating embeddings if semantic index already exists
-        result = SemanticSimJoin(left_df, right_df, self.k, self.similarity_metric).execute()
+        result = SemanticSimJoin(
+            left_df,
+            right_df,
+            self.k,
+            self.similarity_metric,
+            include_left_on=maybe_left_name is not None,
+            include_right_on=maybe_right_name is not None,
+        ).execute()
 
         if self.similarity_score_column:
             result = result.rename({DISTANCE_COL_NAME: self.similarity_score_column})
         else:
             result = result.drop(DISTANCE_COL_NAME)
 
-        # Restore original column names or drop temporary columns
-        result = restore_column_after_join(
-            result, maybe_left_name, LEFT_ON_COL_NAME
-        )
-        result = restore_column_after_join(
-            result, maybe_right_name, RIGHT_ON_COL_NAME
-        )
+        # Restore original column names. Derived temporary join columns are not
+        # materialized by SemanticSimJoin, so there is nothing to drop for them.
+        if maybe_left_name is not None:
+            result = restore_column_after_join(
+                result, maybe_left_name, LEFT_ON_COL_NAME
+            )
+        if maybe_right_name is not None:
+            result = restore_column_after_join(
+                result, maybe_right_name, RIGHT_ON_COL_NAME
+            )
 
         return result
 

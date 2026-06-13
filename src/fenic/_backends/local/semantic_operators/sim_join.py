@@ -31,11 +31,15 @@ class SimJoin:
         right: pl.DataFrame,
         k: int,
         similarity_metric: SemanticSimilarityMetric,
+        include_left_on: bool = True,
+        include_right_on: bool = True,
     ):
         self.left = left.with_row_index(LEFT_ID_COL_NAME)
         self.right = right.with_row_index(RIGHT_ID_COL_NAME)
         self.k = k
         self.similarity_metric = similarity_metric
+        self.include_left_on = include_left_on
+        self.include_right_on = include_right_on
 
     def execute(self) -> pl.DataFrame:
         """Perform semantic similarity join on the DataFrame using vector embeddings.
@@ -52,10 +56,12 @@ class SimJoin:
             return self._empty_result_with_schema(left, right)
 
         matches_df = self._batch_similarity_search(left, right)
+        left_result = left if self.include_left_on else left.drop(LEFT_ON_COL_NAME)
+        right_result = right if self.include_right_on else right.drop(RIGHT_ON_COL_NAME)
 
         result = (
-            matches_df.join(left, on=LEFT_ID_COL_NAME, how="inner")
-            .join(right, on=RIGHT_ID_COL_NAME, how="inner")
+            matches_df.join(left_result, on=LEFT_ID_COL_NAME, how="inner")
+            .join(right_result, on=RIGHT_ID_COL_NAME, how="inner")
             .drop([LEFT_ID_COL_NAME, RIGHT_ID_COL_NAME])
         )
         # Reorder columns to have similarity score last
@@ -138,6 +144,16 @@ class SimJoin:
         right_schema = [
             (name, dtype) for name, dtype in right.schema.items() if name != RIGHT_ID_COL_NAME
         ]
+        if not self.include_left_on:
+            left_schema = [
+                (name, dtype) for name, dtype in left_schema if name != LEFT_ON_COL_NAME
+            ]
+        if not self.include_right_on:
+            right_schema = [
+                (name, dtype)
+                for name, dtype in right_schema
+                if name != RIGHT_ON_COL_NAME
+            ]
 
         schema = left_schema + right_schema + extra_cols
 

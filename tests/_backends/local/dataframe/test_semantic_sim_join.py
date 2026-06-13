@@ -15,6 +15,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic._backends.local.semantic_operators import sim_join as sim_join_module
 from fenic._constants import VECTOR_INDEX_DIR
 from fenic.core.error import TypeMismatchError
 
@@ -567,6 +568,74 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
         {"left_id": 2, "left_label": "y", "right_id": 20, "right_label": "near-y", "distance": 1.0},
         {"left_id": 2, "left_label": "y", "right_id": 10, "right_label": "near-x", "distance": 81.0},
     ]
+
+
+def _create_direct_sim_join_inputs():
+    left = pl.DataFrame(
+        {
+            sim_join_module.LEFT_ON_COL_NAME: [[0.0, 0.0], [10.0, 0.0]],
+            "left_payload": ["x", "y"],
+        },
+        schema={
+            sim_join_module.LEFT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "left_payload": pl.String,
+        },
+    )
+    right = pl.DataFrame(
+        {
+            sim_join_module.RIGHT_ON_COL_NAME: [[1.0, 0.0], [9.0, 0.0]],
+            "right_payload": ["near-x", "near-y"],
+        },
+        schema={
+            sim_join_module.RIGHT_ON_COL_NAME: pl.Array(pl.Float32, 2),
+            "right_payload": pl.String,
+        },
+    )
+    return left, right
+
+
+def test_semantic_sim_join_can_skip_normalized_vector_columns():
+    left, right = _create_direct_sim_join_inputs()
+
+    result = sim_join_module.SimJoin(
+        left,
+        right,
+        k=1,
+        similarity_metric="l2",
+        include_left_on=False,
+        include_right_on=False,
+    ).execute()
+
+    assert sim_join_module.LEFT_ON_COL_NAME not in result.columns
+    assert sim_join_module.RIGHT_ON_COL_NAME not in result.columns
+    assert result.columns == [
+        "left_payload",
+        "right_payload",
+        sim_join_module.DISTANCE_COL_NAME,
+    ]
+
+
+def test_semantic_sim_join_empty_result_can_skip_normalized_vector_columns():
+    left, right = _create_direct_sim_join_inputs()
+    empty_left = left.filter(pl.lit(False))
+
+    result = sim_join_module.SimJoin(
+        empty_left,
+        right,
+        k=1,
+        similarity_metric="l2",
+        include_left_on=False,
+        include_right_on=False,
+    ).execute()
+
+    assert result.is_empty()
+    assert result.schema == pl.Schema(
+        {
+            "left_payload": pl.String,
+            "right_payload": pl.String,
+            sim_join_module.DISTANCE_COL_NAME: pl.Float64,
+        }
+    )
 
 
 def test_semantic_sim_join_with_incompatible_embeddings(local_session):
