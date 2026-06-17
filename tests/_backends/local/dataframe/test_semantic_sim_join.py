@@ -5,9 +5,11 @@ import polars as pl
 import pytest
 
 from fenic import (
+    ArrayType,
     ColumnField,
     DoubleType,
     EmbeddingType,
+    FloatType,
     IntegerType,
     StringType,
     col,
@@ -199,44 +201,206 @@ def test_semantic_sim_join(local_session, metric, embedding_model_name_and_dimen
     )
 
 
-def test_semantic_sim_join_empty_result(local_session):
-    left, right = _create_semantic_join_dataframe(local_session)
-    empty_left = left.filter(col("course_name").is_null())
-    df = empty_left.semantic.sim_join(
-        right,
-        left_on=semantic.embed(col("course_name")),
-        right_on=semantic.embed(col("skill")),
+def _create_public_sim_join_key_policy_dataframes(local_session):
+    left = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "left_id": [1, 2],
+                "left_vec": [[0.0, 0.0], [10.0, 0.0]],
+                "left_payload": ["x", "y"],
+            },
+            schema={
+                "left_id": pl.Int64,
+                "left_vec": pl.List(pl.Float32),
+                "left_payload": pl.String,
+            },
+        )
     )
-    result = df.to_polars()
-    assert result.is_empty()
-    assert result.schema == pl.Schema(
+    right = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "right_id": [10, 20],
+                "right_vec": [[1.0, 0.0], [9.0, 0.0]],
+                "right_payload": ["near-x", "near-y"],
+            },
+            schema={
+                "right_id": pl.Int64,
+                "right_vec": pl.List(pl.Float32),
+                "right_payload": pl.String,
+            },
+        )
+    )
+    return left, right
+
+
+def _expected_public_sim_join_schema(
+    *,
+    include_left_embedding: bool,
+    include_right_embedding: bool,
+):
+    fields = [
+        ColumnField("left_id", IntegerType),
+        ColumnField("left_vec", ArrayType(FloatType)),
+        ColumnField("left_payload", StringType),
+    ]
+    if include_left_embedding:
+        fields.append(
+            ColumnField(
+                "left_embedding", EmbeddingType(dimensions=2, embedding_model="test")
+            )
+        )
+    fields.extend(
+        [
+            ColumnField("right_id", IntegerType),
+            ColumnField("right_vec", ArrayType(FloatType)),
+            ColumnField("right_payload", StringType),
+        ]
+    )
+    if include_right_embedding:
+        fields.append(
+            ColumnField(
+                "right_embedding", EmbeddingType(dimensions=2, embedding_model="test")
+            )
+        )
+    return fields
+
+
+def _expected_public_sim_join_polars_schema(
+    *,
+    include_left_embedding: bool,
+    include_right_embedding: bool,
+):
+    schema = {
+        "left_id": pl.Int64,
+        "left_vec": pl.List(pl.Float32),
+        "left_payload": pl.String,
+    }
+    if include_left_embedding:
+        schema["left_embedding"] = pl.Array(pl.Float32, 2)
+    schema.update(
         {
-            "course_id": pl.Int64,
-            "course_name": pl.String,
-            "other_col_left": pl.String,
-            "skill_id": pl.Int64,
-            "skill": pl.String,
-            "other_col_right": pl.String,
+            "right_id": pl.Int64,
+            "right_vec": pl.List(pl.Float32),
+            "right_payload": pl.String,
         }
     )
+    if include_right_embedding:
+        schema["right_embedding"] = pl.Array(pl.Float32, 2)
+    return pl.Schema(schema)
 
-    empty_right = right.filter(col("skill").is_null())
+
+@pytest.mark.parametrize(
+    (
+        "left_key_kind",
+        "right_key_kind",
+        "include_left_embedding",
+        "include_right_embedding",
+    ),
+    [
+        ("named", "named", True, True),
+        ("expression", "expression", False, False),
+        ("named", "expression", True, False),
+        ("expression", "named", False, True),
+    ],
+)
+def test_semantic_sim_join_public_api_join_key_column_policy(
+    local_session,
+    left_key_kind,
+    right_key_kind,
+    include_left_embedding,
+    include_right_embedding,
+):
+    """Named join columns are output columns; expression-derived join keys are not."""
+    left, right = _create_public_sim_join_key_policy_dataframes(local_session)
+
+    left_embedding = col("left_vec").cast(
+        EmbeddingType(dimensions=2, embedding_model="test")
+    )
+    right_embedding = col("right_vec").cast(
+        EmbeddingType(dimensions=2, embedding_model="test")
+    )
+
+    if left_key_kind == "named":
+        left = left.with_column("left_embedding", left_embedding)
+        left_on = "left_embedding"
+    else:
+        left_on = left_embedding
+
+    if right_key_kind == "named":
+        right = right.with_column("right_embedding", right_embedding)
+        right_on = "right_embedding"
+    else:
+        right_on = right_embedding
+
+    df = left.semantic.sim_join(
+        right, left_on=left_on, right_on=right_on, k=1, similarity_metric="l2"
+    )
+
+    assert df.schema.column_fields == _expected_public_sim_join_schema(
+        include_left_embedding=include_left_embedding,
+        include_right_embedding=include_right_embedding,
+    )
+
+    result = df.to_polars()
+    assert result.schema == _expected_public_sim_join_polars_schema(
+        include_left_embedding=include_left_embedding,
+        include_right_embedding=include_right_embedding,
+    )
+    assert len(result) == 2
+
+
+def test_semantic_sim_join_empty_result(local_session):
+    left, right = _create_public_sim_join_key_policy_dataframes(local_session)
+    left_embedding = col("left_vec").cast(
+        EmbeddingType(dimensions=2, embedding_model="test")
+    )
+    right_embedding = col("right_vec").cast(
+        EmbeddingType(dimensions=2, embedding_model="test")
+    )
+
+    empty_left = left.filter(col("left_id") < 0)
+    df = empty_left.semantic.sim_join(
+        right,
+        left_on=left_embedding,
+        right_on=right_embedding,
+        similarity_metric="l2",
+    )
+    assert df.schema.column_fields == _expected_public_sim_join_schema(
+        include_left_embedding=False,
+        include_right_embedding=False,
+    )
+    result = df.to_polars()
+    assert result.is_empty()
+    assert result.schema == _expected_public_sim_join_polars_schema(
+        include_left_embedding=False,
+        include_right_embedding=False,
+    )
+
+    empty_right = right.filter(col("right_id") < 0)
     df = left.semantic.sim_join(
         empty_right,
-        left_on=semantic.embed(col("course_name")),
-        right_on=semantic.embed(col("skill")),
+        left_on=left_embedding,
+        right_on=right_embedding,
+        similarity_metric="l2",
         similarity_score_column="similarity_score",
     )
+    assert df.schema.column_fields == [
+        *_expected_public_sim_join_schema(
+            include_left_embedding=False,
+            include_right_embedding=False,
+        ),
+        ColumnField("similarity_score", DoubleType),
+    ]
     result = df.to_polars()
     assert result.is_empty()
     assert result.schema == pl.Schema(
         {
-            "course_id": pl.Int64,
-            "course_name": pl.String,
-            "other_col_left": pl.String,
-            "skill_id": pl.Int64,
-            "skill": pl.String,
-            "other_col_right": pl.String,
+            **dict(
+                _expected_public_sim_join_polars_schema(
+                    include_left_embedding=False,
+                    include_right_embedding=False,
+                )
+            ),
             "similarity_score": pl.Float64,
         }
     )
