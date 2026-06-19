@@ -88,4 +88,5 @@ markers = [
 ]
 
 [project.scripts]
+fenic = "fenic.scripts.fenic_cli:main"
 fenic-serve = "fenic.scripts.fenic_serve:main"

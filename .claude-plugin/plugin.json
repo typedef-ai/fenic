@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "fenic",
+  "description": "Skills for writing, debugging, and maintaining fenic code: fenic-mechanics + update-fenic-skill.",
+  "version": "0.1.0",
+  "author": {
+    "name": "typedef",
+    "email": "hello@typedef.ai",
+    "url": "https://github.com/typedef-ai/fenic"
+  },
+  "homepage": "https://github.com/typedef-ai/fenic",
+  "skills": [
+    "./.claude/skills/fenic-mechanics",
+    "./.claude/skills/update-fenic-skill"
+  ]
+}

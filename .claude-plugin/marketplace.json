@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "fenic-tools",
+  "owner": { "name": "typedef" },
+  "description": "Marketplace for the fenic Claude Code plugin (skills for writing and maintaining fenic code).",
+  "plugins": [
+    {
+      "name": "fenic",
+      "source": "./",
+      "description": "Skills that make coding agents write correct fenic: fenic-mechanics + update-fenic-skill.",
+      "skills": [
+        "./.claude/skills/fenic-mechanics",
+        "./.claude/skills/update-fenic-skill"
+      ]
+    }
+  ]
+}
