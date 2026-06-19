@@ -136,6 +136,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# fenic agent assets — build artifact mirrored from .claude/skills, AGENTS.md, .cursor/rules
+# by tools/bundle_agent_assets.py (the canonical sources are committed).
+src/fenic/_agent_assets/
+
 # Spyder project settings
 .spyderproject
 .spyproject
