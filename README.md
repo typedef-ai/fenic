@@ -25,6 +25,8 @@ The point is a shift in what your data work _produces_. Humans and agents work o
 pip install fenic
 ```
 
+> **Writing fenic with an AI coding agent?** Run `fenic skill install` so Claude Code / Cursor / Codex write it correctly, and `fenic check` to validate — [details below](#writing-fenic-with-an-ai-coding-agent).
+
 ---
 
 ## What is fenic?
@@ -236,6 +238,29 @@ Serve every registered tool straight from the catalog with the CLI:
 ```bash
 fenic-serve --app-name eval_triage --port 8000
 ```
+
+---
+
+## Writing fenic with an AI coding agent
+
+fenic is new, so a coding agent won't always know its exact API out of the box. Two tools make any agent reliable at writing fenic:
+
+**Validate without running it.** `fenic check` builds and type-checks a pipeline's logical plan without executing it — no tokens, no data, no API key (unless it configures semantic models). Have your agent run it after writing fenic and fix what it reports:
+
+```bash
+fenic check pipeline.py
+# → {"ok": true, "schemas": [...]}   or   the precise type / column / namespace error
+```
+
+**Teach your agent the API.** `fenic skill install` copies the `fenic-mechanics` skill — fenic's namespace rules, semantic-operator calling conventions, and the silent gotchas — into the skill directories your agents read. It detects which agents you have and asks where to install:
+
+```bash
+fenic skill install
+# Detected agents: claude, codex, cursor, gemini
+# → global (~/.claude/skills, ~/.agents/skills) or just this project
+```
+
+Works with Claude Code, OpenAI Codex, Cursor, Gemini CLI, and Copilot. The skill stays dormant until you're actually writing fenic, then keeps the agent on the real API.
 
 ---
 
