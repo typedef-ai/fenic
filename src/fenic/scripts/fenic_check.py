@@ -148,7 +148,7 @@ def validate(src: str, path: str) -> dict:
         def f(self, *a, **k):
             try:
                 schemas.append({"at": name, "schema": str(self.schema)})
-            except Exception:
+            except Exception:  # nosec: B110 - best-effort schema capture
                 pass
             return None
         return f
@@ -173,7 +173,7 @@ def validate(src: str, path: str) -> dict:
     try:
         compiled = compile(src, path, "exec")
         with contextlib.redirect_stdout(_sink), contextlib.redirect_stderr(_sink):
-            exec(compiled, ns)
+            exec(compiled, ns)  # nosec: B102 - dry-run executes user code
     except BaseException as e:  # noqa: BLE001 — we classify and report
         emod = type(e).__module__ or ""
         es = str(e)
@@ -196,7 +196,7 @@ def validate(src: str, path: str) -> dict:
             if isinstance(val, DataFrame):
                 try:
                     schemas.append({"at": f"var:{vname}", "schema": str(val.schema)})
-                except Exception:
+                except Exception:  # nosec: B110 - best-effort schema capture
                     pass
         for cls, name, fn in originals:
             setattr(cls, name, fn)
