@@ -27,6 +27,11 @@ def test_lint_flags_fenic_functions_import():
     assert any(f["error_type"] == "BadImport" and "fenic.functions" in f["symbol"] for f in findings)
 
 
+def test_lint_flags_import_fenic_functions_submodule():
+    findings = lint("import fenic.functions as F\n", "t.py")
+    assert any(f["error_type"] == "BadImport" and "fenic.functions" in f["symbol"] for f in findings)
+
+
 def test_lint_flags_fc_array_vs_arr():
     findings = lint("import fenic as fc\nfc.array.size(fc.col('x'))\n", "t.py")
     f = next((f for f in findings if f["symbol"] == "fc.array.size"), None)

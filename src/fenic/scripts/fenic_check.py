@@ -68,6 +68,18 @@ def lint(src: str, path: str) -> list[dict]:
             for n in node.names:
                 if n.name == "fenic":
                     aliases.add(n.asname or "fenic")
+                elif n.name == "fenic.functions" or n.name.startswith("fenic.functions."):
+                    findings.append(_finding(
+                        "error", "BadImport",
+                        "`import fenic.functions` — there is no `fenic.functions` submodule.",
+                        n.name,
+                        "Use `import fenic as fc`; functions live on `fc.text/json/markdown/semantic/arr/dt/embedding`.",
+                        node.lineno))
+                elif n.name.startswith("fenic.api") or n.name.startswith("fenic.core"):
+                    findings.append(_finding(
+                        "warning", "InternalImport",
+                        f"Importing internal module `{n.name}` couples to private layout.",
+                        n.name, "Prefer the public surface: `import fenic as fc`.", node.lineno))
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
             if mod == "fenic" and any(n.name == "functions" for n in node.names):

@@ -1,7 +1,7 @@
 """`fenic` umbrella CLI.
 
 Subcommands:
-  check <file>     Validate a fenic script without executing it (lint + dry-run plan).
+  check <file>     Statically lint a fenic script's symbol/namespace usage (no execution).
   skill install    Install the fenic-mechanics skill into your coding agents'
                    skill directories. Detects which agents are present and asks
                    which to install for and whether to install globally (for your
