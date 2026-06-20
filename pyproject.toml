@@ -80,7 +80,13 @@ build-backend = "maturin"
 [tool.maturin]
 python-source = "src"
 module-name = "fenic._polars_plugins"
-include = ["PYPI.rst"]
+include = [
+  "PYPI.rst",
+  # agent assets: sdist keeps the on-disk path; wheel needs the package-relative
+  # path (python-source = "src") so they land under fenic/ in the installed package.
+  { path = "src/fenic/_agent_assets/**/*", format = "sdist" },
+  { path = "fenic/_agent_assets/**/*", format = "wheel" },
+]
 
 [tool.pytest.ini_options]
 markers = [
@@ -88,4 +94,5 @@ markers = [
 ]
 
 [project.scripts]
+fenic = "fenic.scripts.fenic_cli:main"
 fenic-serve = "fenic.scripts.fenic_serve:main"

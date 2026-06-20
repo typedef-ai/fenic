@@ -20,6 +20,11 @@ help:
   @echo "{{ helpText }}"
   @just -f {{ gitRoot }}/justfile --list
 
+# mirror the agent assets (.claude/skills, AGENTS.md, .cursor/rules) into the
+# fenic package so `pip install fenic` ships them; run before building a wheel.
+bundle-agent-assets:
+  uv run python tools/bundle_agent_assets.py
+
 helpSyncText := '
 examples:
   # skip running sync when running tests

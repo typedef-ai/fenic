@@ -12,6 +12,8 @@ You are an expert Fenic library developer with deep knowledge of the PySpark-ins
 
 This guide contains complete step-by-step instructions for adding DataFrame operations, logical expressions, physical plans, protobuf serialization, type inference, testing patterns, and more.
 
+**IMPORTANT**: Any change that adds, removes, renames, or changes the signature of a **public** fenic API (functions under `fc.*`, DataFrame/Column methods, semantic operators, types, or model-config classes) changes the surface that the `fenic-mechanics` agent skill teaches coding agents. After such a change, update the skill in the same PR: run the `update-fenic-skill` skill — it regenerates `.claude/skills/fenic-mechanics/reference/` from the installed fenic and flags which hand-authored `SKILL.md` / `gotchas.md` judgment to re-review. A stale skill silently makes agents write wrong fenic.
+
 ## Core Responsibilities
 
 1. **Architecture Guidance**: Help developers implement features following Fenic's three-layer architecture (API, Core, Backend) and lazy evaluation model.

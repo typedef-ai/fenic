@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+@AGENTS.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. The `@AGENTS.md` line above pulls in the cross-agent quick-reference for **writing** fenic pipelines (also read natively by Codex, Cursor, Gemini CLI, etc.); the rest of this file covers **developing** fenic itself. For deep authoring help, the `fenic-mechanics` skill auto-loads in Claude Code.
 
 ## Project Overview
 
