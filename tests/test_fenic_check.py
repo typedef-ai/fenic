@@ -1,33 +1,30 @@
-"""Tests for `fenic check` (`fenic.scripts.fenic_check`).
+"""Tests for `fenic check` (`fenic.scripts.fenic_check`) — a static, non-executing lint.
 
-Each known agent-failure mode (from the gap catalog) maps to a lint or validate
-diagnostic; good scripts validate clean and report a result schema — with no API
-key and no materialization. These guard against regressions such as the
-`__name__` false-pass bug (a `def main(): ... if __name__ == "__main__"` script
-that silently did nothing and reported ok).
+Each known agent-failure mode (from the gap catalog) maps to a lint finding; clean
+scripts produce none. `fenic check` never executes the script — a property the
+last test pins down explicitly.
 """
 from __future__ import annotations
 
-import textwrap
+import pathlib
+import tempfile
 
 from fenic.scripts.fenic_check import check_source, lint
 
 
 def _finding(result, **kw):
-    """Return the first finding whose named fields all contain the given
-    (case-insensitive) substrings, else None."""
+    """Return the first finding whose named fields all contain the given substrings."""
     for f in result["findings"]:
         if all(str(v).lower() in str(f.get(k, "")).lower() for k, v in kw.items()):
             return f
     return None
 
 
-# --- lint: static symbol/namespace resolution (no session, no key, no exec) ---
+# --- lint: static symbol/namespace resolution (no session/key/exec) ----------
 
 def test_lint_flags_fenic_functions_import():
     findings = lint("from fenic import functions as F\n", "t.py")
-    assert any(f["error_type"] == "BadImport" and "fenic.functions" in f["symbol"]
-               for f in findings)
+    assert any(f["error_type"] == "BadImport" and "fenic.functions" in f["symbol"] for f in findings)
 
 
 def test_lint_flags_fc_array_vs_arr():
@@ -60,56 +57,24 @@ def test_lint_clean_on_valid_namespaces():
     assert lint(src, "t.py") == []
 
 
-# --- validate: dry-run plan construction (keyless; no materialization) --------
+# --- check_source: ok/not-ok, and it must NOT execute the script --------------
 
-def _good_src(tmp_path) -> str:
-    return textwrap.dedent(f"""
-        import fenic as fc
-        s = fc.Session.get_or_create(fc.SessionConfig(app_name="chk_good", db_path={str(tmp_path)!r}))
-        df = s.create_dataframe({{"tags": [["a", "b"], ["c"]]}})
-        df = df.select(fc.arr.size(fc.col("tags")).alias("n"), fc.col("tags"))
-        df.show()
-    """)
-
-
-def test_validate_good_script_ok_with_schema(tmp_path):
-    r = check_source(_good_src(tmp_path), "good.py")
+def test_check_source_ok_on_clean_script():
+    r = check_source("import fenic as fc\nfc.arr.size(fc.col('tags'))\n", "good.py")
     assert r["ok"] is True
     assert r["findings"] == []
-    assert any("ColumnField(name='n'" in s["schema"] for s in r["schemas"])
 
 
-def test_validate_catches_unknown_column(tmp_path):
-    src = textwrap.dedent(f"""
-        import fenic as fc
-        s = fc.Session.get_or_create(fc.SessionConfig(app_name="chk_badcol", db_path={str(tmp_path)!r}))
-        df = s.create_dataframe({{"a": [1, 2]}})
-        df.select(fc.col("nope")).show()
-    """)
-    r = check_source(src, "badcol.py")
+def test_check_source_not_ok_on_bad_namespace():
+    r = check_source("import fenic as fc\nfc.array.size(fc.col('tags'))\n", "bad.py")
     assert r["ok"] is False
-    assert _finding(r, stage="validate", message="not found") is not None
+    assert _finding(r, error_type="BadNamespace") is not None
 
 
-def test_validate_runs_main_guard(tmp_path):
-    """Regression: `__name__` must be "__main__" so the conventional main() guard
-    fires. Previously this script reported ok:true without building anything."""
-    src = textwrap.dedent(f"""
-        import fenic as fc
-        def main():
-            s = fc.Session.get_or_create(fc.SessionConfig(app_name="chk_main", db_path={str(tmp_path)!r}))
-            df = s.create_dataframe({{"a": [1]}})
-            df.select(fc.col("nope")).show()
-        if __name__ == "__main__":
-            main()
-    """)
-    r = check_source(src, "main.py")
-    assert r["ok"] is False
-    assert _finding(r, message="not found") is not None
-
-
-def test_check_source_reports_import_error_in_validate():
-    r = check_source("from fenic import functions as F\nF.explode('x')\n", "bad.py")
-    assert r["ok"] is False
-    # caught both by lint (BadImport) and validate (ImportError)
-    assert _finding(r, error_type="BadImport") is not None
+def test_check_source_does_not_execute_the_script():
+    # `fenic check` is static-only: top-level side effects must never run.
+    sentinel = pathlib.Path(tempfile.gettempdir()) / "fenic_check_should_not_exist.txt"
+    sentinel.unlink(missing_ok=True)
+    src = f"import fenic as fc\nopen({str(sentinel)!r}, 'w').write('x')\n"
+    check_source(src, "side_effect.py")
+    assert not sentinel.exists()

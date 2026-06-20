@@ -20,9 +20,9 @@ silently). For full signatures see `reference/*.md` (generated from the
 installed version); for the correction table and traps see `gotchas.md`.
 
 > **Golden rule:** after writing or editing a fenic pipeline, run
-> **`fenic check <file>`** — it builds and type-checks the logical plan without
-> executing (no tokens, no data) and reports the exact error. Fix what it says
-> before running anything real.
+> **`fenic check <file>`** — a static lint (no execution) that resolves your
+> `fc.*` symbols against the installed fenic and flags namespace/import mistakes
+> (`fenic.functions`, `fc.array` vs `fc.arr`, `fc.explode`, …). Fix what it reports.
 
 ## 1. Import & namespace law (the #1 source of errors)
 
@@ -91,10 +91,9 @@ input_tpm, output_tpm)` — **no single `tpm`**. OpenAI/Google/Cohere use `tpm`.
 
 ## 4. ⚠️ The 4 traps `fenic check` can't catch
 
-`fenic check` and the type system catch almost everything _loudly at plan
-construction_. These four slip past it — the first three run clean and produce
-**wrong output** (truly silent); the fourth errors only at execution. Get them
-right by hand:
+`fenic check` is a static lint (symbols & namespaces) — it doesn't see these.
+The first three run clean and produce **wrong output** (truly silent); the
+fourth errors only at execution. Get them right by hand:
 
 1. **`fc.json.jq(col, query)` returns an ARRAY** (`ArrayType(JsonType)`), never a
    scalar. Take one match before casting: `fc.json.jq(c, ".x").get_item(0).cast(fc.IntegerType)`.

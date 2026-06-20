@@ -24,9 +24,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     check = sub.add_parser(
         "check",
-        help="Validate a fenic script without executing it (no tokens; no key unless it configures semantic models).",
-        description="Lint fenic symbol/namespace usage and dry-run the logical-plan "
-                    "construction (no materialization), reporting result schema or the precise error as JSON.",
+        help="Statically lint a fenic script's symbol/namespace usage (no execution).",
+        description="Lint fenic symbol/namespace usage against the installed version — flags "
+                    "fenic.functions, fc.array vs fc.arr, fc.explode, internal imports, and unknown "
+                    "symbols. Does not execute the script. Reports findings as JSON.",
     )
     check.add_argument("file", nargs="?", default="-",
                        help="Path to a .py file, or '-' / omitted to read from stdin.")

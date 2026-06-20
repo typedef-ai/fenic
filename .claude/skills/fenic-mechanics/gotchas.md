@@ -1,9 +1,10 @@
 # fenic gotchas — "wrote X, meant Y"
 
 Every entry below is a real failure mode observed when an agent wrote fenic from
-intuition, with the verified correct form. Loud = fails immediately (ImportError /
-AttributeError / validation / plan error → `fenic check` catches it). Silent =
-runs but produces wrong output (only knowledge prevents it).
+intuition, with the verified correct form. Loud = fails immediately when you run
+it (ImportError / AttributeError / validation / plan error); the namespace/import
+ones `fenic check` also catches statically. Silent = runs but produces wrong
+output (only knowledge prevents it).
 
 ## Namespace & imports (Loud)
 
@@ -40,9 +41,9 @@ runs but produces wrong output (only knowledge prevents it).
 
 ## The 4 traps `fenic check` can't catch
 
+`fenic check` is a static lint (symbols & namespaces) — it doesn't see these.
 Three run clean and produce **wrong output** (truly silent); the fourth (#4)
-errors only at execution. None are caught at plan construction — only correct
-knowledge prevents them.
+errors only at execution. Only correct knowledge prevents them.
 
 1. **`fc.json.jq` returns an array.** `fc.json.jq(c, ".value")` is
    `ArrayType(JsonType)` (every match). Casting it straight to a scalar either

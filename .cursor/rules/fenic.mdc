@@ -11,9 +11,9 @@ You likely know its DataFrame surface; below are the mechanics that DON'T match
 PySpark/pandas intuition. (This mirrors `AGENTS.md`; full detail lives in the
 `.claude/skills/fenic-mechanics/` skill.)
 
-> After writing or editing a fenic pipeline, run **`fenic check <file>`** — it
-> builds and type-checks the logical plan without executing it (no tokens) and
-> prints the precise error.
+> After writing or editing a fenic pipeline, run **`fenic check <file>`** — a
+> static lint (no execution) that flags namespace/import mistakes (`fenic.functions`,
+> `fc.array` vs `fc.arr`, `fc.explode`, …).
 
 ## Must-knows
 

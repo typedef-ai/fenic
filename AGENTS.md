@@ -4,9 +4,9 @@ fenic is a PySpark-style **semantic DataFrame** library (`import fenic as fc`).
 You likely know its DataFrame surface; below are the mechanics that DON'T match
 PySpark/pandas intuition. _(Developing fenic itself? See `CLAUDE.md`.)_
 
-> **After writing or editing any fenic pipeline, run `fenic check <file>`** — it
-> builds and type-checks the logical plan without executing it (no tokens; no API
-> key unless the script configures semantic models) and prints the precise error.
+> **After writing or editing any fenic pipeline, run `fenic check <file>`** — a
+> static lint (no execution) that resolves your `fc.*` symbols against the
+> installed fenic and flags namespace/import mistakes.
 
 ## Must-knows
 
