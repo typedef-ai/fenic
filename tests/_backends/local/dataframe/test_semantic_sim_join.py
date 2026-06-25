@@ -1,3 +1,6 @@
+import shutil
+from pathlib import Path
+
 import polars as pl
 import pytest
 
@@ -12,6 +15,7 @@ from fenic import (
     semantic,
     text,
 )
+from fenic._constants import VECTOR_INDEX_DIR
 from fenic.core.error import TypeMismatchError
 
 
@@ -444,6 +448,53 @@ def test_semantic_sim_join_with_invalid_custom_embeddings(local_session):
     # there should be no match with a None value on the right side.
     assert len(result) == 3
     assert None not in result["skill"].to_list()
+
+
+def test_semantic_sim_join_cleans_up_vector_index_dir(local_session):
+    shutil.rmtree(VECTOR_INDEX_DIR, ignore_errors=True)
+    vector_index_dir = Path(VECTOR_INDEX_DIR)
+
+    left = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "left_id": [1, 2],
+                "left_vec": [[0.0, 0.0], [10.0, 0.0]],
+            },
+            schema={
+                "left_id": pl.Int64,
+                "left_vec": pl.List(pl.Float32),
+            },
+        )
+    ).with_column(
+        "left_vec",
+        col("left_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")),
+    )
+    right = local_session.create_dataframe(
+        pl.DataFrame(
+            {
+                "right_id": [10, 20],
+                "right_vec": [[1.0, 0.0], [9.0, 0.0]],
+            },
+            schema={
+                "right_id": pl.Int64,
+                "right_vec": pl.List(pl.Float32),
+            },
+        )
+    ).with_column(
+        "right_vec",
+        col("right_vec").cast(EmbeddingType(dimensions=2, embedding_model="test")),
+    )
+
+    result = left.semantic.sim_join(
+        right,
+        left_on="left_vec",
+        right_on="right_vec",
+        k=1,
+        similarity_metric="l2",
+    ).to_polars()
+
+    assert len(result) == 2
+    assert not list(vector_index_dir.iterdir())
 
 
 def test_semantic_sim_join_custom_embeddings_golden_output(local_session):

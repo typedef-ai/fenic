@@ -1,3 +1,5 @@
+import os
+import tempfile
 import uuid
 
 import lancedb
@@ -65,59 +67,62 @@ class SimJoin:
     def _batch_similarity_search(
         self, left: pl.DataFrame, right: pl.DataFrame
     ) -> pl.DataFrame:
-        guid = uuid.uuid4().hex
-        lance_table_dir = f"{VECTOR_INDEX_DIR}/{guid}"
-        db: DBConnection = lancedb.connect(lance_table_dir)
-        tbl: Table = db.create_table(
-            guid,
-            right.select(RIGHT_ON_COL_NAME, RIGHT_ID_COL_NAME).rename(
-                {RIGHT_ON_COL_NAME: VECTOR_COL_NAME}
-            ),
-        )
-        if len(right) > 5000:
-            tbl.create_index(metric=self.similarity_metric)
-
-        # Define UDF to perform search for each row
-        def search_vectors(left_embedding, left_id):
-            results = tbl.search(left_embedding).distance_type(self.similarity_metric).limit(self.k).to_list()
-
-            # Create list of structs with search results
-            matches = []
-            for result in results:
-                matches.append(
-                    {
-                        LEFT_ID_COL_NAME: left_id,
-                        RIGHT_ID_COL_NAME: result[RIGHT_ID_COL_NAME],
-                        DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
-                    }
-                )
-            return matches
-
-        # TODO(rohitrastogi): Do some experiments to see if sending concurrent requests to LanceDB
-        # using a thread pool is faster than sending requests sequentially. Vector search is CPU bound and LanceDB
-        # releases the GIL, so I'm not sure there will be any performance gains.
-        # FYI, LanceDB doesn't support batch vector search. If you pass a batch of vectors, it doesn't
-        # actually search in parallel.
-        return (
-            left.select(
-                pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col(LEFT_ID_COL_NAME)])
-                .map_elements(
-                    lambda x: search_vectors(x[LEFT_ON_COL_NAME], x[LEFT_ID_COL_NAME]),
-                    return_dtype=pl.List(
-                        pl.Struct(
-                            {
-                                LEFT_ID_COL_NAME: pl.Int32,
-                                RIGHT_ID_COL_NAME: pl.Int32,
-                                DISTANCE_COL_NAME: pl.Float64,
-                            }
-                        )
-                    ),
-                )
-                .alias(MATCH_RESULT_COL_NAME)
+        os.makedirs(VECTOR_INDEX_DIR, exist_ok=True)
+        table_name = uuid.uuid4().hex
+        with tempfile.TemporaryDirectory(
+            prefix="sim_join_", dir=VECTOR_INDEX_DIR
+        ) as lance_table_dir:
+            db: DBConnection = lancedb.connect(lance_table_dir)
+            tbl: Table = db.create_table(
+                table_name,
+                right.select(RIGHT_ON_COL_NAME, RIGHT_ID_COL_NAME).rename(
+                    {RIGHT_ON_COL_NAME: VECTOR_COL_NAME}
+                ),
             )
-            .explode(MATCH_RESULT_COL_NAME)
-            .unnest(MATCH_RESULT_COL_NAME)
-        )
+            if len(right) > 5000:
+                tbl.create_index(metric=self.similarity_metric)
+
+            # Define UDF to perform search for each row
+            def search_vectors(left_embedding, left_id):
+                results = tbl.search(left_embedding).distance_type(self.similarity_metric).limit(self.k).to_list()
+
+                # Create list of structs with search results
+                matches = []
+                for result in results:
+                    matches.append(
+                        {
+                            LEFT_ID_COL_NAME: left_id,
+                            RIGHT_ID_COL_NAME: result[RIGHT_ID_COL_NAME],
+                            DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
+                        }
+                    )
+                return matches
+
+            # TODO(rohitrastogi): Do some experiments to see if sending concurrent requests to LanceDB
+            # using a thread pool is faster than sending requests sequentially. Vector search is CPU bound and LanceDB
+            # releases the GIL, so I'm not sure there will be any performance gains.
+            # FYI, LanceDB doesn't support batch vector search. If you pass a batch of vectors, it doesn't
+            # actually search in parallel.
+            return (
+                left.select(
+                    pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col(LEFT_ID_COL_NAME)])
+                    .map_elements(
+                        lambda x: search_vectors(x[LEFT_ON_COL_NAME], x[LEFT_ID_COL_NAME]),
+                        return_dtype=pl.List(
+                            pl.Struct(
+                                {
+                                    LEFT_ID_COL_NAME: pl.Int32,
+                                    RIGHT_ID_COL_NAME: pl.Int32,
+                                    DISTANCE_COL_NAME: pl.Float64,
+                                }
+                            )
+                        ),
+                    )
+                    .alias(MATCH_RESULT_COL_NAME)
+                )
+                .explode(MATCH_RESULT_COL_NAME)
+                .unnest(MATCH_RESULT_COL_NAME)
+            )
 
     def _empty_result_with_schema(
         self, left: pl.DataFrame, right: pl.DataFrame
