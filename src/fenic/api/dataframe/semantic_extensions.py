@@ -281,7 +281,12 @@ class SemanticExtensions:
         Args:
             other: The right-hand DataFrame to join with.
             left_on: Expression or column representing embeddings in the left DataFrame.
+                If this is a named column, that column is treated as a user column and is
+                included in the output. If this is an expression, it is treated as a
+                temporary join key and is not included as an output column.
             right_on: Expression or column representing embeddings in the right DataFrame.
+                Named columns are included in the output; expression-derived join keys
+                are temporary and are not included in the output.
             k: Number of most similar matches to return per row.
             similarity_metric: Similarity metric to use: "l2", "cosine", or "dot".
             similarity_score_column: If set, adds a column with this name containing similarity scores.
@@ -290,8 +295,10 @@ class SemanticExtensions:
 
         Returns:
             A DataFrame containing one row for each of the top-k matches per row in the left DataFrame.
-            The result includes all columns from both DataFrames, optionally augmented with a similarity score column
-            if `similarity_score_column` is provided.
+            The result includes all columns from both input DataFrames and, when `similarity_score_column`
+            is provided, a similarity score column. Join key columns that already exist in the input
+            DataFrames are preserved as normal user columns. Join keys derived from expressions are
+            temporary execution columns and are not included in the result schema.
 
         Raises:
             ValidationError: If `k` is not positive or if the columns are invalid.
