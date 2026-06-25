@@ -2423,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "polars_plugins"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "criterion",

@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.0](https://github.com/typedef-ai/fenic/compare/v0.9.0...v0.10.0) (2026-06-25)
+
+
+### Features
+
+* adaptive output-token estimation + settlement for rate limiting ([#313](https://github.com/typedef-ai/fenic/issues/313)) ([46a78bf](https://github.com/typedef-ai/fenic/commit/46a78bff9e3165e0ba03e65823be0f0be61f06f2))
+* agent-enablement tooling — fenic-mechanics skill, `fenic check`, cross-agent install ([#322](https://github.com/typedef-ai/fenic/issues/322)) ([785851e](https://github.com/typedef-ai/fenic/commit/785851e1508af55633582cd8fcea5154e0871f67))
+* support Anthropic effort profiles ([#308](https://github.com/typedef-ai/fenic/issues/308)) ([192f159](https://github.com/typedef-ai/fenic/commit/192f159aa41a680bcc51d347a6d0ccd2c366139a))
+* update frontier model catalog ([#307](https://github.com/typedef-ai/fenic/issues/307)) ([fcba823](https://github.com/typedef-ai/fenic/commit/fcba823d6b082b4d201e47dffcd87fd9259d22cd))
+
+
+### Bug Fixes
+
+* clean up sim join vector indexes ([#320](https://github.com/typedef-ai/fenic/issues/320)) ([4963921](https://github.com/typedef-ai/fenic/commit/496392159c062e8dc41af7062e6edf0f5f2692f2))
+
+
+### Performance Improvements
+
+* skip derived sim join vector columns ([#321](https://github.com/typedef-ai/fenic/issues/321)) ([2793e1f](https://github.com/typedef-ai/fenic/commit/2793e1f5bc3453b5d936ee1034864fe3aba6eec5))
+
+
+### Documentation
+
+* rewrite README around semantic DataFrames framing ([#312](https://github.com/typedef-ai/fenic/issues/312)) ([95df6e4](https://github.com/typedef-ai/fenic/commit/95df6e4f79c863ce2b49e44471172dd91b5a89e4))
+
 ## [0.9.0](https://github.com/typedef-ai/fenic/compare/v0.8.0...v0.9.0) (2026-04-10)
 
 
