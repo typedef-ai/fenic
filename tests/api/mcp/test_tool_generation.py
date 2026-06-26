@@ -3,9 +3,19 @@ import inspect
 import pytest
 
 from fenic.api.mcp._tool_generation_utils import auto_generate_system_tools_from_tables
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, ValidationError
 from fenic.core.mcp.types import SystemTool
-from tests.api.mcp.utils import create_table_with_rows
+from tests.api.mcp.utils import create_table_from_dict, create_table_with_rows
+
+
+def _search_content_tool(local_session, table_name: str) -> SystemTool:
+    tools = auto_generate_system_tools_from_tables([table_name], local_session, tool_namespace="Auto")
+    return next(t for t in tools if t.name.endswith("Search Content"))
+
+
+def _collect_rows(local_session, plan):
+    pl_df, _ = local_session._session_state.execution.collect(plan)
+    return pl_df.to_dicts()
 
 
 def test_auto_generate_core_tools_from_tables_missing_table_raises(local_session):
@@ -51,3 +61,97 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
     pl_df, _ = local_session._session_state.execution.collect(plan)
     assert set(pl_df.columns) == {"dataset", "schema"}
     assert sorted(pl_df.get_column("dataset").to_list()) == ["t1", "t2"]
+
+
+def test_search_content_literal_mode_treats_regex_metacharacters_literally(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1, 2, 3],
+            "body": ["a.b", "axb", "nomatch"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    literal_plan = search_tool.func(
+        df_name="docs",
+        pattern="a.b",
+        search_mode="literal",
+        order_by="id",
+    )
+    regex_plan = search_tool.func(
+        df_name="docs",
+        pattern="a.b",
+        search_mode="regex",
+        order_by="id",
+    )
+
+    assert [row["id"] for row in _collect_rows(local_session, literal_plan)] == [1]
+    assert [row["id"] for row in _collect_rows(local_session, regex_plan)] == [1, 2]
+
+
+def test_search_content_literal_mode_respects_search_columns(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1, 2, 3],
+            "title": ["needle", "other", "other"],
+            "body": ["other", "needle", "other"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    plan = search_tool.func(
+        df_name="docs",
+        pattern="needle",
+        search_mode="literal",
+        search_columns="body",
+        order_by="id",
+    )
+
+    assert [row["id"] for row in _collect_rows(local_session, plan)] == [2]
+
+
+def test_search_content_literal_mode_supports_paging(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [3, 1, 2],
+            "body": ["hit", "hit", "hit"],
+            "rank": [30, 10, 20],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    plan = search_tool.func(
+        df_name="docs",
+        pattern="hit",
+        search_mode="literal",
+        order_by="id",
+        limit="1",
+        offset="1",
+    )
+
+    assert [row["id"] for row in _collect_rows(local_session, plan)] == [2]
+
+
+def test_search_content_unknown_search_mode_raises(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1],
+            "body": ["text"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    with pytest.raises(ValidationError, match="search_mode must be one of: regex, literal"):
+        search_tool.func(df_name="docs", pattern="text", search_mode="unknown")

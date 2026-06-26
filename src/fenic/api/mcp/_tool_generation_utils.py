@@ -8,6 +8,7 @@ import polars as pl
 from typing_extensions import Annotated
 
 from fenic.api import col
+from fenic.api.column import Column
 from fenic.api.dataframe import DataFrame
 from fenic.api.session import Session
 from fenic.core._logical_plan import LogicalPlan
@@ -26,6 +27,8 @@ from fenic.core.types.schema import Schema
 LONG_TEXT_COLUMN_THRESHOLD_CHAR_LENGTH = 1024
 
 PROFILE_MAX_SAMPLE_SIZE = 10_000
+
+SearchMode = Literal["regex", "literal"]
 
 
 class ToolDataset:
@@ -317,7 +320,16 @@ def _auto_generate_search_content_tool(
 
     def search_rows(
         df_name: Annotated[str, "Dataset name to search (single dataset)"],
-        pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
+        pattern: Annotated[
+            str,
+            "Pattern to search for. In regex mode, use a regular expression "
+            "(use (?i) for case-insensitive). In literal mode, use a plain substring.",
+        ],
+        search_mode: Annotated[
+            SearchMode,
+            "Search mode: 'regex' treats pattern as a regular expression; "
+            "'literal' treats pattern as a plain substring.",
+        ] = "regex",
         limit: Annotated[Optional[int], "Max rows to read within a page of search results"] = result_limit,
         offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[
@@ -343,7 +355,7 @@ def _auto_generate_search_content_tool(
             return df.limit(0)._logical_plan
         predicate = None
         for c_name in cols:
-            this = col(c_name).rlike(pattern)
+            this = _search_predicate(c_name, pattern, search_mode)
             predicate = this if predicate is None else (predicate | this)
         out = df.filter(predicate)
 
@@ -363,6 +375,14 @@ def _auto_generate_search_content_tool(
         max_result_limit=result_limit,
         add_limit_parameter=False,
     )
+
+
+def _search_predicate(column_name: str, pattern: str, mode: SearchMode) -> Column:
+    if mode == "regex":
+        return col(column_name).rlike(pattern)
+    if mode == "literal":
+        return col(column_name).contains(pattern)
+    raise ValidationError("search_mode must be one of: regex, literal")
 
 
 def _auto_generate_schema_tool(
