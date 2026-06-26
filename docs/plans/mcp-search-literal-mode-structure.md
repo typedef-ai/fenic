@@ -134,7 +134,7 @@ None.
 - **[applied]** Literal matching should use existing `Column.contains(...)`, whose local backend transpiles to Polars substring matching with `literal=True`; no new logical expression or backend code is needed.
 - **[applied]** Search Content is implemented before Search Summary because it verifies literal mode on a single dataset while keeping paging, column restriction, and existing validation behavior in the same slice.
 - **[applied]** FastMCP schema work belongs in the second slice because the server already reflects generated signatures; the remaining risk is schema visibility and docs consistency after both generated callables own the same parameter.
-- **[applied]** Repo validation recipes were derived from `CLAUDE.md`, `justfile`, and `pyproject.toml`. This shell resolved `just` to `just 1.54.0`. The direct `uv run ...` commands remain valid targeted equivalents for the per-file checks.
+- **[applied]** Repo validation recipes were derived from `CLAUDE.md`, `justfile`, and `pyproject.toml`. `mise.toml` now records the `just` tool for contributors who use mise; this shell resolved it to `just 1.54.0`. The direct `uv run ...` commands remain valid targeted equivalents for the per-file checks.
 - **[applied]** Structure review ran with inline `plan-eng-review-lite` and `ce-doc-review-lite` checks. Optional subagent review was attempted but blocked by harness model-resolution errors, so `portability_level` remains `2`.
 - **[deferred]** Broader cleanup of current Search Content parameter normalization, such as `bool("false") is True`, is outside this literal-mode slice; file a focused MCP generated-tool validation follow-up if this becomes user-visible during implementation.
 - **[deferred]** Changing the default from regex to literal would be a breaking behavior change and should be handled as a separately approved API decision.
@@ -145,7 +145,7 @@ None.
 
 > Use the `td-implement` skill. Structure is ready at
 > `docs/plans/mcp-search-literal-mode-structure.md` (track: engineering, size: lightweight).
-> Implement the phases in order. Use the repo `just` recipes normally. After editing any fenic pipeline examples, run `fenic check <file>`; this plan does not currently require editing fenic pipeline examples.
+> Implement the phases in order. Run `mise install` if needed so the `just` tool from `mise.toml` is on PATH; then use the repo `just` recipes normally. After editing any fenic pipeline examples, run `fenic check <file>`; this plan does not currently require editing fenic pipeline examples.
 
 **Approved decisions:** add `search_mode` to generated Search Content and Search Summary; accepted values are `"regex"` and `"literal"`; default is `"regex"`; regex mode keeps `Column.rlike(...)`; literal mode uses `Column.contains(...)`; server wrapper changes are not expected because generated signatures already flow through FastMCP.
 **Open questions (carried forward):** None.
