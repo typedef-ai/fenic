@@ -33,7 +33,7 @@ Generated MCP Search Summary and Search Content tools should support literal sub
 
 This phase makes the smallest useful path work: one generated tool over one table can search literal text and still page/order results. It is independently verifiable by directly executing the generated Search Content callable and collecting its logical plan.
 
-### File Changes
+### Phase 1 File Changes
 
 - **`src/fenic/api/mcp/_tool_generation_utils.py`**:
   - Add a local search-mode type near the generator helpers, for example `SearchMode = Literal["regex", "literal"]`, using the existing imported `Literal`.
@@ -64,14 +64,14 @@ This phase makes the smallest useful path work: one generated tool over one tabl
     - Unknown `search_mode` raises `ValidationError` with the mode-specific message.
   - Collect plans through `local_session._session_state.execution.collect(plan)` as the Schema test already does.
 
-### Validation
+### Phase 1 Validation
 
-#### Automated Verification
+#### Phase 1 Automated Verification
 
 - [x] `uv run pytest tests/api/mcp/test_tool_generation.py`
 - [x] `uv run ruff check src/fenic/api/mcp/_tool_generation_utils.py tests/api/mcp/test_tool_generation.py tests/api/mcp/utils.py`
 
-#### Manual Verification
+#### Phase 1 Manual Verification
 
 None.
 
@@ -81,7 +81,7 @@ None.
 
 This phase completes the generated search surface by applying the same mode semantics across all datasets and making the public descriptions match the callable behavior.
 
-### File Changes
+### Phase 2 File Changes
 
 - **`src/fenic/api/mcp/_tool_generation_utils.py`**:
   - Update `search_summary(...)` inside `_auto_generate_search_summary_tool` with the same keyword parameter:
@@ -111,14 +111,14 @@ This phase completes the generated search surface by applying the same mode sema
   - Update the auto-generated system tools section so Search Summary and Search Content mention `search_mode="literal"` for plain substring search and `search_mode="regex"` for regular expressions.
   - Keep examples minimal; do not introduce a new MCP server setup path.
 
-### Validation
+### Phase 2 Validation
 
-#### Automated Verification
+#### Phase 2 Automated Verification
 
 - [x] `uv run pytest tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py`
 - [x] `uv run ruff check src/fenic/api/mcp/_tool_generation_utils.py src/fenic/api/mcp/tools.py tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py tests/api/mcp/utils.py`
 
-#### Manual Verification
+#### Phase 2 Manual Verification
 
 None.
 
