@@ -319,6 +319,9 @@ class DataFrameReader:
     ) -> DataFrame:
         r"""Load a DataFrame with metadata of PDF files in a list of paths.
 
+        Note:
+            Local execution requires the `pdf` extra: `pip install "fenic[pdf]"`.
+
         Args:
             paths: Glob pattern (or list of glob patterns) to the folder(s) to load.
             exclude: A regex pattern to exclude files.

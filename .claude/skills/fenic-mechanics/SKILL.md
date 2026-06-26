@@ -92,6 +92,10 @@ input_tpm, output_tpm)` — **no single `tpm`**. OpenAI/Google/Cohere use `tpm`.
   `fc.semantic.parse_pdf(fc.col("path"), page_separator="--- PAGE {page} ---")` —
   pass `page_separator` (the `{page}` placeholder is filled per page) when you
   want page breaks; omit it and pages run together.
+- **Local install extras:** `fc.semantic.parse_pdf` and
+  `session.read.pdf_metadata` need `fenic[pdf]`;
+  `df.semantic.with_cluster_labels` needs `fenic[cluster]`;
+  `df.semantic.sim_join` needs `fenic[sim-join]`.
 
 ## 4. ⚠️ The 4 traps `fenic check` can't catch
 

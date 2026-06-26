@@ -51,6 +51,9 @@ class SemanticExtensions:
         It adds a new column with cluster assignments, and optionally includes the centroid embedding
         for each assigned cluster.
 
+        Note:
+            Local execution requires the `cluster` extra: `pip install "fenic[cluster]"`.
+
         Args:
             by: Column or expression producing embeddings to cluster (e.g., `embed(col("text"))`).
             num_clusters: Number of clusters to compute (must be > 0).
@@ -277,6 +280,9 @@ class SemanticExtensions:
 
         For each row in the left DataFrame, returns the top `k` most semantically similar rows
         from the right DataFrame based on the specified similarity metric.
+
+        Note:
+            Local execution requires the `sim-join` extra: `pip install "fenic[sim-join]"`.
 
         Args:
             other: The right-hand DataFrame to join with.
