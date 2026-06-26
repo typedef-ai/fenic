@@ -284,6 +284,7 @@ def _auto_generate_search_summary_tool(
             "'literal' treats pattern as a plain substring.",
         ] = "regex",
     ) -> LogicalPlan:
+        _validate_search_mode(search_mode)
         rows: List[Dict[str, object]] = []
         for name, dataset in datasets.items():
             df = dataset.df(session)
@@ -338,11 +339,6 @@ def _auto_generate_search_content_tool(
             "Pattern to search for. In regex mode, use a regular expression "
             "(use (?i) for case-insensitive). In literal mode, use a plain substring.",
         ],
-        search_mode: Annotated[
-            SearchMode,
-            "Search mode: 'regex' treats pattern as a regular expression; "
-            "'literal' treats pattern as a plain substring.",
-        ] = "regex",
         limit: Annotated[Optional[int], "Max rows to read within a page of search results"] = result_limit,
         offset: Annotated[Optional[int], "Row offset to start from (requires order_by)"] = None,
         order_by: Annotated[
@@ -350,8 +346,14 @@ def _auto_generate_search_content_tool(
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending"] = True,
         search_columns: Annotated[Optional[
             str], "Comma separated list of column names search within; if omitted, matches in any string coluumn will be returned. Use this to query only specific columns in the search as needed."] = None,
+        search_mode: Annotated[
+            SearchMode,
+            "Search mode: 'regex' treats pattern as a regular expression; "
+            "'literal' treats pattern as a plain substring.",
+        ] = "regex",
     ) -> LogicalPlan:
 
+        _validate_search_mode(search_mode)
         limit = int(limit) if isinstance(limit, str) else limit
         offset = int(offset) if isinstance(offset, str) else offset
         sort_ascending = bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
@@ -391,11 +393,17 @@ def _auto_generate_search_content_tool(
 
 
 def _search_predicate(column_name: str, pattern: str, mode: SearchMode) -> Column:
+    _validate_search_mode(mode)
     if mode == "regex":
         return col(column_name).rlike(pattern)
     if mode == "literal":
         return col(column_name).contains(pattern)
-    raise ValidationError("search_mode must be one of: regex, literal")
+    raise AssertionError(f"Unexpected validated search mode: {mode}")
+
+
+def _validate_search_mode(mode: SearchMode) -> None:
+    if mode not in ("regex", "literal"):
+        raise ValidationError("search_mode must be one of: regex, literal")
 
 
 def _auto_generate_schema_tool(

@@ -148,6 +148,23 @@ def test_search_content_literal_mode_supports_paging(local_session):
     assert [row["id"] for row in _collect_rows(local_session, plan)] == [2]
 
 
+def test_search_content_preserves_existing_positional_optional_arguments(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [3, 1, 2],
+            "body": ["hit", "hit", "hit"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    plan = search_tool.func("docs", "hit", "1", "1", "id")
+
+    assert [row["id"] for row in _collect_rows(local_session, plan)] == [2]
+
+
 def test_search_content_unknown_search_mode_raises(local_session):
     create_table_from_dict(
         local_session,
@@ -162,6 +179,14 @@ def test_search_content_unknown_search_mode_raises(local_session):
 
     with pytest.raises(ValidationError, match="search_mode must be one of: regex, literal"):
         search_tool.func(df_name="docs", pattern="text", search_mode="unknown")
+
+
+def test_search_content_unknown_search_mode_raises_without_string_columns(local_session):
+    create_table_with_rows(local_session, "metrics", [1], description="metrics table")
+    search_tool = _search_content_tool(local_session, "metrics")
+
+    with pytest.raises(ValidationError, match="search_mode must be one of: regex, literal"):
+        search_tool.func(df_name="metrics", pattern="text", search_mode="unknown")
 
 
 def test_search_summary_literal_mode_counts_literal_matches_across_datasets(local_session):
@@ -210,3 +235,11 @@ def test_search_summary_regex_mode_preserves_regex_behavior_and_no_string_rows(l
 
     rows = {row["dataset"]: row["total_matches"] for row in _collect_rows(local_session, plan)}
     assert rows == {"docs": 3, "metrics": 0}
+
+
+def test_search_summary_unknown_search_mode_raises_without_string_columns(local_session):
+    create_table_with_rows(local_session, "metrics", [1], description="metrics table")
+    summary_tool = _system_tool(local_session, ["metrics"], "Search Summary")
+
+    with pytest.raises(ValidationError, match="search_mode must be one of: regex, literal"):
+        summary_tool.func(pattern="text", search_mode="unknown")
