@@ -153,3 +153,12 @@ None.
 **Evidence summary:** Search tools currently build predicates with `col(...).rlike(pattern)` in `src/fenic/api/mcp/_tool_generation_utils.py`; `Column.contains(...)` already exists and transpiles to literal string matching; `FenicMCPServer` exposes generated callable signatures via `@wraps(...)`; existing MCP tests cover generation and server schema but not search execution.
 **Known weak assumptions:** FastMCP may encode `typing.Literal["regex", "literal"]` as an enum in the schema; if the exact schema shape differs, assert the stable user-facing properties instead of brittle internals.
 **Rollback if:** implementation reveals FastMCP or Pydantic cannot expose `Literal` defaults cleanly for generated function parameters; then switch the generated parameter type to `str`, keep the same runtime validation, and update tests to assert description/default rather than enum metadata.
+
+## Implementation Notes
+
+**Implemented head:** `ff6ad44`
+**Spec source:** `docs/plans/mcp-search-literal-mode-structure.md`
+**Verification summary:** `uv run --env-file .env pytest tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py` passed with 11 tests; `uv run --env-file .env ruff check src/fenic/api/mcp/_tool_generation_utils.py src/fenic/api/mcp/tools.py tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py tests/api/mcp/utils.py` passed. Live generated-callable checks confirmed literal vs regex Search Summary counts and FastMCP `search_mode` schema defaults.
+**Deliberate tradeoffs / rejected approaches:** Kept regex as the default for backward compatibility; reused existing `Column.contains(...)` and `Column.rlike(...)` rather than adding a new expression; left unrelated generated-tool normalization quirks out of scope.
+**Deviations from spec:** None.
+**Reviewer context:** `search_mode` is implemented in generated callable signatures, not the MCP server wrapper. The server tests assert the reflected FastMCP schema default and description instead of relying on enum encoding details.
