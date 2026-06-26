@@ -142,8 +142,8 @@ This is helpful for quickly exposing exploratory and read/query capabilities to 
 - Schema: list columns/types for any or all tables
 - Profile: column statistics (counts, basic numeric analysis [min, max, mean, etc.], contextual information for text columns [average_length, etc.])
 - Read: read a selection of rows from a single table. These rows can be paged over, filtered and can use column projections.
-- Search Summary: regex search across all text columns in all tables -- returns back dataframe names with result counts.
-- Search Content: regex search across a single table, specifying one or more text columns to search across -- returns back rows corresponding to the query.
+- Search Summary: literal or regex search across all text columns in all tables -- returns back dataframe names with result counts. Use `search_mode="literal"` for plain substring search or `search_mode="regex"` for regular expressions.
+- Search Content: literal or regex search across a single table, specifying one or more text columns to search across -- returns back rows corresponding to the query. Use `search_mode="literal"` for plain substring search or `search_mode="regex"` for regular expressions.
 - Analyze: Write raw SQL to perform complex analysis on one or more tables.
 
 Requirements:

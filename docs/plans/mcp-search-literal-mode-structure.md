@@ -25,7 +25,7 @@ Generated MCP Search Summary and Search Content tools should support literal sub
 ## Implementation Overview
 
 - [x] Phase 1: Add literal mode to Search Content end-to-end
-- [ ] Phase 2: Add literal mode to Search Summary and align exposed docs/schema
+- [x] Phase 2: Add literal mode to Search Summary and align exposed docs/schema
 
 ---
 
@@ -77,7 +77,7 @@ None.
 
 ---
 
-## Phase 2: Add Literal Mode to Search Summary and Align Exposed Docs/Schema
+## ✅ Phase 2: Add Literal Mode to Search Summary and Align Exposed Docs/Schema
 
 This phase completes the generated search surface by applying the same mode semantics across all datasets and making the public descriptions match the callable behavior.
 
@@ -115,8 +115,8 @@ This phase completes the generated search surface by applying the same mode sema
 
 #### Automated Verification
 
-- [ ] `uv run pytest tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py`
-- [ ] `uv run ruff check src/fenic/api/mcp/_tool_generation_utils.py src/fenic/api/mcp/tools.py tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py tests/api/mcp/utils.py`
+- [x] `uv run pytest tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py`
+- [x] `uv run ruff check src/fenic/api/mcp/_tool_generation_utils.py src/fenic/api/mcp/tools.py tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py tests/api/mcp/utils.py`
 
 #### Manual Verification
 

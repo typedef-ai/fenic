@@ -8,9 +8,13 @@ from fenic.core.mcp.types import SystemTool
 from tests.api.mcp.utils import create_table_from_dict, create_table_with_rows
 
 
+def _system_tool(local_session, table_names: list[str], suffix: str) -> SystemTool:
+    tools = auto_generate_system_tools_from_tables(table_names, local_session, tool_namespace="Auto")
+    return next(t for t in tools if t.name.endswith(suffix))
+
+
 def _search_content_tool(local_session, table_name: str) -> SystemTool:
-    tools = auto_generate_system_tools_from_tables([table_name], local_session, tool_namespace="Auto")
-    return next(t for t in tools if t.name.endswith("Search Content"))
+    return _system_tool(local_session, [table_name], "Search Content")
 
 
 def _collect_rows(local_session, plan):
@@ -54,6 +58,9 @@ def test_auto_generate_core_tools_from_tables_builds_tools(local_session):
         assert "table_format" not in func_signature.parameters
         if tool.add_limit_parameter:
             assert "limit" not in func_signature.parameters
+
+        if tool.name.endswith(("Search Summary", "Search Content")):
+            assert func_signature.parameters["search_mode"].default == "regex"
 
     # Sanity check: the Schema tool's callable returns a LogicalPlan we can collect
     schema_tool = next(t for t in tools if t.name.endswith("Schema"))
@@ -155,3 +162,51 @@ def test_search_content_unknown_search_mode_raises(local_session):
 
     with pytest.raises(ValidationError, match="search_mode must be one of: regex, literal"):
         search_tool.func(df_name="docs", pattern="text", search_mode="unknown")
+
+
+def test_search_summary_literal_mode_counts_literal_matches_across_datasets(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1, 2, 3],
+            "title": ["a.b", "other", "other"],
+            "body": ["other", "a.b", "axb"],
+        },
+        description="docs table",
+    )
+    create_table_from_dict(
+        local_session,
+        "notes",
+        {
+            "id": [1, 2],
+            "body": ["a.b note", "plain note"],
+        },
+        description="notes table",
+    )
+    summary_tool = _system_tool(local_session, ["docs", "notes"], "Search Summary")
+
+    plan = summary_tool.func(pattern="a.b", search_mode="literal")
+
+    rows = {row["dataset"]: row["total_matches"] for row in _collect_rows(local_session, plan)}
+    assert rows == {"docs": 2, "notes": 1}
+
+
+def test_search_summary_regex_mode_preserves_regex_behavior_and_no_string_rows(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1, 2, 3],
+            "title": ["a.b", "other", "other"],
+            "body": ["other", "a.b", "axb"],
+        },
+        description="docs table",
+    )
+    create_table_with_rows(local_session, "metrics", [1, 2, 3], description="metrics table")
+    summary_tool = _system_tool(local_session, ["docs", "metrics"], "Search Summary")
+
+    plan = summary_tool.func(pattern="a.b", search_mode="regex")
+
+    rows = {row["dataset"]: row["total_matches"] for row in _collect_rows(local_session, plan)}
+    assert rows == {"docs": 3, "metrics": 0}

@@ -90,8 +90,8 @@ def _auto_generate_system_tools(
     - Schema: list columns/types for any or all datasets
     - Profile: dataset statistics for any or all datasets
     - Read: read rows from a single dataset to sample the data
-    - Search Summary: regex search across all datasets and return a summary of the number of matches per dataset
-    - Search Content: return matching rows from a single dataset using regex matching across string columns
+    - Search Summary: literal or regex search across all datasets and return a summary of the number of matches per dataset
+    - Search Content: return matching rows from a single dataset using literal or regex matching across string columns
     - Analyze: DuckDB SELECT-only SQL across datasets
     """
     group_desc = "\n".join(
@@ -136,7 +136,9 @@ def _auto_generate_system_tools(
             session,
             tool_name=f"{tool_namespace} - Search Summary" if tool_namespace else "Search Summary",
             tool_description="\n".join([
-                "Perform a substring/regex search across all datasets and return a summary of the number of matches per dataset.",
+                "Search across all datasets and return the number of matches per dataset. "
+                "Use `search_mode='literal'` for plain substring search or "
+                "`search_mode='regex'` for regular expressions.",
                 "Available datasets:",
                 group_desc,
             ]),
@@ -145,7 +147,9 @@ def _auto_generate_system_tools(
             session,
             tool_name=f"{tool_namespace} - Search Content" if tool_namespace else "Search Content",
             tool_description="\n".join([
-                "Return matching rows from a single dataset using substring/regex across string columns.",
+                "Return matching rows from a single dataset. "
+                "Use `search_mode='literal'` for plain substring search or "
+                "`search_mode='regex'` for regular expressions.",
                 "Available datasets:",
                 group_desc,
             ]),
@@ -269,7 +273,16 @@ def _auto_generate_search_summary_tool(
         raise ValueError("Cannot create search summary tool: no datasets provided.")
 
     def search_summary(
-        pattern: Annotated[str, "Regex pattern to search for (use (?i) for case-insensitive)."],
+        pattern: Annotated[
+            str,
+            "Pattern to search for. In regex mode, use a regular expression "
+            "(use (?i) for case-insensitive). In literal mode, use a plain substring.",
+        ],
+        search_mode: Annotated[
+            SearchMode,
+            "Search mode: 'regex' treats pattern as a regular expression; "
+            "'literal' treats pattern as a plain substring.",
+        ] = "regex",
     ) -> LogicalPlan:
         rows: List[Dict[str, object]] = []
         for name, dataset in datasets.items():
@@ -280,7 +293,7 @@ def _auto_generate_search_summary_tool(
                 continue
             predicate = None
             for c_name in cols:
-                this = col(c_name).rlike(pattern)
+                this = _search_predicate(c_name, pattern, search_mode)
                 predicate = this if predicate is None else (predicate | this)
 
             df = df.filter(predicate)

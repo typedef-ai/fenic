@@ -77,3 +77,9 @@ def _validate_server_tools(
         if expected_tool.add_limit_parameter and expected_tool.max_result_limit:
             assert "limit" in tool_params
             assert tool_params["limit"]["default"] == expected_tool.max_result_limit
+        if expected_tool.name.endswith(("Search Summary", "Search Content")):
+            assert "search_mode" in tool_params
+            assert tool_params["search_mode"]["default"] == "regex"
+            search_mode_description = tool_params["search_mode"]["description"]
+            assert "literal" in search_mode_description
+            assert "regex" in search_mode_description
