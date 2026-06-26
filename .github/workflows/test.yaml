@@ -65,6 +65,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
           enable-cache: true
+          prune-cache: false
       - name: setup rust
         # yamllint disable-line rule:line-length
         uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
