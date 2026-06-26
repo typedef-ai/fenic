@@ -2,14 +2,23 @@ from typing import Optional, Union
 
 import polars as pl
 
+from fenic.core._utils.schema import convert_custom_dtype_to_polars
+from fenic.core.types.datatypes import ArrayType, EmbeddingType, StructType
+from fenic.core.types.schema import Schema
 
-def apply_ingestion_coercions(df: pl.DataFrame, coerce_array: bool) -> pl.DataFrame:
+
+def apply_ingestion_coercions(
+    df: pl.DataFrame,
+    coerce_array: bool,
+    logical_schema: Schema | None = None,
+) -> pl.DataFrame:
     """Apply type coercions to normalize data types during ingestion.
 
     This is intended for ingestion from external systems (e.g., DuckDB, Parquet)
     that may produce types unsupported or inconsistently handled by Fenic.
 
-    We only use Array type (pl.List) for embeddings.
+    We keep embedding arrays as fixed-size arrays where the logical schema marks
+    fields as `EmbeddingType`, and coerce all other `pl.Array` fields to `pl.List`.
 
     Coercion rules:
     - `Array` and `List` types are recursively coerced to ensure their inner types
@@ -20,13 +29,28 @@ def apply_ingestion_coercions(df: pl.DataFrame, coerce_array: bool) -> pl.DataFr
         df: The input Polars DataFrame containing possibly nonstandard or
             backend-specific types.
 
+    logical_schema: Optional schema describing logical field types. When provided,
+        any fields whose logical type is `EmbeddingType` keep their physical
+        fixed-size array representation.
+
     Returns:
         A new Polars DataFrame with all coercions applied to conform to Fenic-compatible types.
     """
+
+    logical_fields = (
+        {field.name: field.data_type for field in logical_schema.column_fields}
+        if logical_schema is not None
+        else {}
+    )
+
     expressions = []
     for col_name in df.columns:
         dtype = df[col_name].dtype
-        target_dtype = _build_target_dtype(dtype, coerce_array)
+        target_dtype = _build_target_dtype(
+            dtype,
+            coerce_array,
+            logical_dtype=logical_fields.get(col_name),
+        )
 
         if target_dtype != dtype:
             expressions.append(pl.col(col_name).cast(target_dtype))
@@ -36,17 +60,51 @@ def apply_ingestion_coercions(df: pl.DataFrame, coerce_array: bool) -> pl.DataFr
     return df.select(expressions)
 
 
-def _build_target_dtype(dtype: pl.DataType, coerce_array: bool) -> pl.DataType:
+def _build_target_dtype(
+    dtype: pl.DataType,
+    coerce_array: bool,
+    logical_dtype: Union[ArrayType, EmbeddingType, StructType, None] = None,
+) -> pl.DataType:
+    if isinstance(logical_dtype, EmbeddingType):
+        return convert_custom_dtype_to_polars(logical_dtype)
     if isinstance(dtype, pl.Array) and coerce_array:
-        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
+        return pl.List(
+            _build_target_dtype(
+                dtype.inner,
+                coerce_array,
+                logical_dtype.element_type
+                if isinstance(logical_dtype, ArrayType)
+                else None,
+            )
+        )
     elif isinstance(dtype, pl.List):
-        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
+        return pl.List(
+            _build_target_dtype(
+                dtype.inner,
+                coerce_array,
+                logical_dtype.element_type
+                if isinstance(logical_dtype, ArrayType)
+                else None,
+            )
+        )
     elif isinstance(dtype, pl.Datetime):
         # DuckDB always uses UTC as its session timezone, so we set UTC here.
         return pl.Datetime(time_unit="us", time_zone="UTC")
     elif isinstance(dtype, pl.Struct):
+        logical_field_types = (
+            {field.name: field.data_type for field in logical_dtype.struct_fields}
+            if isinstance(logical_dtype, StructType)
+            else {}
+        )
         new_fields = [
-            pl.Field(field.name, _build_target_dtype(field.dtype, coerce_array))
+            pl.Field(
+                field.name,
+                _build_target_dtype(
+                    field.dtype,
+                    coerce_array,
+                    logical_field_types.get(field.name),
+                ),
+            )
             for field in dtype.fields
         ]
         return pl.Struct(new_fields)

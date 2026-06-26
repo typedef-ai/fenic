@@ -162,6 +162,7 @@ class PlanConverter:
         elif isinstance(logical, InMemorySource):
             return InMemorySourceExec(
                 df=logical._source,
+                schema=logical.schema(),
                 session_state=self.session_state,
             )
         elif isinstance(logical, TableSource):

@@ -14,6 +14,7 @@ from fenic.core.types.enums import DocContentType
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
+    from fenic.core.types.schema import Schema
 
 from fenic._backends.local.physical_plan.base import (
     PhysicalPlan,
@@ -25,19 +26,24 @@ from fenic._backends.local.utils.io_utils import query_files
 
 
 class InMemorySourceExec(PhysicalPlan):
-    def __init__(self, df: pl.DataFrame, session_state: LocalSessionState):
+    def __init__(self, df: pl.DataFrame, schema: Schema, session_state: LocalSessionState):
         super().__init__(children=[], cache_info=None, session_state=session_state)
         self.df = df
+        self.schema = schema
 
     def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
         if len(child_dfs) != 0:
             raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
-        return apply_ingestion_coercions(self.df, coerce_array=True)
+        return apply_ingestion_coercions(
+            self.df,
+            coerce_array=True,
+            logical_schema=self.schema,
+        )
 
     def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
         if len(children) != 0:
             raise InternalError("Unreachable: InMemorySourceExec expects 0 children")
-        return InMemorySourceExec(self.df, self.session_state)
+        return InMemorySourceExec(self.df, self.schema, self.session_state)
 
     def build_node_lineage(
         self,

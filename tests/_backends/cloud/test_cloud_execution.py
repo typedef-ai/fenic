@@ -56,6 +56,8 @@ from fenic.api.session import (
     Session,
     SessionConfig,
 )
+from fenic.core._logical_plan.plans import InMemorySource
+from fenic.core._serde import LogicalPlanSerde
 from fenic.core.error import (
     ConfigurationError,
     ExecutionError,
@@ -307,6 +309,39 @@ def test_cloud_simple_count(cloud_session, mock_engine_service):
     df = cloud_session.create_dataframe({"a": [1, 2, 3]})
     count_result = df.count()
     assert count_result == 3
+
+
+def test_cloud_create_dataframe_explicit_schema_serializes_source_schema(
+    cloud_session, mock_engine_service
+):
+    expected_schema = Schema([
+        ColumnField("id", IntegerType),
+        ColumnField("name", StringType),
+    ])
+
+    async def _start_execution(request: StartExecutionRequest, metadata):
+        plan = LogicalPlanSerde.deserialize(request.count.serialized_plan)
+        assert isinstance(plan, InMemorySource)
+        assert plan.schema() == expected_schema
+        return StartExecutionResponse(execution_id="test-execution-id")
+
+    async def _get_execution_result(execution_id, metadata):
+        return GetExecutionResultResponse(count_result=1)
+
+    old_start_execution = mock_engine_service.StartExecution
+    old_get_execution_result = mock_engine_service.GetExecutionResult
+    mock_engine_service.StartExecution = _start_execution
+    mock_engine_service.GetExecutionResult = _get_execution_result
+
+    try:
+        df = cloud_session.create_dataframe(
+            {"name": ["Alice"], "id": ["1"]},
+            schema=expected_schema,
+        )
+        assert df.count() == 1
+    finally:
+        mock_engine_service.StartExecution = old_start_execution
+        mock_engine_service.GetExecutionResult = old_get_execution_result
 
 
 def test_cloud_simple_show(cloud_session, mock_engine_service):

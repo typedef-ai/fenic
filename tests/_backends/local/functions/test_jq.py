@@ -5,6 +5,7 @@ from fenic import (
     ArrayType,
     ColumnField,
     JsonType,
+    Schema,
     StringType,
     StructField,
     StructType,
@@ -24,6 +25,16 @@ def test_invalid_jq_query(local_session):
     df = df.select(col("struct_col").cast(JsonType).alias("json_col"))
     with pytest.raises(ValidationError):
         df = df.select(json.jq(col("json_col"), "a?ad").alias("user_name"))
+
+
+def test_jq_accepts_create_dataframe_json_schema(local_session):
+    schema = Schema([ColumnField("json_col", JsonType)])
+    df = local_session.create_dataframe(
+        {"json_col": ['{"user": {"name": "Alice"}}', '{"user": {"name": "Bob"}}']},
+        schema=schema,
+    )
+    result = df.select(json.jq(col("json_col"), ".user.name").alias("user_name")).to_polars()
+    assert result.equals(pl.DataFrame({"user_name": [['"Alice"'], ['"Bob"']]}))
 
 def test_jq_simple(local_session):
     data = {

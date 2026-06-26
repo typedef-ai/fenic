@@ -10,12 +10,15 @@ from fenic import (
     AnthropicLanguageModel,
     CohereEmbeddingModel,
     ColumnField,
+    EmbeddingType,
     FloatType,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
     GoogleVertexLanguageModel,
     IntegerType,
+    JsonType,
+    MarkdownType,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
     OpenRouterLanguageModel,
@@ -293,6 +296,39 @@ def test_create_dataframe_with_schema_duplicate_names_use_plan_validation(local_
     ])
     with pytest.raises(PlanError, match="Duplicate column names"):
         local_session.create_dataframe({"id": [1]}, schema=schema)
+
+
+def test_create_dataframe_with_json_schema_exposes_logical_type(local_session):
+    schema = Schema([ColumnField("json_col", JsonType)])
+    df = local_session.create_dataframe(
+        {"json_col": ['{"user": "Alice"}']},
+        schema=schema,
+    )
+    assert df.schema == schema
+    assert df.to_polars().schema["json_col"] == pl.String
+
+
+def test_create_dataframe_with_markdown_schema_exposes_logical_type(local_session):
+    schema = Schema([ColumnField("md_col", MarkdownType)])
+    df = local_session.create_dataframe(
+        {"md_col": ["# Title"]},
+        schema=schema,
+    )
+    assert df.schema == schema
+    assert df.to_polars().schema["md_col"] == pl.String
+
+
+def test_create_dataframe_with_embedding_schema_preserves_polars_array(local_session):
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+    schema = Schema([ColumnField("embedding", embedding_type)])
+
+    df = local_session.create_dataframe(
+        {"embedding": [[1.0, 2.0, 3.0]]},
+        schema=schema,
+    )
+
+    assert df.schema == schema
+    assert df.to_polars().schema["embedding"] == pl.Array(pl.Float32, 3)
 
 
 def test_create_dataframe_unsupported_type(local_session):
