@@ -24,8 +24,10 @@ from pydantic import ConfigDict, validate_call
 from fenic._backends.utils.catalog_utils import validate_view
 from fenic.api.catalog import Catalog
 from fenic.api.session.config import SessionConfig
+from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import CatalogError, PlanError, ValidationError
 from fenic.core.types.query_result import DataLike
+from fenic.core.types.schema import Schema
 
 
 class Session:
@@ -132,6 +134,7 @@ class Session:
     def create_dataframe(
         self,
         data: DataLike,
+        schema: Schema | None = None,
     ) -> DataFrame:
         """Create a DataFrame from a variety of Python-native data formats.
 
@@ -142,6 +145,10 @@ class Session:
                 - dict of column_name -> list of values
                 - list of dicts (each dict representing a row)
                 - pyarrow Table
+            schema: Optional complete top-level fenic schema. When provided,
+                field names are authoritative, values are physically coerced to
+                the schema's Polars representation, and the logical DataFrame
+                schema is preserved exactly.
 
         Returns:
             A new DataFrame instance
@@ -183,39 +190,20 @@ class Session:
             session.create_dataframe(table)
             ```
         """
-        try:
-            if isinstance(data, pl.DataFrame):
-                pl_df = data
-            elif isinstance(data, pd.DataFrame):
-                pl_df = pl.from_pandas(data)
-            elif isinstance(data, dict):
-                pl_df = pl.DataFrame(data)
-            elif isinstance(data, list):
-                if not data:
-                    raise ValidationError(
-                        "Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types."
-                    )
+        pl_df, row_oriented = _normalize_data_like_to_polars(
+            data,
+            allow_empty_list=schema is not None,
+        )
+        if schema is None:
+            return DataFrame._from_logical_plan(
+                InMemorySource.from_session_state(pl_df, self._session_state),
+                self._session_state,
+            )
 
-                if not isinstance(data[0], dict):
-                    raise ValidationError(
-                        "Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries."
-                    )
-                pl_df = pl.DataFrame(data)
-            elif isinstance(data, pa.Table):
-                pl_df = pl.from_arrow(data)
-
-            else:
-                raise ValidationError(
-                    f"Unsupported data type: {type(data)}. Supported types are: Polars DataFrame, Pandas DataFrame, dict, or list."
-                )
-
-        except ValidationError:
-            raise
-        except Exception as e:
-            raise PlanError(f"Failed to create DataFrame from {data}") from e
+        coerced_pl_df = _coerce_to_schema(pl_df, schema, row_oriented=row_oriented)
 
         return DataFrame._from_logical_plan(
-            InMemorySource.from_session_state(pl_df, self._session_state),
+            InMemorySource.from_schema(coerced_pl_df, schema),
             self._session_state,
         )
 
@@ -343,6 +331,95 @@ class Session:
         Unless `skip_usage_summary` is set, a summary of your session's metrics will print once you stop your session.
         """
         self._session_state.stop(skip_usage_summary=skip_usage_summary)
+
+
+def _normalize_data_like_to_polars(
+    data: DataLike,
+    *,
+    allow_empty_list: bool,
+) -> tuple[pl.DataFrame, bool]:
+    try:
+        if isinstance(data, pl.DataFrame):
+            return data, False
+        if isinstance(data, pd.DataFrame):
+            return pl.from_pandas(data), False
+        if isinstance(data, dict):
+            return pl.DataFrame(data), False
+        if isinstance(data, list):
+            if not data:
+                if allow_empty_list:
+                    return pl.DataFrame(), True
+                raise ValidationError(
+                    "Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types."
+                )
+            if not all(isinstance(item, dict) for item in data):
+                raise ValidationError(
+                    "Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries."
+                )
+            return pl.DataFrame(data), True
+        if isinstance(data, pa.Table):
+            return pl.from_arrow(data), False
+        raise ValidationError(
+            f"Unsupported data type: {type(data)}. Supported types are: Polars DataFrame, Pandas DataFrame, dict, list, or PyArrow Table."
+        )
+    except ValidationError:
+        raise
+    except Exception as e:
+        raise PlanError(f"Failed to create DataFrame from {data}") from e
+
+
+def _coerce_to_schema(
+    pl_df: pl.DataFrame,
+    schema: Schema,
+    *,
+    row_oriented: bool,
+) -> pl.DataFrame:
+    _validate_explicit_schema(schema)
+    target_schema = convert_custom_schema_to_polars_schema(schema)
+    ordered_names = schema.column_names()
+    schema_names = set(ordered_names)
+    data_names = set(pl_df.columns)
+
+    try:
+        if pl_df.width == 0 and pl_df.height == 0:
+            return _schema_only_empty_frame(schema)
+
+        if row_oriented:
+            if not data_names.issubset(schema_names):
+                _raise_schema_column_mismatch(schema_names, data_names)
+        elif data_names != schema_names:
+            _raise_schema_column_mismatch(schema_names, data_names)
+
+        for name in ordered_names:
+            if name not in pl_df.columns:
+                pl_df = pl_df.with_columns(pl.Series(name, [None] * pl_df.height))
+
+        return pl_df.select(ordered_names).cast(target_schema)
+    except ValidationError:
+        raise
+    except Exception as e:
+        raise PlanError(f"Failed to create DataFrame with schema {schema}") from e
+
+
+def _schema_only_empty_frame(schema: Schema) -> pl.DataFrame:
+    return pl.DataFrame(schema=convert_custom_schema_to_polars_schema(schema))
+
+
+def _validate_explicit_schema(schema: Schema) -> None:
+    InMemorySource.from_schema(pl.DataFrame(), schema)
+
+
+def _raise_schema_column_mismatch(expected: set[str], actual: set[str]) -> None:
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    details = []
+    if missing:
+        details.append(f"missing columns: {missing}")
+    if extra:
+        details.append(f"extra columns: {extra}")
+    raise ValidationError(
+        "Data columns must match the provided schema exactly; " + ", ".join(details)
+    )
 
 Session.createDataFrame = Session.create_dataframe
 Session.get_or_create = validate_call(config=ConfigDict(strict=True))(

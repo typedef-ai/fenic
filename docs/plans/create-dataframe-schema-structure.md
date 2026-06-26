@@ -27,14 +27,14 @@ Add an explicit schema path to `Session.create_dataframe` that makes a provided 
 
 ## Implementation Overview
 
-- [ ] Phase 1: Basic schema-backed creation end to end
-- [ ] Phase 2: Complete input-shape and error contract
+- [x] Phase 1: Basic schema-backed creation end to end
+- [x] Phase 2: Complete input-shape and error contract
 - [ ] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
 - [ ] Phase 4: Local embedding physical preservation
 
 ---
 
-## Phase 1: Basic schema-backed creation end to end
+## ✅ Phase 1: Basic schema-backed creation end to end
 
 This phase makes the smallest useful public behavior work: a provided primitive schema can create a DataFrame from common in-memory Python inputs, preserve the logical schema, order columns by the schema, and keep no-schema behavior unchanged.
 
@@ -62,8 +62,8 @@ This phase makes the smallest useful public behavior work: a provided primitive 
 
 #### Phase 1 Automated Verification
 
-- [ ] `uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty_list" -q`
-- [ ] `uv run pytest --collect-only tests/api/test_session.py -q`
+- [x] `uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty_list" -q` (5 passed, 34 deselected)
+- [x] `uv run pytest --collect-only tests/api/test_session.py -q` (39 tests collected)
 
 #### Phase 1 Manual Verification
 
@@ -71,7 +71,7 @@ None.
 
 ---
 
-## Phase 2: Complete input-shape and error contract
+## ✅ Phase 2: Complete input-shape and error contract
 
 This phase fills out the public contract for every supported `DataLike` shape and locks the error boundaries so the schema parameter is strict without relying on Polars' permissive constructor behavior.
 
@@ -104,8 +104,8 @@ This phase fills out the public contract for every supported `DataLike` shape an
 
 #### Phase 2 Automated Verification
 
-- [ ] `uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q`
-- [ ] `uv run pytest tests/api/test_session.py -k "create_dataframe" -q`
+- [x] `uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q` (17 passed, 34 deselected)
+- [x] `uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe" -q` (23 passed, 28 deselected)
 
 #### Phase 2 Manual Verification
 

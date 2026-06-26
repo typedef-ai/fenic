@@ -48,14 +48,14 @@ Add `schema: Schema | None = None` to `Session.create_dataframe` so callers can 
 
 ## Implementation Overview
 
-- [ ] Phase 1: Basic schema-backed creation end to end
-- [ ] Phase 2: Complete input-shape and error contract
+- [x] Phase 1: Basic schema-backed creation end to end
+- [x] Phase 2: Complete input-shape and error contract
 - [ ] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
 - [ ] Phase 4: Local embedding physical preservation
 
 ---
 
-## Phase 1: Basic schema-backed creation end to end
+## ✅ Phase 1: Basic schema-backed creation end to end
 
 ### Phase 1 Overview
 
@@ -297,7 +297,7 @@ None. The behavior is API/data contract behavior covered by automated tests.
 
 ---
 
-## Phase 2: Complete input-shape and error contract
+## ✅ Phase 2: Complete input-shape and error contract
 
 ### Phase 2 Overview
 
@@ -467,8 +467,8 @@ Finish the public input contract for every supported `DataLike` shape and make s
 
 #### Phase 2 Automated Verification
 
-- [ ] `uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q`
-- [ ] `uv run pytest tests/api/test_session.py -k "create_dataframe" -q`
+- [x] `uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q` (17 passed, 34 deselected)
+- [x] `uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe" -q` (23 passed, 28 deselected)
 
 #### Phase 2 Manual Verification
 
