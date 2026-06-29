@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from typing import Optional, Union
 
 import polars as pl
 
 from fenic.core._utils.schema import convert_custom_dtype_to_polars
-from fenic.core.types.datatypes import ArrayType, EmbeddingType, StructType
+from fenic.core.types.datatypes import ArrayType, DataType, EmbeddingType, StructType
 from fenic.core.types.schema import Schema
 
 
@@ -28,10 +30,11 @@ def apply_ingestion_coercions(
     Args:
         df: The input Polars DataFrame containing possibly nonstandard or
             backend-specific types.
-
-    logical_schema: Optional schema describing logical field types. When provided,
-        any fields whose logical type is `EmbeddingType` keep their physical
-        fixed-size array representation.
+        coerce_array: Whether fixed-size Polars arrays should be normalized to
+            variable-length lists.
+        logical_schema: Optional schema describing logical field types. When
+            provided, any fields whose logical type is `EmbeddingType` keep their
+            physical fixed-size array representation.
 
     Returns:
         A new Polars DataFrame with all coercions applied to conform to Fenic-compatible types.
@@ -63,11 +66,14 @@ def apply_ingestion_coercions(
 def _build_target_dtype(
     dtype: pl.DataType,
     coerce_array: bool,
-    logical_dtype: Union[ArrayType, EmbeddingType, StructType, None] = None,
+    logical_dtype: DataType | None = None,
 ) -> pl.DataType:
-    if isinstance(logical_dtype, EmbeddingType):
+    """Build the target Polars dtype for ingestion normalization."""
+    if coerce_array and isinstance(logical_dtype, EmbeddingType):
         return convert_custom_dtype_to_polars(logical_dtype)
-    if isinstance(dtype, pl.Array) and coerce_array:
+    if isinstance(dtype, (pl.Array, pl.List)):
+        if isinstance(dtype, pl.Array) and not coerce_array:
+            return dtype
         return pl.List(
             _build_target_dtype(
                 dtype.inner,
@@ -77,20 +83,10 @@ def _build_target_dtype(
                 else None,
             )
         )
-    elif isinstance(dtype, pl.List):
-        return pl.List(
-            _build_target_dtype(
-                dtype.inner,
-                coerce_array,
-                logical_dtype.element_type
-                if isinstance(logical_dtype, ArrayType)
-                else None,
-            )
-        )
-    elif isinstance(dtype, pl.Datetime):
+    if isinstance(dtype, pl.Datetime):
         # DuckDB always uses UTC as its session timezone, so we set UTC here.
         return pl.Datetime(time_unit="us", time_zone="UTC")
-    elif isinstance(dtype, pl.Struct):
+    if isinstance(dtype, pl.Struct):
         logical_field_types = (
             {field.name: field.data_type for field in logical_dtype.struct_fields}
             if isinstance(logical_dtype, StructType)

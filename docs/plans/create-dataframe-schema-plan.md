@@ -960,6 +960,7 @@ None. The behavior is observable through logical schema assertions and Polars ph
 - **[applied]** Direct `uv run pytest ... -k ...` commands are used for phase-targeted coverage because `test-local` and `test-cloud` recipes do not expose file or keyword passthrough. This carries recipe-drift risk if global pytest flags change.
 - **[applied]** No dedicated typecheck command exists in `just --list`, `pyproject.toml`, or scanned repo config. The plan uses pytest collection, targeted tests, and full local recipe coverage instead.
 - **[applied]** plan-eng-review lens completed inline with portability tier 3: minimum change set is acceptable for high-risk scope, no new classes/services are introduced, existing source/schema/coercion seams are reused, and test coverage traces API, logical, serde, cloud request, and local physical paths.
+- **[needs-fix]** td-review for `45ccca180a31209ce8be92fcc9b3919cd418080b` found no remaining blocking code-level issues in the reviewed worktree, but the reviewed fixes are not committed to the branch head. Commit the current worktree changes, then run a delta review before `td-land`. Review artifact: `.context/td-review/create-dataframe-schema-45ccca180a31209ce8be92fcc9b3919cd418080b.md`.
 - **[deferred]** Public documentation updates belong in a follow-up documentation/release pass after behavior lands.
 
 ## Open Questions

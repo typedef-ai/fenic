@@ -12,6 +12,7 @@ from fenic import (
     EmbeddingType,
     IntegerType,
     JsonType,
+    MarkdownType,
     Schema,
     Session,
     col,
@@ -265,6 +266,28 @@ def test_inmemory_source_with_explicit_schema_round_trips(
     ])
     df = local_session.create_dataframe(
         {"id": ["1"], "payload": ['{"ok": true}']},
+        schema=schema,
+    )
+    deserialized_df = _test_plan_serialization(
+        df._logical_plan,
+        local_session._session_state,
+        serde_implementation,
+    )
+    assert deserialized_df.schema == schema
+    assert deserialized_df._logical_plan == df._logical_plan
+
+
+@pytest.mark.parametrize("serde_implementation", serde_implementations)
+def test_inmemory_source_with_markdown_schema_round_trips(
+    local_session,
+    serde_implementation: SupportsLogicalPlanSerde,
+):
+    schema = Schema([
+        ColumnField("id", IntegerType),
+        ColumnField("body", MarkdownType),
+    ])
+    df = local_session.create_dataframe(
+        {"id": ["1"], "body": ["# Hello"]},
         schema=schema,
     )
     deserialized_df = _test_plan_serialization(

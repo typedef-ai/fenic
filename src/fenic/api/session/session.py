@@ -146,15 +146,21 @@ class Session:
                 - list of dicts (each dict representing a row)
                 - pyarrow Table
             schema: Optional complete top-level fenic schema. When provided,
-                field names are authoritative, values are physically coerced to
-                the schema's Polars representation, and the logical DataFrame
-                schema is preserved exactly.
+                field names are authoritative, result columns are ordered to
+                match the schema, values are physically coerced to the schema's
+                Polars representation, and the logical DataFrame schema is
+                preserved exactly. Use this for logical string-backed types
+                such as JSON and Markdown, and for preserving fixed-size
+                embedding arrays through local and cloud execution.
 
         Returns:
             A new DataFrame instance
 
         Raises:
-            ValueError: If the input format is unsupported or inconsistent with provided column names.
+            ValidationError: If the input format is unsupported or the provided
+                columns do not match the schema.
+            PlanError: If the input data cannot be coerced to the provided
+                schema, or the schema is invalid for plan construction.
 
         Example: Create from Polars DataFrame
             ```python
@@ -189,10 +195,22 @@ class Session:
             table = pa.Table.from_pydict({"col1": [1, 2], "col2": ["a", "b"]})
             session.create_dataframe(table)
             ```
+
+        Example: Create with an explicit schema
+            ```python
+            import fenic as fc
+
+            schema = fc.Schema([
+                fc.ColumnField("age", fc.IntegerType),
+                fc.ColumnField("name", fc.StringType),
+            ])
+            session.create_dataframe({"name": ["Alice"], "age": ["42"]}, schema=schema)
+            ```
         """
-        pl_df, row_oriented = _normalize_data_like_to_polars(
+        pl_df, row_field_names = _normalize_data_like_to_polars(
             data,
             allow_empty_list=schema is not None,
+            validate_all_rows=schema is not None,
         )
         if schema is None:
             return DataFrame._from_logical_plan(
@@ -200,7 +218,7 @@ class Session:
                 self._session_state,
             )
 
-        coerced_pl_df = _coerce_to_schema(pl_df, schema, row_oriented=row_oriented)
+        coerced_pl_df = _coerce_to_schema(pl_df, schema, row_field_names=row_field_names)
 
         return DataFrame._from_logical_plan(
             InMemorySource.from_schema(coerced_pl_df, schema),
@@ -337,28 +355,48 @@ def _normalize_data_like_to_polars(
     data: DataLike,
     *,
     allow_empty_list: bool,
-) -> tuple[pl.DataFrame, bool]:
+    validate_all_rows: bool,
+) -> tuple[pl.DataFrame, set[str] | None]:
+    """Normalize supported Python-native data inputs to a Polars DataFrame.
+
+    Args:
+        data: Input data to normalize.
+        allow_empty_list: Whether an empty list is allowed.
+        validate_all_rows: Whether every row-oriented item must be a dict.
+
+    Returns:
+        A tuple of the normalized Polars DataFrame and the complete set of
+        row-oriented field names when all row keys were scanned. The field-name
+        set is `None` for column-oriented inputs.
+    """
     try:
         if isinstance(data, pl.DataFrame):
-            return data, False
+            return data, None
         if isinstance(data, pd.DataFrame):
-            return pl.from_pandas(data), False
+            return pl.from_pandas(data), None
         if isinstance(data, dict):
-            return pl.DataFrame(data), False
+            return pl.DataFrame(data), None
         if isinstance(data, list):
             if not data:
                 if allow_empty_list:
-                    return pl.DataFrame(), True
+                    return pl.DataFrame(), set()
                 raise ValidationError(
                     "Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types."
                 )
-            if not all(isinstance(item, dict) for item in data):
+            if not isinstance(data[0], dict):
                 raise ValidationError(
                     "Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries."
                 )
-            return pl.DataFrame(data), True
+            if validate_all_rows and not all(isinstance(item, dict) for item in data):
+                raise ValidationError(
+                    "Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries."
+                )
+            if validate_all_rows:
+                row_field_names = {key for row in data for key in row.keys()}
+                return pl.DataFrame(data, infer_schema_length=None), row_field_names
+            return pl.DataFrame(data), None
         if isinstance(data, pa.Table):
-            return pl.from_arrow(data), False
+            return pl.from_arrow(data), None
         raise ValidationError(
             f"Unsupported data type: {type(data)}. Supported types are: Polars DataFrame, Pandas DataFrame, dict, list, or PyArrow Table."
         )
@@ -372,19 +410,20 @@ def _coerce_to_schema(
     pl_df: pl.DataFrame,
     schema: Schema,
     *,
-    row_oriented: bool,
+    row_field_names: set[str] | None,
 ) -> pl.DataFrame:
-    _validate_explicit_schema(schema)
-    target_schema = convert_custom_schema_to_polars_schema(schema)
-    ordered_names = schema.column_names()
-    schema_names = set(ordered_names)
-    data_names = set(pl_df.columns)
-
+    """Coerce a normalized Polars DataFrame to an explicit logical schema."""
     try:
+        _validate_explicit_schema(schema)
+        target_schema = convert_custom_schema_to_polars_schema(schema)
+        ordered_names = schema.column_names()
+        schema_names = set(ordered_names)
+        data_names = row_field_names if row_field_names is not None else set(pl_df.columns)
+
         if pl_df.width == 0 and pl_df.height == 0:
             return _schema_only_empty_frame(schema)
 
-        if row_oriented:
+        if row_field_names is not None:
             if not data_names.issubset(schema_names):
                 _raise_schema_column_mismatch(schema_names, data_names)
         elif data_names != schema_names:
@@ -395,21 +434,39 @@ def _coerce_to_schema(
                 pl_df = pl_df.with_columns(pl.Series(name, [None] * pl_df.height))
 
         return pl_df.select(ordered_names).cast(target_schema)
-    except ValidationError:
+    except (ValidationError, PlanError):
         raise
+    except ValueError as e:
+        raise ValidationError(f"Invalid schema provided to create_dataframe: {e}") from e
     except Exception as e:
-        raise PlanError(f"Failed to create DataFrame with schema {schema}") from e
+        raise PlanError("Failed to create DataFrame with the provided schema.") from e
 
 
 def _schema_only_empty_frame(schema: Schema) -> pl.DataFrame:
+    """Create an empty Polars DataFrame with a schema's physical dtypes."""
     return pl.DataFrame(schema=convert_custom_schema_to_polars_schema(schema))
 
 
 def _validate_explicit_schema(schema: Schema) -> None:
-    InMemorySource.from_schema(pl.DataFrame(), schema)
+    """Validate the public explicit schema argument before coercion."""
+    if not isinstance(schema, Schema):
+        raise ValidationError("schema must be a fenic Schema.")
+
+    column_names = schema.column_names()
+    seen = set()
+    duplicates = {name for name in column_names if name in seen or seen.add(name)}
+    if duplicates:
+        example_duplicate = next(iter(duplicates))
+        duplicate_list = ", ".join(f"'{name}'" for name in duplicates)
+        raise PlanError(
+            f"Duplicate column names found: {duplicate_list}. "
+            "Column names must be unique. "
+            f"Use aliases to rename columns, e.g., col('{example_duplicate}').alias('{example_duplicate}_2')."
+        )
 
 
 def _raise_schema_column_mismatch(expected: set[str], actual: set[str]) -> None:
+    """Raise a validation error describing a top-level schema column mismatch."""
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
     details = []

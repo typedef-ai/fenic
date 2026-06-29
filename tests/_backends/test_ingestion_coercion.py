@@ -26,6 +26,18 @@ def test_array_coercion():
     assert result.schema["array_col"] == pl.List(pl.Int64)
 
 
+def test_create_dataframe_without_schema_normalizes_polars_array_to_list(local_session):
+    """No-schema in-memory sources should still normalize Array columns to List."""
+    pl_df = pl.DataFrame(
+        {"array_col": [[1, 2, 3], [4, 5, 6]]},
+        schema={"array_col": pl.Array(pl.Int64, 3)},
+    )
+
+    result = local_session.create_dataframe(pl_df).to_polars()
+
+    assert result.schema["array_col"] == pl.List(pl.Int64)
+
+
 def test_array_coercion_preserves_explicit_embedding_schema():
     embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
     schema = Schema([ColumnField("embedding", embedding_type)])
