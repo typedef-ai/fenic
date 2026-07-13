@@ -568,7 +568,7 @@ def test_model_profile_validation():
     SessionConfig(
         app_name="test_model_profile_validation",
         semantic=SemanticConfig(
-            language_models={"gpt-5.6": OpenAILanguageModel(model_name="gpt-5.6", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
+            language_models={"gpt-5.6-sol": OpenAILanguageModel(model_name="gpt-5.6-sol", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
         )
     )
     # Test that older OpenAI reasoning models reject xhigh reasoning

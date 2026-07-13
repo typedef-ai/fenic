@@ -195,10 +195,9 @@ def test_latest_frontier_models_are_registered():
     catalog = model_catalog
 
     openai_gpt_56_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-sol")
-    openai_gpt_56_alias = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6")
     openai_gpt_56_terra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-terra")
     openai_gpt_56_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-luna")
-    assert openai_gpt_56_sol is openai_gpt_56_alias
+    assert catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6") is None
     assert openai_gpt_56_sol.context_window_length == 1_050_000
     assert openai_gpt_56_sol.max_output_tokens == 128_000
     assert openai_gpt_56_sol.supports_max_reasoning

@@ -191,7 +191,6 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
-    "gpt-5.6",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -568,7 +567,6 @@ class ModelCatalog:
                     )
                 },
             ),
-            snapshots=["gpt-5.6"],
         )
 
         self._add_model_to_catalog(
