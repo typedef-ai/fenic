@@ -3,7 +3,21 @@ from fenic.core.types.datatypes import IntegerType
 from fenic.core.types.schema import ColumnField, Schema
 
 
-def create_table_with_rows(session: Session, name: str, values: list[int], description: str | None = None) -> None:
+def create_table_from_dict(
+    session: Session,
+    name: str,
+    data: dict[str, list],
+    description: str | None = None,
+) -> None:
+    df = session.create_dataframe(data)
+    df.write.save_as_table(name, mode="overwrite")
+    if description is not None:
+        session.catalog.set_table_description(name, description)
+
+
+def create_table_with_rows(
+    session: Session, name: str, values: list[int], description: str | None = None
+) -> None:
     df = session.create_dataframe({"id": values})
     # Persist table and optional description through writer (threads description into TableSink)
     if description is not None:
