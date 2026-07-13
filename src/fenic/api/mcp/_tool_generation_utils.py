@@ -93,8 +93,8 @@ def _auto_generate_system_tools(
     - Schema: list columns/types for any or all datasets
     - Profile: dataset statistics for any or all datasets
     - Read: read rows from a single dataset to sample the data
-    - Search Summary: literal or regex search across all datasets and return a summary of the number of matches per dataset
-    - Search Content: return matching rows from a single dataset using literal or regex matching across string columns
+    - Search Summary: literal or regex search across all datasets, with regex as the default, and return a summary of the number of matches per dataset
+    - Search Content: return matching rows from a single dataset using literal or regex matching across string columns, with regex as the default
     - Analyze: DuckDB SELECT-only SQL across datasets
     """
     group_desc = "\n".join(

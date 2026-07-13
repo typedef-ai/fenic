@@ -5,8 +5,7 @@ track: engineering
 size_class: lightweight
 status: approved
 portability_level: 2
-source_inputs:
-  - docs/brainstorms/mcp-search-literal-mode-research.md
+source_inputs: []
 last_updated: 2026-06-26
 ---
 
