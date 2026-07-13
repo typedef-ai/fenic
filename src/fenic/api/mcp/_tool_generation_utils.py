@@ -419,7 +419,7 @@ def _auto_generate_search_content_tool(
         sort_ascending: Annotated[Optional[Union[bool, str]], "Sort ascending"] = True,
         search_columns: Annotated[
             Optional[str],
-            "Comma separated list of column names search within; if omitted, matches in any string coluumn will be returned. Use this to query only specific columns in the search as needed.",
+            "Comma separated list of column names search within; if omitted, matches in any string column will be returned. Use this to query only specific columns in the search as needed.",
         ] = None,
         search_mode: Annotated[
             SearchMode,
@@ -431,9 +431,7 @@ def _auto_generate_search_content_tool(
         _validate_search_mode(search_mode)
         limit = int(limit) if isinstance(limit, str) else limit
         offset = int(offset) if isinstance(offset, str) else offset
-        sort_ascending = (
-            bool(sort_ascending) if isinstance(sort_ascending, str) else sort_ascending
-        )
+        sort_ascending = _parse_sort_ascending(sort_ascending)
         search_columns = (
             [c.strip() for c in search_columns.split(",") if c.strip()]
             if search_columns
@@ -489,6 +487,19 @@ def _search_predicate(column_name: str, pattern: str, mode: SearchMode) -> Colum
 def _validate_search_mode(mode: SearchMode) -> None:
     if mode not in ("regex", "literal"):
         raise ValidationError("search_mode must be one of: regex, literal")
+
+
+def _parse_sort_ascending(value: bool | str | None) -> bool | None:
+    if value is None or isinstance(value, bool):
+        return value
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    raise ValidationError(
+        "sort_ascending must be a boolean or one of: true, false, 1, 0, yes, no, y, n, on, off"
+    )
 
 
 def _auto_generate_schema_tool(

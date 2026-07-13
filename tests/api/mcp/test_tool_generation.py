@@ -158,6 +158,52 @@ def test_search_content_literal_mode_supports_paging(local_session):
     assert [row["id"] for row in _collect_rows(local_session, plan)] == [2]
 
 
+def test_search_content_parses_string_sort_ascending_false(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1, 2, 3],
+            "body": ["hit", "hit", "hit"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    plan = search_tool.func(
+        df_name="docs",
+        pattern="hit",
+        search_mode="literal",
+        order_by="id",
+        limit=1,
+        sort_ascending="false",
+    )
+
+    assert [row["id"] for row in _collect_rows(local_session, plan)] == [3]
+
+
+def test_search_content_unknown_sort_ascending_string_raises(local_session):
+    create_table_from_dict(
+        local_session,
+        "docs",
+        {
+            "id": [1],
+            "body": ["hit"],
+        },
+        description="docs table",
+    )
+    search_tool = _search_content_tool(local_session, "docs")
+
+    with pytest.raises(ValidationError, match="sort_ascending must be a boolean"):
+        search_tool.func(
+            df_name="docs",
+            pattern="hit",
+            search_mode="literal",
+            order_by="id",
+            sort_ascending="sometimes",
+        )
+
+
 def test_search_content_preserves_existing_positional_optional_arguments(local_session):
     create_table_from_dict(
         local_session,
