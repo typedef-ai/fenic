@@ -8,6 +8,7 @@ from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionsProfileManager,
 )
 from fenic.core._inference.model_catalog import (
+    ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
     AnthropicLanguageModelName,
     CohereEmbeddingModelName,
     CompletionModelParameters,
@@ -193,11 +194,34 @@ def test_latest_frontier_models_are_registered():
     """Sanity-check newly released frontier model IDs and snapshots."""
     catalog = model_catalog
 
+    openai_gpt_56_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-sol")
+    openai_gpt_56_alias = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6")
+    openai_gpt_56_terra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-terra")
+    openai_gpt_56_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-luna")
+    assert openai_gpt_56_sol is openai_gpt_56_alias
+    assert openai_gpt_56_sol.context_window_length == 1_050_000
+    assert openai_gpt_56_sol.max_output_tokens == 128_000
+    assert openai_gpt_56_sol.supports_max_reasoning
+    assert openai_gpt_56_terra.input_token_cost == 2.50 / 1_000_000
+    assert openai_gpt_56_luna.output_token_cost == 6.00 / 1_000_000
+
     openai_gpt_55 = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
     openai_gpt_55_snapshot = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5-2026-04-23")
     assert openai_gpt_55 is openai_gpt_55_snapshot
     assert openai_gpt_55.supports_xhigh_reasoning
     assert openai_gpt_55.context_window_length == 1_050_000
+
+    anthropic_fable_5 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-fable-5")
+    assert anthropic_fable_5.context_window_length == 1_000_000
+    assert anthropic_fable_5.max_output_tokens == 128_000
+    assert anthropic_fable_5.uses_adaptive_thinking
+    assert anthropic_fable_5.supported_reasoning_efforts == ANTHROPIC_OPUS_4_7_PLUS_EFFORTS
+
+    anthropic_sonnet_5 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-sonnet-5")
+    assert anthropic_sonnet_5.context_window_length == 1_000_000
+    assert anthropic_sonnet_5.max_output_tokens == 128_000
+    assert anthropic_sonnet_5.uses_adaptive_thinking
+    assert anthropic_sonnet_5.supported_reasoning_efforts == ANTHROPIC_OPUS_4_7_PLUS_EFFORTS
 
     anthropic_opus_48 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-4-8")
     assert anthropic_opus_48.context_window_length == 1_000_000

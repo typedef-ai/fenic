@@ -565,6 +565,12 @@ def test_model_profile_validation():
             language_models={"gpt-5.5": OpenAILanguageModel(model_name="gpt-5.5", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="xhigh")}, rpm=100, tpm=1000)}
         )
     )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-5.6": OpenAILanguageModel(model_name="gpt-5.6", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
+        )
+    )
     # Test that older OpenAI reasoning models reject xhigh reasoning
     with pytest.raises(ConfigurationError, match="Model 'gpt-5.2' does not support 'xhigh' reasoning. Please set reasoning_effort on 'deep' to 'none', 'low', 'medium', or 'high' instead."):
         SessionConfig(
@@ -670,6 +676,7 @@ def test_model_profile_validation():
     OpenRouterLanguageModel.Profile(reasoning_effort="none")
     OpenRouterLanguageModel.Profile(reasoning_effort="minimal")
     OpenRouterLanguageModel.Profile(reasoning_effort="xhigh")
+    OpenRouterLanguageModel.Profile(reasoning_effort="max")
 
 def test_session_config_with_invalid_api_keys(tmp_path, monkeypatch):
     """Test that session configuration validation rejects models with invalid API keys."""

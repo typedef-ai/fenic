@@ -171,6 +171,30 @@ def test_openrouter_effort_estimate_uses_model_output_ratio():
     )
 
 
+def test_openrouter_max_effort_uses_maximum_output_ratio():
+    params = CompletionModelParameters(
+        input_token_cost=0,
+        output_token_cost=0,
+        context_window_length=1000,
+        max_output_tokens=1000,
+        supports_reasoning=True,
+        supports_disabled_reasoning=False,
+    )
+    model_config = ResolvedOpenRouterModelConfig(
+        model_name="openai/gpt-5.6-sol",
+        profiles={"max": ResolvedOpenRouterModelProfile(reasoning_effort="max")},
+    )
+
+    assert (
+        estimate_reasoning_tokens_for_resolved_profile(
+            model_config=model_config,
+            completion_parameters=params,
+            profile_name="max",
+        )
+        == 950
+    )
+
+
 def test_google_explicit_empty_budget_profile_estimates_no_reasoning_tokens():
     params = CompletionModelParameters(
         input_token_cost=0,

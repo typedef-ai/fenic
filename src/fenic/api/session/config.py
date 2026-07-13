@@ -561,7 +561,8 @@ class OpenAILanguageModel(BaseModel):
 
         Attributes:
             reasoning_effort: Provide a reasoning effort. Only for gpt5 and o-series models.
-                Valid values: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'.
+                Valid values: 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'.
+                - For gpt-5.6 models: supports 'xhigh' and 'max'
                 - For gpt-5.5 models: defaults to 'medium', supports 'xhigh'
                 - For gpt-5.4 models: defaults to 'none' (disabled reasoning), supports 'xhigh'
                 - For gpt-5.1 and gpt-5.2 models: defaults to 'none' (disabled reasoning), does NOT support 'minimal' or 'xhigh'
@@ -902,7 +903,7 @@ class OpenRouterLanguageModel(BaseModel):
                 ([OpenRouter Documentation](https://openrouter.ai/docs/features/model-routing#the-models-parameter)).
             provider: Provider routing preferences (include/exclude specific providers, set provider ranking method preference)
                 ([OpenRouter Documentation](https://openrouter.ai/docs/features/provider-routing)).
-            reasoning_effort: OpenRouter reasoning effort configuration (none, minimal, low, medium, high, xhigh).
+            reasoning_effort: OpenRouter reasoning effort configuration (none, minimal, low, medium, high, xhigh, max).
                 If the model does support reasoning, but not `reasoning_effort`, a `reasoning_max_tokens` will be calculated
                 that is roughly equivalent as a percentage of the model's maximum output size
                 ([OpenRouter Documentation](https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level))
@@ -1817,6 +1818,17 @@ def _validate_language_profile(
             supported_efforts.extend(["'low'", "'medium'", "'high'"])
             supported_efforts_str = f"{', '.join(supported_efforts[:-1])}, or {supported_efforts[-1]}"
             raise ConfigurationError(f"Model '{model_alias}' does not support 'xhigh' reasoning. Please set reasoning_effort on '{profile_alias}' to {supported_efforts_str} instead.")
+        if not completion_model_params.supports_max_reasoning and profile.reasoning_effort == "max":
+            supported_efforts = []
+            if completion_model_params.supports_disabled_reasoning:
+                supported_efforts.append("'none'")
+            if completion_model_params.supports_minimal_reasoning:
+                supported_efforts.append("'minimal'")
+            supported_efforts.extend(["'low'", "'medium'", "'high'"])
+            if completion_model_params.supports_xhigh_reasoning:
+                supported_efforts.append("'xhigh'")
+            supported_efforts_str = f"{', '.join(supported_efforts[:-1])}, or {supported_efforts[-1]}"
+            raise ConfigurationError(f"Model '{model_alias}' does not support 'max' reasoning. Please set reasoning_effort on '{profile_alias}' to {supported_efforts_str} instead.")
         if not completion_model_params.supports_verbosity and profile.verbosity is not None:
             raise ConfigurationError(f"Model '{model_alias}' does not support verbosity. Please remove verbosity from '{profile_alias}'.")
     elif isinstance(language_model, AnthropicLanguageModel):

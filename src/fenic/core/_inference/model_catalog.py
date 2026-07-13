@@ -61,11 +61,13 @@ class CompletionModelParameters:
         supports_minimal_reasoning: Whether the model supports minimal reasoning parameter. (Introduced with OpenAI gpt5 models)
         supports_disabled_reasoning: Whether the model supports disabling reasoning.
         supports_xhigh_reasoning: Whether the model supports xhigh reasoning effort.
+        supports_max_reasoning: Whether the model supports max reasoning effort.
         default_reasoning_effort: Default reasoning effort when a profile does not specify one.
         supported_reasoning_efforts: Set of provider-native reasoning efforts supported by the model.
         supported_thinking_levels: Set of thinking levels supported by the model (Gemini 3+).
             None means the model uses thinking_budget instead. Valid values: "high", "medium", "low", "minimal".
         uses_adaptive_thinking: Whether the model uses Anthropic adaptive thinking rather than manual thinking budgets.
+        requires_adaptive_thinking: Whether Anthropic requires adaptive thinking for all requests.
         supports_custom_temperature: Whether the model supports custom temperature.
         supports_verbosity: Whether the model supports verbosity. (Introduced with OpenAI gpt5 models)
         supports_pdf_parsing: Whether fenic can use this model to parse PDFs.
@@ -87,10 +89,12 @@ class CompletionModelParameters:
         supports_minimal_reasoning=False,
         supports_disabled_reasoning=True,
         supports_xhigh_reasoning=False,
+        supports_max_reasoning=False,
         default_reasoning_effort: Optional[str] = None,
         supported_reasoning_efforts: Optional[Set[str]] = None,
         supported_thinking_levels: Optional[Set[ThinkingLevelType]] = None,
         uses_adaptive_thinking: bool = False,
+        requires_adaptive_thinking: bool = False,
         supports_custom_temperature=True,
         supports_verbosity = False,
         supports_pdf_parsing = False,
@@ -111,10 +115,12 @@ class CompletionModelParameters:
         self.supports_minimal_reasoning = supports_minimal_reasoning
         self.supports_disabled_reasoning = supports_disabled_reasoning
         self.supports_xhigh_reasoning = supports_xhigh_reasoning
+        self.supports_max_reasoning = supports_max_reasoning
         self.default_reasoning_effort = default_reasoning_effort
         self.supported_reasoning_efforts = supported_reasoning_efforts
         self.supported_thinking_levels = supported_thinking_levels
         self.uses_adaptive_thinking = uses_adaptive_thinking
+        self.requires_adaptive_thinking = requires_adaptive_thinking
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
@@ -126,7 +132,7 @@ class CompletionModelParameters:
         repr = (
             f"CompletionModelParameters(input_token_cost=${self.input_token_cost}, output_token_cost=${self.output_token_cost}, context_window_length={self.context_window_length}, max_output_tokens={self.max_output_tokens}, "
             f"max_temperature={self.max_temperature}, cached_input_token_write_cost=${self.cached_input_token_write_cost}, cached_input_token_read_cost=${self.cached_input_token_read_cost}, tiered_input_token_costs={self.tiered_input_token_costs}, "
-            f"supports_profiles={self.supports_profiles}, supports_reasoning={self.supports_reasoning}, supports_minimal_reasoning={self.supports_minimal_reasoning}, supports_xhigh_reasoning={self.supports_xhigh_reasoning}, supports_custom_temperature={self.supports_custom_temperature}, "
+            f"supports_profiles={self.supports_profiles}, supports_reasoning={self.supports_reasoning}, supports_minimal_reasoning={self.supports_minimal_reasoning}, supports_xhigh_reasoning={self.supports_xhigh_reasoning}, supports_max_reasoning={self.supports_max_reasoning}, supports_custom_temperature={self.supports_custom_temperature}, "
             f"supports_verbosity={self.supports_verbosity}, supported_parameters={self.supported_parameters})"
         )
         return repr
@@ -185,6 +191,10 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-5.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5.5",
     "gpt-5.5-2026-04-23",
     "gpt-5.4",
@@ -243,6 +253,8 @@ GoogleDeveloperEmbeddingModelName = Literal[
 ]
 
 AnthropicLanguageModelName = Literal[
+    "claude-fable-5",
+    "claude-sonnet-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
     "claude-opus-4-6",
@@ -362,6 +374,41 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-fable-5",
+            CompletionModelParameters(
+                input_token_cost=10.00 / 1_000_000,
+                cached_input_token_write_cost=12.50 / 1_000_000,
+                cached_input_token_read_cost=1.00 / 1_000_000,
+                output_token_cost=50.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-5",
+            CompletionModelParameters(
+                input_token_cost=3.00 / 1_000_000,
+                cached_input_token_write_cost=3.75 / 1_000_000,
+                cached_input_token_read_cost=0.30 / 1_000_000,
+                output_token_cost=15.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
         # Claude Opus 4.8 and 4.7 use adaptive thinking rather than manual thinking budgets.
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
@@ -495,6 +542,91 @@ class ModelCatalog:
 
     def _initialize_openai_models(self):
         """Initialize OpenAI models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.6-sol",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,
+                cached_input_token_write_cost=6.25 / 1_000_000,
+                cached_input_token_read_cost=0.50 / 1_000_000,
+                output_token_cost=30.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=10.00 / 1_000_000,
+                        cached_input_token_read_cost=1.00 / 1_000_000,
+                        output_token_cost=45.00 / 1_000_000,
+                    )
+                },
+            ),
+            snapshots=["gpt-5.6"],
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.6-terra",
+            CompletionModelParameters(
+                input_token_cost=2.50 / 1_000_000,
+                cached_input_token_write_cost=3.125 / 1_000_000,
+                cached_input_token_read_cost=0.25 / 1_000_000,
+                output_token_cost=15.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=5.00 / 1_000_000,
+                        cached_input_token_read_cost=0.50 / 1_000_000,
+                        output_token_cost=22.50 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-5.6-luna",
+            CompletionModelParameters(
+                input_token_cost=1.00 / 1_000_000,
+                cached_input_token_write_cost=1.25 / 1_000_000,
+                cached_input_token_read_cost=0.10 / 1_000_000,
+                output_token_cost=6.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                supports_custom_temperature=True,
+                supports_verbosity=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=2.00 / 1_000_000,
+                        cached_input_token_read_cost=0.20 / 1_000_000,
+                        output_token_cost=9.00 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
             "gpt-4",
