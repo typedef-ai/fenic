@@ -29,8 +29,8 @@ Add an explicit schema path to `Session.create_dataframe` that makes a provided 
 
 - [x] Phase 1: Basic schema-backed creation end to end
 - [x] Phase 2: Complete input-shape and error contract
-- [ ] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
-- [ ] Phase 4: Local embedding physical preservation
+- [x] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
+- [x] Phase 4: Local embedding physical preservation
 
 ---
 

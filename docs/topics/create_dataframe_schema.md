@@ -47,9 +47,13 @@ quick, ad-hoc frames.
 
 When you pass `schema`, `create_dataframe` enforces a strict top-level contract:
 
-- **Exact column match.** Every schema field must be present in the data, and the
-  data may not contain columns outside the schema. Column _order_ in the input
-  does not matter — the result is ordered by the schema.
+- **No unknown columns.** The data may not contain columns outside the schema.
+  Column _order_ in the input does not matter — the result is ordered by the
+  schema.
+- **Missing columns depend on input shape.** For column-oriented inputs (a
+  `dict`, a Polars/pandas DataFrame, or a PyArrow table) the columns must match
+  the schema exactly. For row-oriented input (a `list[dict]`), any schema fields
+  absent from the rows are backfilled with nulls.
 - **Physical coercion.** Each column is cast to the schema's Polars
   representation (for example `IntegerType` → `Int64`, `EmbeddingType` →
   `Array(Float32, dimensions)`).
@@ -59,13 +63,13 @@ When you pass `schema`, `create_dataframe` enforces a strict top-level contract:
 ```python
 from fenic.core.error import ValidationError, PlanError
 
-# Extra/missing columns -> ValidationError
+# A column outside the schema (here `schema` is the age/name schema above)
+# -> ValidationError
 try:
     session.create_dataframe({"name": ["A"], "age": ["1"], "extra": [9]}, schema=schema)
 except ValidationError as e:
     print(e)
-    # Data columns must match the provided schema exactly;
-    # missing columns: [...], extra columns: ['extra']
+    # Data columns must match the provided schema exactly; extra columns: ['extra']
 
 # Duplicate schema field names -> PlanError
 dup = fc.Schema([

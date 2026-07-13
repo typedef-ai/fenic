@@ -50,8 +50,8 @@ Add `schema: Schema | None = None` to `Session.create_dataframe` so callers can 
 
 - [x] Phase 1: Basic schema-backed creation end to end
 - [x] Phase 2: Complete input-shape and error contract
-- [ ] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
-- [ ] Phase 4: Local embedding physical preservation
+- [x] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
+- [x] Phase 4: Local embedding physical preservation
 
 ---
 

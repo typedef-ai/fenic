@@ -437,7 +437,7 @@ def _coerce_to_schema(
     except (ValidationError, PlanError):
         raise
     except ValueError as e:
-        raise ValidationError(f"Invalid schema provided to create_dataframe: {e}") from e
+        raise PlanError(f"Invalid schema provided to create_dataframe: {e}") from e
     except Exception as e:
         raise PlanError("Failed to create DataFrame with the provided schema.") from e
 
