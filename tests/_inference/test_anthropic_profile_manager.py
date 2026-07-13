@@ -66,6 +66,54 @@ def test_adaptive_effort_profile_uses_output_config():
     assert profile.output_config == {"effort": "xhigh"}
 
 
+def test_fable_default_profile_uses_required_adaptive_thinking():
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-fable-5"
+    )
+    profile = AnthropicCompletionsProfileManager(
+        model_parameters=params,
+    ).get_profile_by_name(None)
+
+    assert profile.thinking_enabled
+    assert profile.uses_adaptive_thinking
+    assert profile.thinking_config["type"] == "adaptive"
+
+
+def test_fable_empty_named_profile_uses_required_adaptive_thinking():
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-fable-5"
+    )
+    profile = AnthropicCompletionsProfileManager(
+        model_parameters=params,
+        profile_configurations={
+            "default": ResolvedAnthropicModelProfile(),
+        },
+        default_profile_name="default",
+    ).get_profile_by_name(None)
+
+    assert profile.thinking_enabled
+    assert profile.uses_adaptive_thinking
+    assert profile.thinking_config["type"] == "adaptive"
+
+
+def test_fable_effort_profile_reserves_adaptive_thinking_budget():
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-fable-5"
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={
+            "deep": ResolvedAnthropicModelProfile(effort="xhigh"),
+        },
+        default_profile_name="deep",
+    )
+    request = _make_request(max_completion_tokens=10_000)
+
+    profile = client._profile_manager.get_profile_by_name(None)
+    assert profile.thinking_token_budget == 121_600
+    assert client._get_max_output_token_request_limit(request) == 128_000
+
+
 def test_manual_thinking_budget_profile_still_uses_budget_tokens():
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, "claude-opus-4-5"

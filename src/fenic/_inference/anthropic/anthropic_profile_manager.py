@@ -95,6 +95,14 @@ class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelPr
                 effort=profile.effort,
                 output_config={"effort": profile.effort},
             )
+        elif self.model_parameters.requires_adaptive_thinking:
+            return AnthropicProfileConfiguration(
+                thinking_enabled=True,
+                uses_adaptive_thinking=True,
+                thinking_config=anthropic.types.ThinkingConfigAdaptiveParam(
+                    type="adaptive"
+                ),
+            )
         elif profile.effort:
             return AnthropicProfileConfiguration(
                 effort=profile.effort,
@@ -107,6 +115,14 @@ class AnthropicCompletionsProfileManager(ProfileManager[ResolvedAnthropicModelPr
         """Get default Anthropic configuration.
 
         Returns:
-            Default configuration with thinking disabled
+            Default configuration for the model
         """
+        if self.model_parameters.requires_adaptive_thinking:
+            return AnthropicProfileConfiguration(
+                thinking_enabled=True,
+                uses_adaptive_thinking=True,
+                thinking_config=anthropic.types.ThinkingConfigAdaptiveParam(
+                    type="adaptive"
+                ),
+            )
         return AnthropicProfileConfiguration()

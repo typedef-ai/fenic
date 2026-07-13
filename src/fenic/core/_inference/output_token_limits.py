@@ -31,6 +31,7 @@ OPENAI_REASONING_TOKEN_ESTIMATES: Final[dict[str, int]] = {
     "medium": 8192,
     "high": 16384,
     "xhigh": 32768,
+    "max": 65536,
 }
 
 OPENROUTER_REASONING_EFFORT_RATIOS: Final[dict[str, float]] = {
@@ -40,6 +41,7 @@ OPENROUTER_REASONING_EFFORT_RATIOS: Final[dict[str, float]] = {
     "medium": 0.50,
     "high": 0.80,
     "xhigh": 0.95,
+    "max": 0.95,
 }
 
 GOOGLE_THINKING_LEVEL_TOKEN_ESTIMATES: Final[dict[str, int]] = {
