@@ -117,24 +117,21 @@ def render_namespaces() -> str:
 
 
 def render_dataframe() -> str:
-    """Render the public Session, DataFrame, and Column methods."""
+    """Render the public DataFrame and Column methods."""
     from fenic.api.dataframe.dataframe import DataFrame
-    out = ["# Session / DataFrame / Column methods reference (generated)", ""]
-    for cls_name, cls in [("Session", fc.Session), ("DataFrame", DataFrame), ("Column", fc.Column)]:
+    out = ["# DataFrame / Column methods reference (generated)", ""]
+    for cls_name, cls in [("DataFrame", DataFrame), ("Column", fc.Column)]:
         out += [f"## {cls_name}", ""]
         for n in sorted(dir(cls)):
             if n.startswith("_"):
                 continue
             o = inspect.getattr_static(cls, n)
-            if isinstance(o, (classmethod, staticmethod)):
-                o = o.__func__
             if callable(o):
                 try:
                     sig = _sig(getattr(cls, n))
                 except Exception:
                     sig = "(...)"
-                doc = _first_doc_line(getattr(cls, n))
-                out.append(f"- `{cls_name}.{n}{sig}` — {doc}".rstrip(" —"))
+                out.append(f"- `{cls_name}.{n}{sig}` — {_first_doc_line(getattr(cls, n))}".rstrip(" —"))
         out.append("")
     return "\n".join(out)
 
@@ -183,7 +180,7 @@ def main() -> None:
         "config-and-types.md": render_config_types(),
     }
     for fname, body in files.items():
-        (OUT_DIR / fname).write_text(header + body.rstrip() + "\n")
+        (OUT_DIR / fname).write_text(header + body + "\n")
         print(f"wrote {OUT_DIR / fname}  ({len(body.splitlines())} lines)")
     # Version stamp for the maintenance skill to diff against.
     (OUT_DIR / "VERSION").write_text(version + "\n")
