@@ -6,7 +6,7 @@ size_class: high-risk
 status: approved
 portability_level: 2
 source_inputs:
-  - docs/brainstorms/create-dataframe-schema-research.md
+  - docs/td-flow/create-dataframe-schema/research.md
 last_updated: 2026-06-26
 ---
 
@@ -105,7 +105,7 @@ None.
 **Next step (paste into a fresh tab):**
 
 > Use the `td-structure` skill. The design is approved at
-> `docs/designs/create-dataframe-schema-design.md` (track: engineering, size: high-risk).
+> `docs/td-flow/create-dataframe-schema/design.md` (track: engineering, size: high-risk).
 > Build the vertically-sliced structure outline from the chosen approach. Use the
 > design + the research findings — do not read the research Questions section as a
 > spec.
@@ -117,5 +117,5 @@ None.
 **Non-goals / out of scope:** Partial schemas, Pydantic schema shortcuts, new cloud protocol changes, a new source node, broad recasting of all source columns during execution, and content validation for tagged string logical types such as `JsonType`/`MarkdownType`.
 **Evidence summary:** Research showed `create_dataframe` currently has no schema parameter and normalizes all supported inputs through Polars before `InMemorySource`; `InMemorySource` already supports preserved schemas and plan serde stores wrapper-level schemas; fenic-to-Polars conversion already maps all fenic data types to physical dtypes; local in-memory execution currently applies generic ingestion coercion that converts fixed-size arrays to lists.
 **Known weak assumptions:** Structure should pressure-test the exact implementation of embedding-path preservation in `InMemorySourceExec`, and confirm whether strict physical coercion should use existing fenic cast semantics or Polars casts for each supported schema type.
-**Next artifact:** `docs/plans/create-dataframe-schema-structure.md`
+**Next artifact:** `docs/td-flow/create-dataframe-schema/structure.md`
 **Rollback if:** building the structure exposes the chosen approach is infeasible — ROLLBACK to design.

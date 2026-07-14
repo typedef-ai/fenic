@@ -6,8 +6,8 @@ size_class: high-risk
 status: approved
 portability_level: 3
 source_inputs:
-  - docs/brainstorms/create-dataframe-schema-research.md
-  - docs/designs/create-dataframe-schema-design.md
+  - docs/td-flow/create-dataframe-schema/research.md
+  - docs/td-flow/create-dataframe-schema/design.md
 last_updated: 2026-06-26
 ---
 
@@ -188,7 +188,7 @@ None.
 
 **Implemented head:** pending commit
 
-**Spec source:** `docs/plans/create-dataframe-schema-structure.md`
+**Spec source:** `docs/td-flow/create-dataframe-schema/structure.md`
 
 **Verification summary:** same as plan-phase coverage in `create-dataframe-schema-plan.md` (targeted pytest commands in-phase 3 and phase 4 all passed).
 
@@ -250,7 +250,7 @@ None.
 **Next step (paste into a fresh tab):**
 
 > Use the `td-plan` skill. The structure is approved at
-> `docs/plans/create-dataframe-schema-structure.md` (track: engineering, size: high-risk).
+> `docs/td-flow/create-dataframe-schema/structure.md` (track: engineering, size: high-risk).
 > Deepen it into a full implementation plan with per-file code examples and dual
 > success criteria.
 > If this is Codex: I explicitly permit optional subagent use for this phase
@@ -261,5 +261,5 @@ None.
 **Non-goals / out of scope:** Partial schemas, Pydantic schema shortcuts, new cloud protocol fields, a new source node, broad source recasting, tagged-string content validation, and user-facing docs in this implementation pass.
 **Evidence summary:** `Session.create_dataframe` currently normalizes supported inputs before `InMemorySource.from_session_state`; `InMemorySource.from_schema` already stores explicit schemas and participates in equality/serde; wrapper-level plan serde already carries logical schema; `convert_custom_schema_to_polars_schema` maps fenic schemas to Polars dtypes including `EmbeddingType`; local `InMemorySourceExec` currently applies generic ingestion coercions that turn fixed-size arrays into lists.
 **Known weak assumptions:** The Plan should pressure-test duplicate schema validation before Polars schema conversion, cloud test setup through `just sync-cloud`, and the exact recursive mechanism for preserving only embedding-typed physical paths without changing no-schema array behavior.
-**Next artifact:** `docs/plans/create-dataframe-schema-plan.md`
+**Next artifact:** `docs/td-flow/create-dataframe-schema/plan.md`
 **Rollback if:** deepening exposes that the outline is infeasible — ROLLBACK to research/design.
