@@ -121,3 +121,9 @@ generate-protos:
 generate-protos-py:
   buf generate --template buf.gen.py.yaml
   uv run python scripts/fix_proto_imports.py
+
+# Regenerate the fenic-mechanics skill API reference from the *installed* fenic.
+# Run after changing the public API (build first if you touched Rust); CI's
+# "reference up to date" check enforces that the committed reference matches.
+generate-reference:
+  uv run --project . python .claude/skills/fenic-mechanics/scripts/generate_reference.py
