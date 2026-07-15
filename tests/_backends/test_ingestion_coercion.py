@@ -5,6 +5,14 @@ from datetime import date
 import polars as pl
 
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
+from fenic.core.types.datatypes import (
+    ArrayType,
+    EmbeddingType,
+    IntegerType,
+    StructField,
+    StructType,
+)
+from fenic.core.types.schema import ColumnField, Schema
 
 
 def test_array_coercion():
@@ -16,6 +24,95 @@ def test_array_coercion():
     result = apply_ingestion_coercions(df, coerce_array=True)
 
     assert result.schema["array_col"] == pl.List(pl.Int64)
+
+
+def test_create_dataframe_without_schema_normalizes_polars_array_to_list(local_session):
+    """No-schema in-memory sources should still normalize Array columns to List."""
+    pl_df = pl.DataFrame(
+        {"array_col": [[1, 2, 3], [4, 5, 6]]},
+        schema={"array_col": pl.Array(pl.Int64, 3)},
+    )
+
+    result = local_session.create_dataframe(pl_df).to_polars()
+
+    assert result.schema["array_col"] == pl.List(pl.Int64)
+
+
+def test_array_coercion_preserves_explicit_embedding_schema():
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+    schema = Schema([ColumnField("embedding", embedding_type)])
+    df = pl.DataFrame(
+        {"embedding": [[1.0, 2.0, 3.0]]},
+        schema={"embedding": pl.Array(pl.Float32, 3)},
+    )
+
+    result = apply_ingestion_coercions(
+        df,
+        coerce_array=True,
+        logical_schema=schema,
+    )
+
+    assert result.schema["embedding"] == pl.Array(pl.Float32, 3)
+
+
+def test_schema_aware_coercion_keeps_unrelated_arrays_as_lists():
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+    schema = Schema([
+        ColumnField("embedding", embedding_type),
+        ColumnField("array_col", ArrayType(IntegerType)),
+    ])
+    df = pl.DataFrame(
+        {
+            "embedding": [[1.0, 2.0, 3.0]],
+            "array_col": [[1, 2, 3]],
+        },
+        schema={
+            "embedding": pl.Array(pl.Float32, 3),
+            "array_col": pl.Array(pl.Int64, 3),
+        },
+    )
+
+    result = apply_ingestion_coercions(
+        df,
+        coerce_array=True,
+        logical_schema=schema,
+    )
+
+    assert result.schema["embedding"] == pl.Array(pl.Float32, 3)
+    assert result.schema["array_col"] == pl.List(pl.Int64)
+
+
+def test_schema_aware_coercion_preserves_nested_embedding_in_struct():
+    embedding_type = EmbeddingType(dimensions=2, embedding_model="test")
+    schema = Schema([
+        ColumnField(
+            "payload",
+            StructType([
+                StructField("embedding", embedding_type),
+                StructField("values", ArrayType(IntegerType)),
+            ]),
+        )
+    ])
+    df = pl.DataFrame(
+        {"payload": [{"embedding": [1.0, 2.0], "values": [1, 2]}]},
+        schema={
+            "payload": pl.Struct([
+                pl.Field("embedding", pl.Array(pl.Float32, 2)),
+                pl.Field("values", pl.Array(pl.Int64, 2)),
+            ])
+        },
+    )
+
+    result = apply_ingestion_coercions(
+        df,
+        coerce_array=True,
+        logical_schema=schema,
+    )
+
+    assert result.schema["payload"] == pl.Struct([
+        pl.Field("embedding", pl.Array(pl.Float32, 2)),
+        pl.Field("values", pl.List(pl.Int64)),
+    ])
 
 def test_array_doesnt_coerce_if_coerce_array_is_false():
     """Array column should not be converted to List if coerce_array is false."""
@@ -142,4 +239,3 @@ def test_timezone_conversion_during_ingestion(local_session):
     assert result["naive_ts"][0] == datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
     assert result["utc_ts"][0] == datetime.datetime(2025, 1, 15, 10, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
     assert result["la_ts"][0] == datetime.datetime(2025, 1, 15, 18, 30, 0, tzinfo=zoneinfo.ZoneInfo("UTC"))
-

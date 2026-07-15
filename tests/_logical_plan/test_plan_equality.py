@@ -49,7 +49,7 @@ from fenic.core._logical_plan.plans.transform import (
     Union,
     Unnest,
 )
-from fenic.core.types.datatypes import FloatType, IntegerType, StringType
+from fenic.core.types.datatypes import FloatType, IntegerType, JsonType, StringType
 from fenic.core.types.schema import ColumnField, Schema
 
 
@@ -129,6 +129,17 @@ class TestRecursiveEquality:
 
         source1 = InMemorySource.from_schema(test_df, schema1)
         source2 = InMemorySource.from_schema(test_df, schema2)
+
+        assert source1 != source2
+
+    def test_inmemory_source_same_physical_data_different_logical_schema_not_equal(self):
+        test_df = pl.DataFrame({"payload": ['{"ok": true}']})
+
+        string_schema = Schema([ColumnField("payload", StringType)])
+        json_schema = Schema([ColumnField("payload", JsonType)])
+
+        source1 = InMemorySource.from_schema(test_df, string_schema)
+        source2 = InMemorySource.from_schema(test_df, json_schema)
 
         assert source1 != source2
 

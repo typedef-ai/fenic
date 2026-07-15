@@ -8,25 +8,33 @@ from pydantic import ValidationError as PydanticValidationError
 
 from fenic import (
     AnthropicLanguageModel,
+    ArrayType,
     CohereEmbeddingModel,
     ColumnField,
+    EmbeddingType,
+    FloatType,
     GoogleDeveloperEmbeddingModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexEmbeddingModel,
     GoogleVertexLanguageModel,
     IntegerType,
+    JsonType,
+    MarkdownType,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
     OpenRouterLanguageModel,
+    Schema,
     SemanticConfig,
     Session,
     SessionConfig,
     StringType,
+    StructField,
+    StructType,
     col,
 )
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.plans import InMemorySource
-from fenic.core.error import ConfigurationError
+from fenic.core.error import ConfigurationError, PlanError
 from fenic.core.error import ValidationError as FenicValidationError
 from tests.conftest import EMBEDDING_MODEL_PROVIDER_ARG
 
@@ -137,6 +145,288 @@ def test_create_dataframe_empty_list(local_session):
         FenicValidationError, match="Cannot create DataFrame from empty list"
     ):
         local_session.create_dataframe([])
+
+
+def test_create_dataframe_with_schema_from_dict_coerces_and_orders_columns(local_session):
+    schema = Schema([
+        ColumnField("age", IntegerType),
+        ColumnField("name", StringType),
+        ColumnField("score", FloatType),
+    ])
+    df = local_session.create_dataframe(
+        {"name": ["Alice"], "score": [1], "age": ["42"]},
+        schema=schema,
+    )
+
+    assert df.schema == schema
+    result = df.to_polars()
+    assert result.columns == ["age", "name", "score"]
+    assert result.schema["age"] == pl.Int64
+    assert result.schema["score"] == pl.Float32
+    assert result.to_dict(as_series=False) == {
+        "age": [42],
+        "name": ["Alice"],
+        "score": [1.0],
+    }
+
+
+def test_create_dataframe_with_schema_from_polars_uses_provided_schema(local_session):
+    schema = Schema([ColumnField("name", StringType)])
+    df = local_session.create_dataframe(pl.DataFrame({"name": ["Alice"]}), schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema["name"] == pl.String
+
+
+def test_create_dataframe_with_schema_from_list_of_dicts_allows_missing_row_keys(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe([{"name": "Alice"}, {"age": 30}], schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().to_dict(as_series=False) == {
+        "name": ["Alice", None],
+        "age": [None, 30],
+    }
+
+
+def test_create_dataframe_with_schema_backfills_column_absent_from_all_rows(local_session):
+    schema = Schema([ColumnField("id", IntegerType), ColumnField("note", StringType)])
+    df = local_session.create_dataframe([{"id": 1}, {"id": 2}], schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().to_dict(as_series=False) == {
+        "id": [1, 2],
+        "note": [None, None],
+    }
+
+
+def test_create_dataframe_with_schema_from_pandas_data(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe(
+        pd.DataFrame({"age": [42, 43], "name": ["Alice", "Bob"]}),
+        schema=schema,
+    )
+    assert df.schema == schema
+    result = df.to_polars()
+    assert result.columns == ["name", "age"]
+    assert result.to_dict(as_series=False) == {
+        "name": ["Alice", "Bob"],
+        "age": [42, 43],
+    }
+
+
+def test_create_dataframe_with_schema_from_arrow_data(local_session):
+    import pyarrow as pa
+
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe(
+        pa.table({"age": [25, 30], "name": ["Alice", "Bob"]}),
+        schema=schema,
+    )
+    assert df.schema == schema
+    result = df.to_polars()
+    assert result.columns == ["name", "age"]
+    assert result.to_dict(as_series=False) == {
+        "name": ["Alice", "Bob"],
+        "age": [25, 30],
+    }
+
+
+def test_create_dataframe_with_schema_allows_empty_list(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe([], schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema == {"name": pl.String, "age": pl.Int64}
+    assert df.to_polars().height == 0
+
+
+def test_create_dataframe_with_schema_allows_empty_polars_dataframe(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe(pl.DataFrame(), schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema == {"name": pl.String, "age": pl.Int64}
+    assert df.to_polars().height == 0
+
+
+def test_create_dataframe_with_schema_allows_empty_dict(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe({}, schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema == {"name": pl.String, "age": pl.Int64}
+    assert df.to_polars().height == 0
+
+
+def test_create_dataframe_with_schema_allows_empty_pandas_dataframe(local_session):
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe(pd.DataFrame(), schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema == {"name": pl.String, "age": pl.Int64}
+    assert df.to_polars().height == 0
+
+
+def test_create_dataframe_with_schema_allows_empty_pyarrow_table(local_session):
+    import pyarrow as pa
+
+    schema = Schema([ColumnField("name", StringType), ColumnField("age", IntegerType)])
+    df = local_session.create_dataframe(pa.table({}), schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().schema == {"name": pl.String, "age": pl.Int64}
+    assert df.to_polars().height == 0
+
+
+def test_create_dataframe_with_schema_column_oriented_missing_field_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType), ColumnField("name", StringType)])
+    with pytest.raises(FenicValidationError, match="missing columns"):
+        local_session.create_dataframe({"id": [1]}, schema=schema)
+
+
+def test_create_dataframe_with_schema_column_oriented_extra_field_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType), ColumnField("name", StringType)])
+    with pytest.raises(FenicValidationError, match="extra columns"):
+        local_session.create_dataframe(
+            {"id": [1], "name": ["Alice"], "extra": [1]},
+            schema=schema,
+        )
+
+
+def test_create_dataframe_with_schema_late_row_extra_key_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    rows = [{"id": i} for i in range(101)] + [{"id": 101, "extra": 3}]
+    with pytest.raises(FenicValidationError, match="extra columns"):
+        local_session.create_dataframe(rows, schema=schema)
+
+
+def test_create_dataframe_with_schema_row_oriented_extra_key_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    with pytest.raises(FenicValidationError, match="extra columns"):
+        local_session.create_dataframe([{"id": 1, "extra": 3}], schema=schema)
+
+
+def test_create_dataframe_no_schema_later_list_value_keeps_plan_error(local_session):
+    with pytest.raises(PlanError, match="Failed to create DataFrame"):
+        local_session.create_dataframe([{"id": 1}, "bad"])
+
+
+def test_create_dataframe_with_schema_later_list_value_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    with pytest.raises(FenicValidationError, match="list of non-dict values"):
+        local_session.create_dataframe([{"id": 1}, "bad"], schema=schema)
+
+
+def test_create_dataframe_with_schema_wrong_type_raises_fenic_error(local_session):
+    with pytest.raises(FenicValidationError, match="schema must be a fenic Schema"):
+        local_session.create_dataframe(
+            {"id": [1]},
+            schema=[ColumnField("id", IntegerType)],
+        )
+
+
+def test_create_dataframe_with_schema_unsupported_type_raises(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    with pytest.raises(FenicValidationError, match="Unsupported data type"):
+        local_session.create_dataframe(42, schema=schema)
+
+
+def test_create_dataframe_with_schema_uncastable_value_raises_plan_error(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    with pytest.raises(PlanError, match="provided schema"):
+        local_session.create_dataframe({"id": ["not-an-int"]}, schema=schema)
+
+
+def test_create_dataframe_with_schema_duplicate_names_use_plan_validation(local_session):
+    schema = Schema([
+        ColumnField("id", IntegerType),
+        ColumnField("id", StringType),
+    ])
+    with pytest.raises(PlanError, match="Duplicate column names"):
+        local_session.create_dataframe({"id": [1]}, schema=schema)
+
+
+def test_create_dataframe_with_json_schema_exposes_logical_type(local_session):
+    schema = Schema([ColumnField("json_col", JsonType)])
+    df = local_session.create_dataframe(
+        {"json_col": ['{"user": "Alice"}']},
+        schema=schema,
+    )
+    assert df.schema == schema
+    assert df.to_polars().schema["json_col"] == pl.String
+
+
+def test_create_dataframe_with_markdown_schema_exposes_logical_type(local_session):
+    schema = Schema([ColumnField("md_col", MarkdownType)])
+    df = local_session.create_dataframe(
+        {"md_col": ["# Title"]},
+        schema=schema,
+    )
+    assert df.schema == schema
+    assert df.to_polars().schema["md_col"] == pl.String
+
+
+def test_create_dataframe_with_struct_schema_round_trips_to_polars(local_session):
+    schema = Schema([
+        ColumnField(
+            "profile",
+            StructType([
+                StructField("name", StringType),
+                StructField("age", IntegerType),
+            ]),
+        )
+    ])
+
+    df = local_session.create_dataframe(
+        {"profile": [{"name": "Alice", "age": "42"}]},
+        schema=schema,
+    )
+
+    result = df.to_polars()
+    assert df.schema == schema
+    assert result.schema["profile"] == pl.Struct([
+        pl.Field("name", pl.String),
+        pl.Field("age", pl.Int64),
+    ])
+    assert result["profile"].to_list() == [{"name": "Alice", "age": 42}]
+
+
+def test_create_dataframe_with_array_schema_round_trips_to_polars(local_session):
+    schema = Schema([ColumnField("scores", ArrayType(IntegerType))])
+
+    df = local_session.create_dataframe(
+        {"scores": [["1", "2"], ["3"]]},
+        schema=schema,
+    )
+
+    result = df.to_polars()
+    assert df.schema == schema
+    assert result.schema["scores"] == pl.List(pl.Int64)
+    assert result["scores"].to_list() == [[1, 2], [3]]
+
+
+def test_create_dataframe_with_embedding_schema_preserves_polars_array(local_session):
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+    schema = Schema([ColumnField("embedding", embedding_type)])
+
+    df = local_session.create_dataframe(
+        {"embedding": [[1.0, 2.0, 3.0]]},
+        schema=schema,
+    )
+
+    assert df.schema == schema
+    assert df.to_polars().schema["embedding"] == pl.Array(pl.Float32, 3)
+
+
+def test_create_dataframe_with_embedding_schema_dimension_mismatch_raises_plan_error(local_session):
+    embedding_type = EmbeddingType(dimensions=3, embedding_model="test")
+    schema = Schema([ColumnField("embedding", embedding_type)])
+
+    with pytest.raises(PlanError, match="provided schema"):
+        local_session.create_dataframe(
+            {"embedding": [[1.0, 2.0]]},
+            schema=schema,
+        )
+
+
+def test_create_dataframe_alias_accepts_schema(local_session):
+    schema = Schema([ColumnField("id", IntegerType)])
+    df = local_session.createDataFrame({"id": ["1"]}, schema=schema)
+    assert df.schema == schema
+    assert df.to_polars().to_dict(as_series=False) == {"id": [1]}
 
 
 def test_create_dataframe_unsupported_type(local_session):

@@ -7,12 +7,23 @@ from fenic import (
     IntegerType,
     JsonType,
     MarkdownType,
+    Schema,
     StringType,
     StructField,
     StructType,
     col,
     markdown,
 )
+
+
+def test_generate_toc_accepts_create_dataframe_markdown_schema(local_session):
+    schema = Schema([ColumnField("md_col", MarkdownType)])
+    df = local_session.create_dataframe(
+        {"md_col": ["# Title\n\n## Details"]},
+        schema=schema,
+    )
+    result = df.select(markdown.generate_toc(col("md_col")).alias("toc")).to_polars()
+    assert result["toc"].to_list() == ["# Title\n## Details"]
 
 
 def test_md_to_json(local_session):

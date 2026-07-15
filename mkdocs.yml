@@ -51,6 +51,7 @@ nav:
               - JSON Processing: examples/json_processing.md
               - Markdown Processing: examples/markdown_processing.md
       - Topics:
+          - Creating DataFrames with a Schema: topics/create_dataframe_schema.md
           - Markdown -> JSON: topics/markdown-json.md
           - Fenic MCP: topics/fenic-mcp.md
           - OpenRouter: topics/openrouter.md

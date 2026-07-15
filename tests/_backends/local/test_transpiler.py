@@ -28,7 +28,7 @@ from fenic.core._logical_plan.plans import (
     Projection,
     Union,
 )
-from fenic.core.types import IntegerType
+from fenic.core.types import ColumnField, IntegerType, Schema
 
 
 def test_convert_column_expr(local_session):
@@ -82,12 +82,14 @@ def test_unsupported_expr(local_session):
 
 def test_convert_source_plan(local_session):
     df = pl.DataFrame({"a": [1, 2, 3]})
-    source = InMemorySource(df, local_session._session_state)
+    schema = Schema([ColumnField("a", IntegerType)])
+    source = InMemorySource.from_schema(df, schema)
     plan_converter = PlanConverter(local_session._session_state)
     physical = plan_converter.convert(
         source,
     )
     assert isinstance(physical, InMemorySourceExec)
+    assert physical.schema == schema
 
 
 def test_convert_projection_plan(local_session):
