@@ -26,7 +26,6 @@ from fenic._backends.local.semantic_operators import (
 from fenic._backends.local.semantic_operators import Classify as SemanticClassify
 from fenic._backends.local.semantic_operators import Extract as SemanticExtract
 from fenic._backends.local.semantic_operators import Map as SemanticMap
-from fenic._backends.local.semantic_operators import ParsePDF as SemanticParsePDF
 from fenic._backends.local.semantic_operators import Predicate as SemanticPredicate
 from fenic._backends.local.semantic_operators import Reduce as SemanticReduce
 from fenic._backends.local.semantic_operators import Summarize as SemanticSummarize
@@ -773,6 +772,10 @@ class ExprConverter:
     @_convert_expr.register(SemanticParsePDFExpr)
     def _convert_parse_pdf_expr(self, logical: SemanticParsePDFExpr) -> pl.Expr:
         def parse_pdf_fn(batch: pl.Series) -> pl.Series:
+            from fenic._backends.local.semantic_operators.parse_pdf import (
+                ParsePDF as SemanticParsePDF,
+            )
+
             return SemanticParsePDF(
                 input=batch,
                 model=self.session_state.get_language_model(logical.model_alias),

@@ -10,7 +10,6 @@ import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
-from fenic._backends.local.semantic_operators.cluster import Cluster
 from fenic.core._logical_plan.plans import CacheInfo, CentroidInfo
 from fenic.core.error import ExecutionError, InternalError
 
@@ -557,6 +556,8 @@ class SemanticClusterExec(PhysicalPlan):
         child_df = child_df.with_columns(self.by_expr.alias(self.by_expr_name))
 
         # Perform clustering and add cluster metadata columns
+        from fenic._backends.local.semantic_operators.cluster import Cluster
+
         clustered_df = Cluster(
             child_df,
             self.by_expr_name,

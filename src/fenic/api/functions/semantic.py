@@ -616,11 +616,14 @@ def parse_pdf(
     column: ColumnOrName,
     model_alias: Optional[Union[str, ModelAlias]] = None,
     page_separator: Optional[str] = None,
-	describe_images: bool = False,  # for images that aren't tables
-	max_output_tokens: Optional[int] = None,
-	request_timeout: TimeoutParam = None,
+    describe_images: bool = False,  # for images that aren't tables
+    max_output_tokens: Optional[int] = None,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     r"""Parses a column of PDF paths into markdown.
+
+    Note:
+        Local execution requires the `pdf` extra: `pip install "fenic[pdf]"`.
 
     Returns:
         Dataframe: a dataframe with markdown strings for each PDF file.

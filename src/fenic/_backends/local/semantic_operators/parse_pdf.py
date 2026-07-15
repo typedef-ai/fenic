@@ -2,7 +2,6 @@ import logging
 from textwrap import dedent
 from typing import List, Optional, Tuple
 
-import fitz
 import jinja2
 import polars as pl
 
@@ -10,9 +9,9 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnFilePathOperator,
     CompletionOnlyRequestSender,
 )
-from fenic._backends.local.utils.doc_loader import DocFolderLoader
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
 from fenic._inference.types import LMRequestFile, LMRequestMessages
+from fenic._optional_dependencies import import_optional_dependency
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 
@@ -58,6 +57,8 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
         self.model = model
         self.model_alias = model_alias
         self.max_output_tokens = max_output_tokens
+
+        from fenic._backends.local.utils.doc_loader import DocFolderLoader
 
         DocFolderLoader.check_file_extensions(input.to_list(), "pdf")
 
@@ -143,6 +144,11 @@ class ParsePDF(BaseSingleColumnFilePathOperator[str, str]):
             List of LMRequestFile objects
             List of (start_page, end_page) tuples (inclusive, 0-indexed)
         """
+        fitz = import_optional_dependency(
+            "fitz",
+            extra="pdf",
+            feature="PDF parsing",
+        )
         chunks = []
         range_start_page = 0
         range_tokens = 0

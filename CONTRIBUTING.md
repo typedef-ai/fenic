@@ -101,6 +101,29 @@ just preview-docs
 uv run --group docs mkdocs serve
 ```
 
+#### Measuring Install Footprint
+
+To compare the installed size of fenic with different extras, run:
+
+```bash
+uv run --env-file .env python tools/package_size_matrix.py
+```
+
+The tool creates temporary `uv` projects that depend on the local checkout, syncs each
+project, and reports the resulting `site-packages` and `.venv` sizes along with the
+largest installed distributions. By default it measures `core`, `pdf`, `cluster`,
+`sim-join`, and `pdf,cluster,sim-join`.
+
+To choose a custom matrix:
+
+```bash
+uv run --env-file .env python tools/package_size_matrix.py \
+  --combo core \
+  --combo google \
+  --combo google,pdf \
+  --combo pdf,cluster,sim-join
+```
+
 ---
 
 ## ✅ Running Tests

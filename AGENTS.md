@@ -25,6 +25,10 @@ PySpark/pandas intuition. _(Developing fenic itself? See `CLAUDE.md`.)_
 - **Semantic templates use Jinja2 `{{ var }}` + matching column kwargs:**
   `fc.semantic.predicate("... {{ x }} ...", x=fc.col("x"))`. `parse_pdf` is
   **`fc.semantic.parse_pdf`** (under `semantic`, not `markdown`).
+- **Local extras for heavier operators:** `fc.semantic.parse_pdf` and
+  `session.read.pdf_metadata` need `fenic[pdf]`;
+  `df.semantic.with_cluster_labels` needs `fenic[cluster]`;
+  `df.semantic.sim_join` needs `fenic[sim-join]`.
 
 ## Traps `fenic check` can't catch — get these right by hand
 

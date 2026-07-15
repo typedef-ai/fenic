@@ -329,6 +329,30 @@ result.backwards(["<row-id>"])   # which source rows produced this output?
 
 ---
 
+## Optional Feature Extras
+
+Install optional feature extras when you use heavier operators:
+
+| Extra      | Enables                                       |
+| ---------- | --------------------------------------------- |
+| `pdf`      | `semantic.parse_pdf` and PDF metadata loading |
+| `cluster`  | `DataFrame.semantic.with_cluster_labels`      |
+| `sim-join` | `DataFrame.semantic.sim_join`                 |
+
+```bash
+pip install "fenic[pdf,cluster,sim-join]"
+# or
+uv add "fenic[pdf,cluster,sim-join]"
+```
+
+Extras can be combined with model provider extras, for example:
+
+```bash
+pip install "fenic[google,pdf,cluster,sim-join]"
+```
+
+---
+
 ## Providers
 
 | Provider   | Type             | Notes                                                  |

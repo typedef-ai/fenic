@@ -8,10 +8,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 
-import fitz  # PyMuPDF
 import polars as pl
 
 from fenic._backends.local.utils.io_utils import PathScheme, get_path_scheme
+from fenic._optional_dependencies import import_optional_dependency
 from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
 from fenic.core.error import FileLoaderError, ValidationError
 from fenic.core.types import ColumnField, Schema
@@ -367,7 +367,12 @@ class DocFolderLoader:
         
         path_scheme = get_path_scheme(file_path)
         logger.debug(f"Processing PDF: {file_path} - {path_scheme}")
-        
+        fitz = import_optional_dependency(
+            "fitz",
+            extra="pdf",
+            feature="PDF document loading",
+        )
+
         # Initialize the flat result dict with default values
         result = {
             "file_path": file_path,

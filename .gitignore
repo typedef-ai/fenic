@@ -187,6 +187,7 @@ cython_debug/
 # fenic specific
 *.duckdb
 *.duckdb.wal
+.codegraph
 
 # Intellij
 .idea
