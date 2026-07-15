@@ -66,6 +66,10 @@ session = fc.Session.get_or_create(fc.SessionConfig(
 input_tpm, output_tpm)` — **no single `tpm`**. OpenAI/Google/Cohere use `tpm`.
 - Session creation performs a **live API-key check** — a valid provider key must
   be in the environment even just to build a semantic session.
+- **`session.create_dataframe(data, schema=...)` accepts a complete top-level
+  `fc.Schema`.** Use it to stamp logical `fc.JsonType`, `fc.MarkdownType`, and
+  `fc.EmbeddingType` onto in-memory data; schema field names are authoritative
+  and output columns are reordered to schema order.
 
 ## 3. Semantic operators — calling convention
 
