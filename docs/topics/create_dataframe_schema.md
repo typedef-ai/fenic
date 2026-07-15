@@ -14,7 +14,10 @@ and it normalizes fixed-size arrays to variable-length lists.
 Passing an explicit `schema` makes a complete, top-level `Schema` the source of
 truth for the resulting DataFrame:
 
-- **Field names are authoritative** — the data's columns must match the schema.
+- **Field names are authoritative** — extra columns are rejected; column-oriented
+  inputs (a dict, a Polars/pandas DataFrame, or a PyArrow table) must supply every
+  schema column, while row-oriented `list[dict]` rows may omit fields (filled with
+  null). See [The Schema Contract](#the-schema-contract) below.
 - **Columns are reordered** to the schema's field order.
 - **Values are physically coerced** to the schema's representation.
 - **The logical schema is preserved exactly**, including string-backed types.
