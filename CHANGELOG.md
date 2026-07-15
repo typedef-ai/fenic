@@ -6,6 +6,23 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+## [0.11.0](https://github.com/typedef-ai/fenic/compare/v0.10.0...v0.11.0) (2026-07-15)
+
+
+### Features
+
+* add GPT-5.6 and Claude 5 models ([#328](https://github.com/typedef-ai/fenic/issues/328)) ([fee3b2b](https://github.com/typedef-ai/fenic/commit/fee3b2b55bb3476fed05529ecbe03a703a67ab40))
+* **mcp:** add literal mode to generated search tools ([#326](https://github.com/typedef-ai/fenic/issues/326)) ([66bdaeb](https://github.com/typedef-ai/fenic/commit/66bdaeb2965a456ae524597d0919b573e1cdeaab))
+* move heavyweight local features behind extras ([#310](https://github.com/typedef-ai/fenic/issues/310)) ([3f42887](https://github.com/typedef-ai/fenic/commit/3f428874767a67321cd6468617c6908329245ae8))
+* **session:** create_dataframe accepts an optional Schema ([#329](https://github.com/typedef-ai/fenic/issues/329)) ([af29461](https://github.com/typedef-ai/fenic/commit/af2946155d75248ed0ae43ce344029bb50f74f01))
+
+
+### Bug Fixes
+
+* cap DuckDB below hf regression ([#324](https://github.com/typedef-ai/fenic/issues/324)) ([63766a3](https://github.com/typedef-ai/fenic/commit/63766a3537882d550786cd74be324d0e7cf38a82))
+* **ci:** harden fenic-mechanics FIX-mode failure + rename handling ([#332](https://github.com/typedef-ai/fenic/issues/332)) ([7441574](https://github.com/typedef-ai/fenic/commit/74415746926c3c5e7537f196cf218b7d0cc0464f))
+* **ci:** sign the fenic-mechanics release-PR reference commit ([#331](https://github.com/typedef-ai/fenic/issues/331)) ([f4d9247](https://github.com/typedef-ai/fenic/commit/f4d9247ac8f3bdb791e144e75002ad1a1c0cbe7e))
+
 ## [0.10.0](https://github.com/typedef-ai/fenic/compare/v0.9.0...v0.10.0) (2026-06-25)
 
 
