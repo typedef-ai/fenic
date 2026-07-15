@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Performance Improvements
+
+* reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
+
 ## [0.10.0](https://github.com/typedef-ai/fenic/compare/v0.9.0...v0.10.0) (2026-06-25)
 
 

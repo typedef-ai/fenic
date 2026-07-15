@@ -45,7 +45,6 @@ Issues = "https://github.com/typedef-ai/fenic/issues"
 [dependency-groups]
 dev = [
   "pytest>=8.3.5",
-  "pytest-asyncio>=1.4.0",
   "maturin>=1.8.6",
   "requests>=2.32.0",
   "ipykernel>=6.29.0",
