@@ -103,6 +103,8 @@ jobs:
         env:
           fix_mode: ${{ steps.mode.outputs.fix }}
           fix_ref: ${{ steps.mode.outputs.ref }}
+          # Auth for the createCommitOnBranch API call (FIX mode only).
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           ref_dir=.claude/skills/fenic-mechanics/reference
           # Stage with -A so a newly added reference file is detected too, not
@@ -113,24 +115,39 @@ jobs:
             exit 0
           fi
           if [ "$fix_mode" = "true" ]; then
+            # Create the reference commit through the GitHub API
+            # (createCommitOnBranch), NOT a runner `git commit`: API commits are
+            # GitHub-signed/verified, which `main`'s required-signatures rule
+            # demands. A runner git commit is unsigned and would block the release.
             version="$(cat "$ref_dir/VERSION")"
-            git config user.name "typedef-release-bot"
-            git config user.email "release-bot@typedef.ai"
-            git commit -m "chore: regenerate fenic-mechanics reference for fenic v${version}"
-            # FIX mode is best-effort: never red-block a release. release-please
-            # may rewrite (force-push) its branch between our checkout and here;
-            # try a plain push, then a rebase-and-retry. If both lose the race,
-            # warn and exit 0 -- FIX re-runs on the next branch update, and any
-            # real drift is still caught by CHECK mode on the next feature PR.
-            if git push origin "HEAD:${fix_ref}"; then
-              echo "Pushed regenerated reference onto ${fix_ref}."
-            elif git fetch origin "${fix_ref}" \
-              && git rebase "origin/${fix_ref}" \
-              && git push origin "HEAD:${fix_ref}"; then
-              echo "Pushed regenerated reference onto ${fix_ref} after rebase."
+            expected_oid="$(git rev-parse HEAD)"
+            additions="$(git diff --cached --name-only --diff-filter=ACMR -- "$ref_dir" \
+              | while IFS= read -r p; do
+                  jq -n --arg path "$p" --arg contents "$(base64 -w0 <"$p")" '{path:$path, contents:$contents}'
+                done | jq -s '.')"
+            deletions="$(git diff --cached --name-only --diff-filter=D -- "$ref_dir" \
+              | while IFS= read -r p; do jq -n --arg path "$p" '{path:$path}'; done | jq -s '.')"
+            payload="$(jq -n \
+              --arg repo "$GITHUB_REPOSITORY" \
+              --arg branch "$fix_ref" \
+              --arg oid "$expected_oid" \
+              --arg message "chore: regenerate fenic-mechanics reference for fenic v${version}" \
+              --argjson additions "$additions" \
+              --argjson deletions "$deletions" \
+              '{query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+                variables: {input: {
+                  branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                  expectedHeadOid: $oid,
+                  message: {headline: $message},
+                  fileChanges: {additions: $additions, deletions: $deletions}}}}')"
+            # Best-effort: if release-please rewrote the branch since checkout, the
+            # expectedHeadOid no longer matches and the mutation errors -- warn and
+            # exit 0. FIX re-runs on the next branch update; feature-PR CHECK mode
+            # remains the hard gate.
+            if printf '%s' "$payload" | gh api graphql --input - >/dev/null; then
+              echo "Created a signed fenic-mechanics reference commit on ${fix_ref}."
             else
-              git rebase --abort 2>/dev/null || true
-              echo "::warning::Could not push the regenerated fenic-mechanics reference onto ${fix_ref} (likely a race with release-please). It will retry on the next branch update; feature-PR CHECK mode remains the hard gate."
+              echo "::warning::Could not create the reference commit on ${fix_ref} (likely a head-oid race with release-please). It will retry on the next branch update; feature-PR CHECK mode remains the hard gate."
             fi
           else
             echo "::error::fenic-mechanics reference is out of date. Regenerate it with: just generate-reference (then commit the reference changes)."
