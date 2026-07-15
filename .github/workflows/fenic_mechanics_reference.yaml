@@ -121,11 +121,14 @@ jobs:
             # demands. A runner git commit is unsigned and would block the release.
             version="$(cat "$ref_dir/VERSION")"
             expected_oid="$(git rev-parse HEAD)"
-            additions="$(git diff --cached --name-only --diff-filter=ACMR -- "$ref_dir" \
+            # --no-renames so a future rename becomes an unambiguous add+delete
+            # (a rename otherwise reports only the new path under ACMR and nothing
+            # under D, leaving the old file stale on the branch).
+            additions="$(git diff --cached --no-renames --name-only --diff-filter=ACM -- "$ref_dir" \
               | while IFS= read -r p; do
                   jq -n --arg path "$p" --arg contents "$(base64 -w0 <"$p")" '{path:$path, contents:$contents}'
                 done | jq -s '.')"
-            deletions="$(git diff --cached --name-only --diff-filter=D -- "$ref_dir" \
+            deletions="$(git diff --cached --no-renames --name-only --diff-filter=D -- "$ref_dir" \
               | while IFS= read -r p; do jq -n --arg path "$p" '{path:$path}'; done | jq -s '.')"
             payload="$(jq -n \
               --arg repo "$GITHUB_REPOSITORY" \
@@ -140,14 +143,17 @@ jobs:
                   expectedHeadOid: $oid,
                   message: {headline: $message},
                   fileChanges: {additions: $additions, deletions: $deletions}}}}')"
-            # Best-effort: if release-please rewrote the branch since checkout, the
-            # expectedHeadOid no longer matches and the mutation errors -- warn and
-            # exit 0. FIX re-runs on the next branch update; feature-PR CHECK mode
-            # remains the hard gate.
-            if printf '%s' "$payload" | gh api graphql --input - >/dev/null; then
+            # Only the expectedHeadOid race is benign (release-please rewrote the
+            # branch since checkout -> retry on the next update). Any other failure
+            # (permissions, bad payload, API error) is a real bug and must surface
+            # as a red check, not hide behind a green one.
+            if out="$(printf '%s' "$payload" | gh api graphql --input - 2>&1)"; then
               echo "Created a signed fenic-mechanics reference commit on ${fix_ref}."
+            elif printf '%s' "$out" | grep -q 'expectedHeadOid'; then
+              echo "::warning::Skipped: ${fix_ref} moved since checkout (expectedHeadOid race with release-please). FIX re-runs on the next branch update; feature-PR CHECK mode remains the hard gate."
             else
-              echo "::warning::Could not create the reference commit on ${fix_ref} (likely a head-oid race with release-please). It will retry on the next branch update; feature-PR CHECK mode remains the hard gate."
+              echo "::error::createCommitOnBranch failed for ${fix_ref}: ${out}"
+              exit 1
             fi
           else
             echo "::error::fenic-mechanics reference is out of date. Regenerate it with: just generate-reference (then commit the reference changes)."
