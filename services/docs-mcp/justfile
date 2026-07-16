@@ -1,0 +1,53 @@
+# recipes for deploying and testing the Fenic Docs MCP server
+
+# Fenic MCP - run Data Prep (local)
+[working-directory: 'services/docs-mcp']
+fenic-mcp-data-prep:
+   mkdir -p data
+   uv run -m fenic_mcp.setup.populate_tables
+
+# Fenic MCP - run the MCP server (local)
+[working-directory: 'services/docs-mcp']
+fenic-mcp-server:
+    uv run -m fenic_mcp.server.mcp
+
+# Fenic MCP - run Data Prep (Modal)
+[working-directory: 'services/docs-mcp']
+fenic-mcp-data-prep-modal: fenic-mcp-modal-auth-check
+    uv run modal run -m fenic_mcp.data_prep
+
+# Fenic MCP - deploy to Modal
+[working-directory: 'services/docs-mcp']
+fenic-mcp-modal-deploy: fenic-mcp-modal-auth-check fenic-mcp-data-prep-modal
+    uv run modal deploy -m fenic_mcp.app
+
+# Fenic MCP - validate modal auth
+[working-directory: 'services/docs-mcp', private]
+fenic-mcp-modal-auth-check:
+    #!/usr/bin/env bash
+    if [ -n "$MODAL_TOKEN_ID" ] && [ -n "$MODAL_TOKEN_SECRET" ]; then
+        echo "✓ modal authenticated via MODAL_TOKEN_ID and MODAL_TOKEN_SECRET are set"
+    else
+        echo "⚠ MODAL_TOKEN_ID and/or MODAL_TOKEN_SECRET not set, checking modal CLI auth..."
+        if uv run modal app list >/dev/null 2>&1; then
+            echo "✓ Modal CLI is authenticated"
+        else
+            echo "❌ Modal authentication required. Set MODAL_TOKEN_ID and MODAL_TOKEN_SECRET or run: uv run modal setup" >&2
+            exit 1
+        fi
+    fi
+
+# Fenic MCP - export docs for latest release to HuggingFace
+[working-directory: 'services/docs-mcp']
+fenic-mcp-hf-export:
+    uv run --extra hf -m fenic_mcp.hf_export
+
+# Fenic MCP - export docs for specific version(s) to HuggingFace
+[working-directory: 'services/docs-mcp']
+fenic-mcp-hf-export-version +versions:
+    uv run --extra hf -m fenic_mcp.hf_export --version {{ versions }}
+
+# Fenic MCP - export docs for all versions to HuggingFace
+[working-directory: 'services/docs-mcp']
+fenic-mcp-hf-export-all:
+    uv run --extra hf -m fenic_mcp.hf_export --all
