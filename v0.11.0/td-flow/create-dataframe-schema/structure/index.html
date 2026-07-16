@@ -1,0 +1,3641 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Structure: create_dataframe Schema Handling - fenic, by typedef</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#structure-create_dataframe-schema-handling" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="fenic, by typedef" class="md-header__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fenic, by typedef
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Structure: create_dataframe Schema Handling
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+  Overview
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../reference/fenic/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="fenic, by typedef" class="md-nav__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fenic, by typedef
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Overview
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What is fenic?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_1" id="__nav_1_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Introduction
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/hello_world/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hello World!
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/enrichment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Enrichment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_2" id="__nav_1_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unstructured Data Clustering/Classification
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Unstructured Data Clustering/Classification
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/feedback_clustering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feedback Clustering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/news_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    News Bias Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/semantic_joins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Semantic Joins on Unstructured Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_4" id="__nav_1_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting Structured Data from Unstructured Text
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extracting Structured Data from Unstructured Text
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/document_extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Document Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/named_entity_recognition/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Named Entity Recognition
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_5" id="__nav_1_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Semi-Structured Data Processing/Enrichment
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Semi-Structured Data Processing/Enrichment
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/podcast_summarization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Podcast Summarization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/meeting_transcript_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meeting Transcript Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/json_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/markdown_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Markdown Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Topics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Topics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/create_dataframe_schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating DataFrames with a Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/markdown-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Markdown -> JSON
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/fenic-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fenic MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/openrouter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenRouter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/timestamps_and_dates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timestamps and Dates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1" id="__nav_2_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/column/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>column
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/dataframe/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_3" id="__nav_2_1_1_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/dataframe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/grouped_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>grouped_data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/semantic_extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/functions/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_4" id="__nav_2_1_1_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/array/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>array
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/builtin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>builtin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/dt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>embedding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>json
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/markdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>markdown
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/text/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>text
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/io/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_5" id="__nav_2_1_1_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/io/reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/io/writer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>writer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>lineage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_7" id="__nav_2_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/mcp/server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/mcp/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/session/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_8" id="__nav_2_1_1_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/session/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/session/session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2" id="__nav_2_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>error
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_2" id="__nav_2_1_2_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/mcp/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/types/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_4" id="__nav_2_1_2_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/classify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>classify
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/datatypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>datatypes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/enums/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>enums
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/provider_routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>provider_routing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/query_result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>query_result
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/semantic_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/summarize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>summarize
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#desired-end-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Desired End State
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-basic-schema-backed-creation-end-to-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 1: Basic schema-backed creation end to end
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 1: Basic schema-backed creation end to end">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-file-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 File Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-complete-input-shape-and-error-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 2: Complete input-shape and error contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 2: Complete input-shape and error contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-file-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 File Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-logical-schema-propagation-through-planning-serde-and-cloud-request-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-file-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 File Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3 Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-local-embedding-physical-preservation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 4: Local embedding physical preservation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 4: Local embedding physical preservation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-file-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 File Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 4 Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals-out-of-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-Goals / Out of Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#existing-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Existing Reuse
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failure-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure Modes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision Log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/typedef-ai/fenic/edit/master/docs/td-flow/create-dataframe-schema/structure.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/typedef-ai/fenic/raw/master/docs/td-flow/create-dataframe-schema/structure.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="structure-create_dataframe-schema-handling">Structure: create_dataframe Schema Handling</h1>
+<p>Add an explicit schema path to <code>Session.create_dataframe</code> that makes a provided <code>Schema</code> authoritative at the ingestion boundary while preserving current inference behavior when no schema is supplied. The work is sliced from public API behavior through downstream logical and physical execution so each phase can be verified before the next phase begins.</p>
+<h2 id="desired-end-state">Desired End State</h2>
+<ul>
+<li><code>Session.create_dataframe(data, schema=...)</code> and <code>Session.createDataFrame(data, schema=...)</code> accept a complete top-level <code>Schema</code>.</li>
+<li>Schema-free calls keep today's normalization and error behavior, including rejecting empty row lists.</li>
+<li>Schema-backed calls validate top-level column shape, reorder to <code>schema.column_fields</code>, coerce physical data through <code>convert_custom_schema_to_polars_schema</code>, and create <code>InMemorySource.from_schema</code>.</li>
+<li>Empty <code>[]</code>, <code>{}</code>, and zero-column/zero-row frame/table inputs produce zero-row DataFrames with the requested schema only when a schema is provided.</li>
+<li>Logical string-backed types such as <code>JsonType</code> and <code>MarkdownType</code> remain visible in <code>df.schema</code> and downstream plan validation while storing physical strings.</li>
+<li>Explicit <code>EmbeddingType</code> columns materialize locally as fixed-size <code>pl.Array(pl.Float32, dimensions)</code> after <code>to_polars()</code>, while no-schema arrays still normalize to <code>pl.List</code>.</li>
+<li>No new source node, public schema representation, cloud protocol shape, partial-schema mode, Pydantic schema shortcut, or tagged-string content validation is introduced.</li>
+</ul>
+<h2 id="implementation-overview">Implementation Overview</h2>
+<ul>
+<li>[x] Phase 1: Basic schema-backed creation end to end</li>
+<li>[x] Phase 2: Complete input-shape and error contract</li>
+<li>[x] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries</li>
+<li>[x] Phase 4: Local embedding physical preservation</li>
+</ul>
+<hr />
+<h2 id="phase-1-basic-schema-backed-creation-end-to-end">✅ Phase 1: Basic schema-backed creation end to end</h2>
+<p>This phase makes the smallest useful public behavior work: a provided primitive schema can create a DataFrame from common in-memory Python inputs, preserve the logical schema, order columns by the schema, and keep no-schema behavior unchanged.</p>
+<h3 id="phase-1-file-changes">Phase 1 File Changes</h3>
+<ul>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Change the public signature to:
+  <code>def create_dataframe(self, data: DataLike, schema: Schema | None = None) -&gt; DataFrame</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Import <code>Schema</code> and <code>convert_custom_schema_to_polars_schema</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Preserve the current <code>schema is None</code> path: normalize <code>DataLike</code> exactly as today and return <code>InMemorySource.from_session_state(pl_df, self._session_state)</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Add private helpers local to the session module:</li>
+<li><code>_normalize_data_like_to_polars(data: DataLike, *, allow_empty_list: bool) -&gt; tuple[pl.DataFrame, bool]</code>, returning whether input was row-oriented.</li>
+<li><code>_coerce_to_schema(pl_df: pl.DataFrame, schema: Schema, *, row_oriented: bool) -&gt; pl.DataFrame</code>, which selects fields in <code>schema.column_fields</code> order and casts with <code>convert_custom_schema_to_polars_schema(schema)</code>.</li>
+<li><code>_schema_only_empty_frame(schema: Schema) -&gt; pl.DataFrame</code>, producing a zero-row Polars frame with the schema's physical dtypes.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: For <code>schema is not None</code>, support <code>dict</code>, <code>list[dict]</code>, and <code>pl.DataFrame</code> first; build the logical plan with <code>InMemorySource.from_schema(coerced_pl_df, schema)</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Before converting the provided schema to a Polars schema, trigger the existing logical-plan duplicate-name validation with <code>InMemorySource.from_schema(pl.DataFrame(), schema)</code> or equivalent reuse of that validation path. This prevents duplicate names from being hidden by the dict-based <code>convert_custom_schema_to_polars_schema</code> implementation.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Keep <code>Session.createDataFrame = Session.create_dataframe</code>; no separate alias wrapper is needed.</li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add tests:</li>
+<li><code>test_create_dataframe_with_schema_from_dict_coerces_and_orders_columns</code></li>
+<li><code>test_create_dataframe_with_schema_from_polars_uses_provided_schema</code></li>
+<li><code>test_create_dataframe_with_schema_from_list_of_dicts_allows_missing_row_keys</code></li>
+<li><code>test_create_dataframe_with_schema_allows_empty_list</code></li>
+<li><code>test_create_dataframe_empty_list_without_schema_still_fails</code></li>
+</ul>
+<h3 id="phase-1-validation">Phase 1 Validation</h3>
+<h4 id="phase-1-automated-verification">Phase 1 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty_list" -q</code> (5 passed, 34 deselected)</li>
+<li>[x] <code>uv run pytest --collect-only tests/api/test_session.py -q</code> (39 tests collected)</li>
+</ul>
+<h4 id="phase-1-manual-verification">Phase 1 Manual Verification</h4>
+<p>None.</p>
+<hr />
+<h2 id="phase-2-complete-input-shape-and-error-contract">✅ Phase 2: Complete input-shape and error contract</h2>
+<p>This phase fills out the public contract for every supported <code>DataLike</code> shape and locks the error boundaries so the schema parameter is strict without relying on Polars' permissive constructor behavior.</p>
+<h3 id="phase-2-file-changes">Phase 2 File Changes</h3>
+<ul>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Extend schema-backed normalization to <code>pd.DataFrame</code> via <code>pl.from_pandas</code> and <code>pa.Table</code> via <code>pl.from_arrow</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Enforce column-oriented shape rules:</li>
+<li>If the normalized input has any columns, its top-level column-name set must exactly equal <code>set(schema.column_names())</code>.</li>
+<li>If the normalized input has zero columns and zero rows, treat it as schema-only empty input.</li>
+<li>Missing or extra top-level columns raise fenic <code>ValidationError</code> with both missing and extra names when present.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Enforce row-oriented shape rules:</li>
+<li>Empty lists are allowed only when <code>schema</code> is provided.</li>
+<li>Every non-empty list item must be a <code>dict</code>; lists whose first item or later items are non-dicts raise fenic <code>ValidationError</code>.</li>
+<li>The union of row keys must not contain keys outside the schema.</li>
+<li>Schema fields absent from some or all rows are added as nulls before casting.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Wrap physical construction/cast failures in fenic <code>PlanError</code> with the original exception as <code>__cause__</code>; keep top-level contract violations as fenic <code>ValidationError</code>.</li>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: Keep duplicate schema-name handling on the existing logical-plan validation path from Phase 1; do not introduce a parallel public validator.</li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add tests for all supported input forms with <code>schema</code>: Polars, pandas, dict, list-of-dicts, and PyArrow.</li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add mismatch/error tests:</li>
+<li>column-oriented missing schema field raises <code>FenicValidationError</code></li>
+<li>column-oriented extra data field raises <code>FenicValidationError</code></li>
+<li>row-oriented extra key raises <code>FenicValidationError</code></li>
+<li>list containing a later non-dict raises <code>FenicValidationError</code></li>
+<li>unsupported top-level input with schema still raises <code>FenicValidationError</code></li>
+<li>uncastable value raises <code>PlanError</code></li>
+<li>duplicate schema names surface the existing duplicate-column <code>PlanError</code></li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add schema-only empty tests for <code>[]</code>, <code>{}</code>, <code>pl.DataFrame()</code>, <code>pd.DataFrame()</code>, and <code>pa.table({})</code>.</li>
+</ul>
+<h3 id="phase-2-validation">Phase 2 Validation</h3>
+<h4 id="phase-2-automated-verification">Phase 2 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q</code> (17 passed, 34 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe" -q</code> (23 passed, 28 deselected)</li>
+</ul>
+<h4 id="phase-2-manual-verification">Phase 2 Manual Verification</h4>
+<p>None.</p>
+<hr />
+<h2 id="phase-3-logical-schema-propagation-through-planning-serde-and-cloud-request-boundaries">✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries</h2>
+<p>This phase proves that explicit logical schemas are not just accepted at the API boundary; they are the schema seen by downstream validators and serializers. It deliberately avoids embedding physical preservation, which is handled in Phase 4.</p>
+<h3 id="phase-3-file-changes">Phase 3 File Changes</h3>
+<ul>
+<li><strong><code>src/fenic/api/session/session.py</code></strong>: If Phase 2 helper logic is already sufficient, make no behavior change here; keep this phase focused on downstream verification.</li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add logical string-backed schema tests:</li>
+<li><code>test_create_dataframe_with_json_schema_exposes_logical_type</code></li>
+<li><code>test_create_dataframe_with_markdown_schema_exposes_logical_type</code></li>
+<li>Assert <code>df.schema.column_fields</code> uses <code>JsonType</code>/<code>MarkdownType</code> while <code>df.to_polars()</code> stores physical strings.</li>
+<li><strong><code>tests/_backends/local/functions/test_jq.py</code></strong>: Add a test creating a JSON-typed DataFrame directly with <code>schema=Schema([ColumnField("json_col", JsonType)])</code>, then call <code>json.jq(col("json_col"), ".user.name")</code> without an intermediate <code>.cast(JsonType)</code>.</li>
+<li><strong><code>tests/_backends/local/functions/test_markdown.py</code></strong>: Add a test creating a Markdown-typed DataFrame directly with <code>schema=Schema([ColumnField("md_col", MarkdownType)])</code>, then call an existing markdown function such as <code>markdown.generate_toc(col("md_col"))</code> without an intermediate <code>.cast(MarkdownType)</code>.</li>
+<li><strong><code>tests/_logical_plan/serde/test_plan_serde.py</code></strong>: Add <code>test_inmemory_source_with_explicit_schema_round_trips</code>, parameterized over <code>ProtoSerde</code> and <code>CloudPickleSerde</code>, that creates a schema-backed DataFrame, serializes its plan, deserializes it, and asserts plan equality plus exact schema equality.</li>
+<li><strong><code>tests/_logical_plan/test_plan_equality.py</code></strong>: Add an explicit-schema source equality case where two <code>InMemorySource</code> nodes with identical Polars data but different logical schema types are not equal, using a schema-backed source path if useful.</li>
+<li><strong><code>tests/_backends/cloud/test_cloud_execution.py</code></strong>: Add a request-boundary test for a cloud <code>count()</code> or <code>show()</code> on a schema-backed DataFrame. The mock <code>StartExecution</code> should deserialize the serialized plan and assert the embedded <code>InMemorySource</code> schema matches the explicit schema. Do not add or expect a new cloud protobuf field.</li>
+</ul>
+<h3 id="phase-3-validation">Phase 3 Validation</h3>
+<h4 id="phase-3-automated-verification">Phase 3 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py tests/_backends/local/functions/test_jq.py tests/_backends/local/functions/test_markdown.py -k "schema" -q</code> (20 passed, 54 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "explicit_schema or basic_plan" -q</code> (4 passed, 38 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_logical_plan/test_plan_equality.py -k "schema_mismatch or inmemory_source" -q</code> (3 passed, 24 deselected)</li>
+<li>[x] <code>uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere --extra=mcp</code> (2nd-party <code>just</code> unavailable in env; command completed successfully)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_backends/cloud/test_cloud_execution.py -k "explicit_schema or simple_count" -q</code> (2 passed, 6 deselected)</li>
+</ul>
+<h4 id="phase-3-manual-verification">Phase 3 Manual Verification</h4>
+<p>None.</p>
+<hr />
+<h2 id="phase-4-local-embedding-physical-preservation">✅ Phase 4: Local embedding physical preservation</h2>
+<p>This phase addresses the known local execution mismatch: explicit <code>EmbeddingType</code> schemas cast input to fixed-size <code>pl.Array</code>, but current in-memory source execution normalizes every array back to <code>pl.List</code>. The fix is intentionally narrow and should not recast all source columns from the logical schema.</p>
+<h3 id="phase-4-file-changes">Phase 4 File Changes</h3>
+<ul>
+<li><strong><code>src/fenic/_backends/local/transpiler/plan_converter.py</code></strong>: When converting <code>InMemorySource</code>, pass <code>schema=logical.schema()</code> into <code>InMemorySourceExec</code>.</li>
+<li><strong><code>src/fenic/_backends/local/physical_plan/source.py</code></strong>: Change <code>InMemorySourceExec.__init__</code> to accept and store <code>schema: Schema</code>; update <code>execute_node</code> to call <code>apply_ingestion_coercions(self.df, coerce_array=True, logical_schema=self.schema)</code>.</li>
+<li><strong><code>src/fenic/_backends/local/physical_plan/source.py</code></strong>: Update <code>InMemorySourceExec.with_children</code> to preserve the stored schema.</li>
+<li><strong><code>src/fenic/_backends/local/physical_plan/utils.py</code></strong>: Extend <code>apply_ingestion_coercions</code> to:</li>
+<li>accept <code>logical_schema: Schema | None = None</code>;</li>
+<li>keep existing behavior when <code>logical_schema is None</code>;</li>
+<li>use logical schema only to preserve paths whose logical type is <code>EmbeddingType</code>;</li>
+<li>continue normal datetime UTC normalization and non-embedding array-to-list coercion.</li>
+<li><strong><code>src/fenic/_backends/local/physical_plan/utils.py</code></strong>: Update <code>_build_target_dtype</code> to recurse through matching <code>StructType</code> and <code>ArrayType</code> logical types so nested embeddings are protected, while unrelated <code>pl.Array</code> values still coerce to <code>pl.List</code>.</li>
+<li><strong><code>tests/_backends/test_ingestion_coercion.py</code></strong>: Add utility tests proving:</li>
+<li>no-schema <code>pl.Array</code> still coerces to <code>pl.List</code>;</li>
+<li>an explicit top-level <code>EmbeddingType</code> path preserves <code>pl.Array(pl.Float32, dimensions)</code>;</li>
+<li>a nested embedding inside a struct or list path is preserved;</li>
+<li>unrelated arrays in the same DataFrame still coerce to lists.</li>
+<li><strong><code>tests/_backends/local/test_transpiler.py</code></strong>: Extend <code>test_convert_source_plan</code> to assert the physical <code>InMemorySourceExec</code> stores the logical schema passed by <code>PlanConverter</code>.</li>
+<li><strong><code>tests/api/test_session.py</code></strong>: Add <code>test_create_dataframe_with_embedding_schema_preserves_polars_array</code>, asserting both <code>df.schema</code> uses <code>EmbeddingType</code> and <code>df.to_polars().schema["embedding"] == pl.Array(pl.Float32, dimensions)</code>.</li>
+<li><strong><code>tests/_logical_plan/serde/test_plan_serde.py</code></strong>: Add or extend an explicit <code>EmbeddingType</code> schema round-trip test so serialized/deserialized in-memory sources keep the logical embedding schema.</li>
+</ul>
+<h3 id="phase-4-validation">Phase 4 Validation</h3>
+<h4 id="phase-4-automated-verification">Phase 4 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run pytest tests/_backends/test_ingestion_coercion.py -q</code> (11 passed, 0 failed, 0 skipped)</li>
+<li>[x] <code>uv run pytest tests/_backends/local/test_transpiler.py -k "source_plan" -q</code> (1 passed, 9 deselected)</li>
+<li>[x] <code>uv run pytest tests/api/test_session.py -k "embedding_schema or create_dataframe_with_schema" -q</code> (17 passed, 37 deselected)</li>
+<li>[x] <code>uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "embedding or explicit_schema" -q</code> (4 passed, 40 deselected)</li>
+<li>[ ] <code>just sync=false test-local</code> (not available in this environment; <code>just</code> is unavailable)</li>
+</ul>
+<h4 id="phase-4-manual-verification">Phase 4 Manual Verification</h4>
+<p>None.</p>
+<h2 id="implementation-notes">Implementation Notes</h2>
+<p><strong>Implemented head:</strong> pending commit</p>
+<p><strong>Spec source:</strong> <code>docs/td-flow/create-dataframe-schema/structure.md</code></p>
+<p><strong>Verification summary:</strong> same as plan-phase coverage in <code>create-dataframe-schema-plan.md</code> (targeted pytest commands in-phase 3 and phase 4 all passed).</p>
+<p><strong>Deviations from spec:</strong> <code>just</code> recipes could not run in this environment, so direct <code>uv</code>/<code>uv sync</code> command equivalents were used and documented in the plan checklists.</p>
+<h2 id="non-goals-out-of-scope">Non-Goals / Out of Scope</h2>
+<ul>
+<li>Partial schemas: schema-backed creation requires a complete top-level result schema.</li>
+<li>Pydantic model schema shortcuts: only public <code>Schema</code> / <code>ColumnField</code> inputs are in scope.</li>
+<li>New cloud protobuf fields or execution protocol changes: cloud coverage stays at serialized logical-plan request boundaries.</li>
+<li>A new logical source node: reuse <code>InMemorySource.from_schema</code>.</li>
+<li>Broad source recasting during local execution: schema-aware physical execution may protect embedding paths only.</li>
+<li>Tagged-string content validation: <code>JsonType</code> and <code>MarkdownType</code> annotate logical string-backed data but do not validate JSON or markdown content at ingestion.</li>
+<li>Public documentation updates: this structure covers implementation and tests only; user docs can follow once the API behavior lands.</li>
+</ul>
+<h2 id="existing-reuse">Existing Reuse</h2>
+<ul>
+<li><code>Session.create_dataframe</code> already centralizes all supported <code>DataLike</code> normalization before creating an <code>InMemorySource</code>.</li>
+<li><code>InMemorySource.from_schema</code> already stores an explicit <code>Schema</code>, participates in plan equality, and survives serde wrapper round trips.</li>
+<li><code>LogicalPlan._validate_schema</code> already rejects duplicate top-level column names.</li>
+<li><code>convert_custom_schema_to_polars_schema</code> already maps fenic data types, including logical string-backed types and <code>EmbeddingType</code>, to physical Polars dtypes.</li>
+<li><code>apply_ingestion_coercions</code> already owns local source dtype normalization; Phase 4 extends it narrowly instead of adding a second physical coercion path.</li>
+<li>Existing API, serde, equality, local function, cloud execution, transpiler, and ingestion-coercion test files already cover the affected seams.</li>
+</ul>
+<h2 id="failure-modes">Failure Modes</h2>
+<ul>
+<li>Schema-backed column-oriented input silently drops or creates columns if Polars constructor behavior is trusted directly. Covered by Phase 2 exact-set <code>ValidationError</code> tests.</li>
+<li>Duplicate schema names are masked by dict-based Polars schema conversion before logical validation runs. Covered by Phase 1 validation ordering and Phase 2 duplicate-name test.</li>
+<li>A row-oriented list has a non-dict after the first row and slips through the existing first-item-only check. Covered by Phase 2 all-row validation.</li>
+<li>Cast failures surface as raw Polars/PyArrow exceptions instead of fenic <code>PlanError</code>. Covered by Phase 2 uncastable-value test.</li>
+<li>Logical <code>JsonType</code> / <code>MarkdownType</code> schemas are visible on <code>df.schema</code> but not accepted by downstream function validation. Covered by Phase 3 jq/markdown function tests.</li>
+<li>Explicit embedding inputs cast to <code>pl.Array</code> at creation but return as <code>pl.List</code> after local execution. Covered by Phase 4 API and utility tests.</li>
+<li>Schema-aware source execution accidentally preserves every array or recasts non-embedding columns. Covered by Phase 4 mixed-column and no-schema regression tests.</li>
+</ul>
+<h2 id="open-questions">Open Questions</h2>
+<p>None.</p>
+<h2 id="decision-log">Decision Log</h2>
+<ul>
+<li><strong>[applied]</strong> Sliced the work vertically from public primitive schema creation through complete input coverage, downstream logical behavior, and finally local physical embedding preservation.</li>
+<li><strong>[applied]</strong> Kept schema enforcement at the session ingestion boundary and reused <code>InMemorySource.from_schema</code>, matching the approved design instead of adding a new source node.</li>
+<li><strong>[applied]</strong> Deferred partial schemas, Pydantic schema shortcuts, cloud protocol changes, and tagged-string content validation as explicit non-goals from the design.</li>
+<li><strong>[applied]</strong> Verification uses direct <code>uv run pytest ...</code> commands for phase-targeted checks because the repo's <code>just test-local</code> recipe has no file or <code>-k</code> passthrough; the final phase includes <code>just sync=false test-local</code> as the full local-suite recipe. This direct pytest use has recipe-drift risk if project-wide pytest flags change.</li>
+<li><strong>[applied]</strong> No dedicated typecheck command exists in <code>just --list</code>, <code>pyproject.toml</code>, or CI; automated validation therefore uses pytest collection, targeted tests, and the full local pytest recipe.</li>
+<li><strong>[applied]</strong> plan-eng-review found no scope reduction: the structure touches fewer than eight source/test areas per phase, adds no new classes/services, and reuses existing schema/source/coercion seams.</li>
+<li><strong>[applied]</strong> plan-eng-review added explicit non-goals, existing reuse, and failure-mode coverage so implementation has the required architecture/test review outputs.</li>
+<li><strong>[applied]</strong> ce-doc-review found and fixed a feasibility ambiguity: duplicate schema validation must run before dict-based custom-to-Polars conversion can hide duplicate column names.</li>
+<li><strong>[applied]</strong> ce-doc-review found and fixed a verification ambiguity: targeted cloud tests require <code>just sync-cloud</code> before direct <code>uv run pytest ...</code> because the <code>test-cloud</code> recipe has no file or <code>-k</code> passthrough.</li>
+<li><strong>[deferred]</strong> User-facing docs are out of this implementation structure. Capture a follow-up documentation update after the API behavior lands.</li>
+</ul>
+<h2 id="review-notes">Review Notes</h2>
+<ul>
+<li><code>plan-eng-review</code>: completed inline from the installed skill. No blocking architecture, code-quality, test, or performance findings remain after the edits above.</li>
+<li><code>ce-doc-review</code>: completed inline from the installed skill after subagent dispatch failed with child-model resolution errors. Coherence, feasibility, scope, and adversarial checks are reflected in the Decision Log.</li>
+</ul>
+<h2 id="handoff">Handoff</h2>
+<p><strong>Next step (paste into a fresh tab):</strong></p>
+<blockquote>
+<p>Use the <code>td-plan</code> skill. The structure is approved at
+<code>docs/td-flow/create-dataframe-schema/structure.md</code> (track: engineering, size: high-risk).
+Deepen it into a full implementation plan with per-file code examples and dual
+success criteria.
+If this is Codex: I explicitly permit optional subagent use for this phase
+where the skill allows it.</p>
+</blockquote>
+<p><strong>Approved decisions:</strong> Add <code>schema: Schema | None = None</code> to <code>Session.create_dataframe</code> / <code>createDataFrame</code>; enforce complete top-level schema contracts at session ingestion; allow schema-backed empty inputs; reuse <code>InMemorySource.from_schema</code>; preserve logical string-backed types without content validation; pass logical source schema into local in-memory execution only to protect <code>EmbeddingType</code> paths from array-to-list coercion.
+<strong>Open questions (carried forward):</strong> None.
+<strong>Non-goals / out of scope:</strong> Partial schemas, Pydantic schema shortcuts, new cloud protocol fields, a new source node, broad source recasting, tagged-string content validation, and user-facing docs in this implementation pass.
+<strong>Evidence summary:</strong> <code>Session.create_dataframe</code> currently normalizes supported inputs before <code>InMemorySource.from_session_state</code>; <code>InMemorySource.from_schema</code> already stores explicit schemas and participates in equality/serde; wrapper-level plan serde already carries logical schema; <code>convert_custom_schema_to_polars_schema</code> maps fenic schemas to Polars dtypes including <code>EmbeddingType</code>; local <code>InMemorySourceExec</code> currently applies generic ingestion coercions that turn fixed-size arrays into lists.
+<strong>Known weak assumptions:</strong> The Plan should pressure-test duplicate schema validation before Polars schema conversion, cloud test setup through <code>just sync-cloud</code>, and the exact recursive mechanism for preserving only embedding-typed physical paths without changing no-schema array behavior.
+<strong>Next artifact:</strong> <code>docs/td-flow/create-dataframe-schema/plan.md</code>
+<strong>Rollback if:</strong> deepening exposes that the outline is infeasible — ROLLBACK to research/design.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["announce.dismiss", "content.action.edit", "content.action.view", "content.code.annotate", "content.code.copy", "content.tooltips", "navigation.footer", "navigation.instant", "navigation.path", "navigation.tracking", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

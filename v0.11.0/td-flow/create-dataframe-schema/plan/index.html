@@ -1,0 +1,4575 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>create_dataframe Schema Handling Implementation Plan - fenic, by typedef</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#create_dataframe-schema-handling-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="fenic, by typedef" class="md-header__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fenic, by typedef
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              create_dataframe Schema Handling Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+  Overview
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../reference/fenic/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="fenic, by typedef" class="md-nav__button md-logo" aria-label="fenic, by typedef" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fenic, by typedef
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/typedef-ai/fenic" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Overview
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What is fenic?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_1" id="__nav_1_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Introduction
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/hello_world/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hello World!
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/enrichment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Enrichment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_2" id="__nav_1_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unstructured Data Clustering/Classification
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Unstructured Data Clustering/Classification
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/feedback_clustering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feedback Clustering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/news_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    News Bias Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/semantic_joins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Semantic Joins on Unstructured Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_4" id="__nav_1_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extracting Structured Data from Unstructured Text
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Extracting Structured Data from Unstructured Text
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/document_extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Document Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/named_entity_recognition/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Named Entity Recognition
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2_5" id="__nav_1_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Semi-Structured Data Processing/Enrichment
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Semi-Structured Data Processing/Enrichment
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/podcast_summarization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Podcast Summarization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/meeting_transcript_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meeting Transcript Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/json_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/markdown_processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Markdown Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_3" id="__nav_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Topics
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Topics
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/create_dataframe_schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating DataFrames with a Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/markdown-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Markdown -> JSON
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/fenic-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fenic MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/openrouter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenRouter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../topics/timestamps_and_dates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timestamps and Dates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CONTRIBUTING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>fenic
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1" id="__nav_2_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>api
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/column/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>column
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/dataframe/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_3" id="__nav_2_1_1_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/dataframe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dataframe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/grouped_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>grouped_data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/dataframe/semantic_extensions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_extensions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/functions/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_4" id="__nav_2_1_1_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/array/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>array
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/builtin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>builtin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/dt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>dt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/embedding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>embedding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>json
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/markdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>markdown
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/functions/text/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>text
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/io/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_5" id="__nav_2_1_1_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>io
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/io/reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/io/writer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>writer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>lineage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_7" id="__nav_2_1_1_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/mcp/server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/mcp/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_1_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/api/session/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_1_8" id="__nav_2_1_1_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_1_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_1_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/session/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/api/session/session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2" id="__nav_2_1_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>error
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/mcp/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_2" id="__nav_2_1_2_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>mcp
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/mcp/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1_2_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../reference/fenic/core/types/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1_2_4" id="__nav_2_1_2_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_2_1_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>types
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/classify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>classify
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/datatypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>datatypes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/enums/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>enums
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/provider_routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>provider_routing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/query_result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>query_result
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/semantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/semantic_examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>semantic_examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/core/types/summarize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>summarize
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/fenic/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-state-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current State Analysis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current State Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-discoveries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Discoveries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#desired-end-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Desired End State
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-were-not-doing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We're NOT Doing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-basic-schema-backed-creation-end-to-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 1: Basic schema-backed creation end to end
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 1: Basic schema-backed creation end to end">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-changes-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Changes Required
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 Changes Required">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-public-signature-and-schema-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Public Signature and Schema Imports
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-split-normalization-from-source-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Split Normalization From Source Construction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-add-initial-helper-implementations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Add Initial Helper Implementations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-add-basic-api-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 Add Basic API Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Success Criteria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1 Success Criteria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-complete-input-shape-and-error-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 2: Complete input-shape and error contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 2: Complete input-shape and error contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-changes-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Changes Required
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 Changes Required">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-enforce-column-oriented-shape-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Enforce Column-Oriented Shape Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-enforce-row-oriented-shape-rules-before-polars-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Enforce Row-Oriented Shape Rules Before Polars Construction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-preserve-fenic-error-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Preserve Fenic Error Boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-add-full-api-input-and-error-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 Add Full API Input and Error Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Success Criteria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 Success Criteria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-logical-schema-propagation-through-planning-serde-and-cloud-request-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-changes-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Changes Required
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3 Changes Required">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-add-logical-tagged-string-api-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Add Logical Tagged-String API Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-add-json-function-validation-without-intermediate-cast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Add JSON Function Validation Without Intermediate Cast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-add-markdown-function-validation-without-intermediate-cast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Add Markdown Function Validation Without Intermediate Cast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-add-explicit-schema-plan-serde-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Add Explicit-Schema Plan Serde Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-add-schema-sensitive-inmemorysource-equality-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 Add Schema-Sensitive InMemorySource Equality Case
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-add-cloud-request-boundary-assertion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 Add Cloud Request-Boundary Assertion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Success Criteria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 4 Success Criteria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-local-embedding-physical-preservation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ✅ Phase 4: Local embedding physical preservation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="✅ Phase 4: Local embedding physical preservation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-changes-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Changes Required
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 4 Changes Required">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-pass-logical-source-schema-into-local-inmemorysourceexec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Pass Logical Source Schema Into Local InMemorySourceExec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-store-schema-on-inmemorysourceexec-and-preserve-it-through-cloning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Store Schema on InMemorySourceExec and Preserve It Through Cloning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-make-ingestion-coercion-schema-aware-only-for-embedding-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Make Ingestion Coercion Schema-Aware Only for Embedding Paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-add-ingestion-coercion-unit-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Add Ingestion Coercion Unit Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-extend-transpiler-source-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Extend Transpiler Source Test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-add-public-embedding-schema-materialization-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Add Public Embedding Schema Materialization Test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-add-embedding-explicit-schema-serde-regression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Add Embedding Explicit-Schema Serde Regression
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success Criteria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Success Criteria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-automated-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Automated Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-manual-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 Manual Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision Log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/typedef-ai/fenic/edit/master/docs/td-flow/create-dataframe-schema/plan.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/typedef-ai/fenic/raw/master/docs/td-flow/create-dataframe-schema/plan.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="create_dataframe-schema-handling-implementation-plan">create_dataframe Schema Handling Implementation Plan</h1>
+<h2 id="overview">Overview</h2>
+<p>Add <code>schema: Schema | None = None</code> to <code>Session.create_dataframe</code> so callers can make a complete top-level <code>Schema</code> authoritative at ingestion time. The implementation keeps the no-schema path behavior-compatible, reuses <code>InMemorySource.from_schema</code>, and narrows local physical schema awareness to the embedding paths that current ingestion coercion erases.</p>
+<h2 id="current-state-analysis">Current State Analysis</h2>
+<h3 id="key-discoveries">Key Discoveries</h3>
+<ul>
+<li><code>Session.create_dataframe</code> currently accepts only <code>data: DataLike</code>, normalizes supported inputs through Polars, rejects empty row lists, wraps construction failures in <code>PlanError</code>, and always builds <code>InMemorySource.from_session_state</code> (<code>src/fenic/api/session/session.py:132</code>, <code>src/fenic/api/session/session.py:186</code>, <code>src/fenic/api/session/session.py:217</code>).</li>
+<li><code>Schema.column_names()</code> preserves ordered field names, while <code>convert_custom_schema_to_polars_schema</code> maps fenic logical schemas to physical Polars dtypes including <code>EmbeddingType -&gt; pl.Array(pl.Float32, dimensions)</code> and tagged string types to <code>pl.String</code> (<code>src/fenic/core/types/schema.py:117</code>, <code>src/fenic/core/_utils/schema.py:56</code>, <code>src/fenic/core/_utils/schema.py:185</code>).</li>
+<li><code>InMemorySource.from_schema</code> and wrapper-level plan serde already preserve a supplied logical schema; <code>LogicalPlan._validate_schema</code> already rejects duplicate column names (<code>src/fenic/core/_logical_plan/plans/source.py:31</code>, <code>src/fenic/core/_logical_plan/plans/base.py:35</code>, <code>src/fenic/core/_serde/proto/plan_serde.py:48</code>).</li>
+<li>Local <code>PlanConverter</code> currently lowers <code>InMemorySource</code> without passing the logical schema, and <code>InMemorySourceExec</code> applies <code>apply_ingestion_coercions(self.df, coerce_array=True)</code> which converts all fixed-size arrays to lists (<code>src/fenic/_backends/local/transpiler/plan_converter.py:162</code>, <code>src/fenic/_backends/local/physical_plan/source.py:27</code>, <code>src/fenic/_backends/local/physical_plan/utils.py:39</code>).</li>
+<li>Existing tests already cover schema-free <code>create_dataframe</code> forms, source serde/equality, local ingestion coercion, local function validation for JSON/Markdown after explicit casts, cloud execution mocks, and source transpilation (<code>tests/api/test_session.py:48</code>, <code>tests/_logical_plan/serde/test_plan_serde.py:247</code>, <code>tests/_backends/test_ingestion_coercion.py:10</code>, <code>tests/_backends/local/functions/test_jq.py:28</code>, <code>tests/_backends/cloud/test_cloud_execution.py:301</code>, <code>tests/_backends/local/test_transpiler.py:83</code>).</li>
+</ul>
+<h2 id="desired-end-state">Desired End State</h2>
+<ul>
+<li><code>Session.create_dataframe(data, schema=...)</code> and <code>Session.createDataFrame(data, schema=...)</code> accept a complete top-level public <code>Schema</code>.</li>
+<li>Schema-free calls keep current normalization and error behavior, including rejecting <code>[]</code>.</li>
+<li>Schema-backed calls validate top-level shape, reorder columns by <code>schema.column_fields</code>, physically coerce through <code>convert_custom_schema_to_polars_schema</code>, and construct <code>InMemorySource.from_schema</code>.</li>
+<li>Empty <code>[]</code>, <code>{}</code>, <code>pl.DataFrame()</code>, <code>pd.DataFrame()</code>, and <code>pa.table({})</code> produce zero-row DataFrames with the requested schema only when a schema is provided.</li>
+<li>Logical tagged string types remain visible in <code>df.schema</code> and downstream logical validation while storing physical strings.</li>
+<li>Explicit <code>EmbeddingType</code> columns materialize locally as fixed-size <code>pl.Array(pl.Float32, dimensions)</code> after <code>to_polars()</code>, while no-schema arrays still normalize to <code>pl.List</code>.</li>
+</ul>
+<h2 id="what-were-not-doing">What We're NOT Doing</h2>
+<ul>
+<li>Partial schemas or schema inference mixed with a partial explicit schema.</li>
+<li>Pydantic model shortcuts for <code>create_dataframe(schema=...)</code>.</li>
+<li>New source plan nodes or cloud protobuf/request fields.</li>
+<li>Broad recasting of every local source column from the logical schema during execution.</li>
+<li>Tagged-string content validation for <code>JsonType</code>, <code>MarkdownType</code>, <code>HtmlType</code>, transcripts, or document paths.</li>
+<li>User-facing documentation updates in this implementation pass.</li>
+</ul>
+<h2 id="implementation-overview">Implementation Overview</h2>
+<ul>
+<li>[x] Phase 1: Basic schema-backed creation end to end</li>
+<li>[x] Phase 2: Complete input-shape and error contract</li>
+<li>[x] Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries</li>
+<li>[x] Phase 4: Local embedding physical preservation</li>
+</ul>
+<hr />
+<h2 id="phase-1-basic-schema-backed-creation-end-to-end">✅ Phase 1: Basic schema-backed creation end to end</h2>
+<h3 id="phase-1-overview">Phase 1 Overview</h3>
+<p>Make the smallest useful API path work: a primitive explicit schema can create a DataFrame from common inputs, preserve the logical schema, order output columns by the schema, and leave the current no-schema path intact.</p>
+<h3 id="phase-1-changes-required">Phase 1 Changes Required</h3>
+<h4 id="11-public-signature-and-schema-imports">1.1 Public Signature and Schema Imports</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: Around lines 27-29, import <code>convert_custom_schema_to_polars_schema</code> and <code>Schema</code>; around line 132, add the optional schema parameter and docstring contract.</p>
+<pre><code class="language-diff">@@
+ from fenic.core.error import CatalogError, PlanError, ValidationError
++from fenic.core._utils.schema import convert_custom_schema_to_polars_schema
+ from fenic.core.types.query_result import DataLike
++from fenic.core.types.schema import Schema
+@@
+     def create_dataframe(
+         self,
+         data: DataLike,
++        schema: Schema | None = None,
+     ) -&gt; DataFrame:
+@@
+-            data: Input data. Must be one of:
++            data: Input data. Must be one of:
+                 - Polars DataFrame
+@@
+                 - pyarrow Table
++            schema: Optional complete top-level fenic schema. When provided,
++                field names are authoritative, values are physically coerced to
++                the schema's Polars representation, and the logical DataFrame
++                schema is preserved exactly.
+</code></pre>
+<h4 id="12-split-normalization-from-source-construction">1.2 Split Normalization From Source Construction</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: Replace the body at lines 186-220 with a no-schema branch that keeps current behavior and a schema branch that delegates to helpers added below <code>create_dataframe</code>.</p>
+<pre><code class="language-diff">@@
+-        try:
+-            if isinstance(data, pl.DataFrame):
+-                pl_df = data
+-            elif isinstance(data, pd.DataFrame):
+-                pl_df = pl.from_pandas(data)
+-            elif isinstance(data, dict):
+-                pl_df = pl.DataFrame(data)
+-            elif isinstance(data, list):
+-                if not data:
+-                    raise ValidationError(
+-                        &quot;Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types.&quot;
+-                    )
+-
+-                if not isinstance(data[0], dict):
+-                    raise ValidationError(
+-                        &quot;Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries.&quot;
+-                    )
+-                pl_df = pl.DataFrame(data)
+-            elif isinstance(data, pa.Table):
+-                pl_df = pl.from_arrow(data)
+-
+-            else:
+-                raise ValidationError(
+-                    f&quot;Unsupported data type: {type(data)}. Supported types are: Polars DataFrame, Pandas DataFrame, dict, or list.&quot;
+-                )
+-
+-        except ValidationError:
+-            raise
+-        except Exception as e:
+-            raise PlanError(f&quot;Failed to create DataFrame from {data}&quot;) from e
++        pl_df, row_oriented = _normalize_data_like_to_polars(
++            data,
++            allow_empty_list=schema is not None,
++        )
++        if schema is None:
++            return DataFrame._from_logical_plan(
++                InMemorySource.from_session_state(pl_df, self._session_state),
++                self._session_state,
++            )
++
++        coerced_pl_df = _coerce_to_schema(pl_df, schema, row_oriented=row_oriented)
+
+         return DataFrame._from_logical_plan(
+-            InMemorySource.from_session_state(pl_df, self._session_state),
++            InMemorySource.from_schema(coerced_pl_df, schema),
+             self._session_state,
+         )
+</code></pre>
+<h4 id="13-add-initial-helper-implementations">1.3 Add Initial Helper Implementations</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: Add module-level helpers below the class before the alias block; keep them private to avoid broadening public API. In this phase, support <code>dict</code>, <code>list[dict]</code>, and <code>pl.DataFrame</code> for schema-backed creation.</p>
+<pre><code class="language-diff">@@
++def _normalize_data_like_to_polars(
++    data: DataLike,
++    *,
++    allow_empty_list: bool,
++) -&gt; tuple[pl.DataFrame, bool]:
++    try:
++        if isinstance(data, pl.DataFrame):
++            return data, False
++        if isinstance(data, pd.DataFrame):
++            return pl.from_pandas(data), False
++        if isinstance(data, dict):
++            return pl.DataFrame(data), False
++        if isinstance(data, list):
++            if not data:
++                if allow_empty_list:
++                    return pl.DataFrame(), True
++                raise ValidationError(
++                    &quot;Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types.&quot;
++                )
++            if not isinstance(data[0], dict):
++                raise ValidationError(
++                    &quot;Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries.&quot;
++                )
++            return pl.DataFrame(data), True
++        if isinstance(data, pa.Table):
++            return pl.from_arrow(data), False
++        raise ValidationError(
++            f&quot;Unsupported data type: {type(data)}. Supported types are: Polars DataFrame, Pandas DataFrame, dict, list, or PyArrow Table.&quot;
++        )
++    except ValidationError:
++        raise
++    except Exception as e:
++        raise PlanError(f&quot;Failed to create DataFrame from {data}&quot;) from e
++
++
++def _coerce_to_schema(
++    pl_df: pl.DataFrame,
++    schema: Schema,
++    *,
++    row_oriented: bool,
++) -&gt; pl.DataFrame:
++    _validate_explicit_schema(schema)
++    target_schema = convert_custom_schema_to_polars_schema(schema)
++    ordered_names = schema.column_names()
++    try:
++        if pl_df.width == 0 and pl_df.height == 0:
++            return _schema_only_empty_frame(schema)
++        return pl_df.select(ordered_names).cast(target_schema)
++    except Exception as e:
++        raise PlanError(f&quot;Failed to create DataFrame with schema {schema}&quot;) from e
++
++
++def _schema_only_empty_frame(schema: Schema) -&gt; pl.DataFrame:
++    return pl.DataFrame(schema=convert_custom_schema_to_polars_schema(schema))
++
++
++def _validate_explicit_schema(schema: Schema) -&gt; None:
++    InMemorySource.from_schema(pl.DataFrame(), schema)
+</code></pre>
+<h4 id="14-add-basic-api-tests">1.4 Add Basic API Tests</h4>
+<p><strong>File</strong>: <code>tests/api/test_session.py</code>
+<strong>Changes</strong>: Around the existing <code>create_dataframe</code> tests at lines 48-145, import <code>Schema</code>, <code>FloatType</code>, and <code>PlanError</code>, then add basic schema-backed tests.</p>
+<pre><code class="language-diff">@@
+     ColumnField,
++    FloatType,
+@@
+     IntegerType,
++    Schema,
+@@
+ from fenic.core.error import ConfigurationError
++from fenic.core.error import PlanError
+ from fenic.core.error import ValidationError as FenicValidationError
+@@
++def test_create_dataframe_with_schema_from_dict_coerces_and_orders_columns(local_session):
++    schema = Schema([
++        ColumnField(&quot;age&quot;, IntegerType),
++        ColumnField(&quot;name&quot;, StringType),
++        ColumnField(&quot;score&quot;, FloatType),
++    ])
++    df = local_session.create_dataframe(
++        {&quot;name&quot;: [&quot;Alice&quot;], &quot;score&quot;: [1], &quot;age&quot;: [&quot;42&quot;]},
++        schema=schema,
++    )
++
++    assert df.schema == schema
++    result = df.to_polars()
++    assert result.columns == [&quot;age&quot;, &quot;name&quot;, &quot;score&quot;]
++    assert result.schema[&quot;age&quot;] == pl.Int64
++    assert result.schema[&quot;score&quot;] == pl.Float32
++    assert result.to_dict(as_series=False) == {
++        &quot;age&quot;: [42],
++        &quot;name&quot;: [&quot;Alice&quot;],
++        &quot;score&quot;: [1.0],
++    }
++
++
++def test_create_dataframe_with_schema_from_polars_uses_provided_schema(local_session):
++    schema = Schema([ColumnField(&quot;name&quot;, StringType)])
++    df = local_session.create_dataframe(pl.DataFrame({&quot;name&quot;: [&quot;Alice&quot;]}), schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().schema[&quot;name&quot;] == pl.String
++
++
++def test_create_dataframe_with_schema_from_list_of_dicts_allows_missing_row_keys(local_session):
++    schema = Schema([ColumnField(&quot;name&quot;, StringType), ColumnField(&quot;age&quot;, IntegerType)])
++    df = local_session.create_dataframe([{&quot;name&quot;: &quot;Alice&quot;}, {&quot;age&quot;: 30}], schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().to_dict(as_series=False) == {
++        &quot;name&quot;: [&quot;Alice&quot;, None],
++        &quot;age&quot;: [None, 30],
++    }
++
++
++def test_create_dataframe_with_schema_allows_empty_list(local_session):
++    schema = Schema([ColumnField(&quot;name&quot;, StringType), ColumnField(&quot;age&quot;, IntegerType)])
++    df = local_session.create_dataframe([], schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().schema == {&quot;name&quot;: pl.String, &quot;age&quot;: pl.Int64}
++    assert df.to_polars().height == 0
+</code></pre>
+<h3 id="phase-1-success-criteria">Phase 1 Success Criteria</h3>
+<h4 id="phase-1-automated-verification">Phase 1 Automated Verification</h4>
+<ul>
+<li>[x] <code>OPENAI_API_KEY=dummy-key uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty_list" -q</code> (5 passed, 34 deselected)</li>
+<li>[x] <code>OPENAI_API_KEY=dummy-key uv run pytest --collect-only tests/api/test_session.py -q</code></li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty_list" -q</code> (5 passed, 34 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest --collect-only tests/api/test_session.py -q</code></li>
+</ul>
+<h4 id="phase-1-manual-verification">Phase 1 Manual Verification</h4>
+<p>None. The behavior is API/data contract behavior covered by automated tests.</p>
+<blockquote>
+<p><strong>Implementation Note:</strong> after automated verification passes, record the commands and results in this plan and pause for human confirmation before proceeding to Phase 2.</p>
+</blockquote>
+<hr />
+<h2 id="phase-2-complete-input-shape-and-error-contract">✅ Phase 2: Complete input-shape and error contract</h2>
+<h3 id="phase-2-overview">Phase 2 Overview</h3>
+<p>Finish the public input contract for every supported <code>DataLike</code> shape and make schema enforcement strict before Polars' permissive construction behavior can silently accept missing or extra fields.</p>
+<h3 id="phase-2-changes-required">Phase 2 Changes Required</h3>
+<h4 id="21-enforce-column-oriented-shape-rules">2.1 Enforce Column-Oriented Shape Rules</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: Expand <code>_coerce_to_schema</code> after Phase 1 so column-oriented inputs must match the schema's top-level name set unless they are zero-column/zero-row schema-only empties.</p>
+<pre><code class="language-diff">@@
+ def _coerce_to_schema(
+@@
+ ) -&gt; pl.DataFrame:
+     _validate_explicit_schema(schema)
+     target_schema = convert_custom_schema_to_polars_schema(schema)
+     ordered_names = schema.column_names()
++    schema_names = set(ordered_names)
+     try:
+         if pl_df.width == 0 and pl_df.height == 0:
+             return _schema_only_empty_frame(schema)
++        data_names = set(pl_df.columns)
++        if not row_oriented and data_names != schema_names:
++            _raise_schema_column_mismatch(schema_names, data_names)
+         return pl_df.select(ordered_names).cast(target_schema)
+@@
++def _raise_schema_column_mismatch(expected: set[str], actual: set[str]) -&gt; None:
++    missing = sorted(expected - actual)
++    extra = sorted(actual - expected)
++    details = []
++    if missing:
++        details.append(f&quot;missing columns: {missing}&quot;)
++    if extra:
++        details.append(f&quot;extra columns: {extra}&quot;)
++    raise ValidationError(
++        &quot;Data columns must match the provided schema exactly; &quot; + &quot;, &quot;.join(details)
++    )
+</code></pre>
+<h4 id="22-enforce-row-oriented-shape-rules-before-polars-construction">2.2 Enforce Row-Oriented Shape Rules Before Polars Construction</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: In <code>_normalize_data_like_to_polars</code>, validate every non-empty list item is a dict. In <code>_coerce_to_schema</code>, check row key extras before selecting/casting and add missing schema columns as nulls.</p>
+<pre><code class="language-diff">@@
+         if isinstance(data, list):
+@@
+-            if not isinstance(data[0], dict):
++            if not all(isinstance(row, dict) for row in data):
+                 raise ValidationError(
+                     &quot;Cannot create DataFrame from list of non-dict values. Provide a list of dictionaries.&quot;
+                 )
+@@
+         if pl_df.width == 0 and pl_df.height == 0:
+             return _schema_only_empty_frame(schema)
+         data_names = set(pl_df.columns)
+-        if not row_oriented and data_names != schema_names:
++        if row_oriented:
++            extra = data_names - schema_names
++            if extra:
++                _raise_schema_column_mismatch(schema_names, data_names)
++        elif data_names != schema_names:
+             _raise_schema_column_mismatch(schema_names, data_names)
++        for missing_col in schema_names - data_names:
++            pl_df = pl_df.with_columns(pl.lit(None).alias(missing_col))
+         return pl_df.select(ordered_names).cast(target_schema)
+</code></pre>
+<h4 id="23-preserve-fenic-error-boundaries">2.3 Preserve Fenic Error Boundaries</h4>
+<p><strong>File</strong>: <code>src/fenic/api/session/session.py</code>
+<strong>Changes</strong>: Keep contract violations as <code>ValidationError</code>; keep physical construction/cast failures as <code>PlanError</code> with the original exception as cause.</p>
+<pre><code class="language-diff">@@
+-    try:
++    try:
+         if pl_df.width == 0 and pl_df.height == 0:
+             return _schema_only_empty_frame(schema)
+@@
+         return pl_df.select(ordered_names).cast(target_schema)
++    except ValidationError:
++        raise
+     except Exception as e:
+         raise PlanError(f&quot;Failed to create DataFrame with schema {schema}&quot;) from e
+</code></pre>
+<h4 id="24-add-full-api-input-and-error-tests">2.4 Add Full API Input and Error Tests</h4>
+<p><strong>File</strong>: <code>tests/api/test_session.py</code>
+<strong>Changes</strong>: Extend the schema-backed test block with pandas, PyArrow, schema-only empty inputs, mismatch errors, uncastable value errors, and duplicate-name validation.</p>
+<pre><code class="language-diff">@@
++def test_create_dataframe_with_schema_from_pandas_and_arrow(local_session):
++    import pyarrow as pa
++
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType), ColumnField(&quot;name&quot;, StringType)])
++    pd_df = pd.DataFrame({&quot;name&quot;: [&quot;Alice&quot;], &quot;id&quot;: [&quot;1&quot;]})
++    arrow_table = pa.table({&quot;name&quot;: [&quot;Bob&quot;], &quot;id&quot;: [&quot;2&quot;]})
++
++    assert local_session.create_dataframe(pd_df, schema=schema).to_polars().columns == [&quot;id&quot;, &quot;name&quot;]
++    assert local_session.create_dataframe(arrow_table, schema=schema).to_polars().columns == [&quot;id&quot;, &quot;name&quot;]
++
++
++@pytest.mark.parametrize(
++    &quot;empty_input&quot;,
++    [
++        {},
++        pl.DataFrame(),
++        pd.DataFrame(),
++        pytest.param(None, id=&quot;arrow-empty&quot;),
++    ],
++)
++def test_create_dataframe_schema_only_empty_inputs(local_session, empty_input):
++    import pyarrow as pa
++
++    if empty_input is None:
++        empty_input = pa.table({})
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType), ColumnField(&quot;name&quot;, StringType)])
++    df = local_session.create_dataframe(empty_input, schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().shape == (0, 2)
++
++
++def test_create_dataframe_with_schema_column_missing_or_extra_raises(local_session):
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType), ColumnField(&quot;name&quot;, StringType)])
++
++    with pytest.raises(FenicValidationError, match=&quot;missing columns&quot;):
++        local_session.create_dataframe({&quot;id&quot;: [1]}, schema=schema)
++    with pytest.raises(FenicValidationError, match=&quot;extra columns&quot;):
++        local_session.create_dataframe({&quot;id&quot;: [1], &quot;name&quot;: [&quot;a&quot;], &quot;extra&quot;: [1]}, schema=schema)
++
++
++def test_create_dataframe_with_schema_row_extra_key_raises(local_session):
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType)])
++    with pytest.raises(FenicValidationError, match=&quot;extra columns&quot;):
++        local_session.create_dataframe([{&quot;id&quot;: 1}, {&quot;id&quot;: 2, &quot;extra&quot;: 3}], schema=schema)
++
++
++def test_create_dataframe_with_schema_later_non_dict_raises(local_session):
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType)])
++    with pytest.raises(FenicValidationError, match=&quot;list of non-dict&quot;):
++        local_session.create_dataframe([{&quot;id&quot;: 1}, 2], schema=schema)
++
++
++def test_create_dataframe_with_schema_uncastable_value_raises_plan_error(local_session):
++    schema = Schema([ColumnField(&quot;id&quot;, IntegerType)])
++    with pytest.raises(PlanError):
++        local_session.create_dataframe({&quot;id&quot;: [&quot;not-an-int&quot;]}, schema=schema)
++
++
++def test_create_dataframe_with_schema_duplicate_names_use_plan_validation(local_session):
++    schema = Schema([
++        ColumnField(&quot;id&quot;, IntegerType),
++        ColumnField(&quot;id&quot;, StringType),
++    ])
++    with pytest.raises(PlanError, match=&quot;Duplicate column names&quot;):
++        local_session.create_dataframe({&quot;id&quot;: [1]}, schema=schema)
+</code></pre>
+<h3 id="phase-2-success-criteria">Phase 2 Success Criteria</h3>
+<h4 id="phase-2-automated-verification">Phase 2 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe_with_schema or create_dataframe_empty" -q</code> (17 passed, 34 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py -k "create_dataframe" -q</code> (23 passed, 28 deselected)</li>
+</ul>
+<h4 id="phase-2-manual-verification">Phase 2 Manual Verification</h4>
+<p>None. The phase defines deterministic input/error contracts and covers them with pytest.</p>
+<blockquote>
+<p><strong>Implementation Note:</strong> after automated verification passes, record the commands and results in this plan and pause for human confirmation before proceeding to Phase 3.</p>
+</blockquote>
+<hr />
+<h2 id="phase-3-logical-schema-propagation-through-planning-serde-and-cloud-request-boundaries">✅ Phase 3: Logical schema propagation through planning, serde, and cloud request boundaries</h2>
+<h3 id="phase-3-overview">Phase 3 Overview</h3>
+<p>Prove explicit schemas are visible to downstream logical validation and serialization. This phase should need little or no production code if Phases 1-2 correctly use <code>InMemorySource.from_schema</code>.</p>
+<h3 id="phase-3-changes-required">Phase 3 Changes Required</h3>
+<h4 id="31-add-logical-tagged-string-api-tests">3.1 Add Logical Tagged-String API Tests</h4>
+<p><strong>File</strong>: <code>tests/api/test_session.py</code>
+<strong>Changes</strong>: Import <code>JsonType</code> and <code>MarkdownType</code>, then assert logical schemas remain tagged while physical storage stays <code>pl.String</code>.</p>
+<pre><code class="language-diff">@@
+     IntegerType,
++    JsonType,
++    MarkdownType,
+@@
++def test_create_dataframe_with_json_schema_exposes_logical_type(local_session):
++    schema = Schema([ColumnField(&quot;json_col&quot;, JsonType)])
++    df = local_session.create_dataframe({&quot;json_col&quot;: ['{&quot;user&quot;: &quot;Alice&quot;}']}, schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().schema[&quot;json_col&quot;] == pl.String
++
++
++def test_create_dataframe_with_markdown_schema_exposes_logical_type(local_session):
++    schema = Schema([ColumnField(&quot;md_col&quot;, MarkdownType)])
++    df = local_session.create_dataframe({&quot;md_col&quot;: [&quot;# Title&quot;]}, schema=schema)
++    assert df.schema == schema
++    assert df.to_polars().schema[&quot;md_col&quot;] == pl.String
+</code></pre>
+<h4 id="32-add-json-function-validation-without-intermediate-cast">3.2 Add JSON Function Validation Without Intermediate Cast</h4>
+<p><strong>File</strong>: <code>tests/_backends/local/functions/test_jq.py</code>
+<strong>Changes</strong>: Add <code>Schema</code> import and a schema-backed <code>json.jq</code> test near the existing jq tests around line 28.</p>
+<pre><code class="language-diff">@@
+     JsonType,
++    Schema,
+@@
++def test_jq_accepts_create_dataframe_json_schema(local_session):
++    schema = Schema([ColumnField(&quot;json_col&quot;, JsonType)])
++    df = local_session.create_dataframe(
++        {&quot;json_col&quot;: ['{&quot;user&quot;: {&quot;name&quot;: &quot;Alice&quot;}}', '{&quot;user&quot;: {&quot;name&quot;: &quot;Bob&quot;}}']},
++        schema=schema,
++    )
++    result = df.select(json.jq(col(&quot;json_col&quot;), &quot;.user.name&quot;).alias(&quot;user_name&quot;)).to_polars()
++    assert result.equals(pl.DataFrame({&quot;user_name&quot;: [['&quot;Alice&quot;'], ['&quot;Bob&quot;']]}))
+</code></pre>
+<h4 id="33-add-markdown-function-validation-without-intermediate-cast">3.3 Add Markdown Function Validation Without Intermediate Cast</h4>
+<p><strong>File</strong>: <code>tests/_backends/local/functions/test_markdown.py</code>
+<strong>Changes</strong>: Add <code>Schema</code> import and a schema-backed <code>markdown.generate_toc</code> test before <code>test_md_generate_toc</code>.</p>
+<pre><code class="language-diff">@@
+     MarkdownType,
++    Schema,
+@@
++def test_generate_toc_accepts_create_dataframe_markdown_schema(local_session):
++    schema = Schema([ColumnField(&quot;md_col&quot;, MarkdownType)])
++    df = local_session.create_dataframe(
++        {&quot;md_col&quot;: [&quot;# Title\n\n## Details&quot;]},
++        schema=schema,
++    )
++    result = df.select(markdown.generate_toc(col(&quot;md_col&quot;)).alias(&quot;toc&quot;)).to_polars()
++    assert result[&quot;toc&quot;].to_list() == [&quot;# Title\n## Details&quot;]
+</code></pre>
+<h4 id="34-add-explicit-schema-plan-serde-coverage">3.4 Add Explicit-Schema Plan Serde Coverage</h4>
+<p><strong>File</strong>: <code>tests/_logical_plan/serde/test_plan_serde.py</code>
+<strong>Changes</strong>: Add imports for tagged string/embedding types as needed, then add explicit-schema round-trip tests near <code>test_basic_plan</code> around line 247.</p>
+<pre><code class="language-diff">@@
+     IntegerType,
++    JsonType,
++    MarkdownType,
+     Schema,
+@@
++@pytest.mark.parametrize(&quot;serde_implementation&quot;, serde_implementations)
++def test_inmemory_source_with_explicit_schema_round_trips(
++    local_session,
++    serde_implementation: SupportsLogicalPlanSerde,
++):
++    schema = Schema([
++        ColumnField(&quot;id&quot;, IntegerType),
++        ColumnField(&quot;payload&quot;, JsonType),
++    ])
++    df = local_session.create_dataframe({&quot;id&quot;: [&quot;1&quot;], &quot;payload&quot;: ['{&quot;ok&quot;: true}']}, schema=schema)
++    deserialized = _test_plan_serialization(
++        df._logical_plan,
++        local_session._session_state,
++        serde_implementation,
++    )
++    assert deserialized.schema() == schema
++    assert deserialized == df._logical_plan
+</code></pre>
+<h4 id="35-add-schema-sensitive-inmemorysource-equality-case">3.5 Add Schema-Sensitive InMemorySource Equality Case</h4>
+<p><strong>File</strong>: <code>tests/_logical_plan/test_plan_equality.py</code>
+<strong>Changes</strong>: Import <code>JsonType</code> and add a source equality test next to <code>test_schema_mismatch</code> at lines 123-133.</p>
+<pre><code class="language-diff">@@
+-from fenic.core.types.datatypes import FloatType, IntegerType, StringType
++from fenic.core.types.datatypes import FloatType, IntegerType, JsonType, StringType
+@@
++    def test_inmemory_source_same_physical_data_different_logical_schema_not_equal(self):
++        test_df = pl.DataFrame({&quot;payload&quot;: ['{&quot;ok&quot;: true}']})
++        string_schema = Schema([ColumnField(&quot;payload&quot;, StringType)])
++        json_schema = Schema([ColumnField(&quot;payload&quot;, JsonType)])
++
++        assert InMemorySource.from_schema(test_df, string_schema) != InMemorySource.from_schema(test_df, json_schema)
+</code></pre>
+<h4 id="36-add-cloud-request-boundary-assertion">3.6 Add Cloud Request-Boundary Assertion</h4>
+<p><strong>File</strong>: <code>tests/_backends/cloud/test_cloud_execution.py</code>
+<strong>Changes</strong>: Import the production <code>LogicalPlanSerde</code>, patch <code>StartExecution</code> for a count action, deserialize <code>request.count.serialized_plan</code>, and assert the embedded <code>InMemorySource</code> logical schema. Anchor near <code>test_cloud_simple_count</code> at line 301.</p>
+<pre><code class="language-diff">@@
+ from fenic import ColumnField, IntegerType, Schema, StringType, configure_logging
++from fenic.core._logical_plan.plans import InMemorySource
++from fenic.core._serde import LogicalPlanSerde
+@@
++def test_cloud_create_dataframe_explicit_schema_serializes_source_schema(cloud_session, mock_engine_service):
++    expected_schema = Schema([
++        ColumnField(&quot;id&quot;, IntegerType),
++        ColumnField(&quot;name&quot;, StringType),
++    ])
++
++    async def _start_execution(request: StartExecutionRequest, metadata):
++        plan = LogicalPlanSerde.deserialize(request.count.serialized_plan)
++        assert isinstance(plan, InMemorySource)
++        assert plan.schema() == expected_schema
++        return StartExecutionResponse(execution_id=&quot;test-execution-id&quot;)
++
++    async def _get_execution_result(execution_id, metadata):
++        return GetExecutionResultResponse(count_result=1)
++
++    mock_engine_service.StartExecution = _start_execution
++    mock_engine_service.GetExecutionResult = _get_execution_result
++
++    df = cloud_session.create_dataframe({&quot;name&quot;: [&quot;Alice&quot;], &quot;id&quot;: [&quot;1&quot;]}, schema=expected_schema)
++    assert df.count() == 1
++    mock_engine_service.StartExecution = MockEngineService().StartExecution
+</code></pre>
+<h3 id="phase-4-success-criteria">Phase 4 Success Criteria</h3>
+<h4 id="phase-3-automated-verification">Phase 3 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/api/test_session.py tests/_backends/local/functions/test_jq.py tests/_backends/local/functions/test_markdown.py -k "schema" -q</code> (20 passed, 54 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "explicit_schema or basic_plan" -q</code> (4 passed, 38 deselected)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_logical_plan/test_plan_equality.py -k "schema_mismatch or inmemory_source" -q</code> (3 passed, 24 deselected)</li>
+<li>[x] <code>uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere --extra=mcp</code> (2nd-party <code>just</code> unavailable in env; sync succeeded)</li>
+<li>[x] <code>uv run --env-file .env uv run pytest tests/_backends/cloud/test_cloud_execution.py -k "explicit_schema or simple_count" -q</code> (2 passed, 6 deselected)</li>
+</ul>
+<h4 id="phase-3-manual-verification">Phase 3 Manual Verification</h4>
+<p>None. The phase verifies logical schema propagation through tests and mock request inspection.</p>
+<blockquote>
+<p><strong>Implementation Note:</strong> after automated verification passes, record the commands and results in this plan and pause for human confirmation before proceeding to Phase 4.</p>
+</blockquote>
+<hr />
+<h2 id="phase-4-local-embedding-physical-preservation">✅ Phase 4: Local embedding physical preservation</h2>
+<h3 id="phase-4-overview">Phase 4 Overview</h3>
+<p>Preserve fixed-size <code>pl.Array</code> materialization for explicit <code>EmbeddingType</code> schema paths during local in-memory execution while keeping current no-schema array normalization and unrelated array-to-list coercions.</p>
+<h3 id="phase-4-changes-required">Phase 4 Changes Required</h3>
+<h4 id="41-pass-logical-source-schema-into-local-inmemorysourceexec">4.1 Pass Logical Source Schema Into Local InMemorySourceExec</h4>
+<p><strong>File</strong>: <code>src/fenic/_backends/local/transpiler/plan_converter.py</code>
+<strong>Changes</strong>: Around lines 162-166, pass <code>logical.schema()</code> when lowering <code>InMemorySource</code>.</p>
+<pre><code class="language-diff">@@
+         elif isinstance(logical, InMemorySource):
+             return InMemorySourceExec(
+                 df=logical._source,
++                schema=logical.schema(),
+                 session_state=self.session_state,
+             )
+</code></pre>
+<h4 id="42-store-schema-on-inmemorysourceexec-and-preserve-it-through-cloning">4.2 Store Schema on InMemorySourceExec and Preserve It Through Cloning</h4>
+<p><strong>File</strong>: <code>src/fenic/_backends/local/physical_plan/source.py</code>
+<strong>Changes</strong>: Around lines 15-40, import <code>Schema</code>, add the constructor parameter, pass it to ingestion coercion, and preserve it in <code>with_children</code>.</p>
+<pre><code class="language-diff">@@
+ if TYPE_CHECKING:
+     from fenic._backends.local.session_state import LocalSessionState
++    from fenic.core.types.schema import Schema
+@@
+ class InMemorySourceExec(PhysicalPlan):
+-    def __init__(self, df: pl.DataFrame, session_state: LocalSessionState):
++    def __init__(self, df: pl.DataFrame, schema: Schema, session_state: LocalSessionState):
+         super().__init__(children=[], cache_info=None, session_state=session_state)
+         self.df = df
++        self.schema = schema
+@@
+-        return apply_ingestion_coercions(self.df, coerce_array=True)
++        return apply_ingestion_coercions(
++            self.df,
++            coerce_array=True,
++            logical_schema=self.schema,
++        )
+@@
+-        return InMemorySourceExec(self.df, self.session_state)
++        return InMemorySourceExec(self.df, self.schema, self.session_state)
+</code></pre>
+<h4 id="43-make-ingestion-coercion-schema-aware-only-for-embedding-paths">4.3 Make Ingestion Coercion Schema-Aware Only for Embedding Paths</h4>
+<p><strong>File</strong>: <code>src/fenic/_backends/local/physical_plan/utils.py</code>
+<strong>Changes</strong>: Around lines 1-53, accept <code>logical_schema: Schema | None</code>; thread the matching logical dtype into <code>_build_target_dtype</code>; preserve <code>EmbeddingType</code> as its physical dtype; recurse through matching <code>StructType</code> and <code>ArrayType</code> paths.</p>
+<pre><code class="language-diff">@@
+-from typing import Optional, Union
++from typing import Optional, Union
+@@
+ import polars as pl
++from fenic.core._utils.schema import convert_custom_dtype_to_polars
++from fenic.core.types.datatypes import ArrayType, EmbeddingType, StructType
++from fenic.core.types.schema import Schema
+@@
+-def apply_ingestion_coercions(df: pl.DataFrame, coerce_array: bool) -&gt; pl.DataFrame:
++def apply_ingestion_coercions(
++    df: pl.DataFrame,
++    coerce_array: bool,
++    logical_schema: Schema | None = None,
++) -&gt; pl.DataFrame:
+@@
+     expressions = []
++    logical_fields = (
++        {field.name: field.data_type for field in logical_schema.column_fields}
++        if logical_schema is not None
++        else {}
++    )
+     for col_name in df.columns:
+         dtype = df[col_name].dtype
+-        target_dtype = _build_target_dtype(dtype, coerce_array)
++        target_dtype = _build_target_dtype(
++            dtype,
++            coerce_array,
++            logical_dtype=logical_fields.get(col_name),
++        )
+@@
+-def _build_target_dtype(dtype: pl.DataType, coerce_array: bool) -&gt; pl.DataType:
+-    if isinstance(dtype, pl.Array) and coerce_array:
+-        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
++def _build_target_dtype(
++    dtype: pl.DataType,
++    coerce_array: bool,
++    logical_dtype=None,
++) -&gt; pl.DataType:
++    if isinstance(logical_dtype, EmbeddingType):
++        return convert_custom_dtype_to_polars(logical_dtype)
++    if isinstance(dtype, pl.Array) and coerce_array:
++        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
+     elif isinstance(dtype, pl.List):
+-        return pl.List(_build_target_dtype(dtype.inner, coerce_array))
++        element_logical_dtype = (
++            logical_dtype.element_type if isinstance(logical_dtype, ArrayType) else None
++        )
++        return pl.List(
++            _build_target_dtype(dtype.inner, coerce_array, element_logical_dtype)
++        )
+@@
+     elif isinstance(dtype, pl.Struct):
++        logical_field_types = (
++            {field.name: field.data_type for field in logical_dtype.struct_fields}
++            if isinstance(logical_dtype, StructType)
++            else {}
++        )
+         new_fields = [
+-            pl.Field(field.name, _build_target_dtype(field.dtype, coerce_array))
++            pl.Field(
++                field.name,
++                _build_target_dtype(
++                    field.dtype,
++                    coerce_array,
++                    logical_field_types.get(field.name),
++                ),
++            )
+             for field in dtype.fields
+         ]
+</code></pre>
+<h4 id="44-add-ingestion-coercion-unit-tests">4.4 Add Ingestion Coercion Unit Tests</h4>
+<p><strong>File</strong>: <code>tests/_backends/test_ingestion_coercion.py</code>
+<strong>Changes</strong>: Import fenic schema/data types and add top-level, mixed, and nested embedding preservation tests after the existing array tests.</p>
+<pre><code class="language-diff">@@
+ from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
++from fenic.core.types.datatypes import ArrayType, EmbeddingType, IntegerType, StructField, StructType
++from fenic.core.types.schema import ColumnField, Schema
+@@
++def test_array_coercion_preserves_explicit_embedding_schema():
++    embedding_type = EmbeddingType(dimensions=3, embedding_model=&quot;test&quot;)
++    schema = Schema([ColumnField(&quot;embedding&quot;, embedding_type)])
++    df = pl.DataFrame(
++        {&quot;embedding&quot;: [[1.0, 2.0, 3.0]]},
++        schema={&quot;embedding&quot;: pl.Array(pl.Float32, 3)},
++    )
++
++    result = apply_ingestion_coercions(df, coerce_array=True, logical_schema=schema)
++    assert result.schema[&quot;embedding&quot;] == pl.Array(pl.Float32, 3)
++
++
++def test_schema_aware_coercion_keeps_unrelated_arrays_as_lists():
++    embedding_type = EmbeddingType(dimensions=3, embedding_model=&quot;test&quot;)
++    schema = Schema([
++        ColumnField(&quot;embedding&quot;, embedding_type),
++        ColumnField(&quot;array_col&quot;, ArrayType(IntegerType)),
++    ])
++    df = pl.DataFrame(
++        {&quot;embedding&quot;: [[1.0, 2.0, 3.0]], &quot;array_col&quot;: [[1, 2, 3]]},
++        schema={&quot;embedding&quot;: pl.Array(pl.Float32, 3), &quot;array_col&quot;: pl.Array(pl.Int64, 3)},
++    )
++
++    result = apply_ingestion_coercions(df, coerce_array=True, logical_schema=schema)
++    assert result.schema[&quot;embedding&quot;] == pl.Array(pl.Float32, 3)
++    assert result.schema[&quot;array_col&quot;] == pl.List(pl.Int64)
++
++
++def test_schema_aware_coercion_preserves_nested_embedding_in_struct():
++    embedding_type = EmbeddingType(dimensions=2, embedding_model=&quot;test&quot;)
++    schema = Schema([
++        ColumnField(&quot;payload&quot;, StructType([
++            StructField(&quot;embedding&quot;, embedding_type),
++            StructField(&quot;values&quot;, ArrayType(IntegerType)),
++        ]))
++    ])
++    df = pl.DataFrame(
++        {&quot;payload&quot;: [{&quot;embedding&quot;: [1.0, 2.0], &quot;values&quot;: [1, 2]}]},
++        schema={&quot;payload&quot;: pl.Struct([
++            pl.Field(&quot;embedding&quot;, pl.Array(pl.Float32, 2)),
++            pl.Field(&quot;values&quot;, pl.Array(pl.Int64, 2)),
++        ])},
++    )
++
++    result = apply_ingestion_coercions(df, coerce_array=True, logical_schema=schema)
++    assert result.schema[&quot;payload&quot;] == pl.Struct([
++        pl.Field(&quot;embedding&quot;, pl.Array(pl.Float32, 2)),
++        pl.Field(&quot;values&quot;, pl.List(pl.Int64)),
++    ])
+</code></pre>
+<h4 id="45-extend-transpiler-source-test">4.5 Extend Transpiler Source Test</h4>
+<p><strong>File</strong>: <code>tests/_backends/local/test_transpiler.py</code>
+<strong>Changes</strong>: Around lines 83-91, create an explicit schema source and assert the physical node stores it.</p>
+<pre><code class="language-diff">@@
+-from fenic.core.types import IntegerType
++from fenic.core.types import ColumnField, IntegerType, Schema
+@@
+ def test_convert_source_plan(local_session):
+     df = pl.DataFrame({&quot;a&quot;: [1, 2, 3]})
+-    source = InMemorySource(df, local_session._session_state)
++    schema = Schema([ColumnField(&quot;a&quot;, IntegerType)])
++    source = InMemorySource.from_schema(df, schema)
+     plan_converter = PlanConverter(local_session._session_state)
+@@
+     assert isinstance(physical, InMemorySourceExec)
++    assert physical.schema == schema
+</code></pre>
+<h4 id="46-add-public-embedding-schema-materialization-test">4.6 Add Public Embedding Schema Materialization Test</h4>
+<p><strong>File</strong>: <code>tests/api/test_session.py</code>
+<strong>Changes</strong>: Import <code>EmbeddingType</code> and add an API-level regression that checks both logical and physical schema.</p>
+<pre><code class="language-diff">@@
+     ColumnField,
++    EmbeddingType,
+@@
++def test_create_dataframe_with_embedding_schema_preserves_polars_array(local_session):
++    embedding_type = EmbeddingType(dimensions=3, embedding_model=&quot;test&quot;)
++    schema = Schema([ColumnField(&quot;embedding&quot;, embedding_type)])
++
++    df = local_session.create_dataframe(
++        {&quot;embedding&quot;: [[1.0, 2.0, 3.0]]},
++        schema=schema,
++    )
++
++    assert df.schema == schema
++    assert df.to_polars().schema[&quot;embedding&quot;] == pl.Array(pl.Float32, 3)
+</code></pre>
+<h4 id="47-add-embedding-explicit-schema-serde-regression">4.7 Add Embedding Explicit-Schema Serde Regression</h4>
+<p><strong>File</strong>: <code>tests/_logical_plan/serde/test_plan_serde.py</code>
+<strong>Changes</strong>: Extend imports and add a serde test near the explicit-schema round-trip from Phase 3.</p>
+<pre><code class="language-diff">@@
+     ColumnField,
++    EmbeddingType,
+@@
++@pytest.mark.parametrize(&quot;serde_implementation&quot;, serde_implementations)
++def test_inmemory_source_with_embedding_schema_round_trips(
++    local_session,
++    serde_implementation: SupportsLogicalPlanSerde,
++):
++    schema = Schema([
++        ColumnField(&quot;embedding&quot;, EmbeddingType(dimensions=3, embedding_model=&quot;test&quot;)),
++    ])
++    df = local_session.create_dataframe(
++        {&quot;embedding&quot;: [[1.0, 2.0, 3.0]]},
++        schema=schema,
++    )
++    deserialized = _test_plan_serialization(
++        df._logical_plan,
++        local_session._session_state,
++        serde_implementation,
++    )
++    assert deserialized.schema() == schema
+</code></pre>
+<h3 id="success-criteria">Success Criteria</h3>
+<h4 id="phase-4-automated-verification">Phase 4 Automated Verification</h4>
+<ul>
+<li>[x] <code>uv run pytest tests/_backends/test_ingestion_coercion.py -q</code> (11 passed, 0 failed, 0 skipped)</li>
+<li>[x] <code>uv run pytest tests/_backends/local/test_transpiler.py -k "source_plan" -q</code> (1 passed, 9 deselected)</li>
+<li>[x] <code>uv run pytest tests/api/test_session.py -k "embedding_schema or create_dataframe_with_schema" -q</code> (17 passed, 37 deselected)</li>
+<li>[x] <code>uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "embedding or explicit_schema" -q</code> (4 passed, 40 deselected)</li>
+<li>[ ] <code>just sync=false test-local</code> (not available in this environment; <code>just</code> is unavailable)</li>
+</ul>
+<h4 id="phase-4-manual-verification">Phase 4 Manual Verification</h4>
+<p>None. The behavior is observable through logical schema assertions and Polars physical schema assertions.</p>
+<blockquote>
+<p><strong>Implementation Note:</strong> after automated verification passes, record the commands and results in this plan and pause for human confirmation before committing or advancing to review.</p>
+</blockquote>
+<h2 id="implementation-notes">Implementation Notes</h2>
+<p><strong>Implemented head:</strong> pending commit</p>
+<p><strong>Spec source:</strong> <code>docs/td-flow/create-dataframe-schema/plan.md</code></p>
+<p><strong>Verification summary:</strong> <code>uv run --env-file .env uv run pytest tests/api/test_session.py tests/_backends/local/functions/test_jq.py tests/_backends/local/functions/test_markdown.py -k "schema" -q</code> (22 passed, 53 deselected); <code>uv run --env-file .env uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "explicit_schema or basic_plan" -q</code> (4 passed, 38 deselected); <code>uv run --env-file .env uv run pytest tests/_logical_plan/test_plan_equality.py -k "schema_mismatch or inmemory_source" -q</code> (3 passed, 24 deselected); <code>uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere --extra=mcp</code> (success); <code>uv run --env-file .env uv run pytest tests/_backends/cloud/test_cloud_execution.py -k "explicit_schema or simple_count" -q</code> (2 passed, 6 deselected); <code>uv run pytest tests/_backends/test_ingestion_coercion.py -q</code> (11 passed, 0 failed, 0 skipped); <code>uv run pytest tests/_backends/local/test_transpiler.py -k "source_plan" -q</code> (1 passed, 9 deselected); <code>uv run pytest tests/api/test_session.py -k "embedding_schema or create_dataframe_with_schema" -q</code> (17 passed, 37 deselected); <code>uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "embedding or explicit_schema" -q</code> (4 passed, 40 deselected); <code>uv run trunk check --fix</code> (no issues)</p>
+<p><strong>Deliberate tradeoffs / rejected approaches:</strong> kept embedding preservation narrowly in local ingestion coercion and preserved no-schema array-to-list behavior; avoided broad source recasting by using logical schema only when executing <code>InMemorySource</code>.</p>
+<p><strong>Deviations from spec:</strong> <code>just</code> recipes could not be executed in this environment, so direct <code>uv</code> equivalents were used where needed and logged in checklists.</p>
+<p><strong>Reviewer context:</strong> <code>just</code> is unavailable in this environment (<code>mise.toml</code> removal); if needed, re-run full local <code>just</code> recipes in CI/local environments with <code>just</code> installed.</p>
+<hr />
+<h2 id="decision-log">Decision Log</h2>
+<ul>
+<li><strong>[applied]</strong> The plan preserves the structure's four vertical phases and keeps implementation changes concentrated in <code>Session.create_dataframe</code>, local source execution, and targeted tests.</li>
+<li><strong>[applied]</strong> The no-schema path is intentionally left as a direct <code>InMemorySource.from_session_state</code> branch so current empty-list rejection, type inference, and generic ingestion coercions remain behavior-compatible.</li>
+<li><strong>[applied]</strong> Explicit schemas are validated through <code>InMemorySource.from_schema(pl.DataFrame(), schema)</code> before converting to a dict-backed Polars schema, preventing duplicate names from being hidden by <code>convert_custom_schema_to_polars_schema</code>.</li>
+<li><strong>[applied]</strong> The local physical seam passes <code>logical.schema()</code> into <code>InMemorySourceExec</code>, but the utility only uses that schema to preserve <code>EmbeddingType</code> paths. This avoids broad recasting of inferred/deserialized sources.</li>
+<li><strong>[applied]</strong> Verification commands come from <code>CLAUDE.md</code> and the real <code>justfile</code>; <code>just -n sync=false test-local</code>, <code>just -n sync=false test-cloud</code>, and <code>just -n sync=false sync-cloud</code> validated the parameter form.</li>
+<li><strong>[applied]</strong> Direct <code>uv run pytest ... -k ...</code> commands are used for phase-targeted coverage because <code>test-local</code> and <code>test-cloud</code> recipes do not expose file or keyword passthrough. This carries recipe-drift risk if global pytest flags change.</li>
+<li><strong>[applied]</strong> No dedicated typecheck command exists in <code>just --list</code>, <code>pyproject.toml</code>, or scanned repo config. The plan uses pytest collection, targeted tests, and full local recipe coverage instead.</li>
+<li><strong>[applied]</strong> plan-eng-review lens completed inline with portability tier 3: minimum change set is acceptable for high-risk scope, no new classes/services are introduced, existing source/schema/coercion seams are reused, and test coverage traces API, logical, serde, cloud request, and local physical paths.</li>
+<li><strong>[needs-fix]</strong> td-review for <code>45ccca180a31209ce8be92fcc9b3919cd418080b</code> found no remaining blocking code-level issues in the reviewed worktree, but the reviewed fixes are not committed to the branch head. Commit the current worktree changes, then run a delta review before <code>td-land</code>. Review artifact: <code>.context/td-review/create-dataframe-schema-45ccca180a31209ce8be92fcc9b3919cd418080b.md</code>.</li>
+<li><strong>[approved]</strong> Delta td-review for committed fix head <code>77c3af7c459788bb6f077fa66288c6df2400ca51</code> returned Ready to merge: the prior dirty-tree blocker is resolved, target freshness is clean, and focused pytest / <code>fenic check</code> / compile verification passed. Review artifact: <code>.context/td-review/create-dataframe-schema-77c3af7c459788bb6f077fa66288c6df2400ca51.md</code>.</li>
+<li><strong>[deferred]</strong> Public documentation updates belong in a follow-up documentation/release pass after behavior lands.</li>
+</ul>
+<h2 id="open-questions">Open Questions</h2>
+<p>None.</p>
+<h2 id="handoff">Handoff</h2>
+<p><strong>Next step (paste into a fresh tab):</strong></p>
+<blockquote>
+<p>Use the <code>td-implement</code> skill. The plan is approved at
+<code>docs/td-flow/create-dataframe-schema/plan.md</code> (track: engineering, size: high-risk).
+Implement Phase 1 from the plan, run the repo's verification, then pause for my
+approval before committing or advancing.
+If this is Codex: I explicitly permit optional subagent use for this phase
+where the skill allows it.</p>
+</blockquote>
+<p><strong>Approved decisions:</strong> Add <code>schema: Schema | None = None</code> to <code>Session.create_dataframe</code> / <code>createDataFrame</code>; enforce complete top-level schema contracts at session ingestion; allow schema-backed empty inputs; reuse <code>InMemorySource.from_schema</code>; preserve logical string-backed types without content validation; pass logical source schema into local in-memory execution only to protect <code>EmbeddingType</code> paths from array-to-list coercion.
+<strong>Open questions (carried forward):</strong> None.
+<strong>Non-goals / out of scope:</strong> Partial schemas, Pydantic schema shortcuts, new cloud protocol fields, a new source node, broad source recasting, tagged-string content validation, and user-facing docs in this implementation pass.
+<strong>Evidence summary:</strong> <code>Session.create_dataframe</code> currently normalizes supported inputs before <code>InMemorySource.from_session_state</code> (<code>src/fenic/api/session/session.py:186</code>); <code>InMemorySource.from_schema</code> already stores explicit schemas (<code>src/fenic/core/_logical_plan/plans/source.py:31</code>); wrapper plan serde already carries logical schemas (<code>src/fenic/core/_serde/proto/plan_serde.py:48</code>); <code>convert_custom_schema_to_polars_schema</code> maps <code>EmbeddingType</code> to fixed-size Polars arrays (<code>src/fenic/core/_utils/schema.py:185</code>); local <code>InMemorySourceExec</code> currently applies generic array-to-list coercion (<code>src/fenic/_backends/local/physical_plan/source.py:35</code>, <code>src/fenic/_backends/local/physical_plan/utils.py:39</code>).
+<strong>Known weak assumptions:</strong> The exact cloud request field name for the serialized plan should be pressure-tested during Phase 3 implementation against <code>CloudExecution</code>; nested embedding preservation should be pressure-tested against Polars' nested array casting behavior.
+<strong>Next artifact:</strong> code + Implementation Notes (Implement edits this plan in place with progress markers, then hands off to <code>td-review</code>).
+<strong>Rollback if:</strong> a phase's code example proves infeasible against the real code - ROLLBACK to structure.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["announce.dismiss", "content.action.edit", "content.action.view", "content.code.annotate", "content.code.copy", "content.tooltips", "navigation.footer", "navigation.instant", "navigation.path", "navigation.tracking", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

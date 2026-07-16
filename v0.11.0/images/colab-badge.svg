@@ -1,0 +1,13 @@
+<!-- docs/images/colab-badge-32.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="176" height="32" viewBox="0 0 176 32">
+  <rect x="0.5" y="0.5" width="175" height="31" rx="16" fill="#0B0F19" stroke="#3A3F4B"/>
+  <!-- simple "co" mark -->
+  <g transform="translate(12,6)">
+    <circle cx="8" cy="10" r="8" fill="#F9AB00"/>
+    <rect x="14" y="4" width="12" height="12" rx="6" fill="#F9AB00"/>
+  </g>
+  <text x="60" y="21" fill="#FFFFFF" font-size="14" font-weight="600"
+        font-family="-apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+    Open in Colab
+  </text>
+</svg>
