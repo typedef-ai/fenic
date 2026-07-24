@@ -96,6 +96,8 @@ def main() -> None:
         _fail("sitemap.xml contains no URLs")
     if any(not url.startswith(_CANONICAL_ROOT) for url in urls):
         _fail("sitemap.xml contains a URL outside the canonical latest path")
+    # Everything under docs/ is public; guard against these internal trees
+    # being reintroduced instead of placing their content under specs/.
     if any("/plans/" in url or "/td-flow/" in url for url in urls):
         _fail("sitemap.xml contains internal planning documents")
 

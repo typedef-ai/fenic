@@ -42,10 +42,10 @@ PySpark/pandas intuition. _(Developing fenic itself? See `CLAUDE.md`.)_
 
 Authored public documentation pages must be listed under `extra.llms.sections`
 in `mkdocs.yml`; generated API-reference pages are included automatically.
-When adding, renaming, or removing a docs page, update that list or explicitly
-mark the page `llms: false` and `noindex` if it is internal. Run
-`just docs-check` to validate the sitemap, metadata, Markdown alternatives, and
-LLM-facing assets before committing.
+When adding, renaming, or removing a docs page, update that list. Everything
+under `docs/` is public; put internal design and planning material under
+`specs/`. Run `just docs-check` to validate the sitemap, metadata, Markdown
+alternatives, and LLM-facing assets before committing.
 
 ## Full detail
 

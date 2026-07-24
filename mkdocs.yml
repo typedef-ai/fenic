@@ -66,8 +66,6 @@ nav:
   - API Reference
 not_in_nav: |
   /agents.md
-  /plans/
-  /td-flow/
 watch:
   - src/fenic/api
   - docs
