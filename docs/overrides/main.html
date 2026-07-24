@@ -1,0 +1,44 @@
+{% extends "base.html" %} {% block extrahead %} {{ super() }} {% if page %} {%
+set page_title = page.title | striptags %} {% set description =
+page.meta.description if page.meta and page.meta.description else
+config.site_description %} {% if page.meta and page.meta.robots %}
+<meta name="robots" content="{{ page.meta.robots }}" />
+{% endif %} {% if not page.meta or page.meta.llms is not false %} {% set
+markdown_path = page.file.dest_uri | replace(".html", ".md") %}
+<link
+  rel="alternate"
+  type="text/markdown"
+  title="Markdown version"
+  href="{{ config.site_url.rstrip('/') }}/{{ markdown_path }}"
+/>
+{% endif %}
+<link
+  rel="alternate"
+  type="text/plain"
+  title="LLM documentation index"
+  href="https://docs.fenic.ai/llms.txt"
+/>
+<meta property="og:type" content="article" />
+<meta property="og:title" content="{{ page_title | e }}" />
+<meta property="og:description" content="{{ description | e }}" />
+<meta property="og:url" content="{{ page.canonical_url }}" />
+<meta property="og:site_name" content="fenic documentation" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="{{ page_title | e }}" />
+<meta name="twitter:description" content="{{ description | e }}" />
+{% set structured_data = { "@context": "https://schema.org", "@graph": [ {
+"@type": "Organization", "@id": "https://fenic.ai/#organization", "name":
+"Fenic", "url": "https://fenic.ai", "logo": "https://fenic.ai/fenic-logo.png",
+"sameAs": [ "https://github.com/typedef-ai", "https://discord.gg/GdqF3J7huR" ]
+}, { "@type": "WebSite", "@id": "https://docs.fenic.ai/#website", "url":
+"https://docs.fenic.ai/", "name": "fenic documentation", "description":
+config.site_description, "publisher": {"@id": "https://fenic.ai/#organization"}
+}, { "@type": "TechArticle", "@id": page.canonical_url ~ "#article", "headline":
+page_title, "description": description, "url": page.canonical_url,
+"mainEntityOfPage": {"@type": "WebPage", "@id": page.canonical_url}, "isPartOf":
+{"@id": "https://docs.fenic.ai/#website"}, "publisher": {"@id":
+"https://fenic.ai/#organization"} } ] } %}
+<script type="application/ld+json">
+  {{ structured_data | tojson }}
+</script>
+{% endif %} {% endblock %}

@@ -29,6 +29,8 @@ jobs:
       - name: deploy docs
         shell: bash
         env:
+          GIT_AUTHOR_NAME: typedef-gha
+          GIT_AUTHOR_EMAIL: noreply@typedef.ai
           GIT_COMMITTER_NAME: typedef-gha
           GIT_COMMITTER_EMAIL: noreply@typedef.ai
         run: |
