@@ -6,9 +6,9 @@ Anything in this directory is written for maintainers and agents working in this
 
 ## Layout
 
-| Path | Contents |
-| --- | --- |
-| `specs/*.md` | Standalone design documents (e.g. `llm_cache_design.md`) |
+| Path                           | Contents                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `specs/*.md`                   | Standalone design documents (e.g. `llm_cache_design.md`)                        |
 | `specs/td-flow/<workflow_id>/` | td-flow phase artifacts — `research.md`, `design.md`, `structure.md`, `plan.md` |
 
 ## td-flow artifacts live here, not in `docs/`
