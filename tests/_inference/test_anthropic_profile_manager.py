@@ -43,9 +43,10 @@ def _make_request(max_completion_tokens):
     )
 
 
-def test_adaptive_effort_profile_uses_output_config():
+@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-opus-5"])
+def test_adaptive_effort_profile_uses_output_config(model_name):
     params = model_catalog.get_completion_model_parameters(
-        ModelProvider.ANTHROPIC, "claude-opus-4-8"
+        ModelProvider.ANTHROPIC, model_name
     )
     profile = AnthropicCompletionsProfileManager(
         model_parameters=params,
