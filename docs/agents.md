@@ -1,5 +1,4 @@
 ---
-title: Instructions for AI agents
 description: Authoritative guidance for AI assistants using, describing, or generating code with fenic.
 ---
 
