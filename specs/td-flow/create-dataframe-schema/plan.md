@@ -6,9 +6,9 @@ size_class: high-risk
 status: approved
 portability_level: 3
 source_inputs:
-  - docs/td-flow/create-dataframe-schema/structure.md
-  - docs/td-flow/create-dataframe-schema/research.md
-  - docs/td-flow/create-dataframe-schema/design.md
+  - specs/td-flow/create-dataframe-schema/structure.md
+  - specs/td-flow/create-dataframe-schema/research.md
+  - specs/td-flow/create-dataframe-schema/design.md
 last_updated: 2026-06-26
 ---
 
@@ -938,7 +938,7 @@ None. The behavior is observable through logical schema assertions and Polars ph
 
 **Implemented head:** pending commit
 
-**Spec source:** `docs/td-flow/create-dataframe-schema/plan.md`
+**Spec source:** `specs/td-flow/create-dataframe-schema/plan.md`
 
 **Verification summary:** `uv run --env-file .env uv run pytest tests/api/test_session.py tests/_backends/local/functions/test_jq.py tests/_backends/local/functions/test_markdown.py -k "schema" -q` (22 passed, 53 deselected); `uv run --env-file .env uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "explicit_schema or basic_plan" -q` (4 passed, 38 deselected); `uv run --env-file .env uv run pytest tests/_logical_plan/test_plan_equality.py -k "schema_mismatch or inmemory_source" -q` (3 passed, 24 deselected); `uv sync --extra=cloud --extra=google --extra=anthropic --extra=cohere --extra=mcp` (success); `uv run --env-file .env uv run pytest tests/_backends/cloud/test_cloud_execution.py -k "explicit_schema or simple_count" -q` (2 passed, 6 deselected); `uv run pytest tests/_backends/test_ingestion_coercion.py -q` (11 passed, 0 failed, 0 skipped); `uv run pytest tests/_backends/local/test_transpiler.py -k "source_plan" -q` (1 passed, 9 deselected); `uv run pytest tests/api/test_session.py -k "embedding_schema or create_dataframe_with_schema" -q` (17 passed, 37 deselected); `uv run pytest tests/_logical_plan/serde/test_plan_serde.py -k "embedding or explicit_schema" -q` (4 passed, 40 deselected); `uv run trunk check --fix` (no issues)
 
@@ -973,7 +973,7 @@ None.
 **Next step (paste into a fresh tab):**
 
 > Use the `td-implement` skill. The plan is approved at
-> `docs/td-flow/create-dataframe-schema/plan.md` (track: engineering, size: high-risk).
+> `specs/td-flow/create-dataframe-schema/plan.md` (track: engineering, size: high-risk).
 > Implement Phase 1 from the plan, run the repo's verification, then pause for my
 > approval before committing or advancing.
 > If this is Codex: I explicitly permit optional subagent use for this phase

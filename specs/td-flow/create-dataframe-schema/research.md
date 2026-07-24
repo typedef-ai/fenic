@@ -8,7 +8,7 @@ status: approved
 portability_level: 3
 recommended_track: engineering
 source_inputs:
-  - docs/td-flow/create-dataframe-schema/research.md (Research Questions section)
+  - specs/td-flow/create-dataframe-schema/research.md (Research Questions section)
   - src/fenic/api/session/session.py
   - src/fenic/core/types/query_result.py
   - src/fenic/core/_logical_plan/plans/source.py
@@ -153,7 +153,7 @@ None.
 **Next step (paste into a fresh tab after research approval):**
 
 > Use the `td-design` skill. Research is approved at
-> `docs/td-flow/create-dataframe-schema/research.md` (track: engineering, size: high-risk).
+> `specs/td-flow/create-dataframe-schema/research.md` (track: engineering, size: high-risk).
 > Design-stage trigger(s) held: new or changed public API/schema contract. Choose
 > the approach, weigh alternatives, and fix the cross-cutting contracts before the structure.
 > Use this research doc's Findings — the `## Research Questions` section is provenance, not a spec.
@@ -166,5 +166,5 @@ None.
 **Non-goals / out of scope:** The originating ticket was not read; this document does not prescribe implementation changes.
 **Evidence summary:** Public input and normalization flow: `src/fenic/api/session/session.py:132-220`; logical schema and serde flow: `src/fenic/core/_logical_plan/plans/source.py:21-65`, `src/fenic/core/_serde/proto/plan_serde.py:38-90`, `src/fenic/core/_serde/proto/plans/source.py:34-56`; conversion/coercion flow: `src/fenic/core/_utils/schema.py:31-190`, `src/fenic/_backends/local/physical_plan/utils.py:6-53`; explicit-schema APIs: `src/fenic/api/io/reader.py:70-152`, `src/fenic/_backends/local/catalog.py:416-459`.
 **Known weak assumptions:** None.
-**Next artifact:** `docs/td-flow/create-dataframe-schema/design.md`
+**Next artifact:** `specs/td-flow/create-dataframe-schema/design.md`
 **Rollback if:** the research questions are found to be too narrow for the intended API/schema change.
