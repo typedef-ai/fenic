@@ -1,0 +1,40 @@
+---
+name: docs check
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - .github/workflows/docs_check.yaml
+      - docs/**
+      - mkdocs.yml
+      - pyproject.toml
+      - scripts/docs_llms.py
+      - scripts/docs_metadata.py
+      - scripts/validate_docs_site.py
+      - src/fenic/**
+      - uv.lock
+  workflow_dispatch:
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  docs:
+    name: docs build and discovery assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: setup just
+        # yamllint disable-line rule:line-length
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
+      - name: setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+      - name: build and validate docs
+        run: just docs-check

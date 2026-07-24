@@ -1,9 +1,15 @@
 ---
 site_name: fenic, by typedef
+site_url: https://docs.fenic.ai/
+site_description: >-
+  Documentation for fenic, the semantic DataFrame framework for building
+  typed, inspectable AI and agentic data pipelines.
+site_author: typedef
 docs_dir: docs
 repo_url: https://github.com/typedef-ai/fenic
 theme:
   name: material
+  custom_dir: docs/overrides
   palette:
     - scheme: default
       toggle:
@@ -58,16 +64,60 @@ nav:
           - Timestamps and Dates: topics/timestamps_and_dates.md
       - Contributing: CONTRIBUTING.md
   - API Reference
+not_in_nav: |
+  /agents.md
+  /plans/
+  /td-flow/
 watch:
   - src/fenic/api
   - docs
   - mkdocs.yml
+hooks:
+  - scripts/docs_metadata.py
+  - scripts/docs_llms.py
 extra:
   version:
     provider: mike
+  llms:
+    full_output: llms-full.txt
+    markdown_description: |
+      Use these rendered Markdown pages for token-efficient access to the
+      latest fenic documentation. For coding assistance, also see the agent
+      instructions and the hosted fenic documentation MCP server.
+
+      - Full documentation: https://docs.fenic.ai/llms-full.txt
+      - Agent instructions: https://docs.fenic.ai/agents.md
+      - Hosted documentation MCP: https://mcp.fenic.ai
+      - Source code: https://github.com/typedef-ai/fenic
+    sections:
+      Start here:
+        - index.md: Install fenic, configure a model provider, and run the quickstart.
+        - agents.md: Instructions and accuracy guardrails for AI coding agents.
+        - CONTRIBUTING.md: Development setup and contribution workflow.
+      Examples:
+        - examples/hello_world.md: Analyze application errors with semantic extraction.
+        - examples/enrichment.md: Enrich logs through parsing, joins, and LLM operations.
+        - examples/feedback_clustering.md: Cluster customer feedback and summarize themes.
+        - examples/news_analysis.md: Classify editorial bias in news articles.
+        - examples/semantic_joins.md: Match records using natural-language join predicates.
+        - examples/document_extraction.md: Extract typed metadata from documents.
+        - examples/named_entity_recognition.md: Extract security entities from reports.
+        - examples/podcast_summarization.md: Summarize and analyze long podcast transcripts.
+        - examples/meeting_transcript_processing.md: Extract decisions and actions from meetings.
+        - examples/json_processing.md: Process nested JSON with fenic and jq.
+        - examples/markdown_processing.md: Query and transform structured Markdown.
+      Guides:
+        - topics/create_dataframe_schema.md: Create DataFrames with an authoritative schema.
+        - topics/markdown-json.md: Convert Markdown into queryable hierarchical JSON.
+        - topics/fenic-mcp.md: Register DataFrame pipelines as tools and serve them over MCP.
+        - topics/openrouter.md: Configure language models through OpenRouter.
+        - topics/timestamps_and_dates.md: Work with timestamps, dates, and time zones.
+      API reference:
+        - reference/**/*.md
 extra_css:
   - stylesheets/extra.css
 plugins:
+  - meta
   - search
   - section-index
   - mkdocstrings:

@@ -2,7 +2,7 @@
 #  anything when it probably is.
 
 # deploy docs to github pages for the given release version
-docs-deploy version latest="false": docs-setup docs-fetch
+docs-deploy version latest="false": docs-check docs-fetch
   #!/usr/bin/env bash
   set -euo pipefail
   uv run mike deploy \
@@ -10,6 +10,7 @@ docs-deploy version latest="false": docs-setup docs-fetch
     {{ if latest == "true" { "latest" } else { "" } }}
   if [[ "{{ latest }}" == "true" ]]; then
     uv run mike set-default --push latest
+    scripts/publish_docs_root_assets.sh
   fi
 
 # setup docs deps
@@ -30,6 +31,11 @@ docs-serve-mike: docs-setup
 docs-serve:
   uv run --group docs mkdocs serve
 
+# build the canonical latest docs and validate crawler/LLM outputs
+docs-check: docs-setup
+  MIKE_DOCS_VERSION=validation uv run --only-group docs mkdocs build --clean
+  uv run --only-group docs python scripts/validate_docs_site.py site
+
 # list currently deployed docs
 docs-list: docs-setup
   uv run mike list
@@ -38,4 +44,3 @@ docs-list: docs-setup
 [private]
 docs-fetch:
   git fetch origin gh-pages --depth=1
-
