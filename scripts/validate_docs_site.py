@@ -109,10 +109,12 @@ def main() -> None:
         _fail(f"sitemap.xml is missing: {', '.join(sorted(missing_urls))}")
 
     descriptions: Counter[str] = Counter()
+    sitemap_page_paths: set[Path] = set()
     for expected_canonical in urls:
         page_path = _site_path_for_url(site_dir, expected_canonical)
         if not page_path.is_file():
             _fail(f"sitemap URL has no generated page: {expected_canonical}")
+        sitemap_page_paths.add(page_path)
 
         parsed = _parse_head(page_path)
         if parsed.canonical != expected_canonical:
@@ -136,18 +138,15 @@ def main() -> None:
     if duplicate_descriptions:
         _fail("multiple sitemap pages share the same meta description")
 
-    for internal_page in (
-        site_dir / "plans/mcp-search-literal-mode-structure/index.html",
-        site_dir / "td-flow/create-dataframe-schema/design/index.html",
-        site_dir / "td-flow/create-dataframe-schema/plan/index.html",
-        site_dir / "td-flow/create-dataframe-schema/research/index.html",
-        site_dir / "td-flow/create-dataframe-schema/structure/index.html",
-    ):
-        parsed = _parse_head(internal_page)
+    for excluded_page in site_dir.rglob("index.html"):
+        if excluded_page in sitemap_page_paths:
+            continue
+
+        parsed = _parse_head(excluded_page)
         if parsed.robots != "noindex, follow":
-            _fail(f"{internal_page} is not marked noindex, follow")
+            _fail(f"{excluded_page} is not marked noindex, follow")
         if parsed.markdown_alternate:
-            _fail(f"{internal_page} advertises a Markdown alternate")
+            _fail(f"{excluded_page} advertises a Markdown alternate")
 
     required_files = {
         "llms.txt": 500,

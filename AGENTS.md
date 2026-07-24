@@ -38,6 +38,15 @@ PySpark/pandas intuition. _(Developing fenic itself? See `CLAUDE.md`.)_
 - `fc.dt.to_timestamp(col, fmt)` takes **Spark/Java** patterns (`yyyy-MM-dd HH:mm:ss`),
   **not** Python `%`-tokens.
 
+## Documentation maintenance
+
+Authored public documentation pages must be listed under `extra.llms.sections`
+in `mkdocs.yml`; generated API-reference pages are included automatically.
+When adding, renaming, or removing a docs page, update that list or explicitly
+mark the page `llms: false` and `noindex` if it is internal. Run
+`just docs-check` to validate the sitemap, metadata, Markdown alternatives, and
+LLM-facing assets before committing.
+
 ## Full detail
 
 `.claude/skills/fenic-mechanics/` — `SKILL.md` (rules), `gotchas.md` (the
