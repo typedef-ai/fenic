@@ -143,7 +143,7 @@ None.
 **Next step (paste into a fresh tab):**
 
 > Use the `td-implement` skill. Structure is ready at
-> `docs/plans/mcp-search-literal-mode-structure.md` (track: engineering, size: lightweight).
+> `specs/td-flow/mcp-search-literal-mode-structure.md` (track: engineering, size: lightweight).
 > Implement the phases in order. Run `mise install` if needed so the `just` tool from `mise.toml` is on PATH; then use the repo `just` recipes normally. After editing any fenic pipeline examples, run `fenic check <file>`; this plan does not currently require editing fenic pipeline examples.
 
 **Approved decisions:** add `search_mode` to generated Search Content and Search Summary; accepted values are `"regex"` and `"literal"`; default is `"regex"`; regex mode keeps `Column.rlike(...)`; literal mode uses `Column.contains(...)`; server wrapper changes are not expected because generated signatures already flow through FastMCP.
@@ -156,7 +156,7 @@ None.
 ## Implementation Notes
 
 **Implemented head:** `ff6ad44`
-**Spec source:** `docs/plans/mcp-search-literal-mode-structure.md`
+**Spec source:** `specs/td-flow/mcp-search-literal-mode-structure.md`
 **Verification summary:** `uv run --env-file .env pytest tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py` passed with 14 tests; `uv run --env-file .env ruff check src/fenic/api/mcp/_tool_generation_utils.py src/fenic/api/mcp/tools.py tests/api/mcp/test_tool_generation.py tests/api/mcp/test_server.py tests/api/mcp/utils.py` passed. Live generated-callable checks confirmed literal vs regex Search Summary counts and FastMCP `search_mode` schema defaults.
 **Deliberate tradeoffs / rejected approaches:** Kept regex as the default for backward compatibility; reused existing `Column.contains(...)` and `Column.rlike(...)` rather than adding a new expression; left unrelated generated-tool normalization quirks out of scope.
 **Deviations from spec:** None.
