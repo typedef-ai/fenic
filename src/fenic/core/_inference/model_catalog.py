@@ -1023,7 +1023,7 @@ class ModelCatalog:
                 output_token_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                max_temperature=1.0,
+                max_temperature=2.0,
                 supports_custom_temperature=False,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
@@ -1042,7 +1042,7 @@ class ModelCatalog:
                 output_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                max_temperature=1.0,
+                max_temperature=2.0,
                 supports_custom_temperature=False,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
@@ -1254,7 +1254,7 @@ class ModelCatalog:
                 output_token_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                max_temperature=1.0,
+                max_temperature=2.0,
                 supports_custom_temperature=False,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
@@ -1273,7 +1273,7 @@ class ModelCatalog:
                 output_token_cost=2.50 / 1_000_000,  # $2.50 per 1M tokens
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
-                max_temperature=1.0,
+                max_temperature=2.0,
                 supports_custom_temperature=False,
                 supports_reasoning=True,
                 supports_disabled_reasoning=False,
