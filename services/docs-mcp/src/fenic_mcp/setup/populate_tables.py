@@ -32,22 +32,10 @@ def _setup_session(work_dir: str) -> fc.Session:
             llm_response_cache=fc.LLMResponseCacheConfig(ttl="30d"),
             language_models={
                 "mini": fc.OpenAILanguageModel(
-                    model_name="gpt-5-mini",
+                    model_name="gpt-5.4-mini",
                     rpm=2000,
                     tpm=10_000_000,
                 ),
-            },
-            embedding_models={
-                "gemini": fc.GoogleDeveloperEmbeddingModel(
-                    model_name="gemini-embedding-001",
-                    rpm=3000,
-                    tpm=1_000_000,
-                    profiles={
-                        "retrieval": fc.GoogleDeveloperEmbeddingModel.Profile(
-                            task_type="RETRIEVAL_DOCUMENT"
-                        )
-                    },
-                )
             },
             default_language_model="mini",
         ),
@@ -165,7 +153,7 @@ def _extract_api_elements(
 
 
 def _populate_api_df(
-    session: fc.Session, fenic_api: griffe.Module, add_embeddings: bool = False
+    session: fc.Session, fenic_api: griffe.Module
 ) -> DataFrame:
     """Populate the api_df table."""
     logger.info("Extracting API elements...")
@@ -207,12 +195,6 @@ def _populate_api_df(
             parent_class=fc.col("parent_class"),
         ),
     )
-    if add_embeddings:
-        api_df = api_df.with_column(
-            "api_element_embedding", fc.semantic.embed("api_element_summary")
-        )
-    else:
-        logger.info("Skipping embeddings...")
     # Save api_df table
     logger.info("Saving api_df table...")
     api_df.write.save_as_table("api_df", mode="overwrite")
@@ -316,12 +298,12 @@ def _populate_project_context(
     ).write.save_as_table("fenic_project_context", mode="overwrite")
 
 
-def populate_tables(data_dir: str = "./data", add_embeddings: bool = False) -> None:
+def populate_tables(data_dir: str = "./data") -> None:
     """Build and persist every table required by the documentation server."""
     log_fenic_version()
     session = _setup_session(data_dir)
     fenic_api = _load_fenic_api()
-    api_df = _populate_api_df(session, fenic_api, add_embeddings)
+    api_df = _populate_api_df(session, fenic_api)
     hierarchy_df = _populate_hierarchy_df(api_df)
     summary_df = _populate_fenic_summary(api_df)
     _populate_project_context(session, hierarchy_df, summary_df)

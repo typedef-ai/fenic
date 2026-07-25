@@ -1,3 +1,5 @@
+"""Shared Modal image, application, volume, and logging configuration."""
+
 import logging
 import sys
 
@@ -8,7 +10,7 @@ image = (
     modal.Image.debian_slim()
     .pip_install(
         "griffe>=0.42.0",
-        "fenic[google,mcp]>=0.10.0",
+        "fenic[mcp]>=0.10.0",
         "structlog>=24.1.0",
         "modal>=1.1.1",
     )
@@ -19,6 +21,7 @@ volume = modal.Volume.from_name("fenic-mcp-data")
 
 
 def configure_logging() -> structlog.BoundLogger:
+    """Configure structured logging for Modal entrypoints."""
     structlog.configure(
         processors=[
             structlog.stdlib.add_logger_name,
