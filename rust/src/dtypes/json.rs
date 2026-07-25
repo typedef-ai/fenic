@@ -12,7 +12,7 @@ use serde_json::Value;
 pub fn cast_string_to_json(s: &Series) -> PolarsResult<Series> {
     let ca = s.str()?;
     let validated: Vec<Option<&str>> = ca
-        .into_iter()
+        .iter()
         .map(|opt_str| {
             opt_str.and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok().map(|_| s))
         })
@@ -49,7 +49,7 @@ pub fn cast_json_to_fenic_dtype(s: &Series, target_type: &FenicDType) -> PolarsR
 
     // First, parse all JSON strings into Values
     let mut json_values = Vec::with_capacity(ca.len());
-    for opt_json_str in ca.into_iter() {
+    for opt_json_str in ca.iter() {
         let value = match opt_json_str {
             Some(json_str) => match serde_json::from_str::<Value>(json_str) {
                 Ok(json_val) => json_val,

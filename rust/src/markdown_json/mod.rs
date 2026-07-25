@@ -31,7 +31,7 @@ fn md_to_json_expr(inputs: &[Series]) -> PolarsResult<Series> {
     let mut converter = MdAstConverter::new();
 
     let out: Result<Vec<Option<String>>, PolarsError> = ca
-        .into_iter()
+        .iter()
         .map(|opt| match opt {
             Some(markdown) => match converter.convert_markdown(markdown) {
                 Ok(json) => Ok(Some(json)),

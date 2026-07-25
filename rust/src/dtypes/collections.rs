@@ -82,10 +82,10 @@ pub fn cast_array_to_array(
         name.clone(),
     );
 
-    for opt_s in ca.into_iter() {
+    for opt_s in ca.amortized_iter() {
         match opt_s {
             Some(inner) => {
-                let casted = cast_series_to_fenic_dtype(&inner, src_type, dest_type)?;
+                let casted = cast_series_to_fenic_dtype(inner.as_ref(), src_type, dest_type)?;
                 builder.append_series(&casted)?;
             }
             None => builder.append_null(),

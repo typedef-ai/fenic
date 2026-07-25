@@ -130,7 +130,7 @@ mod tests {
         let template = "{{ name }} is {{ age }} years old";
 
         let result = render(&[struct_series], template, true).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Alice is 25 years old"));
         assert_eq!(result_values[1], None);
@@ -152,7 +152,7 @@ mod tests {
         let template = "Hello {{ name }}!";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Hello Alice!"));
         assert_eq!(result_values[1], Some("Hello Bob!"));
@@ -173,7 +173,7 @@ mod tests {
         let template = "{{ name }} is {{ age }} years old";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Alice is 25 years old"));
         assert_eq!(result_values[1], Some("Bob is 30 years old"));
@@ -247,7 +247,7 @@ mod tests {
 
         // Check string-based truthiness
         let result_str = render(&[struct_str], template, false).unwrap();
-        let values_str: Vec<_> = result_str.str().unwrap().into_iter().collect();
+        let values_str: Vec<_> = result_str.str().unwrap().iter().collect();
 
         assert_eq!(
             values_str,
@@ -263,7 +263,7 @@ mod tests {
 
         // Check boolean-based truthiness
         let result_bool = render(&[struct_bool], template, false).unwrap();
-        let values_bool: Vec<_> = result_bool.str().unwrap().into_iter().collect();
+        let values_bool: Vec<_> = result_bool.str().unwrap().iter().collect();
 
         assert_eq!(
             values_bool,
@@ -279,7 +279,7 @@ mod tests {
 
         // Check numeric-based truthiness
         let result_zero = render(&[struct_zero], template, false).unwrap();
-        let values_zero: Vec<_> = result_zero.str().unwrap().into_iter().collect();
+        let values_zero: Vec<_> = result_zero.str().unwrap().iter().collect();
 
         assert_eq!(
             values_zero,
@@ -324,7 +324,7 @@ mod tests {
             "{{ title }}:{% for name in names %} {{ loop.index }}: {{ name }}{% endfor %}";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Team A: 1: Alice 2: Bob 3: Charlie"));
         assert_eq!(result_values[1], Some("Team B: 1: David 2: Eve"));
@@ -367,7 +367,7 @@ mod tests {
         let template = "First color: {{ colors[0] }}, Second number: {{ numbers[1] }}, Fifth number: {{ numbers[5] }}";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(
             result_values[0],
@@ -410,7 +410,7 @@ mod tests {
         let template = "Name: {{ user.name }}, Age: {{ user['age'] }}";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Name: Alice, Age: 25"));
         assert_eq!(result_values[1], Some("Name: none, Age: 30"));
@@ -459,7 +459,7 @@ mod tests {
                 "#};
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(
             result_values[0],
@@ -507,7 +507,7 @@ mod tests {
         let template = "Item 0: {{ items[0] }}, Item 1: {% if items[1] %}{{ items[1] }}{% else %}N/A{% endif %}";
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(result_values[0], Some("Item 0: first, Item 1: second"));
         assert_eq!(result_values[1], Some("Item 0: only, Item 1: N/A"));
@@ -546,7 +546,7 @@ mod tests {
             "};
 
         let result = render(&inputs, template, false).unwrap();
-        let result_values: Vec<Option<&str>> = result.str().unwrap().into_iter().collect();
+        let result_values: Vec<Option<&str>> = result.str().unwrap().iter().collect();
 
         assert_eq!(
             result_values[0],
