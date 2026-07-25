@@ -1,4 +1,11 @@
-# Fenic documentation MCP readiness review
+# Fenic documentation MCP migration readiness review
+
+> Historical review: this document records the imported server's initial
+> posture. Production has since moved to Fenic-native parameterized tools in
+> `services/docs-mcp/src/fenic_mcp/server/native.py`. The vendored FastMCP
+> serving layer, regex validation/search helpers, and serving-time LLM secret
+> attachment have been removed. Current behavior is covered by
+> `services/docs-mcp/tests/test_native_server.py`.
 
 ## Outcome
 

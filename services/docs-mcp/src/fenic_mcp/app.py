@@ -1,11 +1,15 @@
+"""Modal deployment for the hosted Fenic documentation MCP server."""
+
 import os
 import shutil
 import tempfile
 import uuid
 
 import modal
+
+import fenic as fc
 from fenic_mcp.modal_setup import configure_logging, image, volume
-from fenic_mcp.server.mcp import FenicMCP
+from fenic_mcp.server.native import create_native_server
 
 logger = configure_logging()
 
@@ -14,7 +18,6 @@ app = modal.App(name="fenic-docs", image=image)
 
 @app.function(
     volumes={"/root/data": volume},
-    secrets=[modal.Secret.from_name("llm_api_keys")],
     max_containers=5,
     enable_memory_snapshot=True,
     scaledown_window=300,
@@ -23,6 +26,7 @@ app = modal.App(name="fenic-docs", image=image)
 @modal.concurrent(max_inputs=64)
 @modal.asgi_app(custom_domains=["mcp.fenic.ai"])
 def mcp_server():
+    """Create the stateless ASGI application used by the Modal deployment."""
     logger.info("Starting MCP server...")
     # Copy shared DB/data from the mounted volume into a per-container tmp dir
     # to avoid concurrent writes to the same DuckDB file across containers.
@@ -39,5 +43,5 @@ def mcp_server():
     except Exception as e:
         # If copy fails, continue with the mounted volume to avoid downtime
         logger.warning("Falling back to mounted data directory", error=str(e))
-    mcp = FenicMCP().generate_server()
-    return mcp.http_app(path="/", stateless_http=True)
+    server = create_native_server()
+    return fc.run_mcp_server_asgi(server, path="/", stateless_http=True)

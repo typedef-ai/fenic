@@ -8,8 +8,7 @@ image = (
     modal.Image.debian_slim()
     .pip_install(
         "griffe>=0.42.0",
-        "fastmcp>=0.1.0",
-        "fenic[google]>=0.10.0",
+        "fenic[google,mcp]>=0.10.0",
         "structlog>=24.1.0",
         "modal>=1.1.1",
     )

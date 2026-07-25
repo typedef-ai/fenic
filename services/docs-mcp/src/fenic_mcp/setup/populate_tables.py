@@ -9,10 +9,13 @@ import os
 import textwrap
 from typing import Any, Dict, List
 
-import fenic as fc
 import griffe
+
+import fenic as fc
 from fenic.api.dataframe import DataFrame
+from fenic_mcp.server.native import register_docs_tools
 from fenic_mcp.server.utils.session import log_fenic_version
+from fenic_mcp.server.utils.tree_operations import build_tree, tree_to_string
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -290,13 +293,39 @@ def _populate_fenic_summary(api_df: DataFrame) -> DataFrame:
     return project_summary_df
 
 
+def _populate_project_context(
+    session: fc.Session, hierarchy_df: DataFrame, summary_df: DataFrame
+) -> None:
+    """Precompute the small, serving-time context returned by zero-arg tools."""
+    public_hierarchy = hierarchy_df.filter(
+        fc.col("is_public")
+        & (fc.col("type") != "attribute")
+        & ~fc.col("name").starts_with("_")
+    ).select("qualified_name", "name", "type", "depth", "path_parts")
+    api_tree = tree_to_string(build_tree(public_hierarchy.to_pydict()))
+    project_summary = summary_df.to_pylist()[0]["project_summary"]
+    project_overview = (
+        f"## Fenic Project Overview\n\n{project_summary}\n\n"
+        f"## API Tree\n\n{api_tree}"
+    )
+    session.create_dataframe(
+        {
+            "api_tree": [api_tree],
+            "project_overview": [project_overview],
+        }
+    ).write.save_as_table("fenic_project_context", mode="overwrite")
+
+
 def populate_tables(data_dir: str = "./data", add_embeddings: bool = False) -> None:
+    """Build and persist every table required by the documentation server."""
     log_fenic_version()
     session = _setup_session(data_dir)
     fenic_api = _load_fenic_api()
     api_df = _populate_api_df(session, fenic_api, add_embeddings)
-    _ = _populate_hierarchy_df(api_df)
-    _ = _populate_fenic_summary(api_df)
+    hierarchy_df = _populate_hierarchy_df(api_df)
+    summary_df = _populate_fenic_summary(api_df)
+    _populate_project_context(session, hierarchy_df, summary_df)
+    register_docs_tools(session)
 
     logger.info("\nSuccessfully created all required tables:")
     logger.info("- api_df: Contains all API elements with metadata")
@@ -304,6 +333,8 @@ def populate_tables(data_dir: str = "./data", add_embeddings: bool = False) -> N
         "- hierarchy_df: Contains hierarchy information with depth and path parts"
     )
     logger.info("- fenic_summary: Contains project overview")
+    logger.info("- fenic_project_context: Contains precomputed overview and API tree")
+    logger.info("- MCP tools: Contains native parameterized documentation queries")
     session.stop()
 
 

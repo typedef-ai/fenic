@@ -9,7 +9,7 @@ fenic-mcp-data-prep:
 # Fenic MCP - run the MCP server (local)
 [working-directory: 'services/docs-mcp']
 fenic-mcp-server:
-    uv run -m fenic_mcp.server.mcp
+    uv run -m fenic_mcp.server.native
 
 # Fenic MCP - run Data Prep (Modal)
 [working-directory: 'services/docs-mcp']

@@ -5,9 +5,8 @@ description = "MCP documentation server for Fenic"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "fastmcp>=0.1.0",
   "griffe>=0.42.0",
-  "fenic[google]>=0.10.0",
+  "fenic[google,mcp]>=0.10.0",
   "structlog>=24.1.0",
   "modal>=1.1.1",
 ]
@@ -27,7 +26,7 @@ packages = ["src/fenic_mcp"]
 allow-direct-references = true
 
 [dependency-groups]
-dev = ["pytest>=8.4.1"]
+dev = ["pytest>=8.4.1", "pytest-asyncio>=1.1.0"]
 
 [project.scripts]
-fenic-mcp = "fenic_mcp.server.mcp:main"
+fenic-mcp = "fenic_mcp.server.native:main"

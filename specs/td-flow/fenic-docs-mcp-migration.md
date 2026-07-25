@@ -2,7 +2,11 @@
 
 ## Status
 
-Proposed migration with the baseline source import included in this repository.
+Migration implementation and release-automation specification.
+
+The service migration and native MCP implementation are present. The
+release-triggered GitHub Actions workflow described below remains follow-up
+work; releases do not deploy this service automatically yet.
 
 ## Context
 
