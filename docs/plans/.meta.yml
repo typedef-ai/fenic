@@ -1,4 +1,0 @@
-llms: false
-robots: noindex, follow
-search:
-  exclude: true
