@@ -227,6 +227,16 @@ def test_latest_frontier_models_are_registered():
     assert anthropic_opus_48.max_output_tokens == 128_000
     assert not anthropic_opus_48.supports_custom_temperature
 
+    anthropic_opus_5 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-5")
+    assert anthropic_opus_5.input_token_cost == 5.00 / 1_000_000
+    assert anthropic_opus_5.cached_input_token_read_cost == 0.50 / 1_000_000
+    assert anthropic_opus_5.output_token_cost == 25.00 / 1_000_000
+    assert anthropic_opus_5.context_window_length == 1_000_000
+    assert anthropic_opus_5.max_output_tokens == 128_000
+    assert anthropic_opus_5.uses_adaptive_thinking
+    assert anthropic_opus_5.supported_reasoning_efforts == ANTHROPIC_OPUS_4_7_PLUS_EFFORTS
+    assert not anthropic_opus_5.supports_custom_temperature
+
     google_flash = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.5-flash")
     assert google_flash.context_window_length == 1_048_576
     assert google_flash.max_output_tokens == 65_536

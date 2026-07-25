@@ -254,6 +254,7 @@ GoogleDeveloperEmbeddingModelName = Literal[
 AnthropicLanguageModelName = Literal[
     "claude-fable-5",
     "claude-sonnet-5",
+    "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
     "claude-opus-4-6",
@@ -375,6 +376,23 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-5",
+            CompletionModelParameters(
+                input_token_cost=5.00 / 1_000_000,  # $5 per 1M tokens
+                cached_input_token_write_cost=6.25 / 1_000_000,  # $6.25 per 1M tokens
+                cached_input_token_read_cost=0.50 / 1_000_000,  # $0.50 per 1M tokens
+                output_token_cost=25.00 / 1_000_000,  # $25 per 1M tokens
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-fable-5",
