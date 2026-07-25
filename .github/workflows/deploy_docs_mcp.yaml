@@ -1,0 +1,90 @@
+---
+name: deploy docs MCP
+on:
+  workflow_call:
+    inputs:
+      fenic_version:
+        description: Fenic release version, with or without a v prefix
+        required: true
+        type: string
+  workflow_dispatch:
+
+concurrency:
+  group: docs-mcp-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: publish data and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://mcp.fenic.ai/
+    defaults:
+      run:
+        working-directory: services/docs-mcp
+    env:
+      FENIC_RELEASE_INPUT: ${{ inputs.fenic_version || github.ref_name }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+          cache-dependency-glob: services/docs-mcp/uv.lock
+      - name: validate release input
+        id: release
+        run: |
+          version="$(
+            uv run --no-project python -c \
+              'import os; print(os.environ["FENIC_RELEASE_INPUT"].removeprefix("v"))'
+          )"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Fenic release version: $FENIC_RELEASE_INPUT" >&2
+            exit 1
+          fi
+          echo "FENIC_VERSION=$version" >> "$GITHUB_ENV"
+          echo "FENIC_SOURCE_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
+      - name: wait for exact release on PyPI
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent \
+              "https://pypi.org/pypi/fenic/${FENIC_VERSION}/json" >/dev/null; then
+              exit 0
+            fi
+            echo "Release not visible on PyPI yet (attempt $attempt/30)"
+            sleep 10
+          done
+          echo "fenic ${FENIC_VERSION} did not become visible on PyPI" >&2
+          exit 1
+      - name: install service with exact Fenic release
+        run: |
+          uv sync --extra hf --group dev
+          uv pip install "fenic[mcp]==${FENIC_VERSION}"
+          uv run python -c \
+            "from fenic_mcp.release import assert_installed_fenic_version; assert_installed_fenic_version('${FENIC_VERSION}')"
+      - name: export release documentation to Hugging Face
+        run: uv run -m fenic_mcp.hf_export --version "$FENIC_VERSION"
+      - name: verify Hugging Face artifacts
+        run: >-
+          uv run -m fenic_mcp.hf_export
+          --verify-only
+          --version "$FENIC_VERSION"
+      - name: verify MCP contract
+        run: uv run pytest
+      - name: prepare production data on Modal
+        run: uv run modal run -m fenic_mcp.data_prep
+      - name: deploy production MCP server
+        run: uv run modal deploy -m fenic_mcp.app
+      - name: probe production MCP endpoint
+        run: uv run -m fenic_mcp.verify_deployment

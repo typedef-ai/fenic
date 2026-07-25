@@ -28,25 +28,36 @@ After preparing data, run the server at `http://127.0.0.1:8000/mcp`:
 FENIC_DATA_DIR=/path/to/prepared/data uv run fenic-mcp
 ```
 
-## Bumping the fenic version for data prep
+## Release deployment
 
-To update which version of `fenic` the documentation/data-prep uses, you must change it in two places so local runs and Modal runs stay in sync:
+Every tagged Fenic release invokes `.github/workflows/deploy_docs_mcp.yaml` after
+its exact wheel has been published to PyPI. The protected `production`
+environment gates the workflow. It exports and verifies the versioned Hugging
+Face dataset, tests the native MCP contract, prepares the Modal volume, deploys
+an image pinned to `fenic[mcp]==$FENIC_VERSION`, and probes the public endpoint.
 
-- **Update local dependency**: edit `services/docs-mcp/pyproject.toml` and bump the `fenic[...]` spec under `[project].dependencies`.
-- **Update Modal image dependency**: edit `services/docs-mcp/src/fenic_mcp/modal_setup.py` and bump the `fenic[...]` spec in the `.pip_install(...)` list.
+The workflow is also manually dispatchable for safe reruns. Select the release
+tag in GitHub's **Run workflow** branch selector; the version is derived from
+that tag, and existing Hugging Face artifacts are verified and reused.
 
-After updating both:
+Configure these secrets on the GitHub `production` environment:
 
-- **Verify locally**:
+- `HF_TOKEN`: write access to `typedef-ai/fenic-codebase`
+- `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`: deployment access to the Modal app
+- `OPENAI_API_KEY`: project-summary generation during Hugging Face export
+
+Modal must separately contain a secret named `llm_api_keys` with
+`OPENAI_API_KEY`; the remote data-preparation function consumes that secret.
+PyPI publishing uses GitHub OIDC and requires no repository secret.
+
+For local data preparation, the project dependency remains a lower bound:
 
 ```bash
 just fenic-mcp-data-prep
 ```
 
-- **Verify on Modal** (builds the image with the new version):
+To exercise an exact release manually:
 
 ```bash
-just fenic-mcp-data-prep-modal
+FENIC_VERSION=0.10.0 just fenic-mcp-modal-deploy
 ```
-
-The data prep logs include the `fenic` version ("Using fenic version: X.Y.Z"). If local shows the new version but Modal does not, ensure `modal_setup.py` was updated and re-run the Modal command so the image rebuilds.

@@ -24,6 +24,7 @@ from fenic_mcp.setup.populate_tables import (
     _populate_api_df,
     _populate_fenic_summary,
     _populate_hierarchy_df,
+    _populate_release_metadata,
     _setup_session,
 )
 
@@ -32,7 +33,12 @@ logger = logging.getLogger(__name__)
 
 HF_REPO_ID = "typedef-ai/fenic-codebase"
 FENIC_GITHUB_REPO = "typedef-ai/fenic"
-TABLE_NAMES = ["api_df", "hierarchy_df", "fenic_summary"]
+TABLE_NAMES = [
+    "api_df",
+    "hierarchy_df",
+    "fenic_summary",
+    "fenic_release_metadata",
+]
 
 
 def _get_hf_api():
@@ -75,6 +81,8 @@ CONFIG_ENTRY_TEMPLATE = """\
         path: "{version}/hierarchy_df.parquet"
       - split: summary
         path: "{version}/fenic_summary.parquet"
+      - split: metadata
+        path: "{version}/fenic_release_metadata.parquet"
 """
 
 
@@ -156,6 +164,17 @@ def _load_fenic_api_from_source(source_dir: Path) -> griffe.Module:
     return loader.load("fenic")
 
 
+def _get_source_sha(source_dir: Path) -> str:
+    """Return the immutable commit checked out for a cloned release tag."""
+    result = subprocess.run(  # nosec: B603, B607
+        ["git", "-C", str(source_dir), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
 def _export_parquets(session: fc.Session, output_dir: Path) -> None:
     """Export the three tables as parquet files."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -167,18 +186,48 @@ def _export_parquets(session: fc.Session, output_dir: Path) -> None:
 
 
 def _get_existing_versions_on_hf() -> set[str]:
-    """List version directories already present in the HF repo."""
-    try:
-        api = _get_hf_api()
-        files = api.list_repo_files(repo_id=HF_REPO_ID, repo_type="dataset")
-        versions = set()
-        for f in files:
-            parts = f.split("/")
-            if len(parts) >= 2 and parts[1].endswith(".parquet"):
-                versions.add(parts[0])
-        return versions
-    except Exception:
-        return set()
+    """List versions with every expected artifact present in the HF repo."""
+    api = _get_hf_api()
+    files = api.list_repo_files(repo_id=HF_REPO_ID, repo_type="dataset")
+    artifacts_by_version: dict[str, set[str]] = {}
+    for filename in files:
+        parts = filename.split("/")
+        if len(parts) >= 2 and parts[1].endswith(".parquet"):
+            artifacts_by_version.setdefault(parts[0], set()).add(parts[1])
+    expected_artifacts = {f"{table_name}.parquet" for table_name in TABLE_NAMES}
+    return {
+        version
+        for version, artifacts in artifacts_by_version.items()
+        if expected_artifacts <= artifacts
+    }
+
+
+def verify_version_on_hf(version: str) -> None:
+    """Download every expected artifact to prove the published version is readable."""
+    from huggingface_hub import hf_hub_download
+
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN environment variable is not set")
+
+    revision = _get_hf_api().repo_info(
+        repo_id=HF_REPO_ID, repo_type="dataset"
+    ).sha
+    for table_name in TABLE_NAMES:
+        filename = f"{version}/{table_name}.parquet"
+        local_path = Path(
+            hf_hub_download(  # nosec: B615 revision is the resolved repo commit SHA.
+                repo_id=HF_REPO_ID,
+                filename=filename,
+                repo_type="dataset",
+                token=token,
+                revision=revision,
+                force_download=True,
+            )
+        )
+        if local_path.stat().st_size == 0:
+            raise RuntimeError(f"Hugging Face artifact is empty: {filename}")
+        logger.info(f"Verified readable Hugging Face artifact: {filename}")
 
 
 def _upload_to_hf(local_dir: Path, version: str) -> None:
@@ -261,6 +310,11 @@ def process_version(
                 api_df = _populate_api_df(session, fenic_api)
                 _populate_hierarchy_df(api_df)
                 _populate_fenic_summary(api_df)
+                _populate_release_metadata(
+                    session,
+                    version,
+                    _get_source_sha(clone_dir),
+                )
                 _export_parquets(session, output_dir)
             finally:
                 session.stop()
@@ -275,7 +329,7 @@ def process_version(
 
 
 def main() -> None:
-    """Run the command-line documentation exporter."""
+    """Run the command-line exporter or artifact verifier."""
     parser = argparse.ArgumentParser(
         description="Export Fenic API documentation to HuggingFace as parquet files.",
     )
@@ -301,6 +355,11 @@ def main() -> None:
         help="Overwrite existing versions on HuggingFace",
     )
     parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Verify that each requested version is readable without exporting",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -323,6 +382,11 @@ def main() -> None:
         logger.error("No versions to process")
         sys.exit(1)
 
+    if args.verify_only:
+        for version in versions:
+            verify_version_on_hf(version)
+        return
+
     # Set up output directory
     if args.output_dir:
         output_base = args.output_dir
@@ -337,16 +401,17 @@ def main() -> None:
         cleanup_output = True
 
     processed = []
+    failures = []
     for version in versions:
         try:
             if process_version(version, output_base, args.dry_run, args.force):
                 processed.append(version)
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to clone version {version}: {e.stderr}")
-            continue
+            failures.append(version)
         except Exception as e:
             logger.error(f"Failed to process version {version}: {e}")
-            continue
+            failures.append(version)
 
     # Update README with all version configs (existing + newly processed)
     if not args.dry_run and processed:
@@ -365,6 +430,9 @@ def main() -> None:
         import shutil
 
         shutil.rmtree(output_base, ignore_errors=True)
+
+    if failures:
+        raise SystemExit(f"Failed to export version(s): {', '.join(failures)}")
 
 
 if __name__ == "__main__":

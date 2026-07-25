@@ -1,0 +1,45 @@
+---
+name: docs MCP check
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - .github/workflows/build_and_release.yaml
+      - .github/workflows/deploy_docs_mcp.yaml
+      - .github/workflows/docs_mcp_check.yaml
+      - services/docs-mcp/**
+      - src/fenic/**
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: native service contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/docs-mcp
+    steps:
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: setup uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+          cache-dependency-glob: services/docs-mcp/uv.lock
+      - name: install service
+        run: uv sync --group dev
+      - name: test native MCP tools
+        run: uv run pytest
+      - name: statically check Fenic pipelines
+        run: |
+          uv run fenic check src/fenic_mcp/setup/populate_tables.py
+          uv run fenic check src/fenic_mcp/server/native.py

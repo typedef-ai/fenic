@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """Populate the documentation tables required for the MCP server.
 
-This script creates three tables: api_df, hierarchy_df, and fenic_summary.
+This script creates the API, hierarchy, summary, serving context, and release
+provenance tables.
 """
 
 import logging
 import os
 import textwrap
+from importlib.metadata import version as package_version
 from typing import Any, Dict, List
 
 import griffe
@@ -298,15 +300,40 @@ def _populate_project_context(
     ).write.save_as_table("fenic_project_context", mode="overwrite")
 
 
+def _populate_release_metadata(
+    session: fc.Session,
+    fenic_version: str,
+    source_sha: str,
+) -> None:
+    """Persist provenance for the documentation catalog."""
+    session.create_dataframe(
+        {
+            "fenic_version": [fenic_version],
+            "source_sha": [source_sha],
+        }
+    ).write.save_as_table("fenic_release_metadata", mode="overwrite")
+
+
 def populate_tables(data_dir: str = "./data") -> None:
     """Build and persist every table required by the documentation server."""
     log_fenic_version()
+    fenic_version = package_version("fenic")
+    expected_version = os.environ.get("FENIC_VERSION")
+    if expected_version and fenic_version != expected_version:
+        raise RuntimeError(
+            f"Expected fenic {expected_version}, but data prep loaded {fenic_version}"
+        )
     session = _setup_session(data_dir)
     fenic_api = _load_fenic_api()
     api_df = _populate_api_df(session, fenic_api)
     hierarchy_df = _populate_hierarchy_df(api_df)
     summary_df = _populate_fenic_summary(api_df)
     _populate_project_context(session, hierarchy_df, summary_df)
+    _populate_release_metadata(
+        session,
+        fenic_version,
+        os.environ.get("FENIC_SOURCE_SHA", "local"),
+    )
     register_docs_tools(session)
 
     logger.info("\nSuccessfully created all required tables:")
@@ -316,6 +343,7 @@ def populate_tables(data_dir: str = "./data") -> None:
     )
     logger.info("- fenic_summary: Contains project overview")
     logger.info("- fenic_project_context: Contains precomputed overview and API tree")
+    logger.info("- fenic_release_metadata: Contains release version and source commit")
     logger.info("- MCP tools: Contains native parameterized documentation queries")
     session.stop()
 
