@@ -66,7 +66,7 @@ docs = [
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.106.0"]
-google = ["google-genai[local-tokenizer]>=1.56.0"]
+google = ["google-genai[local-tokenizer]>=2.13.0"]
 cohere = ["cohere>=5.16.1"]
 cluster = ["scikit-learn>=1.7.1"]
 pdf = ["pymupdf>=1.26.4"]

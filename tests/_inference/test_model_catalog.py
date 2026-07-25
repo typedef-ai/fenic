@@ -231,6 +231,24 @@ def test_latest_frontier_models_are_registered():
     assert google_flash.context_window_length == 1_048_576
     assert google_flash.max_output_tokens == 65_536
 
+    google_36_flash = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.6-flash")
+    assert google_36_flash.input_token_cost == 1.50 / 1_000_000
+    assert google_36_flash.output_token_cost == 7.50 / 1_000_000
+    assert google_36_flash.cached_input_token_read_cost == 0.15 / 1_000_000
+    assert not google_36_flash.supports_custom_temperature
+
+    google_35_flash_lite = catalog.get_completion_model_parameters(
+        ModelProvider.GOOGLE_DEVELOPER, "gemini-3.5-flash-lite"
+    )
+    assert google_35_flash_lite.input_token_cost == 0.30 / 1_000_000
+    assert google_35_flash_lite.output_token_cost == 2.50 / 1_000_000
+    assert google_35_flash_lite.cached_input_token_read_cost == 0.03 / 1_000_000
+    assert not google_35_flash_lite.supports_custom_temperature
+
+    for provider in (ModelProvider.GOOGLE_DEVELOPER, ModelProvider.GOOGLE_VERTEX):
+        for model_name in ("gemini-3.6-flash", "gemini-3.5-flash-lite"):
+            assert catalog.get_completion_model_parameters(provider, model_name).max_temperature == 2.0
+
     google_flash_lite = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-flash-lite")
     assert google_flash_lite.context_window_length == 1_048_576
 
