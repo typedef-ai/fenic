@@ -180,8 +180,12 @@ class AnthropicBatchCompletionsClient(
         if request.structured_output:
             tool_param = self.create_response_format_tool(request.structured_output)
             messages_creation_payload.update({"tools": [tool_param]})
-            if not profile_configuration.thinking_enabled:
-                # Anthropic does not allow forced tool use if thinking is enabled.
+            if (
+                not profile_configuration.thinking_enabled
+                or profile_configuration.uses_adaptive_thinking
+            ):
+                # Forced tool choice is incompatible with manual extended thinking,
+                # but is supported with adaptive thinking.
                 messages_creation_payload.update(
                     {
                         "tool_choice": ToolChoiceToolParam(
