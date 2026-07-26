@@ -71,17 +71,18 @@ OpenRouter profiles support the following configuration options:
 
 ## Structured outputs with OpenRouter
 
-OpenRouter exposes multiple ways to request structured outputs, but support varies by model/provider. Frontier models (Anthropic, OpenAI, Gemini) have consistent support for structured outputs and will generally perform the same
-as if one were using the provider's native client. Non-Frontier models can very wildly, depending on the size/quality of the model, the model's capabilities, and the quality of the provider's inference harness. When selecting a model for
-a _fenic_ use case involving structured outputs, consider using a frontier or other popular model family (LLama3/4, Mistral, etc.). The more esoteric the choice of model, the less guarunteed your results will be.
+OpenRouter exposes multiple ways to request structured outputs, but support varies by model and provider. Frontier models (Anthropic, OpenAI, Gemini) generally behave similarly to their native clients. Other models can vary widely depending on the model's capabilities and the provider's inference harness. For _fenic_ use cases involving structured outputs, prefer a frontier or another widely used model family (Llama 3/4, Mistral, etc.).
 
 1. **Pydantic Structured Outputs (via Response Format)** [Available when the target model lists `structured_outputs` in its `supported_parameters`]
    - This option is generally preferred, the JSON Schema corresponding to the provided Pydantic Model is sent to the model, which constrains its output to JSON and (in theory) coerces the response into the proper format.
 
-2. **Forced Tool Calling (w/JSON Schema)**
-   - If the model supports tool calling but not structured outputs, we achieve a similar result by asking the model to return a tool call with a specific json format for the input, which is derived from the provided Pydantic model.
+2. **Forced Tool Calling (with JSON Schema)** [Available when the target model lists both `tools` and `tool_choice` in its `supported_parameters`]
+   - If native structured outputs are unavailable, or the profile uses `structured_output_strategy="prefer_tools"`, _fenic_ registers an `output_formatter` tool whose arguments follow the Pydantic model's JSON Schema and explicitly forces the model to call that tool.
+   - Merely listing a tool is not sufficient: OpenRouter otherwise defaults `tool_choice` to `auto`, which allows the model to return ordinary text instead of the required structured result.
 
-If no providers for the model support either `structured_outputs` or `tools`, and a semantic operation that requires structured output (like `semantic.extract`) is used, _fenic_ will fail fast before starting to send requests.
+If the model does not support native `structured_outputs` or the combination of `tools` and `tool_choice`, and a semantic operation that requires structured output (such as `semantic.extract`) is used, _fenic_ fails fast before sending requests.
+
+Forced tool choice is incompatible with manual extended thinking on Anthropic models. Through OpenRouter, manual thinking includes profiles with `reasoning_max_tokens` and effort-based reasoning on older Claude models that do not support adaptive thinking. In those cases, _fenic_ uses native structured outputs when they are available; otherwise, it fails fast with configuration guidance. Adaptive thinking supports forced tool choice.
 
 ## Rate limiting
 

@@ -70,7 +70,7 @@ def mock_openrouter_models(monkeypatch):
                 "context_length": 128_000,
                 "max_completion_tokens": 16_384,
             },
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "frequency_penalty", "presence_penalty", "stop", "logit_bias", "seed", "logprobs", "top_logprobs", "response_format", "structured_output"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "frequency_penalty", "presence_penalty", "stop", "logit_bias", "seed", "logprobs", "top_logprobs", "response_format", "structured_outputs"],
         },
         {
             "id": "openai/gpt-5",
@@ -83,7 +83,7 @@ def mock_openrouter_models(monkeypatch):
                 "max_completion_tokens": 128_000,
             },
             # Include reasoning/verbosity but omit temperature to match base flags
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "response_format", "structured_output", "reasoning", "verbosity"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "response_format", "structured_outputs", "reasoning", "verbosity"],
         },
         {
             "id": "anthropic/claude-sonnet-4",
@@ -108,7 +108,7 @@ def mock_openrouter_models(monkeypatch):
                 "context_length": 1_048_576,
                 "max_completion_tokens": 65_536,
             },
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output", "reasoning"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_outputs", "reasoning"],
         },
         {
             "id": "google/gemini-2.5-pro",
@@ -120,7 +120,7 @@ def mock_openrouter_models(monkeypatch):
                 "context_length": 1_048_576,
                 "max_completion_tokens": 65_536,
             },
-            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_output", "reasoning"],
+            "supported_parameters": ["tools", "tool_choice", "max_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "top_logprobs", "response_format", "structured_outputs", "reasoning"],
         },
     ]
 

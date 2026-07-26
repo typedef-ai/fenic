@@ -34,20 +34,30 @@ from fenic._inference.types import (
     FenicCompletionsResponse,
     ResponseUsage,
 )
-from fenic.core._inference.model_catalog import ModelProvider, model_catalog
+from fenic.core._inference.model_catalog import (
+    CompletionModelParameters,
+    ModelProvider,
+    model_catalog,
+)
 from fenic.core._inference.output_token_limits import (
     OPENROUTER_REASONING_EFFORT_RATIOS,
     validate_effective_output_token_limit,
 )
 from fenic.core._resolved_session_config import ResolvedAdaptiveTokenEstimationConfig
-from fenic.core.error import ConfigurationError, ValidationError
+from fenic.core.error import ConfigurationError, ExecutionError, ValidationError
 from fenic.core.metrics import LMMetrics
 
 TOOLS = "tools"
 
+TOOL_CHOICE = "tool_choice"
+
 STRUCTURED_OUTPUTS = "structured_outputs"
 
 RESPONSE_FORMAT = "response_format"
+
+OUTPUT_FORMATTER_TOOL_NAME = "output_formatter"
+
+ANTHROPIC_STRUCTURED_OUTPUTS_BETA_HEADER = "structured-outputs-2025-11-13"
 logger = logging.getLogger(__name__)
 
 
@@ -137,46 +147,85 @@ class OpenRouterBatchChatCompletionsClient(
         if request.temperature and self._model_parameters.supports_custom_temperature:
             common_params.update({"temperature": request.temperature})
 
+        used_tools = False
         try:
             if request.structured_output:
-                strategy = (
-                    self._profile_manager.get_profile_by_name(request.model_profile).structured_output_strategy
-                    or "prefer_response_format"
-                )
+                strategy = profile.structured_output_strategy or "prefer_response_format"
                 supports_structured = STRUCTURED_OUTPUTS in self._model_parameters.supported_parameters
                 supports_tools = TOOLS in self._model_parameters.supported_parameters
-                if supports_structured and supports_tools:
+                supports_tool_choice = (
+                    TOOL_CHOICE in self._model_parameters.supported_parameters
+                )
+                can_force_tools = supports_tools and supports_tool_choice
+                uses_incompatible_manual_thinking = (
+                    self._uses_incompatible_anthropic_manual_thinking(profile)
+                )
+                can_use_tools = (
+                    can_force_tools and not uses_incompatible_manual_thinking
+                )
+
+                if supports_structured and can_use_tools:
                     use_tools = strategy == "prefer_tools"
                 else:
-                    use_tools = supports_tools and not supports_structured
+                    use_tools = can_use_tools and not supports_structured
+
+                if (
+                    strategy == "prefer_tools"
+                    and supports_structured
+                    and supports_tools
+                    and not can_use_tools
+                ):
+                    logger.debug(
+                        "Model %s cannot guarantee structured output with forced "
+                        "tool calling for the selected profile. Falling back to "
+                        "native structured outputs.",
+                        self.model,
+                    )
 
                 if supports_structured and not use_tools:
                     common_params[RESPONSE_FORMAT] = request.structured_output.pydantic_model
                     response = await self._aio_client.chat.completions.parse(
                         **common_params, extra_body=profile.extra_body
                     )
-                elif supports_tools:
-                    response_schema = request.structured_output.json_schema
+                elif can_use_tools:
+                    used_tools = True
+                    response_schema = dict(request.structured_output.json_schema)
                     response_schema["additionalProperties"] = False
                     common_params[TOOLS] = [
                         {
                             "type": "function",
                             "function": {
-                                "name": "output_formatter",
+                                "name": OUTPUT_FORMATTER_TOOL_NAME,
                                 "description": "Format the output of the model to correspond strictly to the provided schema.",
-                                "parameters": request.structured_output.json_schema,
+                                "parameters": response_schema,
                                 "strict": True,
                             },
                         }
                     ]
+                    common_params[TOOL_CHOICE] = {
+                        "type": "function",
+                        "function": {"name": OUTPUT_FORMATTER_TOOL_NAME},
+                    }
+                    request_options = {}
+                    if self._can_enable_anthropic_strict_tools(profile):
+                        request_options["extra_headers"] = {
+                            "x-anthropic-beta": (
+                                ANTHROPIC_STRUCTURED_OUTPUTS_BETA_HEADER
+                            )
+                        }
                     response = await self._aio_client.chat.completions.create(
-                        **common_params, extra_body=profile.extra_body
+                        **common_params,
+                        extra_body=profile.extra_body,
+                        **request_options,
                     )
                 else:
                     return FatalException(
-                        ConfigurationError(
-                            f"Model {self.model} does not support structured outputs, or tool calling, but the current "
-                            f"request requires an output format. Select a different model that supports `structured_outputs`, or `tools`"
+                        self._structured_output_configuration_error(
+                            supports_tools=supports_tools,
+                            supports_tool_choice=supports_tool_choice,
+                            uses_incompatible_manual_thinking=(
+                                uses_incompatible_manual_thinking
+                            ),
                         )
                     )
             else:
@@ -193,6 +242,7 @@ class OpenRouterBatchChatCompletionsClient(
             )
             if maybe_exception:
                 return maybe_exception
+
             usage = response.usage
             cached_input_tokens = (
                 usage.prompt_tokens_details.cached_tokens
@@ -235,11 +285,50 @@ class OpenRouterBatchChatCompletionsClient(
                     output_tokens=total_output_tokens,
                 )
 
-            # If we used tool calls to generate the structured output, retrieve the content from the function args.
-            if request.structured_output and completion_choice.message.tool_calls:
-                completion = completion_choice.message.tool_calls[0].function.arguments
+            if used_tools:
+                tool_calls = completion_choice.message.tool_calls or []
+                if len(tool_calls) != 1:
+                    return TransientException(
+                        ExecutionError(
+                            f"The completion model {self.model_provider}/{self.model} "
+                            f"returned {len(tool_calls)} tool calls for a structured "
+                            "output request; expected exactly one call to "
+                            f"{OUTPUT_FORMATTER_TOOL_NAME}."
+                        )
+                    )
+                tool_call = tool_calls[0]
+                tool_function = getattr(tool_call, "function", None)
+                if (
+                    getattr(tool_call, "type", None) != "function"
+                    or tool_function is None
+                ):
+                    return TransientException(
+                        ExecutionError(
+                            f"The completion model {self.model_provider}/{self.model} "
+                            f"returned a {getattr(tool_call, 'type', None)!r} tool "
+                            "call for a structured output request; expected a "
+                            f"function call to {OUTPUT_FORMATTER_TOOL_NAME!r}."
+                        )
+                    )
+                tool_name = getattr(tool_function, "name", None)
+                if tool_name != OUTPUT_FORMATTER_TOOL_NAME:
+                    return TransientException(
+                        ExecutionError(
+                            f"The completion model {self.model_provider}/{self.model} "
+                            f"called {tool_name!r} for a structured output "
+                            f"request; expected {OUTPUT_FORMATTER_TOOL_NAME!r}."
+                        )
+                    )
+                validated_output = (
+                    request.structured_output.pydantic_model.model_validate_json(
+                        getattr(tool_function, "arguments", None),
+                        strict=True,
+                    )
+                )
+                completion = validated_output.model_dump_json(by_alias=True)
             else:
                 completion = completion_choice.message.content
+
             return FenicCompletionsResponse(
                 completion=completion,
                 logprobs=completion_choice.logprobs,
@@ -260,6 +349,95 @@ class OpenRouterBatchChatCompletionsClient(
             return TransientException(e)
         except OpenAIError as e:
             return FatalException(e)
+
+    def _uses_incompatible_anthropic_manual_thinking(
+        self,
+        profile: OpenRouterCompletionProfileConfiguration,
+    ) -> bool:
+        """Return whether forced tools conflict with Anthropic manual thinking."""
+        anthropic_models = [
+            model
+            for model in [self.model, *(profile.models or [])]
+            if self._is_anthropic_model(model)
+        ]
+        if not anthropic_models:
+            return False
+        if profile.reasoning_max_tokens is not None:
+            return True
+        thinking_enabled = profile.reasoning_effort not in (None, "none")
+        if not thinking_enabled:
+            return False
+        for model in anthropic_models:
+            parameters = self._get_model_parameters(model)
+            if parameters is None or not parameters.uses_adaptive_thinking:
+                return True
+        return False
+
+    def _can_enable_anthropic_strict_tools(
+        self,
+        profile: OpenRouterCompletionProfileConfiguration,
+    ) -> bool:
+        """Return whether strict tools are supported by all Anthropic candidates."""
+        anthropic_models = [
+            model
+            for model in [self.model, *(profile.models or [])]
+            if self._is_anthropic_model(model)
+        ]
+        if not anthropic_models:
+            return False
+        for model in anthropic_models:
+            parameters = self._get_model_parameters(model)
+            if (
+                parameters is None
+                or STRUCTURED_OUTPUTS not in parameters.supported_parameters
+            ):
+                return False
+        return True
+
+    def _get_model_parameters(
+        self,
+        model: str,
+    ) -> Optional[CompletionModelParameters]:
+        """Return cached OpenRouter parameters for a primary or fallback model."""
+        if model == self.model:
+            return self._model_parameters
+        return model_catalog.get_completion_model_parameters(
+            ModelProvider.OPENROUTER,
+            model,
+        )
+
+    @staticmethod
+    def _is_anthropic_model(model: str) -> bool:
+        """Return whether an OpenRouter model ID targets Anthropic."""
+        return model.removeprefix("~").startswith("anthropic/")
+
+    def _structured_output_configuration_error(
+        self,
+        *,
+        supports_tools: bool,
+        supports_tool_choice: bool,
+        uses_incompatible_manual_thinking: bool,
+    ) -> ConfigurationError:
+        """Build an actionable error for an unavailable structured-output strategy."""
+        if supports_tools and not supports_tool_choice:
+            return ConfigurationError(
+                f"Model {self.model} supports tools but not `tool_choice`, so "
+                "fenic cannot force the formatter required for structured output. "
+                "Select a model that supports `structured_outputs`, or both `tools` "
+                "and `tool_choice`."
+            )
+        if supports_tools and uses_incompatible_manual_thinking:
+            return ConfigurationError(
+                f"Model {self.model} cannot combine forced tool calling with "
+                "Anthropic manual thinking for structured output. Disable reasoning "
+                "for this profile, use adaptive thinking, or select a model that "
+                "supports native `structured_outputs`."
+            )
+        return ConfigurationError(
+            f"Model {self.model} does not support a guaranteed structured-output "
+            "strategy. Select a model that supports `structured_outputs`, or both "
+            "`tools` and `tool_choice`."
+        )
 
     def estimate_tokens_for_request(
         self, request: FenicCompletionsRequest
