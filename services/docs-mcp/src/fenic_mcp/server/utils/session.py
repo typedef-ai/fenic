@@ -1,14 +1,18 @@
+"""Fenic session lifecycle helpers for the hosted service."""
+
 import os
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
 
-import fenic as fc
 import structlog
+
+import fenic as fc
 
 logger = structlog.get_logger(__name__)
 
 
-def create_session():
+def create_session() -> fc.Session:
+    """Open the persisted documentation catalog."""
     # Determine data directory: prefer FENIC_DATA_DIR, otherwise default to ./data
     work_dir = os.environ.get("FENIC_DATA_DIR") or "./data"
     logger.info(f"Using Fenic data directory: {work_dir}")

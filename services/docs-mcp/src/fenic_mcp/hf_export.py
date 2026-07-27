@@ -17,8 +17,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-import fenic as fc
 import griffe
+
+import fenic as fc
 from fenic_mcp.setup.populate_tables import (
     _populate_api_df,
     _populate_fenic_summary,
@@ -274,6 +275,7 @@ def process_version(
 
 
 def main() -> None:
+    """Run the command-line documentation exporter."""
     parser = argparse.ArgumentParser(
         description="Export Fenic API documentation to HuggingFace as parquet files.",
     )
