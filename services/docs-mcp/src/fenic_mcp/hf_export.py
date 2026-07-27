@@ -389,7 +389,7 @@ def main() -> None:
 
     # Set up output directory
     if args.output_dir:
-        output_base = args.output_dir
+        output_base = args.output_dir.resolve()
         output_base.mkdir(parents=True, exist_ok=True)
         cleanup_output = False
     elif args.dry_run:
