@@ -47,6 +47,7 @@ from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._resolved_session_config import ResolvedAdaptiveTokenEstimationConfig
+from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
 
 # Type variables
@@ -462,7 +463,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         logger.info(
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
-        return self._make_batch_requests(requests, operation_name, batch_id, request_timeout=request_timeout)
+        try:
+            return self._make_batch_requests(requests, operation_name, batch_id, request_timeout=request_timeout)
+        except Exception as e:
+            # Model clients are invoked from Polars Python callbacks. Provider SDK
+            # exceptions may require constructor arguments beyond their message
+            # (for example, OpenAI APIStatusError requires response and body),
+            # which Polars cannot preserve when propagating the error. Normalize
+            # the public error while retaining the provider exception as its cause.
+            raise ExecutionError(str(e)) from e
 
     #
     # Producer methods (run on the user thread)

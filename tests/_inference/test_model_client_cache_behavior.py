@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional, Union
 
+import pytest
+
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
 from fenic._inference.model_client import (
     FatalException,
@@ -15,6 +17,7 @@ from fenic._inference.types import (
 )
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
+from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics, RMMetrics
 
 
@@ -213,6 +216,22 @@ class ProfileAwareCompletionClient(DummyCompletionClient):
         return self._profile_hash_value
 
 
+class ProviderStatusError(Exception):
+    """Models SDK exceptions that require context beyond their message."""
+
+    def __init__(self, message: str, *, response: object, body: object) -> None:
+        super().__init__(message)
+        self.response = response
+        self.body = body
+
+
+class FailingCompletionClient(DummyCompletionClient):
+    async def make_single_request(
+        self, request: FenicCompletionsRequest
+    ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
+        return FatalException(ProviderStatusError("Error code: 400", response=object(), body={}))
+
+
 def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     messages = LMRequestMessages(system="system", examples=[], user=prompt)
     return FenicCompletionsRequest(
@@ -279,3 +298,14 @@ def test_profile_hash_changes_cache_key():
     assert client.call_count == first_calls + 1
     assert len(fake_cache.store) == first_store_size + 1
 
+
+def test_provider_errors_are_normalized_before_crossing_polars_boundary():
+    client = FailingCompletionClient()
+
+    try:
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            client.make_batch_requests([_make_completion_request("Hi Alice")], "completion-test")
+
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.shutdown()

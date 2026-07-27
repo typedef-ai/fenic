@@ -8,7 +8,6 @@ from fenic.core._inference.model_catalog import model_catalog
 from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
 )
-from fenic.core.error import ExecutionError
 from fenic.core.metrics import RMMetrics
 
 
@@ -31,15 +30,7 @@ class EmbeddingModel:
                 requests.append(FenicEmbeddingsRequest(doc, model_profile))
             else:
                 requests.append(None)
-        try:
-            results = self.client.make_batch_requests(requests, operation_name="semantic.embed")
-        except Exception as e:
-            # This method is called from a Polars Python callback. Some provider SDK
-            # exceptions cannot be reconstructed from their message by that boundary
-            # (for example, OpenAI APIStatusError also requires response and body).
-            # Normalize the public error while retaining the provider exception as
-            # its cause for Python callers and debugging.
-            raise ExecutionError(str(e)) from e
+        results = self.client.make_batch_requests(requests, operation_name="semantic.embed")
         output_dimensions = self.model_parameters.default_dimensions
         if results:
             output_dimensions = len(results[0])
