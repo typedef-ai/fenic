@@ -82,6 +82,10 @@ class OpenRouterModelProvider(ModelProviderClass):
     ) -> Optional[CompletionModelParameters]:
         pricing = model_obj.get("pricing") or {}
         top_provider = model_obj.get("top_provider") or {}
+        model_id = model_obj.get("id")
+        reasoning = model_obj.get("reasoning") or {}
+        if not isinstance(reasoning, dict):
+            reasoning = {}
 
         try:
             input_cost = float(pricing.get("prompt", 0.0))
@@ -116,6 +120,14 @@ class OpenRouterModelProvider(ModelProviderClass):
         )
         supports_custom_temperature = "temperature" in supported_params
         supports_verbosity = "verbosity" in supported_params
+        uses_adaptive_thinking = (
+            isinstance(model_id, str)
+            and model_id.removeprefix("~").startswith("anthropic/")
+            and bool(reasoning.get("supported_efforts"))
+        )
+        requires_adaptive_thinking = (
+            uses_adaptive_thinking and reasoning.get("mandatory") is True
+        )
 
         return CompletionModelParameters(
             input_token_cost=input_cost,
@@ -125,6 +137,8 @@ class OpenRouterModelProvider(ModelProviderClass):
             cached_input_token_read_cost=cached_read_cost,
             supports_profiles=True,
             supports_reasoning=supports_reasoning,
+            uses_adaptive_thinking=uses_adaptive_thinking,
+            requires_adaptive_thinking=requires_adaptive_thinking,
             supports_custom_temperature=supports_custom_temperature,
             supports_verbosity=supports_verbosity,
             supports_pdf_parsing=True, # Even if the model doesn't support pdf file processing, OpenRouter can use its separate processing engines
