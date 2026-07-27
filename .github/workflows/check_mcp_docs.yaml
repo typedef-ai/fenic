@@ -6,7 +6,7 @@ on:
     paths:
       - .github/workflows/build_and_release.yaml
       - .github/workflows/deploy_docs_mcp.yaml
-      - .github/workflows/docs_mcp_check.yaml
+      - .github/workflows/check_mcp_docs.yaml
       - services/docs-mcp/**
       - src/fenic/**
   workflow_dispatch:

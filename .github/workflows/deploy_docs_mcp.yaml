@@ -71,20 +71,20 @@ jobs:
         run: |
           uv sync --extra hf --group dev
           uv pip install "fenic[mcp]==${FENIC_VERSION}"
-          uv run python -c \
+          uv run --no-sync python -c \
             "from fenic_mcp.release import assert_installed_fenic_version; assert_installed_fenic_version('${FENIC_VERSION}')"
       - name: export release documentation to Hugging Face
-        run: uv run -m fenic_mcp.hf_export --version "$FENIC_VERSION"
+        run: uv run --no-sync -m fenic_mcp.hf_export --version "$FENIC_VERSION"
       - name: verify Hugging Face artifacts
         run: >-
-          uv run -m fenic_mcp.hf_export
+          uv run --no-sync -m fenic_mcp.hf_export
           --verify-only
           --version "$FENIC_VERSION"
       - name: verify MCP contract
-        run: uv run pytest
+        run: uv run --no-sync pytest
       - name: prepare production data on Modal
-        run: uv run modal run -m fenic_mcp.data_prep
+        run: uv run --no-sync modal run -m fenic_mcp.data_prep
       - name: deploy production MCP server
-        run: uv run modal deploy -m fenic_mcp.app
+        run: uv run --no-sync modal deploy -m fenic_mcp.app
       - name: probe production MCP endpoint
-        run: uv run -m fenic_mcp.verify_deployment
+        run: uv run --no-sync -m fenic_mcp.verify_deployment
