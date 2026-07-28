@@ -62,7 +62,7 @@ fn text_chunk_expr(inputs: &[Series], kwargs: TextChunkKwargs) -> PolarsResult<S
 
     let mut builder = ListStringChunkedBuilder::new("chunks".into(), ca.len(), capacity);
 
-    for opt_val in ca {
+    for opt_val in ca.iter() {
         match opt_val {
             Some(val) => {
                 let chunks = chunker
@@ -91,7 +91,7 @@ fn count_tokens(inputs: &[Series]) -> PolarsResult<Series> {
     )
     .map_err(|e| PolarsError::ComputeError(e.to_string().into()))?;
     let counts = ca
-        .into_iter()
+        .iter()
         .map(|opt| match opt {
             Some(s) => chunker
                 .chunk_length(s)

@@ -60,7 +60,7 @@ fn ts_parse_expr(inputs: &[Series], kwargs: TranscriptFormatKwargs) -> PolarsRes
 
     // Process each row: if parsing fails (or returns no entries), return an empty list.
     let out_values: Result<Vec<Option<AnyValue<'_>>>, PolarsError> = ca
-        .into_iter()
+        .iter()
         .map(|opt| {
             match opt {
                 Some(val) => {

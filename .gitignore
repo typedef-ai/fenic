@@ -185,6 +185,7 @@ cython_debug/
 .cursorindexingignore
 
 # fenic specific
+.context/
 *.duckdb
 *.duckdb.wal
 .codegraph

@@ -25,8 +25,9 @@ lint:
     - renovate@41.93.2
     - shellcheck@0.11.0
     - shfmt@3.6.0
-    - rustfmt@1.87.0
-    - clippy@1.87.0
+    # Polars 0.54.4 uses a Rust 1.95 array-length inference feature.
+    - rustfmt@1.95.0
+    - clippy@1.95.0
     - ruff@0.12.11
     - taplo@0.10.0
     - checkov@3.2.469

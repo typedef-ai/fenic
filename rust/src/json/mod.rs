@@ -85,7 +85,7 @@ fn jq_expr(inputs: &[Series], kwargs: JqKwargs) -> PolarsResult<Series> {
         ListStringChunkedBuilder::new("jq".into(), ca.len(), ca.get_values_size() * 5);
 
     // Iterate over each string in the column
-    for opt_str in ca.into_iter() {
+    for opt_str in ca.iter() {
         if let Some(s) = opt_str {
             // Parse input JSON string
             match serde_json::from_str::<Value>(s) {
