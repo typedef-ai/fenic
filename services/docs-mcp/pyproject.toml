@@ -1,0 +1,32 @@
+[project]
+name = "fenic-mcp"
+version = "0.3.0"
+description = "MCP documentation server for Fenic"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "griffe>=0.42.0",
+  "fenic[mcp]>=0.10.0",
+  "structlog>=24.1.0",
+  "modal>=1.1.1",
+]
+
+[project.optional-dependencies]
+hf = ["huggingface_hub>=0.20.0"]
+test = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.10.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fenic_mcp"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = ["pytest>=8.4.1", "pytest-asyncio>=1.1.0"]
+
+[project.scripts]
+fenic-mcp = "fenic_mcp.server.native:main"
