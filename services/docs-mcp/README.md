@@ -36,9 +36,9 @@ environment gates the workflow. It exports and verifies the versioned Hugging
 Face dataset, tests the native MCP contract, prepares the Modal volume, deploys
 an image pinned to `fenic[mcp]==$FENIC_VERSION`, and probes the public endpoint.
 
-The workflow is also manually dispatchable for safe reruns. Select the release
-tag in GitHub's **Run workflow** branch selector; the version is derived from
-that tag, and existing Hugging Face artifacts are verified and reused.
+The workflow is also manually dispatchable for safe reruns. Select `main` in
+GitHub's **Run workflow** branch selector and enter the release version.
+Existing Hugging Face artifacts are verified and reused.
 
 Configure these secrets on the GitHub `production` environment:
 

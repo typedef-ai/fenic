@@ -5,7 +5,7 @@ description = "MCP documentation server for Fenic"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "griffe>=0.42.0",
+  "griffelib>=2.1.0",
   "fenic[mcp]>=0.10.0",
   "structlog>=24.1.0",
   "modal>=1.1.1",
