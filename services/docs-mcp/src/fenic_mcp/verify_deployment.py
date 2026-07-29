@@ -2,8 +2,11 @@
 
 import argparse
 import asyncio
+import logging
 
 from fastmcp import Client
+
+logger = logging.getLogger(__name__)
 
 EXPECTED_TOOLS = {
     "get_api_tree",
@@ -14,7 +17,7 @@ EXPECTED_TOOLS = {
 }
 
 
-async def verify_deployment(url: str) -> None:
+async def _verify_once(url: str) -> None:
     """Verify discovery, search, and representative entity lookup."""
     async with Client(url) as client:
         tools = await client.list_tools()
@@ -48,12 +51,48 @@ async def verify_deployment(url: str) -> None:
             raise RuntimeError(f"Entity lookup failed for {qualified_name}")
 
 
+async def verify_deployment(
+    url: str,
+    *,
+    attempts: int = 12,
+    retry_delay_seconds: float = 5,
+) -> None:
+    """Verify a deployment, allowing time for the new Modal revision to propagate."""
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
+
+    for attempt in range(1, attempts + 1):
+        try:
+            await _verify_once(url)
+            return
+        except Exception:
+            if attempt == attempts:
+                raise
+            logger.warning(
+                "Deployment verification failed (attempt %d/%d); retrying in %.1fs",
+                attempt,
+                attempts,
+                retry_delay_seconds,
+                exc_info=True,
+            )
+            await asyncio.sleep(retry_delay_seconds)
+
+
 def main() -> None:
     """Run the production MCP verification probe."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="https://mcp.fenic.ai/")
+    parser.add_argument("--attempts", type=int, default=12)
+    parser.add_argument("--retry-delay-seconds", type=float, default=5)
     args = parser.parse_args()
-    asyncio.run(verify_deployment(args.url))
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(
+        verify_deployment(
+            args.url,
+            attempts=args.attempts,
+            retry_delay_seconds=args.retry_delay_seconds,
+        )
+    )
 
 
 if __name__ == "__main__":
