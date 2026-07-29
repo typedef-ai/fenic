@@ -1,0 +1,88 @@
+# fenic, by typedef
+
+> Documentation for fenic, the semantic DataFrame framework for building typed, inspectable AI and agentic data pipelines.
+
+Use these rendered Markdown pages for token-efficient access to the
+latest fenic documentation. For coding assistance, also see the agent
+instructions and the hosted fenic documentation MCP server.
+
+- Full documentation: https://docs.fenic.ai/llms-full.txt
+- Agent instructions: https://docs.fenic.ai/agents.md
+- Hosted documentation MCP: https://mcp.fenic.ai
+- Source code: https://github.com/typedef-ai/fenic
+
+## Start here
+
+- [What is fenic?](https://docs.fenic.ai/latest/index.md): Install fenic, configure a model provider, and run the quickstart.
+- [Instructions for AI agents](https://docs.fenic.ai/latest/agents/index.md): Instructions and accuracy guardrails for AI coding agents.
+- [Contributing](https://docs.fenic.ai/latest/CONTRIBUTING/index.md): Development setup and contribution workflow.
+
+## Examples
+
+- [Hello World!](https://docs.fenic.ai/latest/examples/hello_world/index.md): Analyze application errors with semantic extraction.
+- [Log Enrichment](https://docs.fenic.ai/latest/examples/enrichment/index.md): Enrich logs through parsing, joins, and LLM operations.
+- [Feedback Clustering](https://docs.fenic.ai/latest/examples/feedback_clustering/index.md): Cluster customer feedback and summarize themes.
+- [News Bias Classification](https://docs.fenic.ai/latest/examples/news_analysis/index.md): Classify editorial bias in news articles.
+- [Semantic Joins on Unstructured Data](https://docs.fenic.ai/latest/examples/semantic_joins/index.md): Match records using natural-language join predicates.
+- [Document Extraction](https://docs.fenic.ai/latest/examples/document_extraction/index.md): Extract typed metadata from documents.
+- [Named Entity Recognition](https://docs.fenic.ai/latest/examples/named_entity_recognition/index.md): Extract security entities from reports.
+- [Podcast Summarization](https://docs.fenic.ai/latest/examples/podcast_summarization/index.md): Summarize and analyze long podcast transcripts.
+- [Meeting Transcript Processing](https://docs.fenic.ai/latest/examples/meeting_transcript_processing/index.md): Extract decisions and actions from meetings.
+- [JSON Processing](https://docs.fenic.ai/latest/examples/json_processing/index.md): Process nested JSON with fenic and jq.
+- [Markdown Processing](https://docs.fenic.ai/latest/examples/markdown_processing/index.md): Query and transform structured Markdown.
+
+## Guides
+
+- [Creating DataFrames with a Schema](https://docs.fenic.ai/latest/topics/create_dataframe_schema/index.md): Create DataFrames with an authoritative schema.
+- [Markdown -> JSON](https://docs.fenic.ai/latest/topics/markdown-json/index.md): Convert Markdown into queryable hierarchical JSON.
+- [Fenic MCP](https://docs.fenic.ai/latest/topics/fenic-mcp/index.md): Register DataFrame pipelines as tools and serve them over MCP.
+- [OpenRouter](https://docs.fenic.ai/latest/topics/openrouter/index.md): Configure language models through OpenRouter.
+- [Timestamps and Dates](https://docs.fenic.ai/latest/topics/timestamps_and_dates/index.md): Work with timestamps, dates, and time zones.
+
+## API reference
+
+- [fenic](https://docs.fenic.ai/latest/reference/fenic/index.md)
+- [fenic.api](https://docs.fenic.ai/latest/reference/fenic/api/index.md)
+- [fenic.api.catalog](https://docs.fenic.ai/latest/reference/fenic/api/catalog/index.md)
+- [fenic.api.column](https://docs.fenic.ai/latest/reference/fenic/api/column/index.md)
+- [fenic.api.dataframe](https://docs.fenic.ai/latest/reference/fenic/api/dataframe/index.md)
+- [fenic.api.dataframe.dataframe](https://docs.fenic.ai/latest/reference/fenic/api/dataframe/dataframe/index.md)
+- [fenic.api.dataframe.grouped_data](https://docs.fenic.ai/latest/reference/fenic/api/dataframe/grouped_data/index.md)
+- [fenic.api.dataframe.semantic_extensions](https://docs.fenic.ai/latest/reference/fenic/api/dataframe/semantic_extensions/index.md)
+- [fenic.api.functions](https://docs.fenic.ai/latest/reference/fenic/api/functions/index.md)
+- [fenic.api.functions.array](https://docs.fenic.ai/latest/reference/fenic/api/functions/array/index.md)
+- [fenic.api.functions.builtin](https://docs.fenic.ai/latest/reference/fenic/api/functions/builtin/index.md)
+- [fenic.api.functions.core](https://docs.fenic.ai/latest/reference/fenic/api/functions/core/index.md)
+- [fenic.api.functions.dt](https://docs.fenic.ai/latest/reference/fenic/api/functions/dt/index.md)
+- [fenic.api.functions.embedding](https://docs.fenic.ai/latest/reference/fenic/api/functions/embedding/index.md)
+- [fenic.api.functions.json](https://docs.fenic.ai/latest/reference/fenic/api/functions/json/index.md)
+- [fenic.api.functions.markdown](https://docs.fenic.ai/latest/reference/fenic/api/functions/markdown/index.md)
+- [fenic.api.functions.semantic](https://docs.fenic.ai/latest/reference/fenic/api/functions/semantic/index.md)
+- [fenic.api.functions.text](https://docs.fenic.ai/latest/reference/fenic/api/functions/text/index.md)
+- [fenic.api.io](https://docs.fenic.ai/latest/reference/fenic/api/io/index.md)
+- [fenic.api.io.reader](https://docs.fenic.ai/latest/reference/fenic/api/io/reader/index.md)
+- [fenic.api.io.writer](https://docs.fenic.ai/latest/reference/fenic/api/io/writer/index.md)
+- [fenic.api.lineage](https://docs.fenic.ai/latest/reference/fenic/api/lineage/index.md)
+- [fenic.api.mcp](https://docs.fenic.ai/latest/reference/fenic/api/mcp/index.md)
+- [fenic.api.mcp.server](https://docs.fenic.ai/latest/reference/fenic/api/mcp/server/index.md)
+- [fenic.api.mcp.tools](https://docs.fenic.ai/latest/reference/fenic/api/mcp/tools/index.md)
+- [fenic.api.session](https://docs.fenic.ai/latest/reference/fenic/api/session/index.md)
+- [fenic.api.session.config](https://docs.fenic.ai/latest/reference/fenic/api/session/config/index.md)
+- [fenic.api.session.session](https://docs.fenic.ai/latest/reference/fenic/api/session/session/index.md)
+- [fenic.core](https://docs.fenic.ai/latest/reference/fenic/core/index.md)
+- [fenic.core.error](https://docs.fenic.ai/latest/reference/fenic/core/error/index.md)
+- [fenic.core.mcp](https://docs.fenic.ai/latest/reference/fenic/core/mcp/index.md)
+- [fenic.core.mcp.types](https://docs.fenic.ai/latest/reference/fenic/core/mcp/types/index.md)
+- [fenic.core.metrics](https://docs.fenic.ai/latest/reference/fenic/core/metrics/index.md)
+- [fenic.core.types](https://docs.fenic.ai/latest/reference/fenic/core/types/index.md)
+- [fenic.core.types.classify](https://docs.fenic.ai/latest/reference/fenic/core/types/classify/index.md)
+- [fenic.core.types.datatypes](https://docs.fenic.ai/latest/reference/fenic/core/types/datatypes/index.md)
+- [fenic.core.types.enums](https://docs.fenic.ai/latest/reference/fenic/core/types/enums/index.md)
+- [fenic.core.types.provider_routing](https://docs.fenic.ai/latest/reference/fenic/core/types/provider_routing/index.md)
+- [fenic.core.types.query_result](https://docs.fenic.ai/latest/reference/fenic/core/types/query_result/index.md)
+- [fenic.core.types.schema](https://docs.fenic.ai/latest/reference/fenic/core/types/schema/index.md)
+- [fenic.core.types.semantic](https://docs.fenic.ai/latest/reference/fenic/core/types/semantic/index.md)
+- [fenic.core.types.semantic_examples](https://docs.fenic.ai/latest/reference/fenic/core/types/semantic_examples/index.md)
+- [fenic.core.types.summarize](https://docs.fenic.ai/latest/reference/fenic/core/types/summarize/index.md)
+- [fenic.logging](https://docs.fenic.ai/latest/reference/fenic/logging/index.md)
+
