@@ -7,7 +7,13 @@ on:
         description: Fenic release version, with or without a v prefix
         required: true
         type: string
+  # checkov:skip=CKV_GHA_7:Validated version input selects an immutable PyPI release.
   workflow_dispatch:
+    inputs:
+      fenic_version:
+        description: Fenic release version, with or without a v prefix
+        required: true
+        type: string
 
 concurrency:
   group: docs-mcp-production
@@ -39,7 +45,6 @@ jobs:
         uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
         with:
           python-version: "3.11"
-          activate-environment: true
           enable-cache: true
           cache-dependency-glob: services/docs-mcp/uv.lock
       - name: validate release input
@@ -70,7 +75,7 @@ jobs:
       - name: install service with exact Fenic release
         run: |
           uv sync --extra hf --group dev
-          uv pip install "fenic[mcp]==${FENIC_VERSION}"
+          uv pip install --python .venv/bin/python "fenic[mcp]==${FENIC_VERSION}"
           uv run --no-sync python -c \
             "from fenic_mcp.release import assert_installed_fenic_version; assert_installed_fenic_version('${FENIC_VERSION}')"
       - name: export release documentation to Hugging Face

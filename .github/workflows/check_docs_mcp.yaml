@@ -37,9 +37,18 @@ jobs:
           cache-dependency-glob: services/docs-mcp/uv.lock
       - name: install service
         run: uv sync --group dev
+      - name: verify exact release environment selection
+        run: |
+          fenic_version="$(
+            uv run --no-project python -c \
+              'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("../../pyproject.toml").read_text())["project"]["version"])'
+          )"
+          uv pip install --python .venv/bin/python "fenic[mcp]==${fenic_version}"
+          uv run --no-sync python -c \
+            "from fenic_mcp.release import assert_installed_fenic_version; assert_installed_fenic_version('${fenic_version}')"
       - name: test native MCP tools
-        run: uv run pytest
+        run: uv run --no-sync pytest
       - name: statically check Fenic pipelines
         run: |
-          uv run fenic check src/fenic_mcp/setup/populate_tables.py
-          uv run fenic check src/fenic_mcp/server/native.py
+          uv run --no-sync fenic check src/fenic_mcp/setup/populate_tables.py
+          uv run --no-sync fenic check src/fenic_mcp/server/native.py

@@ -20,7 +20,7 @@ def _fenic_requirement() -> str:
 image = (
     modal.Image.debian_slim()
     .pip_install(
-        "griffe>=0.42.0",
+        "griffelib>=2.1.0",
         _fenic_requirement(),
         "structlog>=24.1.0",
         "modal>=1.1.1",
