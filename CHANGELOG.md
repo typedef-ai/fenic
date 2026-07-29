@@ -6,6 +6,28 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+## [0.12.0](https://github.com/typedef-ai/fenic/compare/v0.11.0...v0.12.0) (2026-07-29)
+
+
+### Features
+
+* add Anthropic Claude Opus 5 support ([#337](https://github.com/typedef-ai/fenic/issues/337)) ([2d6d093](https://github.com/typedef-ai/fenic/commit/2d6d093ba101a097e4ea83b0b6d9910e7f3ac1c3))
+* **google:** support Gemini 3.6 Flash and 3.5 Flash-Lite ([#334](https://github.com/typedef-ai/fenic/issues/334)) ([69ec6d3](https://github.com/typedef-ai/fenic/commit/69ec6d3882a7f9fb2931f91c577ec168f8b32639))
+* **mcp:** migrate the Fenic documentation service ([#345](https://github.com/typedef-ai/fenic/issues/345)) ([0d399c4](https://github.com/typedef-ai/fenic/commit/0d399c4338a4838f0590b2253d8545cb1dc2601e))
+
+
+### Bug Fixes
+
+* **anthropic:** force formatter with adaptive thinking ([#342](https://github.com/typedef-ai/fenic/issues/342)) ([28b9f15](https://github.com/typedef-ai/fenic/commit/28b9f1523a841d4f8a4dbd178e337120fa487aef))
+* **openrouter:** guarantee structured tool outputs ([#343](https://github.com/typedef-ai/fenic/issues/343)) ([020fba3](https://github.com/typedef-ai/fenic/commit/020fba35e9ef1d88fd106bc50a98c9f4ec78e264))
+
+
+### Documentation
+
+* clean up internal-doc exclusions ([#340](https://github.com/typedef-ai/fenic/issues/340)) ([5632218](https://github.com/typedef-ai/fenic/commit/5632218951a8c5dd536836285734dd1118996785))
+* improve crawler and LLM discoverability ([#335](https://github.com/typedef-ai/fenic/issues/335)) ([b055b64](https://github.com/typedef-ai/fenic/commit/b055b6462fe5a4e9e35f124f5394910303a4cb85))
+* move td-flow artifacts out of the published docs site into specs/ ([#336](https://github.com/typedef-ai/fenic/issues/336)) ([5d97566](https://github.com/typedef-ai/fenic/commit/5d97566519222e882c903dfb7563cb75861c8cf3))
+
 ## [0.11.0](https://github.com/typedef-ai/fenic/compare/v0.10.0...v0.11.0) (2026-07-15)
 
 
