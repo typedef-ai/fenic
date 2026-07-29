@@ -242,6 +242,14 @@ jobs:
         with:
           command: upload
           args: --skip-existing dist/*/*.*
+  deploy-docs-mcp:
+    name: deploy docs MCP
+    needs: publish-wheels-pypi
+    if: needs.publish-wheels-pypi.result == 'success'
+    uses: ./.github/workflows/deploy_docs_mcp.yaml
+    with:
+      fenic_version: ${{ github.ref_name }}
+    secrets: inherit
   publish-wheels-s3:
     name: publish wheels s3
     permissions:
