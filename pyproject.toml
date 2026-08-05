@@ -8,13 +8,15 @@ It includes text-specific utilities and special operators called semantic operat
 which use LLMs to batch transform data.
 """
 readme = { file = "PYPI.rst", content-type = "text/x-rst" }
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
 ]
 license = "Apache-2.0"
@@ -22,19 +24,22 @@ license-files = ["LICEN[CS]E*"]
 dependencies = [
   "boto3>=1.38.28",
   "botocore>=1.38.28",
-  "duckdb>=1.1.3,<1.5",
-  "numpy>=2.0.0",
+  "duckdb>=1.1.3,<1.5; python_version < '3.14'",
+  "duckdb>=1.4.2,<1.5; python_version >= '3.14'",
+  "numpy>=2.0.0; python_version < '3.13'",
+  "numpy>=2.1.0; python_version >= '3.13' and python_version < '3.14'",
+  "numpy>=2.3.2; python_version >= '3.14'",
   "polars>=1.43.0,<1.44.0",
   "pyarrow<23.0.2,>=23.0.1",
-  "tiktoken>=0.11.0",
+  "tiktoken>=0.12.0",
   "openai>=1.101.0",
   "sqlglot>=29.0.1,<31.0.0",
-  "pandas>=2.2.2",
+  "pandas>=2.3.3",
   "cloudpickle>=3.1.1",
   "jinja2>=3.1.6",
   "protobuf>=5.29.5",
   "types-protobuf>=5.29.1.20250403",
-  "zstandard>=0.23.0",
+  "zstandard>=0.24.0",
   "json-schema-to-pydantic>=0.4.1",
 ]
 
@@ -51,7 +56,8 @@ dev = [
   "ipykernel>=6.29.0",
   "lancedb>=0.22.0,<0.25.0",
   "pymupdf>=1.26.4",
-  "scikit-learn>=1.7.1",
+  "scikit-learn>=1.7.1; python_version < '3.14'",
+  "scikit-learn>=1.7.2; python_version >= '3.14'",
   "torch",
   "torchvision",
 ]
@@ -71,12 +77,17 @@ docs = [
 anthropic = ["anthropic>=0.106.0"]
 google = ["google-genai[local-tokenizer]>=2.13.0"]
 cohere = ["cohere>=5.16.1"]
-cluster = ["scikit-learn>=1.7.1"]
+cluster = [
+  "scikit-learn>=1.7.1; python_version < '3.14'",
+  "scikit-learn>=1.7.2; python_version >= '3.14'",
+]
 pdf = ["pymupdf>=1.26.4"]
 sim-join = ["lancedb>=0.22.0,<0.25.0"]
 cloud = [
   "pyarrow<23.0.2,>=23.0.1",
-  "grpcio>=1.60.0",
+  "grpcio>=1.60.0; python_version < '3.13'",
+  "grpcio>=1.66.2; python_version >= '3.13' and python_version < '3.14'",
+  "grpcio>=1.75.1; python_version >= '3.14'",
   "pydantic_settings",
   "fenic-cloud>=0.1.3",
 ]
