@@ -1,0 +1,22 @@
+{
+  "fixture": {
+    "rows": 32768,
+    "dimensions": 384,
+    "seed": 3385,
+    "dtype": "Float32"
+  },
+  "tolerance": {
+    "rtol": 2e-06,
+    "atol": 2e-06
+  },
+  "pair_dot": {
+    "allclose": false,
+    "different_rows": 30104,
+    "max_absolute_delta": 5.7220458984375e-05
+  },
+  "query_dot": {
+    "allclose": false,
+    "different_rows": 29998,
+    "max_absolute_delta": 5.7220458984375e-05
+  }
+}
