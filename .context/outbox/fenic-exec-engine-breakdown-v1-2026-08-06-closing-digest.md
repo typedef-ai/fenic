@@ -1,9 +1,9 @@
-# Execution-engine experiment closing report — admitted charter digest
+# Execution-engine experiment closing report — extended charter complete
 
 **Mission:** `fenic-exec-engine-breakdown-v1`
-**Status:** COMPLETE — every admitted charter node is LAND/no-op and pushed.
-The Captain subsequently authorized a distinct $0 multi-step workload-benchmark
-design node; it begins after this digest's TD-3385 evidence closure.
+**Status:** COMPLETE — every admitted and subsequently extended-charter node is
+LAND/no-op, pushed, and recorded below. The experiment is now on stand-down for
+the Captain's return review.
 **Headline:** the full experiment closed in one day rather than its planned
 week-scale envelope. The speed came from narrow, review-gated slices and
 deterministic local evidence—not from relaxing correctness, spend, or review
@@ -23,6 +23,8 @@ P0 @834f5c08d  lifecycle foundation + evidence harness
                      └─ TD-3334 @54ea844  accepted no-op
                         └─ TD-3384 @f0fcc14 + 9e0ce56  landed eager-no-op paths
                            └─ TD-3385 @72323f7 + directed closure  landed no-op
+                              └─ Mixed workload @b2de73a  LAND-WITH-FOLLOWUPS
+                                 └─ TD-3383 @0b66160  accepted no-op
 ```
 
 | Node | Final outcome | Review history / receipt |
@@ -38,6 +40,8 @@ P0 @834f5c08d  lifecycle foundation + evidence harness
 | TD-3334 | Fake metrics pre-check and typedef production-shape survey | Accepted no-op: deliberate current per-pass barriers leave no unmaterialized N-op production chain. `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
 | TD-3384 | Three behavior-preserving eager no-op fast paths | LAND; directed guard/doc closure at `9e0ce56`. `.context/td-review/td3384-eager-noop-review-2026-08-06.md` |
 | TD-3385 | Native-Polars embedding math benchmark | LAND-WITH-FOLLOWUPS as no-op; directed closure commits replayable harness/raw receipts and provider-free test rule. `.context/outbox/td3385-polars-embedding-benchmark-lane-record-2026-08-06.md` |
+| Mixed workload | Real-clock, $0, 12-step mixed-complexity simulated workload across barriered/unfused/fused arms | LAND-WITH-FOLLOWUPS at `b2de73a`; the direct closure strengthened step-content parity, resume provenance, fusion assertions, and synthetic-key hermeticity. `.context/td-review/mixed-workload-review-2026-08-06.md` |
+| TD-3383 | Local collect/show/count pushdown boundary audit and narrow `show(n)` candidate | Accepted no-op at `0b66160`: generic pushdown is unsafe; the candidate visibly changed Polars first/last sampling to a first-ten prefix. `.context/outbox/td3383-collect-show-count-pushdown-lane-record-2026-08-06.md` |
 
 The complete SHA/receipt matrix is the final anchor body:
 `.context/outbox/p0-experiment-anchor-pr-body.md`.
@@ -76,6 +80,7 @@ The complete SHA/receipt matrix is the final anchor body:
 | P1c response cache/memoization decision | Deliberately deferred: bounded blocks do not erase the pre-existing lineage re-execution/cost risk. |
 | TD-3334 generalized N-op fusion | Not needed for typedef production today: `cache()`/`count()` separates every pass. TD-4372/TD-3383 pass-gap removal makes the first unmaterialized multi-op chain the concrete revisit trigger. |
 | TD-3385 native Polars embedding replacement | Not needed: every candidate was slower, and native dot changed numerical reduction results beyond tight parity. |
+| TD-3383 local action pushdown | Not needed in v0: even a cache-free direct-column `show(10)` prefix changes incumbent first/last display sampling. `count` without full materialization requires a separately designed action-mode physical API. |
 
 ## Premise kills and qualifications
 
@@ -94,6 +99,9 @@ The complete SHA/receipt matrix is the final anchor body:
    fails, already-dispatched earlier extract blocks may have run. The query
    still propagates its established `ExecutionError`; final `bd7d89b` now
    characterizes and documents this divergence.
+6. TD-3383's “safest” candidate was not safe: `show(10)` is a formatted sample
+   of the fully materialized result, including tail rows. A source prefix limit
+   changes visible output before any performance claim can matter.
 
 ## Review history: what the gates caught
 
@@ -122,6 +130,15 @@ The complete SHA/receipt matrix is the final anchor body:
   abort consequence and an incomplete event-order assertion. `bd7d89b` closes
   both with a fake-client characterization, one-line disclosure, and P0-style
   lifecycle sequence assertion. Herd Command directed no extra review round.
+- **Mixed workload:** LAND-WITH-FOLLOWUPS caught overstated 12-step content
+  parity, weak partial-third-seed provenance, a missing matrix-level fusion
+  assertion, and an environment-dependent test fixture. `b2de73a` adds the
+  retained-column content proof, manifest validation, `used_fusion` contract,
+  and construction-only synthetic-key fixture; no matrix rerun was needed.
+- **TD-3383:** the approved design then accepted no-op review treated exact
+  `show(10)` output parity as a hard gate. It caught that a source prefix is not
+  equivalent to Polars' first/last sample of the fully executed result, so the
+  prototype was removed and the boundary-design note became the deliverable.
 
 ## Process incidents and lessons
 
@@ -147,13 +164,11 @@ The complete SHA/receipt matrix is the final anchor body:
   misreported as fake/local validation. The committed provider-free
   allowlist/exclusion rule is now part of spend discipline.
 
-## Admitted-charter completion
+## Extended-charter completion
 
-All admitted-charter `herd/` branches are pushed. The anchor PR #358 has the
-final reviewer-less stack map and the TD-3385 raw evidence is committed. The
-former stand-down is superseded by Captain's next, design-first $0 workload
-benchmark node; no implementation for that node begins until Herd reviews its
-frozen design record.
+All extended-charter `herd/` branches are pushed. The anchor PR #358 has the
+final reviewer-less stack map. The original admitted charter closed with TD-3385;
+the Captain then admitted the mixed-workload bridge and TD-3383 pushdown audit.
 
 That workload node now has a complete 12-receipt, $0 simulated matrix at
 `.context/validation/mixed-complexity-workload/matrix/`, LAND-WITH-FOLLOWUPS
@@ -173,5 +188,27 @@ evidence was kept, the runner was fixed, and one bounded final simulator lane
 brought active wall to 2,674.807s (25.193s under budget). The old path had
 already overwritten the historical reduction object, so it is not invented
 retroactively; the reusable resume path now retains it as `superseded_reduction`.
-TD-3383 is released to its design-first gate; implementation remains blocked on
-that design review.
+TD-3383's design was approved and its evidence-backed no-op was independently
+accepted. The design note is the primary deliverable: its fail-closed classifier
+marks cache, semantic/model, join, aggregate, sort, SQL, and sink paths as hard
+boundaries; generic `collect`/`count` shortcuts are rejected. The one narrow
+cache-free direct-column `show(10)` candidate failed exact output parity because
+incumbent Polars formatting samples first/last rows of the full result, while a
+source limit shows only rows 0–9. The prototype was removed without retry.
+Its evidence is at
+`.context/validation/td3383-pushdown/show-prefix-parity-failure-2026-08-06.md`.
+
+The deferred next question is precise rather than speculative: count without
+full materialization needs an action-mode physical-execution contract that owns
+per-operator count semantics, QueryMetrics/LMMetrics, cache-write/checkpoint
+behavior, error timing, and source/SQL/sink capability. It is not a hidden
+optimization behind the current `count()` API.
+
+## Final stand-down
+
+The extended charter is complete: validation probe, TD-3334 no-op, TD-3384 fast
+paths, TD-3385 no-op, mixed-workload matrix, and TD-3383 no-op. Total actual
+provider spend remains **$0.00** in the local extensions (with the validation
+report's conservative $0.785305 planning bound unchanged). No further nodes,
+commits, or reviews are authorized; the experiment holds for Captain return
+review.
