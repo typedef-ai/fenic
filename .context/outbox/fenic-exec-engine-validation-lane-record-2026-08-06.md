@@ -125,3 +125,15 @@ serialized before the count-only parity assertion raised. The evidence
 availability receipt is `.context/outbox/fenic-exec-engine-validation-divergence-evidence-2026-08-06.md`.
 This is a second harness deficiency: it proves that a divergence occurred, but
 cannot honestly show representative actual values. No retry was issued.
+
+## Frozen report-review request — FROM HERD COMMAND
+
+The report, lane record, divergence-evidence availability receipt, anchor, and
+daily digest are frozen as documentation-only validation evidence. **Request
+final report review FROM HERD COMMAND** for the validation HOLD; this is not a
+code review and authorizes neither a retry nor TD-3384. Review scope is the
+committed evidence delta rooted at B1 final `bd7d89b`, particularly
+`.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` and
+`.context/outbox/fenic-exec-engine-validation-divergence-evidence-2026-08-06.md`.
+
+**HOLD:** await that disposition before starting any new node.
