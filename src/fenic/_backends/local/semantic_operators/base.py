@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, TypeVar
+from itertools import islice
+from typing import Generic, Iterable, Iterator, List, Optional, TypeVar
 
 import polars as pl
 from jinja2 import Template
@@ -32,6 +33,24 @@ class RequestSender(Generic[ModelResponseType], ABC):
             A list of model responses, in the same order as the input messages_batch.
         """
         pass
+
+    def send_request_stream(
+        self,
+        messages: Iterable[Optional[LMRequestMessages]],
+        batch_size: int,
+    ) -> Iterator[Optional[ModelResponseType]]:
+        """Send an ordered message stream through the existing batch interface.
+
+        Request senders that have a native streaming implementation can override
+        this method. The default preserves compatibility for non-language-model
+        senders while bounding the messages passed to ``send_requests``.
+        """
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        message_iter = iter(messages)
+        while batch := list(islice(message_iter, batch_size)):
+            yield from self.send_requests(batch)
 
 
 class CompletionOnlyRequestSender(RequestSender[str]):
@@ -86,10 +105,32 @@ class CompletionOnlyRequestSender(RequestSender[str]):
         ]
         return completions
 
+    def send_request_stream(
+        self,
+        messages: Iterable[Optional[LMRequestMessages]],
+        batch_size: int,
+    ) -> Iterator[Optional[str]]:
+        """Submit row-local completion messages without materializing all prompts."""
+        responses = self.model.iter_completions(
+            messages=messages,
+            operation_name=self.operator_name,
+            max_tokens=self.inference_config.max_output_tokens,
+            temperature=self.inference_config.temperature,
+            response_format=self.inference_config.response_format,
+            top_logprobs=self.inference_config.top_logprobs,
+            model_profile=self.inference_config.model_profile,
+            request_timeout=self.inference_config.request_timeout,
+            batch_size=batch_size,
+        )
+        for response in responses:
+            yield response.completion if response else None
+
 class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
     """Abstract base class for any operator that sends builds LM requests and processes responses."""
 
     request_sender: RequestSender[ModelResponseType]
+    stream_requests = False
+    request_batch_size = 100
 
     def __init__(
         self,
@@ -120,22 +161,37 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
         Returns:
             A Polars Series containing the final operator output (e.g., classification, label, etc).
         """
-         # TODO(rohitrastogi): We should pipeline the requests from message building, to inference, to postprocessing to avoid unnecessary memory usage.
+        if self.stream_requests:
+            postprocessed_responses = []
+            for response in self.request_sender.send_request_stream(
+                self.iter_request_messages(),
+                batch_size=self.request_batch_size,
+            ):
+                # B0 is deliberately limited to row-local operators. Their
+                # postprocessors are per-response, so this retains output order
+                # while dropping each raw response after conversion.
+                postprocessed_responses.extend(self.postprocess([response]))
+            return (
+                pl.Series(postprocessed_responses, dtype=self.output_type)
+                if self.output_type
+                else pl.Series(postprocessed_responses)
+            )
+
         prompts = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
         postprocessed_responses = self.postprocess(responses)
         return pl.Series(postprocessed_responses, dtype=self.output_type) if self.output_type else pl.Series(postprocessed_responses)
 
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
-        messages_batch = []
+        return list(self.iter_request_messages())
+
+    def iter_request_messages(self) -> Iterator[Optional[LMRequestMessages]]:
+        """Build row-local messages lazily in input order."""
         for document in self.input:
             if not document:
-                messages_batch.append(None)
+                yield None
             else:
-                messages_batch.append(
-                    self.build_request_messages(document)
-                )
-        return messages_batch
+                yield self.build_request_messages(document)
 
     def build_request_messages(self, input: str) -> LMRequestMessages:
         """Construct a prompt from a single input and optional in-context examples."""
