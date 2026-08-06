@@ -13,6 +13,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.api.session import (
     OpenAIEmbeddingModel,
     SemanticConfig,
@@ -380,3 +381,51 @@ def test_semantic_predicate_missing_jinja_variable(local_session):
         source.select(
             semantic.predicate("{{name}}{{details}}", name=col("name")).alias("summary")
         )
+
+
+def test_direct_semantic_predicate_streams_through_bounded_model_client_batches(
+    local_session, monkeypatch
+):
+    """Exercise the transpiler-built Predicate through B0's completion iterator."""
+    model = local_session._session_state.get_language_model()
+    captured_batches = []
+
+    monkeypatch.setattr(
+        model,
+        "get_completions",
+        lambda *_args, **_kwargs: pytest.fail(
+            "direct semantic.predicate must use the B0 completion iterator"
+        ),
+    )
+
+    def fake_make_batch_requests(requests, operation_name, request_timeout=None):
+        captured_batches.append(
+            {
+                "requests": requests,
+                "operation_name": operation_name,
+                "request_timeout": request_timeout,
+            }
+        )
+        return [
+            FenicCompletionsResponse(completion='{"output": true}', logprobs=None)
+            for _ in requests
+        ]
+
+    monkeypatch.setattr(model.client, "make_batch_requests", fake_make_batch_requests)
+
+    result = local_session.create_dataframe({"name": [f"name-{i}" for i in range(101)]}).select(
+        semantic.predicate("Is {{ name }} present?", name=col("name")).alias("present")
+    ).to_polars()
+
+    assert result["present"].to_list() == [True] * 101
+    assert [len(batch["requests"]) for batch in captured_batches] == [100, 1]
+    assert all(
+        batch["operation_name"] == "semantic.predicate"
+        and batch["request_timeout"] is None
+        for batch in captured_batches
+    )
+    assert all(
+        isinstance(request, FenicCompletionsRequest)
+        for batch in captured_batches
+        for request in batch["requests"]
+    )
