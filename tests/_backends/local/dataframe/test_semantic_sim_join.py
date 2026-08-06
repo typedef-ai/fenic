@@ -802,6 +802,59 @@ def test_semantic_sim_join_empty_result_can_skip_normalized_vector_columns():
     )
 
 
+def test_semantic_sim_join_batches_left_searches_without_changing_matches(monkeypatch):
+    left, right = _create_direct_sim_join_inputs()
+    observed_batch_sizes = []
+    original_search_batch = sim_join_module.SimJoin._search_left_batch
+
+    def record_search_batch(self, left_batch, table):
+        observed_batch_sizes.append(len(left_batch))
+        return original_search_batch(self, left_batch, table)
+
+    monkeypatch.setattr(
+        sim_join_module.SimJoin, "_search_left_batch", record_search_batch
+    )
+
+    result = sim_join_module.SimJoin(
+        left, right, k=2, similarity_metric="l2", left_batch_size=1
+    ).execute()
+
+    assert observed_batch_sizes == [1, 1]
+    assert result.select(
+        "left_payload", "right_payload", sim_join_module.DISTANCE_COL_NAME
+    ).sort(["left_payload", "right_payload"]).to_dicts() == [
+        {
+            "left_payload": "x",
+            "right_payload": "near-x",
+            sim_join_module.DISTANCE_COL_NAME: 1.0,
+        },
+        {
+            "left_payload": "x",
+            "right_payload": "near-y",
+            sim_join_module.DISTANCE_COL_NAME: 81.0,
+        },
+        {
+            "left_payload": "y",
+            "right_payload": "near-x",
+            sim_join_module.DISTANCE_COL_NAME: 81.0,
+        },
+        {
+            "left_payload": "y",
+            "right_payload": "near-y",
+            sim_join_module.DISTANCE_COL_NAME: 1.0,
+        },
+    ]
+
+
+def test_semantic_sim_join_rejects_non_positive_left_batch_size():
+    left, right = _create_direct_sim_join_inputs()
+
+    with pytest.raises(ValueError, match="left_batch_size must be positive"):
+        sim_join_module.SimJoin(
+            left, right, k=1, similarity_metric="l2", left_batch_size=0
+        )
+
+
 def test_semantic_sim_join_with_incompatible_embeddings(local_session):
     df = local_session.create_dataframe(
         {
