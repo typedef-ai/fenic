@@ -129,40 +129,50 @@ def _configure_local_language_model(session: Any) -> None:
             return max(1, len(value.split()))
         return max(1, len(str(value).split()))
 
+    def fake_completion(
+        message: object | None,
+        idx: int,
+        operation_name: str | None,
+    ) -> FenicCompletionsResponse | None:
+        if message is None:
+            return None
+        user = getattr(message, "user", "") or ""
+        if operation_name == "semantic.predicate":
+            completion = json.dumps({"output": _deterministic_predicate(user)})
+        elif operation_name and operation_name.startswith("semantic.reduce"):
+            completion = f"summary-{idx}-{_stable_bucket(user)}"
+        elif operation_name == "semantic.extract":
+            completion = json.dumps(
+                {
+                    "category": _stable_bucket(user),
+                    "priority": (idx % 5) + 1,
+                }
+            )
+        else:
+            completion = f"mapped {_stable_bucket(user)} :: {user[:80]}"
+        return FenicCompletionsResponse(completion=completion, logprobs=None)
+
     def fake_get_completions(
         messages: list[object | None],
-        max_tokens: int | None = None,
-        temperature: float = 0,
-        response_format: object | None = None,
-        top_logprobs: int | None = None,
-        model_profile: str | None = None,
         operation_name: str | None = None,
-        request_timeout: float | None = None,
+        **_: object,
     ) -> list[FenicCompletionsResponse | None]:
-        responses: list[FenicCompletionsResponse | None] = []
+        return [
+            fake_completion(message, idx, operation_name)
+            for idx, message in enumerate(messages)
+        ]
+
+    def fake_iter_completions(
+        messages: Any,
+        operation_name: str | None = None,
+        **_: object,
+    ) -> Any:
         for idx, message in enumerate(messages):
-            if message is None:
-                responses.append(None)
-                continue
-            user = getattr(message, "user", "") or ""
-            if operation_name == "semantic.predicate":
-                completion = json.dumps({"output": _deterministic_predicate(user)})
-            elif operation_name and operation_name.startswith("semantic.reduce"):
-                completion = f"summary-{idx}-{_stable_bucket(user)}"
-            elif operation_name == "semantic.extract":
-                completion = json.dumps(
-                    {
-                        "category": _stable_bucket(user),
-                        "priority": (idx % 5) + 1,
-                    }
-                )
-            else:
-                completion = f"mapped {_stable_bucket(user)} :: {user[:80]}"
-            responses.append(FenicCompletionsResponse(completion=completion, logprobs=None))
-        return responses
+            yield fake_completion(message, idx, operation_name)
 
     model.count_tokens = count_tokens
     model.get_completions = fake_get_completions
+    model.iter_completions = fake_iter_completions
 
 
 def _deterministic_predicate(rendered_prompt: str) -> bool:

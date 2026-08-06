@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class Extract(BaseSingleColumnInputOperator[str, Dict[str, Any]]):
+    stream_requests = True
     EXTRACT_SYSTEM_PROMPT = jinja2.Template(
         dedent("""\
         Extract information from the document according to the output schema.
