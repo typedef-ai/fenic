@@ -6,11 +6,12 @@ accepted TD-3334 head `54ea84404b9655a587c235470253bae36edfa3f6`.
 
 ## Scope and spend
 
-This node used local Polars data only. Estimated and actual provider spend are
-**$0.00**; no credential was read. The audit rule was applied literally: prove a
-recurrent no-op case and measure it before adding a fast path. Schema, column
-order, non-identity, and empty-frame behavior are covered by the new focused
-test file.
+This node used local Polars data only. Estimated provider spend is **$0.00**;
+no credential was read. The stopped placeholder-key incident below produced no
+successful provider response, but is not an actual billing receipt. The audit
+rule was applied literally: prove a recurrent no-op case and measure it before
+adding a fast path. Schema, column order, non-identity, and empty-frame
+behavior are covered by the new focused test file.
 
 ## Audit results
 

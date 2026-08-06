@@ -1,4 +1,4 @@
-## Execution-engine experiment anchor — BASE STACK LAND; validation accepted; TD-3334 survey frozen
+## Execution-engine experiment anchor — BASE STACK LAND; TD-3334 accepted; TD-3384 frozen
 
 This reviewer-less draft is the single branches-only anchor for the completed
 `fenic-exec-engine-breakdown-v1` experiment. It is not a review request; no
@@ -7,9 +7,9 @@ additional PRs were created for the stack or validation epilogue.
 **Base stack: COMPLETE.** Every ratified implementation node below is pushed and
 `LAND`. The Captain-authorized real-provider validation Amendment A is
 **COMPLETE and report-review accepted** after the hardened full matrix passed
-normalized semantic parity. TD-3334's required $0 metrics pre-check and
-production survey are frozen for Herd Command review; its evidence-backed
-result is no generalized implementation needed.
+normalized semantic parity. TD-3334 is an evidence-backed no-op after its $0
+metrics pre-check and production survey. TD-3384's local eager-no-op audit is
+frozen for Herd Command review with three behavior-preserving fast paths.
 
 ## Frozen stack DAG
 
@@ -30,7 +30,9 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                          |
                          `-- Validation herd/fenic-exec-engine-validation @ 9098734  REPORT ACCEPTED
                              |
-                             `-- TD-3334 herd/fenic-exec-engine-td3334-n-op-fusion @ ecfc4ca  SURVEY COMPLETE / NO-OP (Herd review)
+                             `-- TD-3334 herd/fenic-exec-engine-td3334-n-op-fusion @ 54ea844  ACCEPTED NO-OP
+                                 |
+                                 `-- TD-3384 herd/fenic-exec-engine-td3384-eager-noop-audit @ f0fcc14  FAST PATHS FROZEN (Herd review)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -43,7 +45,8 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | B0+1c adapter | `574a743` | `.context/td-review/b0-1c-stream-adapter-receipt-2026-08-05.md` | `.context/outbox/b0-1c-stream-adapter-lane-record-2026-08-06.md` |
 | B1 fusion | `bd7d89b` | `.context/td-review/b1-two-op-fusion-review-2026-08-05.md` | `.context/outbox/b1-two-op-fusion-lane-record-2026-08-06.md` |
 | Validation epilogue | `9098734` | Herd Command report-review **ACCEPTED** | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
-| TD-3334 N-op fusion | `ecfc4ca` | pending Herd Command review | `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
+| TD-3334 N-op fusion | `54ea844` | Herd Command **ACCEPTED** no-op | `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
+| TD-3384 eager no-op audit | `f0fcc14` | pending Herd Command review | `.context/outbox/td3384-eager-noop-audit-lane-record-2026-08-06.md` |
 
 ## Final evidence
 
@@ -63,9 +66,16 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 - TD-3334's deterministic fake/local pre-check proves `iter_completions` and
   legacy `get_completions` both accumulate LMMetrics; B0 has no iterator-path
   metrics blind spot. The canonical typedef sync survey found semantic
-  operations separated by `cache()`/`count()` barriers, with no unmaterialized
-  production N-op chain. B1 already covers the relevant shape, so generalized
-  fusion is an evidence-backed no-op pending its Herd review.
+  operations separated by deliberate `cache()`/`count()` barriers, with no
+  unmaterialized production N-op chain. B1 therefore covers production today.
+  This is not a permanent typedef constraint: TD-4372 and TD-3383 are reducing
+  pass gaps. The first resulting production multi-op chain reactivates TD-3334,
+  using the validation matrix as its sizing prior.
+- TD-3384 proves and removes three recurrent eager no-ops: ingestion's
+  all-column `select`, same-order union alignment, and direct-column identity
+  projection. It preserves coercion, differing-order union, aliases/computed
+  projections, schemas, and empty frames; source/sink/restore candidates remain
+  deliberately unchanged pending review.
 
 The current Captain-facing validation report is
 `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md`.
