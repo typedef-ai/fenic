@@ -26,6 +26,7 @@ RIGHT_ON_COL_NAME = "__right_on__"
 LEFT_ID_COL_NAME = "__left_id__"
 RIGHT_ID_COL_NAME = "__right_id__"
 MATCH_RESULT_COL_NAME = "__match_result__"
+DEFAULT_LEFT_BATCH_SIZE = 1_024
 
 class SimJoin:
     def __init__(
@@ -34,6 +35,7 @@ class SimJoin:
         right: pl.DataFrame,
         k: int,
         similarity_metric: SemanticSimilarityMetric,
+        left_batch_size: int = DEFAULT_LEFT_BATCH_SIZE,
         include_left_on: bool = True,
         include_right_on: bool = True,
     ):
@@ -41,6 +43,9 @@ class SimJoin:
         self.right = right.with_row_index(RIGHT_ID_COL_NAME)
         self.k = k
         self.similarity_metric = similarity_metric
+        if left_batch_size <= 0:
+            raise ValueError("left_batch_size must be positive")
+        self.left_batch_size = left_batch_size
         self.include_left_on = include_left_on
         self.include_right_on = include_right_on
 
@@ -96,47 +101,59 @@ class SimJoin:
             if len(right) > 5000:
                 tbl.create_index(metric=self.similarity_metric)
 
-            # Define UDF to perform search for each row
-            def search_vectors(left_embedding, left_id):
-                results = tbl.search(left_embedding).distance_type(self.similarity_metric).limit(self.k).to_list()
-
-                # Create list of structs with search results
-                matches = []
-                for result in results:
-                    matches.append(
-                        {
-                            LEFT_ID_COL_NAME: left_id,
-                            RIGHT_ID_COL_NAME: result[RIGHT_ID_COL_NAME],
-                            DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
-                        }
-                    )
-                return matches
-
-            # TODO(rohitrastogi): Do some experiments to see if sending concurrent requests to LanceDB
-            # using a thread pool is faster than sending requests sequentially. Vector search is CPU bound and LanceDB
-            # releases the GIL, so I'm not sure there will be any performance gains.
-            # FYI, LanceDB doesn't support batch vector search. If you pass a batch of vectors, it doesn't
-            # actually search in parallel.
-            return (
-                left.select(
-                    pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col(LEFT_ID_COL_NAME)])
-                    .map_elements(
-                        lambda x: search_vectors(x[LEFT_ON_COL_NAME], x[LEFT_ID_COL_NAME]),
-                        return_dtype=pl.List(
-                            pl.Struct(
-                                {
-                                    LEFT_ID_COL_NAME: pl.Int32,
-                                    RIGHT_ID_COL_NAME: pl.Int32,
-                                    DISTANCE_COL_NAME: pl.Float64,
-                                }
-                            )
-                        ),
-                    )
-                    .alias(MATCH_RESULT_COL_NAME)
+            # The final N×k result remains materialized by contract, but each
+            # search/explode transform is bounded to a narrow left-side slice.
+            match_chunks = [
+                self._search_left_batch(
+                    left.slice(offset, self.left_batch_size), tbl
                 )
-                .explode(MATCH_RESULT_COL_NAME)
-                .unnest(MATCH_RESULT_COL_NAME)
+                for offset in range(0, len(left), self.left_batch_size)
+            ]
+            return pl.concat(match_chunks)
+
+    def _search_left_batch(self, left_batch: pl.DataFrame, table: "Table") -> pl.DataFrame:
+        """Search one bounded left-side slice and return narrow match rows."""
+
+        def search_vectors(left_embedding, left_id):
+            results = (
+                table.search(left_embedding)
+                .distance_type(self.similarity_metric)
+                .limit(self.k)
+                .to_list()
             )
+            return [
+                {
+                    LEFT_ID_COL_NAME: left_id,
+                    RIGHT_ID_COL_NAME: result[RIGHT_ID_COL_NAME],
+                    DISTANCE_COL_NAME: result[DISTANCE_COL_NAME],
+                }
+                for result in results
+            ]
+
+        # LanceDB does not support parallel vector-batch searches. Keep these
+        # per-row searches local to this slice so the transient explode is bounded.
+        return (
+            left_batch.select(
+                pl.struct([pl.col(LEFT_ON_COL_NAME), pl.col(LEFT_ID_COL_NAME)])
+                .map_elements(
+                    lambda value: search_vectors(
+                        value[LEFT_ON_COL_NAME], value[LEFT_ID_COL_NAME]
+                    ),
+                    return_dtype=pl.List(
+                        pl.Struct(
+                            {
+                                LEFT_ID_COL_NAME: pl.Int32,
+                                RIGHT_ID_COL_NAME: pl.Int32,
+                                DISTANCE_COL_NAME: pl.Float64,
+                            }
+                        )
+                    ),
+                )
+                .alias(MATCH_RESULT_COL_NAME)
+            )
+            .explode(MATCH_RESULT_COL_NAME)
+            .unnest(MATCH_RESULT_COL_NAME)
+        )
 
     def _empty_result_with_schema(
         self, left: pl.DataFrame, right: pl.DataFrame
