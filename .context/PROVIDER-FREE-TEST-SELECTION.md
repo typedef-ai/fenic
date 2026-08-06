@@ -38,7 +38,8 @@ nodes (the full matrix remains opt-in and uses the same simulated client):
 - `tests/_inference/test_mixed_complexity_workload.py::test_modest_server_mismatch_exercises_real_retry_path`;
 - `tests/_inference/test_mixed_complexity_workload.py::test_multi_step_idle_metrics_exclude_rate_limited_wait`;
 - `tests/_inference/test_mixed_complexity_workload.py::test_mixed_complexity_workload_pilot` when explicitly enabled with `RUN_MIXED_WORKLOAD_PILOT=1`; and
-- `tests/_inference/test_mixed_complexity_workload.py::test_mixed_complexity_workload_matrix` when explicitly enabled with `RUN_MIXED_WORKLOAD_MATRIX=1`.
+- `tests/_inference/test_mixed_complexity_workload.py::test_mixed_complexity_workload_matrix` when explicitly enabled with `RUN_MIXED_WORKLOAD_MATRIX=1`; and
+- `tests/_inference/test_mixed_complexity_workload.py::test_resume_partial_mixed_complexity_workload_matrix` when explicitly enabled with `RUN_MIXED_WORKLOAD_RESUME=1` against the documented simulator-only receipt directory.
 
 Record any newly discovered provider-capable node in this file before the next
 local-only test command. On a 401 or any unexpected network attempt: stop the

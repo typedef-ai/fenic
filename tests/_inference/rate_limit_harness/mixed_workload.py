@@ -641,7 +641,9 @@ def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
         for lane, true_tpm in (("matching", 150_000), ("modest_overshoot", 135_000))
     ]
     for n_rows, base_seed, lane, true_tpm in planned:
-        if n_rows == 192 and base_seed == 303:
+        # Decide the optional third-seed reduction once, before either lane can
+        # run. Rechecking before the second lane could leave a partial seed.
+        if n_rows == 192 and base_seed == 303 and lane == "matching":
             completed_192_walls = [
                 wall
                 for (completed_rows, _, _), wall in scenario_walls.items()
@@ -729,6 +731,74 @@ def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
     }
     (output_dir / "matrix-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return receipts
+
+
+def resume_partial_third_seed(session, output_dir: Path) -> dict[str, object]:
+    """Complete the sole missing third-seed lane from a documented partial run."""
+    manifest_path = output_dir / "matrix-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    scenario = WorkloadScenario(n_rows=192, base_seed=303, true_tpm=135_000)
+    receipt_path = output_dir / "mixed-workload-v1-modest_overshoot-192-seed303.json"
+    if receipt_path.exists():
+        raise ValueError("third-seed overshoot receipt already exists")
+    if manifest.get("completed_receipt_count") != 11:
+        raise ValueError("resume requires exactly one missing third-seed receipt")
+
+    scenario_started = time.monotonic()
+    reports = [
+        run_workload_arm(session, scenario, arm)
+        for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
+    ]
+    assert_arm_parity(reports)
+    scenario_wall_s = time.monotonic() - scenario_started
+    active_wall_s = manifest["matrix_wall_s"] + scenario_wall_s
+
+    receipt = {
+        "harness_version": HARNESS_VERSION,
+        "scenario": scenario.receipt_config(),
+        "preflight_token_expansion": scenario.preflight_token_expansion(),
+        "lane": "modest_overshoot",
+        "arm_parity": True,
+        "scenario_wall_s": scenario_wall_s,
+        "matrix_elapsed_s_before": manifest["matrix_wall_s"],
+        "matrix_controls": {
+            "arm_wall_stop_s": ARM_WALL_STOP_S,
+            "no_settlement_stop_s": NO_SETTLEMENT_STOP_S,
+            "whole_matrix_wall_budget_s": MATRIX_WALL_BUDGET_S,
+        },
+        "resume": {
+            "reason": "corrected third-seed reduction branch checked between lanes",
+            "prior_manifest_status": manifest["status"],
+        },
+        "reports": [report.receipt() for report in reports],
+    }
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+    if active_wall_s > MATRIX_WALL_BUDGET_S:
+        manifest.update(
+            {
+                "status": "budget-exceeded-during-resume",
+                "matrix_wall_s": active_wall_s,
+                "completed_receipt_count": 12,
+                "resume": receipt["resume"],
+                "receipt_files": [*manifest["receipt_files"], receipt_path.name],
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        raise WorkloadGuardError(
+            "resuming the missing lane exceeded the whole-matrix wall budget"
+        )
+    manifest.update(
+        {
+            "status": "complete-after-bounded-resume",
+            "matrix_wall_s": active_wall_s,
+            "completed_receipt_count": 12,
+            "reduction": None,
+            "resume": receipt["resume"],
+            "receipt_files": [*manifest["receipt_files"], receipt_path.name],
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    return receipt
 
 
 def run_pilot(session, output_dir: Path) -> dict[str, object]:

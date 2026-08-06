@@ -212,3 +212,20 @@ the 150,000-token client bucket; other seeds retain their own exact deterministi
 draw total. Proceed through the matrix, preserve partial evidence on any guard,
 then freeze for implementation review. TD-3383 remains blocked until that review
 cycle completes.
+
+## Matrix recovery note — before final lane
+
+The first matrix execution completed eleven durable receipts in 2,289.326s of
+active benchmark wall. Its reduction check was mistakenly evaluated once before
+third-seed matching and again before third-seed overshoot. Matching was therefore
+already written when the second check forecast 2,992.550s and emitted a manifest
+claiming both third-seed lanes were dropped. The receipts make the inconsistency
+visible; nothing was deleted or concealed.
+
+Before another simulated call, the runner was corrected to evaluate reduction
+only once, before either third-seed lane. The only missing lane is
+192-row/seed-303/modest-overshoot. The deterministic active-wall budget leaves
+410.674s; the first two overshoot scenarios were 386.655s and 387.232s, so the
+bounded completion is authorized by the same 45-minute envelope. A dedicated
+resume receipt will stamp this recovery and update the manifest; no prior arm is
+rerun, no TPM/row count changes, and no provider call is involved.

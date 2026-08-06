@@ -119,3 +119,22 @@ def test_mixed_complexity_workload_matrix(local_session, tmp_path):
 
     assert len(receipts) in (10, 12)  # Third 192-row seed may be reduced by the 45m guard.
     assert all(receipt["arm_parity"] for receipt in receipts)
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_MIXED_WORKLOAD_RESUME") != "1",
+    reason="explicit bounded benchmark recovery only",
+)
+def test_resume_partial_mixed_complexity_workload_matrix(local_session):
+    """Complete one documented missing simulated third-seed lane after a runner fix."""
+    from pathlib import Path
+
+    from tests._inference.rate_limit_harness.mixed_workload import (
+        resume_partial_third_seed,
+    )
+
+    output_dir = Path(os.environ["MIXED_WORKLOAD_OUTPUT_DIR"])
+    receipt = resume_partial_third_seed(local_session, output_dir)
+
+    assert receipt["arm_parity"] is True
+    assert receipt["reports"][2]["used_fusion"] is True
