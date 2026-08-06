@@ -1,4 +1,4 @@
-## Execution-engine experiment anchor — BASE STACK LAND; TD-3334 and TD-3384 LAND
+## Execution-engine experiment anchor — BASE STACK LAND; TD-3334/TD-3384 LAND; TD-3385 FROZEN
 
 This reviewer-less draft is the single branches-only anchor for the completed
 `fenic-exec-engine-breakdown-v1` experiment. It is not a review request; no
@@ -10,6 +10,9 @@ additional PRs were created for the stack or validation epilogue.
 normalized semantic parity. TD-3334 is an evidence-backed no-op after its $0
 metrics pre-check and production survey. TD-3384's local eager-no-op audit is
 LAND with three behavior-preserving fast paths and a directed test/docs closure.
+TD-3385 is frozen as a benchmark-backed no-op recommendation: current NumPy
+embedding math is both faster on the measured shapes and the safer numerical
+match.
 
 ## Frozen stack DAG
 
@@ -33,6 +36,8 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                              `-- TD-3334 herd/fenic-exec-engine-td3334-n-op-fusion @ 54ea844  ACCEPTED NO-OP
                                  |
                                  `-- TD-3384 herd/fenic-exec-engine-td3384-eager-noop-audit @ f0fcc14  LAND (directed test/docs closure)
+                                     |
+                                     `-- TD-3385 herd/fenic-exec-engine-td3385-polars-embedding-benchmark  FROZEN (benchmark-backed no-op; Herd review requested)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -47,6 +52,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | Validation epilogue | `9098734` | Herd Command report-review **ACCEPTED** | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
 | TD-3334 N-op fusion | `54ea844` | Herd Command **ACCEPTED** no-op | `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
 | TD-3384 eager no-op audit | `f0fcc14` | Herd Command **LAND**; directed test/docs closure, no new round | `.context/td-review/td3384-eager-noop-review-2026-08-06.md` |
+| TD-3385 embedding math benchmark | current branch head | Herd Command review requested | `.context/outbox/td3385-polars-embedding-benchmark-lane-record-2026-08-06.md` |
 
 ## Final evidence
 
@@ -78,6 +84,10 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
   aliases, casts, regex selectors, and reorderings. Source/sink/restore
   candidates remain deliberately unchanged. Future freeze records must be
   committed before dispatching their pinned Herd review.
+- TD-3385 measured actual native-Polars array alternatives at 384 and 1,536
+  dimensions. They are 20% to 541% slower than the NumPy paths; native dot also
+  changes reduction results beyond the predeclared tight parity tolerance. Its
+  no-code recommendation is frozen pending Herd Command review.
 
 The current Captain-facing validation report is
 `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md`.
