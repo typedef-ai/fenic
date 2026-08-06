@@ -1,8 +1,8 @@
 # Mixed-complexity semantic workload benchmark — design freeze
 
-**Status:** IMPLEMENTATION FROZEN — full amended matrix complete; implementation
-review requested from Herd Command. Do not advance this branch while review is
-pending.
+**Status:** LAND-WITH-FOLLOWUPS — directed closure complete; no additional
+review round is requested. TD-3383 is released to its separate design-first
+gate.
 **Branch:** `herd/fenic-exec-engine-mixed-complexity-workload`, stacked on the
 TD-3385 directed-closure head `7295e02`.
 
@@ -15,9 +15,10 @@ real ModelClient scheduling/rate-limit behavior, and explicit materialization
 arms. It extends—not replaces—`tests/_inference/rate_limit_harness/harness.py`.
 
 All runs use `SimulatedCompletionsClient` / `SimulatedServerLimiter`, real
-`time.time()` plus real `asyncio.sleep`, and no API key, Session provider
-validation, `.env` read, or network call. Estimated and actual provider spend:
-**$0.00**. The provider-free selector rule at
+`time.time()` plus real `asyncio.sleep`, a construction-only synthetic API key
+for Session fixture validation, no `.env` read, and no network call. The key
+never permits a provider request. Estimated and actual provider spend: **$0.00**.
+The provider-free selector rule at
 `.context/PROVIDER-FREE-TEST-SELECTION.md` applies: the new exact harness test
 nodes are allowlisted only after their bodies prove no provider boundary.
 
@@ -99,8 +100,10 @@ assertion that typedef already has that chain.
    any semantic execution; assert its trace is nonempty and no default provider
    client method is invoked. Map responses are deterministic strings and
    extracts deterministic schema-valid JSON. The three arms must have identical
-   final row IDs and structs, per-step logical completion totals, and actual
-   output token draws.
+   row IDs, overlay structs, per-step logical completion totals, and actual
+   output-token draws. A focused retained-column proof additionally compares
+   every baseline step 01–11 value across arms before the production-shaped
+   final projection drops those columns.
 3. Attach P0's `set_request_lifecycle_collector(..., execution_id=...)` to the
    shared simulator. Compute `compute_idle_gap_metrics` over the whole run and
    per operation/step. Preserve P0 semantics exactly: queue delay and
@@ -150,9 +153,11 @@ recorded below, not the prior design gate.
 ## Herd design disposition and implementation checkpoint
 
 Herd Command approved the design unchanged. Its load-bearing requirement is
-preserved in code: all three arms must have identical final row IDs/structs,
+preserved in code: all three arms must have identical row IDs, overlay structs,
 per-step logical totals, and actual output-token draws; a failure raises rather
-than loosening the fixture. The default gate contains only focused proof tests;
+than loosening the fixture. A focused retained-column proof compares the
+baseline step 01–11 contents before their final projection. The default gate
+contains only focused proof tests;
 the pilot and matrix remain explicit opt-in real-clock commands. Every durable
 receipt stamps `mixed-workload-harness-v1`, `mixed-workload-v1`, all scenario
 knobs, and the derived seed per step.
@@ -231,8 +236,8 @@ rerun, no TPM/row count changes, and no provider call is involved.
 
 ## Full amended matrix — COMPLETE
 
-The matrix completed all **12** receipts and every arm passed the load-bearing
-parity contract: identical final row IDs/structs, per-step logical totals, and
+The matrix completed all **12** receipts and every arm passed the matrix parity
+contract: identical row IDs, overlay structs, per-step logical totals, and
 per-step actual output-token draws. B1 physical fusion was observed only in the
 fused arm. No 300-second arm wall stop or 60-second no-settlement stop fired.
 The largest observed settlement gap was 16.153s (192-row modest-overshoot
@@ -287,10 +292,30 @@ completed the missing modest-overshoot receipt in 385.480s; active aggregate
 wall remained under budget. This is a benchmark-control-flow defect, not a
 product semantic divergence; it is included in the review scope.
 
-## Frozen implementation review request — FROM HERD COMMAND
+## Implementation review disposition and directed closure
 
-Freeze this branch at the current head. **Request implementation review FROM
-HERD COMMAND** for the mixed-workload harness, controls, full 12-receipt
-evidence, recovery path, and conclusions above. **HOLD:** do not start TD-3383,
-modify this branch, or run another matrix/provider call until Herd Command
-disposes of this review.
+Herd Command's independent cross-model implementation review receipt is
+`.context/td-review/mixed-workload-review-2026-08-06.md`: **LAND-WITH-FOLLOWUPS**.
+It confirmed the three conclusions and independently verified that fusion was
+engaged in every fused receipt, so the ≤0.09% mixed-workload B1 result is
+properly “engaged, no effect” in this governor-bound shape.
+
+The authorized one-commit direct closure makes four changes without rerunning
+the matrix: (1) a focused 8-row proof retains baseline step columns and asserts
+their content equality across barriered, unfused, and fused arms before the
+final projection; `(step_id, row_id)` simulator determinism makes that a valid
+content-parity extension to the existing matrix evidence; (2) resume now
+requires the exact documented eleven-receipt set and retains a future resume's
+prior reduction object as `superseded_reduction`; (3) `run_matrix` and its
+matrix test assert `[False, False, True]` `used_fusion` per arm; and (4) the
+session proof tests monkeypatch a construction-only synthetic API key, with no
+provider call.
+
+The pre-closure manifest was produced by the old resume path and its original
+reduction object was already overwritten; it is not reconstructed or invented.
+The retained lane narrative and `resume.prior_manifest_status` remain its honest
+historical evidence. The corrected reusable path preserves that object going
+forward. Focused provider-free gate: **5 passed, 3 explicit benchmark skips**.
+Herd Command verifies this test/docs-only closure directly; no new review round
+is requested. TD-3383 may now begin design-first; no TD-3383 implementation is
+authorized until its own design review passes.

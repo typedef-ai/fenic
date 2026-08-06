@@ -314,6 +314,7 @@ class WorkloadReport:
     logical_rows_per_s: float
     row_ids: tuple[int, ...]
     final_structs: tuple[dict[str, object], ...]
+    step_outputs: dict[str, tuple[object, ...]] | None
     per_step_logical_totals: dict[str, int]
     per_step_actual_output_tokens: dict[str, int]
     logical_completion_total: int
@@ -426,7 +427,14 @@ def _overlay(base, *, n_rows: int, barriered: bool, action_metrics: list[LMMetri
     return extracted
 
 
-def _run_steps(session, scenario: WorkloadScenario, arm: Arm, action_metrics: list[LMMetrics]):
+def _run_steps(
+    session,
+    scenario: WorkloadScenario,
+    arm: Arm,
+    action_metrics: list[LMMetrics],
+    *,
+    include_step_outputs: bool,
+):
     """Build the pass-shaped DataFrame and apply cache/count only to baseline steps."""
     base = session.create_dataframe(
         {
@@ -463,7 +471,12 @@ def _run_steps(session, scenario: WorkloadScenario, arm: Arm, action_metrics: li
         barriered=arm == "barriered",
         action_metrics=action_metrics,
     )
-    return current.join(overlay, on="record_id").select("record_id", "overlay_summary")
+    step_columns = [f"step_{step.step_id}" for step in scenario.steps[:12]]
+    return current.join(overlay, on="record_id").select(
+        "record_id",
+        *(step_columns if include_step_outputs else ()),
+        "overlay_summary",
+    )
 
 
 def run_workload_arm(
@@ -472,6 +485,7 @@ def run_workload_arm(
     arm: Arm,
     *,
     include_raw_trace: bool = False,
+    include_step_outputs: bool = False,
 ) -> WorkloadReport:
     """Execute one arm with real Fenic operators and return a comparable receipt."""
     events = []
@@ -503,7 +517,13 @@ def run_workload_arm(
 
         FusedMapExtractExec.execute_node = observe_fusion
         try:
-            result = _run_steps(session, scenario, arm, action_metrics)
+            result = _run_steps(
+                session,
+                scenario,
+                arm,
+                action_metrics,
+                include_step_outputs=include_step_outputs,
+            )
             with _fusion_disabled(arm == "unbarriered_unfused"):
                 output_result = result.collect("polars")
             action_metrics.append(output_result.metrics.total_lm_metrics)
@@ -564,6 +584,14 @@ def run_workload_arm(
         logical_rows_per_s=scenario.n_rows / wall_s if wall_s else 0.0,
         row_ids=tuple(output["record_id"].to_list()),
         final_structs=tuple(output["overlay_summary"].to_list()),
+        step_outputs=(
+            {
+                f"step_{step.step_id}": tuple(output[f"step_{step.step_id}"].to_list())
+                for step in scenario.steps[:12]
+            }
+            if include_step_outputs
+            else None
+        ),
         per_step_logical_totals=per_step_logical,
         per_step_actual_output_tokens=per_step_tokens,
         logical_completion_total=metrics.num_requests,
@@ -601,30 +629,94 @@ def assert_arm_parity(reports: list[WorkloadReport]) -> None:
     if len(reports) != 3:
         raise ValueError("arm parity requires exactly barriered, unfused, and fused reports")
     baseline = reports[0]
+    captures_step_outputs = [report.step_outputs is not None for report in reports]
+    if any(captures_step_outputs) and not all(captures_step_outputs):
+        raise ValueError("arm parity requires step-output capture in every arm or none")
     for report in reports[1:]:
+        parity_fields = [
+            ("row_ids", report.row_ids, baseline.row_ids),
+            ("final_structs", report.final_structs, baseline.final_structs),
+            (
+                "per_step_logical_totals",
+                report.per_step_logical_totals,
+                baseline.per_step_logical_totals,
+            ),
+            (
+                "per_step_actual_output_tokens",
+                report.per_step_actual_output_tokens,
+                baseline.per_step_actual_output_tokens,
+            ),
+        ]
+        if all(captures_step_outputs):
+            parity_fields.append(("step_outputs", report.step_outputs, baseline.step_outputs))
         differing_fields = [
-            name
-            for name, observed, expected in (
-                ("row_ids", report.row_ids, baseline.row_ids),
-                ("final_structs", report.final_structs, baseline.final_structs),
-                (
-                    "per_step_logical_totals",
-                    report.per_step_logical_totals,
-                    baseline.per_step_logical_totals,
-                ),
-                (
-                    "per_step_actual_output_tokens",
-                    report.per_step_actual_output_tokens,
-                    baseline.per_step_actual_output_tokens,
-                ),
-            )
-            if observed != expected
+            name for name, observed, expected in parity_fields if observed != expected
         ]
         if differing_fields:
             raise AssertionError(
                 "workload arm parity failed: "
                 f"baseline={baseline.arm}, differing={report.arm}, fields={differing_fields}"
             )
+
+
+def _assert_fusion_contract(reports: list[WorkloadReport]) -> None:
+    """Ensure the fused comparator actually executes the B1 physical operator."""
+    observed = [report.used_fusion for report in reports]
+    if observed != [False, False, True]:
+        raise AssertionError(
+            "mixed-workload fusion contract failed: expected "
+            f"[False, False, True], observed={observed}"
+        )
+
+
+def _matrix_receipt_filename(
+    *, version: str, lane: str, n_rows: int, base_seed: int
+) -> str:
+    """Return the canonical durable filename for one matrix receipt."""
+    return f"{version}-{lane}-{n_rows}-seed{base_seed}.json"
+
+
+def _expected_matrix_receipt_files() -> set[str]:
+    """Return the fixed twelve-receipt matrix contract."""
+    return {
+        _matrix_receipt_filename(
+            version="mixed-workload-v1",
+            lane=lane,
+            n_rows=n_rows,
+            base_seed=base_seed,
+        )
+        for n_rows in (96, 192)
+        for base_seed in (101, 202, 303)
+        for lane in ("matching", "modest_overshoot")
+    }
+
+
+def _validate_partial_third_seed_manifest(manifest: dict[str, object]) -> dict[str, object]:
+    """Require the documented eleven-receipt state before its bounded resume."""
+    target = _matrix_receipt_filename(
+        version="mixed-workload-v1",
+        lane="modest_overshoot",
+        n_rows=192,
+        base_seed=303,
+    )
+    receipt_files = manifest.get("receipt_files")
+    if not isinstance(receipt_files, list) or not all(isinstance(path, str) for path in receipt_files):
+        raise ValueError("resume requires a string receipt_files manifest")
+    observed = set(receipt_files)
+    expected = _expected_matrix_receipt_files() - {target}
+    if len(receipt_files) != len(observed) or observed != expected:
+        missing = sorted(expected - observed)
+        unexpected = sorted(observed - expected)
+        raise ValueError(
+            "resume requires exactly the documented missing third-seed overshoot receipt; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+    if manifest.get("completed_receipt_count") != len(expected):
+        raise ValueError("resume requires exactly eleven completed receipt files")
+    reduction = manifest.get("reduction")
+    if not isinstance(reduction, dict):
+        raise ValueError("resume requires the prior matrix reduction object")
+    return reduction
 
 
 def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
@@ -680,6 +772,7 @@ def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
                 for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
             ]
             assert_arm_parity(reports)
+            _assert_fusion_contract(reports)
         except WorkloadGuardError as exc:
             stopped_receipt = {
                 "harness_version": HARNESS_VERSION,
@@ -711,7 +804,12 @@ def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
             },
             "reports": [report.receipt() for report in reports],
         }
-        path = output_dir / f"{scenario.version}-{lane}-{n_rows}-seed{base_seed}.json"
+        path = output_dir / _matrix_receipt_filename(
+            version=scenario.version,
+            lane=lane,
+            n_rows=n_rows,
+            base_seed=base_seed,
+        )
         path.write_text(json.dumps(receipt, indent=2) + "\n")
         receipts.append(receipt)
 
@@ -724,8 +822,12 @@ def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
         "completed_receipt_count": len(receipts),
         "reduction": reduction,
         "receipt_files": [
-            f"{receipt['scenario']['version']}-{receipt['lane']}-"
-            f"{receipt['scenario']['n_rows']}-seed{receipt['scenario']['base_seed']}.json"
+            _matrix_receipt_filename(
+                version=receipt["scenario"]["version"],
+                lane=receipt["lane"],
+                n_rows=receipt["scenario"]["n_rows"],
+                base_seed=receipt["scenario"]["base_seed"],
+            )
             for receipt in receipts
         ],
     }
@@ -738,11 +840,15 @@ def resume_partial_third_seed(session, output_dir: Path) -> dict[str, object]:
     manifest_path = output_dir / "matrix-manifest.json"
     manifest = json.loads(manifest_path.read_text())
     scenario = WorkloadScenario(n_rows=192, base_seed=303, true_tpm=135_000)
-    receipt_path = output_dir / "mixed-workload-v1-modest_overshoot-192-seed303.json"
+    receipt_path = output_dir / _matrix_receipt_filename(
+        version=scenario.version,
+        lane="modest_overshoot",
+        n_rows=scenario.n_rows,
+        base_seed=scenario.base_seed,
+    )
     if receipt_path.exists():
         raise ValueError("third-seed overshoot receipt already exists")
-    if manifest.get("completed_receipt_count") != 11:
-        raise ValueError("resume requires exactly one missing third-seed receipt")
+    prior_reduction = _validate_partial_third_seed_manifest(manifest)
 
     scenario_started = time.monotonic()
     reports = [
@@ -750,6 +856,7 @@ def resume_partial_third_seed(session, output_dir: Path) -> dict[str, object]:
         for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
     ]
     assert_arm_parity(reports)
+    _assert_fusion_contract(reports)
     scenario_wall_s = time.monotonic() - scenario_started
     active_wall_s = manifest["matrix_wall_s"] + scenario_wall_s
 
@@ -793,6 +900,7 @@ def resume_partial_third_seed(session, output_dir: Path) -> dict[str, object]:
             "matrix_wall_s": active_wall_s,
             "completed_receipt_count": 12,
             "reduction": None,
+            "superseded_reduction": prior_reduction,
             "resume": receipt["resume"],
             "receipt_files": [*manifest["receipt_files"], receipt_path.name],
         }
@@ -810,6 +918,7 @@ def run_pilot(session, output_dir: Path) -> dict[str, object]:
         for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
     ]
     assert_arm_parity(reports)
+    _assert_fusion_contract(reports)
     receipt = {
         "harness_version": HARNESS_VERSION,
         "scenario": scenario.receipt_config(),

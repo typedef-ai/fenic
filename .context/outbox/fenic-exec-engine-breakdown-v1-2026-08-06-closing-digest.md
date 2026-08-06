@@ -156,15 +156,22 @@ benchmark node; no implementation for that node begins until Herd reviews its
 frozen design record.
 
 That workload node now has a complete 12-receipt, $0 simulated matrix at
-`.context/validation/mixed-complexity-workload/matrix/`, frozen for Herd
-implementation review. At 96/192 rows and matching/0.90x-server TPM, every
-arm preserved identical outputs/tokens/totals; no 300s wall or 60s
-no-settlement guard fired. The rate-governed workload leaves no material B1
-overlay gain (fused/unfused wall delta at most 0.09%) and lane-dependent
-barrier effects. The canonical 192-row 415,002-token expansion against a
-150,000-token bucket produced 107.5–113.1s matching arms, supporting the
-governor-bound hypothesis. A documented matrix control-flow defect briefly
-created an inconsistent third-seed reduction manifest; the evidence was kept,
-the runner was fixed, and one bounded final simulator lane brought active wall
-to 2,674.807s (25.193s under budget). TD-3383 remains design-first and does
-not begin until this workload review is accepted.
+`.context/validation/mixed-complexity-workload/matrix/`, LAND-WITH-FOLLOWUPS
+after Herd's independent review and its directly authorized test/docs closure.
+At 96/192 rows and matching/0.90x-server TPM, the matrix verified row IDs,
+overlay structs, per-step logical totals, and actual output-token draws; the
+new focused retained-column proof verifies baseline step 01–11 content equality
+before final projection. Every receipt recorded—and `run_matrix` now
+asserts—`[false, false, true]` `used_fusion`, so the no-material-B1-overlay
+gain (fused/unfused wall delta at most 0.09%) is an engaged, governor-bound
+null rather than an inactive comparator. No 300s wall or 60s no-settlement guard
+fired. The canonical 192-row 415,002-token expansion against a 150,000-token
+bucket produced 107.5–113.1s matching arms, supporting the governor-bound
+hypothesis and lane-dependent barrier effects. A documented matrix control-flow
+defect briefly created an inconsistent third-seed reduction manifest; the
+evidence was kept, the runner was fixed, and one bounded final simulator lane
+brought active wall to 2,674.807s (25.193s under budget). The old path had
+already overwritten the historical reduction object, so it is not invented
+retroactively; the reusable resume path now retains it as `superseded_reduction`.
+TD-3383 is released to its design-first gate; implementation remains blocked on
+that design review.

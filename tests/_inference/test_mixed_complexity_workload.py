@@ -12,10 +12,18 @@ from fenic._inference.request_lifecycle import (
 )
 from tests._inference.rate_limit_harness.mixed_workload import (
     WorkloadScenario,
+    _expected_matrix_receipt_files,
+    _validate_partial_third_seed_manifest,
     assert_arm_parity,
     default_step_specs,
     run_workload_arm,
 )
+
+
+@pytest.fixture(autouse=True)
+def _construction_only_openai_key(monkeypatch):
+    """Allow session construction without permitting a provider request."""
+    monkeypatch.setenv("OPENAI_API_KEY", "mixed-workload-construction-only")
 
 
 def test_step_draws_are_stable_by_step_and_row():
@@ -30,16 +38,20 @@ def test_step_draws_are_stable_by_step_and_row():
     assert all(len(draws) == 8 for draws in first.values())
 
 
-def test_workload_arms_preserve_outputs_tokens_and_logical_totals(local_session):
-    """The three arms are interchangeable as semantic computations."""
+def test_workload_arms_preserve_step_outputs_tokens_and_logical_totals(local_session):
+    """The three arms preserve every retained semantic step before projection."""
     scenario = WorkloadScenario(n_rows=8, base_seed=92, true_tpm=150_000)
 
     reports = [
-        run_workload_arm(local_session, scenario, arm)
+        run_workload_arm(local_session, scenario, arm, include_step_outputs=True)
         for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
     ]
 
     assert_arm_parity(reports)
+    assert all(report.step_outputs is not None for report in reports)
+    assert set(reports[0].step_outputs or ()) == {
+        f"step_{step.step_id}" for step in default_step_specs()[:12]
+    }
     assert reports[0].used_fusion is False
     assert reports[2].used_fusion is True
     assert reports[1].used_fusion is False
@@ -53,6 +65,27 @@ def test_workload_arms_preserve_outputs_tokens_and_logical_totals(local_session)
     )
     assert all(report.lifecycle_event_count > 0 for report in reports)
     assert all(report.server_429 == 0 for report in reports)
+
+
+def test_resume_requires_exactly_the_documented_missing_receipt():
+    """A same-count partial matrix cannot resume a different missing lane."""
+    target = "mixed-workload-v1-modest_overshoot-192-seed303.json"
+    expected = _expected_matrix_receipt_files() - {target}
+    reduction = {"reason": "projected whole-matrix wall exceeds budget"}
+    manifest = {
+        "completed_receipt_count": 11,
+        "receipt_files": sorted(expected),
+        "reduction": reduction,
+    }
+
+    assert _validate_partial_third_seed_manifest(manifest) == reduction
+
+    misplaced = sorted(expected)
+    misplaced[0] = target
+    with pytest.raises(ValueError, match="documented missing third-seed overshoot"):
+        _validate_partial_third_seed_manifest(
+            {**manifest, "receipt_files": misplaced}
+        )
 
 
 def test_modest_server_mismatch_exercises_real_retry_path(local_session):
@@ -119,6 +152,10 @@ def test_mixed_complexity_workload_matrix(local_session, tmp_path):
 
     assert len(receipts) in (10, 12)  # Third 192-row seed may be reduced by the 45m guard.
     assert all(receipt["arm_parity"] for receipt in receipts)
+    assert all(
+        [report["used_fusion"] for report in receipt["reports"]] == [False, False, True]
+        for receipt in receipts
+    )
 
 
 @pytest.mark.skipif(
