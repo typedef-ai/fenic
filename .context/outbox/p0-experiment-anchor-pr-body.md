@@ -12,9 +12,9 @@ metrics pre-check and production survey. TD-3384's local eager-no-op audit is
 LAND with three behavior-preserving fast paths and a directed test/docs closure.
 TD-3385 is LAND-WITH-FOLLOWUPS: its benchmark-backed no-op recommendation is
 accepted, and its directed closure preserves reproducible raw receipts and the
-provider-free test-selection rule. The Captain has subsequently authorized a
-separate multi-step workload-benchmark design node; it does not reopen the
-admitted charter completed below.
+provider-free test-selection rule. The admitted charter remains complete. The
+Captain's separate multi-step workload-benchmark extension is now design-frozen
+on its stacked branch, awaiting Herd Command before implementation.
 
 ## Frozen stack DAG
 
@@ -40,6 +40,8 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                                  `-- TD-3384 herd/fenic-exec-engine-td3384-eager-noop-audit @ f0fcc14  LAND (directed test/docs closure)
                                      |
                                      `-- TD-3385 herd/fenic-exec-engine-td3385-polars-embedding-benchmark  LAND (benchmark-backed no-op; directed evidence closure)
+                                         |
+                                         `-- Workload herd/fenic-exec-engine-mixed-complexity-workload  DESIGN FROZEN (Herd review requested)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -55,6 +57,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | TD-3334 N-op fusion | `54ea844` | Herd Command **ACCEPTED** no-op | `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
 | TD-3384 eager no-op audit | `f0fcc14` | Herd Command **LAND**; directed test/docs closure, no new round | `.context/td-review/td3384-eager-noop-review-2026-08-06.md` |
 | TD-3385 embedding math benchmark | `72323f7` + directed closure | Herd Command **LAND-WITH-FOLLOWUPS**; direct closure, no new round | `.context/outbox/td3385-polars-embedding-benchmark-lane-record-2026-08-06.md` |
+| Mixed-complexity workload benchmark | current branch head | Herd Command design review requested | `.context/outbox/mixed-complexity-workload-lane-record-2026-08-06.md` |
 
 ## Final evidence
 
@@ -91,6 +94,11 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
   changes reduction results beyond the predeclared tight parity tolerance. Its
   no-code recommendation is LAND, with committed seeded harness and raw-round
   receipts under `.context/validation/td3385-evidence/`.
+- The Captain-authorized workload extension is deliberately design-only until
+  Herd Command reviews its real-clock simulated-ModelClient arm/metrics plan.
+  It grounds barrier, B1-overlay, and adaptive-rate-limiting evidence in the
+  actual typedef 12-pass dependency envelope; TD-3383 follows only after this
+  new node's full cycle.
 
 The current Captain-facing validation report is
 `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md`.

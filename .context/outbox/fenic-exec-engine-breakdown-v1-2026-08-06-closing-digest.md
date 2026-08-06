@@ -154,3 +154,9 @@ final reviewer-less stack map and the TD-3385 raw evidence is committed. The
 former stand-down is superseded by Captain's next, design-first $0 workload
 benchmark node; no implementation for that node begins until Herd reviews its
 frozen design record.
+
+That workload node now has its stacked, design-frozen record at
+`.context/outbox/mixed-complexity-workload-lane-record-2026-08-06.md`. Its
+barrier-arm outcome and TD-4372 are the direct design inputs for the later
+TD-3383 collect/show/count-pushdown node; TD-3383 remains design-first and does
+not begin until the workload node completes its full Herd-gated cycle.
