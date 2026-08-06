@@ -1,7 +1,7 @@
 # TD-3383 — local collect/show/count pushdown — design freeze
 
-**Status:** DESIGN FROZEN — request design review FROM HERD COMMAND. **HOLD:**
-do not implement, benchmark, or make provider calls until the design verdict.
+**Status:** EVIDENCE-BACKED NO-OP FROZEN — request no-op review FROM HERD
+COMMAND. Do not implement or retry the benchmark.
 **Branch:** `herd/fenic-exec-engine-td3383-pushdown`, stacked on mixed-workload
 directed closure `b2de73a`.
 **Budget:** $0.00; local-only. The provider-free selector rule at
@@ -98,15 +98,23 @@ are permitted in v0; cloud execution is out of scope.
 
 ## Benchmarks and decision rule
 
-All benchmarking is local and provider-free, run only after design approval.
+All benchmarking is local and provider-free. The predeclared material-win
+threshold is **both at least 15% lower median wall time and at least 2.0 ms
+absolute median saving** versus the same-stack baseline across 15+ warm rounds;
+otherwise no production fast path lands. This threshold was recorded before the
+first TD-3383 proof or benchmark execution.
+
 Use a fixed seeded wide Polars/InMemory fixture (at least 100k rows and 128
 columns), a narrow `show(10)` projection, and a baseline action shape that is
-identical except for candidate eligibility. Measure 15+ warm rounds with fixture
-construction excluded: wall median/p95, output frame bytes/rows, and operator
-metrics. Add a deliberately expensive computed projection only as a **negative
-control**: it must not select the path. Add cache, filter, sort, aggregate, join,
-SQL, and semantic fake-client negative proofs; they must not select it and must
-preserve their existing side effects/metrics.
+identical except for candidate eligibility. TD-3384's already-landed ingestion
+identity fast path remains enabled in **both** arms; construct/coerce the fixture
+before the timed interval, so no reported gain can be attributed to ingestion.
+Measure 15+ warm rounds with fixture construction excluded: wall median/p95,
+output frame bytes/rows, and operator metrics. Add a deliberately expensive
+computed projection only as a **negative control**: it must not select the path.
+Add cache, filter, sort, aggregate, join, SQL, and semantic fake-client negative
+proofs; they must not select it and must preserve their existing side
+effects/metrics.
 
 Promotion requires all of: exact data/schema/order parity, equal applicable
 metrics/cache behavior, zero selection for every excluded boundary, and a clear
@@ -126,6 +134,31 @@ preferred no-op outcome. No live provider validation is warranted.
   bounded algebraic basis and deserves local proof/measurement, but it remains
   conditional on the gate above.
 
+## Gate resolution — no-op
+
+The only v0 candidate failed its hard output-parity gate. On the predeclared
+100,000-row × 128-column direct-projection fixture, incumbent `show(10)`
+formats a full result as first/last rows, while source-limiting formats only rows
+0–9. The representative actual-versus-candidate output comparison is preserved
+at `.context/validation/td3383-pushdown/show-prefix-parity-failure-2026-08-06.md`.
+This is a user-visible semantic divergence, so the prototype was removed rather
+than repaired by changing display semantics or adding pagination/sampling scope.
+
+The output assertion ran after 15 alternating pairs but before the prototype
+serialized its timing arrays. The arrays are not invented and the run is not
+retried: the 15%/2.0ms promotion threshold is irrelevant once output parity
+fails. That missing failure receipt is recorded in the evidence artifact as a
+harness limitation. The direct-column `show(n)` path is therefore **not** a
+safe low-risk pushdown in the present API.
+
+TD-3383's primary deliverable is complete independent of this null: the boundary
+classifier above answers where action pushdown is safe today (nowhere in a
+behavior-preserving v0) and why. `count` without full materialization requires a
+new action-mode physical execution contract that separately specifies operator
+count semantics, QueryMetrics/LMMetrics ownership, cache-write/checkpoint
+behavior, error timing, and source/SQL/sink capability; it cannot be an
+optimization hidden behind the existing `count()` API.
+
 ## Open questions
 
 1. Does the narrow source/projection `show(n)` path produce a material gain once
@@ -138,10 +171,10 @@ preferred no-op outcome. No live provider validation is warranted.
    executor shape at implementation time, because the first new unmaterialized
    production chain is also TD-3334's concrete N-op-fusion revisit trigger.
 
-## Review request — FROM HERD COMMAND
+## No-op review request — FROM HERD COMMAND
 
-Freeze this design at the commit below. **Request design review FROM HERD
-COMMAND** for the conservative boundary classifier, no-generic-count decision,
-benchmark contract, and TD-4372/workload evidence use. **HOLD:** do not start
-TD-3383 implementation or benchmarking until Herd Command disposes of this
-design gate.
+Freeze this no-op at the commit below. **Request no-op review FROM HERD COMMAND**
+for the standalone boundary classifier/design note, the exact `show(n)` parity
+failure, the removed prototype, and the deferred action-mode physical API
+contract. **HOLD:** do not implement or rerun TD-3383 until Herd Command disposes
+of this gate.
