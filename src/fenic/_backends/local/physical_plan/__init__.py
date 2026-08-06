@@ -41,6 +41,9 @@ from fenic._backends.local.physical_plan.transform import (
     ExplodeWithIndexExec as ExplodeWithIndexExec,
 )
 from fenic._backends.local.physical_plan.transform import FilterExec as FilterExec
+from fenic._backends.local.physical_plan.transform import (
+    FusedMapExtractExec as FusedMapExtractExec,
+)
 from fenic._backends.local.physical_plan.transform import LimitExec as LimitExec
 from fenic._backends.local.physical_plan.transform import (
     ProjectionExec as ProjectionExec,
@@ -73,6 +76,7 @@ __all__ = [
     "ExplodeExec",
     "ExplodeWithIndexExec",
     "FilterExec",
+    "FusedMapExtractExec",
     "LimitExec",
     "ProjectionExec",
     "SeriesLiteralCheck",

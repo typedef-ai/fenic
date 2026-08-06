@@ -10,6 +10,12 @@ import polars as pl
 
 from fenic._backends.local.lineage import OperatorLineage
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
+from fenic._backends.local.semantic_operators.extract import Extract
+from fenic._backends.local.semantic_operators.map import Map, MapExtract
+from fenic.core._logical_plan.expressions.semantic import (
+    SemanticExtractExpr,
+    SemanticMapExpr,
+)
 from fenic.core._logical_plan.plans import CacheInfo, CentroidInfo
 from fenic.core.error import ExecutionError, InternalError
 
@@ -87,6 +93,109 @@ class ProjectionExec(PhysicalPlan):
             child=(child_operator, backwards_df),
         )
         return operator, materialize_df
+
+
+class FusedMapExtractExec(PhysicalPlan):
+    """Execute one eligible adjacent ``semantic.map`` -> ``semantic.extract`` chain.
+
+    The fused node keeps B0's request iterator as the sole request/future/raw
+    response bound.  It pipelines its existing blocks; final extract output and
+    the projection DataFrame remain materialization boundaries.
+    """
+
+    def __init__(
+        self,
+        child: PhysicalPlan,
+        map_input: pl.Expr,
+        passthrough_columns: List[str],
+        output_columns: List[str],
+        map_output_column: str,
+        extract_output_column: str,
+        map_expr: SemanticMapExpr,
+        extract_expr: SemanticExtractExpr,
+        inner_projections: List[pl.Expr],
+        outer_projections: List[pl.Expr],
+        session_state: LocalSessionState,
+    ):
+        super().__init__([child], cache_info=None, session_state=session_state)
+        self.map_input = map_input
+        self.passthrough_columns = passthrough_columns
+        self.output_columns = output_columns
+        self.map_output_column = map_output_column
+        self.extract_output_column = extract_output_column
+        self.map_expr = map_expr
+        self.extract_expr = extract_expr
+        # Lineage intentionally retains the existing projection representation.
+        # This B1 execution optimization does not widen the lineage contract.
+        self.inner_projections = inner_projections
+        self.outer_projections = outer_projections
+
+    def execute_node(self, child_dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        if len(child_dfs) != 1:
+            raise ValueError("Unreachable: FusedMapExtractExec expects 1 child")
+        child_df = child_dfs[0]
+        map_input = child_df.select(self.map_input.alias(self.map_output_column)).to_series()
+        model = self.session_state.get_language_model(self.map_expr.model_alias)
+        map_operator = Map(
+            input=map_input,
+            jinja_template=self.map_expr.template,
+            model=model,
+            examples=self.map_expr.examples,
+            max_tokens=self.map_expr.max_tokens,
+            temperature=self.map_expr.temperature,
+            model_alias=self.map_expr.model_alias,
+            request_timeout=self.map_expr.request_timeout,
+        )
+        extract_operator = Extract(
+            input=pl.Series(self.map_output_column, [], dtype=pl.String),
+            response_format=self.extract_expr.response_format,
+            model=model,
+            max_output_tokens=self.extract_expr.max_tokens,
+            temperature=self.extract_expr.temperature,
+            model_alias=self.extract_expr.model_alias,
+            request_timeout=self.extract_expr.request_timeout,
+        )
+        extracted = MapExtract(map_operator, extract_operator).execute().alias(
+            self.extract_output_column
+        )
+        return child_df.select([pl.col(column) for column in self.passthrough_columns]).with_columns(
+            extracted
+        ).select([pl.col(column) for column in self.output_columns])
+
+    def with_children(self, children: List[PhysicalPlan]) -> PhysicalPlan:
+        if len(children) != 1:
+            raise InternalError("Unreachable: FusedMapExtractExec expects 1 child")
+        return FusedMapExtractExec(
+            child=children[0],
+            map_input=self.map_input,
+            passthrough_columns=self.passthrough_columns,
+            output_columns=self.output_columns,
+            map_output_column=self.map_output_column,
+            extract_output_column=self.extract_output_column,
+            map_expr=self.map_expr,
+            extract_expr=self.extract_expr,
+            inner_projections=self.inner_projections,
+            outer_projections=self.outer_projections,
+            session_state=self.session_state,
+        )
+
+    def build_node_lineage(
+        self,
+        leaf_nodes: List[OperatorLineage],
+    ) -> Tuple[OperatorLineage, pl.DataFrame]:
+        inner = ProjectionExec(
+            child=self.children[0],
+            projections=self.inner_projections,
+            cache_info=None,
+            session_state=self.session_state,
+        )
+        outer = ProjectionExec(
+            child=inner,
+            projections=self.outer_projections,
+            cache_info=None,
+            session_state=self.session_state,
+        )
+        return outer.build_node_lineage(leaf_nodes)
 
 
 class FilterExec(PhysicalPlan):

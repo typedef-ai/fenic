@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import jinja2
 import polars as pl
@@ -9,11 +9,13 @@ from fenic._backends.local.semantic_operators.base import (
     BaseMultiColumnInputOperator,
     CompletionOnlyRequestSender,
 )
+from fenic._backends.local.semantic_operators.extract import Extract
 from fenic._backends.local.semantic_operators.utils import (
     SCHEMA_EXPLANATION_INSTRUCTION_FRAGMENT,
     SIMPLE_INSTRUCTION_SYSTEM_PROMPT,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic._inference.types import LMRequestMessages
 from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
@@ -24,6 +26,47 @@ from fenic.core.types import (
     MapExample,
     MapExampleCollection,
 )
+
+
+class MapExtract:
+    """Pipe a string ``semantic.map`` result directly into ``semantic.extract``.
+
+    This internal adapter deliberately composes the existing row-local request
+    senders instead of adding another model-client API.  Pulling an extract
+    request pulls only the map responses needed to fill that extract request
+    block, so the full intermediate map result is never materialized.
+    """
+
+    def __init__(self, map_operator: "Map", extract_operator: "Extract"):
+        self.map_operator = map_operator
+        self.extract_operator = extract_operator
+
+    def execute(self) -> pl.Series:
+        if self.map_operator.request_batch_size != self.extract_operator.request_batch_size:
+            raise ValueError("Fused map and extract operators must use the same request batch size")
+
+        postprocessed_responses = []
+        for response in self.extract_operator.request_sender.send_request_stream(
+            self._iter_extract_request_messages(),
+            batch_size=self.extract_operator.request_batch_size,
+        ):
+            postprocessed_responses.extend(self.extract_operator.postprocess([response]))
+        return pl.Series(postprocessed_responses, dtype=self.extract_operator.output_type)
+
+    def _iter_extract_request_messages(self) -> Iterator[Optional[LMRequestMessages]]:
+        for response in self.map_operator.request_sender.send_request_stream(
+            self.map_operator.iter_request_messages(),
+            batch_size=self.map_operator.request_batch_size,
+        ):
+            mapped = self.map_operator.postprocess([response])[0]
+            # Match Extract.iter_request_messages: empty map output is a null
+            # extract input rather than a request with an empty user message.
+            if not mapped:
+                yield None
+            elif not isinstance(mapped, str):
+                raise InternalError("Fused semantic.map must produce string output")
+            else:
+                yield self.extract_operator.build_request_messages(mapped)
 
 
 class Map(BaseMultiColumnInputOperator[str, str]):

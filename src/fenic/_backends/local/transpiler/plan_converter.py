@@ -14,6 +14,7 @@ from fenic._backends.local.physical_plan import (
     FileSinkExec,
     FileSourceExec,
     FilterExec,
+    FusedMapExtractExec,
     InMemorySourceExec,
     JoinExec,
     LimitExec,
@@ -31,6 +32,8 @@ from fenic._backends.local.physical_plan import (
 from fenic.core._logical_plan.expressions import (
     AliasExpr,
     ColumnExpr,
+    SemanticExtractExpr,
+    SemanticMapExpr,
     SeriesLiteralExpr,
 )
 from fenic.core._logical_plan.optimizer import (
@@ -106,6 +109,9 @@ class PlanConverter:
                 )
             cache_keys.add(cache_key)
         if isinstance(logical, Projection):
+            fused = self._try_convert_fused_map_extract(logical, cache_keys)
+            if fused is not None:
+                return fused
             child_physical = self._convert_to_physical_plan(
                 logical.children()[0],
                 cache_keys,
@@ -491,3 +497,68 @@ class PlanConverter:
             )
 
         return None
+
+    def _try_convert_fused_map_extract(
+        self,
+        logical: Projection,
+        cache_keys: set[str],
+    ) -> FusedMapExtractExec | None:
+        """Fuse only the simple, dependency-only map/extract projection shape."""
+        inner = logical.children()[0]
+        if not isinstance(inner, Projection) or logical.cache_info or inner.cache_info:
+            return None
+
+        map_by_output: dict[str, SemanticMapExpr] = {}
+        inner_passthrough: set[str] = set()
+        for expression in inner.exprs():
+            if isinstance(expression, AliasExpr) and isinstance(expression.expr, SemanticMapExpr):
+                map_by_output[expression.name] = expression.expr
+            elif isinstance(expression, ColumnExpr):
+                inner_passthrough.add(expression.name)
+            else:
+                return None
+        if len(map_by_output) != 1:
+            return None
+
+        extract_matches: list[tuple[str, SemanticExtractExpr, str]] = []
+        passthrough_columns: list[str] = []
+        output_columns: list[str] = []
+        for expression in logical.exprs():
+            if isinstance(expression, AliasExpr) and isinstance(expression.expr, SemanticExtractExpr):
+                extract_expr = expression.expr
+                if not isinstance(extract_expr.expr, ColumnExpr):
+                    return None
+                extract_matches.append((expression.name, extract_expr, extract_expr.expr.name))
+                output_columns.append(expression.name)
+            elif isinstance(expression, ColumnExpr):
+                passthrough_columns.append(expression.name)
+                output_columns.append(expression.name)
+            else:
+                return None
+        if len(extract_matches) != 1:
+            return None
+
+        extract_output, extract_expr, map_output = extract_matches[0]
+        map_expr = map_by_output.get(map_output)
+        if (
+            map_expr is None
+            or map_expr.response_format is not None
+            or map_expr.model_alias != extract_expr.model_alias
+            or any(column not in inner_passthrough for column in passthrough_columns)
+        ):
+            return None
+
+        child_physical = self._convert_to_physical_plan(inner.children()[0], cache_keys)
+        return FusedMapExtractExec(
+            child=child_physical,
+            map_input=self.expr_converter.convert_semantic_map_input(map_expr),
+            passthrough_columns=passthrough_columns,
+            output_columns=output_columns,
+            map_output_column=map_output,
+            extract_output_column=extract_output,
+            map_expr=map_expr,
+            extract_expr=extract_expr,
+            inner_projections=[self.expr_converter.convert(expr) for expr in inner.exprs()],
+            outer_projections=[self.expr_converter.convert(expr) for expr in logical.exprs()],
+            session_state=self.session_state,
+        )

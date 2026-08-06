@@ -1,4 +1,10 @@
+import polars as pl
+from pydantic import BaseModel, Field
+
+from fenic._backends.local.semantic_operators.extract import Extract
+from fenic._backends.local.semantic_operators.map import Map, MapExtract
 from fenic._inference import model_client as model_client_module
+from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import ModelClient
 from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
@@ -15,6 +21,7 @@ from fenic._inference.types import (
     LMRequestMessages,
 )
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
 
@@ -23,9 +30,9 @@ class _StubProviderClass:
 
 
 class _FakeCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
-    def __init__(self):
+    def __init__(self, model="fake-model"):
         super().__init__(
-            model="fake-model",
+            model=model,
             model_provider=ModelProvider.OPENAI,
             model_provider_class=_StubProviderClass(),
             rate_limit_strategy=UnifiedTokenRateLimitStrategy(rpm=1_000, tpm=1_000_000),
@@ -34,7 +41,8 @@ class _FakeCompletionsClient(ModelClient[FenicCompletionsRequest, FenicCompletio
         self._metrics = LMMetrics()
 
     async def make_single_request(self, request):
-        return FenicCompletionsResponse(completion="fake", logprobs=None)
+        completion = '{"label": "fake"}' if request.structured_output else "mapped"
+        return FenicCompletionsResponse(completion=completion, logprobs=None)
 
     def estimate_tokens_for_request(self, request) -> TokenEstimate:
         return TokenEstimate(input_tokens=1, output_tokens=1)
@@ -100,6 +108,56 @@ def test_lifecycle_events_label_serial_requests_and_measure_idle_gap(monkeypatch
     assert metrics.total_queue_delay_ns == 20
     assert metrics.total_rate_limited_ns == 0
     assert metrics.idle_fraction == 0.6
+
+
+class _FusedSignal(BaseModel):
+    label: str = Field(description="A deterministic fused test label")
+
+
+def test_fused_map_extract_removes_the_p0_serial_idle_gap(monkeypatch):
+    timestamps = iter((100, 110, 120, 120, 120, 130))
+    monkeypatch.setattr(model_client_module.time, "monotonic_ns", lambda: next(timestamps))
+
+    client = _FakeCompletionsClient(model="gpt-4o-mini")
+    model = LanguageModel(client)
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="b1-fused-fake-execution")
+    try:
+        mapped = Map(
+            input=pl.Series(["source"]),
+            jinja_template="Normalize {{ source }}",
+            model=model,
+            max_tokens=16,
+            temperature=0,
+        )
+        extracted = Extract(
+            input=pl.Series([], dtype=pl.String),
+            response_format=ResolvedResponseFormat.from_pydantic_model(_FusedSignal),
+            model=model,
+            max_output_tokens=16,
+            temperature=0,
+        )
+        assert MapExtract(mapped, extracted).execute().to_list() == [{"label": "fake"}]
+    finally:
+        client.shutdown()
+
+    assert [event.operation_name for event in events] == [
+        "semantic.map",
+        "semantic.map",
+        "semantic.map",
+        "semantic.extract",
+        "semantic.extract",
+        "semantic.extract",
+    ]
+    metrics = compute_idle_gap_metrics(events)
+    # P0's equivalent serial fixture records one 30 ns gross idle gap.
+    assert metrics.idle_gap_count == 1
+    assert metrics.total_idle_gap_ns == 0
+    assert metrics.total_non_rate_limited_idle_gap_ns == 0
+    assert metrics.p50_idle_gap_ns == 0
+    assert metrics.p95_idle_gap_ns == 0
+    assert metrics.total_queue_delay_ns == 10
+    assert metrics.total_rate_limited_ns == 0
 
 
 def test_idle_metrics_exclude_rate_limited_wait_from_attribution():

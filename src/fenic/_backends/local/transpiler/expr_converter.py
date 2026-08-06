@@ -588,12 +588,7 @@ class ExprConverter:
                 request_timeout=logical.request_timeout,
             ).execute()
 
-        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
-        struct_expr = pl.struct(column_exprs)
-        jinja_expr = struct_expr.jinja.render(
-            template=logical.template,
-            strict=logical.strict,
-        )
+        jinja_expr = self.convert_semantic_map_input(logical)
 
         if logical.response_format:
             return jinja_expr.map_batches(
@@ -603,6 +598,14 @@ class ExprConverter:
         return jinja_expr.map_batches(
             sem_map_fn,
             return_dtype=pl.String
+        )
+
+    def convert_semantic_map_input(self, logical: SemanticMapExpr) -> pl.Expr:
+        """Compile map's rendered input without attaching its execution callback."""
+        column_exprs = [self._convert_expr(expr) for expr in logical.exprs]
+        return pl.struct(column_exprs).jinja.render(
+            template=logical.template,
+            strict=logical.strict,
         )
 
     @_convert_expr.register(RecursiveTextChunkExpr)
