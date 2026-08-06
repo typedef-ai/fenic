@@ -155,8 +155,16 @@ former stand-down is superseded by Captain's next, design-first $0 workload
 benchmark node; no implementation for that node begins until Herd reviews its
 frozen design record.
 
-That workload node now has its stacked, design-frozen record at
-`.context/outbox/mixed-complexity-workload-lane-record-2026-08-06.md`. Its
-barrier-arm outcome and TD-4372 are the direct design inputs for the later
-TD-3383 collect/show/count-pushdown node; TD-3383 remains design-first and does
-not begin until the workload node completes its full Herd-gated cycle.
+That workload node now has a complete 12-receipt, $0 simulated matrix at
+`.context/validation/mixed-complexity-workload/matrix/`, frozen for Herd
+implementation review. At 96/192 rows and matching/0.90x-server TPM, every
+arm preserved identical outputs/tokens/totals; no 300s wall or 60s
+no-settlement guard fired. The rate-governed workload leaves no material B1
+overlay gain (fused/unfused wall delta at most 0.09%) and lane-dependent
+barrier effects. The canonical 192-row 415,002-token expansion against a
+150,000-token bucket produced 107.5–113.1s matching arms, supporting the
+governor-bound hypothesis. A documented matrix control-flow defect briefly
+created an inconsistent third-seed reduction manifest; the evidence was kept,
+the runner was fixed, and one bounded final simulator lane brought active wall
+to 2,674.807s (25.193s under budget). TD-3383 remains design-first and does
+not begin until this workload review is accepted.

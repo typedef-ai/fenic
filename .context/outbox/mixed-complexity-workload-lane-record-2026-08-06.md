@@ -1,9 +1,8 @@
 # Mixed-complexity semantic workload benchmark — design freeze
 
-**Status:** IMPLEMENTATION CHECKPOINT — focused proof gate and required 24-row
-pilot passed; the approved 96/192 full matrix is stopped by its own 60-second
-real-clock condition before a larger arm is dispatched. This is not an
-implementation-review freeze.
+**Status:** IMPLEMENTATION FROZEN — full amended matrix complete; implementation
+review requested from Herd Command. Do not advance this branch while review is
+pending.
 **Branch:** `herd/fenic-exec-engine-mixed-complexity-workload`, stacked on the
 TD-3385 directed-closure head `7295e02`.
 
@@ -229,3 +228,69 @@ only once, before either third-seed lane. The only missing lane is
 bounded completion is authorized by the same 45-minute envelope. A dedicated
 resume receipt will stamp this recovery and update the manifest; no prior arm is
 rerun, no TPM/row count changes, and no provider call is involved.
+
+## Full amended matrix — COMPLETE
+
+The matrix completed all **12** receipts and every arm passed the load-bearing
+parity contract: identical final row IDs/structs, per-step logical totals, and
+per-step actual output-token draws. B1 physical fusion was observed only in the
+fused arm. No 300-second arm wall stop or 60-second no-settlement stop fired.
+The largest observed settlement gap was 16.153s (192-row modest-overshoot
+barriered), well below the no-progress guard.
+
+The raw simulator receipts and manifest are committed under
+`.context/validation/mixed-complexity-workload/matrix/`. The active benchmark
+wall was **2,674.807s** (44m 34.807s), **25.193s below** the 45-minute budget.
+The manifest records the bounded-resume recovery; it does not conceal the
+initial third-seed branch error. All work used `SimulatedCompletionsClient` and
+`SimulatedServerLimiter`: provider spend is **$0.00** and no provider call was
+made.
+
+Each receipt contains exact seed-specific preflight expansion/bucket math. For
+the canonical seed 101: 96 rows expand to 207,435 tokens, 57,435 over the
+150,000-token bucket (22.974s ideal refill minimum); 192 rows expand to
+415,002, 265,002 over (106.001s minimum). The observed 192-row matching arms
+were 107.5–113.1s, confirming that the intended governor-bound regime—not a
+hang—dominates the experiment.
+
+| Rows / lane | Barriered wall s | Unbarriered-unfused wall s | Fused wall s | Barrier relaxation delta | B1 overlay delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 96 / matching | 24.614 | 23.763 | 23.764 | -3.46% | +0.00% |
+| 96 / modest overshoot | 33.256 | 35.795 | 35.825 | +7.63% | +0.08% |
+| 192 / matching | 112.927 | 107.552 | 107.541 | -4.76% | -0.01% |
+| 192 / modest overshoot | 134.999 | 125.763 | 125.651 | -6.84% | -0.09% |
+
+Interpret these outcomes separately as designed:
+
+1. **Barrier relaxation:** the direction is lane-dependent. It is a typedef
+   checkpoint/failure/resume product choice, not a fenic defect claim.
+2. **B1 fusion:** the labeled non-production map→extract overlay has no material
+   wall-clock gain in this governor-bound workload (absolute fused/unfused delta
+   at most 0.09%). This does not negate the real-provider validation result; it
+   bounds the claim to this mixed, rate-limited shape.
+3. **Rate adaptation/governor:** lowering the simulated server to 0.90x drives
+   96-row wall from 24.614→33.256s (barriered) and
+   23.763→35.795s (unfused); at 192 rows it drives 112.927→134.999s and
+   107.552→125.763s. Average simulated 429/retries rise from 1.0–4.0 in the
+   matching lanes to 10.67–14.0 in modest-overshoot lanes. P0 attribution stays
+   honest: rate-limited idle is 18.929–106.332s per-arm mean, while non-rate
+   limited idle is only 0.011–0.238s.
+
+## Process incident — matrix recovery closed
+
+The first matrix runner evaluated its third-seed reduction check once before
+matching and again before modest overshoot. The second evaluation produced an
+inconsistent 11-receipt manifest after matching had already run. The artifact
+was retained. Commit `7ab2210` makes the reduction decision once before either
+lane and provides a simulator-only, single-lane bounded resume. The resume
+completed the missing modest-overshoot receipt in 385.480s; active aggregate
+wall remained under budget. This is a benchmark-control-flow defect, not a
+product semantic divergence; it is included in the review scope.
+
+## Frozen implementation review request — FROM HERD COMMAND
+
+Freeze this branch at the current head. **Request implementation review FROM
+HERD COMMAND** for the mixed-workload harness, controls, full 12-receipt
+evidence, recovery path, and conclusions above. **HOLD:** do not start TD-3383,
+modify this branch, or run another matrix/provider call until Herd Command
+disposes of this review.

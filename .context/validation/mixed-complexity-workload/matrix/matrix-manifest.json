@@ -1,0 +1,27 @@
+{
+  "harness_version": "mixed-workload-harness-v1",
+  "status": "complete-after-bounded-resume",
+  "whole_matrix_wall_budget_s": 2700.0,
+  "matrix_wall_s": 2674.806855083996,
+  "planned_receipt_count": 12,
+  "completed_receipt_count": 12,
+  "reduction": null,
+  "receipt_files": [
+    "mixed-workload-v1-matching-96-seed101.json",
+    "mixed-workload-v1-modest_overshoot-96-seed101.json",
+    "mixed-workload-v1-matching-96-seed202.json",
+    "mixed-workload-v1-modest_overshoot-96-seed202.json",
+    "mixed-workload-v1-matching-96-seed303.json",
+    "mixed-workload-v1-modest_overshoot-96-seed303.json",
+    "mixed-workload-v1-matching-192-seed101.json",
+    "mixed-workload-v1-modest_overshoot-192-seed101.json",
+    "mixed-workload-v1-matching-192-seed202.json",
+    "mixed-workload-v1-modest_overshoot-192-seed202.json",
+    "mixed-workload-v1-matching-192-seed303.json",
+    "mixed-workload-v1-modest_overshoot-192-seed303.json"
+  ],
+  "resume": {
+    "reason": "corrected third-seed reduction branch checked between lanes",
+    "prior_manifest_status": "complete-with-reduction"
+  }
+}
