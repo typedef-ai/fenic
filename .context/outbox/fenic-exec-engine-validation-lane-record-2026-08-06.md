@@ -137,3 +137,46 @@ committed evidence delta rooted at B1 final `bd7d89b`, particularly
 `.context/outbox/fenic-exec-engine-validation-divergence-evidence-2026-08-06.md`.
 
 **HOLD:** await that disposition before starting any new node.
+
+## Amendment A — authorized 2026-08-06
+
+Herd Command accepted the original HOLD as honest and authorized exactly one
+Amendment A rerun. The previous report-review request is superseded for this
+limited purpose; the report is no longer final until this round either completes
+or reaches its single permitted second HOLD.
+
+Before any Amendment A keyed call, the harness now writes a durable synthetic
+evidence JSON file under `.context/validation/amendment-a-evidence/` **before**
+the parity assertion. Each arm's receipt includes expected and raw observed
+values, case/whitespace-normalized values, value-by-value mismatches,
+LMMetrics, lifecycle summary, and raw lifecycle events. The extract field
+description and upstream map instruction both require exactly one of `ALPHA`,
+`BETA`, `GAMMA`, or `DELTA`; parity compares normalized values. A residual
+mismatch is listed by record ID in that evidence file and is a final
+stop-and-report HOLD for this probe.
+
+### Amendment A cumulative spend estimate and go/no-go
+
+The prior stopped arm remains charged at its conservative upper bound of
+**$0.041574**. Amendment A uses the observed 512-token output reservation for
+every map/extract request (more conservative than the original 384-token
+estimate): 2,176 fusion requests reserve `$0.705024`; the 256-call join reserves
+`$0.038707`; new direct reserve is `$0.743731`. Cumulative direct reserve is
+therefore **$0.785305**. The pre-run projected total is prior upper bound plus a
+10× remaining-run uncertainty reserve: **$7.478886**, below the `$40` halt line
+and `$50` hard backstop.
+
+Before every arm, the harness recomputes `prior upper + completed actual
+LMMetrics cost + 10× remaining reserve` and raises before issuing a request if
+that projection exceeds `$40`. The matrix restarts at unfused/64 and otherwise
+retains the approved order. No rate limit is manufactured.
+
+### Charter ordering amendment
+
+After the amended probe report is frozen and passes Herd Command report review,
+**TD-3334 generalized N-op fusion** is next, ahead of TD-3384 and TD-3385. Its
+design must first survey typedef's data-intelligence sync pipelines read-only
+for actual semantic-operator chains, then optimize for that shape without
+special-casing it at the expense of open-source Fenic. Free-for-everyone,
+adaptive-rate-limiting-style gains are the model. TD-3334 remains
+branches-only, local/fake-first, and spend-gated for any later live check.
