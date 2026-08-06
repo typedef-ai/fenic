@@ -10,6 +10,7 @@ from fenic._backends.local.semantic_operators.join import (
     RIGHT_ID_KEY,
     Join,
 )
+from fenic._backends.local.semantic_operators.predicate import Predicate
 
 
 class TestJoin:
@@ -64,7 +65,8 @@ class TestJoin:
             model=local_session._session_state.get_language_model(),
             temperature=0,
         )
-        df = sem_join._build_join_pairs_df().select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
+        left_documents, right_documents = sem_join._join_documents()
+        df = sem_join._build_join_pair_block(left_documents, right_documents).select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
         assert df[LEFT_ID_KEY].to_list() == [0, 0, 0, 2, 2, 2]
         assert df[RIGHT_ID_KEY].to_list() == [0, 1, 2, 0, 1, 2]
         assert df[RENDERED_INSTRUCTION_KEY].to_list() == [
@@ -85,7 +87,8 @@ class TestJoin:
             model=local_session._session_state.get_language_model(),
             temperature=0,
         )
-        df = sem_join._build_join_pairs_df().select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
+        left_documents, right_documents = sem_join._join_documents()
+        df = sem_join._build_join_pair_block(left_documents, right_documents).select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
         assert df[LEFT_ID_KEY].to_list() == [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         assert df[RIGHT_ID_KEY].to_list() == [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]
         assert df[RENDERED_INSTRUCTION_KEY].to_list() == [
@@ -130,3 +133,78 @@ class TestJoin:
         )
         assert predicate_examples[0].input["right_on"] == "Romantic Comedy"
         assert predicate_examples[0].output is False
+
+    def test_execute_bounds_predicate_blocks_without_losing_or_duplicating_pairs(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        def fake_execute(predicate):
+            rendered = predicate.input.to_list()
+            observed_blocks.append(rendered)
+            return pl.Series(["keep" in prompt for prompt in rendered])
+
+        monkeypatch.setattr(Predicate, "execute", fake_execute)
+
+        sem_join = Join(
+            left_df=pl.DataFrame(
+                {
+                    "left_on": ["left-0", "left-1", "left-2"],
+                    "left_payload": [0, 1, 2],
+                }
+            ),
+            right_df=pl.DataFrame(
+                {
+                    "right_on": ["keep", "skip", "keep-too"],
+                    "right_payload": [10, 11, 12],
+                }
+            ),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=2,
+        )
+
+        result = sem_join.execute().sort(["left_payload", "right_payload"])
+
+        assert [len(block) for block in observed_blocks] == [2, 1, 2, 1, 2, 1]
+        assert all(len(block) <= 2 for block in observed_blocks)
+        assert result.select(["left_payload", "right_payload"]).to_dicts() == [
+            {"left_payload": left, "right_payload": right}
+            for left in range(3)
+            for right in (10, 12)
+        ]
+
+    def test_execute_splits_pair_blocks_to_the_rendered_token_budget(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        def fake_execute(predicate):
+            observed_blocks.append(predicate.input.to_list())
+            return pl.Series([False] * len(predicate.input))
+
+        monkeypatch.setattr(Predicate, "execute", fake_execute)
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"]}),
+            right_df=pl.DataFrame({"right_on": ["one", "two", "three"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=3,
+            block_token_budget=4,
+        )
+        counted_prompts = []
+        monkeypatch.setattr(
+            sem_join.model,
+            "count_tokens",
+            lambda prompt: counted_prompts.append(prompt) or 2,
+        )
+
+        sem_join.execute()
+
+        assert [len(block) for block in observed_blocks] == [1, 2]
+        assert all(2 * len(block) <= 4 for block in observed_blocks)
+        assert set(counted_prompts) == {"left one", "left two", "left three"}
