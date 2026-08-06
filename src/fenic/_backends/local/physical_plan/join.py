@@ -196,7 +196,10 @@ class SemanticJoinExec(PhysicalPlan):
         left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
         right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
-        if "_left_uuid" in left_df.columns or "_right_uuid" in right_df.columns:
+        reserved_lineage_columns = {"_left_uuid", "_right_uuid"}
+        if reserved_lineage_columns.intersection(left_df.columns) or (
+            reserved_lineage_columns.intersection(right_df.columns)
+        ):
             raise ValueError(
                 "semantic.join lineage reserves '_left_uuid' and '_right_uuid'"
             )

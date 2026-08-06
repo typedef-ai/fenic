@@ -244,6 +244,62 @@ def test_semantic_join_lineage_rejects_reserved_side_uuid_columns(
         joined.lineage()
 
 
+def test_semantic_join_lineage_rejects_right_uuid_on_the_left(
+    local_session, monkeypatch
+):
+    from fenic._backends.local.semantic_operators.predicate import Predicate
+
+    monkeypatch.setattr(
+        Predicate,
+        "execute",
+        lambda predicate: pl.Series([False] * len(predicate.input)),
+    )
+    left = local_session.create_dataframe(
+        {"_right_uuid": ["reserved"], "left_on": ["left"]}
+    )
+    right = local_session.create_dataframe({"right_on": ["right"]})
+    joined = left.semantic.join(
+        right,
+        "Does {{left_on}} match {{right_on}}?",
+        left_on=col("left_on"),
+        right_on=col("right_on"),
+    )
+
+    with pytest.raises(
+        ExecutionError,
+        match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
+    ):
+        joined.lineage()
+
+
+def test_semantic_join_lineage_rejects_left_uuid_on_the_right(
+    local_session, monkeypatch
+):
+    from fenic._backends.local.semantic_operators.predicate import Predicate
+
+    monkeypatch.setattr(
+        Predicate,
+        "execute",
+        lambda predicate: pl.Series([False] * len(predicate.input)),
+    )
+    left = local_session.create_dataframe({"left_on": ["left"]})
+    right = local_session.create_dataframe(
+        {"_left_uuid": ["reserved"], "right_on": ["right"]}
+    )
+    joined = left.semantic.join(
+        right,
+        "Does {{left_on}} match {{right_on}}?",
+        left_on=col("left_on"),
+        right_on=col("right_on"),
+    )
+
+    with pytest.raises(
+        ExecutionError,
+        match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
+    ):
+        joined.lineage()
+
+
 def test_union_lineage(local_session):
     source1 = local_session.create_dataframe({"id": [1, 2, 3], "value": ["a", "b", "c"]})
     source2 = local_session.create_dataframe({"id": [4, 5, 6], "value": ["d", "e", "f"]})
