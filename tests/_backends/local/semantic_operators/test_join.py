@@ -1,4 +1,5 @@
 from textwrap import dedent
+from unittest.mock import MagicMock
 
 import jinja2
 import polars as pl
@@ -293,3 +294,53 @@ class TestJoin:
 
         assert [len(block) for block in observed_blocks] == [2, 1]
         assert result.select("right_payload").to_series().to_list() == [0, 1, 2]
+
+    def test_execute_streams_each_bounded_predicate_block(
+        self, local_session, monkeypatch
+    ):
+        observed_message_blocks = []
+        observed_kwargs = []
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left-0", "left-1"]}),
+            right_df=pl.DataFrame({"right_on": ["right-0", "right-1", "right-2"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=2,
+        )
+
+        monkeypatch.setattr(sem_join.model, "count_tokens", lambda _: 1)
+        monkeypatch.setattr(
+            sem_join.model,
+            "get_completions",
+            lambda *_args, **_kwargs: pytest.fail(
+                "semantic.join Predicate must use the B0 completion iterator"
+            ),
+        )
+
+        def fake_iter_completions(messages, **kwargs):
+            message_block = list(messages)
+            observed_message_blocks.append(message_block)
+            observed_kwargs.append(kwargs)
+            for _ in message_block:
+                response = MagicMock()
+                response.completion = '{"output": true}'
+                yield response
+
+        monkeypatch.setattr(sem_join.model, "iter_completions", fake_iter_completions)
+
+        result = sem_join.execute().sort(["left_on", "right_on"])
+
+        assert [len(block) for block in observed_message_blocks] == [2, 1, 2, 1]
+        assert all(len(block) <= sem_join.pair_block_size for block in observed_message_blocks)
+        assert all(
+            kwargs["operation_name"] == "semantic.predicate"
+            and kwargs["batch_size"] == 100
+            for kwargs in observed_kwargs
+        )
+        assert result.to_dicts() == [
+            {"left_on": left, "right_on": right}
+            for left in ("left-0", "left-1")
+            for right in ("right-0", "right-1", "right-2")
+        ]
