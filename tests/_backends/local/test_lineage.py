@@ -2,8 +2,10 @@ import datetime
 import zoneinfo
 
 import polars as pl
+import pytest
 
 from fenic import avg, col, count
+from fenic.core.error import ExecutionError
 
 TS_UTC = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
 TS_LA = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
@@ -212,6 +214,34 @@ def test_join_lineage(local_session):
     backwards = lineage.backwards(uuid_cols, branch_side="right")
     source2_row = source2.filter(col("id") == 1).to_polars()
     assert backwards.drop("_uuid").equals(source2_row)
+
+
+def test_semantic_join_lineage_rejects_reserved_side_uuid_columns(
+    local_session, monkeypatch
+):
+    from fenic._backends.local.semantic_operators.predicate import Predicate
+
+    monkeypatch.setattr(
+        Predicate,
+        "execute",
+        lambda predicate: pl.Series([False] * len(predicate.input)),
+    )
+    left = local_session.create_dataframe(
+        {"_left_uuid": ["reserved"], "left_on": ["left"]}
+    )
+    right = local_session.create_dataframe({"right_on": ["right"]})
+    joined = left.semantic.join(
+        right,
+        "Does {{left_on}} match {{right_on}}?",
+        left_on=col("left_on"),
+        right_on=col("right_on"),
+    )
+
+    with pytest.raises(
+        ExecutionError,
+        match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
+    ):
+        joined.lineage()
 
 
 def test_union_lineage(local_session):

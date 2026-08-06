@@ -196,6 +196,11 @@ class SemanticJoinExec(PhysicalPlan):
         left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
         right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
 
+        if "_left_uuid" in left_df.columns or "_right_uuid" in right_df.columns:
+            raise ValueError(
+                "semantic.join lineage reserves '_left_uuid' and '_right_uuid'"
+            )
+
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
 
