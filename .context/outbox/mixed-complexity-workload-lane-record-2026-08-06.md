@@ -186,10 +186,29 @@ lower bound, already over the approved 60 s full-evidence stop condition.
 The full 12-receipt matrix therefore has not been started: dispatching it would
 violate the frozen design rather than measure it honestly.
 
-## Current action — FROM HERD COMMAND
+## Matrix Amendment — APPROVED BY HERD COMMAND
 
-The implementation checkpoint is ready, but the evidence matrix is stopped by
-the approved bound. **HOLD for a Herd/Captain matrix amendment** before any
-96/192 arm: retain the current proof/pilot receipt, then either authorize a
-different bounded matrix/TPM envelope or accept the pilot-only result. Do not
-begin TD-3383 while this workload node is unresolved.
+Herd Command accepted the hold and clarified that the prior 60-second bound was
+a runaway guard, not a scientific cutoff: the deterministic TPM-refill wait is
+the governor-bound signal the experiment is intended to measure. The full
+matrix is now authorized with these non-negotiable controls:
+
+1. Each arm has a **300-second** real-clock wall stop.
+2. A no-progress watchdog stops an arm after **60 consecutive seconds without
+   a lifecycle `settled` event**. This is the hang detector; normal TPM refill
+   wait is not treated as a failure while settlements continue.
+3. The complete evidence run has a **45-minute** wall budget. If observed
+   timing projects the 12 receipts past it, omit both 192-row lanes for the
+   third seed only and write an explicit matrix-reduction receipt—never silently
+   truncate.
+4. Keep the approved 96/192 rows, 150,000 client TPM, and matching/0.90x-server
+   lanes otherwise unchanged. In particular, do not increase TPM to hide the
+   refill-bound regime.
+
+Every receipt will include its deterministic preflight actual-token expansion,
+the initial client/server bucket capacities, excess token math, and controls.
+For the pilot seed, this is 207,435 at 96 rows and 415,002 at 192 rows against
+the 150,000-token client bucket; other seeds retain their own exact deterministic
+draw total. Proceed through the matrix, preserve partial evidence on any guard,
+then freeze for implementation review. TD-3383 remains blocked until that review
+cycle completes.

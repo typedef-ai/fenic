@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -41,6 +42,73 @@ from tests._inference.rate_limit_harness.harness import (
 Arm = Literal["barriered", "unbarriered_unfused", "unbarriered_fused"]
 _MARKER = re.compile(r"workload-step-([a-z0-9-]+) row=(\d+)")
 HARNESS_VERSION = "mixed-workload-harness-v1"
+ARM_WALL_STOP_S = 300.0
+NO_SETTLEMENT_STOP_S = 60.0
+MATRIX_WALL_BUDGET_S = 45 * 60.0
+
+
+class WorkloadGuardError(RuntimeError):
+    """Raised after a benchmark watchdog has stopped a non-progressing arm."""
+
+
+class _ArmProgressWatchdog:
+    """Stop an explicit benchmark arm on wall expiry or absent settlement progress."""
+
+    def __init__(self, *, wall_stop_s: float, no_settlement_stop_s: float):
+        self.wall_stop_s = wall_stop_s
+        self.no_settlement_stop_s = no_settlement_stop_s
+        self.started_at = time.monotonic()
+        self.last_settlement_at = self.started_at
+        self.max_settlement_gap_s = 0.0
+        self.triggered_reason: str | None = None
+        self._lock = threading.Lock()
+        self._finished = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def observe(self, event) -> None:
+        """Record a lifecycle event and advance progress only on settlement."""
+        if event.event != "settled":
+            return
+        with self._lock:
+            now = time.monotonic()
+            self.max_settlement_gap_s = max(self.max_settlement_gap_s, now - self.last_settlement_at)
+            self.last_settlement_at = now
+
+    def start(self, client) -> None:
+        """Start the guard thread after the simulated client has been installed."""
+        def watch() -> None:
+            while not self._finished.wait(0.25):
+                now = time.monotonic()
+                with self._lock:
+                    if now - self.started_at >= self.wall_stop_s:
+                        self.triggered_reason = f"wall stop exceeded {self.wall_stop_s:.0f}s"
+                    elif now - self.last_settlement_at >= self.no_settlement_stop_s:
+                        self.triggered_reason = (
+                            "no lifecycle settlement for "
+                            f"{self.no_settlement_stop_s:.0f} consecutive seconds"
+                        )
+                    if self.triggered_reason is None:
+                        continue
+                client.shutdown()
+                return
+
+        self._thread = threading.Thread(target=watch, name="mixed-workload-watchdog", daemon=True)
+        self._thread.start()
+
+    def finish(self) -> dict[str, int | float | str | None]:
+        """Stop the guard and return durable control evidence for a receipt."""
+        self._finished.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+        with self._lock:
+            now = time.monotonic()
+            self.max_settlement_gap_s = max(self.max_settlement_gap_s, now - self.last_settlement_at)
+            return {
+                "arm_wall_stop_s": self.wall_stop_s,
+                "no_settlement_stop_s": self.no_settlement_stop_s,
+                "max_settlement_gap_s": self.max_settlement_gap_s,
+                "triggered_reason": self.triggered_reason,
+            }
 
 
 class _StepOutput(BaseModel):
@@ -124,6 +192,28 @@ class WorkloadScenario:
                 }
                 for index, step in enumerate(self.steps, start=1)
             ],
+        }
+
+    def preflight_token_expansion(self) -> dict[str, int | float]:
+        """Return exact deterministic actual-token pressure against both buckets."""
+        draws = self.step_output_draws()
+        actual_tokens = sum(
+            sum(draws[step.step_id]) + self.n_rows * step.input_tokens
+            for step in self.steps
+        )
+
+        def bucket_math(bucket: int) -> dict[str, int | float]:
+            excess = max(0, actual_tokens - bucket)
+            return {
+                "bucket_tokens": bucket,
+                "actual_token_expansion": actual_tokens,
+                "initial_bucket_excess_tokens": excess,
+                "minimum_refill_wait_s": excess / (bucket / 60),
+            }
+
+        return {
+            "client": bucket_math(self.tpm),
+            "simulated_server": bucket_math(self.true_tpm),
         }
 
 
@@ -249,6 +339,8 @@ class WorkloadReport:
     lm_metrics: dict[str, int | float]
     lifecycle_events: tuple[dict[str, object], ...]
     trace: tuple[tuple, ...]
+    preflight_token_expansion: dict[str, object]
+    guard: dict[str, int | float | str | None]
 
     def receipt(self) -> dict[str, object]:
         """Serialize the report without hiding raw parity or scenario fields."""
@@ -266,7 +358,8 @@ def _installed_simulator(session, scenario: WorkloadScenario) -> Iterator[Worklo
         yield simulated
     finally:
         model.client = original_client
-        simulated.shutdown()
+        if not simulated.shutdown_event.is_set():
+            simulated.shutdown()
 
 
 @contextmanager
@@ -373,15 +466,34 @@ def _run_steps(session, scenario: WorkloadScenario, arm: Arm, action_metrics: li
     return current.join(overlay, on="record_id").select("record_id", "overlay_summary")
 
 
-def run_workload_arm(session, scenario: WorkloadScenario, arm: Arm) -> WorkloadReport:
+def run_workload_arm(
+    session,
+    scenario: WorkloadScenario,
+    arm: Arm,
+    *,
+    include_raw_trace: bool = False,
+) -> WorkloadReport:
     """Execute one arm with real Fenic operators and return a comparable receipt."""
     events = []
+    events_lock = threading.Lock()
     action_metrics: list[LMMetrics] = []
     used_fusion = False
     started = time.monotonic()
     with _installed_simulator(session, scenario) as client:
-        client.set_request_lifecycle_collector(events.append, execution_id=f"{scenario.version}-{arm}")
-        result = _run_steps(session, scenario, arm, action_metrics)
+        watchdog = _ArmProgressWatchdog(
+            wall_stop_s=ARM_WALL_STOP_S,
+            no_settlement_stop_s=NO_SETTLEMENT_STOP_S,
+        )
+
+        def collect_event(event) -> None:
+            with events_lock:
+                events.append(event)
+            watchdog.observe(event)
+
+        client.set_request_lifecycle_collector(
+            collect_event, execution_id=f"{scenario.version}-{arm}"
+        )
+        watchdog.start(client)
         original_execute = FusedMapExtractExec.execute_node
 
         def observe_fusion(self, child_dfs):
@@ -391,14 +503,23 @@ def run_workload_arm(session, scenario: WorkloadScenario, arm: Arm) -> WorkloadR
 
         FusedMapExtractExec.execute_node = observe_fusion
         try:
+            result = _run_steps(session, scenario, arm, action_metrics)
             with _fusion_disabled(arm == "unbarriered_unfused"):
                 output_result = result.collect("polars")
-                action_metrics.append(output_result.metrics.total_lm_metrics)
-                output = output_result.data.sort("record_id")
+            action_metrics.append(output_result.metrics.total_lm_metrics)
+            output = output_result.data.sort("record_id")
+        except Exception as exc:
+            guard = watchdog.finish()
+            if guard["triggered_reason"] is not None:
+                raise WorkloadGuardError(str(guard["triggered_reason"])) from exc
+            raise
         finally:
             FusedMapExtractExec.execute_node = original_execute
             client.set_request_lifecycle_collector(None)
+            guard = watchdog.finish()
         wall_s = time.monotonic() - started
+        with events_lock:
+            event_snapshot = tuple(events)
         successes = [event for event in client.trace if event[0] == "success"]
         per_step_logical = {step.step_id: 0 for step in scenario.steps}
         per_step_tokens = {step.step_id: 0 for step in scenario.steps}
@@ -406,7 +527,7 @@ def run_workload_arm(session, scenario: WorkloadScenario, arm: Arm) -> WorkloadR
             per_step_logical[step_id] += 1
             per_step_tokens[step_id] += actual_out
         metrics = sum(action_metrics, LMMetrics())
-        idle = compute_idle_gap_metrics(events)
+        idle = compute_idle_gap_metrics(event_snapshot)
         attempts = sum(1 for event in client.trace if event[0] == "dispatch")
         server_429 = sum(1 for event in client.trace if event[0] == "server_429")
         backoffs = sum(1 for event in client.trace if event[0] == "backoff")
@@ -455,7 +576,7 @@ def run_workload_arm(session, scenario: WorkloadScenario, arm: Arm) -> WorkloadR
         actual_output_tokens=metrics.num_output_tokens,
         reservation_efficiency=metrics.num_output_tokens / max(1, metrics.num_reserved_output_tokens),
         achieved_output_tpm=60 * metrics.num_output_tokens / wall_s if wall_s else 0.0,
-        lifecycle_event_count=len(events),
+        lifecycle_event_count=len(event_snapshot),
         idle_gap_count=idle.idle_gap_count,
         total_idle_gap_ns=idle.total_idle_gap_ns,
         total_non_rate_limited_idle_gap_ns=idle.total_non_rate_limited_idle_gap_ns,
@@ -466,8 +587,12 @@ def run_workload_arm(session, scenario: WorkloadScenario, arm: Arm) -> WorkloadR
         used_fusion=used_fusion,
         per_step_receipts=per_step_receipts,
         lm_metrics=asdict(metrics),
-        lifecycle_events=tuple(asdict(event) for event in events),
-        trace=tuple(client.trace),
+        lifecycle_events=(
+            tuple(asdict(event) for event in event_snapshot) if include_raw_trace else ()
+        ),
+        trace=tuple(client.trace) if include_raw_trace else (),
+        preflight_token_expansion=scenario.preflight_token_expansion(),
+        guard=guard,
     )
 
 
@@ -503,31 +628,106 @@ def assert_arm_parity(reports: list[WorkloadReport]) -> None:
 
 
 def run_matrix(session, output_dir: Path) -> list[dict[str, object]]:
-    """Run the explicit full matrix and persist one versioned receipt per scenario."""
+    """Run the amended matrix, persisting every scenario before continuing."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    receipts = []
-    for n_rows in (96, 192):
-        for base_seed in (101, 202, 303):
-            for lane, true_tpm in (("matching", 150_000), ("modest_overshoot", 135_000)):
-                scenario = WorkloadScenario(
-                    n_rows=n_rows,
-                    base_seed=base_seed,
-                    true_tpm=true_tpm,
+    started = time.monotonic()
+    receipts: list[dict[str, object]] = []
+    scenario_walls: dict[tuple[int, int, str], float] = {}
+    reduction: dict[str, object] | None = None
+    planned = [
+        (n_rows, base_seed, lane, true_tpm)
+        for n_rows in (96, 192)
+        for base_seed in (101, 202, 303)
+        for lane, true_tpm in (("matching", 150_000), ("modest_overshoot", 135_000))
+    ]
+    for n_rows, base_seed, lane, true_tpm in planned:
+        if n_rows == 192 and base_seed == 303:
+            completed_192_walls = [
+                wall
+                for (completed_rows, _, _), wall in scenario_walls.items()
+                if completed_rows == 192
+            ]
+            if completed_192_walls:
+                projected_wall_s = (
+                    time.monotonic() - started
+                    + (sum(completed_192_walls) / len(completed_192_walls)) * 2
                 )
-                reports = [
-                    run_workload_arm(session, scenario, arm)
-                    for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
-                ]
-                assert_arm_parity(reports)
-                receipt = {
-                    "scenario": scenario.receipt_config(),
-                    "lane": lane,
-                    "arm_parity": True,
-                    "reports": [report.receipt() for report in reports],
-                }
-                path = output_dir / f"{scenario.version}-{lane}-{n_rows}-seed{base_seed}.json"
-                path.write_text(json.dumps(receipt, indent=2) + "\n")
-                receipts.append(receipt)
+                if projected_wall_s > MATRIX_WALL_BUDGET_S:
+                    reduction = {
+                        "reason": "projected whole-matrix wall exceeds budget",
+                        "dropped": {
+                            "n_rows": 192,
+                            "base_seed": 303,
+                            "lanes": ["matching", "modest_overshoot"],
+                        },
+                        "projected_wall_s": projected_wall_s,
+                        "whole_matrix_wall_budget_s": MATRIX_WALL_BUDGET_S,
+                        "observed_192_receipt_walls_s": completed_192_walls,
+                    }
+                    break
+
+        scenario = WorkloadScenario(
+            n_rows=n_rows,
+            base_seed=base_seed,
+            true_tpm=true_tpm,
+        )
+        scenario_started = time.monotonic()
+        try:
+            reports = [
+                run_workload_arm(session, scenario, arm)
+                for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
+            ]
+            assert_arm_parity(reports)
+        except WorkloadGuardError as exc:
+            stopped_receipt = {
+                "harness_version": HARNESS_VERSION,
+                "scenario": scenario.receipt_config(),
+                "preflight_token_expansion": scenario.preflight_token_expansion(),
+                "lane": lane,
+                "arm_parity": False,
+                "status": "guard-stopped",
+                "reason": str(exc),
+            }
+            path = output_dir / f"{scenario.version}-{lane}-{n_rows}-seed{base_seed}-guard-stopped.json"
+            path.write_text(json.dumps(stopped_receipt, indent=2) + "\n")
+            raise
+
+        scenario_wall_s = time.monotonic() - scenario_started
+        scenario_walls[(n_rows, base_seed, lane)] = scenario_wall_s
+        receipt = {
+            "harness_version": HARNESS_VERSION,
+            "scenario": scenario.receipt_config(),
+            "preflight_token_expansion": scenario.preflight_token_expansion(),
+            "lane": lane,
+            "arm_parity": True,
+            "scenario_wall_s": scenario_wall_s,
+            "matrix_elapsed_s_before": scenario_started - started,
+            "matrix_controls": {
+                "arm_wall_stop_s": ARM_WALL_STOP_S,
+                "no_settlement_stop_s": NO_SETTLEMENT_STOP_S,
+                "whole_matrix_wall_budget_s": MATRIX_WALL_BUDGET_S,
+            },
+            "reports": [report.receipt() for report in reports],
+        }
+        path = output_dir / f"{scenario.version}-{lane}-{n_rows}-seed{base_seed}.json"
+        path.write_text(json.dumps(receipt, indent=2) + "\n")
+        receipts.append(receipt)
+
+    manifest = {
+        "harness_version": HARNESS_VERSION,
+        "status": "complete-with-reduction" if reduction else "complete",
+        "whole_matrix_wall_budget_s": MATRIX_WALL_BUDGET_S,
+        "matrix_wall_s": time.monotonic() - started,
+        "planned_receipt_count": len(planned),
+        "completed_receipt_count": len(receipts),
+        "reduction": reduction,
+        "receipt_files": [
+            f"{receipt['scenario']['version']}-{receipt['lane']}-"
+            f"{receipt['scenario']['n_rows']}-seed{receipt['scenario']['base_seed']}.json"
+            for receipt in receipts
+        ],
+    }
+    (output_dir / "matrix-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return receipts
 
 
@@ -536,7 +736,7 @@ def run_pilot(session, output_dir: Path) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     scenario = WorkloadScenario(n_rows=24, base_seed=101)
     reports = [
-        run_workload_arm(session, scenario, arm)
+        run_workload_arm(session, scenario, arm, include_raw_trace=True)
         for arm in ("barriered", "unbarriered_unfused", "unbarriered_fused")
     ]
     assert_arm_parity(reports)
