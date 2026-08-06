@@ -29,6 +29,27 @@ from fenic._backends.local.physical_plan.base import (
 
 logger = logging.getLogger(__name__)
 
+
+def _is_identity_projection(
+    projections: List[pl.Expr], columns: List[str]
+) -> bool:
+    """Return whether projections preserve every input column in its current order."""
+    return len(projections) == len(columns) and all(
+        projection.meta.is_column()
+        and projection.meta.output_name() == column
+        for projection, column in zip(projections, columns, strict=True)
+    )
+
+
+def _align_union_right_dataframe(
+    left_df: pl.DataFrame, right_df: pl.DataFrame
+) -> pl.DataFrame:
+    """Align only a differently ordered right side to the left union schema."""
+    if right_df.columns == left_df.columns:
+        return right_df
+    return right_df.select(left_df.columns)
+
+
 @dataclass(frozen=True)
 class SeriesLiteralCheck:
     column_name: str
@@ -61,6 +82,8 @@ class ProjectionExec(PhysicalPlan):
                         f"{check.expected_length}, but the DataFrame has {df_height} rows. "
                         "Series data must match the DataFrame height."
                     )
+        if _is_identity_projection(self.projections, child_df.columns):
+            return child_df
         return child_df.select(self.projections)
 
 
@@ -247,8 +270,8 @@ class UnionExec(PhysicalPlan):
         left_df = child_dfs[0]
         right_df = child_dfs[1]
 
-        # Align right dataframe columns with left dataframe
-        right_df_aligned = right_df.select(left_df.columns)
+        # Align the right dataframe only when its column order differs.
+        right_df_aligned = _align_union_right_dataframe(left_df, right_df)
         combined = pl.concat([left_df, right_df_aligned], how="vertical")
         return combined
 
