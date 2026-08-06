@@ -37,7 +37,8 @@ def apply_ingestion_coercions(
             physical fixed-size array representation.
 
     Returns:
-        A new Polars DataFrame with all coercions applied to conform to Fenic-compatible types.
+        The original DataFrame when no coercion is needed; otherwise a new
+        DataFrame with coercions applied to conform to Fenic-compatible types.
     """
 
     logical_fields = (

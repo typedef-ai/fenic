@@ -1,4 +1,4 @@
-## Execution-engine experiment anchor — BASE STACK LAND; TD-3334 accepted; TD-3384 frozen
+## Execution-engine experiment anchor — BASE STACK LAND; TD-3334 and TD-3384 LAND
 
 This reviewer-less draft is the single branches-only anchor for the completed
 `fenic-exec-engine-breakdown-v1` experiment. It is not a review request; no
@@ -9,7 +9,7 @@ additional PRs were created for the stack or validation epilogue.
 **COMPLETE and report-review accepted** after the hardened full matrix passed
 normalized semantic parity. TD-3334 is an evidence-backed no-op after its $0
 metrics pre-check and production survey. TD-3384's local eager-no-op audit is
-frozen for Herd Command review with three behavior-preserving fast paths.
+LAND with three behavior-preserving fast paths and a directed test/docs closure.
 
 ## Frozen stack DAG
 
@@ -32,7 +32,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                              |
                              `-- TD-3334 herd/fenic-exec-engine-td3334-n-op-fusion @ 54ea844  ACCEPTED NO-OP
                                  |
-                                 `-- TD-3384 herd/fenic-exec-engine-td3384-eager-noop-audit @ f0fcc14  FAST PATHS FROZEN (Herd review)
+                                 `-- TD-3384 herd/fenic-exec-engine-td3384-eager-noop-audit @ f0fcc14  LAND (directed test/docs closure)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -46,7 +46,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | B1 fusion | `bd7d89b` | `.context/td-review/b1-two-op-fusion-review-2026-08-05.md` | `.context/outbox/b1-two-op-fusion-lane-record-2026-08-06.md` |
 | Validation epilogue | `9098734` | Herd Command report-review **ACCEPTED** | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
 | TD-3334 N-op fusion | `54ea844` | Herd Command **ACCEPTED** no-op | `.context/outbox/td3334-n-op-fusion-lane-record-2026-08-06.md` |
-| TD-3384 eager no-op audit | `f0fcc14` | pending Herd Command review | `.context/outbox/td3384-eager-noop-audit-lane-record-2026-08-06.md` |
+| TD-3384 eager no-op audit | `f0fcc14` | Herd Command **LAND**; directed test/docs closure, no new round | `.context/td-review/td3384-eager-noop-review-2026-08-06.md` |
 
 ## Final evidence
 
@@ -74,8 +74,10 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 - TD-3384 proves and removes three recurrent eager no-ops: ingestion's
   all-column `select`, same-order union alignment, and direct-column identity
   projection. It preserves coercion, differing-order union, aliases/computed
-  projections, schemas, and empty frames; source/sink/restore candidates remain
-  deliberately unchanged pending review.
+  projections, schemas, and empty frames; negative guard-boundary tests cover
+  aliases, casts, regex selectors, and reorderings. Source/sink/restore
+  candidates remain deliberately unchanged. Future freeze records must be
+  committed before dispatching their pinned Herd review.
 
 The current Captain-facing validation report is
 `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md`.

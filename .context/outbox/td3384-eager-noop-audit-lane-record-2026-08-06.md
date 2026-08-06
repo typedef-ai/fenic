@@ -1,6 +1,6 @@
 # TD-3384 eager no-op physical-operator audit — lane record
 
-**Status:** implementation evidence frozen for Herd Command review.  
+**Status:** LAND with directed test/docs closure.
 **Branch:** `herd/fenic-exec-engine-td3384-eager-noop-audit`, stacked on the
 accepted TD-3334 head `54ea84404b9655a587c235470253bae36edfa3f6`.
 
@@ -43,8 +43,8 @@ material eager-all-column cost on representative wide frames.
 3. identity projections retain exact identity for populated and empty frames,
    while an aliased/computed column still evaluates through Polars.
 
-The focused physical/transpiler/ingestion gate passed **28 tests**. `uvx ruff`
-and `git diff --check` passed.
+The review's focused physical/transpiler/ingestion gate passed **35 tests**.
+`uvx ruff` and `git diff --check` passed.
 
 ## Process incident — broad test selection stopped
 
@@ -56,10 +56,19 @@ authentication `401` failures from OpenAI before any successful response. No
 tests will run for this local-only node. This is a test-selection mistake, not
 a product failure or a cost receipt.
 
-## Frozen review request — FROM HERD COMMAND
+## Herd Command disposition and directed closure
 
-The audit evidence and the three behavior-preserving fast paths are frozen.
-**Request review FROM HERD COMMAND** for TD-3384 at the current branch head.
-Review scope: no-op guards, schema/order/empty/non-identity preservation,
-micro-measurement accounting, and the explicit no-op dispositions for
-source/sink/restore paths. **HOLD:** do not start TD-3385 until disposition.
+Herd Command **LAND**ed `f0fcc14` with no Majors
+(`.context/td-review/td3384-eager-noop-review-2026-08-06.md`). Its directed,
+no-new-review closure adds negative guard tests for same-name alias, cast,
+regex selector, reordered projection, and computed projection; it also proves
+identity for already-normalized datetime, nested Struct, and EmbeddingType
+ingestion. The focused closure test file passes **8 tests** and the ingestion
+return-value docstring now correctly permits returning the original DataFrame.
+
+Review pinned `f0fcc14`; the prior docs-only `fd11035` was source/test
+byte-identical, which Herd accepted. The process rule is now explicit: commit
+all freeze-request records before dispatching a pinned review and do not advance
+that reviewed branch head afterward. This directed closure is authorized by the
+verdict itself and Herd verifies it directly; no separate review round occurs.
+TD-3385 is released.

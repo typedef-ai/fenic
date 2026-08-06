@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import polars as pl
 
 from fenic._backends.local.physical_plan.transform import (
@@ -5,6 +7,14 @@ from fenic._backends.local.physical_plan.transform import (
     _align_union_right_dataframe,
 )
 from fenic._backends.local.physical_plan.utils import apply_ingestion_coercions
+from fenic.core.types import (
+    ColumnField,
+    EmbeddingType,
+    Schema,
+    StringType,
+    StructField,
+    StructType,
+)
 
 
 def test_ingestion_coercions_return_original_wide_dataframe_when_no_types_change():
@@ -23,6 +33,41 @@ def test_ingestion_coercions_return_original_wide_dataframe_when_no_types_change
         assert result is df
         assert result.schema == df.schema
         assert result.equals(df)
+
+
+def test_ingestion_coercions_keep_fully_normalized_datetime_struct_and_embedding_identity():
+    embedding_type = EmbeddingType(dimensions=2, embedding_model="test")
+    logical_schema = Schema(
+        [
+            ColumnField(
+                "payload",
+                StructType([StructField("state", StringType)]),
+            ),
+            ColumnField("embedding", embedding_type),
+        ]
+    )
+    df = pl.DataFrame(
+        {
+            "timestamp": [datetime(2025, 1, 1, tzinfo=timezone.utc)],
+            "payload": [{"state": "ready"}],
+            "embedding": [[1.0, 2.0]],
+        },
+        schema={
+            "timestamp": pl.Datetime(time_unit="us", time_zone="UTC"),
+            "payload": pl.Struct([pl.Field("state", pl.String)]),
+            "embedding": pl.Array(pl.Float32, 2),
+        },
+    )
+
+    result = apply_ingestion_coercions(
+        df,
+        coerce_array=True,
+        logical_schema=logical_schema,
+    )
+
+    assert result is df
+    assert result.schema == df.schema
+    assert result.equals(df)
 
 
 def test_ingestion_coercions_still_materialize_when_array_normalization_is_needed():
@@ -90,11 +135,32 @@ def test_identity_projection_returns_original_dataframe_for_rows_and_empty_frame
         assert result.equals(df)
 
 
-def test_projection_keeps_select_for_aliases_and_computed_columns():
+def test_projection_keeps_select_for_guard_boundary_expressions():
     df = pl.DataFrame({"id": [1, 2]})
+    for projections, expected in (
+        ([pl.col("id").alias("id")], [{"id": 1}, {"id": 2}]),
+        ([pl.col("id").cast(pl.Int64)], [{"id": 1}, {"id": 2}]),
+        ([pl.col("^id$")], [{"id": 1}, {"id": 2}]),
+        ([(pl.col("id") + 1).alias("id")], [{"id": 2}, {"id": 3}]),
+    ):
+        plan = ProjectionExec(
+            child=None,
+            projections=projections,
+            cache_info=None,
+            session_state=None,
+        )
+
+        result = plan.execute_node([df])
+
+        assert result is not df
+        assert result.to_dicts() == expected
+
+
+def test_projection_keeps_select_for_reordered_direct_columns():
+    df = pl.DataFrame({"id": [1, 2], "name": ["first", "second"]})
     plan = ProjectionExec(
         child=None,
-        projections=[(pl.col("id") + 1).alias("id")],
+        projections=[pl.col("name"), pl.col("id")],
         cache_info=None,
         session_state=None,
     )
@@ -102,4 +168,8 @@ def test_projection_keeps_select_for_aliases_and_computed_columns():
     result = plan.execute_node([df])
 
     assert result is not df
-    assert result.to_dicts() == [{"id": 2}, {"id": 3}]
+    assert result.columns == ["name", "id"]
+    assert result.to_dicts() == [
+        {"name": "first", "id": 1},
+        {"name": "second", "id": 2},
+    ]
