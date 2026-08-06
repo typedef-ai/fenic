@@ -26,7 +26,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                      |
                      `-- B1 herd/fenic-exec-engine-b1-two-op-fusion @ bd7d89b  LAND
                          |
-                         `-- Validation herd/fenic-exec-engine-validation @ f0df93b  AMENDMENT A COMPLETE (report review)
+                         `-- Validation herd/fenic-exec-engine-validation @ 2281a8f  AMENDMENT A COMPLETE (report review)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -38,7 +38,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | P1c semantic.join | `743e09b` | `.context/td-review/p1c-semantic-join-review-2026-08-06-delta.md` | `.context/outbox/p1c-semantic-join-lane-record-2026-08-06.md` |
 | B0+1c adapter | `574a743` | `.context/td-review/b0-1c-stream-adapter-receipt-2026-08-05.md` | `.context/outbox/b0-1c-stream-adapter-lane-record-2026-08-06.md` |
 | B1 fusion | `bd7d89b` | `.context/td-review/b1-two-op-fusion-review-2026-08-05.md` | `.context/outbox/b1-two-op-fusion-lane-record-2026-08-06.md` |
-| Validation epilogue | `f0df93b` | pending Herd Command **report** review | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
+| Validation epilogue | `2281a8f` | pending Herd Command **report** review | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
 
 ## Final evidence
 
