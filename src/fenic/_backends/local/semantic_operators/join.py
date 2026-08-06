@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Iterator
 from typing import Optional
 
@@ -13,8 +12,6 @@ from fenic._constants import (
 from fenic._inference.language_model import LanguageModel
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection, PredicateExampleCollection
-
-logger = logging.getLogger(__name__)
 
 # TODO(rohitrastogi): Make this a guid so it doesn't collide with any column names in a user dataframe.
 RENDERED_INSTRUCTION_KEY = "__rendered_instruction__"
@@ -115,6 +112,11 @@ class Join:
         self, left_documents: pl.DataFrame, right_documents: pl.DataFrame
     ) -> pl.DataFrame:
         joined_df = left_documents.join(right_documents, how="cross")
+        if len(joined_df) > self.pair_block_size:
+            raise AssertionError(
+                "semantic.join pair block exceeds cap "
+                f"({len(joined_df)} > {self.pair_block_size})"
+            )
         render_expr = pl.struct([pl.col(LEFT_ON_KEY), pl.col(RIGHT_ON_KEY)]).jinja.render(
             template=self.jinja_template,
             strict=self.strict,
@@ -130,15 +132,17 @@ class Join:
             self.model.count_tokens(prompt)
             for prompt in join_pairs[RENDERED_INSTRUCTION_KEY]
         )
-        if prompt_tokens <= self.block_token_budget or len(join_pairs) == 1:
-            if prompt_tokens > self.block_token_budget:
-                logger.warning(
-                    "semantic.join rendered prompt exceeds the block token budget: %s > %s",
-                    prompt_tokens,
-                    self.block_token_budget,
-                )
+        if prompt_tokens <= self.block_token_budget:
             yield join_pairs
             return
+
+        if len(join_pairs) == 1:
+            raise ValueError(
+                "semantic.join rendered prompt is too large "
+                f"({prompt_tokens} tokens) and exceeds the block token budget "
+                f"({self.block_token_budget} tokens). Reduce the join inputs or "
+                "use a smaller prompt."
+            )
 
         split_at = len(join_pairs) // 2
         yield from self._split_block_by_token_budget(join_pairs.slice(0, split_at))
