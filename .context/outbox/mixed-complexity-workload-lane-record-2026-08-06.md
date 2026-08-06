@@ -1,6 +1,9 @@
 # Mixed-complexity semantic workload benchmark — design freeze
 
-**Status:** DESIGN FROZEN — Herd Command review required before implementation.
+**Status:** IMPLEMENTATION CHECKPOINT — focused proof gate and required 24-row
+pilot passed; the approved 96/192 full matrix is stopped by its own 60-second
+real-clock condition before a larger arm is dispatched. This is not an
+implementation-review freeze.
 **Branch:** `herd/fenic-exec-engine-mixed-complexity-workload`, stacked on the
 TD-3385 directed-closure head `7295e02`.
 
@@ -139,9 +142,54 @@ metrics, joins, aggregates, sorts, and SQL), then implement only clear
 low-risk cases. It is a separate design-first, local-only node; no TD-3383 work
 starts now.
 
-## Frozen review request — FROM HERD COMMAND
+## Frozen design review request — DISPOSED
 
-This workload specification, arm contract, seed matrix, metric contract, and
-TD-3383 successor framing are frozen. **Request design review FROM HERD
-COMMAND** at the current branch head. **HOLD:** do not implement the simulator,
-operators, benchmark, or TD-3383 until Herd Command disposes of this design.
+The design review was approved by Herd Command. Implementation was therefore
+authorized; the active HOLD is solely the measured 60-second matrix bound
+recorded below, not the prior design gate.
+
+## Herd design disposition and implementation checkpoint
+
+Herd Command approved the design unchanged. Its load-bearing requirement is
+preserved in code: all three arms must have identical final row IDs/structs,
+per-step logical totals, and actual output-token draws; a failure raises rather
+than loosening the fixture. The default gate contains only focused proof tests;
+the pilot and matrix remain explicit opt-in real-clock commands. Every durable
+receipt stamps `mixed-workload-harness-v1`, `mixed-workload-v1`, all scenario
+knobs, and the derived seed per step.
+
+Focused local-only gate: **4 passed, 2 skipped**. It proves stable step/row
+draws, all-arm parity, B1 selection only in the fused arm, natural simulated
+server-429/retry behavior, query-level LMMetrics capture, and P0's
+rate-limited-idle exclusion over a multi-step lifecycle. The exact-node
+provider-free selector entries are in
+`.context/PROVIDER-FREE-TEST-SELECTION.md`; every semantic action swaps the
+fixture model client for `WorkloadSimulatedCompletionsClient` before dispatch.
+
+The required 24-row matching-server pilot passed and wrote its raw receipt to
+`.context/validation/mixed-complexity-workload/pilot/mixed-workload-v1-matching-pilot-24-seed101.json`.
+It executed 336 logical completions per arm (24 rows × 14 step/overlay
+operators), selected fusion only in the fused arm, and observed no server 429:
+
+| Arm | Wall s | Actual output tokens | Reserved output tokens | P0 idle / queue ms |
+| --- | ---: | ---: | ---: | ---: |
+| barriered | 0.3295 | 30,696 | 55,488 | 153.760 / 703.306 |
+| unbarriered-unfused | 0.0615 | 30,696 | 75,604 | 1.721 / 3,687.259 |
+| unbarriered-fused | 0.0640 | 30,696 | 75,609 | 4.746 / 3,681.361 |
+
+The `base_seed=101` pilot's actual simulated server total is 51,816 tokens
+(30,696 completion + 21,120 input). Deterministic preflight expansion gives
+207,435 at 96 rows and 415,002 at 192 rows. At the approved 150,000 TPM,
+192 rows exceed the initially full bucket by 265,002 tokens. Even at a perfect
+2,500-token/s refill and zero other work, that **single arm** has a 106.0 s
+lower bound, already over the approved 60 s full-evidence stop condition.
+The full 12-receipt matrix therefore has not been started: dispatching it would
+violate the frozen design rather than measure it honestly.
+
+## Current action — FROM HERD COMMAND
+
+The implementation checkpoint is ready, but the evidence matrix is stopped by
+the approved bound. **HOLD for a Herd/Captain matrix amendment** before any
+96/192 arm: retain the current proof/pilot receipt, then either authorize a
+different bounded matrix/TPM envelope or accept the pilot-only result. Do not
+begin TD-3383 while this workload node is unresolved.

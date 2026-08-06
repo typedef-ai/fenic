@@ -30,6 +30,16 @@ normalization/similarity/embedding-average node list or P1a's custom-vector
 sim-join nodes. If an otherwise useful test needs provider behavior, it belongs
 to an explicitly authorized, spend-recorded provider probe—not a local gate.
 
+The mixed-complexity workload allowlist is limited to these exact simulator
+nodes (the full matrix remains opt-in and uses the same simulated client):
+
+- `tests/_inference/test_mixed_complexity_workload.py::test_step_draws_are_stable_by_step_and_row`;
+- `tests/_inference/test_mixed_complexity_workload.py::test_workload_arms_preserve_outputs_tokens_and_logical_totals`; and
+- `tests/_inference/test_mixed_complexity_workload.py::test_modest_server_mismatch_exercises_real_retry_path`;
+- `tests/_inference/test_mixed_complexity_workload.py::test_multi_step_idle_metrics_exclude_rate_limited_wait`;
+- `tests/_inference/test_mixed_complexity_workload.py::test_mixed_complexity_workload_pilot` when explicitly enabled with `RUN_MIXED_WORKLOAD_PILOT=1`; and
+- `tests/_inference/test_mixed_complexity_workload.py::test_mixed_complexity_workload_matrix` when explicitly enabled with `RUN_MIXED_WORKLOAD_MATRIX=1`.
+
 Record any newly discovered provider-capable node in this file before the next
 local-only test command. On a 401 or any unexpected network attempt: stop the
 command, preserve the fact in the lane record, charge no inferred cost, and do
