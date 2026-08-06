@@ -7,10 +7,13 @@ import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Future
 from dataclasses import dataclass
+from itertools import islice
 from typing import (
     Any,
     Dict,
     Generic,
+    Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -527,6 +530,39 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # which Polars cannot preserve when propagating the error. Normalize
             # the public error while retaining the provider exception as its cause.
             raise ExecutionError(str(e)) from e
+
+    def iter_batch_requests(
+        self,
+        requests: Iterable[Optional[RequestT]],
+        operation_name: str,
+        request_timeout: Optional[float] = None,
+        batch_size: int = 100,
+    ) -> Iterator[Optional[ResponseT]]:
+        """Process an iterable of requests in bounded, ordered batches.
+
+        The existing ``make_batch_requests`` API remains the compatibility path for
+        callers that need whole-batch behavior. This iterator bounds the request,
+        future, and response working set to ``batch_size`` while preserving each
+        batch's existing queue, rate-limit, token-accounting, cache, and error
+        semantics.
+
+        Request fingerprint deduplication is intentionally scoped to a single
+        bounded batch. Repeated requests in later batches are served without a
+        second provider call when the configured response cache contains the first
+        result; without a cache they are independent requests. Keeping an
+        unbounded in-memory deduplication table would defeat the stream's memory
+        bound.
+        """
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+
+        request_iter = iter(requests)
+        while batch := list(islice(request_iter, batch_size)):
+            yield from self.make_batch_requests(
+                batch,
+                operation_name=operation_name,
+                request_timeout=request_timeout,
+            )
 
     #
     # Producer methods (run on the user thread)

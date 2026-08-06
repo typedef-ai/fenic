@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Iterator, Optional
 
 from fenic._inference.model_client import (
     ModelClient,
@@ -79,6 +79,54 @@ class LanguageModel:
             requests,
             operation_name=operation_name,
             request_timeout=request_timeout,
+        )
+
+    def iter_completions(
+        self,
+        messages: Iterable[Optional[LMRequestMessages]],
+        max_tokens: int,
+        temperature: float = 0,
+        response_format: Optional[ResolvedResponseFormat] = None,
+        top_logprobs: Optional[int] = None,
+        model_profile: Optional[str] = None,
+        operation_name: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+        batch_size: int = 100,
+    ) -> Iterator[Optional[FenicCompletionsResponse]]:
+        """Build and submit completion requests from an ordered message stream.
+
+        This is the row-local streaming counterpart to ``get_completions``. It
+        deliberately leaves the list-shaped API intact for aggregation operators
+        such as ``semantic.reduce`` while callers that can consume a stream avoid
+        retaining all rendered messages and requests at once.
+        """
+        temperature_param = (
+            temperature if self.model_parameters.supports_custom_temperature else None
+        )
+        if temperature and not temperature_param:
+            logger.warning(
+                f"Model {self.model} does not support custom temperature.  Ignoring temperature parameter."
+            )
+
+        def build_requests() -> Iterator[Optional[FenicCompletionsRequest]]:
+            for message_list in messages:
+                if not message_list:
+                    yield None
+                    continue
+                yield FenicCompletionsRequest(
+                    messages=message_list,
+                    max_completion_tokens=max_tokens,
+                    top_logprobs=top_logprobs,
+                    structured_output=response_format,
+                    temperature=temperature_param,
+                    model_profile=model_profile,
+                )
+
+        return self.client.iter_batch_requests(
+            build_requests(),
+            operation_name=operation_name,
+            request_timeout=request_timeout,
+            batch_size=batch_size,
         )
 
     def count_tokens(self, messages: Tokenizable) -> int:

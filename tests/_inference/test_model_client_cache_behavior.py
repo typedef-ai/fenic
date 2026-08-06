@@ -1,8 +1,11 @@
 from typing import Dict, List, Optional, Union
 
+import polars as pl
 import pytest
 
+from fenic._backends.local.semantic_operators.map import Map
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
+from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -279,6 +282,121 @@ def test_completion_requests_use_cache_and_dedup():
     assert fake_cache.get_batch_called is True
     assert fake_cache.set_called is True
     assert client.call_count == len(requests)
+
+
+def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_each_block():
+    client = DummyCompletionClient()
+    yielded_prompts = []
+
+    def requests():
+        for prompt in ("first", "first", "second", "third"):
+            yielded_prompts.append(prompt)
+            yield _make_completion_request(prompt)
+
+    try:
+        responses = client.iter_batch_requests(
+            requests(),
+            "stream-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert yielded_prompts == ["first", "first"]
+
+        remaining = list(responses)
+        assert [response.completion for response in remaining if response] == [
+            "response-for-first",
+            "response-for-second",
+            "response-for-third",
+        ]
+        assert client.call_count == 3
+    finally:
+        client.shutdown()
+
+
+def test_iter_batch_requests_uses_cache_across_blocks():
+    fake_cache = FakeCache()
+    client = DummyCompletionClient(cache=fake_cache)
+    requests = [
+        _make_completion_request("first"),
+        _make_completion_request("second"),
+        _make_completion_request("first"),
+    ]
+
+    try:
+        responses = list(
+            client.iter_batch_requests(
+                requests,
+                "stream-cache-test",
+                batch_size=2,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [response.completion for response in responses if response] == [
+        "response-for-first",
+        "response-for-second",
+        "response-for-first",
+    ]
+    assert fake_cache.get_batch_called is True
+    assert fake_cache.set_called is True
+    assert client.call_count == 2
+
+
+def test_iter_batch_requests_normalizes_provider_errors():
+    client = FailingCompletionClient()
+
+    try:
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            list(
+                client.iter_batch_requests(
+                    [_make_completion_request("Hi Alice")],
+                    "stream-error-test",
+                    batch_size=1,
+                )
+            )
+
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.shutdown()
+
+
+def test_iter_batch_requests_rejects_non_positive_batch_size():
+    client = DummyCompletionClient()
+    try:
+        with pytest.raises(ValueError, match="batch_size must be positive"):
+            list(client.iter_batch_requests([], "stream-test", batch_size=0))
+    finally:
+        client.shutdown()
+
+
+def test_map_streams_ordered_results_through_bounded_model_client_batches():
+    client = DummyCompletionClient()
+    client.model = "gpt-4.1-nano"
+    model = LanguageModel(client)
+    operator = Map(
+        input=pl.Series("input", ["first", "second", "third"]),
+        jinja_template="{{ input }}",
+        model=model,
+        max_tokens=50,
+        temperature=0,
+    )
+    operator.request_batch_size = 2
+
+    try:
+        result = operator.execute()
+    finally:
+        client.shutdown()
+
+    assert result.to_list() == [
+        "response-for-first",
+        "response-for-second",
+        "response-for-third",
+    ]
+    assert client.call_count == 3
 
 
 def test_profile_hash_changes_cache_key():
