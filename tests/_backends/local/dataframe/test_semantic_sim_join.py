@@ -715,7 +715,7 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
         ColumnField("distance", DoubleType),
     ]
 
-    result = df.drop("left_vec", "right_vec").to_polars()
+    result = df.drop("left_vec", "right_vec").to_polars().sort(["left_id", "right_id"])
     assert result.schema == pl.Schema(
         {
             "left_id": pl.Int64,
@@ -729,8 +729,8 @@ def test_semantic_sim_join_custom_embeddings_golden_output(local_session):
     assert result.to_dicts() == [
         {"left_id": 1, "left_label": "x", "right_id": 10, "right_label": "near-x", "distance": 1.0},
         {"left_id": 1, "left_label": "x", "right_id": 20, "right_label": "near-y", "distance": 81.0},
-        {"left_id": 2, "left_label": "y", "right_id": 20, "right_label": "near-y", "distance": 1.0},
         {"left_id": 2, "left_label": "y", "right_id": 10, "right_label": "near-x", "distance": 81.0},
+        {"left_id": 2, "left_label": "y", "right_id": 20, "right_label": "near-y", "distance": 1.0},
     ]
 
 
