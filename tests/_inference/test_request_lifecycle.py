@@ -141,6 +141,14 @@ def test_fused_map_extract_removes_the_p0_serial_idle_gap(monkeypatch):
     finally:
         client.shutdown()
 
+    assert [event.event for event in events] == [
+        "queued",
+        "dispatched",
+        "settled",
+        "queued",
+        "dispatched",
+        "settled",
+    ]
     assert [event.operation_name for event in events] == [
         "semantic.map",
         "semantic.map",

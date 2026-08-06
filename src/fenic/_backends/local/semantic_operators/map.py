@@ -35,6 +35,7 @@ class MapExtract:
     senders instead of adding another model-client API.  Pulling an extract
     request pulls only the map responses needed to fill that extract request
     block, so the full intermediate map result is never materialized.
+    A later map-block failure still aborts the query, but earlier extract blocks may already have dispatched.
     """
 
     def __init__(self, map_operator: "Map", extract_operator: "Extract"):

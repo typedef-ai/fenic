@@ -6,6 +6,7 @@ from fenic import col, semantic
 from fenic._backends.local.physical_plan import FusedMapExtractExec, ProjectionExec
 from fenic._backends.local.transpiler.plan_converter import PlanConverter
 from fenic._inference.types import FenicCompletionsResponse
+from fenic.core.error import ExecutionError
 
 
 class _Signal(BaseModel):
@@ -84,6 +85,44 @@ def test_fused_map_extract_pipelines_b0_blocks_without_legacy_completion_api(
         ("semantic.extract", 1),
     ]
     assert all(timeout is None for _, _, timeout in observed_batches)
+
+
+def test_fused_map_extract_propagates_later_map_failure_after_prior_extract_block(
+    local_session,
+    monkeypatch,
+):
+    result = _map_extract_chain(local_session)
+    model = local_session._session_state.get_language_model()
+    observed_batches = []
+    map_batches = 0
+
+    def fake_make_batch_requests(requests, operation_name, request_timeout=None):
+        nonlocal map_batches
+        observed_batches.append((operation_name, len(requests), request_timeout))
+        if operation_name == "semantic.map":
+            map_batches += 1
+            if map_batches == 2:
+                raise RuntimeError("later map block failed")
+            return [
+                FenicCompletionsResponse(completion="mapped", logprobs=None)
+                for _ in requests
+            ]
+        assert operation_name == "semantic.extract"
+        return [
+            FenicCompletionsResponse(completion='{"category": "fused"}', logprobs=None)
+            for _ in requests
+        ]
+
+    monkeypatch.setattr(model.client, "make_batch_requests", fake_make_batch_requests)
+
+    with pytest.raises(ExecutionError, match="later map block failed"):
+        result.to_polars()
+
+    assert observed_batches == [
+        ("semantic.map", 100, None),
+        ("semantic.extract", 100, None),
+        ("semantic.map", 1, None),
+    ]
 
 
 def test_map_extract_fusion_keeps_mapped_output_as_a_materialization_breaker(local_session):
