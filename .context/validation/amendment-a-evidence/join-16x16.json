@@ -1,0 +1,1993 @@
+{
+  "expected_pairs": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      8
+    ],
+    [
+      0,
+      12
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      13
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      6
+    ],
+    [
+      2,
+      10
+    ],
+    [
+      2,
+      14
+    ],
+    [
+      3,
+      3
+    ],
+    [
+      3,
+      7
+    ],
+    [
+      3,
+      11
+    ],
+    [
+      3,
+      15
+    ],
+    [
+      4,
+      0
+    ],
+    [
+      4,
+      4
+    ],
+    [
+      4,
+      8
+    ],
+    [
+      4,
+      12
+    ],
+    [
+      5,
+      1
+    ],
+    [
+      5,
+      5
+    ],
+    [
+      5,
+      9
+    ],
+    [
+      5,
+      13
+    ],
+    [
+      6,
+      2
+    ],
+    [
+      6,
+      6
+    ],
+    [
+      6,
+      10
+    ],
+    [
+      6,
+      14
+    ],
+    [
+      7,
+      3
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      7,
+      11
+    ],
+    [
+      7,
+      15
+    ],
+    [
+      8,
+      0
+    ],
+    [
+      8,
+      4
+    ],
+    [
+      8,
+      8
+    ],
+    [
+      8,
+      12
+    ],
+    [
+      9,
+      1
+    ],
+    [
+      9,
+      5
+    ],
+    [
+      9,
+      9
+    ],
+    [
+      9,
+      13
+    ],
+    [
+      10,
+      2
+    ],
+    [
+      10,
+      6
+    ],
+    [
+      10,
+      10
+    ],
+    [
+      10,
+      14
+    ],
+    [
+      11,
+      3
+    ],
+    [
+      11,
+      7
+    ],
+    [
+      11,
+      11
+    ],
+    [
+      11,
+      15
+    ],
+    [
+      12,
+      0
+    ],
+    [
+      12,
+      4
+    ],
+    [
+      12,
+      8
+    ],
+    [
+      12,
+      12
+    ],
+    [
+      13,
+      1
+    ],
+    [
+      13,
+      5
+    ],
+    [
+      13,
+      9
+    ],
+    [
+      13,
+      13
+    ],
+    [
+      14,
+      2
+    ],
+    [
+      14,
+      6
+    ],
+    [
+      14,
+      10
+    ],
+    [
+      14,
+      14
+    ],
+    [
+      15,
+      3
+    ],
+    [
+      15,
+      7
+    ],
+    [
+      15,
+      11
+    ],
+    [
+      15,
+      15
+    ]
+  ],
+  "kind": "bounded_join",
+  "lifecycle": {
+    "event_counts": {
+      "dispatched": 48,
+      "queued": 48,
+      "settled": 48
+    },
+    "idle": {
+      "idle_fraction": 0.000882648163056606,
+      "idle_gap_count": 2,
+      "p50_idle_gap_ns": 3147083,
+      "p95_idle_gap_ns": 3516167,
+      "total_idle_gap_ns": 6663250,
+      "total_non_rate_limited_idle_gap_ns": 6663250,
+      "total_queue_delay_ns": 230816210,
+      "total_rate_limited_ns": 0
+    },
+    "operations": {
+      "semantic.predicate": 144
+    }
+  },
+  "lifecycle_events": [
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130228195237666
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130228195483708
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130228195613125
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130228195654583
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130228197671916
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130228197691958
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 16,
+      "timestamp_ns": 130228198795416
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130228198830125
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 17,
+      "timestamp_ns": 130228199714875
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130228199793291
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 18,
+      "timestamp_ns": 130228199827833
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 19,
+      "timestamp_ns": 130228200656041
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 16,
+      "timestamp_ns": 130228200669791
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 32,
+      "timestamp_ns": 130228201723791
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 17,
+      "timestamp_ns": 130228201919791
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 33,
+      "timestamp_ns": 130228202742583
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 18,
+      "timestamp_ns": 130228202992916
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 34,
+      "timestamp_ns": 130228203584083
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 35,
+      "timestamp_ns": 130228204026000
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 19,
+      "timestamp_ns": 130228204038250
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 48,
+      "timestamp_ns": 130228204847250
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 32,
+      "timestamp_ns": 130228204896583
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 49,
+      "timestamp_ns": 130228205739083
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 33,
+      "timestamp_ns": 130228205872041
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 50,
+      "timestamp_ns": 130228206563916
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 51,
+      "timestamp_ns": 130228206838791
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 34,
+      "timestamp_ns": 130228206929458
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 35,
+      "timestamp_ns": 130228209503291
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 48,
+      "timestamp_ns": 130228210695208
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 49,
+      "timestamp_ns": 130228211626375
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 50,
+      "timestamp_ns": 130228212711083
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 51,
+      "timestamp_ns": 130228213859541
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 32,
+      "timestamp_ns": 130228529126916
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 51,
+      "timestamp_ns": 130228583185958
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130228608017083
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 35,
+      "timestamp_ns": 130228634673375
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 33,
+      "timestamp_ns": 130228637418041
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 17,
+      "timestamp_ns": 130228644554250
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 18,
+      "timestamp_ns": 130228653486416
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130228665001708
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 16,
+      "timestamp_ns": 130228738649625
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 34,
+      "timestamp_ns": 130228751159041
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 19,
+      "timestamp_ns": 130228759649625
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 50,
+      "timestamp_ns": 130228767508583
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130228889741583
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130228958329625
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 49,
+      "timestamp_ns": 130229124040166
+    },
+    {
+      "batch_id": "a8c9e5e3-577b-44e4-8666-2caa9d6f4006",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 48,
+      "timestamp_ns": 130229295982458
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130229298782041
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130229299035208
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130229299129541
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130229300842291
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130229301633791
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130229301879666
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 12,
+      "timestamp_ns": 130229303325166
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 13,
+      "timestamp_ns": 130229304154708
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130229304302458
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 14,
+      "timestamp_ns": 130229306813750
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130229307047041
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 15,
+      "timestamp_ns": 130229308547083
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 28,
+      "timestamp_ns": 130229309280333
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 12,
+      "timestamp_ns": 130229309439625
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 29,
+      "timestamp_ns": 130229311531166
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 13,
+      "timestamp_ns": 130229311735875
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 30,
+      "timestamp_ns": 130229312963041
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 31,
+      "timestamp_ns": 130229313541500
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 14,
+      "timestamp_ns": 130229313647541
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 44,
+      "timestamp_ns": 130229315347291
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 15,
+      "timestamp_ns": 130229315533083
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 45,
+      "timestamp_ns": 130229316863583
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 46,
+      "timestamp_ns": 130229317400750
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 28,
+      "timestamp_ns": 130229317544750
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 47,
+      "timestamp_ns": 130229319165375
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 29,
+      "timestamp_ns": 130229319354958
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 30,
+      "timestamp_ns": 130229321372708
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 31,
+      "timestamp_ns": 130229322907416
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 44,
+      "timestamp_ns": 130229324396041
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 45,
+      "timestamp_ns": 130229325630666
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 46,
+      "timestamp_ns": 130229326646083
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 47,
+      "timestamp_ns": 130229327701125
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 13,
+      "timestamp_ns": 130229665639875
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 47,
+      "timestamp_ns": 130229669019250
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130229674313916
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 12,
+      "timestamp_ns": 130229688066958
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 14,
+      "timestamp_ns": 130229709002166
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 29,
+      "timestamp_ns": 130229711420083
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 44,
+      "timestamp_ns": 130229711438375
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 45,
+      "timestamp_ns": 130229728283375
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 15,
+      "timestamp_ns": 130229729979125
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130229749461291
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 30,
+      "timestamp_ns": 130229750955875
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 28,
+      "timestamp_ns": 130229752450583
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 46,
+      "timestamp_ns": 130229755083333
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130229841342166
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 31,
+      "timestamp_ns": 130229842366208
+    },
+    {
+      "batch_id": "59eeefb3-aa16-4c4f-a906-e2d13107e463",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130234962510333
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130234965425208
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130234965845833
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130234966026500
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130234969009208
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130234969803166
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130234969892833
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 8,
+      "timestamp_ns": 130234972098708
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130234972136916
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 9,
+      "timestamp_ns": 130234975188083
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130234975269791
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 10,
+      "timestamp_ns": 130234976847791
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 8,
+      "timestamp_ns": 130234976926958
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 11,
+      "timestamp_ns": 130234978660458
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 9,
+      "timestamp_ns": 130234978736958
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 24,
+      "timestamp_ns": 130234980465083
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 10,
+      "timestamp_ns": 130234980615833
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 25,
+      "timestamp_ns": 130234981983666
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 11,
+      "timestamp_ns": 130234982323458
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 26,
+      "timestamp_ns": 130234982378416
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 27,
+      "timestamp_ns": 130234983901416
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 24,
+      "timestamp_ns": 130234983924500
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 40,
+      "timestamp_ns": 130234985370083
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 25,
+      "timestamp_ns": 130234985422750
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 41,
+      "timestamp_ns": 130234987192041
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 26,
+      "timestamp_ns": 130234987271041
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 42,
+      "timestamp_ns": 130234988503958
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 27,
+      "timestamp_ns": 130234988620250
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "queued",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 43,
+      "timestamp_ns": 130234989461708
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 40,
+      "timestamp_ns": 130234990263041
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 41,
+      "timestamp_ns": 130234991494041
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 42,
+      "timestamp_ns": 130234992681375
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "dispatched",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 43,
+      "timestamp_ns": 130234993947333
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 40,
+      "timestamp_ns": 130235329742375
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 41,
+      "timestamp_ns": 130235412389125
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 27,
+      "timestamp_ns": 130235462341583
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 9,
+      "timestamp_ns": 130235468258125
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 24,
+      "timestamp_ns": 130235468297916
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 10,
+      "timestamp_ns": 130235482517125
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 8,
+      "timestamp_ns": 130235484810416
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 2,
+      "timestamp_ns": 130235484831708
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 42,
+      "timestamp_ns": 130235497071666
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 25,
+      "timestamp_ns": 130235503937500
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 3,
+      "timestamp_ns": 130235518697375
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 26,
+      "timestamp_ns": 130235540999375
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 1,
+      "timestamp_ns": 130235543065208
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 11,
+      "timestamp_ns": 130235558438583
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 0,
+      "timestamp_ns": 130235688138083
+    },
+    {
+      "batch_id": "61ef7971-b093-419b-aba3-c391b20f2b4a",
+      "event": "settled",
+      "execution_id": "validation-join-16x16",
+      "model": "gpt-4.1-nano",
+      "operation_name": "semantic.predicate",
+      "provider": "openai",
+      "request_index": 43,
+      "timestamp_ns": 130235744770625
+    }
+  ],
+  "metrics": {
+    "cached_input_tokens": 0,
+    "cost_usd": 0.0,
+    "output_tokens": 0,
+    "requests": 0,
+    "reserved_output_tokens": 0,
+    "uncached_input_tokens": 0
+  },
+  "observed_pairs": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      8
+    ],
+    [
+      0,
+      12
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      13
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      6
+    ],
+    [
+      2,
+      10
+    ],
+    [
+      2,
+      14
+    ],
+    [
+      3,
+      3
+    ],
+    [
+      3,
+      7
+    ],
+    [
+      3,
+      11
+    ],
+    [
+      3,
+      15
+    ],
+    [
+      4,
+      0
+    ],
+    [
+      4,
+      4
+    ],
+    [
+      4,
+      8
+    ],
+    [
+      4,
+      12
+    ],
+    [
+      5,
+      1
+    ],
+    [
+      5,
+      5
+    ],
+    [
+      5,
+      9
+    ],
+    [
+      5,
+      13
+    ],
+    [
+      6,
+      2
+    ],
+    [
+      6,
+      6
+    ],
+    [
+      6,
+      10
+    ],
+    [
+      6,
+      14
+    ],
+    [
+      7,
+      3
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      7,
+      11
+    ],
+    [
+      7,
+      15
+    ],
+    [
+      8,
+      0
+    ],
+    [
+      8,
+      4
+    ],
+    [
+      8,
+      8
+    ],
+    [
+      8,
+      12
+    ],
+    [
+      9,
+      1
+    ],
+    [
+      9,
+      5
+    ],
+    [
+      9,
+      9
+    ],
+    [
+      9,
+      13
+    ],
+    [
+      10,
+      2
+    ],
+    [
+      10,
+      6
+    ],
+    [
+      10,
+      10
+    ],
+    [
+      10,
+      14
+    ],
+    [
+      11,
+      3
+    ],
+    [
+      11,
+      7
+    ],
+    [
+      11,
+      11
+    ],
+    [
+      11,
+      15
+    ],
+    [
+      12,
+      0
+    ],
+    [
+      12,
+      4
+    ],
+    [
+      12,
+      8
+    ],
+    [
+      12,
+      12
+    ],
+    [
+      13,
+      1
+    ],
+    [
+      13,
+      5
+    ],
+    [
+      13,
+      9
+    ],
+    [
+      13,
+      13
+    ],
+    [
+      14,
+      2
+    ],
+    [
+      14,
+      6
+    ],
+    [
+      14,
+      10
+    ],
+    [
+      14,
+      14
+    ],
+    [
+      15,
+      3
+    ],
+    [
+      15,
+      7
+    ],
+    [
+      15,
+      11
+    ],
+    [
+      15,
+      15
+    ]
+  ],
+  "shape": [
+    16,
+    16
+  ]
+}

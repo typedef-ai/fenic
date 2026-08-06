@@ -180,3 +180,35 @@ for actual semantic-operator chains, then optimize for that shape without
 special-casing it at the expense of open-source Fenic. Free-for-everyone,
 adaptive-rate-limiting-style gains are the model. TD-3334 remains
 branches-only, local/fake-first, and spend-gated for any later live check.
+
+### Amendment A run receipts — COMPLETE
+
+All seven pre-assertion evidence artifacts were written under
+`.context/validation/amendment-a-evidence/`. Normalized map→extract parity passed
+for both arms at 64, 160, and 320 rows; the 16×16 join returned all 64 expected
+survivors. No second divergence HOLD occurred.
+
+| Arm | Wall ms | Non-rate-limited idle ms | LMMetrics actual cost | Evidence |
+|---|---:|---:|---:|---|
+| unfused 64 | 7,767.452 | 7.254 | `$0.000000`* | `unfused-64.json` |
+| fused 64 | 3,445.045 | 2.069 | `$0.000000`* | `fused-64.json` |
+| unfused 160 | 10,684.165 | 10.483 | `$0.000000`* | `unfused-160.json` |
+| fused 160 | 5,711.820 | 7.994 | `$0.000000`* | `fused-160.json` |
+| unfused 320 | 22,416.596 | 18.737 | `$0.000000`* | `unfused-320.json` |
+| fused 320 | 22,995.301 | 21.780 | `$0.000000`* | `fused-320.json` |
+| join 16×16 | 7,614.994 | 6.663 | `$0.000000`* | `join-16x16.json` |
+
+`*` Each LMMetrics receipt is all zeros despite non-empty lifecycle events. It is
+recorded as the reported value, not treated as a trustworthy billing receipt.
+The prior arm's `$0.041574` upper bound remains the only retained spend bound;
+the cumulative conservative planning bound is `$0.785305`, below the `$50`
+hard backstop. There were 134 `rate_limited` lifecycle transitions, zero retry or
+failure events, and zero rate-limited idle nanoseconds; no provider 429/backoff
+claim follows from that telemetry.
+
+## Amendment A frozen report-review request — FROM HERD COMMAND
+
+Amendment A is complete and its report is frozen. **Request final report review
+FROM HERD COMMAND** for `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md`
+and the seven evidence files. This is a report review only. **HOLD:** do not
+start TD-3334 until Herd Command disposes of this gate.

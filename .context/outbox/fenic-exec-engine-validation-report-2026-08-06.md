@@ -1,14 +1,14 @@
 # Real-provider validation epilogue — HOLD report
 
 **Lane:** `herd/fenic-exec-engine-validation` stacked at B1 final `bd7d89bc8301387f36652a7be2ea7ad66f3edefd`  
-**Status:** HOLD — safety stop on real/fake semantic divergence; report review required before the charter proceeds to TD-3384.  
+**Status:** Amendment A COMPLETE — normalized semantic parity passed across the full matrix; final report review required before TD-3334.
 **Design and receipt:** `.context/outbox/fenic-exec-engine-validation-lane-record-2026-08-06.md`
 
 ## Outcome
 
-The Captain-authorized real-provider probe did **not** establish a live fusion gain. The first, unfused 64-row map→extract baseline returned 64 rows but did not reproduce the deliberately literal fake-client `record_id → category` expectation. That is precisely the predeclared semantic-divergence stop condition. The run halted before the fused comparator, larger matrix sizes, and the bounded semantic.join arm. No retry, diagnosis, or rate-limit induction was performed.
+The original probe halted correctly on its first unfused arm, but Herd Command authorized one bounded Amendment A after accepting that HOLD. Amendment A persisted value-level, synthetic evidence before every parity assertion, tightened the category constraint, and completed the full matrix with no normalized semantic divergence.
 
-This is not an implementation regression claim. It is an honest statement that the real-provider task/prompt behaviour differed from the synthetic fake path, so treating the requested wall-clock or idle-gap difference as an execution engine gain would be invalid.
+The result establishes a live fusion signal at 64 and 160 rows, but it is not monotonic at 320 rows. The valid conclusion is therefore conditional: fusion can materially reduce end-to-end wall time on these small/mid synthetic workloads; it is not a universal live-provider throughput win.
 
 ## Probe design and spend control
 
@@ -26,13 +26,31 @@ The actual extracted category values were likewise not serialized before the cou
 
 The `$0.000000` entries mean no request was issued for those arms, not that the first arm was free. Aggregate exact live spend is therefore **unavailable**; aggregate conservative post-run upper bound is **$0.041574**, far below `$50`.
 
+## Amendment A complete matrix
+
+Every Amendment A arm wrote its synthetic expected/observed values, normalized comparison, LMMetrics, lifecycle summary, and raw lifecycle events before it could assert. The seven durable receipts are under `.context/validation/amendment-a-evidence/`; for example, `unfused-64.json` records `ALPHA/BETA/GAMMA/DELTA` exactly for record IDs 0–3 and has zero mismatches.
+
+| Rows | Wall unfused → fused | Wall change | Non-rate-limited idle unfused → fused | Queue-delay sum unfused → fused | Result |
+|---:|---:|---:|---:|---:|---|
+| 64 | 7,767.452 → 3,445.045 ms | **−55.65%** | 7.254 → 2.069 ms (**−71.48%**) | 387.249 → 908.952 ms | parity pass |
+| 160 | 10,684.165 → 5,711.820 ms | **−46.54%** | 10.483 → 7.994 ms (**−23.74%**) | 10,336.276 → 9,976.039 ms | parity pass |
+| 320 | 22,416.596 → 22,995.301 ms | **+2.58%** | 18.737 → 21.780 ms (**+16.24%**) | 286,008.091 → 13,466.541 ms | parity pass; do not claim gain |
+
+The P0 collector excludes identified rate-limited portions from the non-rate-limited idle value. It emitted 134 `rate_limited` transitions across the matrix, but each arm reported `total_rate_limited_ns: 0`; there were zero `retried` and zero `failed` events. This is governor lifecycle telemetry, not evidence of a provider 429/backoff, and no rate limiting was induced.
+
+The bounded `semantic.join` 16×16 arm returned all 64 expected survivors, took 7,614.994 ms, and recorded a process peak RSS of 304,168,960 bytes. Its pair cap remained 1,024. This is a single live bounded-behaviour receipt, not a before/after memory comparison.
+
+### Cost receipt caveat
+
+Amendment A's per-arm serialized LMMetrics each report `0` requests, tokens, and dollars despite non-empty queued/dispatched/settled lifecycle evidence. Record those values as the requested **reported LMMetrics actuals** (`$0.000000` total), but they are not a reliable billing receipt and must not be read as proof that the provider was free. The original arm's conservative upper bound remains `$0.041574`; the Amendment A direct reserve was `$0.743731`, for a conservative cumulative planning bound of **$0.785305**, well below `$50`. No attempt was made to diagnose or rerun this telemetry limitation.
+
 ## Requested measurements
 
 | Goal | Live result | Interpretation |
 |---|---|---|
-| Fusion gain: unfused versus fused wall-clock, P0 idle gap, tokens, cost | Not measured | Comparator was not permitted after semantic divergence. No performance claim. |
-| Bounded semantic.join: 16×16 memory, wall-clock, survivor parity | Not run | The code's reviewed bound remains intact, but this report contributes no live-provider validation. |
-| Natural 429/backoff observation | None visible before the stop | Lifecycle events were not serialized; do not infer a positive absence or calculate excluded idle time. |
+| Fusion gain: unfused versus fused wall-clock, P0 idle gap, tokens, cost | Measured in Amendment A | Strong at 64/160, mixed at 320; token/cost LMMetrics are zero-valued telemetry and non-authoritative. |
+| Bounded semantic.join: 16×16 memory, wall-clock, survivor parity | 64/64 expected survivors; 304,168,960 B peak RSS; 7,614.994 ms | Bounded live receipt only; no baseline memory comparison. |
+| Natural 429/backoff observation | 134 governor `rate_limited` transitions; no retry/failure; zero excluded rate-limited idle ns | Observational only; no provider 429 claim. |
 
 ## Caveats retained from the landed stack
 
@@ -43,4 +61,4 @@ The `$0.000000` entries mean no request was issued for those arms, not that the 
 
 ## Charter handoff
 
-TD-3384 then TD-3385 remain acknowledged as the next local-only, `$0` nodes, but they do not start until Herd Command accepts this validation HOLD/report outcome. This report is now frozen for that final **report review**, not a code review.
+TD-3334 generalized N-op fusion is now next, ahead of TD-3384 and TD-3385, but it does not start until Herd Command accepts this amended validation report. This report is frozen for the final **report review**, not a code review.

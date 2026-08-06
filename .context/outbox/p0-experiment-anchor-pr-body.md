@@ -1,12 +1,13 @@
-## Execution-engine experiment anchor — BASE STACK LAND; validation epilogue HOLD
+## Execution-engine experiment anchor — BASE STACK LAND; validation Amendment A complete
 
 This reviewer-less draft is the single branches-only anchor for the completed
 `fenic-exec-engine-breakdown-v1` experiment. It is not a review request; no
 additional PRs were created for the stack or validation epilogue.
 
 **Base stack: COMPLETE.** Every ratified implementation node below is pushed and
-`LAND`. The Captain-authorized real-provider validation epilogue is **HOLD for
-report review** after its first real arm found a fake/real semantic divergence.
+`LAND`. The Captain-authorized real-provider validation Amendment A is
+**COMPLETE and frozen for report review** after the hardened full matrix passed
+normalized semantic parity.
 
 ## Frozen stack DAG
 
@@ -25,7 +26,7 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
                      |
                      `-- B1 herd/fenic-exec-engine-b1-two-op-fusion @ bd7d89b  LAND
                          |
-                         `-- Validation herd/fenic-exec-engine-validation @ 4d44a0f  HOLD (report review; docs-only delta)
+                         `-- Validation herd/fenic-exec-engine-validation @ f0df93b  AMENDMENT A COMPLETE (report review)
 ```
 
 | Node | Final SHA | Review receipt | Lane receipt |
@@ -37,14 +38,15 @@ P0  herd/fenic-exec-engine-p0-foundation @ 834f5c08d  LAND
 | P1c semantic.join | `743e09b` | `.context/td-review/p1c-semantic-join-review-2026-08-06-delta.md` | `.context/outbox/p1c-semantic-join-lane-record-2026-08-06.md` |
 | B0+1c adapter | `574a743` | `.context/td-review/b0-1c-stream-adapter-receipt-2026-08-05.md` | `.context/outbox/b0-1c-stream-adapter-lane-record-2026-08-06.md` |
 | B1 fusion | `bd7d89b` | `.context/td-review/b1-two-op-fusion-review-2026-08-05.md` | `.context/outbox/b1-two-op-fusion-lane-record-2026-08-06.md` |
-| Validation epilogue | `4d44a0f` | pending Herd Command **report** review | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
+| Validation epilogue | `f0df93b` | pending Herd Command **report** review | `.context/outbox/fenic-exec-engine-validation-report-2026-08-06.md` |
 
 ## Final evidence
 
-- Base-stack spend: **$0.00 actual**. Validation issued one 128-request real
-  arm before its required semantic-divergence stop. Its exact receipt was lost
-  before metric serialization; the conservative upper bound is **$0.041574**
-  against the $50 cap. No fusion/join comparison is claimed.
+- Base-stack spend: **$0.00 actual**. Original validation's stopped arm retains
+  a `$0.041574` upper bound. Amendment A completed its full matrix with
+  serialized LMMetrics reporting `$0.000000` despite non-empty lifecycle
+  evidence; that telemetry is not a billing receipt. Conservative cumulative
+  planning bound: **$0.785305** against the $50 cap.
 - P0 provides deterministic lifecycle accounting and the serial map→extract
   reference fixture. P1a bounds sim-join left search slices. P1b is a reviewed
   no-op. B0 bounds row-local request/future/raw-response blocks. P1c bounds
