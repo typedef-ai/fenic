@@ -326,22 +326,20 @@ def test_semantic_extract_with_mismatched_rows(local_session: Session):
 
     response_iter = iter(mock_responses)
 
-    def mock_get_completions(messages, operation_name, **kwargs):
-        results = []
+    def mock_iter_completions(messages, **kwargs):
         for _ in messages:
             try:
                 response_text = next(response_iter)
                 mock_response = MagicMock()
                 mock_response.completion = response_text
-                results.append(mock_response)
+                yield mock_response
             except StopIteration:
-                results.append(None)
-        return results
+                yield None
 
     with patch.object(
         local_session._session_state.get_language_model(),
-        'get_completions',
-        side_effect=mock_get_completions
+        'iter_completions',
+        side_effect=mock_iter_completions,
     ):
         result = df.with_column(
             "analysis",
