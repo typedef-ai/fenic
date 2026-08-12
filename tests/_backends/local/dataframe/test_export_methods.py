@@ -198,7 +198,7 @@ def test_collect_pylist(sample_export_df):
     assert names == ["Alice", "Bob", "Charlie", "David"]
 
 
-def test_export_methods_with_transformations(sample_export_df):
+def test_case_export_methods_with_transformations(sample_export_df):
     """Test export methods work correctly after DataFrame transformations."""
     # Apply some transformations
     transformed_df = (sample_export_df

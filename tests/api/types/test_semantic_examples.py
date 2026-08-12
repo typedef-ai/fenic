@@ -354,7 +354,7 @@ class TestMapExampleCollection:
         assert isinstance(output_value_pandas, str)
         assert '"name":"SmartLamp"' in output_value_pandas
 
-    def test_basemodel_only_dataframe_conversion(self):
+    def test_case_basemodel_only_dataframe_conversion(self):
         """Test DataFrame conversion with only BaseModel outputs."""
         collection = MapExampleCollection()
 

@@ -13,7 +13,7 @@ from fenic import (
 from fenic.core.error import CatalogError
 
 
-def test_metrics_table_created_automatically(local_session: Session):
+def test_case_metrics_table_created_automatically(local_session: Session):
     """Test that metrics table is automatically created and appears in catalog."""
     # Metrics table should be created automatically when session starts
     assert local_session.catalog.does_table_exist("fenic_system.query_metrics")
@@ -130,7 +130,7 @@ def test_metrics_table_contains_execution_data(local_session: Session, sample_df
     assert end_ts.tzinfo == zoneinfo.ZoneInfo(key='UTC')
 
 
-def test_multiple_sessions_different_metrics(tmp_path, local_session_config: SessionConfig):
+def test_case_multiple_sessions_different_metrics(tmp_path, local_session_config: SessionConfig):
     """Test that different sessions have separate metrics tracking."""
     # Create first session and run queries
     session1 = Session.get_or_create(local_session_config)
@@ -177,4 +177,3 @@ def test_multiple_sessions_different_metrics(tmp_path, local_session_config: Ses
         # Clean up sessions
         session1.stop(skip_usage_summary=True)
         session2.stop(skip_usage_summary=True)
-

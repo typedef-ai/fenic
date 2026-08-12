@@ -108,7 +108,7 @@ class TestEnumSerde:
             )
             assert deserialized == enum_value
 
-    def test_serialize_enum_value_case_sensitive(self):
+    def test_case_serialize_enum_value_case_sensitive(self):
         """Test that enum serialization is case sensitive."""
         # Get the actual proto enum wrapper
         proto_enum = ChunkLengthFunctionProto

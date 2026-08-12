@@ -152,7 +152,7 @@ def test_request_fingerprint_accounts_for_pdf_files(tmp_path):
     )
 
 
-def test_request_fingerprint_is_valid_sha256():
+def test_case_request_fingerprint_is_valid_sha256():
     messages = LMRequestMessages(system="You are helpful", examples=[], user="Hello")
     key = _fingerprint(_build_request(messages=messages))
 
@@ -197,4 +197,3 @@ def test_request_fingerprint_none_base_url_matches_default():
     request = _build_request(messages=messages)
 
     assert _fingerprint(request) == _fingerprint(request, base_url=None)
-

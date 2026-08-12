@@ -100,7 +100,7 @@ def test_create_dataframe_from_dict(local_session):
     assert df["age"].to_list() == [25, 30]
 
 
-def test_create_dataframe_from_list_of_dicts(local_session):
+def test_case_create_dataframe_from_list_of_dicts(local_session):
     """Test creating DataFrame from a list of dictionaries."""
     data = [{"name": "Alice", "age": 25}, {"name": "Bob", "age": 30}]
     df = local_session.create_dataframe(data)

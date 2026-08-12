@@ -212,7 +212,7 @@ def test_full_outer_join(local_session):
     })
     assert polars_joined.equals(expected)
 
-def test_full_outer_join_duplicate_join_keys(local_session):
+def test_case_full_outer_join_duplicate_join_keys(local_session):
     df1 = local_session.create_dataframe(
         {"id": [1, 2, 3], "valA": ["a1", "a2", "a3"]}
     )

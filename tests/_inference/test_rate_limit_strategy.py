@@ -50,7 +50,7 @@ def test_cooldown_gate_blocks_until_reset(fake_clock):
     assert consume_one_request(strategy, fake_clock)
 
 
-def test_rpm_hint_clamps_and_disables_growth(fake_clock):
+def test_case_rpm_hint_clamps_and_disables_growth(fake_clock):
     strategy = AdaptiveBackoffRateLimitStrategy(rpm=200, min_rpm=50, additive_increment=20, increase_after_successes=2)
     strategy.register_rate_limit_hint(rpm_hint=120, retry_at_epoch_seconds=None)
     for _ in range(10):
@@ -73,4 +73,3 @@ def test_additive_increase_without_hint(fake_clock):
         assert consume_one_request(strategy, fake_clock)
         fake_clock.advance(10.0)
     assert strategy.rpm <= 120
-

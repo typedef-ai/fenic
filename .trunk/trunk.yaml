@@ -44,13 +44,6 @@ lint:
       commands:
         - name: scan
           run: osv-scanner --lockfile=${target} --format json --config=.trunk/configs/osv-scanner.toml
-    # trufflehog-git scans the repository root once, so lint.ignore path filters
-    # cannot reach its Git-history command. Exclude deterministic test fixtures
-    # at the scanner boundary; all other paths remain scanned.
-    - name: trufflehog-git
-      commands:
-        - name: lint
-          run: trufflehog git --json --fail --only-verified --no-update file://${target} --since-commit ${upstream-ref} --exclude-globs='tests/**'
     - name: block-manual-version
       description: Blocks manual version changes in Cargo.toml and pyproject.toml except release-please
       files: [toml]

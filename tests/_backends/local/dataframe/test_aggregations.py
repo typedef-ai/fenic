@@ -519,7 +519,7 @@ def test_sum_distinct_aggregation(local_session: Session):
         _ = df.group_by("k").agg(sum_distinct(struct("v", "k"))).to_polars()
 
 @pytest.mark.parametrize("test_cardinality", [(1_000, "low cardinality"), (10_000, "medium cardinality"), (100_000, "high cardinality"), (1_000_000, "very high cardinality")])
-def test_approx_count_distinct_approximation(local_session: Session, test_cardinality: tuple[int, str]):
+def test_case_approx_count_distinct_approximation(local_session: Session, test_cardinality: tuple[int, str]):
     """Test that approx_count_distinct actually uses approximation with HyperLogLog++.
 
     This test verifies that the approximation is close to the exact count (within expected error bounds)

@@ -100,7 +100,7 @@ def test_estimator_key_uses_profile_max_tokens_and_schema():
         client.shutdown()
 
 
-def test_adaptive_reservation_cold_then_warm():
+def test_case_adaptive_reservation_cold_then_warm():
     client = _client(enabled=True, margin=1.0)
     try:
         req = _request(512)

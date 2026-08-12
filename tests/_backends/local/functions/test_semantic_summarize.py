@@ -11,7 +11,7 @@ from fenic.api.session import (
 from fenic.core.error import ValidationError
 
 
-def test_semantic_summarization_default_case(local_session):
+def test_case_semantic_summarization_default_case(local_session):
     source = local_session.create_dataframe(
         {
             "text": [

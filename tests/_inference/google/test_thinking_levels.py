@@ -141,7 +141,7 @@ class TestAutoProfileCreation:
         assert set(model.profiles.keys()) == {"high", "medium", "low", "minimal"}
         assert model.default_profile == "low"
 
-    def test_gemini_3_5_flash_lite_auto_profiles(self):
+    def test_case_gemini_3_5_flash_lite_auto_profiles(self):
         """Gemini 3.5 Flash-Lite should auto-create profiles for all 4 thinking levels."""
         config = SessionConfig(
             app_name="test_auto_profiles",
@@ -260,7 +260,7 @@ class TestThinkingLevelValidation:
 class TestGoogleVertexThinkingLevels:
     """Test thinking levels work the same for Google Vertex provider."""
 
-    def test_vertex_gemini_3_flash_auto_profiles(self):
+    def test_case_vertex_gemini_3_flash_auto_profiles(self):
         """Google Vertex Gemini 3 Flash should auto-create all 4 profiles."""
         config = SessionConfig(
             app_name="test_vertex",
