@@ -37,7 +37,8 @@ def apply_ingestion_coercions(
             physical fixed-size array representation.
 
     Returns:
-        A new Polars DataFrame with all coercions applied to conform to Fenic-compatible types.
+        The original DataFrame when no coercion is needed; otherwise a new
+        DataFrame with coercions applied to conform to Fenic-compatible types.
     """
 
     logical_fields = (
@@ -46,7 +47,7 @@ def apply_ingestion_coercions(
         else {}
     )
 
-    expressions = []
+    target_dtypes: dict[str, pl.DataType] = {}
     for col_name in df.columns:
         dtype = df[col_name].dtype
         target_dtype = _build_target_dtype(
@@ -56,11 +57,19 @@ def apply_ingestion_coercions(
         )
 
         if target_dtype != dtype:
-            expressions.append(pl.col(col_name).cast(target_dtype))
-        else:
-            expressions.append(pl.col(col_name))
+            target_dtypes[col_name] = target_dtype
 
-    return df.select(expressions)
+    if not target_dtypes:
+        return df
+
+    return df.select(
+        [
+            pl.col(col_name).cast(target_dtypes[col_name])
+            if col_name in target_dtypes
+            else pl.col(col_name)
+            for col_name in df.columns
+        ]
+    )
 
 
 def _build_target_dtype(
