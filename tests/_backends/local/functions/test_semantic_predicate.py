@@ -379,7 +379,7 @@ def test_semantic_predicate_missing_jinja_variable(local_session):
         )
 
 
-def test_direct_semantic_predicate_can_opt_into_bounded_model_client_batches(
+def test_direct_semantic_predicate_can_opt_into_model_client_stream(
     construction_only_local_session, monkeypatch
 ):
     """Exercise an opted-in transpiler-built Predicate through the iterator."""
@@ -395,30 +395,43 @@ def test_direct_semantic_predicate_can_opt_into_bounded_model_client_batches(
         ),
     )
 
-    def fake_make_batch_requests(requests, operation_name, request_timeout=None):
+    def fake_iter_batch_requests(
+        requests, operation_name, request_timeout=None, batch_size=100
+    ):
+        requests = list(requests)
         captured_batches.append(
             {
                 "requests": requests,
                 "operation_name": operation_name,
                 "request_timeout": request_timeout,
+                "batch_size": batch_size,
             }
         )
-        return [
+        yield from [
             FenicCompletionsResponse(completion='{"output": true}', logprobs=None)
             for _ in requests
         ]
 
-    monkeypatch.setattr(model.client, "make_batch_requests", fake_make_batch_requests)
+    monkeypatch.setattr(model.client, "iter_batch_requests", fake_iter_batch_requests)
 
-    result = construction_only_local_session.create_dataframe({"name": [f"name-{i}" for i in range(101)]}).select(
-        semantic.predicate("Is {{ name }} present?", name=col("name")).alias("present")
-    ).to_polars()
+    result = (
+        construction_only_local_session.create_dataframe(
+            {"name": [f"name-{i}" for i in range(101)]}
+        )
+        .select(
+            semantic.predicate("Is {{ name }} present?", name=col("name")).alias(
+                "present"
+            )
+        )
+        .to_polars()
+    )
 
     assert result["present"].to_list() == [True] * 101
-    assert [len(batch["requests"]) for batch in captured_batches] == [100, 1]
+    assert [len(batch["requests"]) for batch in captured_batches] == [101]
     assert all(
         batch["operation_name"] == "semantic.predicate"
         and batch["request_timeout"] is None
+        and batch["batch_size"] == 100
         for batch in captured_batches
     )
     assert all(
