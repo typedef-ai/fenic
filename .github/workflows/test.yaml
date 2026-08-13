@@ -92,10 +92,11 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$(python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"):$LD_LIBRARY_PATH
           cargo test --no-default-features --locked
-      - name: sync ${{ matrix.dependency == 'true' && 'locked' || matrix.dependency }} dependencies
+      # yamllint disable-line rule:line-length
+      - name: sync ${{ matrix.test }} ${{ matrix.dependency == 'true' && 'locked' || matrix.dependency }} dependencies
         shell: bash
         run: |
-          just sync="${{ matrix.dependency }}"
+          just sync="${{ matrix.dependency }}" sync-${{ matrix.test }}
       # yamllint disable-line rule:line-length
       - name: run ${{ matrix.test }} tests with synced dependencies
         shell: bash
