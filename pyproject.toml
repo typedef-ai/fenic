@@ -52,6 +52,8 @@ dev = [
   "lancedb>=0.22.0,<0.25.0",
   "pymupdf>=1.26.4",
   "scikit-learn>=1.7.1",
+  "torch",
+  "torchvision",
 ]
 docs = [
   "beautifulsoup4>=4.14.0",
@@ -95,6 +97,16 @@ include = [
   { path = "src/fenic/_agent_assets/**/*", format = "sdist" },
   { path = "fenic/_agent_assets/**/*", format = "wheel" },
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+default = false
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.pytest.ini_options]
 markers = [
