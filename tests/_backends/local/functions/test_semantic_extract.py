@@ -16,6 +16,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._backends.local.semantic_operators.extract import Extract
 from fenic.api.session import (
     SemanticConfig,
     Session,
@@ -303,7 +304,9 @@ def test_semantic_extract_without_models(tmp_path):
     session.stop(skip_usage_summary=True)
 
 
-def test_semantic_extract_with_mismatched_rows(local_session: Session):
+def test_semantic_extract_with_mismatched_rows(
+    construction_only_local_session: Session, monkeypatch
+):
     """Test that semantic.extract can handle rows with different structures."""
     class Item(BaseModel):
         """A simple item with optional metadata."""
@@ -326,9 +329,10 @@ def test_semantic_extract_with_mismatched_rows(local_session: Session):
         }),
     ]
 
-    df = local_session.create_dataframe({
+    df = construction_only_local_session.create_dataframe({
         "text": ["text1", "text2"]
     })
+    monkeypatch.setattr(Extract, "stream_requests", True)
 
     response_iter = iter(mock_responses)
 
@@ -343,7 +347,7 @@ def test_semantic_extract_with_mismatched_rows(local_session: Session):
                 yield None
 
     with patch.object(
-        local_session._session_state.get_language_model(),
+        construction_only_local_session._session_state.get_language_model(),
         'iter_completions',
         side_effect=mock_iter_completions,
     ):

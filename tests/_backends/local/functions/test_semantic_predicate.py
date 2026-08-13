@@ -13,6 +13,7 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._backends.local.semantic_operators.predicate import Predicate
 from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.api.session import (
     OpenAIEmbeddingModel,
@@ -383,18 +384,19 @@ def test_semantic_predicate_missing_jinja_variable(local_session):
         )
 
 
-def test_direct_semantic_predicate_streams_through_bounded_model_client_batches(
-    local_session, monkeypatch
+def test_direct_semantic_predicate_can_opt_into_bounded_model_client_batches(
+    construction_only_local_session, monkeypatch
 ):
-    """Exercise the transpiler-built Predicate through B0's completion iterator."""
-    model = local_session._session_state.get_language_model()
+    """Exercise an opted-in transpiler-built Predicate through the iterator."""
+    model = construction_only_local_session._session_state.get_language_model()
     captured_batches = []
+    monkeypatch.setattr(Predicate, "stream_requests", True)
 
     monkeypatch.setattr(
         model,
         "get_completions",
         lambda *_args, **_kwargs: pytest.fail(
-            "direct semantic.predicate must use the B0 completion iterator"
+            "an opted-in semantic.predicate must use the completion iterator"
         ),
     )
 
@@ -413,7 +415,7 @@ def test_direct_semantic_predicate_streams_through_bounded_model_client_batches(
 
     monkeypatch.setattr(model.client, "make_batch_requests", fake_make_batch_requests)
 
-    result = local_session.create_dataframe({"name": [f"name-{i}" for i in range(101)]}).select(
+    result = construction_only_local_session.create_dataframe({"name": [f"name-{i}" for i in range(101)]}).select(
         semantic.predicate("Is {{ name }} present?", name=col("name")).alias("present")
     ).to_polars()
 

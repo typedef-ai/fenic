@@ -3,7 +3,10 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 import pytest
 
+from fenic._backends.local.semantic_operators.classify import Classify
+from fenic._backends.local.semantic_operators.extract import Extract
 from fenic._backends.local.semantic_operators.map import Map
+from fenic._backends.local.semantic_operators.predicate import Predicate
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import (
@@ -373,7 +376,14 @@ def test_iter_batch_requests_rejects_non_positive_batch_size():
         client.shutdown()
 
 
-def test_map_streams_ordered_results_through_bounded_model_client_batches():
+def test_row_local_operators_keep_streaming_opt_in_by_default():
+    assert all(
+        operator.stream_requests is False
+        for operator in (Map, Extract, Classify, Predicate)
+    )
+
+
+def test_map_can_opt_into_ordered_bounded_model_client_batches(monkeypatch):
     client = DummyCompletionClient()
     client.model = "gpt-4.1-nano"
     model = LanguageModel(client)
@@ -384,6 +394,7 @@ def test_map_streams_ordered_results_through_bounded_model_client_batches():
         max_tokens=50,
         temperature=0,
     )
+    monkeypatch.setattr(Map, "stream_requests", True)
     operator.request_batch_size = 2
 
     try:
