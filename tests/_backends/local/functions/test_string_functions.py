@@ -657,7 +657,7 @@ def test_split_part_with_column_negative_part(local_session):
     assert result["split_text_col"][2] == "g"
 
 
-def test_split_part_with_column_out_of_range(local_session):
+def test_case_split_part_with_column_out_of_range(local_session):
     df = local_session.create_dataframe(
         {"text_col": ["a,b,c", "d,e,f"], "part_number": [4, -4]}
     )

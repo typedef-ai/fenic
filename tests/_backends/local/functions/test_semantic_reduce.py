@@ -175,7 +175,7 @@ def test_semantic_reduce_golden_output_ordering_and_nulls(local_session, monkeyp
     ]
 
 
-def test_semantic_reduce_golden_empty_result(local_session, monkeypatch):
+def test_case_semantic_reduce_golden_empty_result(local_session, monkeypatch):
     _install_deterministic_reduce_model(local_session, monkeypatch)
 
     df = local_session.create_dataframe(

@@ -118,7 +118,7 @@ class TestFunctionSignature:
         with pytest.raises(InternalError, match="DYNAMIC return type requires dynamic_return_type_func"):
             sig.infer_return_type([StringType])
 
-    def test_validate_and_infer_type_integration(self):
+    def test_case_validate_and_infer_type_integration(self):
         """Test complete validation and type inference."""
         sig = FunctionSignature(function_name="upper", type_signature=Exact([StringType]),
                                 return_type=ReturnTypeStrategy.SAME_AS_INPUT)
@@ -168,7 +168,7 @@ class TestReturnTypeCompatibility:
                                 return_type=ReturnTypeStrategy.SAME_AS_INPUT)
         assert sig.return_type == ReturnTypeStrategy.SAME_AS_INPUT
 
-    def test_promoted_requires_numeric_signature(self):
+    def test_case_promoted_requires_numeric_signature(self):
         """Test that PROMOTED return type requires Numeric signature."""
         with pytest.raises(InternalError, match="PROMOTED return type strategy only compatible"):
             FunctionSignature(function_name="bad_func", type_signature=Exact([StringType]),
@@ -178,7 +178,7 @@ class TestReturnTypeCompatibility:
 class TestScalarFunctionIntegration:
     """Test that ValidatedSignature expressions work with MockPlan."""
 
-    def test_validated_signatures_with_mock_plan(self):
+    def test_case_validated_signatures_with_mock_plan(self):
         """Test that ValidatedSignature expressions work correctly with MockPlan."""
         # Create a plan with a string column
         plan = MockPlan([ColumnField("text_col", ArrayType(StringType))])

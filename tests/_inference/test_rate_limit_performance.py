@@ -150,7 +150,7 @@ def test_overshoot_triggers_retry_and_recovers():
     assert report.logical_completions == report.n_rows
 
 
-def test_a1_settle_after_backoff_measurement():
+def test_case_a1_settle_after_backoff_measurement():
     """MEASUREMENT: count settle-with-positive-refund events shortly after a backoff.
 
     This quantifies the A1 concern: after a backoff zeros the token bucket, an

@@ -75,7 +75,7 @@ def test_recursive_text_chunking(large_text_df):
     assert len(token_chunks) == 438
 
 
-def test_recursive_text_chunking_empty_input(local_session):
+def test_case_recursive_text_chunking_empty_input(local_session):
     df = local_session.create_dataframe({"text": ["", None]})
     result = df.with_column(
         "character_chunks",

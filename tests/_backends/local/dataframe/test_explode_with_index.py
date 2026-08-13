@@ -213,7 +213,7 @@ def test_explode_with_index_index_name_only_outer(local_session):
     assert result["vals"].to_list() == [10, None, None]
 
 
-def test_explode_with_index_both_names_outer(local_session):
+def test_case_explode_with_index_both_names_outer(local_session):
     """Test explode_with_index with both custom names and outer behavior."""
     df = local_session.create_dataframe({
         "id": [1, 2, 3],

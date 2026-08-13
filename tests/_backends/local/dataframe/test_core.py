@@ -78,7 +78,7 @@ def test_with_column_series_length_too_long(with_column_sample_df):
   with pytest.raises(ExecutionError, match=re.escape(expected_msg)):
     with_column_sample_df.with_column("next_age", pl.Series("next_age", [1, 2, 3, 4])).to_polars()
 
-def test_with_column_series_length_too_short(with_column_sample_df):
+def test_case_with_column_series_length_too_short(with_column_sample_df):
   """Test that a Series with a length shorter than the DataFrame raises an error."""
   expected_msg = (
     "Column 'next_age' was created from a Series of length 2, but the DataFrame has 3 rows. "
@@ -403,7 +403,7 @@ def test_with_column_pandas_series(local_session):
     assert result["bonus"].to_list() == [100, 200]
 
 
-def test_with_column_series_replace_existing(local_session):
+def test_case_with_column_series_replace_existing(local_session):
     """Test replacing an existing column with a Series."""
     data = {"name": ["Alice", "Bob"], "age": [25, 30]}
     df = local_session.create_dataframe(data)

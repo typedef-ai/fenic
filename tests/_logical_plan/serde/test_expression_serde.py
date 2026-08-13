@@ -898,7 +898,7 @@ class TestExpressionSerde:
         assert len(array_expr.exprs) == 3
         assert nested_expr == deserialized
 
-    def test_all_logical_expr_subclasses_covered(self):
+    def test_case_all_logical_expr_subclasses_covered(self):
         """Test that all concrete LogicalExpr subclasses are covered in the test file."""
         import importlib
         import inspect
