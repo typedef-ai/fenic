@@ -27,7 +27,6 @@ from fenic.core.types import (
 
 
 class Map(BaseMultiColumnInputOperator[str, str]):
-    stream_requests = True
     RESPONSE_FORMAT_SYSTEM_PROMPT = jinja2.Template(
         dedent("""\
             Follow the user's instruction exactly and generate output according to the user's schema.
