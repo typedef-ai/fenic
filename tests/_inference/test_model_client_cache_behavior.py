@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from typing import Dict, List, Optional, Union
 
 import polars as pl
@@ -238,6 +240,49 @@ class FailingCompletionClient(DummyCompletionClient):
         return FatalException(ProviderStatusError("Error code: 400", response=object(), body={}))
 
 
+class SlidingWindowCompletionClient(DummyCompletionClient):
+    def __init__(self, *, fail_second: bool = False):
+        super().__init__()
+        self.fail_second = fail_second
+        self.second_started = threading.Event()
+        self.third_started = threading.Event()
+        self.release_second = threading.Event()
+        self._active_requests = 0
+        self._active_requests_lock = threading.Lock()
+        self.max_active_requests = 0
+
+    async def make_single_request(
+        self, request: FenicCompletionsRequest
+    ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
+        with self._active_requests_lock:
+            self._active_requests += 1
+            self.max_active_requests = max(
+                self.max_active_requests, self._active_requests
+            )
+
+        try:
+            prompt = request.messages.user
+            if prompt == "second":
+                self.second_started.set()
+                await asyncio.to_thread(self.release_second.wait)
+            elif prompt == "third":
+                self.third_started.set()
+
+            self.call_count += 1
+            if prompt == "second" and self.fail_second:
+                return FatalException(
+                    ProviderStatusError("Error code: 400", response=object(), body={})
+                )
+            return FenicCompletionsResponse(
+                completion=f"response-for-{prompt}",
+                logprobs=None,
+                usage=None,
+            )
+        finally:
+            with self._active_requests_lock:
+                self._active_requests -= 1
+
+
 def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     messages = LMRequestMessages(system="system", examples=[], user=prompt)
     return FenicCompletionsRequest(
@@ -287,7 +332,7 @@ def test_completion_requests_use_cache_and_dedup():
     assert client.call_count == len(requests)
 
 
-def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_each_block():
+def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_within_live_window():
     client = DummyCompletionClient()
     yielded_prompts = []
 
@@ -306,7 +351,7 @@ def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_each_block():
         first = next(responses)
         assert first is not None
         assert first.completion == "response-for-first"
-        assert yielded_prompts == ["first", "first"]
+        assert yielded_prompts == ["first", "first", "second"]
 
         remaining = list(responses)
         assert [response.completion for response in remaining if response] == [
@@ -319,7 +364,98 @@ def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_each_block():
         client.shutdown()
 
 
-def test_iter_batch_requests_uses_cache_across_blocks():
+def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles():
+    client = SlidingWindowCompletionClient()
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third")
+            ],
+            "sliding-window-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.second_started.wait(timeout=1)
+        assert client.third_started.wait(timeout=1)
+        assert client.max_active_requests <= 2
+
+        client.release_second.set()
+        assert [response.completion for response in responses if response] == [
+            "response-for-second",
+            "response-for-third",
+        ]
+    finally:
+        client.release_second.set()
+        client.shutdown()
+
+
+def test_iter_batch_requests_normalizes_later_window_failure_after_successor_admission():
+    client = SlidingWindowCompletionClient(fail_second=True)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third")
+            ],
+            "sliding-window-error-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.third_started.wait(timeout=1)
+
+        client.release_second.set()
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        assert client.call_count == 3
+    finally:
+        client.release_second.set()
+        client.shutdown()
+
+
+def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
+    client = DummyCompletionClient()
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="sliding-window")
+
+    try:
+        list(
+            client.iter_batch_requests(
+                [
+                    _make_completion_request(prompt)
+                    for prompt in ("first", "second", "third")
+                ],
+                "semantic.map",
+                batch_size=2,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [event.request_index for event in events if event.event == "queued"] == [
+        0,
+        1,
+        2,
+    ]
+    assert {event.batch_id for event in events} == {events[0].batch_id}
+    assert {event.operation_name for event in events} == {"semantic.map"}
+    assert {event.execution_id for event in events} == {"sliding-window"}
+    assert sorted(
+        event.request_index for event in events if event.event == "settled"
+    ) == [0, 1, 2]
+
+
+def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles():
     fake_cache = FakeCache()
     client = DummyCompletionClient(cache=fake_cache)
     requests = [
