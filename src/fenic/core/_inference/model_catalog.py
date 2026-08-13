@@ -15,6 +15,8 @@ AnthropicReasoningEffortType = Literal["low", "medium", "high", "xhigh", "max"]
 # Thinking level sets for Gemini 3.x models
 GEMINI_3X_PRO_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
 GEMINI_3X_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low", "minimal"}
+# Gemini 3.7 Flash does not support the minimal thinking level.
+GEMINI_3_7_FLASH_THINKING_LEVELS: Final[Set[ThinkingLevelType]] = {"high", "medium", "low"}
 ANTHROPIC_OPUS_4_7_PLUS_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "xhigh", "max"}
 ANTHROPIC_4_6_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high", "max"}
 ANTHROPIC_OPUS_4_5_EFFORTS: Final[Set[AnthropicReasoningEffortType]] = {"low", "medium", "high"}
@@ -279,6 +281,7 @@ CohereEmbeddingModelName = Literal[
 
 
 GoogleDeveloperLanguageModelName = Literal[
+    "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.5-flash",
@@ -1034,6 +1037,25 @@ class ModelCatalog:
         """Initialize the Google Vertex Models."""
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_VERTEX,
+            "gemini-3.7-flash",
+            CompletionModelParameters(
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_custom_temperature=False,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_7_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_VERTEX,
             "gemini-3.6-flash",
             CompletionModelParameters(
                 input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
@@ -1263,6 +1285,25 @@ class ModelCatalog:
     def _initialize_google_gla_models(self):
         """Initialize Google models in the catalog."""
         # Google GLA Models (same models, possibly different pricing)
+        self._add_model_to_catalog(
+            ModelProvider.GOOGLE_DEVELOPER,
+            "gemini-3.7-flash",
+            CompletionModelParameters(
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                context_window_length=1_048_576,
+                max_output_tokens=65_536,
+                max_temperature=2.0,
+                supports_custom_temperature=False,
+                supports_reasoning=True,
+                supports_disabled_reasoning=False,
+                supported_thinking_levels=GEMINI_3_7_FLASH_THINKING_LEVELS,
+                supports_pdf_parsing=True,
+                supports_media_resolution=True,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.6-flash",
