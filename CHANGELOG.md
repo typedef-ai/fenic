@@ -27,7 +27,7 @@
 * **local:** avoid redundant DataFrame work and bound sim-join memory ([#361](https://github.com/typedef-ai/fenic/issues/361)) ([2c3adc5](https://github.com/typedef-ai/fenic/commit/2c3adc5c1d4ea6ce0060eca89904a41bf502139f))
 ### Behavior Changes
 
-* add bounded request-streaming internals behind opt-in execution; when enabled, duplicate requests in separate chunks are independent unless the response cache serves the later request
+* add bounded sliding-window request-streaming internals behind opt-in execution; when enabled, duplicate requests after an earlier window entry settles are independent unless the response cache serves the later request, and a successor may be dispatched before a later in-window request fails
 
 ## [0.12.0](https://github.com/typedef-ai/fenic/compare/v0.11.0...v0.12.0) (2026-07-29)
 
