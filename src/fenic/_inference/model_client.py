@@ -5,9 +5,9 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections import deque
 from concurrent.futures import Future
 from dataclasses import dataclass
-from itertools import islice
 from typing import (
     Any,
     Dict,
@@ -538,31 +538,76 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         request_timeout: Optional[float] = None,
         batch_size: int = 100,
     ) -> Iterator[Optional[ResponseT]]:
-        """Process an iterable of requests in bounded, ordered batches.
+        """Process an iterable of requests through a bounded, ordered window.
 
         The existing ``make_batch_requests`` API remains the compatibility path for
         callers that need whole-batch behavior. This iterator bounds the request,
-        future, and response working set to ``batch_size`` while preserving each
-        batch's existing queue, rate-limit, token-accounting, cache, and error
-        semantics.
+        future, and response working set to ``batch_size`` while preserving the
+        existing queue, rate-limit, token-accounting, cache, and error semantics.
+        Once the next ordered response settles, its successor is admitted before
+        that response is yielded, so a later slow request does not recreate the
+        old whole-batch barrier.
 
         Request fingerprint deduplication is intentionally scoped to a single
-        bounded batch. Repeated requests in later batches are served without a
-        second provider call when the configured response cache contains the first
-        result; without a cache they are independent requests. Keeping an
-        unbounded in-memory deduplication table would defeat the stream's memory
-        bound.
+        bounded window. Repeated requests after their earlier entry has settled
+        are served without a second provider call when the configured response
+        cache contains the first result; without a cache they are independent
+        requests. Keeping an unbounded in-memory deduplication table would defeat
+        the stream's memory bound.
         """
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
 
         request_iter = iter(requests)
-        while batch := list(islice(request_iter, batch_size)):
-            yield from self.make_batch_requests(
-                batch,
-                operation_name=operation_name,
-                request_timeout=request_timeout,
+        batch_id = str(uuid.uuid4())
+        unique_futures: Dict[Any, Future] = {}
+        pending: deque[tuple[Future, Optional[str]]] = deque()
+        request_index = 0
+
+        def admit_next_request() -> bool:
+            nonlocal request_index
+
+            try:
+                request = next(request_iter)
+            except StopIteration:
+                return False
+
+            request_key = self.get_request_key(request) if request is not None else None
+            request_futures, _, _ = self._submit_batch_requests(
+                [request],
+                batch_id,
+                operation_name,
+                request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
+                unique_futures=unique_futures,
+                request_index_offset=request_index,
+                show_progress=False,
             )
+            pending.append((request_futures[0], request_key))
+            request_index += 1
+            return True
+
+        try:
+            while len(pending) < batch_size and admit_next_request():
+                pass
+
+            while pending:
+                req_future, request_key = pending.popleft()
+                response = req_future.result()
+
+                # Future deduplication is useful only while the original request
+                # remains in the live window. Once its ordered result is consumed,
+                # drop the entry so a long input cannot grow this map indefinitely.
+                if (
+                    request_key is not None
+                    and unique_futures.get(request_key) is req_future
+                ):
+                    del unique_futures[request_key]
+
+                admit_next_request()
+                yield response
+        except Exception as e:
+            # Preserve the public batch API's error boundary for Polars callbacks.
+            raise ExecutionError(str(e)) from e
 
     #
     # Producer methods (run on the user thread)
@@ -703,6 +748,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         batch_id: str,
         operation_name: str,
         request_timeout: float,
+        unique_futures: Optional[Dict[Any, Future]] = None,
+        request_index_offset: int = 0,
+        show_progress: bool = True,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -710,12 +758,16 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             requests: List of requests to submit
             batch_id: Batch identifier for tracking
             request_timeout: Timeout for each request in the batch in seconds
+            unique_futures: Optional live deduplication map shared by a streaming window.
+            request_index_offset: Offset for lifecycle request indices.
+            show_progress: Whether to render submission progress.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
         request_futures: List[Future] = []
         current_thread_id = threading.get_ident()
-        unique_futures: Dict[Any, Future] = {}
+        if unique_futures is None:
+            unique_futures = {}
         num_unique_requests = 0
         total_token_estimate = TokenEstimate()
 
@@ -724,7 +776,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             if request is None:
                 request_keys.append(None)
                 continue
-            request_keys.append(self._safe_build_request_key(request, idx))
+            request_keys.append(
+                self._safe_build_request_key(request, request_index_offset + idx)
+            )
 
         cached_responses: Dict[str, CachedResponse] = {}
         if self.cache is not None:
@@ -755,6 +809,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             total=len(requests),
             desc=f"Submitting requests for batch: {batch_id} (model: {self.model})",
             unit="req",
+            disable=not show_progress,
         ) as pbar:
             for idx, request in enumerate(requests):
                 # Check for exceptions from the event loop thread
@@ -811,7 +866,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         estimated_tokens=estimated_tokens,
                         batch_id=batch_id,
                         operation_name=operation_name,
-                        request_index=idx,
+                        request_index=request_index_offset + idx,
                         request_fingerprint=request_fingerprint,
                         request_timeout=request_timeout,
                     )
