@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 class Classify(BaseSingleColumnInputOperator[str, str]):
-    stream_requests = True
     SYSTEM_PROMPT = (
         "You are a text classification expert. "
         "Classify the following document into one of the following labels:"
