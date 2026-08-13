@@ -30,7 +30,6 @@ PREDICATE_FORMAT = ResolvedResponseFormat.from_pydantic_model(
 
 
 class Predicate(BaseMultiColumnInputOperator[str, bool]):
-    stream_requests = True
     SYSTEM_PROMPT = dedent("""\
     Evaluate the user's question or claim and respond with either true or false.
 

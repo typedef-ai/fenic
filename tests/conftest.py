@@ -480,6 +480,16 @@ def local_session(local_session_config):
     yield session
     session.stop(skip_usage_summary=True)
 
+
+@pytest.fixture
+def construction_only_local_session(local_session_config, monkeypatch):
+    """Creates a local session with a synthetic key and no provider validation."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    configure_logging()
+    session = Session.get_or_create(local_session_config)
+    yield session
+    session.stop(skip_usage_summary=True)
+
 @pytest.fixture
 def temp_dir(request):
     """Provides a temporary directory for test files.
