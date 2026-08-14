@@ -9,6 +9,7 @@ from fenic.api.session.config import (
     SemanticConfig,
 )
 from fenic.core._inference.model_catalog import (
+    GEMINI_3_7_FLASH_THINKING_LEVELS,
     GEMINI_3X_FLASH_THINKING_LEVELS,
     GEMINI_3X_PRO_THINKING_LEVELS,
     ModelProvider,
@@ -27,6 +28,10 @@ class TestThinkingLevelConstants:
     def test_gemini_3x_flash_thinking_levels(self):
         """Gemini 3.x Flash supports all four thinking levels."""
         assert GEMINI_3X_FLASH_THINKING_LEVELS == {"high", "medium", "low", "minimal"}
+
+    def test_gemini_3_7_flash_thinking_levels(self):
+        """Gemini 3.7 Flash does not support the minimal thinking level."""
+        assert GEMINI_3_7_FLASH_THINKING_LEVELS == {"high", "medium", "low"}
 
 
 class TestModelCatalogThinkingLevels:
@@ -63,6 +68,14 @@ class TestModelCatalogThinkingLevels:
         )
         assert params is not None
         assert params.supported_thinking_levels == GEMINI_3X_FLASH_THINKING_LEVELS
+
+    def test_gemini_3_7_flash_thinking_levels(self):
+        """Gemini 3.7 Flash should support high, medium, and low thinking levels."""
+        params = model_catalog.get_completion_model_parameters(
+            ModelProvider.GOOGLE_DEVELOPER, "gemini-3.7-flash"
+        )
+        assert params is not None
+        assert params.supported_thinking_levels == GEMINI_3_7_FLASH_THINKING_LEVELS
 
     def test_gemini_3_5_flash_lite_thinking_levels(self):
         """Gemini 3.5 Flash-Lite should support all four thinking levels."""
@@ -139,6 +152,25 @@ class TestAutoProfileCreation:
         model = config.semantic.language_models["flash"]
         assert model.profiles is not None
         assert set(model.profiles.keys()) == {"high", "medium", "low", "minimal"}
+        assert model.default_profile == "low"
+
+    def test_gemini_3_7_flash_auto_profiles(self):
+        """Gemini 3.7 Flash should auto-create its supported thinking profiles."""
+        config = SessionConfig(
+            app_name="test_auto_profiles",
+            semantic=SemanticConfig(
+                language_models={
+                    "flash": GoogleDeveloperLanguageModel(
+                        model_name="gemini-3.7-flash",
+                        rpm=100,
+                        tpm=1000,
+                    )
+                }
+            ),
+        )
+        model = config.semantic.language_models["flash"]
+        assert model.profiles is not None
+        assert set(model.profiles.keys()) == {"high", "medium", "low"}
         assert model.default_profile == "low"
 
     def test_case_gemini_3_5_flash_lite_auto_profiles(self):
