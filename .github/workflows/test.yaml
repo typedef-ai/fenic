@@ -36,8 +36,8 @@ jobs:
             # Run all combinations on scheduled runs
             matrix='{"dependency": ["true", "min", "max"], "test": ["local", "cloud"], "python-version": ["3.10", "3.11", "3.12", "3.13", "3.14"]}'
           else
-            # Run synced local tests on the floor, default, and newly supported interpreters.
-            matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.10"}, {"dependency": "true", "test": "local", "python-version": "3.11"}, {"dependency": "true", "test": "local", "python-version": "3.13"}, {"dependency": "true", "test": "local", "python-version": "3.14"}]}'
+            # Run synced local tests on every supported interpreter.
+            matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.10"}, {"dependency": "true", "test": "local", "python-version": "3.11"}, {"dependency": "true", "test": "local", "python-version": "3.12"}, {"dependency": "true", "test": "local", "python-version": "3.13"}, {"dependency": "true", "test": "local", "python-version": "3.14"}]}'
           fi
           # shellcheck disable=SC2086
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
