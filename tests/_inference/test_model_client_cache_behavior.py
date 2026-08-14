@@ -356,7 +356,12 @@ def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     )
 
 
-def _counting_completion_requests(prompts, *, admission_watermark: int):
+def _counting_completion_requests(
+    prompts,
+    *,
+    admission_watermark: int,
+    resume_at_capacity: Optional[threading.Event] = None,
+):
     admitted_prompts = []
     admission_at_capacity = threading.Event()
     admission_overflow = threading.Event()
@@ -366,6 +371,8 @@ def _counting_completion_requests(prompts, *, admission_watermark: int):
             admitted_prompts.append(prompt)
             if len(admitted_prompts) == admission_watermark:
                 admission_at_capacity.set()
+                if resume_at_capacity is not None:
+                    resume_at_capacity.wait()
             elif len(admitted_prompts) > admission_watermark:
                 admission_overflow.set()
             yield _make_completion_request(prompt)
@@ -577,6 +584,57 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         ]
         assert client.max_active_requests <= admission_watermark
     finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases():
+    admission_watermark = 3
+    raised_rpm = 6
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=admission_watermark,
+        block_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
+    resume_at_capacity = threading.Event()
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=admission_watermark,
+        resume_at_capacity=resume_at_capacity,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "captured-admission-watermark-test",
+            batch_size=2,
+        )
+
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+
+        client.rate_limit_strategy.rpm = raised_rpm
+        resume_at_capacity.set()
+
+        assert not admission_overflow.wait(timeout=1)
+        assert admitted_prompts == list(prompts[:admission_watermark])
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        resume_at_capacity.set()
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
