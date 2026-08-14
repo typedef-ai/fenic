@@ -544,6 +544,7 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         rate_limit_rpm=admission_watermark,
         block_first=True,
     )
+    executor = ThreadPoolExecutor(max_workers=1)
     prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
     (
         requests,
@@ -562,15 +563,14 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
             batch_size=2,
         )
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            collected = executor.submit(list, responses)
-            assert client.first_started.wait(timeout=1)
-            assert admission_at_capacity.wait(timeout=1)
-            assert admitted_prompts == list(prompts[:admission_watermark])
-            assert not admission_overflow.wait(timeout=1)
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+        assert admitted_prompts == list(prompts[:admission_watermark])
+        assert not admission_overflow.wait(timeout=1)
 
-            client.release_second.set()
-            results = collected.result(timeout=2)
+        client.release_second.set()
+        results = collected.result(timeout=2)
 
         assert [response.completion for response in results if response] == [
             f"response-for-{prompt}" for prompt in prompts
@@ -578,6 +578,7 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         assert client.max_active_requests <= admission_watermark
     finally:
         client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
 
@@ -588,6 +589,7 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
         rate_limit_rpm=admission_watermark,
         block_first=True,
     )
+    executor = ThreadPoolExecutor(max_workers=1)
     prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
 
     try:
@@ -597,15 +599,14 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
             batch_size=2,
         )
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            collected = executor.submit(list, responses)
-            assert client.first_started.wait(timeout=1)
-            assert client.dedup_at_capacity.wait(timeout=1)
-            assert client.max_live_dedup_entries == admission_watermark
-            assert not client.dedup_overflow.wait(timeout=1)
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert client.dedup_at_capacity.wait(timeout=1)
+        assert client.max_live_dedup_entries == admission_watermark
+        assert not client.dedup_overflow.wait(timeout=1)
 
-            client.release_second.set()
-            results = collected.result(timeout=2)
+        client.release_second.set()
+        results = collected.result(timeout=2)
 
         assert [response.completion for response in results if response] == [
             f"response-for-{prompt}" for prompt in prompts
@@ -613,11 +614,13 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
         assert client.max_live_dedup_entries == admission_watermark
     finally:
         client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
 
 def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
     client = SlidingWindowCompletionClient(block_first=True)
+    executor = ThreadPoolExecutor(max_workers=1)
     admission_watermark = client.rate_limit_strategy.rpm
     prompts = ("first",) + tuple(
         f"request-{index}" for index in range(1, admission_watermark + 2)
@@ -639,21 +642,21 @@ def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
             batch_size=2,
         )
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            collected = executor.submit(list, responses)
-            assert client.first_started.wait(timeout=1)
-            assert admission_at_capacity.wait(timeout=1)
-            assert len(admitted_prompts) == admission_watermark
-            assert not admission_overflow.wait(timeout=1)
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+        assert len(admitted_prompts) == admission_watermark
+        assert not admission_overflow.wait(timeout=1)
 
-            client.release_second.set()
-            results = collected.result(timeout=3)
+        client.release_second.set()
+        results = collected.result(timeout=3)
 
         assert [response.completion for response in results if response] == [
             f"response-for-{prompt}" for prompt in prompts
         ]
     finally:
         client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
 
@@ -665,6 +668,7 @@ def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles(
         rate_limit_rpm=admission_watermark,
         block_first=True,
     )
+    executor = ThreadPoolExecutor(max_workers=1)
     prompts = ("first", "second", "third", "first")
     (
         requests,
@@ -683,17 +687,17 @@ def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles(
             batch_size=2,
         )
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            collected = executor.submit(list, responses)
-            assert client.first_started.wait(timeout=1)
-            assert admission_at_capacity.wait(timeout=1)
-            assert admitted_prompts == list(prompts[:admission_watermark])
-            assert not admission_overflow.wait(timeout=1)
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert admission_at_capacity.wait(timeout=1)
+        assert admitted_prompts == list(prompts[:admission_watermark])
+        assert not admission_overflow.wait(timeout=1)
 
-            client.release_second.set()
-            results = collected.result(timeout=2)
+        client.release_second.set()
+        results = collected.result(timeout=2)
     finally:
         client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
     assert [response.completion for response in results if response] == [
