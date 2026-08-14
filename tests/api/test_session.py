@@ -1075,7 +1075,7 @@ def test_session_config_with_invalid_anthropic_api_key(tmp_path, monkeypatch):
             app_name="test_session_config_with_invalid_anthropic_api_key",
             db_path=tmp_path,
             semantic=SemanticConfig(
-                language_models={"claude": AnthropicLanguageModel(model_name="claude-opus-4-1", rpm=100, input_tpm=100, output_tpm=1000)}
+                language_models={"claude": AnthropicLanguageModel(model_name="claude-opus-4-8", rpm=100, input_tpm=100, output_tpm=1000)}
             )
         )
         _ = Session.get_or_create(config)
