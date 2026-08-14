@@ -45,8 +45,8 @@ class DummyProvider(ModelProviderClass):
 
 
 class DummyRateLimitStrategy(RateLimitStrategy):
-    def __init__(self):
-        super().__init__(rpm=100)
+    def __init__(self, rpm: int = 100):
+        super().__init__(rpm=rpm)
 
     def backoff(self, curr_time: float) -> int:
         return 0
@@ -180,12 +180,17 @@ class DummyEmbeddingClient(ModelClient[FenicEmbeddingsRequest, List[float]]):
 
 
 class DummyCompletionClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse]):
-    def __init__(self, cache: Optional[LLMResponseCache] = None):
+    def __init__(
+        self,
+        cache: Optional[LLMResponseCache] = None,
+        *,
+        rate_limit_rpm: int = 100,
+    ):
         super().__init__(
             model="dummy-completion",
             model_provider=ModelProvider.OPENAI,
             model_provider_class=DummyProvider(),
-            rate_limit_strategy=DummyRateLimitStrategy(),
+            rate_limit_strategy=DummyRateLimitStrategy(rate_limit_rpm),
             token_counter=DummyTokenCounter(),
             cache=cache,
         )
@@ -241,11 +246,19 @@ class FailingCompletionClient(DummyCompletionClient):
 
 
 class SlidingWindowCompletionClient(DummyCompletionClient):
-    def __init__(self, *, fail_second: bool = False):
-        super().__init__()
+    def __init__(
+        self,
+        *,
+        fail_second: bool = False,
+        rate_limit_rpm: int = 100,
+        block_after_first: bool = False,
+    ):
+        super().__init__(rate_limit_rpm=rate_limit_rpm)
         self.fail_second = fail_second
+        self.block_after_first = block_after_first
         self.second_started = threading.Event()
         self.third_started = threading.Event()
+        self.fourth_started = threading.Event()
         self.release_second = threading.Event()
         self._active_requests = 0
         self._active_requests_lock = threading.Lock()
@@ -264,9 +277,15 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
             prompt = request.messages.user
             if prompt == "second":
                 self.second_started.set()
-                await asyncio.to_thread(self.release_second.wait)
             elif prompt == "third":
                 self.third_started.set()
+            elif prompt == "fourth":
+                self.fourth_started.set()
+
+            if prompt == "second" or (
+                self.block_after_first and prompt != "first"
+            ):
+                await asyncio.to_thread(self.release_second.wait)
 
             self.call_count += 1
             if prompt == "second" and self.fail_second:
@@ -333,7 +352,7 @@ def test_completion_requests_use_cache_and_dedup():
 
 
 def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_within_live_window():
-    client = DummyCompletionClient()
+    client = DummyCompletionClient(rate_limit_rpm=2)
     yielded_prompts = []
 
     def requests():
@@ -365,7 +384,7 @@ def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_within_live_win
 
 
 def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles():
-    client = SlidingWindowCompletionClient()
+    client = SlidingWindowCompletionClient(rate_limit_rpm=2)
 
     try:
         responses = client.iter_batch_requests(
@@ -382,7 +401,7 @@ def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles(
         assert first.completion == "response-for-first"
         assert client.second_started.wait(timeout=1)
         assert client.third_started.wait(timeout=1)
-        assert client.max_active_requests <= 2
+        assert client.max_active_requests <= max(2, client.rate_limit_strategy.rpm)
 
         client.release_second.set()
         assert [response.completion for response in responses if response] == [
@@ -395,7 +414,7 @@ def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles(
 
 
 def test_iter_batch_requests_normalizes_later_window_failure_after_successor_admission():
-    client = SlidingWindowCompletionClient(fail_second=True)
+    client = SlidingWindowCompletionClient(fail_second=True, rate_limit_rpm=2)
 
     try:
         responses = client.iter_batch_requests(
@@ -453,6 +472,42 @@ def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
     assert sorted(
         event.request_index for event in events if event.event == "settled"
     ) == [0, 1, 2]
+
+
+def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batch_size():
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=3,
+        block_after_first=True,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third", "fourth")
+            ],
+            "admission-watermark-test",
+            batch_size=2,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-first"
+        assert client.second_started.wait(timeout=1)
+        assert client.third_started.wait(timeout=1)
+        assert client.fourth_started.wait(timeout=1)
+        assert client.max_active_requests == client.rate_limit_strategy.rpm
+        assert client.max_active_requests > 2
+
+        client.release_second.set()
+        assert [response.completion for response in responses if response] == [
+            "response-for-second",
+            "response-for-third",
+            "response-for-fourth",
+        ]
+    finally:
+        client.release_second.set()
+        client.shutdown()
 
 
 def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles():
