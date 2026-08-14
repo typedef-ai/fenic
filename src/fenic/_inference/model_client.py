@@ -538,15 +538,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         request_timeout: Optional[float] = None,
         batch_size: int = 100,
     ) -> Iterator[Optional[ResponseT]]:
-        """Process an iterable of requests through a bounded, ordered window.
+        """Process an iterable of requests through an ordered admission window.
 
         The existing ``make_batch_requests`` API remains the compatibility path for
-        callers that need whole-batch behavior. This iterator bounds the request,
-        future, and response working set to ``batch_size`` while preserving the
-        existing queue, rate-limit, token-accounting, cache, and error semantics.
-        Once the next ordered response settles, its successor is admitted before
-        that response is yielded, so a later slow request does not recreate the
-        old whole-batch barrier.
+        callers that need whole-batch behavior. The live request, future, response,
+        and deduplication working set is bounded by the effective admission window
+        ``max(batch_size, rate_limit_strategy.rpm)`` captured when iteration begins.
+        ``batch_size`` remains the caller's minimum look-ahead; the rate-limit
+        burst is also admitted so streaming does not impose a lower concurrency
+        ceiling than the existing list-based path. Once the next ordered response
+        settles, its successor is admitted before that response is yielded, so a
+        later slow request does not recreate the old whole-batch barrier.
 
         Request fingerprint deduplication is intentionally scoped to a single
         bounded window. Repeated requests after their earlier entry has settled
@@ -560,6 +562,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
         request_iter = iter(requests)
         batch_id = str(uuid.uuid4())
+        admission_watermark = max(batch_size, self.rate_limit_strategy.rpm)
         unique_futures: Dict[Any, Future] = {}
         pending: deque[tuple[Future, Optional[str]]] = deque()
         request_index = 0
@@ -587,7 +590,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             return True
 
         try:
-            while len(pending) < batch_size and admit_next_request():
+            while len(pending) < admission_watermark and admit_next_request():
                 pass
 
             while pending:
@@ -603,7 +606,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 ):
                     del unique_futures[request_key]
 
-                admit_next_request()
+                while len(pending) < admission_watermark and admit_next_request():
+                    pass
                 yield response
         except Exception as e:
             # Preserve the public batch API's error boundary for Polars callbacks.
