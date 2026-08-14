@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Union
 
 import polars as pl
@@ -72,6 +73,7 @@ class DummyTokenCounter:
 class FakeCache(LLMResponseCache):
     def __init__(self):
         self.get_batch_called = False
+        self.get_batch_hit_count = 0
         self.set_called = False
         self.store: Dict[str, FenicCompletionsResponse] = {}
 
@@ -114,6 +116,7 @@ class FakeCache(LLMResponseCache):
                 logprobs=value.logprobs,
                 access_count=0,
             )
+        self.get_batch_hit_count += len(result)
         return result
 
     def set(self, cache_key: str, response, model: str) -> bool:
@@ -249,13 +252,17 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
     def __init__(
         self,
         *,
+        cache: Optional[LLMResponseCache] = None,
         fail_second: bool = False,
         rate_limit_rpm: int = 100,
         block_after_first: bool = False,
+        block_first: bool = False,
     ):
-        super().__init__(rate_limit_rpm=rate_limit_rpm)
+        super().__init__(cache=cache, rate_limit_rpm=rate_limit_rpm)
         self.fail_second = fail_second
         self.block_after_first = block_after_first
+        self.block_first = block_first
+        self.first_started = threading.Event()
         self.second_started = threading.Event()
         self.third_started = threading.Event()
         self.fourth_started = threading.Event()
@@ -275,15 +282,19 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
 
         try:
             prompt = request.messages.user
-            if prompt == "second":
+            if prompt == "first":
+                self.first_started.set()
+            elif prompt == "second":
                 self.second_started.set()
             elif prompt == "third":
                 self.third_started.set()
             elif prompt == "fourth":
                 self.fourth_started.set()
 
-            if prompt == "second" or (
-                self.block_after_first and prompt != "first"
+            if (
+                (self.block_first and prompt == "first")
+                or prompt == "second"
+                or (self.block_after_first and prompt != "first")
             ):
                 await asyncio.to_thread(self.release_second.wait)
 
@@ -302,6 +313,37 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
                 self._active_requests -= 1
 
 
+class DedupTrackingCompletionClient(SlidingWindowCompletionClient):
+    def __init__(self, *, dedup_ceiling: int, **kwargs):
+        super().__init__(**kwargs)
+        self.dedup_ceiling = dedup_ceiling
+        self.dedup_at_capacity = threading.Event()
+        self.dedup_overflow = threading.Event()
+        self.max_live_dedup_entries = 0
+
+    def _get_or_create_request_future(
+        self,
+        unique_futures,
+        request,
+        request_key=None,
+    ):
+        result = super()._get_or_create_request_future(
+            unique_futures,
+            request,
+            request_key,
+        )
+        live_entries = len(unique_futures)
+        self.max_live_dedup_entries = max(
+            self.max_live_dedup_entries,
+            live_entries,
+        )
+        if live_entries == self.dedup_ceiling:
+            self.dedup_at_capacity.set()
+        elif live_entries > self.dedup_ceiling:
+            self.dedup_overflow.set()
+        return result
+
+
 def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     messages = LMRequestMessages(system="system", examples=[], user=prompt)
     return FenicCompletionsRequest(
@@ -311,6 +353,28 @@ def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
         structured_output=None,
         temperature=0.7,
         model_profile="default",
+    )
+
+
+def _counting_completion_requests(prompts, *, admission_watermark: int):
+    admitted_prompts = []
+    admission_at_capacity = threading.Event()
+    admission_overflow = threading.Event()
+
+    def requests():
+        for prompt in prompts:
+            admitted_prompts.append(prompt)
+            if len(admitted_prompts) == admission_watermark:
+                admission_at_capacity.set()
+            elif len(admitted_prompts) > admission_watermark:
+                admission_overflow.set()
+            yield _make_completion_request(prompt)
+
+    return (
+        requests(),
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
     )
 
 
@@ -475,35 +539,118 @@ def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
 
 
 def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batch_size():
+    admission_watermark = 3
     client = SlidingWindowCompletionClient(
-        rate_limit_rpm=3,
-        block_after_first=True,
+        rate_limit_rpm=admission_watermark,
+        block_first=True,
+    )
+    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=admission_watermark,
     )
 
     try:
         responses = client.iter_batch_requests(
-            [
-                _make_completion_request(prompt)
-                for prompt in ("first", "second", "third", "fourth")
-            ],
+            requests,
             "admission-watermark-test",
             batch_size=2,
         )
 
-        first = next(responses)
-        assert first is not None
-        assert first.completion == "response-for-first"
-        assert client.second_started.wait(timeout=1)
-        assert client.third_started.wait(timeout=1)
-        assert client.fourth_started.wait(timeout=1)
-        assert client.max_active_requests == client.rate_limit_strategy.rpm
-        assert client.max_active_requests > 2
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            collected = executor.submit(list, responses)
+            assert client.first_started.wait(timeout=1)
+            assert admission_at_capacity.wait(timeout=1)
+            assert admitted_prompts == list(prompts[:admission_watermark])
+            assert not admission_overflow.wait(timeout=1)
 
+            client.release_second.set()
+            results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+        assert client.max_active_requests <= admission_watermark
+    finally:
         client.release_second.set()
-        assert [response.completion for response in responses if response] == [
-            "response-for-second",
-            "response-for-third",
-            "response-for-fourth",
+        client.shutdown()
+
+
+def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
+    admission_watermark = 3
+    client = DedupTrackingCompletionClient(
+        dedup_ceiling=admission_watermark,
+        rate_limit_rpm=admission_watermark,
+        block_first=True,
+    )
+    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
+
+    try:
+        responses = client.iter_batch_requests(
+            (_make_completion_request(prompt) for prompt in prompts),
+            "dedup-watermark-test",
+            batch_size=2,
+        )
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            collected = executor.submit(list, responses)
+            assert client.first_started.wait(timeout=1)
+            assert client.dedup_at_capacity.wait(timeout=1)
+            assert client.max_live_dedup_entries == admission_watermark
+            assert not client.dedup_overflow.wait(timeout=1)
+
+            client.release_second.set()
+            results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+        assert client.max_live_dedup_entries == admission_watermark
+    finally:
+        client.release_second.set()
+        client.shutdown()
+
+
+def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
+    client = SlidingWindowCompletionClient(block_first=True)
+    admission_watermark = client.rate_limit_strategy.rpm
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, admission_watermark + 2)
+    )
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=admission_watermark,
+    )
+
+    try:
+        responses = client.iter_batch_requests(
+            requests,
+            "default-rpm-watermark-test",
+            batch_size=2,
+        )
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            collected = executor.submit(list, responses)
+            assert client.first_started.wait(timeout=1)
+            assert admission_at_capacity.wait(timeout=1)
+            assert len(admitted_prompts) == admission_watermark
+            assert not admission_overflow.wait(timeout=1)
+
+            client.release_second.set()
+            results = collected.result(timeout=3)
+
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
         ]
     finally:
         client.release_second.set()
@@ -512,32 +659,53 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
 
 def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles():
     fake_cache = FakeCache()
-    client = DummyCompletionClient(cache=fake_cache)
-    requests = [
-        _make_completion_request("first"),
-        _make_completion_request("second"),
-        _make_completion_request("first"),
-    ]
+    admission_watermark = 3
+    client = SlidingWindowCompletionClient(
+        cache=fake_cache,
+        rate_limit_rpm=admission_watermark,
+        block_first=True,
+    )
+    prompts = ("first", "second", "third", "first")
+    (
+        requests,
+        admitted_prompts,
+        admission_at_capacity,
+        admission_overflow,
+    ) = _counting_completion_requests(
+        prompts,
+        admission_watermark=admission_watermark,
+    )
 
     try:
-        responses = list(
-            client.iter_batch_requests(
-                requests,
-                "stream-cache-test",
-                batch_size=2,
-            )
+        responses = client.iter_batch_requests(
+            requests,
+            "stream-cache-test",
+            batch_size=2,
         )
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            collected = executor.submit(list, responses)
+            assert client.first_started.wait(timeout=1)
+            assert admission_at_capacity.wait(timeout=1)
+            assert admitted_prompts == list(prompts[:admission_watermark])
+            assert not admission_overflow.wait(timeout=1)
+
+            client.release_second.set()
+            results = collected.result(timeout=2)
     finally:
+        client.release_second.set()
         client.shutdown()
 
-    assert [response.completion for response in responses if response] == [
+    assert [response.completion for response in results if response] == [
         "response-for-first",
         "response-for-second",
+        "response-for-third",
         "response-for-first",
     ]
     assert fake_cache.get_batch_called is True
+    assert fake_cache.get_batch_hit_count == 1
     assert fake_cache.set_called is True
-    assert client.call_count == 2
+    assert client.call_count == 3
 
 
 def test_iter_batch_requests_normalizes_provider_errors():
