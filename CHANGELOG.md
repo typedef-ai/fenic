@@ -27,7 +27,7 @@
 * **local:** avoid redundant DataFrame work and bound sim-join memory ([#361](https://github.com/typedef-ai/fenic/issues/361)) ([2c3adc5](https://github.com/typedef-ai/fenic/commit/2c3adc5c1d4ea6ce0060eca89904a41bf502139f))
 ### Behavior Changes
 
-* add opt-in ordered request streaming that preserves the rate limiter's burst concurrency; its ``batch_size`` is a minimum look-ahead and the live window is ``max(batch_size, rpm-burst)``, so callers must not treat ``batch_size`` alone as a hard memory cap. When enabled, duplicate requests after an earlier live-window entry settles are independent unless the response cache serves the later request, and a successor may be dispatched before a later in-window request fails
+* add opt-in ordered request streaming that preserves the rate limiter's burst concurrency; its ``batch_size`` is a minimum look-ahead and the live window is ``max(batch_size, rpm-burst)``, so callers must not treat ``batch_size`` alone as a hard memory cap. When enabled, duplicate requests admitted after an earlier entry's ordered result is consumed and removed from the live window are independent unless the response cache serves the later request, and a successor may be dispatched before a later in-window request fails
 
 ## [0.12.0](https://github.com/typedef-ai/fenic/compare/v0.11.0...v0.12.0) (2026-07-29)
 

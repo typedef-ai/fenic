@@ -718,7 +718,7 @@ def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
         client.shutdown()
 
 
-def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles():
+def test_iter_batch_requests_uses_cache_after_prior_entry_leaves_live_window():
     fake_cache = FakeCache()
     admission_watermark = 3
     client = SlidingWindowCompletionClient(

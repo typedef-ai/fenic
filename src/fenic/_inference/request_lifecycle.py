@@ -103,7 +103,7 @@ def compute_idle_gap_metrics(events: Iterable[RequestLifecycleEvent]) -> IdleGap
             continue
 
         if event.event == "dispatched":
-            queued_at_ns = state.queued_at_ns.get(request)
+            queued_at_ns = state.queued_at_ns.pop(request, None)
             if queued_at_ns is not None:
                 queue_delays_ns.append(event.timestamp_ns - queued_at_ns)
 

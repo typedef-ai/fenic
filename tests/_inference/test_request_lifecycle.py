@@ -179,3 +179,4 @@ def test_idle_metrics_do_not_count_retry_backoff_as_execution_idle():
 
     assert metrics.idle_gap_count == 0
     assert metrics.total_idle_gap_ns == 0
+    assert metrics.total_queue_delay_ns == 10
