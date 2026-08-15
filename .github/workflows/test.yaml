@@ -71,8 +71,16 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
         with:
           toolchain: stable
-          cache: true
-          cache-shared-key: shared-rust-cache
+          cache: false
+      - name: cache Rust dependencies
+        id: rust-cache
+        # yamllint disable-line rule:line-length
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          # Stable across the Python matrix; the action also hashes Cargo manifests and locks.
+          shared-key: fenic-rust-v1
+          workspaces: |
+            rust -> target
       - name: Check if Rust unit tests need to be run
         id: rust_changed
         run: |
