@@ -11,6 +11,7 @@ from fenic._constants import (
 )
 from fenic._inference.language_model import LanguageModel
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core.error import ExecutionError, InternalError
 from fenic.core.types import JoinExampleCollection, PredicateExampleCollection
 
 # TODO(rohitrastogi): Make this a guid so it doesn't collide with any column names in a user dataframe.
@@ -44,9 +45,9 @@ class Join:
         self.model = model
         self.model_alias = model_alias
         if pair_block_size <= 0:
-            raise ValueError("pair_block_size must be positive")
+            raise InternalError("pair_block_size must be positive")
         if block_token_budget <= 0:
-            raise ValueError("block_token_budget must be positive")
+            raise InternalError("block_token_budget must be positive")
         self.pair_block_size = pair_block_size
         self.block_token_budget = block_token_budget
 
@@ -113,7 +114,7 @@ class Join:
     ) -> pl.DataFrame:
         joined_df = left_documents.join(right_documents, how="cross")
         if len(joined_df) > self.pair_block_size:
-            raise AssertionError(
+            raise InternalError(
                 "semantic.join pair block exceeds cap "
                 f"({len(joined_df)} > {self.pair_block_size})"
             )
@@ -132,17 +133,21 @@ class Join:
             self.model.count_tokens(prompt)
             for prompt in join_pairs[RENDERED_INSTRUCTION_KEY]
         )
-        if prompt_tokens <= self.block_token_budget:
+        if len(join_pairs) == 1:
+            context_limit = self.model.model_parameters.context_window_length
+            if prompt_tokens > context_limit:
+                raise ExecutionError(
+                    "semantic.join rendered prompt is too large "
+                    f"({prompt_tokens} tokens) and exceeds the model context limit "
+                    f"({context_limit} tokens). Reduce the join inputs or use a "
+                    "smaller prompt."
+                )
             yield join_pairs
             return
 
-        if len(join_pairs) == 1:
-            raise ValueError(
-                "semantic.join rendered prompt is too large "
-                f"({prompt_tokens} tokens) and exceeds the block token budget "
-                f"({self.block_token_budget} tokens). Reduce the join inputs or "
-                "use a smaller prompt."
-            )
+        if prompt_tokens <= self.block_token_budget:
+            yield join_pairs
+            return
 
         split_at = len(join_pairs) // 2
         yield from self._split_block_by_token_budget(join_pairs.slice(0, split_at))
@@ -166,7 +171,7 @@ class Join:
         if survivor_pairs.select(
             pl.struct([LEFT_ID_KEY, RIGHT_ID_KEY]).is_duplicated().any()
         ).item():
-            raise ValueError("semantic.join produced duplicate survivor pairs")
+            raise InternalError("semantic.join produced duplicate survivor pairs")
 
     def _postprocess(self, survivor_pairs: pl.DataFrame) -> pl.DataFrame:
         """Materialize wide rows only for predicate-surviving ID pairs."""
