@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from fenic import avg, col, count
-from fenic.core.error import ExecutionError
+from fenic.core.error import ExecutionError, LineageError
 
 TS_UTC = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="UTC"))
 TS_LA = datetime.datetime(2025, 1, 2, 1, 1, 1, tzinfo=zoneinfo.ZoneInfo(key="America/Los_Angeles"))
@@ -240,8 +240,9 @@ def test_semantic_join_lineage_rejects_reserved_side_uuid_columns(
     with pytest.raises(
         ExecutionError,
         match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
-    ):
+    ) as exc_info:
         joined.lineage()
+    assert isinstance(exc_info.value.__cause__, LineageError)
 
 
 def test_semantic_join_lineage_rejects_right_uuid_on_the_left(
@@ -268,8 +269,9 @@ def test_semantic_join_lineage_rejects_right_uuid_on_the_left(
     with pytest.raises(
         ExecutionError,
         match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
-    ):
+    ) as exc_info:
         joined.lineage()
+    assert isinstance(exc_info.value.__cause__, LineageError)
 
 
 def test_semantic_join_lineage_rejects_left_uuid_on_the_right(
@@ -296,8 +298,9 @@ def test_semantic_join_lineage_rejects_left_uuid_on_the_right(
     with pytest.raises(
         ExecutionError,
         match="semantic.join lineage reserves '_left_uuid' and '_right_uuid'",
-    ):
+    ) as exc_info:
         joined.lineage()
+    assert isinstance(exc_info.value.__cause__, LineageError)
 
 
 def test_union_lineage(local_session):
