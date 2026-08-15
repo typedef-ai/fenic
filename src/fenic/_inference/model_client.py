@@ -551,11 +551,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         later slow request does not recreate the old whole-batch barrier.
 
         Request fingerprint deduplication is intentionally scoped to a single
-        bounded window. Repeated requests after their earlier entry has settled
-        are served without a second provider call when the configured response
-        cache contains the first result; without a cache they are independent
-        requests. Keeping an unbounded in-memory deduplication table would defeat
-        the stream's memory bound.
+        bounded window. Repeated requests admitted after their earlier entry's
+        ordered result has been consumed and removed from the live window are
+        served without a second provider call when the configured response cache
+        contains the first result; without a cache they are independent requests.
+        Keeping an unbounded in-memory deduplication table would defeat the stream's
+        memory bound.
         """
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
