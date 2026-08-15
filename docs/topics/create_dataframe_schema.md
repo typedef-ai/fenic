@@ -166,11 +166,18 @@ provider — the `embedding_model` on the type is metadata.)
 
 ## Relationship to Schema-Free Ingestion
 
-The no-schema path is unchanged and fully behavior-compatible:
+The no-schema path retains its existing schema semantics:
 
 - Empty lists are still rejected.
 - Types are still inferred from the data.
 - Fixed-size arrays are still normalized to `pl.List`.
+
+Its object-identity behavior differs for schema-free Polars inputs: when the
+input already has Fenic-compatible physical dtypes, local execution can retain
+and return the same Polars frame instead of copying it. If ingestion must
+normalize an array, timestamp, or nested dtype, it materializes a new frame.
+Supplying an explicit schema also applies its authoritative ordering and casts,
+so it does not use this schema-free pass-through path.
 
 Only supplying a `schema` opts you into authoritative names, ordering, coercion,
 and logical-type/embedding preservation. For related ingestion-normalization

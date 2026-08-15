@@ -14,9 +14,12 @@ Both types and related functionality follow similar patterns to PySpark, except 
 ## Key Features
 
 - **Microsecond precision**: Timestamps support up to 1/1,000,000 second precision
-- **UTC-first design**: All timestamps are normalized to UTC during ingestion
+- **UTC-first design**: Timestamps that need conversion are normalized to UTC
+  during ingestion; already canonical UTC Polars columns can pass through
+  unchanged
 - **Automatic timezone conversion**: Timezone-aware inputs are converted to UTC automatically
-- **Consistent behavior**: Same behavior across all data sources (Parquet, CSV, in-memory DataFrames, tables)
+- **Consistent values**: All data sources expose the same UTC timestamp
+  semantics, although their materialization and copy behavior can differ
 - **Rich date/time functions**: Comprehensive set of functions for temporal operations
 - **Timezone conversion utilities**: Functions to work with local timezones while maintaining UTC storage
 
@@ -192,7 +195,10 @@ The same behavior applies to:
 
 - **Parquet files**: Timestamps stored with timezone metadata, automatically converted to UTC on read
 - **Fenic tables** (DuckDB): DuckDB session timezone is always UTC, ensuring consistency
-- **In-memory DataFrames**: Polars DataFrames with timezone-aware or naive timestamps are normalized to UTC
+- **In-memory DataFrames**: Polars DataFrames with timezone-aware or naive
+  timestamps are normalized to UTC when needed. An already canonical
+  `Datetime("us", "UTC")` column can pass through without copying the input
+  frame.
 
 ### SQL Queries
 
@@ -241,6 +247,12 @@ This behavior ensures:
 ### Timezone Conversion During Ingestion
 
 Fenic automatically handles different timezone inputs:
+
+For a schema-free in-memory Polars DataFrame that already uses Fenic's canonical
+microsecond UTC dtype, ingestion does not perform a conversion and local
+collection may alias the original frame. Naive timestamps, non-UTC timestamps,
+or non-microsecond precision still require normalization and produce a new
+frame.
 
 ```python
 import datetime

@@ -261,7 +261,9 @@ class DataFrame:
             data_type: The type of data to return
 
         Returns:
-            QueryResult: A QueryResult with materialized data and query metrics
+            QueryResult: A QueryResult with materialized data and query metrics.
+                For ``data_type="polars"``, a no-op local plan may return a frame
+                that aliases its in-memory Polars input rather than copying it.
         """
         result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
         df, metrics = result
@@ -288,7 +290,9 @@ class DataFrame:
         materialized into a Polars DataFrame.
 
         Returns:
-            pl.DataFrame: A Polars DataFrame with materialized results
+            pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+                local plan may return a frame that aliases its in-memory Polars
+                input rather than copying it.
         """
         return self.collect("polars").data
 

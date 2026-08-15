@@ -154,7 +154,9 @@ class Session:
                 embedding arrays through local and cloud execution.
 
         Returns:
-            A new DataFrame instance
+            A DataFrame instance. With schema-free Polars input, local execution
+            passes through the input frame when no ingestion coercion is needed,
+            so collected Polars results may alias it rather than copy it.
 
         Raises:
             ValidationError: If the input format is unsupported or the provided
