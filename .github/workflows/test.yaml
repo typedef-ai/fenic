@@ -12,6 +12,8 @@ on:
       - tests/**
       - pyproject.toml
       - uv.lock
+  merge_group:
+    types: [checks_requested]
   schedule:
     # daily at 8am Pacific (15:00 UTC)
     - cron: 0 15 * * *
@@ -32,11 +34,11 @@ jobs:
         id: matrix
         # yamllint disable rule:line-length
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Run all combinations on scheduled runs
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ contains(github.event.pull_request.labels.*.name, 'ci:full-matrix') }}" == "true" ]]; then
+            # Full coverage runs on schedule and when a PR opts in.
             matrix='{"dependency": ["true", "min", "max"], "test": ["local", "cloud"], "python-version": ["3.10", "3.11", "3.12", "3.13", "3.14"]}'
           else
-            # Run synced local tests at the compatibility boundaries on PR/manual runs.
+            # PR and merge-queue checks cover the supported Python boundaries.
             matrix='{"include": [{"dependency": "true", "test": "local", "python-version": "3.10"}, {"dependency": "true", "test": "local", "python-version": "3.14"}]}'
           fi
           # shellcheck disable=SC2086
