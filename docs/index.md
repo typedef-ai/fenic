@@ -50,7 +50,7 @@ For self-hosting, see the [docs-server example](https://github.com/typedef-ai/fe
 
 ## Install
 
-fenic supports Python `[3.10, 3.11, 3.12]`
+fenic supports Python `[3.10, 3.11, 3.12, 3.13, 3.14]`
 
 ```bash
 pip install fenic

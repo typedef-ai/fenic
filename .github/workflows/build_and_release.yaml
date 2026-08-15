@@ -116,7 +116,7 @@ jobs:
           )
         with:
           artifact-prefix: linux
-          interpreter: 3.10 3.11 3.12
+          interpreter: 3.10 3.11 3.12 3.13 3.14
           manylinux: ${{ matrix.platform.manylinux }}
           python-version: ${{ steps.python_version.outputs.python_version }}
           python-architecture: ${{ matrix.platform.python_arch }}
@@ -157,7 +157,7 @@ jobs:
           )
         with:
           artifact-prefix: macos
-          interpreter: 3.10 3.11 3.12
+          interpreter: 3.10 3.11 3.12 3.13 3.14
           manylinux: auto
           python-version: ${{ steps.python_version.outputs.python_version }}
           python-architecture: ${{ matrix.platform.python_arch }}
@@ -189,7 +189,7 @@ jobs:
       - uses: ./.github/actions/maturin-build
         with:
           artifact-prefix: windows
-          interpreter: 3.10 3.11 3.12
+          interpreter: 3.10 3.11 3.12 3.13 3.14
           manylinux: auto
           python-version: ${{ steps.python_version.outputs.python_version }}
           python-architecture: ${{ matrix.platform.python_arch }}
