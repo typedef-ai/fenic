@@ -23,5 +23,5 @@ jobs:
           delay: "3" # default: 1
           retries: "20" # default: 10
           polling_interval: "1" # default
-          checks_exclude: Graphite / mergeability_check
+          checks_exclude: Graphite / mergeability_check|Rust cache measurement
           ignore_superseded_runs: "true"

@@ -6,6 +6,8 @@ on:
     branches-ignore:
       - release-please**
     paths:
+      - .github/workflows/pr_allcheckspassed.yaml
+      - .github/workflows/rust_cache_measurement.yaml
       - .github/workflows/test.yaml
       - rust/**
       - src/**
@@ -17,7 +19,6 @@ on:
   schedule:
     # daily at 8am Pacific (15:00 UTC)
     - cron: 0 15 * * *
-  workflow_dispatch:
 concurrency:
   # yamllint disable-line rule:line-length
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
