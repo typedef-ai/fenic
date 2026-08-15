@@ -15,7 +15,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
 from fenic._constants import LEFT_ON_KEY, RIGHT_ON_KEY
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
-from fenic.core.error import InternalError
+from fenic.core.error import InternalError, LineageError
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
 
@@ -200,7 +200,7 @@ class SemanticJoinExec(PhysicalPlan):
         if reserved_lineage_columns.intersection(left_df.columns) or (
             reserved_lineage_columns.intersection(right_df.columns)
         ):
-            raise ValueError(
+            raise LineageError(
                 "semantic.join lineage reserves '_left_uuid' and '_right_uuid'"
             )
 
