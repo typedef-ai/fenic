@@ -16,11 +16,12 @@ The default workload is shaped so the measurement can fail meaningfully:
 Thus every arm processes multiple blocks, every block has a token-budget split,
 and each split is larger than the streaming watermark. The harness deliberately
 decouples the request bucket's capacity from configured RPM. This manufactured
-condition makes the streaming admission window bind. A coherent limiter keeps
-its burst at least as large as ``W = max(batch_size, rpm)``, so the ordinary
-short-latency configuration would not bind. The recorded high-water mark counts
-outstanding admitted requests, not dispatch concurrency. No saturation or
-rate-limit throughput claim is made.
+condition makes the admission binding matter for elapsed time by letting the
+standard arm exceed the configured burst. A coherent limiter sets its burst to
+RPM, and ``W = max(batch_size, rpm)`` is never below that burst, so the limiter
+binds first and the ordinary short-latency configuration would not bind the
+window. The recorded high-water mark counts outstanding admitted requests, not
+dispatch concurrency. No saturation or rate-limit throughput claim is made.
 """
 
 from __future__ import annotations
