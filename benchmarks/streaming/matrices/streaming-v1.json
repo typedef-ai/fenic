@@ -1,0 +1,132 @@
+{
+  "schema_version": "streaming-benchmark.v1",
+  "scenario_version": "map-predicate-v1",
+  "model": { "alias": "nano", "name": "gpt-4.1-nano" },
+  "limits": {
+    "client_rpm": 10000,
+    "client_tpm": 10000000,
+    "cell_timeout_seconds": 900,
+    "max_cost_usd": 15.0
+  },
+  "arms": ["standard", "streaming"],
+  "repetitions": 3,
+  "interleaving_seed": 4767,
+  "workload": {
+    "row_counts": [200, 1000],
+    "unique_input_counts": [200, 1000, 8],
+    "batch_sizes": [32, 100],
+    "input_seed": 4730,
+    "shapes": [
+      { "rows": 200, "unique_inputs": 200 },
+      { "rows": 1000, "unique_inputs": 1000 },
+      { "rows": 1000, "unique_inputs": 8 }
+    ]
+  },
+  "pricing": {
+    "input_per_million_usd": 0.1,
+    "cached_input_per_million_usd": 0.025,
+    "output_per_million_usd": 0.4,
+    "input_tokens_per_request": 250,
+    "output_tokens_per_request": 32,
+    "reserve_fraction": 0.15
+  },
+  "scenarios": [
+    {
+      "id": "map",
+      "kind": "operator",
+      "provider_execution": true,
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "result",
+          "prompt_template": "Return only this identifier exactly: {{ item }}",
+          "max_output_tokens": 16,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "predicate",
+      "kind": "operator",
+      "provider_execution": true,
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "predicate",
+          "input_columns": ["item"],
+          "output_column": "result",
+          "prompt_template": "Is this benchmark record in a numbered group? {{ item }}",
+          "max_output_tokens": 16,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "map-extract-reserved",
+      "kind": "chain",
+      "provider_execution": false,
+      "execution_shape": "fused_unbarriered",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "mapped",
+          "prompt_template": "Normalize this record: {{ item }}",
+          "max_output_tokens": 32,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "extract",
+          "input_columns": ["mapped"],
+          "output_column": "extracted",
+          "prompt_template": "Extract the category from: {{ mapped }}",
+          "max_output_tokens": 16,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic",
+          "output_schema": { "category": "string" }
+        }
+      ]
+    },
+    {
+      "id": "three-hop-reserved",
+      "kind": "chain",
+      "provider_execution": false,
+      "execution_shape": "unfused_unbarriered",
+      "steps": [
+        {
+          "operator": "map",
+          "input_columns": ["item"],
+          "output_column": "step_one",
+          "prompt_template": "Normalize this record: {{ item }}",
+          "max_output_tokens": 32,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "map",
+          "input_columns": ["step_one"],
+          "output_column": "step_two",
+          "prompt_template": "Summarize: {{ step_one }}",
+          "max_output_tokens": 32,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic"
+        },
+        {
+          "operator": "extract",
+          "input_columns": ["step_two"],
+          "output_column": "step_three",
+          "prompt_template": "Extract the category from: {{ step_two }}",
+          "max_output_tokens": 16,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic",
+          "output_schema": { "category": "string" }
+        }
+      ]
+    }
+  ]
+}
