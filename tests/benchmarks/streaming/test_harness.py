@@ -8,65 +8,75 @@ import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
+import jsonschema
 import pytest
 
 from benchmarks.streaming import run_case, run_matrix
 from benchmarks.streaming.models import (
-    Cell,
     as_jsonable,
     assert_interleaved_same_run,
-    cell_estimated_cost,
     classify_comparison,
     expand_cells,
     interleave_cells,
     load_matrix,
     median,
     median_absolute_deviation,
-    projected_cost,
-    projected_requests,
-    require_metrics,
+    parse_matrix,
 )
 
 ROOT = Path(__file__).parents[3]
 MATRIX_PATH = ROOT / "benchmarks/streaming/matrices/streaming-v1.json"
 
 
-def test_matrix_executes_only_current_join_surface() -> None:
+def test_matrix_is_provider_free_and_uses_binding_adapter_geometry() -> None:
     matrix = load_matrix(MATRIX_PATH)
     cells = expand_cells(matrix)
     assert len(cells) == 6
-    assert {cell.operation for cell in cells} == {"join"}
     assert {cell.execution_mode for cell in cells} == {"simulated"}
+    assert {cell.operation for cell in cells} == {"join"}
+    assert {cell.physical_requests for cell in cells} == {1024}
+    assert {cell.pair_block_size for cell in cells} == {256}
+    schema = json.loads((MATRIX_PATH.parents[1] / "matrix.schema.json").read_text())
+    assert schema["properties"]["scenarios"]["items"]["properties"][
+        "execution_mode"
+    ]["enum"] == ["disabled", "simulated"]
     assert {
-        scenario.id
-        for scenario in matrix.scenarios
-        if scenario.execution_mode == "disabled"
+        item.id for item in matrix.scenarios if item.execution_mode == "disabled"
     } == {
         "map-reserved",
         "predicate-reserved",
         "map-extract-reserved",
         "three-hop-reserved",
     }
-    assert projected_requests(cells, provider_only=True) == 0
-    assert projected_cost(matrix, cells) == 0
 
 
-def test_schema_structurally_rejects_zero_pricing_and_unbounded_shapes(
+def test_cell_ids_include_full_workload_identity() -> None:
+    document = json.loads(MATRIX_PATH.read_text())
+    second_shape = dict(document["workload"]["shapes"][0])
+    second_shape["rpm"] = 99
+    document["workload"]["shapes"].append(second_shape)
+
+    cells = expand_cells(parse_matrix(document))
+
+    assert len({cell.id for cell in cells}) == len(cells)
+
+
+def test_full_json_schema_is_required_and_rejects_unknown_fields(
     tmp_path: Path,
 ) -> None:
+    assert jsonschema.Draft202012Validator
     raw = json.loads(MATRIX_PATH.read_text())
-    raw["pricing"]["input_per_million_usd"] = 0
-    bad = tmp_path / "zero-price.json"
+    raw["pricing"] = {"input": 0}
+    bad = tmp_path / "bad.json"
     bad.write_text(json.dumps(raw))
-    with pytest.raises(ValueError):
+    with pytest.raises(jsonschema.ValidationError, match="Additional properties"):
         load_matrix(bad)
 
     raw = json.loads(MATRIX_PATH.read_text())
-    raw["workload"]["shapes"][0]["rows"] = 10001
+    raw["scenarios"][0]["execution_mode"] = "provider"
     bad.write_text(json.dumps(raw))
-    with pytest.raises(ValueError):
+    with pytest.raises(jsonschema.ValidationError):
         load_matrix(bad)
 
 
@@ -75,12 +85,14 @@ def test_interleaving_is_deterministic_and_requires_both_arms() -> None:
     cells = interleave_cells(expand_cells(matrix), matrix.interleaving_seed)
     assert cells == interleave_cells(expand_cells(matrix), matrix.interleaving_seed)
     assert {cell.arm for cell in cells[:2]} == {"standard", "streaming"}
+    first_arms = [cells[index].arm for index in range(0, len(cells), 2)]
+    assert abs(first_arms.count("standard") - first_arms.count("streaming")) <= 1
     assert_interleaved_same_run(cells)
     with pytest.raises(ValueError, match="does not contain both arms"):
         assert_interleaved_same_run(cells[:1])
 
 
-def test_even_median_and_gate_use_the_same_center() -> None:
+def test_preservation_verdict_passes_indistinguishable_arms() -> None:
     assert median([1, 2, 100, 101]) == 51
     assert median_absolute_deviation([1, 2, 100, 101]) == 49.5
     assert (
@@ -91,185 +103,217 @@ def test_even_median_and_gate_use_the_same_center() -> None:
         classify_comparison([130, 131, 132], [100, 100, 101], rate_limit_events=0)
         == "FAIL"
     )
+    assert (
+        classify_comparison([135, 136, 137], [80, 110, 140], rate_limit_events=0)
+        == "INCONCLUSIVE"
+    )
     assert classify_comparison([100, 101, 102], [100, 100, 101]) == "REGIME_UNVERIFIED"
 
 
-def test_provider_metrics_missing_or_zero_are_a_hard_stop() -> None:
-    for metrics in (None, {"cost": 0}, {"cost": 0.001, "num_output_tokens": 1}):
-        with pytest.raises(RuntimeError):
-            require_metrics(metrics)
-    with pytest.raises(RuntimeError):
-        run_matrix._metrics_cost({"lm_metrics": None})
-    assert (
-        run_matrix._metrics_cost(
-            {"lm_metrics": {"cost": 0.001, "num_requests": 1, "num_output_tokens": 1}}
-        )
-        == 0.001
-    )
-
-
 def _receipt(
-    arm: str, repetition: int, *, rate_available: bool = True
+    arm: str,
+    repetition: int,
+    *,
+    run_id: str | None = "run",
+    plan_id: str | None = "plan",
+    result_hash: str = "content-hash",
+    unique_inputs: int = 512,
+    rate_available: bool = True,
+    event_counts_available: bool = True,
+    wrong_path: bool = False,
+    wrong_streaming_path: bool = False,
+    over_admitting: bool = False,
+    slower: bool = False,
 ) -> dict[str, object]:
-    maximum = 128 if arm == "standard" else 100
     return {
-        "run_id": "run",
-        "plan_id": "plan",
+        "run_id": run_id,
+        "plan_id": plan_id,
         "checkout": "candidate",
         "tested_commit": "sha",
         "scenario_id": "bounded-join",
-        "rows": 64,
+        "operation": "join",
+        "rows": 512,
         "right_rows": 2,
-        "unique_inputs": 64,
+        "unique_inputs": unique_inputs,
+        "pair_block_size": 256,
+        "block_token_budget": 18_000,
+        "rpm": 100,
+        "latency_seconds": 0.01,
         "batch_size": 100,
         "repetition": repetition,
+        "input_seed": 29,
         "arm": arm,
-        "wall_clock_ms": 100 if arm == "standard" else 105,
-        "result_hash": "same",
-        "result_count": 128,
-        "expected_result_count": 128,
-        "physical_requests": 128,
-        "lm_metrics": {"num_requests": 128},
+        "wall_clock_ms": 140 if slower and arm == "streaming" else 100,
+        "result_hash": result_hash,
+        "result_count": 1024,
+        "expected_result_count": 1024,
+        "physical_requests": 1024,
+        "request_metrics": {"num_requests": 1024},
         "path_evidence": {
-            "streaming_enabled": arm == "streaming",
-            "max_live_requests": maximum,
+            "list_calls": (
+                (0 if wrong_path else 8)
+                if arm == "standard"
+                else 8 if wrong_streaming_path else 0
+            ),
+            "iterator_calls": (8 if wrong_path else 0)
+            if arm == "standard"
+            else 0 if wrong_streaming_path else 8,
+            "outstanding_admission_high_water": (
+                100 if over_admitting and arm == "standard" else 128
+                if arm == "standard"
+                else 101 if over_admitting else 100
+            ),
             "configured_watermark": 100,
+        },
+        "geometry": {
+            "window_binds": True,
+            "multiple_pair_blocks": True,
+            "token_budget_splits": True,
         },
         "lifecycle": {
             "availability": {
-                "event_counts": {"available": True},
+                "event_counts": {"available": event_counts_available},
                 "idle_gap": {"available": False},
-                "max_queue_depth": {"available": True},
+                "max_queue_depth": {"available": False},
                 "rate_limit_events": {"available": rate_available},
             },
-            "event_counts": {"queued": 128, "settled": 128},
+            "event_counts": {"queued": 1024, "settled": 1024},
             "idle_gap": None,
-            "max_queue_depth": maximum,
+            "max_queue_depth": 128 if arm == "standard" else 100,
             "rate_limit_events": 0 if rate_available else None,
         },
     }
 
 
-def test_aggregation_requires_one_run_exact_results_and_path_engagement() -> None:
-    receipts = [
-        _receipt(arm, repetition)
+def _receipts(**kwargs: object) -> list[dict[str, object]]:
+    return [
+        _receipt(arm, repetition, **kwargs)
         for repetition in (1, 2, 3)
         for arm in ("standard", "streaming")
     ]
+
+
+def test_aggregation_rejects_missing_or_mixed_identity() -> None:
+    with pytest.raises(ValueError, match="identify exactly one"):
+        run_matrix.aggregate_receipts(_receipts(run_id=None))
+    mixed = _receipts()
+    mixed[0]["plan_id"] = "other"
+    with pytest.raises(ValueError, match="identify exactly one"):
+        run_matrix.aggregate_receipts(mixed)
+
+
+def test_actual_content_parity_is_a_hard_gate() -> None:
+    receipts = _receipts()
     [summary] = run_matrix.aggregate_receipts(receipts)
+    assert summary["correctness_ok"] is True
     assert summary["verdict"] == "PASS"
-    assert summary["path_engaged"] is True
-
-    receipts[0]["result_count"] = 127
+    receipts[0]["result_hash"] = "different-content"
     [summary] = run_matrix.aggregate_receipts(receipts)
+    assert summary["correctness_ok"] is False
     assert summary["verdict"] == "FAIL"
-    receipts[0]["result_count"] = 128
-    receipts[0]["run_id"] = "stale-run"
-    with pytest.raises(ValueError, match="one run"):
-        run_matrix.aggregate_receipts(receipts)
 
 
-def test_unavailable_rate_limit_measurement_never_substitutes_zero() -> None:
-    receipts = [
-        _receipt(arm, repetition, rate_available=False)
-        for repetition in (1, 2, 3)
-        for arm in ("standard", "streaming")
-    ]
-    [summary] = run_matrix.aggregate_receipts(receipts)
+@pytest.mark.parametrize(
+    "wrong_path,wrong_streaming_path,over_admitting",
+    [(True, False, False), (False, True, False), (False, False, True)],
+)
+def test_path_and_exact_admission_ceiling_are_hard_gates(
+    wrong_path: bool, wrong_streaming_path: bool, over_admitting: bool
+) -> None:
+    [summary] = run_matrix.aggregate_receipts(
+        _receipts(
+            wrong_path=wrong_path,
+            wrong_streaming_path=wrong_streaming_path,
+            over_admitting=over_admitting,
+        )
+    )
+    assert summary["correctness_ok"] is False
+    assert summary["path_engaged"] is (not (wrong_path or wrong_streaming_path))
+    assert summary["admission_bound_ok"] is (not over_admitting)
+    assert summary["verdict"] == "FAIL"
+
+
+def test_repeated_input_join_keeps_timing_failure_active() -> None:
+    [summary] = run_matrix.aggregate_receipts(_receipts(unique_inputs=8, slower=True))
+    assert summary["verdict"] == "FAIL"
+
+
+def test_missing_rate_limit_measurement_never_substitutes_zero() -> None:
+    [summary] = run_matrix.aggregate_receipts(_receipts(rate_available=False))
     assert summary["rate_limit_events"] is None
     assert summary["verdict"] == "REGIME_UNVERIFIED"
 
 
-def test_execution_spec_requires_parent_token_matrix_cell_and_ack(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    matrix = load_matrix(MATRIX_PATH)
-    cell = expand_cells(matrix)[0]
-    spec = {
-        "run_token": "secret",
-        "run_id": "run",
-        "plan_id": "plan",
-        "run_state_path": str(tmp_path / "run-state.json"),
-        "matrix_path": str(MATRIX_PATH),
-        "cell": as_jsonable(cell),
-        "estimated_cost_usd": 0,
-        "cell_cost_cap_usd": 1,
-        "approve_provider_spend": False,
-        "work_dir": "/tmp",
-    }
-    (tmp_path / "run-state.json").write_text(
-        json.dumps(
-            {
-                "run_id": "run",
-                "plan_id": "plan",
-                "active_reservation": {
-                    "cell_id": cell.id,
-                    "estimated_cost_usd": 0,
-                },
-            }
+def test_missing_lifecycle_event_counts_are_a_hard_correctness_failure() -> None:
+    [summary] = run_matrix.aggregate_receipts(_receipts(event_counts_available=False))
+    assert summary["lifecycle_counts_ok"] is False
+    assert summary["correctness_ok"] is False
+    assert summary["verdict"] == "FAIL"
+
+
+def test_fail_summary_produces_nonzero_exit() -> None:
+    with pytest.raises(SystemExit, match="hard gate failed"):
+        run_matrix.raise_for_failed_verdicts([{"verdict": "PASS"}, {"verdict": "FAIL"}])
+    run_matrix.raise_for_failed_verdicts([{"verdict": "PASS"}])
+    run_matrix.raise_for_failed_verdicts([{"verdict": "OBSERVATIONAL"}])
+    for verdict in ("FAIL", "REGIME_UNVERIFIED", "OUTSIDE_REGIME", "INCONCLUSIVE"):
+        with pytest.raises(SystemExit, match="hard gate failed"):
+            run_matrix.raise_for_failed_verdicts([{"verdict": verdict}])
+
+
+def test_classification_covers_each_non_pass_verdict() -> None:
+    assert (
+        classify_comparison([100, 101, 102], [100, 100, 101])
+        == "REGIME_UNVERIFIED"
+    )
+    assert (
+        classify_comparison(
+            [100, 101, 102], [100, 100, 101], rate_limit_events=1
         )
+        == "OUTSIDE_REGIME"
     )
-    monkeypatch.delenv("FENIC_BENCHMARK_RUN_TOKEN", raising=False)
-    with pytest.raises(RuntimeError, match="not authorized"):
-        run_case.validate_execution_spec(spec)
-    monkeypatch.setenv("FENIC_BENCHMARK_RUN_TOKEN", "secret")
-    run_case.validate_execution_spec(spec)
-    spec["cell"]["rows"] = 65
-    with pytest.raises(RuntimeError, match="not derived"):
-        run_case.validate_execution_spec(spec)
-
-    spec["cell"] = as_jsonable(replace(cell, execution_mode="provider"))
-    monkeypatch.setattr(
-        run_case, "expand_cells", lambda matrix, checkout: [Cell(**spec["cell"])]
-    )
-    spec["estimated_cost_usd"] = cell_estimated_cost(matrix, Cell(**spec["cell"]))
-    run_state = json.loads(Path(spec["run_state_path"]).read_text())
-    run_state["active_reservation"]["estimated_cost_usd"] = spec["estimated_cost_usd"]
-    Path(spec["run_state_path"]).write_text(json.dumps(run_state))
-    with pytest.raises(RuntimeError, match="acknowledgement"):
-        run_case.validate_execution_spec(spec)
-
-
-def test_current_join_cell_runs_end_to_end_without_provider(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    matrix = load_matrix(MATRIX_PATH)
-    cell = next(cell for cell in expand_cells(matrix) if cell.arm == "streaming")
-    monkeypatch.setenv("FENIC_BENCHMARK_RUN_TOKEN", "proof")
-    run_state = tmp_path / "run-state.json"
-    run_state.write_text(
-        json.dumps(
-            {
-                "run_id": "run",
-                "plan_id": "plan",
-                "active_reservation": {
-                    "cell_id": cell.id,
-                    "estimated_cost_usd": 0,
-                },
-            }
+    assert (
+        classify_comparison(
+            [135, 136, 137], [80, 110, 140], rate_limit_events=0
         )
+        == "INCONCLUSIVE"
     )
-    payload = run_case.execute(
-        {
-            "run_token": "proof",
-            "run_id": "run",
-            "plan_id": "plan",
-            "run_state_path": str(run_state),
-            "matrix_path": str(MATRIX_PATH),
-            "cell": as_jsonable(cell),
-            "estimated_cost_usd": 0,
-            "cell_cost_cap_usd": 1,
-            "approve_provider_spend": False,
-            "work_dir": str(tmp_path),
-        }
+    assert (
+        classify_comparison(
+            [400, 401, 402],
+            [100, 101, 102],
+            cache_heavy=True,
+            rate_limit_events=0,
+        )
+        == "OBSERVATIONAL"
     )
-    assert payload["result_count"] == cell.expected_result_count
-    assert payload["lm_metrics"]["num_requests"] == cell.physical_requests
-    assert payload["provider_execution"] is False
-    assert payload["path_evidence"]["streaming_enabled"] is True
-    assert payload["path_evidence"]["iterator_calls"] > 0
-    assert payload["path_evidence"]["list_calls"] == 0
+
+
+def test_current_join_cell_runs_real_content_and_binding_geometry() -> None:
+    matrix = load_matrix(MATRIX_PATH)
+    standard_cell = next(
+        cell for cell in expand_cells(matrix) if cell.arm == "standard"
+    )
+    streaming_cell = next(
+        cell for cell in expand_cells(matrix) if cell.arm == "streaming"
+    )
+    standard = run_case.execute(standard_cell)
+    streaming = run_case.execute(streaming_cell)
+    reseeded = run_case.execute(replace(standard_cell, input_seed=30))
+    assert standard["result_hash"] == streaming["result_hash"]
+    assert standard["result_hash"] != reseeded["result_hash"]
+    assert len(standard["result_hash"]) == 64
+    assert standard["result_count"] == 1024
+    assert standard["geometry"]["multiple_pair_blocks"] is True
+    assert standard["geometry"]["token_budget_splits"] is True
+    assert standard["geometry"]["window_binds"] is True
+    assert standard["path_evidence"]["list_calls"] > 0
+    assert streaming["path_evidence"]["iterator_calls"] > 0
+    assert standard["lifecycle"]["max_queue_depth"] is None
+    assert (
+        standard["lifecycle"]["availability"]["max_queue_depth"]["available"]
+        is False
+    )
 
 
 def _init_git_repo(path: Path) -> str:
@@ -294,7 +338,7 @@ def test_checkout_state_refuses_dirty_worktree(tmp_path: Path) -> None:
         run_matrix.checkout_state(tmp_path, head)
 
 
-def test_verify_plan_rederives_cells_pricing_and_schema_hash(
+def test_verify_plan_rederives_cells_and_schema_hash(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     head = "a" * 40
@@ -307,138 +351,78 @@ def test_verify_plan_rederives_cells_pricing_and_schema_hash(
     }
     monkeypatch.setattr(run_matrix, "checkout_state", lambda *args: state)
     plan = run_matrix.plan_document(MATRIX_PATH, tmp_path, head, tmp_path / "run")
-    run_matrix.verify_plan(plan, 1)
+    run_matrix.verify_plan(plan)
     plan["cells"][0]["rows"] += 1
     with pytest.raises(RuntimeError, match="cells do not match"):
-        run_matrix.verify_plan(plan, 1)
+        run_matrix.verify_plan(plan)
 
 
-def test_run_directory_is_single_use_and_manifest_hashes_schema_receipt(
-    tmp_path: Path,
-) -> None:
-    (tmp_path / "plan.json").write_text("{}\n")
-    _, state = run_matrix._create_run_state(tmp_path, {"plan_id": "p"}, 1)
-    assert state["actual_cost_usd"] == 0
-    with pytest.raises(RuntimeError, match="not a fresh"):
-        run_matrix._create_run_state(tmp_path, {"plan_id": "p"}, 1)
-    run_matrix.write_manifest(tmp_path)
-    manifest = json.loads((tmp_path / "manifest.json").read_text())
-    assert {item["path"] for item in manifest["files"]} == {
-        "plan.json",
-        "run-state.json",
-    }
-    assert (
-        manifest["files"][0]["sha256"]
-        == hashlib.sha256(
-            (tmp_path / manifest["files"][0]["path"]).read_bytes()
-        ).hexdigest()
-    )
-
-
-def test_run_requires_ack_before_provider_and_retains_failed_reservation(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_derived_cells_survive_a_two_checkout_json_roundtrip() -> None:
     matrix = load_matrix(MATRIX_PATH)
-    provider = replace(expand_cells(matrix)[0], execution_mode="provider")
-    plan = {
-        "plan_id": "p",
-        "checkouts": {"candidate": {"path": str(tmp_path), "head": "sha"}},
-        "projected_cost_usd": 0.5,
-        "matrix_sha256": "m",
-        "schema_sha256": "s",
-        "harness_sha256": "h",
-        "cells": [as_jsonable(provider)],
-        "matrix_path": str(MATRIX_PATH),
-    }
-    plan_path = tmp_path / "plan.json"
-    plan_path.write_text(json.dumps(plan))
-    monkeypatch.setattr(run_matrix, "verify_plan", lambda *args: (matrix, [provider]))
-    with pytest.raises(SystemExit, match="approve-provider-spend"):
-        run_matrix.run_plan(plan_path, False, 1)
-    assert list(tmp_path.iterdir()) == [plan_path]
-
-    monkeypatch.setattr(run_matrix, "cell_estimated_cost", lambda *args: 0.25)
-    monkeypatch.setattr(run_matrix, "projected_cost", lambda *args: 0.0)
-    monkeypatch.setattr(
-        run_matrix.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(
-            returncode=1, stdout="", stderr="failure"
-        ),
-    )
-    with pytest.raises(SystemExit, match="reservation remains accounted"):
-        run_matrix.run_plan(plan_path, True, 1)
-    state = json.loads((tmp_path / "run-state.json").read_text())
-    assert state["unreconciled_reserved_usd"] == 0.25
-    assert state["status"] == "failed"
+    checkouts = {"candidate": {}, "baseline": {}}
+    before = [as_jsonable(cell) for cell in run_matrix._derived_cells(matrix, checkouts)]
+    round_tripped = json.loads(json.dumps({"checkouts": checkouts}))["checkouts"]
+    after = [
+        as_jsonable(cell) for cell in run_matrix._derived_cells(matrix, round_tripped)
+    ]
+    assert before == after
+    assert [cell["checkout"] for cell in before[:2]] == ["baseline", "baseline"]
 
 
-def test_pre_cell_cap_recheck_counts_prior_actual_and_remaining(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_runner_owns_harness_for_every_checkout_and_only_injects_fenic_src(
+    tmp_path: Path,
 ) -> None:
     matrix = load_matrix(MATRIX_PATH)
     cells = [
-        replace(cell, execution_mode="provider") for cell in expand_cells(matrix)[:2]
+        replace(cell, checkout=checkout)
+        for checkout in ("candidate", "baseline")
+        for cell in expand_cells(matrix)[:1]
     ]
-    plan = {
-        "plan_id": "p",
-        "checkouts": {"candidate": {"path": str(tmp_path), "head": "sha"}},
-        "projected_cost_usd": 2.0,
-        "matrix_sha256": "m",
-        "schema_sha256": "s",
-        "harness_sha256": "h",
-        "cells": [as_jsonable(cell) for cell in cells],
-        "matrix_path": str(MATRIX_PATH),
+    for cell in cells:
+        checkout = tmp_path / cell.checkout
+        environment = run_matrix._case_environment(checkout)
+        command = run_matrix._case_command(cell, tmp_path / f"{cell.id}.json")
+        python_path = environment["PYTHONPATH"].split(":")
+        assert python_path == [
+            str(run_matrix._runner_root()),
+            str(checkout / "src"),
+        ]
+        assert command[command.index("--project") + 1] == str(
+            run_matrix._runner_root()
+        )
+        assert str(checkout) not in command
+
+
+def test_copied_plan_cannot_run_from_a_different_output_directory(tmp_path: Path) -> None:
+    planned = tmp_path / "planned"
+    copied = tmp_path / "copied"
+    planned.mkdir()
+    copied.mkdir()
+    plan = {"output": str(planned)}
+    with pytest.raises(RuntimeError, match="planned output"):
+        run_matrix._output_for_plan(copied / "plan.json", plan)
+
+
+def test_timeout_log_text_normalizes_bytes_and_text() -> None:
+    assert run_matrix._log_text(b"stdout\xff") == "stdout�"
+    assert run_matrix._log_text("stderr") == "stderr"
+    assert run_matrix._log_text(None) == ""
+
+
+def test_run_directory_is_single_use_and_manifest_is_complete(tmp_path: Path) -> None:
+    (tmp_path / "plan.json").write_text("{}\n")
+    run_id = run_matrix.start_run(tmp_path, "plan")
+    assert run_id
+    with pytest.raises(RuntimeError, match="not a fresh"):
+        run_matrix.start_run(tmp_path, "plan")
+    run_matrix.write_manifest(tmp_path)
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert {item["path"] for item in manifest["files"]} == {
+        ".run-started.json",
+        "plan.json",
     }
-    plan_path = tmp_path / "plan.json"
-    plan_path.write_text(json.dumps(plan))
-    monkeypatch.setattr(run_matrix, "verify_plan", lambda *args: (matrix, cells))
-    monkeypatch.setattr(run_matrix, "cell_estimated_cost", lambda *args: 0.6)
-    monkeypatch.setattr(run_matrix, "projected_cost", lambda *args: 0.6)
-    with pytest.raises(SystemExit, match="actual, reserved, and remaining"):
-        run_matrix.run_plan(plan_path, True, 1)
-    assert (
-        json.loads((tmp_path / "run-state.json").read_text())["status"]
-        == "stopped_before_cap"
-    )
-
-
-def test_cap_formula_includes_actual_reserved_current_and_remaining() -> None:
-    assert run_matrix.within_run_cap(0.1, 0.2, 0.3, 0.4, 1.0)
-    assert not run_matrix.within_run_cap(0.11, 0.2, 0.3, 0.4, 1.0)
-
-
-def test_successful_child_with_missing_metrics_is_charged_and_stopped(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    matrix = load_matrix(MATRIX_PATH)
-    provider = replace(expand_cells(matrix)[0], execution_mode="provider")
-    plan = {
-        "plan_id": "p",
-        "checkouts": {"candidate": {"path": str(tmp_path), "head": "sha"}},
-        "projected_cost_usd": 0.25,
-        "matrix_sha256": "m",
-        "schema_sha256": "s",
-        "harness_sha256": "h",
-        "cells": [as_jsonable(provider)],
-        "matrix_path": str(MATRIX_PATH),
-    }
-    plan_path = tmp_path / "plan.json"
-    plan_path.write_text(json.dumps(plan))
-    monkeypatch.setattr(run_matrix, "verify_plan", lambda *args: (matrix, [provider]))
-    monkeypatch.setattr(run_matrix, "cell_estimated_cost", lambda *args: 0.25)
-    monkeypatch.setattr(run_matrix, "projected_cost", lambda *args: 0.0)
-
-    def completed_without_metrics(
-        command: list[str], **kwargs: object
-    ) -> SimpleNamespace:
-        receipt_path = Path(command[command.index("--receipt") + 1])
-        receipt_path.write_text(json.dumps({"lm_metrics": None}))
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(run_matrix.subprocess, "run", completed_without_metrics)
-    with pytest.raises(RuntimeError, match="no LMMetrics"):
-        run_matrix.run_plan(plan_path, True, 1)
-    state = json.loads((tmp_path / "run-state.json").read_text())
-    assert state["unreconciled_reserved_usd"] == 0.25
-    assert state["status"] == "failed_metrics"
+    for item in manifest["files"]:
+        assert (
+            item["sha256"]
+            == hashlib.sha256((tmp_path / item["path"]).read_bytes()).hexdigest()
+        )
