@@ -130,6 +130,17 @@ uv run --env-file .env python tools/package_size_matrix.py \
 
 ### Python Tests
 
+### CI matrix
+
+Pull requests run local tests on the supported Python boundaries: 3.10 and
+3.14. Add the `ci:full-matrix` label when a change needs the complete Python
+3.10 through 3.14 matrix, dependency-resolution variants, and cloud coverage.
+
+The full matrix also runs on the daily schedule. Merge-queue checks use the
+boundary matrix so that queue latency stays bounded. Intermediate Python
+versions are covered before merge when a pull request carries the label, and
+on the scheduled full-matrix run.
+
 Run a specific test file:
 
 ```bash
