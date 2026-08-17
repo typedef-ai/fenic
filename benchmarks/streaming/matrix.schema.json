@@ -34,57 +34,89 @@
         "client_rpm",
         "client_tpm",
         "cell_timeout_seconds",
-        "max_cost_usd"
+        "max_cost_usd",
+        "max_rows_per_input",
+        "max_physical_requests",
+        "max_input_tokens_per_request",
+        "max_output_tokens_per_request",
+        "max_batch_size",
+        "max_repetitions"
       ],
       "properties": {
-        "client_rpm": { "type": "integer", "exclusiveMinimum": 0 },
-        "client_tpm": { "type": "integer", "exclusiveMinimum": 0 },
-        "cell_timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
-        "max_cost_usd": { "type": "number", "exclusiveMinimum": 0 }
+        "client_rpm": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "client_tpm": { "type": "integer", "minimum": 1, "maximum": 10000000 },
+        "cell_timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1800
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 50
+        },
+        "max_rows_per_input": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_physical_requests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_input_tokens_per_request": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "max_output_tokens_per_request": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "max_batch_size": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_repetitions": { "type": "integer", "minimum": 3, "maximum": 9 }
       }
     },
-    "arms": { "type": "array", "const": ["standard", "streaming"] },
-    "repetitions": { "type": "integer", "minimum": 3 },
+    "arms": { "const": ["standard", "streaming"] },
+    "repetitions": { "type": "integer", "minimum": 3, "maximum": 9 },
     "interleaving_seed": { "type": "integer" },
     "workload": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "row_counts",
-        "unique_input_counts",
-        "batch_sizes",
-        "input_seed"
-      ],
+      "required": ["shapes", "batch_sizes", "input_seed"],
       "properties": {
-        "row_counts": {
-          "type": "array",
-          "items": { "type": "integer", "exclusiveMinimum": 0 },
-          "minItems": 1
-        },
-        "unique_input_counts": {
-          "type": "array",
-          "items": { "type": "integer", "exclusiveMinimum": 0 },
-          "minItems": 1
-        },
-        "batch_sizes": {
-          "type": "array",
-          "items": { "type": "integer", "exclusiveMinimum": 0 },
-          "minItems": 1
-        },
-        "input_seed": { "type": "integer" },
         "shapes": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 12,
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["rows", "unique_inputs"],
+            "required": ["rows", "right_rows", "unique_inputs"],
             "properties": {
-              "rows": { "type": "integer", "exclusiveMinimum": 0 },
-              "unique_inputs": { "type": "integer", "exclusiveMinimum": 0 }
+              "rows": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "right_rows": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "unique_inputs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              }
             }
           }
-        }
+        },
+        "batch_sizes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        },
+        "input_seed": { "type": "integer" }
       }
     },
     "pricing": {
@@ -94,36 +126,36 @@
         "input_per_million_usd",
         "cached_input_per_million_usd",
         "output_per_million_usd",
-        "input_tokens_per_request",
-        "output_tokens_per_request",
         "reserve_fraction"
       ],
       "properties": {
-        "input_per_million_usd": { "type": "number", "minimum": 0 },
-        "cached_input_per_million_usd": { "type": "number", "minimum": 0 },
-        "output_per_million_usd": { "type": "number", "minimum": 0 },
-        "input_tokens_per_request": {
-          "type": "integer",
+        "input_per_million_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "cached_input_per_million_usd": {
+          "type": "number",
           "exclusiveMinimum": 0
         },
-        "output_tokens_per_request": {
-          "type": "integer",
-          "exclusiveMinimum": 0
-        },
-        "reserve_fraction": { "type": "number", "minimum": 0 }
+        "output_per_million_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "reserve_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "scenarios": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 12,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "kind", "steps", "provider_execution"],
+        "required": [
+          "id",
+          "kind",
+          "execution_mode",
+          "execution_shape",
+          "steps"
+        ],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "kind": { "enum": ["operator", "chain"] },
-          "provider_execution": { "type": "boolean" },
+          "execution_mode": { "enum": ["disabled", "simulated", "provider"] },
           "execution_shape": {
             "enum": [
               "single",
@@ -144,24 +176,31 @@
                 "input_columns",
                 "output_column",
                 "prompt_template",
+                "estimated_input_tokens",
                 "max_output_tokens",
                 "input_profile",
                 "output_profile"
               ],
               "properties": {
                 "operator": {
-                  "enum": ["map", "predicate", "extract", "parse"]
+                  "enum": ["join", "map", "predicate", "extract", "parse"]
                 },
                 "input_columns": {
                   "type": "array",
-                  "items": { "type": "string", "minLength": 1 },
-                  "minItems": 1
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
                 },
                 "output_column": { "type": "string", "minLength": 1 },
                 "prompt_template": { "type": "string", "minLength": 1 },
+                "estimated_input_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8192
+                },
                 "max_output_tokens": {
                   "type": "integer",
-                  "exclusiveMinimum": 0
+                  "minimum": 1,
+                  "maximum": 4096
                 },
                 "input_profile": { "type": "string", "minLength": 1 },
                 "output_profile": { "type": "string", "minLength": 1 },

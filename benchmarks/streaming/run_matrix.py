@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103
-"""Plan and run the on-demand streaming performance gate."""
+"""Plan and run an on-demand streaming performance comparison."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import csv
 import hashlib
 import json
 import os
+import secrets
 import socket
-import subprocess
-import tempfile
+import subprocess  # nosec B404 - fixed argv only; shell execution is never enabled
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,35 +22,37 @@ try:
         Cell,
         as_jsonable,
         assert_interleaved_same_run,
+        cell_estimated_cost,
         classify_comparison,
-        cost_within_cap,
         environment_metadata,
         expand_cells,
         interleave_cells,
         load_matrix,
+        median,
         projected_cost,
         projected_requests,
-        stamp_receipt,
+        require_metrics,
     )
-except ImportError:  # Executed directly rather than as a package.
+except ImportError:
     from models import (  # type: ignore[no-redef]
         Cell,
         as_jsonable,
         assert_interleaved_same_run,
+        cell_estimated_cost,
         classify_comparison,
-        cost_within_cap,
         environment_metadata,
         expand_cells,
         interleave_cells,
         load_matrix,
+        median,
         projected_cost,
         projected_requests,
-        stamp_receipt,
+        require_metrics,
     )
 
 
 def git_output(checkout: Path, *args: str) -> str:
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603 B607 - fixed git command with validated arguments
         ["git", "-C", str(checkout), *args], text=True, capture_output=True, check=True
     )
     return completed.stdout.strip()
@@ -62,7 +64,8 @@ def file_sha256(path: Path) -> str:
 
 def harness_sha256() -> str:
     digest = hashlib.sha256()
-    for path in sorted(Path(__file__).parent.glob("*.py")):
+    root = Path(__file__).parent
+    for path in sorted([*root.glob("*.py"), root / "matrix.schema.json"]):
         digest.update(path.name.encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -86,8 +89,17 @@ def checkout_state(checkout: Path, expected_ref: str) -> dict[str, Any]:
         "head": head,
         "expected_ref": expected_ref,
         "expected_commit": expected,
-        "dirty": dirty,
+        "dirty": False,
     }
+
+
+def _derived_cells(matrix: Any, checkouts: Iterable[str]) -> list[Cell]:
+    cells = [
+        cell for label in checkouts for cell in expand_cells(matrix, checkout=label)
+    ]
+    cells = interleave_cells(cells, matrix.interleaving_seed)
+    assert_interleaved_same_run(cells)
+    return cells
 
 
 def plan_document(
@@ -100,35 +112,27 @@ def plan_document(
 ) -> dict[str, Any]:
     matrix = load_matrix(matrix_path)
     checkouts = {"candidate": checkout_state(checkout, expected_ref)}
-    cells = expand_cells(matrix, checkout="candidate")
     if baseline_checkout is not None:
         if baseline_ref is None:
             raise ValueError("--baseline-ref is required with --baseline-checkout")
         checkouts["baseline"] = checkout_state(baseline_checkout, baseline_ref)
-        cells.extend(expand_cells(matrix, checkout="baseline"))
-    cells = interleave_cells(cells, matrix.interleaving_seed)
-    assert_interleaved_same_run(cells)
+    cells = _derived_cells(matrix, checkouts)
     return {
+        "plan_id": secrets.token_hex(16),
         "schema_version": matrix.schema_version,
         "scenario_version": matrix.scenario_version,
+        "matrix_path": str(matrix_path.resolve()),
         "matrix_sha256": file_sha256(matrix_path),
+        "schema_sha256": file_sha256(Path(__file__).with_name("matrix.schema.json")),
         "harness_sha256": harness_sha256(),
         "created_at": datetime.now(UTC).isoformat(),
-        "matrix_path": str(matrix_path.resolve()),
-        "checkout": checkouts["candidate"],
         "checkouts": checkouts,
         "environment": environment_metadata(),
         "model": {"alias": matrix.model_alias, "name": matrix.model_name},
-        "limits": {
-            "client_rpm": matrix.client_rpm,
-            "client_tpm": matrix.client_tpm,
-            "cell_timeout_seconds": matrix.cell_timeout_seconds,
-            "max_cost_usd": matrix.max_cost_usd,
-        },
+        "limits": as_jsonable(matrix.limits),
         "pricing": as_jsonable(matrix.pricing),
-        "projected_requests": projected_requests(cells),
+        "projected_requests": projected_requests(cells, provider_only=True),
         "projected_cost_usd": projected_cost(matrix, cells),
-        "max_cost_usd": matrix.max_cost_usd,
         "interleaving_seed": matrix.interleaving_seed,
         "cells": [as_jsonable(cell) for cell in cells],
         "output": str(output.resolve()),
@@ -139,144 +143,187 @@ def write_json(path: Path, document: Any) -> None:
     path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
 
 
-def verify_plan(plan: dict[str, Any], cap: float) -> None:
+def verify_plan(plan: dict[str, Any], cap: float) -> tuple[Any, list[Cell]]:
     if plan["environment"]["host"] != socket.gethostname():
         raise RuntimeError("refusing run: plan was created on a different host")
-    if file_sha256(Path(plan["matrix_path"])) != plan["matrix_sha256"]:
+    matrix_path = Path(plan["matrix_path"])
+    if file_sha256(matrix_path) != plan["matrix_sha256"]:
         raise RuntimeError("refusing run: matrix changed after planning")
+    if (
+        file_sha256(Path(__file__).with_name("matrix.schema.json"))
+        != plan["schema_sha256"]
+    ):
+        raise RuntimeError("refusing run: matrix schema changed after planning")
     if harness_sha256() != plan["harness_sha256"]:
         raise RuntimeError("refusing run: benchmark harness changed after planning")
-    checkouts = plan.get("checkouts", {"candidate": plan["checkout"]})
-    for label, planned in checkouts.items():
-        if planned["dirty"]:
-            raise RuntimeError(
-                f"refusing run: {label} checkout was dirty at planning time"
-            )
+    for label, planned in plan["checkouts"].items():
         state = checkout_state(Path(planned["path"]), planned["expected_ref"])
-        if state["dirty"]:
-            raise RuntimeError(
-                f"refusing run: {label} checkout became dirty after planning"
-            )
         if state["head"] != planned["head"]:
             raise RuntimeError(
                 f"refusing run: {label} checkout HEAD changed after planning"
             )
-    if plan["projected_cost_usd"] > cap:
+    matrix = load_matrix(matrix_path)
+    cells = _derived_cells(matrix, plan["checkouts"])
+    if [as_jsonable(cell) for cell in cells] != plan["cells"]:
+        raise RuntimeError("refusing run: planned cells do not match the matrix")
+    if (
+        as_jsonable(matrix.limits) != plan["limits"]
+        or as_jsonable(matrix.pricing) != plan["pricing"]
+    ):
         raise RuntimeError(
-            f"projected cost ${plan['projected_cost_usd']:.6f} exceeds supplied cap ${cap:.6f}"
+            "refusing run: plan limits or pricing do not match the matrix"
         )
+    if projected_requests(cells, provider_only=True) != plan["projected_requests"]:
+        raise RuntimeError(
+            "refusing run: projected request count is not derived from the matrix"
+        )
+    expected_cost = projected_cost(matrix, cells)
+    if abs(expected_cost - float(plan["projected_cost_usd"])) > 1e-12:
+        raise RuntimeError(
+            "refusing run: projected cost is not derived from the matrix"
+        )
+    effective_cap = min(float(matrix.limits.max_cost_usd), float(cap))
+    if expected_cost > effective_cap:
+        raise RuntimeError(
+            f"projected cost ${expected_cost:.6f} exceeds cap ${effective_cap:.6f}"
+        )
+    return matrix, cells
 
 
 def _metrics_cost(receipt: dict[str, Any]) -> float:
-    return float((receipt.get("lm_metrics") or {}).get("cost", 0) or 0)
+    metrics = receipt.get("lm_metrics")
+    require_metrics(metrics)
+    return float(metrics["cost"])
+
+
+def within_run_cap(
+    actual: float,
+    unreconciled_reserved: float,
+    current_estimate: float,
+    remaining_estimate: float,
+    cap: float,
+) -> bool:
+    """Keep every paid, reserved, and forward-looking dollar under one cap."""
+    return actual + unreconciled_reserved + current_estimate + remaining_estimate <= cap
+
+
+def _path_engaged(items: list[dict[str, Any]]) -> bool:
+    standard = [item["path_evidence"] for item in items if item["arm"] == "standard"]
+    streaming = [item["path_evidence"] for item in items if item["arm"] == "streaming"]
+    if not standard or not streaming:
+        return False
+    if "list_calls" in standard[0]:
+        return all(
+            item["list_calls"] > 0 and item["iterator_calls"] == 0 for item in standard
+        ) and all(
+            item["iterator_calls"] > 0 and item["list_calls"] == 0 for item in streaming
+        )
+    return (
+        all(item["streaming_enabled"] is False for item in standard)
+        and all(item["streaming_enabled"] is True for item in streaming)
+        and all(
+            item["max_live_requests"] > item["configured_watermark"]
+            for item in standard
+        )
+        and all(
+            item["max_live_requests"] <= item["configured_watermark"]
+            for item in streaming
+        )
+    )
 
 
 def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    receipts = list(receipts)
+    if (
+        len({item.get("run_id") for item in receipts}) != 1
+        or len({item.get("plan_id") for item in receipts}) != 1
+    ):
+        raise ValueError("receipts must belong to one run and one plan")
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
-    for receipt in receipts:
+    for item in receipts:
         key = (
-            receipt.get("checkout"),
-            receipt.get("tested_commit"),
-            receipt.get("scenario_id"),
-            receipt.get("rows"),
-            receipt.get("unique_inputs"),
-            receipt.get("batch_size"),
+            item["checkout"],
+            item["tested_commit"],
+            item["scenario_id"],
+            item["rows"],
+            item["right_rows"],
+            item["unique_inputs"],
+            item["batch_size"],
         )
-        groups[key].append(receipt)
+        groups[key].append(item)
     summaries = []
     for key, items in sorted(groups.items(), key=repr):
-        baseline = [item for item in items if item.get("arm") == "standard"]
-        candidate = [item for item in items if item.get("arm") == "streaming"]
-        baseline_times = [
-            float(item["wall_clock_ms"])
-            for item in baseline
-            if item.get("wall_clock_ms") is not None
-        ]
-        candidate_times = [
-            float(item["wall_clock_ms"])
-            for item in candidate
-            if item.get("wall_clock_ms") is not None
-        ]
-        hashes = {item.get("result_hash") for item in items}
-        counts = {item.get("result_count") for item in items}
+        standard = [item for item in items if item["arm"] == "standard"]
+        streaming = [item for item in items if item["arm"] == "streaming"]
+        hashes = {item["result_hash"] for item in items}
+        expected_counts = {int(item["expected_result_count"]) for item in items}
+        result_counts = {int(item["result_count"]) for item in items}
         request_counts_ok = all(
-            int((item.get("lm_metrics") or {}).get("num_requests", -1))
-            == int(item.get("physical_requests", -2))
+            int(item["lm_metrics"]["num_requests"]) == int(item["physical_requests"])
             for item in items
         )
-        lifecycle_checks: list[bool] = []
+        lifecycle_checks = []
+        rate_limits: list[int] = []
         for item in items:
-            lifecycle = item.get("lifecycle") or {}
-            available = bool(
-                lifecycle.get("availability", {})
-                .get("event_counts", {})
-                .get("available")
-            )
-            if available:
-                event_counts = lifecycle.get("event_counts") or {}
-                expected = int(item.get("physical_requests", -1))
+            lifecycle = item["lifecycle"]
+            availability = lifecycle["availability"]
+            if availability["event_counts"]["available"]:
+                counts = lifecycle["event_counts"]
+                expected = int(item["physical_requests"])
                 lifecycle_checks.append(
-                    int(event_counts.get("queued", -1)) == expected
-                    and int(event_counts.get("settled", -1)) == expected
-                    and int(event_counts.get("failed", 0)) == 0
+                    counts.get("queued") == expected
+                    and counts.get("settled") == expected
+                    and counts.get("failed", 0) == 0
                 )
-        lifecycle_counts_ok = all(lifecycle_checks) if lifecycle_checks else None
+            if availability["rate_limit_events"]["available"]:
+                rate_limits.append(int(lifecycle["rate_limit_events"]))
+        lifecycle_ok = all(lifecycle_checks) if lifecycle_checks else None
+        rate_limit_total = sum(rate_limits) if len(rate_limits) == len(items) else None
+        path_engaged = _path_engaged(items)
         correctness_ok = (
             len(hashes) == 1
-            and len(counts) == 1
+            and len(expected_counts) == 1
+            and result_counts == expected_counts
             and request_counts_ok
-            and lifecycle_counts_ok is not False
+            and lifecycle_ok is not False
         )
-        observed_rate_limits = [item.get("rate_limit_events") for item in items]
-        rate_limits = (
-            None
-            if any(value is None for value in observed_rate_limits)
-            else sum(int(value) for value in observed_rate_limits)
-        )
-        if not baseline or not candidate:
-            verdict = "INCONCLUSIVE"
-        else:
-            verdict = classify_comparison(
-                candidate_times,
-                baseline_times,
-                cache_heavy=bool(
-                    items[0].get("unique_inputs", 0) < items[0].get("rows", 0)
-                ),
+        verdict = (
+            classify_comparison(
+                [item["wall_clock_ms"] for item in streaming],
+                [item["wall_clock_ms"] for item in standard],
+                cache_heavy=bool(items[0]["unique_inputs"] < items[0]["rows"]),
                 correctness_ok=correctness_ok,
-                rate_limit_events=rate_limits,
+                rate_limit_events=rate_limit_total,
+                path_engaged=path_engaged,
             )
+            if standard and streaming
+            else "INCONCLUSIVE"
+        )
         summaries.append(
             {
                 "checkout": key[0],
                 "tested_commit": key[1],
                 "scenario_id": key[2],
                 "rows": key[3],
-                "unique_inputs": key[4],
-                "batch_size": key[5],
-                "repetitions": max(
-                    (item.get("repetition", 0) for item in items), default=0
+                "right_rows": key[4],
+                "unique_inputs": key[5],
+                "batch_size": key[6],
+                "repetitions": max(item["repetition"] for item in items),
+                "standard_median_ms": median(
+                    item["wall_clock_ms"] for item in standard
                 ),
-                "baseline_median_ms": sorted(baseline_times)[len(baseline_times) // 2]
-                if baseline_times
-                else None,
-                "candidate_median_ms": sorted(candidate_times)[
-                    len(candidate_times) // 2
-                ]
-                if candidate_times
-                else None,
+                "streaming_median_ms": median(
+                    item["wall_clock_ms"] for item in streaming
+                ),
                 "correctness_ok": correctness_ok,
                 "request_counts_ok": request_counts_ok,
-                "lifecycle_counts_ok": lifecycle_counts_ok,
-                "rate_limit_events": rate_limits,
+                "lifecycle_counts_ok": lifecycle_ok,
+                "rate_limit_events": rate_limit_total,
                 "idle_gap_available": all(
-                    bool(
-                        (item.get("lifecycle") or {})
-                        .get("availability", {})
-                        .get("idle_gap", {})
-                        .get("available")
-                    )
+                    item["lifecycle"]["availability"]["idle_gap"]["available"]
                     for item in items
                 ),
+                "path_engaged": path_engaged,
                 "verdict": verdict,
             }
         )
@@ -287,193 +334,249 @@ def write_summary(
     output: Path, receipts: list[dict[str, Any]], projected: float, actual: float
 ) -> None:
     summaries = aggregate_receipts(receipts)
-    lifecycle_available = bool(summaries) and all(
-        row["idle_gap_available"] for row in summaries
+    note = "Idle-gap measurements are absent where the checkout exposes no collector; timing regimes are established only from independently available rate-limit events, request counts, and path evidence."
+    write_json(
+        output / "summary.json",
+        {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "projected_cost_usd": projected,
+            "actual_cost_usd": actual,
+            "measurement_availability": note,
+            "cells": summaries,
+        },
     )
-    measurement_note = (
-        "Lifecycle event, rate-limit, and idle-gap measurements are available."
-        if lifecycle_available
-        else "Lifecycle event, rate-limit, or idle-gap measurements are unavailable for one or more cells; affected timing verdicts are REGIME_UNVERIFIED, and wall time is not a saturation claim. Request counts remain hard-gated."
-    )
-    document = {
-        "generated_at": datetime.now(UTC).isoformat(),
-        "projected_cost_usd": projected,
-        "actual_cost_usd": actual,
-        "receipts": len(receipts),
-        "measurement_availability": measurement_note,
-        "cells": summaries,
-    }
-    write_json(output / "summary.json", document)
-    fields = [
-        "checkout",
-        "tested_commit",
-        "scenario_id",
-        "rows",
-        "unique_inputs",
-        "batch_size",
-        "repetitions",
-        "baseline_median_ms",
-        "candidate_median_ms",
-        "correctness_ok",
-        "request_counts_ok",
-        "lifecycle_counts_ok",
-        "rate_limit_events",
-        "idle_gap_available",
-        "verdict",
-    ]
+    fields = list(summaries[0]) if summaries else []
     with (output / "summary.csv").open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(
-            {field: row.get(field) for field in fields} for row in summaries
-        )
+        writer.writerows(summaries)
     lines = [
         "# Streaming benchmark summary",
         "",
         f"Projected cost: `${projected:.6f}`",
         f"Actual cost: `${actual:.6f}`",
         "",
-        measurement_note,
+        note,
         "",
-        "| Checkout | Scenario | Rows | Unique | Batch | Verdict |",
+        "| Checkout | Scenario | Rows | Right rows | Batch | Verdict |",
         "| --- | --- | ---: | ---: | ---: | --- |",
     ]
     lines.extend(
-        f"| {row['checkout']} | {row['scenario_id']} | {row['rows']} | {row['unique_inputs']} | {row['batch_size']} | {row['verdict']} |"
+        f"| {row['checkout']} | {row['scenario_id']} | {row['rows']} | {row['right_rows']} | {row['batch_size']} | {row['verdict']} |"
         for row in summaries
     )
     (output / "summary.md").write_text("\n".join(lines) + "\n")
 
 
 def write_manifest(output: Path) -> None:
-    entries = []
-    for path in sorted(output.rglob("*")):
-        if not path.is_file() or path.name == "manifest.json":
-            continue
-        entries.append(
-            {
-                "path": str(path.relative_to(output)),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            }
-        )
+    entries = [
+        {"path": str(path.relative_to(output)), "sha256": file_sha256(path)}
+        for path in sorted(output.rglob("*"))
+        if path.is_file() and path.name != "manifest.json"
+    ]
     write_json(output / "manifest.json", {"algorithm": "sha256", "files": entries})
+
+
+def _create_run_state(
+    output: Path, plan: dict[str, Any], cap: float
+) -> tuple[Path, dict[str, Any]]:
+    unexpected = [path for path in output.iterdir() if path.name != "plan.json"]
+    if unexpected:
+        raise RuntimeError("refusing run: output directory is not a fresh planned run")
+    state_path = output / "run-state.json"
+    state = {
+        "run_id": secrets.token_hex(16),
+        "plan_id": plan["plan_id"],
+        "cap_usd": cap,
+        "actual_cost_usd": 0.0,
+        "unreconciled_reserved_usd": 0.0,
+        "completed_cells": [],
+        "active_reservation": None,
+        "status": "running",
+    }
+    descriptor = os.open(state_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        json.dump(state, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    return state_path, state
 
 
 def run_plan(plan_path: Path, approve_provider_spend: bool, cap: float) -> None:
     plan = json.loads(plan_path.read_text())
-    if not approve_provider_spend:
+    matrix, cells = verify_plan(plan, cap)
+    provider_cells = [cell for cell in cells if cell.execution_mode == "provider"]
+    if provider_cells and not approve_provider_spend:
         raise SystemExit(
-            "refusing to call the provider without --approve-provider-spend"
-        )
-    verify_plan(plan, cap)
-    cells = [_cell_from_dict(raw) for raw in plan["cells"]]
-    assert_interleaved_same_run(cells)
-    if not any(cell.provider_execution for cell in cells):
-        raise SystemExit(
-            "provider execution is disabled for every scenario in this matrix; no calls made"
+            "refusing provider-backed cells without --approve-provider-spend"
         )
     output = plan_path.parent
+    effective_cap = min(float(cap), matrix.limits.max_cost_usd)
+    state_path, state = _create_run_state(output, plan, effective_cap)
     cells_dir = output / "cells"
-    cells_dir.mkdir(exist_ok=True)
-    receipts: list[dict[str, Any]] = []
-    actual = 0.0
-    total = len(cells)
-    matrix = load_matrix(Path(plan["matrix_path"]))
-    checkouts = plan.get("checkouts", {"candidate": plan["checkout"]})
-    checkout_commits = {label: state["head"] for label, state in checkouts.items()}
+    logs_dir = output / "logs"
+    specs_dir = output / "execution-specs"
+    for directory in (cells_dir, logs_dir, specs_dir, output / "work"):
+        directory.mkdir()
+    run_token = secrets.token_hex(32)
+    receipts = []
     for index, cell in enumerate(cells):
-        remaining = projected_cost(matrix, cells[index:])
-        if not cost_within_cap(actual, remaining, cap):
+        estimate = cell_estimated_cost(matrix, cell)
+        remaining = projected_cost(matrix, cells[index + 1 :])
+        accounted = state["actual_cost_usd"] + state["unreconciled_reserved_usd"]
+        if not within_run_cap(
+            state["actual_cost_usd"],
+            state["unreconciled_reserved_usd"],
+            estimate,
+            remaining,
+            effective_cap,
+        ):
+            state["status"] = "stopped_before_cap"
+            write_json(state_path, state)
             raise SystemExit(
-                f"stopping before {cell.id}: actual plus remaining estimate exceeds cap"
+                f"stopping before {cell.id}: actual, reserved, and remaining estimate exceed cap"
             )
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as temp:
-            json.dump(as_jsonable(cell), temp)
-            cell_path = Path(temp.name)
+        state["active_reservation"] = {
+            "cell_id": cell.id,
+            "estimated_cost_usd": estimate,
+        }
+        write_json(state_path, state)
+        spec_path = specs_dir / f"{cell.id}.json"
+        receipt_path = cells_dir / f"{cell.id}.json"
+        write_json(
+            spec_path,
+            {
+                "run_token": run_token,
+                "run_id": state["run_id"],
+                "plan_id": plan["plan_id"],
+                "run_state_path": str(state_path),
+                "matrix_path": plan["matrix_path"],
+                "cell": as_jsonable(cell),
+                "estimated_cost_usd": estimate,
+                "cell_cost_cap_usd": effective_cap - accounted,
+                "approve_provider_spend": approve_provider_spend,
+                "work_dir": str(output / "work"),
+            },
+        )
+        checkout_path = Path(plan["checkouts"][cell.checkout]["path"])
+        command = [
+            "uv",
+            "run",
+            "--project",
+            str(checkout_path),
+            "--no-sync",
+            "python",
+            str(Path(__file__).with_name("run_case.py")),
+            "--execution-spec",
+            str(spec_path),
+            "--receipt",
+            str(receipt_path),
+        ]
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PYTHONPATH": os.pathsep.join(
+                    (str(checkout_path), str(checkout_path / "src"))
+                ),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "FENIC_BENCHMARK_RUN_TOKEN": run_token,
+            }
+        )
         try:
-            checkout_path = Path(checkouts[cell.checkout]["path"])
-            command = [
-                "uv",
-                "run",
-                "--project",
-                str(checkout_path),
-                "--no-sync",
-                "python",
-                str(Path(__file__).with_name("run_case.py")),
-                "--cell-json",
-                str(cell_path),
-                "--model-name",
-                plan["model"]["name"],
-                "--client-rpm",
-                str(plan["limits"]["client_rpm"]),
-                "--client-tpm",
-                str(plan["limits"]["client_tpm"]),
-                "--work-dir",
-                str(output / "work"),
-                "--allow-provider",
-            ]
-            environment = os.environ.copy()
-            environment["PYTHONPATH"] = str(checkout_path / "src")
-            environment["PYTHONDONTWRITEBYTECODE"] = "1"
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603 - fixed argv; shell execution is never enabled
                 command,
                 cwd=checkout_path,
                 env=environment,
                 text=True,
                 capture_output=True,
-                timeout=matrix.cell_timeout_seconds,
+                timeout=matrix.limits.cell_timeout_seconds,
             )
-            (output / f"{cell.id}.stdout.log").write_text(completed.stdout)
-            (output / f"{cell.id}.stderr.log").write_text(completed.stderr)
-            if completed.returncode:
-                raise SystemExit(f"cell {cell.id} failed; see logs")
-            receipt = json.loads(completed.stdout.strip().splitlines()[-1])
-            source_path = Path(receipt["fenic_source"]).resolve()
-            if not source_path.is_relative_to((checkout_path / "src").resolve()):
-                raise SystemExit(
-                    f"cell {cell.id} imported fenic outside its declared checkout: {source_path}"
+        except subprocess.TimeoutExpired as exc:
+            (logs_dir / f"{cell.id}.stdout.log").write_text(exc.stdout or "")
+            (logs_dir / f"{cell.id}.stderr.log").write_text(exc.stderr or "")
+            completed = None
+        else:
+            (logs_dir / f"{cell.id}.stdout.log").write_text(completed.stdout)
+            (logs_dir / f"{cell.id}.stderr.log").write_text(completed.stderr)
+        if completed is None or completed.returncode:
+            if cell.execution_mode == "provider":
+                state["unreconciled_reserved_usd"] += estimate
+            state["active_reservation"] = None
+            state["status"] = "failed"
+            write_json(state_path, state)
+            write_manifest(output)
+            suffix = (
+                "; its provider reservation remains accounted"
+                if cell.execution_mode == "provider"
+                else ""
+            )
+            raise SystemExit(f"cell {cell.id} failed{suffix}")
+        receipt = json.loads(receipt_path.read_text())
+        try:
+            actual = (
+                _metrics_cost(receipt) if cell.execution_mode == "provider" else 0.0
+            )
+            if (
+                cell.execution_mode == "simulated"
+                and float(receipt["lm_metrics"].get("cost", -1)) != 0
+            ):
+                raise RuntimeError(
+                    "simulated cell unexpectedly reported provider spend"
                 )
-            actual += _metrics_cost(receipt)
-            receipt = stamp_receipt(
-                receipt,
-                tested_commit=checkout_commits[cell.checkout],
-                cumulative_actual_spend_usd=actual,
-                physical_requests=cell.physical_requests,
+        except (KeyError, TypeError, ValueError, RuntimeError):
+            if cell.execution_mode == "provider":
+                state["unreconciled_reserved_usd"] += estimate
+            state["active_reservation"] = None
+            state["status"] = "failed_metrics"
+            write_json(state_path, state)
+            write_manifest(output)
+            raise
+        source = receipt.get("fenic_source")
+        if source and not Path(source).resolve().is_relative_to(
+            (checkout_path / "src").resolve()
+        ):
+            raise RuntimeError(
+                f"cell {cell.id} imported fenic outside its declared checkout"
             )
-            receipt.update(
-                {
-                    "schema_version": plan["schema_version"],
-                    "scenario_version": plan["scenario_version"],
-                    "matrix_sha256": plan["matrix_sha256"],
-                    "harness_sha256": plan["harness_sha256"],
-                }
-            )
-            write_json(cells_dir / f"{cell.id}.json", receipt)
-            receipts.append(receipt)
-            if actual > cap:
-                raise SystemExit(f"stopping after {cell.id}: actual spend exceeds cap")
-        finally:
-            cell_path.unlink(missing_ok=True)
-        print(f"[{index + 1}/{total}] {cell.id}: ${actual:.6f} cumulative", flush=True)
-    write_summary(output, receipts, float(plan["projected_cost_usd"]), actual)
+        state["actual_cost_usd"] += actual
+        state["active_reservation"] = None
+        state["completed_cells"].append(cell.id)
+        receipt.update(
+            {
+                "run_id": state["run_id"],
+                "plan_id": plan["plan_id"],
+                "tested_commit": plan["checkouts"][cell.checkout]["head"],
+                "cumulative_actual_spend_usd": state["actual_cost_usd"],
+                "matrix_sha256": plan["matrix_sha256"],
+                "schema_sha256": plan["schema_sha256"],
+                "harness_sha256": plan["harness_sha256"],
+            }
+        )
+        write_json(receipt_path, receipt)
+        write_json(state_path, state)
+        receipts.append(receipt)
+        print(
+            f"[{index + 1}/{len(cells)}] {cell.id}: ${state['actual_cost_usd']:.6f} cumulative",
+            flush=True,
+        )
+    state["status"] = "complete"
+    write_json(state_path, state)
+    write_summary(
+        output, receipts, plan["projected_cost_usd"], state["actual_cost_usd"]
+    )
     write_manifest(output)
-
-
-def _cell_from_dict(raw: dict[str, Any]) -> Cell:
-    return Cell(**raw)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    plan_parser = subparsers.add_parser("plan")
+    commands = parser.add_subparsers(dest="command", required=True)
+    plan_parser = commands.add_parser("plan")
     plan_parser.add_argument("--matrix", type=Path, required=True)
     plan_parser.add_argument("--checkout", type=Path, required=True)
     plan_parser.add_argument("--expect-ref", required=True)
     plan_parser.add_argument("--baseline-checkout", type=Path)
     plan_parser.add_argument("--baseline-ref")
     plan_parser.add_argument("--output", type=Path, required=True)
-    run_parser = subparsers.add_parser("run")
+    run_parser = commands.add_parser("run")
     run_parser.add_argument("--plan", type=Path, required=True)
     run_parser.add_argument("--approve-provider-spend", action="store_true")
     run_parser.add_argument("--max-cost-usd", type=float, required=True)
@@ -490,7 +593,7 @@ def main() -> None:
             args.baseline_checkout,
             args.baseline_ref,
         )
-        if plan["projected_cost_usd"] > plan["max_cost_usd"]:
+        if plan["projected_cost_usd"] > plan["limits"]["max_cost_usd"]:
             raise SystemExit("matrix projected cost exceeds matrix cap")
         write_json(args.output / "plan.json", plan)
         print(
