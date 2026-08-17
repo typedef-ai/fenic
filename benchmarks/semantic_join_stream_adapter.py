@@ -14,10 +14,13 @@ The default workload is shaped so the measurement can fail meaningfully:
 * the effective streaming watermark is ``max(batch_size=100, rpm=100) = 100``.
 
 Thus every arm processes multiple blocks, every block has a token-budget split,
-and each split is larger than the streaming watermark.  The simulated client
-request bucket is given a large initial burst solely to keep this provider-free
-comparison quick; the configured ``rpm`` used by the streaming admission
-watermark remains 100 and no saturation or rate-limit throughput claim is made.
+and each split is larger than the streaming watermark. The harness deliberately
+decouples the request bucket's capacity from configured RPM. This manufactured
+condition makes the streaming admission window bind. A coherent limiter keeps
+its burst at least as large as ``W = max(batch_size, rpm)``, so the ordinary
+short-latency configuration would not bind. The recorded high-water mark counts
+outstanding admitted requests, not dispatch concurrency. No saturation or
+rate-limit throughput claim is made.
 """
 
 from __future__ import annotations
@@ -141,9 +144,10 @@ def _scenario(workload: Workload, seed: int) -> RateLimitScenario:
 def _new_client(workload: Workload, seed: int) -> PredicateSimulatedClient:
     client = PredicateSimulatedClient(_scenario(workload, seed))
     client.model = "gpt-4.1-nano"
-    # Keep the real strategy and gate in the path, but avoid a long refill wait
-    # after the first configured RPM burst.  The streaming W calculation still
-    # reads ``strategy.rpm`` (the workload's configured 100).
+    # This mutation manufactures the binding regime by decoupling bucket
+    # capacity from configured RPM. It is not a faithful limiter configuration.
+    # The streaming W calculation still reads strategy.rpm (100), while the
+    # standard arm can admit all 128 requests in a token-bounded block.
     bucket = client.rate_limit_strategy.requests_bucket
     bucket.max_capacity = 1_000_000
     bucket.current_capacity_ = 1_000_000
