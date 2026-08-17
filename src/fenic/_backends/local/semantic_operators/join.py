@@ -77,6 +77,7 @@ class Join:
     examples, request framing, or reserved output tokens. It does not guarantee
     that the full request fits the model context.
     """
+    stream_requests = False
 
     def __init__(
         self,
@@ -180,6 +181,8 @@ class Join:
             model=model,
             model_alias=self.model_alias,
         )
+        if self.stream_requests:
+            predicate.stream_requests = True
         return self._select_survivors(join_pairs, predicate.execute())
 
     def _join_documents(self) -> tuple[pl.DataFrame, pl.DataFrame] | None:
