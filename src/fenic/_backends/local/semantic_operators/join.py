@@ -23,6 +23,8 @@ DEFAULT_PAIR_BLOCK_SIZE = 1_024
 DEFAULT_BLOCK_TOKEN_BUDGET = 32_768
 
 class Join:
+    stream_requests = False
+
     def __init__(
         self,
         left_df: pl.DataFrame,
@@ -69,6 +71,8 @@ class Join:
                     model=self.model,
                     model_alias=self.model_alias,
                 )
+                if self.stream_requests:
+                    semantic_predicate.stream_requests = True
                 results = semantic_predicate.execute()
                 survivors = self._select_survivors(token_bounded_pairs, results)
                 if not survivors.is_empty():
