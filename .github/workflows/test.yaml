@@ -7,7 +7,6 @@ on:
       - release-please**
     paths:
       - .github/workflows/pr_allcheckspassed.yaml
-      - .github/workflows/rust_cache_measurement.yaml
       - .github/workflows/test.yaml
       - rust/**
       - src/**
@@ -95,7 +94,7 @@ jobs:
               echo "changed=true" >> $GITHUB_OUTPUT
             fi
           else
-            # For schedule and manual triggers, always run tests
+            # For scheduled runs, always run tests
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
       - name: Run Rust unit tests
