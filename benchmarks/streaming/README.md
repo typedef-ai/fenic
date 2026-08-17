@@ -1,77 +1,88 @@
-# Streaming performance gate
+# Streaming performance benchmark
 
-This is an on-demand benchmark gate for the standard and streaming semantic
-operator paths. It is intentionally not a CI check and never changes Git
-state. Provider execution is always a separate, explicitly acknowledged step.
+This on-demand benchmark compares standard and streaming semantic-operator
+paths without changing Git state. The maintained matrix uses the real fenic
+queue, scheduler, rate-limit gate, and bounded `semantic.join` implementation
+with a simulated provider. It therefore runs end to end with zero provider
+calls. A matrix may explicitly select provider execution, which requires a
+separate acknowledgement and a positive, bounded cost estimate.
 
-## Two stages
+## Plan and run
 
-Plan against an explicit checkout and ref:
+Plan against an explicit clean checkout and ref:
 
 ```text
 uv run python benchmarks/streaming/run_matrix.py plan \
   --matrix benchmarks/streaming/matrices/streaming-v1.json \
   --checkout /path/to/fenic --expect-ref <branch-or-sha> \
-  --output /path/to/receipts
+  --output /path/to/new-receipt-directory
 ```
 
-Then, from the same host and checkout, run only after reviewing the estimate:
+Run the plan on the same host:
 
 ```text
 uv run python benchmarks/streaming/run_matrix.py run \
-  --plan /path/to/receipts/plan.json \
-  --approve-provider-spend --max-cost-usd 15
+  --plan /path/to/new-receipt-directory/plan.json \
+  --max-cost-usd 15
 ```
 
-`plan` resolves and records the checkout commit, dirty state, host metadata,
-expanded cells, conservative physical-request estimate, pricing inputs, and
-cap. It makes no provider call. `run` refuses a dirty checkout, changed HEAD,
-missing spend acknowledgement, or a projected cost above the supplied cap.
-Each cell runs in a fresh process and receipts are flushed before the next
-cell. A comparison verdict is valid only when standard and streaming arms are
-interleaved in one orchestrator invocation on one host. Comparing two commits
-uses `--baseline-checkout` and `--baseline-ref` in the same plan; the runner
-interleaves both checkouts' arms in that session. Historical or cross-run
-comparisons are observational and can never produce a gate failure.
+Add `--approve-provider-spend` only for a matrix whose executable scenario has
+`execution_mode: provider`. Planning resolves the commit and records the host,
+schema and harness hashes, expanded cells, request estimate, pricing, and cap.
+The runner re-derives those values from the matrix before execution. It refuses
+a dirty or moved checkout, an altered plan, missing acknowledgement, or any
+actual-plus-reserved-plus-remaining amount above the lower of the matrix and
+command-line caps.
 
-## Matrix and reserved chains
+Every output directory is single use. A durable reservation is written before
+each provider-backed subprocess starts. If that subprocess times out or fails
+without usable metrics, its conservative reservation remains charged in the
+run state rather than disappearing. The child accepts only a matrix-derived
+cell authenticated by its parent runner; it is not a standalone provider-call
+interface.
 
-`matrix.schema.json` is the versioned contract. It supports one-step map and
-predicate operators and two-/three-step chains with `barriered`,
-`unfused_unbarriered`, or `fused_unbarriered` execution shapes. The maintained
-`streaming-v1.json` preserves the original 72-cell map/predicate matrix. Its
-single-operator scenarios are executable. Two- and three-step chain examples
-reserve the schema Pipeline Fusion will need, but remain provider-disabled.
+## Matrix contract
 
-## Receipts and verdicts
+`matrix.schema.json` bounds rows, physical requests, token estimates, batch
+sizes, repetitions, timeouts, and cost. Pricing must be positive. Per-scenario
+input and output token declarations are the inputs to the conservative cost
+projection.
 
-The output directory contains `plan.json`, `cells/<cell-id>.json`,
-`summary.json`, `summary.csv`, `summary.md`, and a SHA-256 `manifest.json`. A cell receipt records the
-tested commit, scenario/shape, arm, seed, wall time, throughput, peak RSS,
-result hash/count, `LMMetrics`, lifecycle availability, and
-cumulative actual spend. Raw receipts are immutable evidence; reruns use a
-new output directory.
+The maintained `streaming-v1.json` executes a bounded join scenario against
+today's fenic APIs. Map and predicate operators and two- and three-step chain
+shapes remain reserved with execution disabled. They can be enabled only when
+their runtime path and engagement evidence are implemented.
 
-`LMMetrics`, wall time, throughput, RSS, result parity, and request counts are
-populated today. Lifecycle event counts, queue depth, rate-limit events, and
-idle-gap measurements are populated only when the tested checkout exposes the
-request-lifecycle collector. Otherwise each field is null with an availability
-reason, never zero or inferred. A summary without that collector marks timing
-as `REGIME_UNVERIFIED`; wall time is not used as a saturation claim.
+A verdict compares arms interleaved within one run on one host. To compare two
+commits, supply `--baseline-checkout` and `--baseline-ref` to the same plan so
+both checkouts participate in that interleaving. Receipt aggregation rejects
+mixed run IDs and plan IDs, so a cross-run or historical comparison cannot
+produce `PASS` or `FAIL`.
 
-Unique-input cells fail only when the candidate median is more than 20% slower
-and its median-absolute-deviation band does not overlap the baseline band.
-An above-threshold overlap is `INCONCLUSIVE` and should be rerun with seven
-interleaved repetitions. Cache-heavy timing is `OBSERVATIONAL`, but output
-parity and physical request counts remain hard checks. Correctness failures
-are hard failures. Observed rate limits classify a cell outside the intended
-regime. When rate-limit events cannot be observed, the timing regime remains
-unverified even though output and request-count gates still apply.
+## Evidence and verdicts
 
-Credentials are loaded by the normal provider configuration path. The harness
-records only credential presence and never reads or prints credential values.
+The output includes the immutable plan, execution specs, cell receipts, logs,
+durable run state, JSON/CSV/Markdown summaries, and a SHA-256 manifest. Each
+receipt records the tested commit, arm, workload, wall time, peak RSS, result
+hash and count, request metrics, path-engagement evidence, lifecycle
+availability, and cumulative spend.
 
-This benchmark is not a CI job. A future provider-free mode may reuse an
-optional label-triggered job mechanism, but it must use a dedicated benchmark
-label rather than overloading a full-Python-matrix label. That workflow
-mechanism is not assumed to exist until its own change lands.
+Request and result counts are hard gates. The result count must equal the
+matrix-derived expected count, and standard and streaming arms must produce
+the same result hash. Engagement evidence must also prove that the two arms
+used different execution paths.
+
+Lifecycle fields are independently available. Event counts, queue depth,
+rate-limit events, and idle-gap measurements are present only when the tested
+checkout exposes each measurement. Missing means null with a reason, never an
+inferred zero. Without rate-limit-event availability the timing verdict is
+`REGIME_UNVERIFIED`; wall time alone is not a saturation claim.
+
+For three or more repetitions, a streaming median more than 20% slower is a
+failure only when its median-absolute-deviation band does not overlap the
+standard band. An overlapping regression is `INCONCLUSIVE`. Cache-heavy timing
+is observational, while parity and request counts remain hard-gated. Naturally
+observed rate limiting places a cell outside the intended regime.
+
+Credentials use the normal provider configuration path. The benchmark never
+reads, records, or prints credential values.

@@ -1,40 +1,56 @@
 {
   "schema_version": "streaming-benchmark.v1",
-  "scenario_version": "map-predicate-v1",
+  "scenario_version": "bounded-join-v1",
   "model": { "alias": "nano", "name": "gpt-4.1-nano" },
   "limits": {
-    "client_rpm": 10000,
+    "client_rpm": 100,
     "client_tpm": 10000000,
-    "cell_timeout_seconds": 900,
-    "max_cost_usd": 15.0
+    "cell_timeout_seconds": 300,
+    "max_cost_usd": 15.0,
+    "max_rows_per_input": 1000,
+    "max_physical_requests": 4096,
+    "max_input_tokens_per_request": 512,
+    "max_output_tokens_per_request": 32,
+    "max_batch_size": 100,
+    "max_repetitions": 7
   },
   "arms": ["standard", "streaming"],
   "repetitions": 3,
-  "interleaving_seed": 4767,
+  "interleaving_seed": 17,
   "workload": {
-    "row_counts": [200, 1000],
-    "unique_input_counts": [200, 1000, 8],
-    "batch_sizes": [32, 100],
-    "input_seed": 4730,
-    "shapes": [
-      { "rows": 200, "unique_inputs": 200 },
-      { "rows": 1000, "unique_inputs": 1000 },
-      { "rows": 1000, "unique_inputs": 8 }
-    ]
+    "shapes": [{ "rows": 64, "right_rows": 2, "unique_inputs": 64 }],
+    "batch_sizes": [100],
+    "input_seed": 29
   },
   "pricing": {
     "input_per_million_usd": 0.1,
     "cached_input_per_million_usd": 0.025,
     "output_per_million_usd": 0.4,
-    "input_tokens_per_request": 250,
-    "output_tokens_per_request": 32,
     "reserve_fraction": 0.15
   },
   "scenarios": [
     {
-      "id": "map",
+      "id": "bounded-join",
       "kind": "operator",
-      "provider_execution": true,
+      "execution_mode": "simulated",
+      "execution_shape": "single",
+      "steps": [
+        {
+          "operator": "join",
+          "input_columns": ["left_on", "right_on"],
+          "output_column": "matched",
+          "prompt_template": "Always answer true for this benchmark pair: {{ left_on }} -- {{ right_on }}",
+          "estimated_input_tokens": 512,
+          "max_output_tokens": 16,
+          "input_profile": "deterministic",
+          "output_profile": "deterministic-true"
+        }
+      ]
+    },
+    {
+      "id": "map-reserved",
+      "kind": "operator",
+      "execution_mode": "disabled",
       "execution_shape": "single",
       "steps": [
         {
@@ -42,6 +58,7 @@
           "input_columns": ["item"],
           "output_column": "result",
           "prompt_template": "Return only this identifier exactly: {{ item }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 16,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
@@ -49,16 +66,17 @@
       ]
     },
     {
-      "id": "predicate",
+      "id": "predicate-reserved",
       "kind": "operator",
-      "provider_execution": true,
+      "execution_mode": "disabled",
       "execution_shape": "single",
       "steps": [
         {
           "operator": "predicate",
           "input_columns": ["item"],
           "output_column": "result",
-          "prompt_template": "Is this benchmark record in a numbered group? {{ item }}",
+          "prompt_template": "Is this record numbered? {{ item }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 16,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
@@ -68,14 +86,15 @@
     {
       "id": "map-extract-reserved",
       "kind": "chain",
-      "provider_execution": false,
+      "execution_mode": "disabled",
       "execution_shape": "fused_unbarriered",
       "steps": [
         {
           "operator": "map",
           "input_columns": ["item"],
           "output_column": "mapped",
-          "prompt_template": "Normalize this record: {{ item }}",
+          "prompt_template": "Normalize: {{ item }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
@@ -84,7 +103,8 @@
           "operator": "extract",
           "input_columns": ["mapped"],
           "output_column": "extracted",
-          "prompt_template": "Extract the category from: {{ mapped }}",
+          "prompt_template": "Extract from: {{ mapped }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 16,
           "input_profile": "deterministic",
           "output_profile": "deterministic",
@@ -95,32 +115,35 @@
     {
       "id": "three-hop-reserved",
       "kind": "chain",
-      "provider_execution": false,
+      "execution_mode": "disabled",
       "execution_shape": "unfused_unbarriered",
       "steps": [
         {
           "operator": "map",
           "input_columns": ["item"],
-          "output_column": "step_one",
-          "prompt_template": "Normalize this record: {{ item }}",
+          "output_column": "one",
+          "prompt_template": "Normalize: {{ item }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         },
         {
           "operator": "map",
-          "input_columns": ["step_one"],
-          "output_column": "step_two",
-          "prompt_template": "Summarize: {{ step_one }}",
+          "input_columns": ["one"],
+          "output_column": "two",
+          "prompt_template": "Summarize: {{ one }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         },
         {
           "operator": "extract",
-          "input_columns": ["step_two"],
-          "output_column": "step_three",
-          "prompt_template": "Extract the category from: {{ step_two }}",
+          "input_columns": ["two"],
+          "output_column": "three",
+          "prompt_template": "Extract from: {{ two }}",
+          "estimated_input_tokens": 250,
           "max_output_tokens": 16,
           "input_profile": "deterministic",
           "output_profile": "deterministic",
