@@ -1,32 +1,32 @@
 {
   "schema_version": "streaming-benchmark.v1",
-  "scenario_version": "bounded-join-v1",
-  "model": { "alias": "nano", "name": "gpt-4.1-nano" },
+  "scenario_version": "bounded-join-provider-free-v1",
   "limits": {
-    "client_rpm": 100,
-    "client_tpm": 10000000,
     "cell_timeout_seconds": 300,
-    "max_cost_usd": 15.0,
     "max_rows_per_input": 1000,
     "max_physical_requests": 4096,
-    "max_input_tokens_per_request": 512,
-    "max_output_tokens_per_request": 32,
     "max_batch_size": 100,
+    "max_pair_block_size": 256,
+    "max_block_token_budget": 18000,
     "max_repetitions": 7
   },
   "arms": ["standard", "streaming"],
   "repetitions": 3,
   "interleaving_seed": 17,
   "workload": {
-    "shapes": [{ "rows": 64, "right_rows": 2, "unique_inputs": 64 }],
+    "shapes": [
+      {
+        "rows": 512,
+        "right_rows": 2,
+        "unique_inputs": 512,
+        "pair_block_size": 256,
+        "block_token_budget": 18000,
+        "rpm": 100,
+        "latency_seconds": 0.01
+      }
+    ],
     "batch_sizes": [100],
     "input_seed": 29
-  },
-  "pricing": {
-    "input_per_million_usd": 0.1,
-    "cached_input_per_million_usd": 0.025,
-    "output_per_million_usd": 0.4,
-    "reserve_fraction": 0.15
   },
   "scenarios": [
     {
@@ -39,9 +39,7 @@
           "operator": "join",
           "input_columns": ["left_on", "right_on"],
           "output_column": "matched",
-          "prompt_template": "Always answer true for this benchmark pair: {{ left_on }} -- {{ right_on }}",
-          "estimated_input_tokens": 512,
-          "max_output_tokens": 16,
+          "prompt_template": "{{ left_on }} -- {{ right_on }}",
           "input_profile": "deterministic",
           "output_profile": "deterministic-true"
         }
@@ -57,9 +55,7 @@
           "operator": "map",
           "input_columns": ["item"],
           "output_column": "result",
-          "prompt_template": "Return only this identifier exactly: {{ item }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 16,
+          "prompt_template": "Return: {{ item }}",
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         }
@@ -75,9 +71,7 @@
           "operator": "predicate",
           "input_columns": ["item"],
           "output_column": "result",
-          "prompt_template": "Is this record numbered? {{ item }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 16,
+          "prompt_template": "Is this numbered? {{ item }}",
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         }
@@ -94,8 +88,6 @@
           "input_columns": ["item"],
           "output_column": "mapped",
           "prompt_template": "Normalize: {{ item }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         },
@@ -103,9 +95,7 @@
           "operator": "extract",
           "input_columns": ["mapped"],
           "output_column": "extracted",
-          "prompt_template": "Extract from: {{ mapped }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 16,
+          "prompt_template": "Extract: {{ mapped }}",
           "input_profile": "deterministic",
           "output_profile": "deterministic",
           "output_schema": { "category": "string" }
@@ -123,8 +113,6 @@
           "input_columns": ["item"],
           "output_column": "one",
           "prompt_template": "Normalize: {{ item }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         },
@@ -133,8 +121,6 @@
           "input_columns": ["one"],
           "output_column": "two",
           "prompt_template": "Summarize: {{ one }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 32,
           "input_profile": "deterministic",
           "output_profile": "deterministic"
         },
@@ -142,9 +128,7 @@
           "operator": "extract",
           "input_columns": ["two"],
           "output_column": "three",
-          "prompt_template": "Extract from: {{ two }}",
-          "estimated_input_tokens": 250,
-          "max_output_tokens": 16,
+          "prompt_template": "Extract: {{ two }}",
           "input_profile": "deterministic",
           "output_profile": "deterministic",
           "output_schema": { "category": "string" }

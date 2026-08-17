@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103
-"""Plan and run an on-demand streaming performance comparison."""
+"""Plan and run a provider-free streaming performance comparison."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import csv
 import hashlib
 import json
 import os
-import secrets
 import socket
 import subprocess  # nosec B404 - fixed argv only; shell execution is never enabled
+import uuid
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,38 +22,33 @@ try:
         Cell,
         as_jsonable,
         assert_interleaved_same_run,
-        cell_estimated_cost,
         classify_comparison,
         environment_metadata,
         expand_cells,
         interleave_cells,
         load_matrix,
         median,
-        projected_cost,
-        projected_requests,
-        require_metrics,
     )
 except ImportError:
     from models import (  # type: ignore[no-redef]
         Cell,
         as_jsonable,
         assert_interleaved_same_run,
-        cell_estimated_cost,
         classify_comparison,
         environment_metadata,
         expand_cells,
         interleave_cells,
         load_matrix,
         median,
-        projected_cost,
-        projected_requests,
-        require_metrics,
     )
 
 
 def git_output(checkout: Path, *args: str) -> str:
     completed = subprocess.run(  # nosec B603 B607 - fixed git command with validated arguments
-        ["git", "-C", str(checkout), *args], text=True, capture_output=True, check=True
+        ["git", "-C", str(checkout), *args],
+        text=True,
+        capture_output=True,
+        check=True,
     )
     return completed.stdout.strip()
 
@@ -65,7 +60,12 @@ def file_sha256(path: Path) -> str:
 def harness_sha256() -> str:
     digest = hashlib.sha256()
     root = Path(__file__).parent
-    for path in sorted([*root.glob("*.py"), root / "matrix.schema.json"]):
+    paths = [
+        *root.glob("*.py"),
+        root / "matrix.schema.json",
+        root.parent / "semantic_join_stream_adapter.py",
+    ]
+    for path in sorted(paths):
         digest.update(path.name.encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -77,12 +77,11 @@ def checkout_state(checkout: Path, expected_ref: str) -> dict[str, Any]:
         raise ValueError(f"checkout is not a Git worktree: {checkout}")
     head = git_output(checkout, "rev-parse", "HEAD")
     expected = git_output(checkout, "rev-parse", "--verify", expected_ref)
-    dirty = bool(git_output(checkout, "status", "--porcelain"))
     if head != expected:
         raise ValueError(
             f"checkout HEAD {head} does not match {expected_ref} ({expected})"
         )
-    if dirty:
+    if git_output(checkout, "status", "--porcelain"):
         raise ValueError(f"checkout is dirty: {checkout}")
     return {
         "path": str(checkout),
@@ -95,7 +94,9 @@ def checkout_state(checkout: Path, expected_ref: str) -> dict[str, Any]:
 
 def _derived_cells(matrix: Any, checkouts: Iterable[str]) -> list[Cell]:
     cells = [
-        cell for label in checkouts for cell in expand_cells(matrix, checkout=label)
+        cell
+        for label in sorted(checkouts)
+        for cell in expand_cells(matrix, checkout=label)
     ]
     cells = interleave_cells(cells, matrix.interleaving_seed)
     assert_interleaved_same_run(cells)
@@ -118,7 +119,7 @@ def plan_document(
         checkouts["baseline"] = checkout_state(baseline_checkout, baseline_ref)
     cells = _derived_cells(matrix, checkouts)
     return {
-        "plan_id": secrets.token_hex(16),
+        "plan_id": uuid.uuid4().hex,
         "schema_version": matrix.schema_version,
         "scenario_version": matrix.scenario_version,
         "matrix_path": str(matrix_path.resolve()),
@@ -128,11 +129,7 @@ def plan_document(
         "created_at": datetime.now(UTC).isoformat(),
         "checkouts": checkouts,
         "environment": environment_metadata(),
-        "model": {"alias": matrix.model_alias, "name": matrix.model_name},
         "limits": as_jsonable(matrix.limits),
-        "pricing": as_jsonable(matrix.pricing),
-        "projected_requests": projected_requests(cells, provider_only=True),
-        "projected_cost_usd": projected_cost(matrix, cells),
         "interleaving_seed": matrix.interleaving_seed,
         "cells": [as_jsonable(cell) for cell in cells],
         "output": str(output.resolve()),
@@ -143,7 +140,7 @@ def write_json(path: Path, document: Any) -> None:
     path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
 
 
-def verify_plan(plan: dict[str, Any], cap: float) -> tuple[Any, list[Cell]]:
+def verify_plan(plan: dict[str, Any]) -> tuple[Any, list[Cell]]:
     if plan["environment"]["host"] != socket.gethostname():
         raise RuntimeError("refusing run: plan was created on a different host")
     matrix_path = Path(plan["matrix_path"])
@@ -166,79 +163,67 @@ def verify_plan(plan: dict[str, Any], cap: float) -> tuple[Any, list[Cell]]:
     cells = _derived_cells(matrix, plan["checkouts"])
     if [as_jsonable(cell) for cell in cells] != plan["cells"]:
         raise RuntimeError("refusing run: planned cells do not match the matrix")
-    if (
-        as_jsonable(matrix.limits) != plan["limits"]
-        or as_jsonable(matrix.pricing) != plan["pricing"]
-    ):
-        raise RuntimeError(
-            "refusing run: plan limits or pricing do not match the matrix"
-        )
-    if projected_requests(cells, provider_only=True) != plan["projected_requests"]:
-        raise RuntimeError(
-            "refusing run: projected request count is not derived from the matrix"
-        )
-    expected_cost = projected_cost(matrix, cells)
-    if abs(expected_cost - float(plan["projected_cost_usd"])) > 1e-12:
-        raise RuntimeError(
-            "refusing run: projected cost is not derived from the matrix"
-        )
-    effective_cap = min(float(matrix.limits.max_cost_usd), float(cap))
-    if expected_cost > effective_cap:
-        raise RuntimeError(
-            f"projected cost ${expected_cost:.6f} exceeds cap ${effective_cap:.6f}"
-        )
+    if as_jsonable(matrix.limits) != plan["limits"]:
+        raise RuntimeError("refusing run: plan limits do not match the matrix")
     return matrix, cells
-
-
-def _metrics_cost(receipt: dict[str, Any]) -> float:
-    metrics = receipt.get("lm_metrics")
-    require_metrics(metrics)
-    return float(metrics["cost"])
-
-
-def within_run_cap(
-    actual: float,
-    unreconciled_reserved: float,
-    current_estimate: float,
-    remaining_estimate: float,
-    cap: float,
-) -> bool:
-    """Keep every paid, reserved, and forward-looking dollar under one cap."""
-    return actual + unreconciled_reserved + current_estimate + remaining_estimate <= cap
 
 
 def _path_engaged(items: list[dict[str, Any]]) -> bool:
     standard = [item["path_evidence"] for item in items if item["arm"] == "standard"]
     streaming = [item["path_evidence"] for item in items if item["arm"] == "streaming"]
-    if not standard or not streaming:
-        return False
-    if "list_calls" in standard[0]:
-        return all(
+    return (
+        bool(standard and streaming)
+        and all(
             item["list_calls"] > 0 and item["iterator_calls"] == 0 for item in standard
-        ) and all(
+        )
+        and all(
             item["iterator_calls"] > 0 and item["list_calls"] == 0 for item in streaming
         )
+    )
+
+
+def _admission_bound(items: list[dict[str, Any]]) -> bool:
+    """Require the standard arm to exceed W and streaming to stay at or below it."""
+    standard = [item["path_evidence"] for item in items if item["arm"] == "standard"]
+    streaming = [item["path_evidence"] for item in items if item["arm"] == "streaming"]
+    if not standard or not streaming:
+        return False
+    return all(
+        int(item["outstanding_admission_high_water"])
+        > int(item["configured_watermark"])
+        for item in standard
+    ) and all(
+        int(item["outstanding_admission_high_water"])
+        <= int(item["configured_watermark"])
+        for item in streaming
+    )
+
+
+def _event_counts_ok(item: dict[str, Any]) -> bool:
+    lifecycle = item["lifecycle"]
+    if not lifecycle["availability"]["event_counts"]["available"]:
+        return False
+    counts = lifecycle["event_counts"]
+    expected = int(item["physical_requests"])
     return (
-        all(item["streaming_enabled"] is False for item in standard)
-        and all(item["streaming_enabled"] is True for item in streaming)
-        and all(
-            item["max_live_requests"] > item["configured_watermark"]
-            for item in standard
-        )
-        and all(
-            item["max_live_requests"] <= item["configured_watermark"]
-            for item in streaming
-        )
+        counts.get("queued") == expected
+        and counts.get("settled") == expected
+        and counts.get("failed", 0) == 0
     )
 
 
 def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     receipts = list(receipts)
+    run_ids = {item.get("run_id") for item in receipts}
+    plan_ids = {item.get("plan_id") for item in receipts}
     if (
-        len({item.get("run_id") for item in receipts}) != 1
-        or len({item.get("plan_id") for item in receipts}) != 1
+        not receipts
+        or None in run_ids
+        or None in plan_ids
+        or len(run_ids) != 1
+        or len(plan_ids) != 1
     ):
-        raise ValueError("receipts must belong to one run and one plan")
+        raise ValueError("receipts must identify exactly one run and one plan")
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for item in receipts:
         key = (
@@ -248,50 +233,59 @@ def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any
             item["rows"],
             item["right_rows"],
             item["unique_inputs"],
+            item["pair_block_size"],
+            item["block_token_budget"],
+            item["rpm"],
+            item["latency_seconds"],
             item["batch_size"],
+            item["input_seed"],
         )
         groups[key].append(item)
+
     summaries = []
     for key, items in sorted(groups.items(), key=repr):
         standard = [item for item in items if item["arm"] == "standard"]
         streaming = [item for item in items if item["arm"] == "streaming"]
-        hashes = {item["result_hash"] for item in items}
         expected_counts = {int(item["expected_result_count"]) for item in items}
         result_counts = {int(item["result_count"]) for item in items}
         request_counts_ok = all(
-            int(item["lm_metrics"]["num_requests"]) == int(item["physical_requests"])
+            int(item["request_metrics"]["num_requests"])
+            == int(item["physical_requests"])
             for item in items
         )
-        lifecycle_checks = []
+        geometry_ok = all(
+            item["geometry"]["window_binds"]
+            and item["geometry"]["multiple_pair_blocks"]
+            and item["geometry"]["token_budget_splits"]
+            for item in items
+        )
         rate_limits: list[int] = []
         for item in items:
             lifecycle = item["lifecycle"]
-            availability = lifecycle["availability"]
-            if availability["event_counts"]["available"]:
-                counts = lifecycle["event_counts"]
-                expected = int(item["physical_requests"])
-                lifecycle_checks.append(
-                    counts.get("queued") == expected
-                    and counts.get("settled") == expected
-                    and counts.get("failed", 0) == 0
-                )
-            if availability["rate_limit_events"]["available"]:
+            if lifecycle["availability"]["rate_limit_events"]["available"]:
                 rate_limits.append(int(lifecycle["rate_limit_events"]))
-        lifecycle_ok = all(lifecycle_checks) if lifecycle_checks else None
+        lifecycle_ok = all(_event_counts_ok(item) for item in items)
         rate_limit_total = sum(rate_limits) if len(rate_limits) == len(items) else None
         path_engaged = _path_engaged(items)
+        admission_bound_ok = _admission_bound(items)
         correctness_ok = (
-            len(hashes) == 1
+            len({item["result_hash"] for item in items}) == 1
             and len(expected_counts) == 1
             and result_counts == expected_counts
             and request_counts_ok
-            and lifecycle_ok is not False
+            and geometry_ok
+            and lifecycle_ok
+            and path_engaged
+            and admission_bound_ok
         )
         verdict = (
             classify_comparison(
                 [item["wall_clock_ms"] for item in streaming],
                 [item["wall_clock_ms"] for item in standard],
-                cache_heavy=bool(items[0]["unique_inputs"] < items[0]["rows"]),
+                cache_heavy=bool(
+                    items[0]["operation"] != "join"
+                    and items[0]["unique_inputs"] < items[0]["rows"]
+                ),
                 correctness_ok=correctness_ok,
                 rate_limit_events=rate_limit_total,
                 path_engaged=path_engaged,
@@ -307,7 +301,12 @@ def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any
                 "rows": key[3],
                 "right_rows": key[4],
                 "unique_inputs": key[5],
-                "batch_size": key[6],
+                "pair_block_size": key[6],
+                "block_token_budget": key[7],
+                "rpm": key[8],
+                "latency_seconds": key[9],
+                "batch_size": key[10],
+                "input_seed": key[11],
                 "repetitions": max(item["repetition"] for item in items),
                 "standard_median_ms": median(
                     item["wall_clock_ms"] for item in standard
@@ -317,6 +316,7 @@ def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any
                 ),
                 "correctness_ok": correctness_ok,
                 "request_counts_ok": request_counts_ok,
+                "geometry_ok": geometry_ok,
                 "lifecycle_counts_ok": lifecycle_ok,
                 "rate_limit_events": rate_limit_total,
                 "idle_gap_available": all(
@@ -324,23 +324,21 @@ def aggregate_receipts(receipts: Iterable[dict[str, Any]]) -> list[dict[str, Any
                     for item in items
                 ),
                 "path_engaged": path_engaged,
+                "admission_bound_ok": admission_bound_ok,
                 "verdict": verdict,
             }
         )
     return summaries
 
 
-def write_summary(
-    output: Path, receipts: list[dict[str, Any]], projected: float, actual: float
-) -> None:
+def write_summary(output: Path, receipts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     summaries = aggregate_receipts(receipts)
-    note = "Idle-gap measurements are absent where the checkout exposes no collector; timing regimes are established only from independently available rate-limit events, request counts, and path evidence."
+    note = "Idle-gap and queue-depth measurements remain absent because the adapter exposes neither measurement. Missing fields stay null and never become inferred zeros."
     write_json(
         output / "summary.json",
         {
             "generated_at": datetime.now(UTC).isoformat(),
-            "projected_cost_usd": projected,
-            "actual_cost_usd": actual,
+            "provider_calls": 0,
             "measurement_availability": note,
             "cells": summaries,
         },
@@ -353,8 +351,7 @@ def write_summary(
     lines = [
         "# Streaming benchmark summary",
         "",
-        f"Projected cost: `${projected:.6f}`",
-        f"Actual cost: `${actual:.6f}`",
+        "Provider calls: `0`",
         "",
         note,
         "",
@@ -366,6 +363,7 @@ def write_summary(
         for row in summaries
     )
     (output / "summary.md").write_text("\n".join(lines) + "\n")
+    return summaries
 
 
 def write_manifest(output: Path) -> None:
@@ -377,193 +375,135 @@ def write_manifest(output: Path) -> None:
     write_json(output / "manifest.json", {"algorithm": "sha256", "files": entries})
 
 
-def _create_run_state(
-    output: Path, plan: dict[str, Any], cap: float
-) -> tuple[Path, dict[str, Any]]:
-    unexpected = [path for path in output.iterdir() if path.name != "plan.json"]
-    if unexpected:
+def start_run(output: Path, plan_id: str) -> str:
+    if any(path.name != "plan.json" for path in output.iterdir()):
         raise RuntimeError("refusing run: output directory is not a fresh planned run")
-    state_path = output / "run-state.json"
-    state = {
-        "run_id": secrets.token_hex(16),
-        "plan_id": plan["plan_id"],
-        "cap_usd": cap,
-        "actual_cost_usd": 0.0,
-        "unreconciled_reserved_usd": 0.0,
-        "completed_cells": [],
-        "active_reservation": None,
-        "status": "running",
-    }
-    descriptor = os.open(state_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    run_id = uuid.uuid4().hex
+    marker = output / ".run-started.json"
+    descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w") as stream:
-        json.dump(state, stream, indent=2, sort_keys=True)
+        json.dump({"run_id": run_id, "plan_id": plan_id}, stream, sort_keys=True)
         stream.write("\n")
-    return state_path, state
+    return run_id
 
 
-def run_plan(plan_path: Path, approve_provider_spend: bool, cap: float) -> None:
-    plan = json.loads(plan_path.read_text())
-    matrix, cells = verify_plan(plan, cap)
-    provider_cells = [cell for cell in cells if cell.execution_mode == "provider"]
-    if provider_cells and not approve_provider_spend:
+def raise_for_failed_verdicts(summaries: Iterable[dict[str, Any]]) -> None:
+    failures = [
+        item
+        for item in summaries
+        if item["verdict"] not in {"PASS", "OBSERVATIONAL"}
+    ]
+    if failures:
         raise SystemExit(
-            "refusing provider-backed cells without --approve-provider-spend"
+            f"benchmark hard gate failed for {len(failures)} comparison(s)"
         )
-    output = plan_path.parent
-    effective_cap = min(float(cap), matrix.limits.max_cost_usd)
-    state_path, state = _create_run_state(output, plan, effective_cap)
+
+
+def _output_for_plan(plan_path: Path, plan: dict[str, Any]) -> Path:
+    output = plan_path.parent.resolve()
+    planned_output = Path(plan["output"]).resolve()
+    if output != planned_output:
+        raise RuntimeError(
+            "refusing run: plan must execute from its planned output directory"
+        )
+    return output
+
+
+def _log_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value or ""
+
+
+def _runner_root() -> Path:
+    return Path(__file__).parents[2]
+
+
+def _case_command(cell: Cell, receipt_path: Path) -> list[str]:
+    return [
+        "uv",
+        "run",
+        "--project",
+        str(_runner_root()),
+        "--no-sync",
+        "python",
+        str(Path(__file__).with_name("run_case.py")),
+        "--cell",
+        json.dumps(as_jsonable(cell), separators=(",", ":")),
+        "--receipt",
+        str(receipt_path),
+    ]
+
+
+def _case_environment(checkout_path: Path) -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PYTHONPATH": os.pathsep.join(
+                (str(_runner_root()), str(checkout_path / "src"))
+            ),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+    )
+    return environment
+
+
+def run_plan(plan_path: Path) -> None:
+    plan = json.loads(plan_path.read_text())
+    output = _output_for_plan(plan_path, plan)
+    matrix, cells = verify_plan(plan)
+    run_id = start_run(output, plan["plan_id"])
     cells_dir = output / "cells"
     logs_dir = output / "logs"
-    specs_dir = output / "execution-specs"
-    for directory in (cells_dir, logs_dir, specs_dir, output / "work"):
+    for directory in (cells_dir, logs_dir):
         directory.mkdir()
-    run_token = secrets.token_hex(32)
     receipts = []
     for index, cell in enumerate(cells):
-        estimate = cell_estimated_cost(matrix, cell)
-        remaining = projected_cost(matrix, cells[index + 1 :])
-        accounted = state["actual_cost_usd"] + state["unreconciled_reserved_usd"]
-        if not within_run_cap(
-            state["actual_cost_usd"],
-            state["unreconciled_reserved_usd"],
-            estimate,
-            remaining,
-            effective_cap,
-        ):
-            state["status"] = "stopped_before_cap"
-            write_json(state_path, state)
-            raise SystemExit(
-                f"stopping before {cell.id}: actual, reserved, and remaining estimate exceed cap"
-            )
-        state["active_reservation"] = {
-            "cell_id": cell.id,
-            "estimated_cost_usd": estimate,
-        }
-        write_json(state_path, state)
-        spec_path = specs_dir / f"{cell.id}.json"
         receipt_path = cells_dir / f"{cell.id}.json"
-        write_json(
-            spec_path,
-            {
-                "run_token": run_token,
-                "run_id": state["run_id"],
-                "plan_id": plan["plan_id"],
-                "run_state_path": str(state_path),
-                "matrix_path": plan["matrix_path"],
-                "cell": as_jsonable(cell),
-                "estimated_cost_usd": estimate,
-                "cell_cost_cap_usd": effective_cap - accounted,
-                "approve_provider_spend": approve_provider_spend,
-                "work_dir": str(output / "work"),
-            },
-        )
         checkout_path = Path(plan["checkouts"][cell.checkout]["path"])
-        command = [
-            "uv",
-            "run",
-            "--project",
-            str(checkout_path),
-            "--no-sync",
-            "python",
-            str(Path(__file__).with_name("run_case.py")),
-            "--execution-spec",
-            str(spec_path),
-            "--receipt",
-            str(receipt_path),
-        ]
-        environment = os.environ.copy()
-        environment.update(
-            {
-                "PYTHONPATH": os.pathsep.join(
-                    (str(checkout_path), str(checkout_path / "src"))
-                ),
-                "PYTHONDONTWRITEBYTECODE": "1",
-                "FENIC_BENCHMARK_RUN_TOKEN": run_token,
-            }
-        )
+        command = _case_command(cell, receipt_path)
+        environment = _case_environment(checkout_path)
         try:
             completed = subprocess.run(  # nosec B603 - fixed argv; shell execution is never enabled
                 command,
-                cwd=checkout_path,
+                cwd=_runner_root(),
                 env=environment,
                 text=True,
                 capture_output=True,
                 timeout=matrix.limits.cell_timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
-            (logs_dir / f"{cell.id}.stdout.log").write_text(exc.stdout or "")
-            (logs_dir / f"{cell.id}.stderr.log").write_text(exc.stderr or "")
-            completed = None
-        else:
-            (logs_dir / f"{cell.id}.stdout.log").write_text(completed.stdout)
-            (logs_dir / f"{cell.id}.stderr.log").write_text(completed.stderr)
-        if completed is None or completed.returncode:
-            if cell.execution_mode == "provider":
-                state["unreconciled_reserved_usd"] += estimate
-            state["active_reservation"] = None
-            state["status"] = "failed"
-            write_json(state_path, state)
+            (logs_dir / f"{cell.id}.stdout.log").write_text(_log_text(exc.stdout))
+            (logs_dir / f"{cell.id}.stderr.log").write_text(_log_text(exc.stderr))
             write_manifest(output)
-            suffix = (
-                "; its provider reservation remains accounted"
-                if cell.execution_mode == "provider"
-                else ""
-            )
-            raise SystemExit(f"cell {cell.id} failed{suffix}")
+            raise SystemExit(f"provider-free cell {cell.id} timed out") from exc
+        (logs_dir / f"{cell.id}.stdout.log").write_text(_log_text(completed.stdout))
+        (logs_dir / f"{cell.id}.stderr.log").write_text(_log_text(completed.stderr))
+        if completed.returncode:
+            write_manifest(output)
+            raise SystemExit(f"provider-free cell {cell.id} failed; see logs")
         receipt = json.loads(receipt_path.read_text())
-        try:
-            actual = (
-                _metrics_cost(receipt) if cell.execution_mode == "provider" else 0.0
-            )
-            if (
-                cell.execution_mode == "simulated"
-                and float(receipt["lm_metrics"].get("cost", -1)) != 0
-            ):
-                raise RuntimeError(
-                    "simulated cell unexpectedly reported provider spend"
-                )
-        except (KeyError, TypeError, ValueError, RuntimeError):
-            if cell.execution_mode == "provider":
-                state["unreconciled_reserved_usd"] += estimate
-            state["active_reservation"] = None
-            state["status"] = "failed_metrics"
-            write_json(state_path, state)
-            write_manifest(output)
-            raise
-        source = receipt.get("fenic_source")
-        if source and not Path(source).resolve().is_relative_to(
-            (checkout_path / "src").resolve()
-        ):
+        source = Path(receipt["fenic_source"]).resolve()
+        if not source.is_relative_to((checkout_path / "src").resolve()):
             raise RuntimeError(
                 f"cell {cell.id} imported fenic outside its declared checkout"
             )
-        state["actual_cost_usd"] += actual
-        state["active_reservation"] = None
-        state["completed_cells"].append(cell.id)
         receipt.update(
             {
-                "run_id": state["run_id"],
+                "run_id": run_id,
                 "plan_id": plan["plan_id"],
                 "tested_commit": plan["checkouts"][cell.checkout]["head"],
-                "cumulative_actual_spend_usd": state["actual_cost_usd"],
                 "matrix_sha256": plan["matrix_sha256"],
                 "schema_sha256": plan["schema_sha256"],
                 "harness_sha256": plan["harness_sha256"],
             }
         )
         write_json(receipt_path, receipt)
-        write_json(state_path, state)
         receipts.append(receipt)
-        print(
-            f"[{index + 1}/{len(cells)}] {cell.id}: ${state['actual_cost_usd']:.6f} cumulative",
-            flush=True,
-        )
-    state["status"] = "complete"
-    write_json(state_path, state)
-    write_summary(
-        output, receipts, plan["projected_cost_usd"], state["actual_cost_usd"]
-    )
+        print(f"[{index + 1}/{len(cells)}] {cell.id}", flush=True)
+    summaries = write_summary(output, receipts)
     write_manifest(output)
+    raise_for_failed_verdicts(summaries)
 
 
 def main() -> None:
@@ -578,8 +518,6 @@ def main() -> None:
     plan_parser.add_argument("--output", type=Path, required=True)
     run_parser = commands.add_parser("run")
     run_parser.add_argument("--plan", type=Path, required=True)
-    run_parser.add_argument("--approve-provider-spend", action="store_true")
-    run_parser.add_argument("--max-cost-usd", type=float, required=True)
     args = parser.parse_args()
     if args.command == "plan":
         if args.output.exists() and any(args.output.iterdir()):
@@ -593,21 +531,18 @@ def main() -> None:
             args.baseline_checkout,
             args.baseline_ref,
         )
-        if plan["projected_cost_usd"] > plan["limits"]["max_cost_usd"]:
-            raise SystemExit("matrix projected cost exceeds matrix cap")
         write_json(args.output / "plan.json", plan)
         print(
             json.dumps(
                 {
                     "plan": str((args.output / "plan.json").resolve()),
                     "cells": len(plan["cells"]),
-                    "projected_cost_usd": plan["projected_cost_usd"],
                 },
                 sort_keys=True,
             )
         )
     else:
-        run_plan(args.plan, args.approve_provider_spend, args.max_cost_usd)
+        run_plan(args.plan)
 
 
 if __name__ == "__main__":

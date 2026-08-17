@@ -6,54 +6,33 @@
   "required": [
     "schema_version",
     "scenario_version",
-    "model",
     "limits",
     "arms",
     "repetitions",
     "interleaving_seed",
     "workload",
-    "pricing",
     "scenarios"
   ],
   "properties": {
     "schema_version": { "const": "streaming-benchmark.v1" },
     "scenario_version": { "type": "string", "minLength": 1 },
-    "model": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["alias", "name"],
-      "properties": {
-        "alias": { "type": "string", "minLength": 1 },
-        "name": { "type": "string", "minLength": 1 }
-      }
-    },
     "limits": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "client_rpm",
-        "client_tpm",
         "cell_timeout_seconds",
-        "max_cost_usd",
         "max_rows_per_input",
         "max_physical_requests",
-        "max_input_tokens_per_request",
-        "max_output_tokens_per_request",
         "max_batch_size",
+        "max_pair_block_size",
+        "max_block_token_budget",
         "max_repetitions"
       ],
       "properties": {
-        "client_rpm": { "type": "integer", "minimum": 1, "maximum": 10000 },
-        "client_tpm": { "type": "integer", "minimum": 1, "maximum": 10000000 },
         "cell_timeout_seconds": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1800
-        },
-        "max_cost_usd": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 50
         },
         "max_rows_per_input": {
           "type": "integer",
@@ -65,17 +44,17 @@
           "minimum": 1,
           "maximum": 100000
         },
-        "max_input_tokens_per_request": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 8192
-        },
-        "max_output_tokens_per_request": {
+        "max_batch_size": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_pair_block_size": {
           "type": "integer",
           "minimum": 1,
           "maximum": 4096
         },
-        "max_batch_size": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_block_token_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
         "max_repetitions": { "type": "integer", "minimum": 3, "maximum": 9 }
       }
     },
@@ -94,7 +73,15 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["rows", "right_rows", "unique_inputs"],
+            "required": [
+              "rows",
+              "right_rows",
+              "unique_inputs",
+              "pair_block_size",
+              "block_token_budget",
+              "rpm",
+              "latency_seconds"
+            ],
             "properties": {
               "rows": { "type": "integer", "minimum": 1, "maximum": 10000 },
               "right_rows": {
@@ -106,6 +93,22 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 10000
+              },
+              "pair_block_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              },
+              "block_token_budget": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "rpm": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "latency_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 60
               }
             }
           }
@@ -117,25 +120,6 @@
           "items": { "type": "integer", "minimum": 1, "maximum": 1000 }
         },
         "input_seed": { "type": "integer" }
-      }
-    },
-    "pricing": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "input_per_million_usd",
-        "cached_input_per_million_usd",
-        "output_per_million_usd",
-        "reserve_fraction"
-      ],
-      "properties": {
-        "input_per_million_usd": { "type": "number", "exclusiveMinimum": 0 },
-        "cached_input_per_million_usd": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "output_per_million_usd": { "type": "number", "exclusiveMinimum": 0 },
-        "reserve_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "scenarios": {
@@ -155,7 +139,7 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "kind": { "enum": ["operator", "chain"] },
-          "execution_mode": { "enum": ["disabled", "simulated", "provider"] },
+          "execution_mode": { "enum": ["disabled", "simulated"] },
           "execution_shape": {
             "enum": [
               "single",
@@ -176,8 +160,6 @@
                 "input_columns",
                 "output_column",
                 "prompt_template",
-                "estimated_input_tokens",
-                "max_output_tokens",
                 "input_profile",
                 "output_profile"
               ],
@@ -192,16 +174,6 @@
                 },
                 "output_column": { "type": "string", "minLength": 1 },
                 "prompt_template": { "type": "string", "minLength": 1 },
-                "estimated_input_tokens": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 8192
-                },
-                "max_output_tokens": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 4096
-                },
                 "input_profile": { "type": "string", "minLength": 1 },
                 "output_profile": { "type": "string", "minLength": 1 },
                 "output_schema": { "type": "object" }
