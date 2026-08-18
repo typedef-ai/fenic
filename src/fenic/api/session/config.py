@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -469,9 +469,14 @@ class OpenAILanguageModel(BaseModel):
     including model selection and rate limiting parameters.
 
     Attributes:
-        model_name: The name of the OpenAI model to use.
+        model_name: The name of the OpenAI model to use. Model names outside the OpenAI
+            catalog are accepted when `base_url` and `model_parameters` are both set, which
+            is how OpenAI-compatible endpoints (vLLM, LiteLLM, Ollama, and similar) are targeted.
         rpm: Requests per minute limit; must be greater than 0.
         tpm: Tokens per minute limit; must be greater than 0.
+        base_url: Optional custom base URL for the OpenAI API.
+        model_parameters: Parameters describing a model that is not in the OpenAI catalog.
+            Required for such models, and only valid together with `base_url`.
         profiles: Optional mapping of profile names to profile configurations.
         default_profile: The name of the default profile to use if profiles are configured.
 
@@ -485,6 +490,21 @@ class OpenAILanguageModel(BaseModel):
 
         ```python
         config = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=100, tpm=100)
+        ```
+
+        Configuring a self-hosted, OpenAI-compatible endpoint:
+
+        ```python
+        config = OpenAILanguageModel(
+            model_name="my-local-model",
+            rpm=100,
+            tpm=100_000,
+            base_url="http://localhost:8000/v1",
+            model_parameters=OpenAILanguageModel.ModelParameters(
+                context_window_length=32_768,
+                max_output_tokens=4_096,
+            ),
+        )
         ```
 
         Configuring an OpenAI model with profiles:
@@ -537,8 +557,12 @@ class OpenAILanguageModel(BaseModel):
         ```
     """
 
-    model_name: OpenAILanguageModelName = Field(
-        ..., description="The name of the OpenAI model to use"
+    model_name: Union[OpenAILanguageModelName, str] = Field(
+        ...,
+        description=(
+            "The name of the OpenAI model to use. Names outside the OpenAI catalog require "
+            "`base_url` and `model_parameters`."
+        ),
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
@@ -546,12 +570,102 @@ class OpenAILanguageModel(BaseModel):
         default=None,
         description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
     )
+    model_parameters: Optional[ModelParameters] = Field(
+        default=None,
+        description=(
+            "Parameters for a model that is not in the OpenAI catalog. Required for such "
+            "models, and only valid together with `base_url`."
+        ),
+    )
     profiles: Optional[dict[str, Profile]] = Field(
         default=None, description=profiles_desc
     )
     default_profile: Optional[str] = Field(
         default=None, description=default_profiles_desc
     )
+
+    @model_validator(mode="after")
+    def register_model_parameters(self) -> OpenAILanguageModel:
+        """Registers an out-of-catalog model so the rest of fenic can price and batch it.
+
+        Returns:
+            The validated OpenAILanguageModel instance.
+
+        Raises:
+            ConfigurationError: If `model_parameters` is set without `base_url`, or if the
+                model name is outside the OpenAI catalog and `model_parameters` is missing.
+        """
+        _register_openai_compatible_model(
+            model_name=self.model_name,
+            base_url=self.base_url,
+            model_parameters=self.model_parameters,
+            catalog_lookup=model_catalog.get_completion_model_parameters,
+            unsupported_model_error=model_catalog.generate_unsupported_completion_model_error_message,
+            config_class_name="OpenAILanguageModel",
+        )
+        return self
+
+    class ModelParameters(BaseModel):
+        """Parameters for an OpenAI-compatible completion model outside the OpenAI catalog.
+
+        fenic uses these to size batches, cap output tokens, and report cost. Self-hosted
+        endpoints usually have no per-token price, so the cost fields default to zero.
+
+        Attributes:
+            context_window_length: Maximum number of tokens in the model's context window.
+            max_output_tokens: Maximum number of tokens the model can generate per request.
+            input_token_cost: Cost per input token in USD. Defaults to 0.0.
+            output_token_cost: Cost per output token in USD. Defaults to 0.0.
+            cached_input_token_read_cost: Cost per cached input token read in USD. Defaults to 0.0.
+            supports_custom_temperature: Whether the model accepts a custom `temperature`.
+
+        Example:
+            Describing a self-hosted model with a 32k context window:
+
+            ```python
+            parameters = OpenAILanguageModel.ModelParameters(
+                context_window_length=32_768, max_output_tokens=4_096
+            )
+            ```
+        """
+
+        model_config = ConfigDict(extra="forbid")
+
+        context_window_length: int = Field(
+            ..., gt=0, description="Maximum number of tokens in the context window"
+        )
+        max_output_tokens: int = Field(
+            ...,
+            gt=0,
+            description="Maximum number of tokens the model can generate in a single request",
+        )
+        input_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per input token in USD"
+        )
+        output_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per output token in USD"
+        )
+        cached_input_token_read_cost: float = Field(
+            default=0.0, ge=0, description="Cost per cached input token read in USD"
+        )
+        supports_custom_temperature: bool = Field(
+            default=True, description="Whether the model supports a custom temperature"
+        )
+
+        def to_catalog_parameters(self) -> CompletionModelParameters:
+            """Converts this configuration into catalog completion parameters.
+
+            Returns:
+                The equivalent CompletionModelParameters.
+            """
+            return CompletionModelParameters(
+                input_token_cost=self.input_token_cost,
+                output_token_cost=self.output_token_cost,
+                cached_input_token_read_cost=self.cached_input_token_read_cost,
+                context_window_length=self.context_window_length,
+                max_output_tokens=self.max_output_tokens,
+                supports_custom_temperature=self.supports_custom_temperature,
+            )
 
     class Profile(BaseModel):
         """OpenAI-specific profile configurations.
@@ -602,9 +716,15 @@ class OpenAIEmbeddingModel(BaseModel):
     including model selection and rate limiting parameters.
 
     Attributes:
-        model_name: The name of the OpenAI embedding model to use.
+        model_name: The name of the OpenAI embedding model to use. Model names outside the
+            OpenAI catalog are accepted when `base_url` and `model_parameters` are both set,
+            which is how OpenAI-compatible endpoints (vLLM, LiteLLM, Ollama, and similar)
+            are targeted.
         rpm: Requests per minute limit; must be greater than 0.
         tpm: Tokens per minute limit; must be greater than 0.
+        base_url: Optional custom base URL for the OpenAI API.
+        model_parameters: Parameters describing a model that is not in the OpenAI catalog.
+            Required for such models, and only valid together with `base_url`.
 
     Example:
         Configuring an OpenAI embedding model with rate limits:
@@ -614,10 +734,28 @@ class OpenAIEmbeddingModel(BaseModel):
             model_name="text-embedding-3-small", rpm=100, tpm=100
         )
         ```
+
+        Configuring a self-hosted, OpenAI-compatible endpoint:
+
+        ```python
+        config = OpenAIEmbeddingModel(
+            model_name="my-local-embeddings",
+            rpm=100,
+            tpm=100_000,
+            base_url="http://localhost:8000/v1",
+            model_parameters=OpenAIEmbeddingModel.ModelParameters(
+                output_dimensions=768, max_input_size=512
+            ),
+        )
+        ```
     """
 
-    model_name: OpenAIEmbeddingModelName = Field(
-        ..., description="The name of the OpenAI embedding model to use"
+    model_name: Union[OpenAIEmbeddingModelName, str] = Field(
+        ...,
+        description=(
+            "The name of the OpenAI embedding model to use. Names outside the OpenAI catalog "
+            "require `base_url` and `model_parameters`."
+        ),
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
@@ -625,6 +763,109 @@ class OpenAIEmbeddingModel(BaseModel):
         default=None,
         description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
     )
+    model_parameters: Optional[ModelParameters] = Field(
+        default=None,
+        description=(
+            "Parameters for a model that is not in the OpenAI catalog. Required for such "
+            "models, and only valid together with `base_url`."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def register_model_parameters(self) -> OpenAIEmbeddingModel:
+        """Registers an out-of-catalog model so the rest of fenic can size and price it.
+
+        Returns:
+            The validated OpenAIEmbeddingModel instance.
+
+        Raises:
+            ConfigurationError: If `model_parameters` is set without `base_url`, or if the
+                model name is outside the OpenAI catalog and `model_parameters` is missing.
+        """
+        _register_openai_compatible_model(
+            model_name=self.model_name,
+            base_url=self.base_url,
+            model_parameters=self.model_parameters,
+            catalog_lookup=model_catalog.get_embedding_model_parameters,
+            unsupported_model_error=model_catalog.generate_unsupported_embedding_model_error_message,
+            config_class_name="OpenAIEmbeddingModel",
+        )
+        return self
+
+    class ModelParameters(BaseModel):
+        """Parameters for an OpenAI-compatible embedding model outside the OpenAI catalog.
+
+        fenic uses these to size batches and report cost. Self-hosted endpoints usually have
+        no per-token price, so the cost field defaults to zero.
+
+        Attributes:
+            output_dimensions: The dimensionality the model emits. Pass a list when the
+                endpoint supports several, in which case the last entry is the default.
+            max_input_size: Maximum number of tokens accepted in a single input string.
+            input_token_cost: Cost per input token in USD. Defaults to 0.0.
+
+        Example:
+            Describing a self-hosted 768-dimension embedding model:
+
+            ```python
+            parameters = OpenAIEmbeddingModel.ModelParameters(
+                output_dimensions=768, max_input_size=512
+            )
+            ```
+        """
+
+        model_config = ConfigDict(extra="forbid")
+
+        output_dimensions: Union[int, list[int]] = Field(
+            ..., description="The output dimensionality, or the list of supported options"
+        )
+        max_input_size: int = Field(
+            ...,
+            gt=0,
+            description="Maximum number of tokens accepted in a single input string",
+        )
+        input_token_cost: float = Field(
+            default=0.0, ge=0, description="Cost per input token in USD"
+        )
+
+        @field_validator("output_dimensions")
+        @classmethod
+        def validate_output_dimensions(
+            cls, output_dimensions: Union[int, list[int]]
+        ) -> Union[int, list[int]]:
+            """Validates that every declared output dimension is positive.
+
+            Args:
+                output_dimensions: The dimensionality, or the list of supported options.
+
+            Returns:
+                The validated output dimensions.
+
+            Raises:
+                ValueError: If a dimension is not positive, or if an empty list is given.
+            """
+            dimensions = (
+                output_dimensions
+                if isinstance(output_dimensions, list)
+                else [output_dimensions]
+            )
+            if not dimensions:
+                raise ValueError("output_dimensions must not be empty")
+            if any(dimension <= 0 for dimension in dimensions):
+                raise ValueError("output_dimensions must be positive")
+            return output_dimensions
+
+        def to_catalog_parameters(self) -> EmbeddingModelParameters:
+            """Converts this configuration into catalog embedding parameters.
+
+            Returns:
+                The equivalent EmbeddingModelParameters.
+            """
+            return EmbeddingModelParameters(
+                input_token_cost=self.input_token_cost,
+                allowed_output_dimensions=self.output_dimensions,
+                max_input_size=self.max_input_size,
+            )
 
 
 class AnthropicLanguageModel(BaseModel):
@@ -1902,6 +2143,60 @@ def _validate_embedding_profile(
             f"Requested dimensionality: {profile.output_dimensionality}. "
             f"Available Options: {embedding_model_parameters.get_possible_dimensions()}"
         )
+
+
+def _register_openai_compatible_model(
+    model_name: str,
+    base_url: Optional[str],
+    model_parameters: Optional[
+        Union[OpenAILanguageModel.ModelParameters, OpenAIEmbeddingModel.ModelParameters]
+    ],
+    catalog_lookup: Callable[
+        [ModelProvider, str],
+        Optional[Union[CompletionModelParameters, EmbeddingModelParameters]],
+    ],
+    unsupported_model_error: Callable[[ModelProvider, str], str],
+    config_class_name: str,
+) -> None:
+    """Add a user-declared, OpenAI-compatible model to the catalog under the OpenAI provider.
+
+    Model names in the OpenAI catalog are left untouched. Names outside it are only accepted
+    when the user has both pointed the config at their own endpoint and described the model,
+    because fenic needs the context window and output limit to batch requests.
+
+    Args:
+        model_name: The configured model name.
+        base_url: The configured custom base URL, if any.
+        model_parameters: The user-declared parameters, if any.
+        catalog_lookup: Catalog accessor for the relevant model kind.
+        unsupported_model_error: Builds the error message listing supported models.
+        config_class_name: The config class name, used in error messages.
+
+    Raises:
+        ConfigurationError: If `model_parameters` is set without `base_url`, or if the model
+            name is outside the OpenAI catalog and `model_parameters` is missing.
+    """
+    if model_parameters is not None and base_url is None:
+        raise ConfigurationError(
+            f"{config_class_name} 'model_parameters' requires 'base_url'. Set 'base_url' to "
+            f"the OpenAI-compatible endpoint serving '{model_name}', or remove "
+            f"'model_parameters' to use a model from the OpenAI catalog."
+        )
+
+    if catalog_lookup(ModelProvider.OPENAI, model_name) is not None:
+        # Already known: either an OpenAI catalog model or one registered by an earlier config.
+        return
+
+    if model_parameters is None:
+        raise ConfigurationError(
+            f"{unsupported_model_error(ModelProvider.OPENAI, model_name)} To use a model served "
+            f"by an OpenAI-compatible endpoint, set both 'base_url' and 'model_parameters' on "
+            f"{config_class_name}."
+        )
+
+    model_catalog.add_model(
+        ModelProvider.OPENAI, model_name, model_parameters.to_catalog_parameters()
+    )
 
 
 def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProvider:
