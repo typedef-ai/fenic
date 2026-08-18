@@ -6,6 +6,26 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+## [0.13.0](https://github.com/typedef-ai/fenic/compare/v0.12.0...v0.13.0) (2026-08-18)
+
+
+### Features
+
+* add Gemini 3.7 Flash support ([#370](https://github.com/typedef-ai/fenic/issues/370)) ([9382820](https://github.com/typedef-ai/fenic/commit/93828206c0dd5c7a0c47dde03e13ffd14c4722c3))
+* remove retired Claude Opus 4.1 ([#371](https://github.com/typedef-ai/fenic/issues/371)) ([8224ff9](https://github.com/typedef-ai/fenic/commit/8224ff9b98d6f98c4929326133d34dac9d3932fa))
+* support Python 3.13 and 3.14 ([#357](https://github.com/typedef-ai/fenic/issues/357)) ([55a3e91](https://github.com/typedef-ai/fenic/commit/55a3e91ef6d0c50486b5275839a7f046361edc90))
+
+
+### Bug Fixes
+
+* **ci:** avoid Lob false positives in pytest names ([#362](https://github.com/typedef-ai/fenic/issues/362)) ([e619187](https://github.com/typedef-ai/fenic/commit/e619187ff1eedccc668a510e34c7a88084affb67))
+* **inference:** handle nullable usage detail tokens ([#380](https://github.com/typedef-ai/fenic/issues/380)) ([bdbf633](https://github.com/typedef-ai/fenic/commit/bdbf6330967fbcc18d37461e75cd59297402c0ce))
+
+
+### Performance Improvements
+
+* **local:** avoid redundant DataFrame work and bound sim-join memory ([#361](https://github.com/typedef-ai/fenic/issues/361)) ([2c3adc5](https://github.com/typedef-ai/fenic/commit/2c3adc5c1d4ea6ce0060eca89904a41bf502139f))
+
 ## [0.12.0](https://github.com/typedef-ai/fenic/compare/v0.11.0...v0.12.0) (2026-07-29)
 
 
