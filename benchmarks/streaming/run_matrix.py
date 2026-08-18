@@ -13,7 +13,7 @@ import socket
 import subprocess  # nosec B404 - fixed argv only; shell execution is never enabled
 import uuid
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -126,7 +126,7 @@ def plan_document(
         "matrix_sha256": file_sha256(matrix_path),
         "schema_sha256": file_sha256(Path(__file__).with_name("matrix.schema.json")),
         "harness_sha256": harness_sha256(),
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "checkouts": checkouts,
         "environment": environment_metadata(),
         "limits": as_jsonable(matrix.limits),
@@ -337,7 +337,7 @@ def write_summary(output: Path, receipts: list[dict[str, Any]]) -> list[dict[str
     write_json(
         output / "summary.json",
         {
-            "generated_at": datetime.now(UTC).isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "provider_calls": 0,
             "measurement_availability": note,
             "cells": summaries,

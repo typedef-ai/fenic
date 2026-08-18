@@ -8,7 +8,7 @@ import json
 import socket
 import statistics
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -418,7 +418,7 @@ def environment_metadata() -> dict[str, Any]:
         "host": socket.gethostname(),
         "platform": __import__("platform").platform(),
         "python": __import__("platform").python_version(),
-        "captured_at": datetime.now(UTC).isoformat(),
+        "captured_at": datetime.now(timezone.utc).isoformat(),
     }
 
 

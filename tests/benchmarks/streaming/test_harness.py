@@ -29,6 +29,11 @@ ROOT = Path(__file__).parents[3]
 MATRIX_PATH = ROOT / "benchmarks/streaming/matrices/streaming-v1.json"
 
 
+def test_benchmark_package_imports() -> None:
+    assert run_case.__name__ == "benchmarks.streaming.run_case"
+    assert run_matrix.__name__ == "benchmarks.streaming.run_matrix"
+
+
 def test_matrix_is_provider_free_and_uses_binding_adapter_geometry() -> None:
     matrix = load_matrix(MATRIX_PATH)
     cells = expand_cells(matrix)
