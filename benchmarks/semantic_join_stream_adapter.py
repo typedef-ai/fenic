@@ -200,7 +200,8 @@ def workload_geometry(workload: Workload) -> dict[str, Any]:
         model = LanguageModel(client)
         join = _join(model, workload)
         documents = join._join_documents()
-        assert documents is not None
+        if documents is None:
+            raise AssertionError("benchmark workload unexpectedly has an empty side")
         left_documents, right_documents = documents
         pair_blocks = list(join._iter_join_pair_blocks(left_documents, right_documents))
         token_blocks = [
@@ -265,9 +266,20 @@ def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, A
                 max_live_requests = max(max_live_requests, live_requests)
             elif event.event in {"settled", "failed"}:
                 live_requests -= 1
-        assert len(result) == workload.expected_requests
-        assert metrics.num_requests == workload.expected_requests
-        assert live_requests == 0
+        if len(result) != workload.expected_requests:
+            raise AssertionError(
+                "benchmark result-count mismatch: "
+                f"expected={workload.expected_requests}, actual={len(result)}"
+            )
+        if metrics.num_requests != workload.expected_requests:
+            raise AssertionError(
+                "benchmark request-count mismatch: "
+                f"expected={workload.expected_requests}, actual={metrics.num_requests}"
+            )
+        if live_requests != 0:
+            raise AssertionError(
+                f"benchmark completed with {live_requests} unsettled requests"
+            )
         return {
             "arm": "streaming" if streaming else "standard",
             "repetition": repetition,
