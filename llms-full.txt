@@ -53,7 +53,7 @@ For self-hosting, see the [docs-server example](https://github.com/typedef-ai/fe
 
 ## Install
 
-fenic supports Python `[3.10, 3.11, 3.12]`
+fenic supports Python `[3.10, 3.11, 3.12, 3.13, 3.14]`
 
 ```
 pip install fenic
@@ -421,6 +421,17 @@ uv run --env-file .env python tools/package_size_matrix.py \
 ## ✅ Running Tests
 
 ### Python Tests
+
+### CI matrix
+
+Pull requests run local tests on the supported Python boundaries: 3.10 and
+3.14. Add the `ci:full-matrix` label when a change needs the complete Python
+3.10 through 3.14 matrix, dependency-resolution variants, and cloud coverage.
+
+The full matrix also runs on the daily schedule. Merge-queue checks use the
+boundary matrix so that queue latency stays bounded. Intermediate Python
+versions are covered before merge when a pull request carries the label, and
+on the scheduled full-matrix run.
 
 Run a specific test file:
 
@@ -2273,11 +2284,18 @@ provider — the `embedding_model` on the type is metadata.)
 
 ## Relationship to Schema-Free Ingestion
 
-The no-schema path is unchanged and fully behavior-compatible:
+The no-schema path retains its existing schema semantics:
 
 - Empty lists are still rejected.
 - Types are still inferred from the data.
 - Fixed-size arrays are still normalized to `pl.List`.
+
+Its object-identity behavior differs for schema-free Polars inputs: when the
+input already has Fenic-compatible physical dtypes, local execution can retain
+and return the same Polars frame instead of copying it. If ingestion must
+normalize an array, timestamp, or nested dtype, it materializes a new frame.
+Supplying an explicit schema also applies its authoritative ordering and casts,
+so it does not use this schema-free pass-through path.
 
 Only supplying a `schema` opts you into authoritative names, ordering, coercion,
 and logical-type/embedding preservation. For related ingestion-normalization
@@ -3266,9 +3284,12 @@ Both types and related functionality follow similar patterns to PySpark, except 
 ## Key Features
 
 - **Microsecond precision**: Timestamps support up to 1/1,000,000 second precision
-- **UTC-first design**: All timestamps are normalized to UTC during ingestion
+- **UTC-first design**: Timestamps that need conversion are normalized to UTC
+  during ingestion; already canonical UTC Polars columns can pass through
+  unchanged
 - **Automatic timezone conversion**: Timezone-aware inputs are converted to UTC automatically
-- **Consistent behavior**: Same behavior across all data sources (Parquet, CSV, in-memory DataFrames, tables)
+- **Consistent values**: All data sources expose the same UTC timestamp
+  semantics, although their materialization and copy behavior can differ
 - **Rich date/time functions**: Comprehensive set of functions for temporal operations
 - **Timezone conversion utilities**: Functions to work with local timezones while maintaining UTC storage
 
@@ -3444,7 +3465,10 @@ The same behavior applies to:
 
 - **Parquet files**: Timestamps stored with timezone metadata, automatically converted to UTC on read
 - **Fenic tables** (DuckDB): DuckDB session timezone is always UTC, ensuring consistency
-- **In-memory DataFrames**: Polars DataFrames with timezone-aware or naive timestamps are normalized to UTC
+- **In-memory DataFrames**: Polars DataFrames with timezone-aware or naive
+  timestamps are normalized to UTC when needed. An already canonical
+  `Datetime("us", "UTC")` column can pass through without copying the input
+  frame.
 
 ### SQL Queries
 
@@ -3493,6 +3517,12 @@ This behavior ensures:
 ### Timezone Conversion During Ingestion
 
 Fenic automatically handles different timezone inputs:
+
+For a schema-free in-memory Polars DataFrame that already uses Fenic's canonical
+microsecond UTC dtype, ingestion does not perform a conversion and local
+collection may alias the original frame. Naive timestamps, non-UTC timestamps,
+or non-microsecond precision still require normalization and produce a new
+frame.
 
 ```
 import datetime
@@ -9261,7 +9291,9 @@ Returns:
 - **`QueryResult`** ( `QueryResult`
   ) –
 
-  A QueryResult with materialized data and query metrics
+  A QueryResult with materialized data and query metrics.
+  For `data_type="polars"`, a no-op local plan may return a frame
+  that aliases its in-memory Polars input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -9277,7 +9309,9 @@ def collect(self, data_type: DataLikeType = "polars") -> QueryResult:
         data_type: The type of data to return
 
     Returns:
-        QueryResult: A QueryResult with materialized data and query metrics
+        QueryResult: A QueryResult with materialized data and query metrics.
+            For ``data_type="polars"``, a no-op local plan may return a frame
+            that aliases its in-memory Polars input rather than copying it.
     """
     result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
     df, metrics = result
@@ -11697,7 +11731,9 @@ Returns:
 - `DataFrame`
   –
 
-  pl.DataFrame: A Polars DataFrame with materialized results
+  pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+  local plan may return a frame that aliases its in-memory Polars
+  input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -11710,7 +11746,9 @@ def to_polars(self) -> pl.DataFrame:
     materialized into a Polars DataFrame.
 
     Returns:
-        pl.DataFrame: A Polars DataFrame with materialized results
+        pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+            local plan may return a frame that aliases its in-memory Polars
+            input rather than copying it.
     """
     return self.collect("polars").data
 ```
@@ -18471,7 +18509,15 @@ Returns:
 - `DataFrame`
   –
 
-  A new DataFrame instance
+  A DataFrame instance. With schema-free Polars input, local execution
+- `DataFrame`
+  –
+
+  passes through the input frame when no ingestion coercion is needed,
+- `DataFrame`
+  –
+
+  so collected Polars results may alias it rather than copy it.
 
 Raises:
 
@@ -18563,7 +18609,9 @@ def create_dataframe(
             embedding arrays through local and cloud execution.
 
     Returns:
-        A new DataFrame instance
+        A DataFrame instance. With schema-free Polars input, local execution
+        passes through the input frame when no ingestion coercion is needed,
+        so collected Polars results may alias it rather than copy it.
 
     Raises:
         ValidationError: If the input format is unsupported or the provided
@@ -26833,7 +26881,9 @@ Returns:
 - **`QueryResult`** ( `QueryResult`
   ) –
 
-  A QueryResult with materialized data and query metrics
+  A QueryResult with materialized data and query metrics.
+  For `data_type="polars"`, a no-op local plan may return a frame
+  that aliases its in-memory Polars input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -26849,7 +26899,9 @@ def collect(self, data_type: DataLikeType = "polars") -> QueryResult:
         data_type: The type of data to return
 
     Returns:
-        QueryResult: A QueryResult with materialized data and query metrics
+        QueryResult: A QueryResult with materialized data and query metrics.
+            For ``data_type="polars"``, a no-op local plan may return a frame
+            that aliases its in-memory Polars input rather than copying it.
     """
     result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
     df, metrics = result
@@ -29269,7 +29321,9 @@ Returns:
 - `DataFrame`
   –
 
-  pl.DataFrame: A Polars DataFrame with materialized results
+  pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+  local plan may return a frame that aliases its in-memory Polars
+  input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -29282,7 +29336,9 @@ def to_polars(self) -> pl.DataFrame:
     materialized into a Polars DataFrame.
 
     Returns:
-        pl.DataFrame: A Polars DataFrame with materialized results
+        pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+            local plan may return a frame that aliases its in-memory Polars
+            input rather than copying it.
     """
     return self.collect("polars").data
 ```
@@ -34797,7 +34853,15 @@ Returns:
 - `DataFrame`
   –
 
-  A new DataFrame instance
+  A DataFrame instance. With schema-free Polars input, local execution
+- `DataFrame`
+  –
+
+  passes through the input frame when no ingestion coercion is needed,
+- `DataFrame`
+  –
+
+  so collected Polars results may alias it rather than copy it.
 
 Raises:
 
@@ -34889,7 +34953,9 @@ def create_dataframe(
             embedding arrays through local and cloud execution.
 
     Returns:
-        A new DataFrame instance
+        A DataFrame instance. With schema-free Polars input, local execution
+        passes through the input frame when no ingestion coercion is needed,
+        so collected Polars results may alias it rather than copy it.
 
     Raises:
         ValidationError: If the input format is unsupported or the provided
@@ -42404,7 +42470,9 @@ Returns:
 - **`QueryResult`** ( `QueryResult`
   ) –
 
-  A QueryResult with materialized data and query metrics
+  A QueryResult with materialized data and query metrics.
+  For `data_type="polars"`, a no-op local plan may return a frame
+  that aliases its in-memory Polars input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -42420,7 +42488,9 @@ def collect(self, data_type: DataLikeType = "polars") -> QueryResult:
         data_type: The type of data to return
 
     Returns:
-        QueryResult: A QueryResult with materialized data and query metrics
+        QueryResult: A QueryResult with materialized data and query metrics.
+            For ``data_type="polars"``, a no-op local plan may return a frame
+            that aliases its in-memory Polars input rather than copying it.
     """
     result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
     df, metrics = result
@@ -44840,7 +44910,9 @@ Returns:
 - `DataFrame`
   –
 
-  pl.DataFrame: A Polars DataFrame with materialized results
+  pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+  local plan may return a frame that aliases its in-memory Polars
+  input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -44853,7 +44925,9 @@ def to_polars(self) -> pl.DataFrame:
     materialized into a Polars DataFrame.
 
     Returns:
-        pl.DataFrame: A Polars DataFrame with materialized results
+        pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+            local plan may return a frame that aliases its in-memory Polars
+            input rather than copying it.
     """
     return self.collect("polars").data
 ```
@@ -47554,7 +47628,9 @@ Returns:
 - **`QueryResult`** ( `QueryResult`
   ) –
 
-  A QueryResult with materialized data and query metrics
+  A QueryResult with materialized data and query metrics.
+  For `data_type="polars"`, a no-op local plan may return a frame
+  that aliases its in-memory Polars input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -47570,7 +47646,9 @@ def collect(self, data_type: DataLikeType = "polars") -> QueryResult:
         data_type: The type of data to return
 
     Returns:
-        QueryResult: A QueryResult with materialized data and query metrics
+        QueryResult: A QueryResult with materialized data and query metrics.
+            For ``data_type="polars"``, a no-op local plan may return a frame
+            that aliases its in-memory Polars input rather than copying it.
     """
     result: Tuple[pl.DataFrame, QueryMetrics] = self._session_state.execution.collect(self._logical_plan)
     df, metrics = result
@@ -49990,7 +50068,9 @@ Returns:
 - `DataFrame`
   –
 
-  pl.DataFrame: A Polars DataFrame with materialized results
+  pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+  local plan may return a frame that aliases its in-memory Polars
+  input rather than copying it.
 
 Source code in `src/fenic/api/dataframe/dataframe.py`
 
@@ -50003,7 +50083,9 @@ def to_polars(self) -> pl.DataFrame:
     materialized into a Polars DataFrame.
 
     Returns:
-        pl.DataFrame: A Polars DataFrame with materialized results
+        pl.DataFrame: A Polars DataFrame with materialized results. A no-op
+            local plan may return a frame that aliases its in-memory Polars
+            input rather than copying it.
     """
     return self.collect("polars").data
 ```
@@ -72886,7 +72968,15 @@ Returns:
 - `DataFrame`
   –
 
-  A new DataFrame instance
+  A DataFrame instance. With schema-free Polars input, local execution
+- `DataFrame`
+  –
+
+  passes through the input frame when no ingestion coercion is needed,
+- `DataFrame`
+  –
+
+  so collected Polars results may alias it rather than copy it.
 
 Raises:
 
@@ -72978,7 +73068,9 @@ def create_dataframe(
             embedding arrays through local and cloud execution.
 
     Returns:
-        A new DataFrame instance
+        A DataFrame instance. With schema-free Polars input, local execution
+        passes through the input frame when no ingestion coercion is needed,
+        so collected Polars results may alias it rather than copy it.
 
     Raises:
         ValidationError: If the input format is unsupported or the provided
@@ -75781,7 +75873,15 @@ Returns:
 - `DataFrame`
   –
 
-  A new DataFrame instance
+  A DataFrame instance. With schema-free Polars input, local execution
+- `DataFrame`
+  –
+
+  passes through the input frame when no ingestion coercion is needed,
+- `DataFrame`
+  –
+
+  so collected Polars results may alias it rather than copy it.
 
 Raises:
 
@@ -75873,7 +75973,9 @@ def create_dataframe(
             embedding arrays through local and cloud execution.
 
     Returns:
-        A new DataFrame instance
+        A DataFrame instance. With schema-free Polars input, local execution
+        passes through the input frame when no ingestion coercion is needed,
+        so collected Polars results may alias it rather than copy it.
 
     Raises:
         ValidationError: If the input format is unsupported or the provided
