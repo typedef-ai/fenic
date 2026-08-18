@@ -31,8 +31,9 @@ from fenic import (
     StructField,
     StructType,
     col,
+    semantic,
 )
-from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from fenic.core._logical_plan.plans import InMemorySource
 from fenic.core.error import ConfigurationError, PlanError
 from fenic.core.error import ValidationError as FenicValidationError
@@ -1208,3 +1209,190 @@ def test_base_url_preserved_in_multi_model_config():
     direct_config = resolved.semantic.language_models.model_configs["gpt-direct"]
     assert proxy_config.base_url == "https://proxy.example.com/v1"
     assert direct_config.base_url is None
+
+
+# --- OpenAI-compatible endpoint tests ---
+#
+# The model catalog is process-wide, so each test below uses a distinct model name to stay
+# independent of the others.
+
+
+def test_openai_language_model_accepts_custom_model_with_base_url():
+    """Test that a model outside the OpenAI catalog is accepted with base_url and model_parameters."""
+    config = SessionConfig(
+        app_name="test_openai_compatible_language_model",
+        semantic=SemanticConfig(
+            language_models={
+                "local": OpenAILanguageModel(
+                    model_name="test-compatible-completions",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://my-endpoint.example.com/v1",
+                    model_parameters=OpenAILanguageModel.ModelParameters(
+                        context_window_length=32768,
+                        max_output_tokens=4096,
+                    ),
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.language_models.model_configs["local"]
+    assert model_config.model_name == "test-compatible-completions"
+    assert model_config.base_url == "https://my-endpoint.example.com/v1"
+
+    catalog_parameters = model_catalog.get_completion_model_parameters(
+        ModelProvider.OPENAI, "test-compatible-completions"
+    )
+    assert catalog_parameters is not None
+    assert catalog_parameters.context_window_length == 32768
+    assert catalog_parameters.max_output_tokens == 4096
+    assert catalog_parameters.input_token_cost == 0.0
+    assert catalog_parameters.output_token_cost == 0.0
+
+
+def test_openai_language_model_custom_model_costs_are_declared():
+    """Test that declared token costs are used for a model outside the OpenAI catalog."""
+    OpenAILanguageModel(
+        model_name="test-compatible-priced",
+        rpm=100,
+        tpm=100,
+        base_url="https://my-endpoint.example.com/v1",
+        model_parameters=OpenAILanguageModel.ModelParameters(
+            context_window_length=8192,
+            max_output_tokens=1024,
+            input_token_cost=2e-7,
+            output_token_cost=8e-7,
+        ),
+    )
+    cost = model_catalog.calculate_completion_model_cost(
+        model_provider=ModelProvider.OPENAI,
+        model_name="test-compatible-priced",
+        uncached_input_tokens=1000,
+        cached_input_tokens_read=0,
+        output_tokens=1000,
+    )
+    assert cost == pytest.approx(1e-3)
+
+
+def test_openai_language_model_custom_model_requires_model_parameters():
+    """Test that a model outside the OpenAI catalog is rejected without model_parameters."""
+    with pytest.raises(ConfigurationError, match="is not supported for openai"):
+        OpenAILanguageModel(
+            model_name="test-compatible-undeclared",
+            rpm=100,
+            tpm=100,
+            base_url="https://my-endpoint.example.com/v1",
+        )
+
+
+def test_openai_language_model_model_parameters_requires_base_url():
+    """Test that model_parameters without base_url is rejected."""
+    with pytest.raises(ConfigurationError, match="requires 'base_url'"):
+        OpenAILanguageModel(
+            model_name="test-compatible-no-base-url",
+            rpm=100,
+            tpm=100,
+            model_parameters=OpenAILanguageModel.ModelParameters(
+                context_window_length=32768,
+                max_output_tokens=4096,
+            ),
+        )
+
+
+def test_openai_language_model_unknown_model_name_still_rejected():
+    """Test that an unrecognized model name is still rejected when no endpoint is configured."""
+    with pytest.raises(ConfigurationError, match="is not supported for openai"):
+        OpenAILanguageModel(model_name="gpt-4.1-nanoo", rpm=100, tpm=100)
+
+
+def test_openai_embedding_model_accepts_custom_model_with_base_url():
+    """Test that an embedding model outside the OpenAI catalog is accepted with base_url."""
+    config = SessionConfig(
+        app_name="test_openai_compatible_embedding_model",
+        semantic=SemanticConfig(
+            embedding_models={
+                "local": OpenAIEmbeddingModel(
+                    model_name="test-compatible-embeddings",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://my-endpoint.example.com/v1",
+                    model_parameters=OpenAIEmbeddingModel.ModelParameters(
+                        output_dimensions=768,
+                        max_input_size=512,
+                    ),
+                )
+            }
+        ),
+    )
+    resolved = config._to_resolved_config()
+    model_config = resolved.semantic.embedding_models.model_configs["local"]
+    assert model_config.model_name == "test-compatible-embeddings"
+    assert model_config.base_url == "https://my-endpoint.example.com/v1"
+
+    catalog_parameters = model_catalog.get_embedding_model_parameters(
+        ModelProvider.OPENAI, "test-compatible-embeddings"
+    )
+    assert catalog_parameters is not None
+    assert catalog_parameters.default_dimensions == 768
+    assert catalog_parameters.max_input_size == 512
+    assert catalog_parameters.input_token_cost == 0.0
+
+
+def test_openai_embedding_model_custom_model_requires_model_parameters():
+    """Test that an embedding model outside the OpenAI catalog needs model_parameters."""
+    with pytest.raises(ConfigurationError, match="is not supported for openai"):
+        OpenAIEmbeddingModel(
+            model_name="test-compatible-embeddings-undeclared",
+            rpm=100,
+            tpm=100,
+            base_url="https://my-endpoint.example.com/v1",
+        )
+
+
+def test_openai_embedding_model_custom_model_rejects_invalid_dimensions():
+    """Test that non-positive embedding output dimensions are rejected."""
+    with pytest.raises(PydanticValidationError, match="output_dimensions must be positive"):
+        OpenAIEmbeddingModel.ModelParameters(output_dimensions=0, max_input_size=512)
+
+
+def test_openai_compatible_model_enforces_declared_output_token_limit():
+    """Test that a declared max_output_tokens is enforced for an out-of-catalog model.
+
+    Also covers the case that matters for a self-hosted endpoint: because base_url is set,
+    the session is built without reaching the endpoint, so this needs no reachable server.
+    """
+    config = SessionConfig(
+        app_name="test_openai_compatible_output_limit",
+        semantic=SemanticConfig(
+            language_models={
+                "local": OpenAILanguageModel(
+                    model_name="test-compatible-output-limit",
+                    rpm=100,
+                    tpm=100,
+                    base_url="https://my-endpoint.example.com/v1",
+                    model_parameters=OpenAILanguageModel.ModelParameters(
+                        context_window_length=8192,
+                        max_output_tokens=512,
+                    ),
+                )
+            }
+        ),
+    )
+    session = Session.get_or_create(config)
+    try:
+        source = session.create_dataframe({"city": ["Paris"]})
+        with pytest.raises(
+            FenicValidationError,
+            match="max_output_tokens must be a positive integer less than or equal to 512",
+        ):
+            source.select(
+                col("city"),
+                semantic.map(
+                    "What is the typical weather in {{city}} in summer?",
+                    city=col("city"),
+                    max_output_tokens=1024,
+                ).alias("weather"),
+            ).to_polars()
+    finally:
+        session.stop()
