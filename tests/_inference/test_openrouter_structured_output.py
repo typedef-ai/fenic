@@ -2,6 +2,8 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from openai.types import CompletionUsage
+from openai.types.completion_usage import CompletionTokensDetails, PromptTokensDetails
 from pydantic import BaseModel
 
 from fenic._inference.model_client import FatalException, TransientException
@@ -84,6 +86,26 @@ def _response(*, content=None, tool_calls=None):
             model_extra={"cost": 0.0},
         ),
     )
+
+
+def test_usage_detail_fields_none_are_treated_as_zero():
+    response = _response(content='{"answer":true}')
+    response.usage = CompletionUsage(
+        prompt_tokens=2,
+        prompt_tokens_details=PromptTokensDetails(cached_tokens=None),
+        completion_tokens=3,
+        completion_tokens_details=CompletionTokensDetails(reasoning_tokens=None),
+        total_tokens=5,
+    )
+    client, _ = _client(
+        {"structured_outputs"}, response, model="openai/gpt-4.1-nano"
+    )
+
+    result = asyncio.run(client.make_single_request(_request()))
+
+    assert result.usage.cached_tokens == 0
+    assert result.usage.thinking_tokens == 0
+    assert result.usage.completion_tokens == 3
 
 
 def _request(*, profile=None):
