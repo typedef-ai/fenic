@@ -2,6 +2,8 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from openai.types import CompletionUsage
+from openai.types.completion_usage import CompletionTokensDetails, PromptTokensDetails
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
@@ -75,8 +77,9 @@ def test_openai_core_output_limit_uses_internal_model_identity():
 
 
 class FakeOpenAICompletions:
-    def __init__(self):
+    def __init__(self, usage=None):
         self.kwargs = None
+        self.usage = usage
 
     async def create(self, **kwargs):
         self.kwargs = kwargs
@@ -88,7 +91,8 @@ class FakeOpenAICompletions:
                     logprobs=None,
                 )
             ],
-            usage=SimpleNamespace(
+            usage=self.usage
+            or SimpleNamespace(
                 prompt_tokens=1,
                 prompt_tokens_details=None,
                 completion_tokens=1,
@@ -97,8 +101,8 @@ class FakeOpenAICompletions:
         )
 
 
-def _make_openai_core_with_fake_completions():
-    fake_completions = FakeOpenAICompletions()
+def _make_openai_core_with_fake_completions(usage=None):
+    fake_completions = FakeOpenAICompletions(usage)
     return (
         OpenAIChatCompletionsCore(
             model="gpt-4.1-nano",
@@ -111,6 +115,65 @@ def _make_openai_core_with_fake_completions():
         ),
         fake_completions,
     )
+
+
+@pytest.mark.parametrize(
+    ("reasoning_tokens", "expected_completion_tokens", "expected_thinking_tokens"),
+    [(None, 3, 0), (0, 3, 0), (2, 1, 2)],
+)
+def test_openai_core_accounts_for_optional_reasoning_tokens(
+    reasoning_tokens, expected_completion_tokens, expected_thinking_tokens
+):
+    usage = CompletionUsage(
+        prompt_tokens=1,
+        completion_tokens=3,
+        total_tokens=4,
+        completion_tokens_details=CompletionTokensDetails(
+            reasoning_tokens=reasoning_tokens
+        ),
+    )
+    core, _ = _make_openai_core_with_fake_completions(usage)
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    result = asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert result.usage.completion_tokens == expected_completion_tokens
+    assert result.usage.thinking_tokens == expected_thinking_tokens
+    assert result.usage.total_tokens == 4
+    assert core.get_metrics().num_output_tokens == 3
+
+
+def test_openai_core_accounts_for_optional_cached_tokens():
+    usage = CompletionUsage(
+        prompt_tokens=2,
+        completion_tokens=1,
+        total_tokens=3,
+        prompt_tokens_details=PromptTokensDetails(cached_tokens=None),
+    )
+    core, _ = _make_openai_core_with_fake_completions(usage)
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    result = asyncio.run(
+        core.make_single_request(request, OpenAICompletionProfileConfiguration())
+    )
+
+    assert result.usage.cached_tokens == 0
+    assert core.get_metrics().num_cached_input_tokens == 0
+    assert core.get_metrics().num_uncached_input_tokens == 2
 
 
 def test_openai_core_omits_zero_temperature():

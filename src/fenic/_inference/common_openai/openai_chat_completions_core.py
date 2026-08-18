@@ -159,7 +159,7 @@ class OpenAIChatCompletionsCore:
             usage: CompletionUsage = response.usage
 
             cached_input_tokens = (
-                usage.prompt_tokens_details.cached_tokens
+                (usage.prompt_tokens_details.cached_tokens or 0)
                 if usage.prompt_tokens_details
                 else 0
             )
@@ -168,7 +168,7 @@ class OpenAIChatCompletionsCore:
 
             # Extract reasoning (thinking) tokens if available
             reasoning_tokens = (
-                usage.completion_tokens_details.reasoning_tokens
+                (usage.completion_tokens_details.reasoning_tokens or 0)
                 if usage.completion_tokens_details
                 else 0
             )
