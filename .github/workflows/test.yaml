@@ -58,6 +58,23 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: select test scope
+        # yamllint disable-line rule:line-length
+        # GitHub withholds repository secrets from a pull_request run triggered from a
+        # fork, so the provider API keys above are empty on those runs. Tests that build
+        # a live session still work, because a placeholder key satisfies client
+        # construction (see tests/conftest.py); only tests that need a genuine response
+        # from the provider are dropped here, via the requires_provider_key marker.
+        id: scope
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && \
+                "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "is_fork=true" >> "$GITHUB_OUTPUT"
+            echo "marker_expr=not cloud and not requires_provider_key" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_fork=false" >> "$GITHUB_OUTPUT"
+            echo "marker_expr=not cloud" >> "$GITHUB_OUTPUT"
+          fi
       - name: setup just
         # yamllint disable-line rule:line-length
         uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
@@ -112,4 +129,23 @@ jobs:
       - name: run ${{ matrix.test }} tests with synced dependencies
         shell: bash
         run: |
-          just sync=false test-${{ matrix.test }} openai gpt-4.1-nano openai text-embedding-3-small
+          if [[ "${{ matrix.test }}" == "local" ]]; then
+            just sync=false test-local openai gpt-4.1-nano openai text-embedding-3-small \
+              "${{ steps.scope.outputs.marker_expr }}"
+          else
+            just sync=false test-${{ matrix.test }} openai gpt-4.1-nano openai text-embedding-3-small
+          fi
+      - name: report reduced coverage on fork PRs
+        if: always() && matrix.test == 'local' && steps.scope.outputs.is_fork == 'true'
+        shell: bash
+        run: |
+          excluded=$(uv run pytest -m "cloud or requires_provider_key" tests --collect-only -q 2>/dev/null | tail -1)
+          {
+            echo "### Fork PR: reduced test coverage"
+            echo
+            echo "GitHub does not give a fork PR's run access to this repo's provider API"
+            echo "keys, so this run skipped every test that needs a genuine response from"
+            echo "an LLM provider. Everything else ran and is a real pass/fail signal."
+            echo
+            echo "Skipped: \`${excluded}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

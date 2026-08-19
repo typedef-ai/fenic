@@ -88,6 +88,7 @@ def _response(*, content=None, tool_calls=None):
     )
 
 
+@pytest.mark.requires_provider_key
 def test_usage_detail_fields_none_are_treated_as_zero():
     response = _response(content='{"answer":true}')
     response.usage = CompletionUsage(

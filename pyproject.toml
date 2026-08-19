@@ -115,6 +115,7 @@ torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 [tool.pytest.ini_options]
 markers = [
   "cloud: marks tests that test client interactions with typedef cloud",
+  "requires_provider_key: marks tests that need a real LLM provider API key to pass, not just a session",
 ]
 
 [project.scripts]

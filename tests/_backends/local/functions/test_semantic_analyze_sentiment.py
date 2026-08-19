@@ -10,6 +10,8 @@ from fenic.api.session import (
 from fenic.core.error import ValidationError
 from fenic.core.types import ColumnField, StringType
 
+pytestmark = pytest.mark.requires_provider_key
+
 
 def test_semantic_analyze_sentiment(local_session):
     comments_data = {

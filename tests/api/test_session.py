@@ -435,6 +435,7 @@ def test_create_dataframe_unsupported_type(local_session):
         local_session.create_dataframe(42)  # int is not supported
 
 
+@pytest.mark.requires_provider_key
 def test_local_session_with_language_models_only(tmp_path):
     """Verify that a local_session is created successfully when we only supply 'language_models' in semantic_config."""
     session_config = SessionConfig(
@@ -458,6 +459,7 @@ def test_local_session_with_no_semantic_config(tmp_path):
     session.create_dataframe({"text": ["hello"]}).select((col("text")).alias("text"))
     session.stop(skip_usage_summary=True)
 
+@pytest.mark.requires_provider_key
 def test_local_session_with_embedding_models_only(tmp_path):
     """Verify that a local_session is created successfully if we supply only embedding models."""
     session_config = SessionConfig(
@@ -468,6 +470,7 @@ def test_local_session_with_embedding_models_only(tmp_path):
     session = Session.get_or_create(session_config)
     session.stop(skip_usage_summary=True)
 
+@pytest.mark.requires_provider_key
 def test_local_session_with_single_lm_no_explicit_default(tmp_path):
     """Verify that a local_session is created successfully if we supply one language model and no default."""
     session_config = SessionConfig(

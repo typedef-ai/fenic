@@ -92,6 +92,7 @@ def test_semantic_reduce_calls_model_client_completion_api(local_session, monkey
     assert "<document2>\nbeta\n</document2>" in user_message
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_reduce(local_session):
     """Test semantic.reduce() method."""
     data = {
@@ -197,6 +198,7 @@ def test_case_semantic_reduce_golden_empty_result(local_session, monkeypatch):
     }
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_reduce_with_order_by(local_session):
     """Test semantic.reduce() method."""
     data = {
@@ -285,6 +287,7 @@ def test_semantic_reduce_with_group_context_and_order_by(local_session):
     )
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_reduce_without_models(tmp_path):
     """Test semantic.reduce() method without models."""
     session_config = SessionConfig(

@@ -25,6 +25,7 @@ from fenic.core.error import ValidationError as FenicValidationError
 from fenic.core.types import ArrayType, ColumnField, StructField, StructType
 
 
+@pytest.mark.requires_provider_key
 def test_extract_primitive_types(extract_data_df):
     """Test semantic extraction with primitive types."""
     class BasicReviewModel(BaseModel):
@@ -54,6 +55,7 @@ def test_extract_primitive_types(extract_data_df):
     assert result.schema == expected_schema
     assert result["review"][0] is not None
 
+@pytest.mark.requires_provider_key
 def test_extract_lists(local_session):
     """Test extraction with complex nested Pydantic models containing lists and lists of objects."""
     class Triple(BaseModel):
@@ -95,6 +97,7 @@ def test_extract_lists(local_session):
     })})
     assert result["blurb"][0] is not None
 
+@pytest.mark.requires_provider_key
 def test_extract_nested_objects_with_optional_fields(local_session):
     class WorkExperience(BaseModel):
         company: str = Field(description="Name of the company")
@@ -165,6 +168,7 @@ def test_extract_nested_objects_with_optional_fields(local_session):
     })})
     assert result["resume"][0] is not None
 
+@pytest.mark.requires_provider_key
 def test_pydantic_model_with_literal_types(local_session):
     """Test extraction with Pydantic models containing Literal types."""
     class SentimentModel(BaseModel):
@@ -196,6 +200,7 @@ def test_pydantic_model_with_literal_types(local_session):
     })})
 
 
+@pytest.mark.requires_provider_key
 def test_null_input_handling(local_session):
     """Test how semantic extraction handles None/null inputs."""
     df = local_session.create_dataframe({
@@ -270,6 +275,7 @@ def test_extract_schema_validation_errors(extract_data_df):
         ).to_polars()
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_extract_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     class ExtractSchema(BaseModel):

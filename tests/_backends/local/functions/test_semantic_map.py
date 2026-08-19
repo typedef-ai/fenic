@@ -39,6 +39,7 @@ class PersonInfo(BaseModel):
     age: int = Field(description="Age in years")
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_map(local_session):
     source = local_session.create_dataframe({
         "user": [
@@ -80,6 +81,7 @@ def test_semantic_map(local_session):
         "plan": pl.String,
     }
 
+@pytest.mark.requires_provider_key
 def test_semantic_map_with_examples(local_session):
     source = local_session.create_dataframe({
         "user": [
@@ -136,6 +138,7 @@ def test_semantic_map_with_examples(local_session):
         source.select(semantic.map(prompt, user=col("user"), tasks=col("tasks"), examples=bad_examples).alias("plan"))
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_map_with_nulls(local_session):
     # have a data source with some nulls.
     source = local_session.create_dataframe(
@@ -164,6 +167,7 @@ def test_semantic_map_with_nulls(local_session):
     assert result_list[1] is not None
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_map_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(
@@ -195,6 +199,7 @@ def test_semantic_map_without_models(tmp_path):
         source.select(semantic.map(state_prompt, name=col("name")).alias("map"))
     session.stop(skip_usage_summary=True)
 
+@pytest.mark.requires_provider_key
 def test_semantic_map_with_response_format(local_session):
     source = local_session.create_dataframe(
         {"name": ["GlowMate"], "details": ["A rechargeable bedside lamp"]}
@@ -211,6 +216,7 @@ def test_semantic_map_with_response_format(local_session):
     _validate_product_summary_schema(result.schema, result.to_polars().schema)
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_map_schema_validation_with_basemodel_examples(local_session):
     """Test that semantic.map validates BaseModel examples match schema."""
     source = local_session.create_dataframe(

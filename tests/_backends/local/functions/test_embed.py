@@ -27,6 +27,7 @@ from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
+@pytest.mark.requires_provider_key
 def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     df = extract_data_df.select(semantic.embed(col("review")).alias("embeddings"))
@@ -51,6 +52,7 @@ def test_embeddings(extract_data_df, embedding_model_name_and_dimensions):
     result = df.to_polars()
     assert result.schema["embeddings"] == pl.Array(pl.Float32, embedding_model_name_and_dimensions[1])
 
+@pytest.mark.requires_provider_key
 def test_embedding_very_long_string(local_session, embedding_model_name_and_dimensions):
     embedding_model_name, _ = embedding_model_name_and_dimensions
     if ModelProvider.OPENAI.value in embedding_model_name:
@@ -64,6 +66,7 @@ def test_embedding_very_long_string(local_session, embedding_model_name_and_dime
             df.to_polars()
 
 
+@pytest.mark.requires_provider_key
 def test_embedding_without_models(tmp_path):
     """Test that an error is raised if no embedding models are configured."""
     session_config = SessionConfig(

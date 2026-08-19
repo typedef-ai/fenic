@@ -15,6 +15,7 @@ from fenic import (
 from fenic.core.error import TypeMismatchError, ValidationError
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_cluster_with_centroids(local_session, embedding_model_name_and_dimensions):
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     source = local_session.create_dataframe(
@@ -46,6 +47,7 @@ def test_semantic_cluster_with_centroids(local_session, embedding_model_name_and
         "cluster_centroid": pl.Array(pl.Float32, 1536),
     }
 
+@pytest.mark.requires_provider_key
 def test_semantic_cluster_derived_column(local_session):
     source = local_session.create_dataframe(
         {
@@ -69,6 +71,7 @@ def test_semantic_cluster_derived_column(local_session):
         "cluster_label": pl.Int32,
     }
 
+@pytest.mark.requires_provider_key
 def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_session):
     source = local_session.create_dataframe(
         {
@@ -101,6 +104,7 @@ def test_semantic_clustering_groups_by_cluster_label_with_aggregation(local_sess
             collect_list(col("blurb")).alias("blurbs")
         ).to_polars()
 
+@pytest.mark.requires_provider_key
 def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     """Test combining semantic clustering with semantic reduction."""
     data = {
@@ -138,6 +142,7 @@ def test_semantic_clustering_with_semantic_reduction_aggregation(local_session):
     }
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_clustering_on_persisted_embeddings_table(local_session, embedding_model_name_and_dimensions):
     """Test group_by() on a semantic cluster id with a saved embeddings table."""
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions

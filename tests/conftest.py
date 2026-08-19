@@ -39,6 +39,26 @@ LANGUAGE_MODEL_NAME_ARG = "--language-model-name"
 EMBEDDING_MODEL_PROVIDER_ARG = "--embedding-model-provider"
 EMBEDDING_MODEL_NAME_ARG = "--embedding-model-name"
 
+# Provider SDK clients raise as soon as they're constructed if their key env
+# var is unset, before any network call happens. Session creation builds a
+# client for every configured model, so any test that just needs *a* session
+# (most of the suite) would fail at fixture setup on a keyless run, not on
+# its own merits. A placeholder satisfies construction; a test that needs a
+# genuine provider response still fails on the real request and should carry
+# the `requires_provider_key` marker instead of relying on this fallback.
+_PLACEHOLDER_PROVIDER_API_KEYS = {
+    "OPENAI_API_KEY": "sk-fenic-placeholder-key-for-keyless-ci",
+    "GEMINI_API_KEY": "fenic-placeholder-key-for-keyless-ci",
+    "OPENROUTER_API_KEY": "fenic-placeholder-key-for-keyless-ci",
+}
+
+
+def pytest_configure(config):
+    for env_var, placeholder in _PLACEHOLDER_PROVIDER_API_KEYS.items():
+        if not os.environ.get(env_var):
+            os.environ[env_var] = placeholder
+
+
 class TestPath(Protocol):
     """Protocol for test paths that can be either local or S3."""
 

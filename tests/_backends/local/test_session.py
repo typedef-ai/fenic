@@ -45,6 +45,7 @@ def test_multiple_sessions(tmp_path, local_session_config):
 
     assert session != session4
 
+@pytest.mark.requires_provider_key
 def test_combining_dataframes_from_different_sessions_raises(tmp_path):
     config1 = SessionConfig(
         app_name="test_session_1",
@@ -92,6 +93,7 @@ def test_combining_dataframes_from_different_sessions_raises(tmp_path):
         session3 = Session.get_or_create(config3)
         session3.sql("SELECT * FROM {df1} inner join {df2} on {df1}.name = {df2}.name", df1=df1, df2=df2)
 
+@pytest.mark.requires_provider_key
 def test_stopped_session_remains_stopped_after_new_session_same_name(tmp_path):
     """Test that a stopped session remains stopped even when a new session with the same app_name is created."""
     config = SessionConfig(

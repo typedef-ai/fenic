@@ -15,6 +15,8 @@ from tests.conftest import (
     configure_language_model,
 )
 
+pytestmark = pytest.mark.requires_provider_key
+
 
 class TestCacheEndToEndSemantic:
     """Integration tests with real semantic operations to verify cache behavior."""

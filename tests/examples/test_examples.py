@@ -24,6 +24,8 @@ def get_example_scripts():
     return scripts
 
 # This smoke test runs each script we provide as examples to ensure they run without errors after changes.
+# Every example demonstrates a live semantic operation, so this needs a real provider key.
+@pytest.mark.requires_provider_key
 @pytest.mark.parametrize("script_path", get_example_scripts())
 def test_example_script(script_path, examples_session_config):
     """Test that each example script's main function runs without errors."""
