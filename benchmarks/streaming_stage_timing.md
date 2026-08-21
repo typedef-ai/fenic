@@ -59,7 +59,7 @@ cell and cannot explain the measured gap.
 - Request dispatch covers request preparation and synchronous queue handoff.
 - Slot wait covers the ordered future wait.
 - Response drain covers completed-future and live-window cleanup.
-- Window advance covers refill control work, excluding admission and dispatch.
+- Window advance covers successor-slot bookkeeping after admission and dispatch.
 
 ## Interpretation and proposal
 
@@ -75,15 +75,6 @@ the semantic operator's request batch size. One candidate is to admit at least
 the provider's safe burst capacity while retaining a bounded live working set.
 That proposal requires a separate correctness, memory, and provider benchmark;
 this measurement does not implement it.
-
-## Evidence
-
-Raw receipts and the aggregate analysis are stored in the append-only evidence
-archive:
-
-- `td-evidence:fenic-streaming-instrumentation-v1/provider-matrix-2026-08-21/analysis.json @ c551258939f40346261d9c71035fc9e1faf7b0e257e301e4332fd87cfe857871`
-- `td-evidence:fenic-streaming-instrumentation-v1/provider-matrix-2026-08-21/results.jsonl @ 9a78f95b306e04b455152073cb51202365ca46a91478f890b66f456c08d2a4cc`
-- `td-evidence:fenic-streaming-instrumentation-v1/provider-matrix-2026-08-21/manifest.json @ afab08fa07bd5a5476ebce8d8462d272ef0a5cf866f489c68ebc7214a1473c3b`
 
 The accepted matrix cost $0.1380. A one-request instrumentation smoke cost an
 additional $0.0000115.

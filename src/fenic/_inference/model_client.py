@@ -610,9 +610,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             started_ns: Optional[int],
             *,
             stage_request_index: int,
-        ) -> int:
+        ) -> None:
             if started_ns is None:
-                return 0
+                return
             finished_ns = time.monotonic_ns()
             duration_ns = finished_ns - started_ns
             self._emit_streaming_stage_event(
@@ -623,17 +623,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_index=stage_request_index,
                 operation_name=operation_name,
             )
-            return duration_ns
 
-        def admit_next_request() -> tuple[bool, int, int, int]:
+        def admit_next_request(*, record_advance: bool = False) -> bool:
             nonlocal request_index
 
             stage_request_index = request_index
-            call_started_ns = (
-                time.monotonic_ns()
-                if self._request_lifecycle_collector is not None
-                else None
-            )
             admission_started_ns = (
                 time.monotonic_ns()
                 if self._request_lifecycle_collector is not None
@@ -642,15 +636,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             try:
                 request = next(request_iter)
             except StopIteration:
-                call_ns = (
-                    time.monotonic_ns() - call_started_ns
-                    if call_started_ns is not None
-                    else 0
-                )
-                return False, 0, 0, call_ns
+                return False
 
             request_key = self.get_request_key(request) if request is not None else None
-            admission_ns = record_stage(
+            record_stage(
                 "window_admission",
                 admission_started_ns,
                 stage_request_index=stage_request_index,
@@ -669,23 +658,28 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_index_offset=request_index,
                 show_progress=False,
             )
-            dispatch_ns = record_stage(
+            record_stage(
                 "request_dispatch",
                 dispatch_started_ns,
                 stage_request_index=stage_request_index,
             )
+            advance_started_ns = (
+                time.monotonic_ns()
+                if record_advance and self._request_lifecycle_collector is not None
+                else None
+            )
             pending.append((request_futures[0], request_key))
             request_index += 1
-            call_ns = (
-                time.monotonic_ns() - call_started_ns
-                if call_started_ns is not None
-                else 0
+            record_stage(
+                "window_advance",
+                advance_started_ns,
+                stage_request_index=stage_request_index,
             )
-            return True, admission_ns, dispatch_ns, call_ns
+            return True
 
         try:
             while len(pending) < batch_size:
-                admitted, _, _, _ = admit_next_request()
+                admitted = admit_next_request()
                 if not admitted:
                     break
 
@@ -723,26 +717,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     stage_request_index=stage_request_index,
                 )
 
-                advance_started_ns = (
-                    time.monotonic_ns()
-                    if self._request_lifecycle_collector is not None
-                    else None
-                )
-                _, _, _, admission_call_ns = admit_next_request()
-                if advance_started_ns is not None:
-                    finished_ns = time.monotonic_ns()
-                    exclusive_duration_ns = max(
-                        0,
-                        finished_ns - advance_started_ns - admission_call_ns,
-                    )
-                    self._emit_streaming_stage_event(
-                        "window_advance",
-                        exclusive_duration_ns,
-                        timestamp_ns=finished_ns,
-                        batch_id=batch_id,
-                        request_index=stage_request_index,
-                        operation_name=operation_name,
-                    )
+                admit_next_request(record_advance=True)
                 yield response
         except Exception as e:
             # Preserve the public batch API's error boundary for Polars callbacks.

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 import pytest
 
+import fenic._inference.model_client as model_client_module
 from fenic._backends.local.semantic_operators.classify import Classify
 from fenic._backends.local.semantic_operators.extract import Extract
 from fenic._backends.local.semantic_operators.map import Map
@@ -488,7 +489,7 @@ def test_iter_batch_requests_emits_all_stage_timings_on_lifecycle_seam():
         "slot_wait": 2,
         "request_dispatch": 2,
         "response_drain": 2,
-        "window_advance": 2,
+        "window_advance": 1,
     }
     assert all(
         event.duration_ns is not None and event.duration_ns >= 0
@@ -496,6 +497,46 @@ def test_iter_batch_requests_emits_all_stage_timings_on_lifecycle_seam():
     )
     assert {event.execution_id for event in stage_events} == {"stage-timing"}
     assert len({event.batch_id for event in stage_events}) == 1
+
+
+def test_iter_batch_requests_times_each_stage_boundary(monkeypatch):
+    client = DummyCompletionClient()
+    client.set_request_lifecycle_collector(lambda _: None, execution_id="boundaries")
+    timestamps = iter(range(0, 1_000, 10))
+    stage_events = []
+
+    monkeypatch.setattr(
+        model_client_module.time, "monotonic_ns", lambda: next(timestamps)
+    )
+    monkeypatch.setattr(client, "_emit_request_lifecycle_event", lambda *_: None)
+
+    def capture(stage, duration_ns, **_):
+        stage_events.append((stage, duration_ns))
+
+    monkeypatch.setattr(client, "_emit_streaming_stage_event", capture)
+    try:
+        list(
+            client.iter_batch_requests(
+                [_make_completion_request(prompt) for prompt in ("first", "third")],
+                "stage-boundary-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [stage for stage, _ in stage_events] == [
+        "window_admission",
+        "request_dispatch",
+        "slot_wait",
+        "response_drain",
+        "window_admission",
+        "request_dispatch",
+        "window_advance",
+        "slot_wait",
+        "response_drain",
+    ]
+    assert {duration_ns for _, duration_ns in stage_events} == {10}
 
 
 def test_standard_batch_path_emits_no_streaming_stage_timings():
