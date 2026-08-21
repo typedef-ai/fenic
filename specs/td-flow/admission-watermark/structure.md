@@ -90,8 +90,8 @@ responses behind a blocked earliest slot.
 
 #### Automated Verification
 
-- [ ] `uv run pytest tests/_inference/test_model_client_cache_behavior.py`
-- [ ] `trunk check src/fenic/_inference/model_client.py tests/_inference/test_model_client_cache_behavior.py`
+- [x] `uv run pytest tests/_inference/test_model_client_cache_behavior.py`
+- [x] `trunk check src/fenic/_inference/model_client.py tests/_inference/test_model_client_cache_behavior.py`
 
 #### Manual Verification
 

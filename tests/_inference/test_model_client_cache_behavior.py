@@ -270,10 +270,12 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
         self.second_started = threading.Event()
         self.third_started = threading.Event()
         self.fourth_started = threading.Event()
+        self.third_physical_request_started = threading.Event()
         self.release_second = threading.Event()
         self._active_requests = 0
         self._active_requests_lock = threading.Lock()
         self.max_active_requests = 0
+        self.physical_request_count = 0
 
     async def make_single_request(
         self, request: FenicCompletionsRequest
@@ -283,6 +285,9 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
             self.max_active_requests = max(
                 self.max_active_requests, self._active_requests
             )
+            self.physical_request_count += 1
+            if self.physical_request_count >= 3:
+                self.third_physical_request_started.set()
 
         try:
             prompt = request.messages.user
@@ -632,6 +637,87 @@ def test_iter_batch_requests_buffers_a_later_failure_until_its_ordered_turn():
         with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
             next(responses)
         assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        with client.thread_exceptions_lock:
+            assert client.thread_exceptions == {}
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_defers_later_failure_while_refilling_after_a_blocked_slot():
+    client = SlidingWindowCompletionClient(
+        fail_second=True,
+        rate_limit_rpm=1,
+        block_first=True,
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("first", "second", "third", "fourth")
+            ],
+            "refill-after-failure-test",
+            batch_size=1,
+        )
+        first_result = executor.submit(next, responses)
+
+        assert client.fourth_started.wait(timeout=1)
+        client.release_second.set()
+
+        first = first_result.result(timeout=2)
+        assert first is not None
+        assert first.completion == "response-for-first"
+
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_keeps_dedup_owner_until_final_duplicate_emits():
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=1,
+        blocked_prompts={"slow"},
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [
+                _make_completion_request(prompt)
+                for prompt in ("original", "slow", "original", "original", "original")
+            ],
+            "dedup-owner-lifetime-test",
+            batch_size=1,
+        )
+
+        first = next(responses)
+        assert first is not None
+        assert first.completion == "response-for-original"
+
+        blocked_next = executor.submit(next, responses)
+        assert not client.third_physical_request_started.wait(timeout=0.2)
+
+        client.release_second.set()
+        second = blocked_next.result(timeout=2)
+        assert second is not None
+        assert second.completion == "response-for-slow"
+
+        remaining = list(responses)
+        assert [response.completion for response in remaining if response] == [
+            "response-for-original",
+            "response-for-original",
+            "response-for-original",
+        ]
+        assert client.physical_request_count == 2
     finally:
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
