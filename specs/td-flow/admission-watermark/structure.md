@@ -35,7 +35,7 @@ move together.
 
 - [x] Phase 1: Indexed bounded iterator and positional output
 - [x] Phase 2: Indexed error and duplicate ownership
-- [ ] Phase 3: Stage instrumentation and deterministic saturation evidence
+- [x] Phase 3: Stage instrumentation and deterministic saturation evidence
 - [ ] Phase 4: Benchmark and memory grading
 
 ---
@@ -99,7 +99,7 @@ None needed — the controlled completion clients make failure timing observable
 
 ---
 
-## Phase 3: Stage instrumentation and deterministic saturation evidence
+## ✅ Phase 3: Stage instrumentation and deterministic saturation evidence
 
 Port the frozen streaming stage timing to the indexed state machine. Preserve the
 historical ordered-wait comparison while exposing the cap-saturation subset that
@@ -121,8 +121,8 @@ can still pause admission.
 
 #### Automated Verification
 
-- [ ] `uv run pytest tests/_inference/test_model_client_cache_behavior.py`
-- [ ] `trunk check src/fenic/_inference/model_client.py src/fenic/_inference/request_lifecycle.py tests/_inference/test_model_client_cache_behavior.py`
+- [x] `uv run pytest tests/_inference/test_model_client_cache_behavior.py`
+- [x] `trunk check src/fenic/_inference/model_client.py src/fenic/_inference/request_lifecycle.py tests/_inference/test_model_client_cache_behavior.py`
 
 #### Manual Verification
 

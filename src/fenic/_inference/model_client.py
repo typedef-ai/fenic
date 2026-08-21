@@ -40,6 +40,7 @@ from fenic._inference.request_lifecycle import (
     RequestLifecycleCollector,
     RequestLifecycleEvent,
     RequestLifecycleEventType,
+    StreamingStage,
 )
 from fenic._inference.token_counter import (
     TokenCounter,
@@ -277,6 +278,44 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     operation_name=queue_item.operation_name,
                     model=self.model,
                     provider=self.model_provider.value,
+                )
+            )
+        except Exception:
+            logger.warning("Request lifecycle collector raised an exception", exc_info=True)
+
+    def _emit_streaming_stage_event(
+        self,
+        stage: StreamingStage,
+        duration_ns: int,
+        *,
+        timestamp_ns: int,
+        batch_id: str,
+        request_index: int,
+        operation_name: str,
+    ) -> None:
+        """Emit an optional bounded-streaming stage duration."""
+        if self._request_lifecycle_collector is None:
+            return
+
+        with self._request_lifecycle_lock:
+            collector = self._request_lifecycle_collector
+            execution_id = self._request_lifecycle_execution_id
+        if collector is None:
+            return
+
+        try:
+            collector(
+                RequestLifecycleEvent(
+                    event="streaming_stage",
+                    timestamp_ns=timestamp_ns,
+                    execution_id=execution_id,
+                    batch_id=batch_id,
+                    request_index=request_index,
+                    operation_name=operation_name,
+                    model=self.model,
+                    provider=self.model_provider.value,
+                    stage=stage,
+                    duration_ns=duration_ns,
                 )
             )
         except Exception:
@@ -570,18 +609,63 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         next_index_to_emit = 0
         exhausted = False
 
-        def admit_next_request() -> bool:
+        def stage_started_ns() -> Optional[int]:
+            if self._request_lifecycle_collector is None:
+                return None
+            return time.monotonic_ns()
+
+        def record_stage(
+            stage: StreamingStage,
+            started_ns: Optional[int],
+            *,
+            stage_request_index: int,
+        ) -> None:
+            record_stages(
+                (stage,),
+                started_ns,
+                stage_request_index=stage_request_index,
+            )
+
+        def record_stages(
+            stages: tuple[StreamingStage, ...],
+            started_ns: Optional[int],
+            *,
+            stage_request_index: int,
+        ) -> None:
+            if started_ns is None:
+                return
+            finished_ns = time.monotonic_ns()
+            duration_ns = finished_ns - started_ns
+            for stage in stages:
+                self._emit_streaming_stage_event(
+                    stage,
+                    duration_ns,
+                    timestamp_ns=finished_ns,
+                    batch_id=batch_id,
+                    request_index=stage_request_index,
+                    operation_name=operation_name,
+                )
+
+        def admit_next_request(*, record_advance: bool = False) -> bool:
             nonlocal request_index
 
             # Stream-owned failures are represented by the indexed future below.
             # Any other work on this thread still retains the immediate error path.
             self._maybe_raise_thread_exception()
+            slot_index = request_index
+            admission_started_ns = stage_started_ns()
             try:
                 request = next(request_iter)
             except StopIteration:
                 return False
 
+            record_stage(
+                "window_admission",
+                admission_started_ns,
+                stage_request_index=slot_index,
+            )
             request_key = self.get_request_key(request) if request is not None else None
+            dispatch_started_ns = stage_started_ns()
             request_futures, _, _ = self._submit_batch_requests(
                 [request],
                 batch_id,
@@ -592,7 +676,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 show_progress=False,
                 defer_thread_exceptions=True,
             )
-            slot_index = request_index
+            record_stage(
+                "request_dispatch",
+                dispatch_started_ns,
+                stage_request_index=slot_index,
+            )
+            advance_started_ns = stage_started_ns() if record_advance else None
             req_future = request_futures[0]
             pending[slot_index] = (req_future, request_key)
             if request_key is not None and request_key in unique_futures:
@@ -601,6 +690,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 lambda _future, index=slot_index: settled_pending_indices.put(index)
             )
             request_index += 1
+            record_stage(
+                "window_advance",
+                advance_started_ns,
+                stage_request_index=slot_index,
+            )
             return True
 
         def can_admit() -> bool:
@@ -610,11 +704,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 and len(completed) < completed_result_cap
             )
 
-        def admit_available_requests() -> None:
+        def admit_available_requests(*, record_advance: bool = False) -> None:
             nonlocal exhausted
 
             while can_admit():
-                if not admit_next_request():
+                if not admit_next_request(record_advance=record_advance):
                     exhausted = True
                     return
 
@@ -652,15 +746,21 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
             while pending or completed:
                 collect_completed_requests()
-                admit_available_requests()
+                admit_available_requests(record_advance=True)
 
                 while next_index_to_emit in completed:
                     req_future, request_key = completed.pop(next_index_to_emit)
+                    drain_started_ns = stage_started_ns()
                     response = req_future.result()
                     release_request_key(request_key)
+                    record_stage(
+                        "response_drain",
+                        drain_started_ns,
+                        stage_request_index=next_index_to_emit,
+                    )
                     next_index_to_emit += 1
                     collect_completed_requests()
-                    admit_available_requests()
+                    admit_available_requests(record_advance=True)
                     yield response
 
                 if not pending:
@@ -668,8 +768,22 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
                 if len(completed) >= completed_result_cap:
                     req_future, request_key = pending.pop(next_index_to_emit)
-                    response = req_future.result()
+                    wait_started_ns = stage_started_ns()
+                    try:
+                        response = req_future.result()
+                    finally:
+                        record_stages(
+                            ("slot_wait", "completed_cap_blocked"),
+                            wait_started_ns,
+                            stage_request_index=next_index_to_emit,
+                        )
+                    drain_started_ns = stage_started_ns()
                     release_request_key(request_key)
+                    record_stage(
+                        "response_drain",
+                        drain_started_ns,
+                        stage_request_index=next_index_to_emit,
+                    )
                     next_index_to_emit += 1
                     yield response
                     continue
