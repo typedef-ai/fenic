@@ -192,7 +192,7 @@ None.
 **Next step (paste into a fresh tab):**
 
 > Use the `td-design` skill. Research is approved at
-> `docs/td-flow/admission-watermark/research.md` (track: engineering, size:
+> `specs/td-flow/admission-watermark/research.md` (track: engineering, size:
 > high-risk). Design-stage triggers held: multiple viable approaches and a
 > cross-cutting ordering-and-memory contract. Choose the approach, weigh
 > alternatives, and fix the cross-cutting contracts before the structure. Use
@@ -220,6 +220,6 @@ stream already separates pending and completed indexed state
 **Known weak assumptions:** the frozen stage instrumentation is not on this
 branch and must be ported without changing what its ordered-wait measurement
 means.
-**Next artifact:** `docs/td-flow/admission-watermark/design.md`.
+**Next artifact:** `specs/td-flow/admission-watermark/design.md`.
 **Rollback if:** the design cannot keep the bounded working set while preserving
 positional emission — ROLLBACK to the Research stage.
