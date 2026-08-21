@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Union
 
@@ -366,6 +367,37 @@ def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
         temperature=0.7,
         model_profile="default",
     )
+
+
+def _iter_fifo_reserialized_requests(
+    client: ModelClient,
+    requests: list[FenicCompletionsRequest],
+    operation_name: str,
+):
+    """Test-only legacy control that waits on submitted slots in FIFO order."""
+    batch_id = "fifo-reserialized-test"
+    request_futures, _, _ = client._submit_batch_requests(
+        requests,
+        batch_id,
+        operation_name,
+        request_timeout=60,
+        request_index_offset=0,
+        show_progress=False,
+        defer_thread_exceptions=True,
+    )
+    for request_index, request_future in enumerate(request_futures):
+        started_ns = time.monotonic_ns()
+        response = request_future.result()
+        finished_ns = time.monotonic_ns()
+        client._emit_streaming_stage_event(
+            "slot_wait",
+            finished_ns - started_ns,
+            timestamp_ns=finished_ns,
+            batch_id=batch_id,
+            request_index=request_index,
+            operation_name=operation_name,
+        )
+        yield response
 
 
 def _counting_completion_requests(
@@ -759,6 +791,193 @@ def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
     assert sorted(
         event.request_index for event in events if event.event == "settled"
     ) == [0, 1, 2]
+
+
+def test_iter_batch_requests_emits_indexed_stage_timings():
+    client = SlidingWindowCompletionClient(rate_limit_rpm=1, block_second=False)
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="stage-timing")
+
+    try:
+        responses = list(
+            client.iter_batch_requests(
+                [
+                    _make_completion_request(prompt)
+                    for prompt in ("first", "third", "fourth", "fifth")
+                ],
+                "stage-timing-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert len(responses) == 4
+    stage_events = [event for event in events if event.event == "streaming_stage"]
+    assert {event.stage for event in stage_events} == {
+        "window_admission",
+        "request_dispatch",
+        "response_drain",
+        "window_advance",
+    }
+    assert all(
+        event.duration_ns is not None and event.duration_ns >= 0
+        for event in stage_events
+    )
+    assert {event.execution_id for event in stage_events} == {"stage-timing"}
+    assert len({event.batch_id for event in stage_events}) == 1
+
+
+def test_iter_batch_requests_records_ordered_wait_when_completed_cap_blocks_admission(
+    monkeypatch,
+):
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=1,
+        block_first=True,
+        block_second=False,
+    )
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="cap-saturation")
+    executor = ThreadPoolExecutor(max_workers=1)
+    completed_result_cap = 10
+    first_result_waited = threading.Event()
+    original_get_or_create = client._get_or_create_request_future
+
+    def track_first_result_wait(unique_futures, request, request_key=None):
+        future, estimated_tokens = original_get_or_create(
+            unique_futures,
+            request,
+            request_key,
+        )
+        if request.messages.user == "first" and estimated_tokens is not None:
+            original_result = future.result
+
+            def result(*args, **kwargs):
+                first_result_waited.set()
+                return original_result(*args, **kwargs)
+
+            future.result = result
+        return future, estimated_tokens
+
+    monkeypatch.setattr(client, "_get_or_create_request_future", track_first_result_wait)
+
+    def requests():
+        for index in range(completed_result_cap + 3):
+            prompt = "first" if index == 0 else f"request-{index}"
+            yield _make_completion_request(prompt)
+
+    try:
+        responses = client.iter_batch_requests(
+            requests(),
+            "completed-cap-timing-test",
+            batch_size=1,
+        )
+        collected = executor.submit(list, responses)
+        assert client.first_started.wait(timeout=1)
+        assert first_result_waited.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+
+        assert [response.completion for response in results if response] == [
+            "response-for-first",
+            *(
+                f"response-for-request-{index}"
+                for index in range(1, completed_result_cap + 3)
+            ),
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+    stage_events = [event for event in events if event.event == "streaming_stage"]
+    wait_events = [event for event in stage_events if event.stage == "slot_wait"]
+    cap_blocked_events = [
+        event for event in stage_events if event.stage == "completed_cap_blocked"
+    ]
+    assert len(wait_events) == len(cap_blocked_events) == 1
+    assert wait_events[0].request_index == cap_blocked_events[0].request_index == 0
+    assert wait_events[0].duration_ns is not None and wait_events[0].duration_ns > 0
+    assert cap_blocked_events[0].duration_ns == wait_events[0].duration_ns
+
+
+def test_stage_timing_detects_a_deliberately_fifo_reserialized_control():
+    decoupled_client = SlidingWindowCompletionClient(
+        rate_limit_rpm=1,
+        block_first=True,
+        block_second=False,
+    )
+    fifo_client = SlidingWindowCompletionClient(
+        rate_limit_rpm=1,
+        block_first=True,
+        block_second=False,
+    )
+    decoupled_events = []
+    fifo_events = []
+    decoupled_client.set_request_lifecycle_collector(
+        decoupled_events.append,
+        execution_id="decoupled-control",
+    )
+    fifo_client.set_request_lifecycle_collector(
+        fifo_events.append,
+        execution_id="fifo-control",
+    )
+    executor = ThreadPoolExecutor(max_workers=2)
+    requests = [_make_completion_request(prompt) for prompt in ("first", "second")]
+
+    try:
+        decoupled = executor.submit(
+            list,
+            decoupled_client.iter_batch_requests(
+                requests,
+                "decoupled-control-test",
+                batch_size=1,
+            ),
+        )
+        fifo = executor.submit(
+            list,
+            _iter_fifo_reserialized_requests(
+                fifo_client,
+                requests,
+                "fifo-control-test",
+            ),
+        )
+        assert decoupled_client.first_started.wait(timeout=1)
+        assert decoupled_client.second_started.wait(timeout=1)
+        assert fifo_client.first_started.wait(timeout=1)
+        assert fifo_client.second_started.wait(timeout=1)
+
+        decoupled_client.release_second.set()
+        fifo_client.release_second.set()
+        assert [response.completion for response in decoupled.result(timeout=2)] == [
+            "response-for-first",
+            "response-for-second",
+        ]
+        assert [response.completion for response in fifo.result(timeout=2)] == [
+            "response-for-first",
+            "response-for-second",
+        ]
+    finally:
+        decoupled_client.release_second.set()
+        fifo_client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        decoupled_client.shutdown()
+        fifo_client.shutdown()
+
+    decoupled_waits = [
+        event
+        for event in decoupled_events
+        if event.event == "streaming_stage" and event.stage == "slot_wait"
+    ]
+    fifo_waits = [
+        event
+        for event in fifo_events
+        if event.event == "streaming_stage" and event.stage == "slot_wait"
+    ]
+    assert not decoupled_waits
+    assert len(fifo_waits) == 2
+    assert fifo_waits[0].duration_ns is not None and fifo_waits[0].duration_ns > 0
 
 
 def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batch_size():

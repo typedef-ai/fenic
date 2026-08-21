@@ -7,6 +7,7 @@ from fenic._inference.rate_limit_strategy import (
 from fenic._inference.request_lifecycle import (
     RequestLifecycleEvent,
     compute_idle_gap_metrics,
+    compute_streaming_stage_metrics,
 )
 from fenic._inference.token_counter import TiktokenTokenCounter
 from fenic._inference.types import (
@@ -180,3 +181,43 @@ def test_idle_metrics_do_not_count_retry_backoff_as_execution_idle():
     assert metrics.idle_gap_count == 0
     assert metrics.total_idle_gap_ns == 0
     assert metrics.total_queue_delay_ns == 10
+
+
+def test_streaming_stage_metrics_aggregate_stage_records_only():
+    def event(stage, duration):
+        return RequestLifecycleEvent(
+            event="streaming_stage",
+            timestamp_ns=100,
+            execution_id="stage-execution",
+            batch_id="batch-1",
+            request_index=0,
+            operation_name="semantic.map",
+            model="fake-model",
+            provider="openai",
+            stage=stage,
+            duration_ns=duration,
+        )
+
+    metrics = compute_streaming_stage_metrics(
+        [
+            event("window_admission", 10),
+            event("window_admission", 30),
+            event("slot_wait", 50),
+            RequestLifecycleEvent(
+                event="settled",
+                timestamp_ns=200,
+                execution_id="stage-execution",
+                batch_id="batch-1",
+                request_index=0,
+                operation_name="semantic.map",
+                model="fake-model",
+                provider="openai",
+            ),
+        ]
+    )
+
+    assert metrics["window_admission"].count == 2
+    assert metrics["window_admission"].total_ns == 40
+    assert metrics["window_admission"].p50_ns == 10
+    assert metrics["window_admission"].p95_ns == 30
+    assert metrics["slot_wait"].total_ns == 50
