@@ -257,11 +257,15 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
         rate_limit_rpm: int = 100,
         block_after_first: bool = False,
         block_first: bool = False,
+        block_second: bool = True,
+        blocked_prompts: Optional[set[str]] = None,
     ):
         super().__init__(cache=cache, rate_limit_rpm=rate_limit_rpm)
         self.fail_second = fail_second
         self.block_after_first = block_after_first
         self.block_first = block_first
+        self.block_second = block_second
+        self.blocked_prompts = blocked_prompts or set()
         self.first_started = threading.Event()
         self.second_started = threading.Event()
         self.third_started = threading.Event()
@@ -293,8 +297,9 @@ class SlidingWindowCompletionClient(DummyCompletionClient):
 
             if (
                 (self.block_first and prompt == "first")
-                or prompt == "second"
+                or (self.block_second and prompt == "second")
                 or (self.block_after_first and prompt != "first")
+                or prompt in self.blocked_prompts
             ):
                 await asyncio.to_thread(self.release_second.wait)
 
@@ -320,6 +325,7 @@ class DedupTrackingCompletionClient(SlidingWindowCompletionClient):
         self.dedup_at_capacity = threading.Event()
         self.dedup_overflow = threading.Event()
         self.max_live_dedup_entries = 0
+        self.live_dedup_entries = None
 
     def _get_or_create_request_future(
         self,
@@ -332,6 +338,7 @@ class DedupTrackingCompletionClient(SlidingWindowCompletionClient):
             request,
             request_key,
         )
+        self.live_dedup_entries = unique_futures
         live_entries = len(unique_futures)
         self.max_live_dedup_entries = max(
             self.max_live_dedup_entries,
@@ -441,7 +448,7 @@ def test_iter_batch_requests_is_bounded_ordered_and_deduplicates_within_live_win
         first = next(responses)
         assert first is not None
         assert first.completion == "response-for-first"
-        assert yielded_prompts == ["first", "first", "second"]
+        assert yielded_prompts == ["first", "first", "second", "third"]
 
         remaining = list(responses)
         assert [response.completion for response in remaining if response] == [
@@ -484,6 +491,92 @@ def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles(
         client.shutdown()
 
 
+def test_iter_batch_requests_refills_pending_slots_behind_a_blocked_first_response():
+    look_ahead_basis = 2
+    pending_admission_cap = 3 * look_ahead_basis
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        block_first=True,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    admitted_beyond_pending_cap = threading.Event()
+    prompts = ("first", "second") + tuple(
+        f"request-{index}" for index in range(2, pending_admission_cap + 4)
+    )
+
+    def requests():
+        for index, prompt in enumerate(prompts, start=1):
+            if index > pending_admission_cap:
+                admitted_beyond_pending_cap.set()
+            yield _make_completion_request(prompt)
+
+    try:
+        collected = executor.submit(
+            list,
+            client.iter_batch_requests(requests(), "decoupled-admission-test", batch_size=2),
+        )
+        assert client.first_started.wait(timeout=1)
+        assert admitted_beyond_pending_cap.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_iter_batch_requests_keeps_admission_within_combined_slot_bound():
+    look_ahead_basis = 2
+    completed_result_cap = 10 * look_ahead_basis
+    pending_admission_cap = 3 * look_ahead_basis
+    combined_slot_bound = completed_result_cap + pending_admission_cap
+    client = SlidingWindowCompletionClient(
+        rate_limit_rpm=look_ahead_basis,
+        blocked_prompts={"first", "second"}
+        | {f"request-{index}" for index in range(22, 26)},
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    prompts = ("first", "second") + tuple(
+        f"request-{index}" for index in range(2, 27)
+    )
+    admitted_prompts = []
+    admitted_beyond_pending_cap = threading.Event()
+    admitted_beyond_combined_cap = threading.Event()
+
+    def requests():
+        for prompt in prompts:
+            admitted_prompts.append(prompt)
+            if len(admitted_prompts) > pending_admission_cap:
+                admitted_beyond_pending_cap.set()
+            if len(admitted_prompts) > combined_slot_bound:
+                admitted_beyond_combined_cap.set()
+            yield _make_completion_request(prompt)
+
+    try:
+        collected = executor.submit(
+            list,
+            client.iter_batch_requests(requests(), "two-cap-bound-test", batch_size=2),
+        )
+        assert client.first_started.wait(timeout=1)
+        assert admitted_beyond_pending_cap.wait(timeout=1)
+        assert len(admitted_prompts) <= combined_slot_bound
+        assert not admitted_beyond_combined_cap.wait(timeout=1)
+
+        client.release_second.set()
+        results = collected.result(timeout=2)
+        assert [response.completion for response in results if response] == [
+            f"response-for-{prompt}" for prompt in prompts
+        ]
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
 def test_iter_batch_requests_normalizes_later_window_failure_after_successor_admission():
     client = SlidingWindowCompletionClient(fail_second=True, rate_limit_rpm=2)
 
@@ -511,6 +604,43 @@ def test_iter_batch_requests_normalizes_later_window_failure_after_successor_adm
     finally:
         client.release_second.set()
         client.shutdown()
+
+
+def test_iter_batch_requests_buffers_a_later_failure_until_its_ordered_turn():
+    client = SlidingWindowCompletionClient(
+        fail_second=True,
+        rate_limit_rpm=2,
+        block_first=True,
+        block_second=False,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    try:
+        responses = client.iter_batch_requests(
+            [_make_completion_request(prompt) for prompt in ("first", "second", "third")],
+            "ordered-failure-buffer-test",
+            batch_size=2,
+        )
+        first_result = executor.submit(next, responses)
+        assert client.third_started.wait(timeout=1)
+
+        client.release_second.set()
+        first = first_result.result(timeout=2)
+        assert first is not None
+        assert first.completion == "response-for-first"
+
+        with pytest.raises(ExecutionError, match="Error code: 400") as exc_info:
+            next(responses)
+        assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        client.shutdown()
+
+
+def test_streaming_slot_caps_use_look_ahead_and_hard_limits():
+    assert ModelClient._streaming_slot_caps(5) == (15, 50)
+    assert ModelClient._streaming_slot_caps(10_000) == (1_000, 50_000)
 
 
 def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
@@ -546,13 +676,17 @@ def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
 
 
 def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batch_size():
-    admission_watermark = 3
+    look_ahead_basis = 3
+    pending_admission_cap = 3 * look_ahead_basis
     client = SlidingWindowCompletionClient(
-        rate_limit_rpm=admission_watermark,
+        rate_limit_rpm=look_ahead_basis,
         block_first=True,
+        block_after_first=True,
     )
     executor = ThreadPoolExecutor(max_workers=1)
-    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, pending_admission_cap + 2)
+    )
     (
         requests,
         admitted_prompts,
@@ -560,7 +694,7 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         admission_overflow,
     ) = _counting_completion_requests(
         prompts,
-        admission_watermark=admission_watermark,
+        admission_watermark=pending_admission_cap,
     )
 
     try:
@@ -573,7 +707,7 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         collected = executor.submit(list, responses)
         assert client.first_started.wait(timeout=1)
         assert admission_at_capacity.wait(timeout=1)
-        assert admitted_prompts == list(prompts[:admission_watermark])
+        assert admitted_prompts == list(prompts[:pending_admission_cap])
         assert not admission_overflow.wait(timeout=1)
 
         client.release_second.set()
@@ -582,7 +716,7 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
         assert [response.completion for response in results if response] == [
             f"response-for-{prompt}" for prompt in prompts
         ]
-        assert client.max_active_requests <= admission_watermark
+        assert client.max_active_requests <= pending_admission_cap
     finally:
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
@@ -590,15 +724,18 @@ def test_iter_batch_requests_admits_to_rate_limit_watermark_when_it_exceeds_batc
 
 
 def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases():
-    admission_watermark = 3
+    look_ahead_basis = 3
+    pending_admission_cap = 3 * look_ahead_basis
     raised_rpm = 6
     client = SlidingWindowCompletionClient(
-        rate_limit_rpm=admission_watermark,
+        rate_limit_rpm=look_ahead_basis,
         block_first=True,
+        block_after_first=True,
     )
     executor = ThreadPoolExecutor(max_workers=1)
-    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
-    resume_at_capacity = threading.Event()
+    prompts = ("first",) + tuple(
+        f"request-{index}" for index in range(1, pending_admission_cap + 2)
+    )
     (
         requests,
         admitted_prompts,
@@ -606,8 +743,7 @@ def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases()
         admission_overflow,
     ) = _counting_completion_requests(
         prompts,
-        admission_watermark=admission_watermark,
-        resume_at_capacity=resume_at_capacity,
+        admission_watermark=pending_admission_cap,
     )
 
     try:
@@ -622,10 +758,8 @@ def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases()
         assert admission_at_capacity.wait(timeout=1)
 
         client.rate_limit_strategy.rpm = raised_rpm
-        resume_at_capacity.set()
-
         assert not admission_overflow.wait(timeout=1)
-        assert admitted_prompts == list(prompts[:admission_watermark])
+        assert admitted_prompts == list(prompts[:pending_admission_cap])
 
         client.release_second.set()
         results = collected.result(timeout=2)
@@ -634,21 +768,26 @@ def test_iter_batch_requests_captures_admission_watermark_before_rpm_increases()
             f"response-for-{prompt}" for prompt in prompts
         ]
     finally:
-        resume_at_capacity.set()
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
 
 def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
-    admission_watermark = 3
+    look_ahead_basis = 3
+    pending_admission_cap = 3 * look_ahead_basis
+    completed_result_cap = 10 * look_ahead_basis
     client = DedupTrackingCompletionClient(
-        dedup_ceiling=admission_watermark,
-        rate_limit_rpm=admission_watermark,
+        dedup_ceiling=pending_admission_cap,
+        rate_limit_rpm=look_ahead_basis,
         block_first=True,
+        block_after_first=True,
     )
     executor = ThreadPoolExecutor(max_workers=1)
-    prompts = ("first", "second", "third", "fourth", "fifth", "sixth")
+    prompts = ("first",) + tuple(
+        f"request-{index}"
+        for index in range(1, pending_admission_cap + completed_result_cap + 2)
+    )
 
     try:
         responses = client.iter_batch_requests(
@@ -660,7 +799,7 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
         collected = executor.submit(list, responses)
         assert client.first_started.wait(timeout=1)
         assert client.dedup_at_capacity.wait(timeout=1)
-        assert client.max_live_dedup_entries == admission_watermark
+        assert client.max_live_dedup_entries == pending_admission_cap
         assert not client.dedup_overflow.wait(timeout=1)
 
         client.release_second.set()
@@ -669,19 +808,23 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
         assert [response.completion for response in results if response] == [
             f"response-for-{prompt}" for prompt in prompts
         ]
-        assert client.max_live_dedup_entries == admission_watermark
+        assert (
+            client.max_live_dedup_entries
+            <= pending_admission_cap + completed_result_cap
+        )
+        assert client.live_dedup_entries == {}
     finally:
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
 
 
-def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
-    client = SlidingWindowCompletionClient(block_first=True)
+def test_iter_batch_requests_default_rpm_uses_three_times_pending_cap():
+    client = SlidingWindowCompletionClient(block_first=True, block_after_first=True)
     executor = ThreadPoolExecutor(max_workers=1)
-    admission_watermark = client.rate_limit_strategy.rpm
+    pending_admission_cap = 3 * client.rate_limit_strategy.rpm
     prompts = ("first",) + tuple(
-        f"request-{index}" for index in range(1, admission_watermark + 2)
+        f"request-{index}" for index in range(1, pending_admission_cap + 2)
     )
     (
         requests,
@@ -690,7 +833,7 @@ def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
         admission_overflow,
     ) = _counting_completion_requests(
         prompts,
-        admission_watermark=admission_watermark,
+        admission_watermark=pending_admission_cap,
     )
 
     try:
@@ -703,7 +846,7 @@ def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
         collected = executor.submit(list, responses)
         assert client.first_started.wait(timeout=1)
         assert admission_at_capacity.wait(timeout=1)
-        assert len(admitted_prompts) == admission_watermark
+        assert len(admitted_prompts) == pending_admission_cap
         assert not admission_overflow.wait(timeout=1)
 
         client.release_second.set()
@@ -718,25 +861,16 @@ def test_iter_batch_requests_default_rpm_is_an_exact_admission_ceiling():
         client.shutdown()
 
 
-def test_iter_batch_requests_uses_cache_after_prior_entry_leaves_live_window():
+def test_iter_batch_requests_preserves_order_for_cached_live_requests():
     fake_cache = FakeCache()
-    admission_watermark = 3
     client = SlidingWindowCompletionClient(
         cache=fake_cache,
-        rate_limit_rpm=admission_watermark,
+        rate_limit_rpm=3,
         block_first=True,
     )
     executor = ThreadPoolExecutor(max_workers=1)
     prompts = ("first", "second", "third", "first")
-    (
-        requests,
-        admitted_prompts,
-        admission_at_capacity,
-        admission_overflow,
-    ) = _counting_completion_requests(
-        prompts,
-        admission_watermark=admission_watermark,
-    )
+    requests = (_make_completion_request(prompt) for prompt in prompts)
 
     try:
         responses = client.iter_batch_requests(
@@ -747,10 +881,6 @@ def test_iter_batch_requests_uses_cache_after_prior_entry_leaves_live_window():
 
         collected = executor.submit(list, responses)
         assert client.first_started.wait(timeout=1)
-        assert admission_at_capacity.wait(timeout=1)
-        assert admitted_prompts == list(prompts[:admission_watermark])
-        assert not admission_overflow.wait(timeout=1)
-
         client.release_second.set()
         results = collected.result(timeout=2)
     finally:
@@ -765,9 +895,42 @@ def test_iter_batch_requests_uses_cache_after_prior_entry_leaves_live_window():
         "response-for-first",
     ]
     assert fake_cache.get_batch_called is True
-    assert fake_cache.get_batch_hit_count == 1
+    assert fake_cache.get_batch_hit_count == 0
     assert fake_cache.set_called is True
     assert client.call_count == 3
+
+
+def test_iter_batch_requests_preserves_none_request_positions():
+    client = DummyCompletionClient(rate_limit_rpm=2)
+
+    try:
+        results = list(
+            client.iter_batch_requests(
+                [_make_completion_request("first"), None, _make_completion_request("second")],
+                "none-position-test",
+                batch_size=2,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [response.completion if response else None for response in results] == [
+        "response-for-first",
+        None,
+        "response-for-second",
+    ]
+    assert client.call_count == 2
+
+
+def test_iter_batch_requests_accepts_an_empty_iterable():
+    client = DummyCompletionClient()
+
+    try:
+        assert list(client.iter_batch_requests([], "empty-stream-test", batch_size=2)) == []
+    finally:
+        client.shutdown()
+
+    assert client.call_count == 0
 
 
 def test_iter_batch_requests_normalizes_provider_errors():

@@ -98,10 +98,10 @@ class LanguageModel:
         This is the row-local streaming counterpart to ``get_completions``. It
         deliberately leaves the list-shaped API intact for aggregation operators
         such as ``semantic.reduce`` while callers that can consume a stream avoid
-        retaining all rendered messages and requests at once. ``batch_size`` is a
-        minimum look-ahead, not a hard memory cap: the client admits an effective
-        live window of ``max(batch_size, rate_limit_strategy.rpm)`` so streaming
-        preserves the rate limiter's configured burst concurrency.
+        retaining all rendered messages and requests at once. ``batch_size`` and
+        the configured RPM determine the iterator's look-ahead basis; the client
+        applies separate bounded pending-request and completed-response caps while
+        preserving response order at the iterator boundary.
         """
         temperature_param = (
             temperature if self.model_parameters.supports_custom_temperature else None

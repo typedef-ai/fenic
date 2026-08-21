@@ -5,9 +5,9 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
-from collections import deque
 from concurrent.futures import Future
 from dataclasses import dataclass
+from queue import Empty, SimpleQueue
 from typing import (
     Any,
     Dict,
@@ -538,35 +538,35 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         request_timeout: Optional[float] = None,
         batch_size: int = 100,
     ) -> Iterator[Optional[ResponseT]]:
-        """Process an iterable of requests through an ordered admission window.
+        """Process an iterable through bounded admission and ordered emission.
 
         The existing ``make_batch_requests`` API remains the compatibility path for
-        callers that need whole-batch behavior. The live request, future, response,
-        and deduplication working set is bounded by the effective admission window
-        ``max(batch_size, rate_limit_strategy.rpm)`` captured when iteration begins.
-        ``batch_size`` remains the caller's minimum look-ahead; the rate-limit
-        burst is also admitted so streaming does not impose a lower concurrency
-        ceiling than the existing list-based path. Once the next ordered response
-        settles, its successor is admitted before that response is yielded, so a
-        later slow request does not recreate the old whole-batch barrier.
+        callers that need whole-batch behavior. The captured look-ahead basis
+        ``max(batch_size, rate_limit_strategy.rpm)`` determines separate bounds
+        for pending requests and completed responses. Completed responses are kept
+        by input index and emitted only at the ordered boundary, so a slow early
+        request no longer makes admission wait for its position in the sequence.
 
-        Request fingerprint deduplication is intentionally scoped to a single
-        bounded window. Repeated requests admitted after their earlier entry's
-        ordered result has been consumed and removed from the live window are
-        served without a second provider call when the configured response cache
-        contains the first result; without a cache they are independent requests.
-        Keeping an unbounded in-memory deduplication table would defeat the stream's
-        memory bound.
+        Request fingerprint deduplication is intentionally scoped to retained
+        iterator state. Keeping an unbounded in-memory deduplication table would
+        defeat the stream's memory bound.
         """
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
 
         request_iter = iter(requests)
         batch_id = str(uuid.uuid4())
-        admission_watermark = max(batch_size, self.rate_limit_strategy.rpm)
+        look_ahead_basis = max(batch_size, self.rate_limit_strategy.rpm)
+        pending_admission_cap, completed_result_cap = self._streaming_slot_caps(
+            look_ahead_basis
+        )
         unique_futures: Dict[Any, Future] = {}
-        pending: deque[tuple[Future, Optional[str]]] = deque()
+        pending: Dict[int, tuple[Future, Optional[str]]] = {}
+        completed: Dict[int, tuple[Future, Optional[str]]] = {}
+        settled_pending_indices: SimpleQueue[int] = SimpleQueue()
         request_index = 0
+        next_index_to_emit = 0
+        exhausted = False
 
         def admit_next_request() -> bool:
             nonlocal request_index
@@ -586,33 +586,99 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_index_offset=request_index,
                 show_progress=False,
             )
-            pending.append((request_futures[0], request_key))
+            slot_index = request_index
+            req_future = request_futures[0]
+            pending[slot_index] = (req_future, request_key)
+            req_future.add_done_callback(
+                lambda _future, index=slot_index: settled_pending_indices.put(index)
+            )
             request_index += 1
             return True
 
+        def can_admit() -> bool:
+            return (
+                not exhausted
+                and len(pending) < pending_admission_cap
+                and len(completed) < completed_result_cap
+            )
+
+        def admit_available_requests() -> None:
+            nonlocal exhausted
+
+            while can_admit():
+                if not admit_next_request():
+                    exhausted = True
+                    return
+
+        def collect_completed_requests() -> None:
+            available_capacity = completed_result_cap - len(completed)
+            if available_capacity <= 0:
+                return
+
+            while available_capacity > 0:
+                try:
+                    index = settled_pending_indices.get_nowait()
+                except Empty:
+                    return
+
+                slot = pending.pop(index, None)
+                if slot is None:
+                    continue
+                completed[index] = slot
+                available_capacity -= 1
+
+        def release_request_key(request_key: Optional[str], req_future: Future) -> None:
+            # This preserves the existing bounded-window deduplication behavior.
+            # Phase 2 extends the lifetime rule for duplicate indexed slots.
+            if (
+                request_key is not None
+                and unique_futures.get(request_key) is req_future
+            ):
+                del unique_futures[request_key]
+
         try:
-            while len(pending) < admission_watermark and admit_next_request():
-                pass
+            admit_available_requests()
 
-            while pending:
-                req_future, request_key = pending.popleft()
-                response = req_future.result()
+            while pending or completed:
+                collect_completed_requests()
+                admit_available_requests()
 
-                # Future deduplication is useful only while the original request
-                # remains in the live window. Once its ordered result is consumed,
-                # drop the entry so a long input cannot grow this map indefinitely.
-                if (
-                    request_key is not None
-                    and unique_futures.get(request_key) is req_future
-                ):
-                    del unique_futures[request_key]
+                while next_index_to_emit in completed:
+                    req_future, request_key = completed.pop(next_index_to_emit)
+                    response = req_future.result()
+                    release_request_key(request_key, req_future)
+                    next_index_to_emit += 1
+                    collect_completed_requests()
+                    admit_available_requests()
+                    yield response
 
-                while len(pending) < admission_watermark and admit_next_request():
-                    pass
-                yield response
+                if not pending:
+                    continue
+
+                if len(completed) >= completed_result_cap:
+                    req_future, request_key = pending.pop(next_index_to_emit)
+                    response = req_future.result()
+                    release_request_key(request_key, req_future)
+                    next_index_to_emit += 1
+                    yield response
+                    continue
+
+                settled_index = settled_pending_indices.get()
+                # The completion index remains in the queue for collection on
+                # the next loop iteration. This blocks without rescanning the
+                # pending window after every provider settlement.
+                settled_pending_indices.put(settled_index)
         except Exception as e:
             # Preserve the public batch API's error boundary for Polars callbacks.
             raise ExecutionError(str(e)) from e
+
+    @staticmethod
+    def _streaming_slot_caps(look_ahead_basis: int) -> tuple[int, int]:
+        """Return the bounded pending and completed slot capacities for streaming."""
+        return (
+            min(1_000, 3 * look_ahead_basis),
+            min(50_000, 10 * look_ahead_basis),
+        )
 
     #
     # Producer methods (run on the user thread)
