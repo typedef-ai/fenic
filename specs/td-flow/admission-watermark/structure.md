@@ -33,8 +33,8 @@ move together.
 
 ## Implementation Overview
 
-- [ ] Phase 1: Indexed bounded iterator and positional output
-- [ ] Phase 2: Indexed error and duplicate ownership
+- [x] Phase 1: Indexed bounded iterator and positional output
+- [x] Phase 2: Indexed error and duplicate ownership
 - [ ] Phase 3: Stage instrumentation and deterministic saturation evidence
 - [ ] Phase 4: Benchmark and memory grading
 
@@ -70,7 +70,7 @@ None needed — deterministic future-control tests cover the runtime state machi
 
 ---
 
-## Phase 2: Indexed error and duplicate ownership
+## ✅ Phase 2: Indexed error and duplicate ownership
 
 Make the new state machine safe under asynchronous failure and repeated requests.
 This phase is independently verifiable by forcing a later failure and duplicate
