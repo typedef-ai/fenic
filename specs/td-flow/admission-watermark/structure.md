@@ -40,7 +40,7 @@ move together.
 
 ---
 
-## Phase 1: Indexed bounded iterator and positional output
+## ✅ Phase 1: Indexed bounded iterator and positional output
 
 Replace the FIFO pending deque in the semantic iterator with indexed pending and
 completed state. This slice proves ordered output and independent completion
