@@ -7,15 +7,15 @@ response, not admitting or advancing requests. The measurements refute the
 hypothesis that per-window admission overhead dominates small-request
 throughput.
 
-At window 32, ordered slot wait accounts for 39.433 seconds, or 97.81% of the
-40.316-second streaming median. Admission, synchronous dispatch, and window
-advance total 0.959 seconds, or 2.38%. At window 100, slot wait falls to 16.229
-seconds even though admission-side work rises to 2.013 seconds.
+At window 32, ordered slot wait accounts for 43.426 seconds, or 97.42% of the
+44.577-second streaming median. Admission, synchronous dispatch, and window
+advance total 1.122 seconds, or 2.52%. At window 100, slot wait falls to 19.234
+seconds even though admission-side work rises to 1.149 seconds.
 
 The dominant cost is therefore **ordered slot wait behind the fixed admission
 window**. Increasing the window from 32 to 100 cuts streaming wall time by
-21.605 seconds. Slot wait falls by 23.204 seconds while admission-side work
-increases by 1.054 seconds. That direction is incompatible with admission
+24.171 seconds. Slot wait falls by 24.192 seconds while admission-side work
+increases by 0.027 seconds. That direction is incompatible with admission
 overhead causing the smaller window's regression.
 
 ## Measurement
@@ -29,7 +29,7 @@ limit event, and every run made exactly 1,000 physical requests.
 
 The measured stack starts at
 `a91d8af4a590ef9fb1f84338dbccf6c736378f56`. Instrumentation commit
-`06870502030f0c876b364c9e32e49ef3af280210` adds stage durations to the
+`202a24b358e85e2ea4f0668f3f7bf36b749629c2` adds stage durations to the
 existing request lifecycle collector. It does not add another observation
 mechanism.
 
@@ -38,20 +38,22 @@ stage total. The standard path reports no sliding-window stages by design.
 
 | Arm       | Window | Wall s | Window admission s | Request dispatch s | Slot wait s | Response drain s | Window advance s | Admission-side share |
 | --------- | -----: | -----: | -----------------: | -----------------: | ----------: | ---------------: | ---------------: | -------------------: |
-| Standard  |     32 |  8.997 |                  — |                  — |           — |                — |                — |                    — |
-| Streaming |     32 | 40.316 |              0.029 |              0.929 |  **39.433** |           0.0008 |           0.0009 |                2.38% |
-| Standard  |    100 |  8.084 |                  — |                  — |           — |                — |                — |                    — |
-| Streaming |    100 | 18.711 |              0.037 |              1.976 |  **16.229** |           0.0009 |           0.0009 |               10.76% |
+| Standard  |     32 |  9.667 |                  — |                  — |           — |                — |                — |                    — |
+| Streaming |     32 | 44.577 |              0.036 |              1.086 |  **43.426** |           0.0009 |           0.0004 |                2.52% |
+| Standard  |    100 |  8.910 |                  — |                  — |           — |                — |                — |                    — |
+| Streaming |    100 | 20.406 |              0.027 |              1.122 |  **19.234** |           0.0007 |           0.0003 |                5.63% |
 
-Streaming regressed 348.1% at window 32 and 131.5% at window 100 in this run.
-The three streaming wall times were 39.586–49.297 seconds at window 32 and
-18.275–24.553 seconds at window 100. The direction matches the earlier
+Streaming regressed 361.1% at window 32 and 129.0% at window 100 in this run.
+The three streaming wall times were 28.167–51.859 seconds at window 32 and
+19.997–20.417 seconds at window 100. The direction matches the earlier
 regression even though provider variance changed the magnitude.
 
-The collector emitted 5,000 stage records in each streaming run and zero in
-each standard control. A provider-free loop emitted 5,000 equivalent records
-in a median 4.272 milliseconds. This is less than 0.03% of the faster streaming
-cell and cannot explain the measured gap.
+The collector emitted 4,968 stage records per window-32 streaming run and 4,900
+per window-100 streaming run. The difference is the number of successful
+successor-slot advances. Each standard control emitted zero stage records. A
+provider-free loop emitted 5,000 equivalent records in a median 4.272
+milliseconds. This is less than 0.03% of the faster streaming cell and cannot
+explain the measured gap.
 
 ## Stage definitions
 
