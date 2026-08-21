@@ -125,12 +125,25 @@ def test_idle_metrics_exclude_rate_limited_wait_from_attribution():
             event("rate_limited", 150),
             event("dispatched", 160),
             event("settled", 170),
+            RequestLifecycleEvent(
+                event="streaming_stage",
+                timestamp_ns=1_000,
+                execution_id="p0-fake-execution",
+                batch_id="batch-1",
+                request_index=0,
+                operation_name="semantic.map",
+                model="fake-model",
+                provider="openai",
+                stage="window_advance",
+                duration_ns=10,
+            ),
         ]
     )
 
     assert metrics.total_idle_gap_ns == 40
     assert metrics.total_rate_limited_ns == 10
     assert metrics.total_non_rate_limited_idle_gap_ns == 30
+    assert metrics.idle_fraction == 40 / 60
 
 
 def test_lifecycle_marks_rate_limited_wait_once(monkeypatch):

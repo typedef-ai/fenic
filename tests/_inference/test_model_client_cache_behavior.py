@@ -480,6 +480,16 @@ def test_iter_batch_requests_emits_all_stage_timings_on_lifecycle_seam():
         "response_drain",
         "window_advance",
     }
+    assert {
+        stage: sum(event.stage == stage for event in stage_events)
+        for stage in {event.stage for event in stage_events}
+    } == {
+        "window_admission": 2,
+        "slot_wait": 2,
+        "request_dispatch": 2,
+        "response_drain": 2,
+        "window_advance": 2,
+    }
     assert all(
         event.duration_ns is not None and event.duration_ns >= 0
         for event in stage_events
