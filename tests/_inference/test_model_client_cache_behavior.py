@@ -455,6 +455,55 @@ def test_iter_batch_requests_keeps_lifecycle_events_in_one_ordered_window():
     ) == [0, 1, 2]
 
 
+def test_iter_batch_requests_emits_all_stage_timings_on_lifecycle_seam():
+    client = SlidingWindowCompletionClient()
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="stage-timing")
+
+    try:
+        responses = list(
+            client.iter_batch_requests(
+                [_make_completion_request(prompt) for prompt in ("first", "third")],
+                "stage-timing-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert len(responses) == 2
+    stage_events = [event for event in events if event.event == "streaming_stage"]
+    assert {event.stage for event in stage_events} == {
+        "window_admission",
+        "slot_wait",
+        "request_dispatch",
+        "response_drain",
+        "window_advance",
+    }
+    assert all(
+        event.duration_ns is not None and event.duration_ns >= 0
+        for event in stage_events
+    )
+    assert {event.execution_id for event in stage_events} == {"stage-timing"}
+    assert len({event.batch_id for event in stage_events}) == 1
+
+
+def test_standard_batch_path_emits_no_streaming_stage_timings():
+    client = DummyCompletionClient()
+    events = []
+    client.set_request_lifecycle_collector(events.append, execution_id="standard")
+
+    try:
+        client.make_batch_requests(
+            [_make_completion_request("first")],
+            "standard-stage-test",
+        )
+    finally:
+        client.shutdown()
+
+    assert not [event for event in events if event.event == "streaming_stage"]
+
+
 def test_iter_batch_requests_uses_cache_after_a_prior_live_window_entry_settles():
     fake_cache = FakeCache()
     client = DummyCompletionClient(cache=fake_cache)

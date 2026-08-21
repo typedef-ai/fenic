@@ -11,6 +11,14 @@ from dataclasses import dataclass
 from math import ceil
 from typing import Literal, Optional
 
+StreamingStage = Literal[
+    "window_admission",
+    "slot_wait",
+    "request_dispatch",
+    "response_drain",
+    "window_advance",
+]
+
 RequestLifecycleEventType = Literal[
     "queued",
     "rate_limited",
@@ -18,6 +26,7 @@ RequestLifecycleEventType = Literal[
     "settled",
     "retried",
     "failed",
+    "streaming_stage",
 ]
 RequestLifecycleCollector = Callable[["RequestLifecycleEvent"], None]
 
@@ -29,6 +38,8 @@ class RequestLifecycleEvent:
     ``batch_id`` identifies the model-client batch. ``execution_id`` is supplied by
     an instrumented execution, so callers can correlate multiple semantic operators.
     Timestamps use :func:`time.monotonic_ns` and are comparable only within one process.
+    Sliding-window stage records set ``stage`` and ``duration_ns``; request transition
+    records leave both fields unset.
     """
 
     event: RequestLifecycleEventType
@@ -39,6 +50,18 @@ class RequestLifecycleEvent:
     operation_name: str
     model: str
     provider: str
+    stage: Optional[StreamingStage] = None
+    duration_ns: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class StageTimingMetrics:
+    """Aggregated timings for one sliding-window execution stage."""
+
+    count: int
+    total_ns: int
+    p50_ns: Optional[int]
+    p95_ns: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -89,6 +112,8 @@ def compute_idle_gap_metrics(events: Iterable[RequestLifecycleEvent]) -> IdleGap
 
     ordered_events = sorted(events, key=lambda event: event.timestamp_ns)
     for event in ordered_events:
+        if event.event == "streaming_stage":
+            continue
         stream = (event.execution_id, event.model, event.provider)
         state = states[stream]
         request = (event.batch_id, event.request_index)
@@ -155,3 +180,34 @@ def compute_idle_gap_metrics(events: Iterable[RequestLifecycleEvent]) -> IdleGap
         total_rate_limited_ns=sum(rate_limited_delays_ns),
         idle_fraction=total_idle_gap_ns / total_duration_ns if total_duration_ns else 0.0,
     )
+
+
+def compute_streaming_stage_metrics(
+    events: Iterable[RequestLifecycleEvent],
+) -> dict[StreamingStage, StageTimingMetrics]:
+    """Summarize elapsed time recorded for each sliding-window stage."""
+    durations: dict[StreamingStage, list[int]] = defaultdict(list)
+    for event in events:
+        if (
+            event.event != "streaming_stage"
+            or event.stage is None
+            or event.duration_ns is None
+        ):
+            continue
+        durations[event.stage].append(event.duration_ns)
+
+    def percentile(values: list[int], percentile: float) -> Optional[int]:
+        if not values:
+            return None
+        ordered = sorted(values)
+        return ordered[ceil(percentile * len(ordered)) - 1]
+
+    return {
+        stage: StageTimingMetrics(
+            count=len(values),
+            total_ns=sum(values),
+            p50_ns=percentile(values, 0.50),
+            p95_ns=percentile(values, 0.95),
+        )
+        for stage, values in durations.items()
+    }

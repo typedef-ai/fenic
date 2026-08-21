@@ -40,6 +40,7 @@ from fenic._inference.request_lifecycle import (
     RequestLifecycleCollector,
     RequestLifecycleEvent,
     RequestLifecycleEventType,
+    StreamingStage,
 )
 from fenic._inference.token_counter import (
     TokenCounter,
@@ -280,6 +281,46 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             )
         except Exception:
             logger.warning("Request lifecycle collector raised an exception", exc_info=True)
+
+    def _emit_streaming_stage_event(
+        self,
+        stage: StreamingStage,
+        duration_ns: int,
+        *,
+        timestamp_ns: int,
+        batch_id: str,
+        request_index: int,
+        operation_name: str,
+    ) -> None:
+        """Emit one optional sliding-window stage timing on the lifecycle seam."""
+        if self._request_lifecycle_collector is None:
+            return
+
+        with self._request_lifecycle_lock:
+            collector = self._request_lifecycle_collector
+            execution_id = self._request_lifecycle_execution_id
+        if collector is None:
+            return
+
+        try:
+            collector(
+                RequestLifecycleEvent(
+                    event="streaming_stage",
+                    timestamp_ns=timestamp_ns,
+                    execution_id=execution_id,
+                    batch_id=batch_id,
+                    request_index=request_index,
+                    operation_name=operation_name,
+                    model=self.model,
+                    provider=self.model_provider.value,
+                    stage=stage,
+                    duration_ns=duration_ns,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "Request lifecycle collector raised an exception", exc_info=True
+            )
 
     def get_profile_hash_for_request(self, request: RequestT) -> Optional[str]:
         """Get a hash of the resolved profile configuration for a request.
@@ -564,15 +605,61 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         pending: deque[tuple[Future, Optional[str]]] = deque()
         request_index = 0
 
-        def admit_next_request() -> bool:
+        def record_stage(
+            stage: StreamingStage,
+            started_ns: Optional[int],
+            *,
+            stage_request_index: int,
+        ) -> int:
+            if started_ns is None:
+                return 0
+            finished_ns = time.monotonic_ns()
+            duration_ns = finished_ns - started_ns
+            self._emit_streaming_stage_event(
+                stage,
+                duration_ns,
+                timestamp_ns=finished_ns,
+                batch_id=batch_id,
+                request_index=stage_request_index,
+                operation_name=operation_name,
+            )
+            return duration_ns
+
+        def admit_next_request() -> tuple[bool, int, int, int]:
             nonlocal request_index
 
+            stage_request_index = request_index
+            call_started_ns = (
+                time.monotonic_ns()
+                if self._request_lifecycle_collector is not None
+                else None
+            )
+            admission_started_ns = (
+                time.monotonic_ns()
+                if self._request_lifecycle_collector is not None
+                else None
+            )
             try:
                 request = next(request_iter)
             except StopIteration:
-                return False
+                call_ns = (
+                    time.monotonic_ns() - call_started_ns
+                    if call_started_ns is not None
+                    else 0
+                )
+                return False, 0, 0, call_ns
 
             request_key = self.get_request_key(request) if request is not None else None
+            admission_ns = record_stage(
+                "window_admission",
+                admission_started_ns,
+                stage_request_index=stage_request_index,
+            )
+            dispatch_started_ns = (
+                time.monotonic_ns()
+                if self._request_lifecycle_collector is not None
+                else None
+            )
             request_futures, _, _ = self._submit_batch_requests(
                 [request],
                 batch_id,
@@ -582,28 +669,80 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_index_offset=request_index,
                 show_progress=False,
             )
+            dispatch_ns = record_stage(
+                "request_dispatch",
+                dispatch_started_ns,
+                stage_request_index=stage_request_index,
+            )
             pending.append((request_futures[0], request_key))
             request_index += 1
-            return True
+            call_ns = (
+                time.monotonic_ns() - call_started_ns
+                if call_started_ns is not None
+                else 0
+            )
+            return True, admission_ns, dispatch_ns, call_ns
 
         try:
-            while len(pending) < batch_size and admit_next_request():
-                pass
+            while len(pending) < batch_size:
+                admitted, _, _, _ = admit_next_request()
+                if not admitted:
+                    break
 
             while pending:
+                stage_request_index = request_index - len(pending)
                 req_future, request_key = pending.popleft()
+                wait_started_ns = (
+                    time.monotonic_ns()
+                    if self._request_lifecycle_collector is not None
+                    else None
+                )
                 response = req_future.result()
+                record_stage(
+                    "slot_wait",
+                    wait_started_ns,
+                    stage_request_index=stage_request_index,
+                )
 
                 # Future deduplication is useful only while the original request
                 # remains in the live window. Once its ordered result is consumed,
                 # drop the entry so a long input cannot grow this map indefinitely.
+                drain_started_ns = (
+                    time.monotonic_ns()
+                    if self._request_lifecycle_collector is not None
+                    else None
+                )
                 if (
                     request_key is not None
                     and unique_futures.get(request_key) is req_future
                 ):
                     del unique_futures[request_key]
+                record_stage(
+                    "response_drain",
+                    drain_started_ns,
+                    stage_request_index=stage_request_index,
+                )
 
-                admit_next_request()
+                advance_started_ns = (
+                    time.monotonic_ns()
+                    if self._request_lifecycle_collector is not None
+                    else None
+                )
+                _, _, _, admission_call_ns = admit_next_request()
+                if advance_started_ns is not None:
+                    finished_ns = time.monotonic_ns()
+                    exclusive_duration_ns = max(
+                        0,
+                        finished_ns - advance_started_ns - admission_call_ns,
+                    )
+                    self._emit_streaming_stage_event(
+                        "window_advance",
+                        exclusive_duration_ns,
+                        timestamp_ns=finished_ns,
+                        batch_id=batch_id,
+                        request_index=stage_request_index,
+                        operation_name=operation_name,
+                    )
                 yield response
         except Exception as e:
             # Preserve the public batch API's error boundary for Polars callbacks.
