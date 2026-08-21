@@ -94,6 +94,7 @@ class QueueItem(Generic[RequestT]):
     request_timeout: float
     request_fingerprint: Optional[str] = None
     was_rate_limited: bool = False
+    stream_slot_index: Optional[int] = None
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -561,6 +562,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             look_ahead_basis
         )
         unique_futures: Dict[Any, Future] = {}
+        slot_ref_counts: Dict[str, int] = {}
         pending: Dict[int, tuple[Future, Optional[str]]] = {}
         completed: Dict[int, tuple[Future, Optional[str]]] = {}
         settled_pending_indices: SimpleQueue[int] = SimpleQueue()
@@ -571,6 +573,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         def admit_next_request() -> bool:
             nonlocal request_index
 
+            # Stream-owned failures are represented by the indexed future below.
+            # Any other work on this thread still retains the immediate error path.
+            self._maybe_raise_thread_exception()
             try:
                 request = next(request_iter)
             except StopIteration:
@@ -585,10 +590,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 unique_futures=unique_futures,
                 request_index_offset=request_index,
                 show_progress=False,
+                defer_thread_exceptions=True,
             )
             slot_index = request_index
             req_future = request_futures[0]
             pending[slot_index] = (req_future, request_key)
+            if request_key is not None and request_key in unique_futures:
+                slot_ref_counts[request_key] = slot_ref_counts.get(request_key, 0) + 1
             req_future.add_done_callback(
                 lambda _future, index=slot_index: settled_pending_indices.put(index)
             )
@@ -627,14 +635,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 completed[index] = slot
                 available_capacity -= 1
 
-        def release_request_key(request_key: Optional[str], req_future: Future) -> None:
-            # This preserves the existing bounded-window deduplication behavior.
-            # Phase 2 extends the lifetime rule for duplicate indexed slots.
-            if (
-                request_key is not None
-                and unique_futures.get(request_key) is req_future
-            ):
-                del unique_futures[request_key]
+        def release_request_key(request_key: Optional[str]) -> None:
+            if request_key is None or request_key not in slot_ref_counts:
+                return
+
+            remaining_references = slot_ref_counts[request_key] - 1
+            if remaining_references:
+                slot_ref_counts[request_key] = remaining_references
+                return
+
+            del slot_ref_counts[request_key]
+            unique_futures.pop(request_key, None)
 
         try:
             admit_available_requests()
@@ -646,7 +657,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 while next_index_to_emit in completed:
                     req_future, request_key = completed.pop(next_index_to_emit)
                     response = req_future.result()
-                    release_request_key(request_key, req_future)
+                    release_request_key(request_key)
                     next_index_to_emit += 1
                     collect_completed_requests()
                     admit_available_requests()
@@ -658,7 +669,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 if len(completed) >= completed_result_cap:
                     req_future, request_key = pending.pop(next_index_to_emit)
                     response = req_future.result()
-                    release_request_key(request_key, req_future)
+                    release_request_key(request_key)
                     next_index_to_emit += 1
                     yield response
                     continue
@@ -822,6 +833,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         unique_futures: Optional[Dict[Any, Future]] = None,
         request_index_offset: int = 0,
         show_progress: bool = True,
+        defer_thread_exceptions: bool = False,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -832,6 +844,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             unique_futures: Optional live deduplication map shared by a streaming window.
             request_index_offset: Offset for lifecycle request indices.
             show_progress: Whether to render submission progress.
+            defer_thread_exceptions: Keep queue-item failures on their futures for
+                indexed streaming emission instead of registering them globally.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
@@ -884,7 +898,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         ) as pbar:
             for idx, request in enumerate(requests):
                 # Check for exceptions from the event loop thread
-                self._maybe_raise_thread_exception()
+                if not defer_thread_exceptions:
+                    self._maybe_raise_thread_exception()
 
                 # Eagerly handle empty requests
                 if request is None:
@@ -940,6 +955,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         request_index=request_index_offset + idx,
                         request_fingerprint=request_fingerprint,
                         request_timeout=request_timeout,
+                        stream_slot_index=(
+                            request_index_offset + idx
+                            if defer_thread_exceptions
+                            else None
+                        ),
                     )
                     self._emit_request_lifecycle_event("queued", queue_item)
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
@@ -1202,8 +1222,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         if not queue_item.future.done():
             queue_item.future.set_exception(exception)
 
-        with self.thread_exceptions_lock:
-            self.thread_exceptions[queue_item.thread_id] = exception
+        if queue_item.stream_slot_index is None:
+            with self.thread_exceptions_lock:
+                self.thread_exceptions[queue_item.thread_id] = exception
 
     async def _cancel_in_flight_requests(self):
         """Cancels all inflight tasks and gathers their results."""
