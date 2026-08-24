@@ -84,9 +84,26 @@ class TestAsyncUDF:
         expected = [{"x": i, "doubled": i * 2} for i in range(1, 6)]
         assert result == expected
 
-        # Verify timing - should take at least 0.5 seconds (3 batches * 0.2s)
+        # Verify the concurrency ceiling directly from the recorded events:
+        # sweep start/end events in time order and track how many calls are
+        # in flight at once. This is what max_concurrency=2 actually promises,
+        # and unlike a wall-clock upper bound it cannot flake on a loaded runner.
+        events = sorted(call_times, key=lambda e: e[1])
+        in_flight = 0
+        max_in_flight = 0
+        for kind, _t, _x in events:
+            if kind == "start":
+                in_flight += 1
+                max_in_flight = max(max_in_flight, in_flight)
+            else:
+                in_flight -= 1
+        assert max_in_flight == 2, (
+            f"Expected exactly 2 concurrent calls at peak, got {max_in_flight}"
+        )
+
+        # Lower bound only: 5 items at 0.2s under a ceiling of 2 needs >= 3
+        # waves. A slow runner can only make this larger, never smaller.
         assert elapsed >= 0.5, f"Expected at least 0.5s, got {elapsed:.2f}s"
-        assert elapsed < 1.0, f"Expected less than 1.0s, got {elapsed:.2f}s"
 
     def test_async_udf_with_failures(self, local_session: Session):
         """Test async UDF handling of individual failures."""
@@ -412,7 +429,14 @@ class TestAsyncUDF:
         assert serial_elapsed >= 0.9, f"Serial execution too fast: {serial_elapsed:.2f}s (expected >= 0.9s)"
 
         # Concurrent should take less than 0.5 seconds
-        assert concurrent_elapsed < 0.5, f"Concurrent execution too slow: {concurrent_elapsed:.2f}s (expected < 0.5s)"
+        # Relative bound instead of absolute wall clock: both runs execute on
+        # the same (possibly loaded) machine, so requiring the concurrent run
+        # to beat half the serial run proves real overlap without flaking
+        # when the runner is slow.
+        assert concurrent_elapsed < serial_elapsed * 0.5, (
+            f"Concurrent execution too slow: {concurrent_elapsed:.2f}s "
+            f"(expected < half of serial {serial_elapsed:.2f}s)"
+        )
 
     def test_async_udf_without_return_type_errors(self):
         """Test @async_udf without return type errors."""
