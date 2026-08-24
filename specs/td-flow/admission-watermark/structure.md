@@ -11,6 +11,10 @@ source_inputs:
 last_updated: 2026-08-21
 ---
 
+<!-- The td-structure template repeats the same File Changes / Validation
+     headings under every phase by design. -->
+<!-- markdownlint-disable MD024 -->
+
 # Structure: Bounded indexed semantic streaming
 
 This outline implements the approved indexed-slot iterator without widening the
