@@ -22,6 +22,7 @@ from fenic.api.session import (
 from fenic.core.error import InvalidExampleCollectionError, ValidationError
 
 
+@pytest.mark.requires_provider_key
 def test_single_semantic_filter(local_session):
     claim = "Review: {{review}}. The review has positive sentiment about apache spark."
     source = local_session.create_dataframe(
@@ -63,6 +64,7 @@ def test_single_semantic_filter(local_session):
         "sentiment": pl.Boolean,
     }
 
+@pytest.mark.requires_provider_key
 def test_semantic_filter_with_nulls(local_session):
     source = local_session.create_dataframe(
         {
@@ -88,6 +90,7 @@ def test_semantic_filter_with_nulls(local_session):
     assert len(result_list) == 2
     assert result_list[1] is not None
 
+@pytest.mark.requires_provider_key
 def test_semantic_filter_with_examples(local_session):
     claim = (
         "Review: {{part1}}. {{part2}}. The review has positive sentiment about apache spark."
@@ -121,6 +124,7 @@ def test_semantic_filter_with_examples(local_session):
     }
 
 
+@pytest.mark.requires_provider_key
 def test_many_semantic_filter_or(local_session):
     source = local_session.create_dataframe(
         {
@@ -143,6 +147,7 @@ def test_many_semantic_filter_or(local_session):
         "review": pl.String,
     }
 
+@pytest.mark.requires_provider_key
 def test_semantic_predicate_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(

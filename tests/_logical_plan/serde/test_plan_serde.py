@@ -377,6 +377,7 @@ def test_transform_plans(local_session, serde_implementation: SupportsLogicalPla
 
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)
+@pytest.mark.requires_provider_key
 def test_join_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create DataFrames for joining
     left = local_session.create_dataframe({"id": [1, 2, 3], "name": ["a", "b", "c"]})
@@ -421,6 +422,7 @@ def test_join_plans(local_session, serde_implementation: SupportsLogicalPlanSerd
 
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)
+@pytest.mark.requires_provider_key
 def test_aggregate_plans(local_session, serde_implementation: SupportsLogicalPlanSerde):
     # Create DataFrame for aggregation
     df = local_session.create_dataframe(

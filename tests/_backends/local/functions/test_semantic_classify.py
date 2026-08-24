@@ -20,6 +20,7 @@ from fenic.core.error import InvalidExampleCollectionError, ValidationError
 from fenic.core.types import ClassDefinition, ColumnField, StringType
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_classification_simple(local_session):
     categories = ["Billing", "Tech Support", "General Inquiry"]
 
@@ -57,6 +58,7 @@ def test_semantic_classification_simple(local_session):
     for result in result_list[:3]:
         assert result in ["Billing", "Tech Support", "General Inquiry"]
 
+@pytest.mark.requires_provider_key
 def test_semantic_classification_with_definitions(local_session):
     categories = [
         ClassDefinition(
@@ -108,6 +110,7 @@ def test_semantic_classification_with_definitions(local_session):
         assert result in ["Billing", "Tech Support", "General Inquiry"]
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_classification_with_examples(local_session):
     categories = [
         ClassDefinition(label="Health", description="Health related inquiries"),
@@ -249,6 +252,7 @@ def test_semantic_classification_err_handling_invalid_column(local_session):
             semantic.classify("invalid_column", categories).alias("category"),
         )
 
+@pytest.mark.requires_provider_key
 def test_semantic_classify_without_models(tmp_path):
     """Test that an error is raised if no language models are configured."""
     session_config = SessionConfig(

@@ -96,6 +96,7 @@ def _create_semantic_join_dataframe_with_right_none(local_session: Session):
     return left, right
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_join(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     join_instruction = "Taking {{left_on}} will help me learn {{right_on}}"
@@ -119,6 +120,7 @@ def test_semantic_join(local_session: Session):
     }
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_join_with_none(local_session: Session):
     """Test that we can join a dataframe with a None value.
     Note: this will produce the same result as the test above, but we'll evaluate
@@ -147,6 +149,7 @@ def test_semantic_join_with_none(local_session: Session):
     }
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_join_with_right_none(local_session: Session):
     """Test that we can join a dataframe a none value on the right of the joint.
     In this case although there are 3 rows in the right dataframe, only 2 will be
@@ -193,6 +196,7 @@ def test_semantic_join_duplicate_columns(local_session: Session):
         left.semantic.join(right, join_instruction, left_on=col("course_name"), right_on=col("skill"))
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_join_with_examples(local_session: Session):
     left, right = _create_semantic_join_dataframe(local_session)
     collection = JoinExampleCollection()
@@ -389,6 +393,7 @@ def test_semantic_join_with_derived_columns(local_session: Session):
         assert skill_not_all_upper
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_join_without_models(tmp_path):
     """Test semantic.join() method without models."""
     session_config = SessionConfig(

@@ -124,6 +124,7 @@ def test_simple_metrics(local_session, sales_data, product_data, customer_data):
     assert limit_op.execution_time_ms > 0
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_metrics(local_session):
     """Test that the semantic API works at all without using the fixture, given that the fixture sets lm."""
     df = local_session.create_dataframe(pl.DataFrame({"name": ["Alice", "Bob"]}))

@@ -102,8 +102,11 @@ test: test-local
   true
 
 # run local tests
-test-local modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small" : sync
-  POLARS_VERBOSE=1 uv run pytest -m "not cloud" --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
+# markerExpr lets CI narrow the selection further (e.g. to skip tests that need a live
+# provider key on a fork PR, where GitHub withholds repository secrets) without touching
+# this recipe's default, full-coverage behavior.
+test-local modelProvider="openai" modelName="gpt-4.1-nano" embeddingModelProvider="openai" embeddingModelName="text-embedding-3-small" markerExpr="not cloud" : sync
+  POLARS_VERBOSE=1 uv run pytest -m "{{ markerExpr }}" --language-model-provider {{ modelProvider }} --language-model-name {{ modelName }} \
   --embedding-model-provider {{ embeddingModelProvider }} --embedding-model-name {{ embeddingModelName }} tests
 
 alias test-not-cloud := test-local

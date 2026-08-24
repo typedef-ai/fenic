@@ -7,12 +7,9 @@ from fenic.core._inference.model_catalog import (
 )
 
 
-@pytest.mark.integration
+@pytest.mark.requires_provider_key
 def test_openrouter_provider_live_fetch_models():
-    """Live integration: ensure OpenRouter models load and basic fields exist.
-
-    Skipped by default; run with -m integration.
-    """
+    """Live integration: ensure OpenRouter models load and basic fields exist."""
     models = model_catalog._get_supported_completions_models_by_provider(
         ModelProvider.OPENROUTER
     )

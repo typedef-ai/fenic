@@ -5,6 +5,8 @@ from fenic import ColumnField, Schema, StringType, col
 from fenic.api.functions import semantic
 from fenic.core.error import ValidationError
 
+pytestmark = pytest.mark.requires_provider_key
+
 
 def test_semantic_map_multiple_models(multi_model_local_session):
     source = multi_model_local_session.create_dataframe(

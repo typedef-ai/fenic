@@ -163,6 +163,7 @@ def _create_semantic_sim_join_supplement(local_session):
     return df_supplement
 
 @pytest.mark.parametrize("metric", ["dot", "cosine", "l2"])
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join(local_session, metric, embedding_model_name_and_dimensions):
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions
     left, right = _create_semantic_join_dataframe(local_session)
@@ -406,6 +407,7 @@ def test_semantic_sim_join_empty_result(local_session):
     )
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join_with_sim_scores(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
     df = (
@@ -467,6 +469,7 @@ def test_semantic_sim_join_errors(local_session):
         )
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join_derived_columns(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
     supplement = _create_semantic_sim_join_supplement(local_session)
@@ -495,6 +498,7 @@ def test_semantic_sim_join_derived_columns(local_session):
     )
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join_derived_columns_with_k_gt_1(local_session):
     left, right = _create_semantic_join_dataframe(local_session)
     supplement = _create_semantic_sim_join_supplement(local_session)
@@ -529,6 +533,7 @@ def test_semantic_sim_join_derived_columns_with_k_gt_1(local_session):
     assert len(result) == 18  # len(left) * k
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join_with_none(local_session):
     """Test that we can perform a sim join a dataframe with a None value."""
     left, right = _create_semantic_join_dataframe_with_none(local_session)
@@ -559,6 +564,7 @@ def test_semantic_sim_join_with_none(local_session):
     assert None not in result["course_name"].to_list()
 
 
+@pytest.mark.requires_provider_key
 def test_semantic_sim_join_with_right_none(local_session):
     """Test that we can perform a sim join a dataframe with a None value."""
     left, right = _create_semantic_join_dataframe_with_right_none(local_session)

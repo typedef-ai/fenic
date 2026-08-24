@@ -1473,6 +1473,7 @@ def test_read_large_pdfs_with_fields(local_session, temp_dir_just_one_file):
             assert row["page_count"] == file3_pages, f"PDF 3 expected to have {file3_pages} pages"
 
 
+@pytest.mark.requires_provider_key
 def test_read_embeddings_table(local_session, extract_data_df, embedding_model_name_and_dimensions):
     """Test group_by() on a semantic cluster id with a saved embeddings table."""
     embedding_model_name, embedding_dimensions = embedding_model_name_and_dimensions

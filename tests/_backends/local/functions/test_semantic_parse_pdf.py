@@ -45,6 +45,7 @@ vlms_to_test = [
 
 @pytest.mark.parametrize("pdf_chunk_size", [1, 0])
 @pytest.mark.parametrize("test_model_class, test_model_name, test_processing_engine", vlms_to_test)
+@pytest.mark.requires_provider_key
 def test_semantic_parse_pdf_basic_markdown(
     request: pytest.FixtureRequest,
     tmp_path: Path,
@@ -108,6 +109,7 @@ def test_semantic_parse_pdf_basic_markdown(
 
 @pytest.mark.parametrize("pdf_chunk_size", [1, 0])
 @pytest.mark.parametrize("test_model_class, test_model_name, test_processing_engine", vlms_to_test)
+@pytest.mark.requires_provider_key
 def test_semantic_parse_pdf_markdown_with_simple_page_break_and_images(
     request: pytest.FixtureRequest,
     tmp_path: Path,
