@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenic.ai/schemas/streaming-benchmark.v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scenario_version",
+    "limits",
+    "arms",
+    "repetitions",
+    "interleaving_seed",
+    "workload",
+    "scenarios"
+  ],
+  "properties": {
+    "schema_version": { "const": "streaming-benchmark.v1" },
+    "scenario_version": { "type": "string", "minLength": 1 },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cell_timeout_seconds",
+        "max_rows_per_input",
+        "max_physical_requests",
+        "max_batch_size",
+        "max_pair_block_size",
+        "max_block_token_budget",
+        "max_repetitions"
+      ],
+      "properties": {
+        "cell_timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1800
+        },
+        "max_rows_per_input": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_physical_requests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_batch_size": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_pair_block_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "max_block_token_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "max_repetitions": { "type": "integer", "minimum": 3, "maximum": 9 }
+      }
+    },
+    "arms": { "const": ["standard", "streaming"] },
+    "repetitions": { "type": "integer", "minimum": 3, "maximum": 9 },
+    "interleaving_seed": { "type": "integer" },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shapes", "batch_sizes", "input_seed"],
+      "properties": {
+        "shapes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rows",
+              "right_rows",
+              "unique_inputs",
+              "pair_block_size",
+              "block_token_budget",
+              "rpm",
+              "latency_seconds"
+            ],
+            "properties": {
+              "rows": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "right_rows": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "unique_inputs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "pair_block_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              },
+              "block_token_budget": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "rpm": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "latency_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 60
+              }
+            }
+          }
+        },
+        "batch_sizes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        },
+        "input_seed": { "type": "integer" }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "execution_mode",
+          "execution_shape",
+          "steps"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["operator", "chain"] },
+          "execution_mode": { "enum": ["disabled", "simulated"] },
+          "execution_shape": {
+            "enum": [
+              "single",
+              "barriered",
+              "unfused_unbarriered",
+              "fused_unbarriered"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "operator",
+                "input_columns",
+                "output_column",
+                "prompt_template",
+                "input_profile",
+                "output_profile"
+              ],
+              "properties": {
+                "operator": {
+                  "enum": ["join", "map", "predicate", "extract", "parse"]
+                },
+                "input_columns": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "output_column": { "type": "string", "minLength": 1 },
+                "prompt_template": { "type": "string", "minLength": 1 },
+                "input_profile": { "type": "string", "minLength": 1 },
+                "output_profile": { "type": "string", "minLength": 1 },
+                "output_schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
