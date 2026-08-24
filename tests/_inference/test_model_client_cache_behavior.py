@@ -1166,8 +1166,32 @@ def test_iter_batch_requests_default_rpm_uses_three_times_pending_cap():
         client.shutdown()
 
 
+class _LookupCountingFakeCache(FakeCache):
+    """FakeCache that signals once a given number of get_batch calls landed.
+
+    The streaming path performs exactly one get_batch lookup per admitted
+    request, so waiting on this event pins "every admission's cache lookup has
+    happened" without racing the event loop.
+    """
+
+    def __init__(self, expected_lookups: int):
+        super().__init__()
+        self.expected_lookups_done = threading.Event()
+        self._expected_lookups = expected_lookups
+        self._lookup_calls = 0
+        self._lookup_lock = threading.Lock()
+
+    def get_batch(self, cache_keys: List[str]) -> Dict[str, CachedResponse]:
+        result = super().get_batch(cache_keys)
+        with self._lookup_lock:
+            self._lookup_calls += 1
+            if self._lookup_calls >= self._expected_lookups:
+                self.expected_lookups_done.set()
+        return result
+
+
 def test_iter_batch_requests_preserves_order_for_cached_live_requests():
-    fake_cache = FakeCache()
+    fake_cache = _LookupCountingFakeCache(expected_lookups=4)
     client = SlidingWindowCompletionClient(
         cache=fake_cache,
         rate_limit_rpm=3,
@@ -1185,7 +1209,15 @@ def test_iter_batch_requests_preserves_order_for_cached_live_requests():
         )
 
         collected = executor.submit(list, responses)
-        assert client.first_started.wait(timeout=1)
+        # Release only after every admission's cache lookup has happened.
+        # Releasing on first_started raced the admission loop: on a slow
+        # runner the event loop completed and CACHED "first" before the
+        # duplicate's admission lookup ran, so that lookup legitimately hit
+        # the cache and the zero-hit assertion below failed (the CI-only
+        # failure on every stack level). The blocked prompts cannot settle
+        # before the release, so after this wait a zero hit count is a
+        # deterministic contract, not a timing assumption.
+        assert fake_cache.expected_lookups_done.wait(timeout=2)
         client.release_second.set()
         results = collected.result(timeout=2)
     finally:
