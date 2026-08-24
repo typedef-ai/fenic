@@ -1,7 +1,9 @@
 from textwrap import dedent
+from unittest.mock import MagicMock
 
 import jinja2
 import polars as pl
+import pytest
 
 from fenic import JoinExample, JoinExampleCollection
 from fenic._backends.local.semantic_operators.join import (
@@ -10,6 +12,8 @@ from fenic._backends.local.semantic_operators.join import (
     RIGHT_ID_KEY,
     Join,
 )
+from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic.core.error import ExecutionError, InternalError
 
 
 class TestJoin:
@@ -64,7 +68,8 @@ class TestJoin:
             model=local_session._session_state.get_language_model(),
             temperature=0,
         )
-        df = sem_join._build_join_pairs_df().select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
+        left_documents, right_documents = sem_join._join_documents()
+        df = sem_join._build_join_pair_block(left_documents, right_documents).select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
         assert df[LEFT_ID_KEY].to_list() == [0, 0, 0, 2, 2, 2]
         assert df[RIGHT_ID_KEY].to_list() == [0, 1, 2, 0, 1, 2]
         assert df[RENDERED_INSTRUCTION_KEY].to_list() == [
@@ -85,7 +90,8 @@ class TestJoin:
             model=local_session._session_state.get_language_model(),
             temperature=0,
         )
-        df = sem_join._build_join_pairs_df().select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
+        left_documents, right_documents = sem_join._join_documents()
+        df = sem_join._build_join_pair_block(left_documents, right_documents).select(LEFT_ID_KEY, RIGHT_ID_KEY, RENDERED_INSTRUCTION_KEY)
         assert df[LEFT_ID_KEY].to_list() == [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]
         assert df[RIGHT_ID_KEY].to_list() == [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]
         assert df[RENDERED_INSTRUCTION_KEY].to_list() == [
@@ -130,3 +136,294 @@ class TestJoin:
         )
         assert predicate_examples[0].input["right_on"] == "Romantic Comedy"
         assert predicate_examples[0].output is False
+
+    def test_execute_bounds_predicate_blocks_without_losing_or_duplicating_pairs(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        def fake_execute(predicate):
+            rendered = predicate.input.to_list()
+            observed_blocks.append(rendered)
+            return pl.Series(["keep" in prompt for prompt in rendered])
+
+        monkeypatch.setattr(Predicate, "execute", fake_execute)
+
+        sem_join = Join(
+            left_df=pl.DataFrame(
+                {
+                    "left_on": ["left-0", "left-1", "left-2"],
+                    "left_payload": [0, 1, 2],
+                }
+            ),
+            right_df=pl.DataFrame(
+                {
+                    "right_on": ["keep", "skip", "keep-too"],
+                    "right_payload": [10, 11, 12],
+                }
+            ),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=2,
+        )
+
+        result = sem_join.execute().sort(["left_payload", "right_payload"])
+
+        assert [len(block) for block in observed_blocks] == [2, 1, 2, 1, 2, 1]
+        assert all(len(block) <= 2 for block in observed_blocks)
+        assert result.select(["left_payload", "right_payload"]).to_dicts() == [
+            {"left_payload": left, "right_payload": right}
+            for left in range(3)
+            for right in (10, 12)
+        ]
+
+    def test_execute_splits_pair_blocks_to_the_rendered_token_budget(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        def fake_execute(predicate):
+            observed_blocks.append(predicate.input.to_list())
+            return pl.Series([False] * len(predicate.input))
+
+        monkeypatch.setattr(Predicate, "execute", fake_execute)
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"]}),
+            right_df=pl.DataFrame({"right_on": ["one", "two", "three"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=3,
+            block_token_budget=4,
+        )
+        counted_prompts = []
+        monkeypatch.setattr(
+            sem_join.model,
+            "count_tokens",
+            lambda prompt: counted_prompts.append(prompt) or 2,
+        )
+
+        sem_join.execute()
+
+        assert [len(block) for block in observed_blocks] == [1, 2]
+        assert all(2 * len(block) <= 4 for block in observed_blocks)
+        assert set(counted_prompts) == {"left one", "left two", "left three"}
+
+    def test_execute_allows_a_single_prompt_over_the_preferred_block_budget(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        monkeypatch.setattr(
+            Predicate,
+            "execute",
+            lambda predicate: observed_blocks.append(predicate.input.to_list())
+            or pl.Series([False] * len(predicate.input)),
+        )
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"]}),
+            right_df=pl.DataFrame({"right_on": ["right"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=1,
+            block_token_budget=1,
+        )
+        monkeypatch.setattr(sem_join.model, "count_tokens", lambda _: 2)
+
+        sem_join.execute()
+
+        assert observed_blocks == [["left right"]]
+
+    def test_execute_rejects_a_single_prompt_over_the_model_context_limit(
+        self, local_session, monkeypatch
+    ):
+        monkeypatch.setattr(Predicate, "execute", lambda _: pytest.fail("not called"))
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"]}),
+            right_df=pl.DataFrame({"right_on": ["right"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=1,
+            block_token_budget=1,
+        )
+        monkeypatch.setattr(sem_join.model, "count_tokens", lambda _: 3)
+        monkeypatch.setattr(
+            sem_join.model.model_parameters,
+            "context_window_length",
+            2,
+        )
+
+        with pytest.raises(
+            ExecutionError,
+            match="semantic.join rendered prompt is too large.*model context limit",
+        ):
+            sem_join.execute()
+
+    def test_build_join_pair_block_asserts_its_pair_cap(self, local_session):
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left-0", "left-1"]}),
+            right_df=pl.DataFrame({"right_on": ["right-0", "right-1"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=3,
+        )
+        left_documents, right_documents = sem_join._join_documents()
+
+        with pytest.raises(InternalError, match="semantic.join pair block exceeds cap"):
+            sem_join._build_join_pair_block(left_documents, right_documents)
+
+    @pytest.mark.parametrize(
+        ("pair_block_size", "block_token_budget", "message"),
+        [
+            (0, 1, "pair_block_size must be positive"),
+            (1, 0, "block_token_budget must be positive"),
+        ],
+    )
+    def test_join_rejects_invalid_internal_block_configuration(
+        self,
+        local_session,
+        pair_block_size,
+        block_token_budget,
+        message,
+    ):
+        with pytest.raises(InternalError, match=message):
+            Join(
+                left_df=pl.DataFrame({"left_on": ["left"]}),
+                right_df=pl.DataFrame({"right_on": ["right"]}),
+                jinja_template="{{ left_on }} {{ right_on }}",
+                strict=True,
+                model=local_session._session_state.get_language_model(),
+                temperature=0,
+                pair_block_size=pair_block_size,
+                block_token_budget=block_token_budget,
+            )
+
+    def test_duplicate_survivor_pairs_are_an_internal_error(self, local_session):
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"]}),
+            right_df=pl.DataFrame({"right_on": ["right"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+        )
+        duplicate_pairs = pl.DataFrame(
+            {
+                LEFT_ID_KEY: [0, 0],
+                RIGHT_ID_KEY: [0, 0],
+            }
+        )
+
+        with pytest.raises(
+            InternalError,
+            match="semantic.join produced duplicate survivor pairs",
+        ):
+            sem_join._assert_unique_survivor_pairs(duplicate_pairs)
+
+    def test_execute_returns_empty_schema_when_one_side_is_empty(
+        self, local_session, monkeypatch
+    ):
+        monkeypatch.setattr(Predicate, "execute", lambda _: pytest.fail("not called"))
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": [], "left_payload": []}),
+            right_df=pl.DataFrame({"right_on": ["right"], "right_payload": [1]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=1,
+        )
+
+        result = sem_join.execute()
+
+        assert result.is_empty()
+        assert result.columns == ["left_on", "left_payload", "right_on", "right_payload"]
+
+    def test_execute_tiles_a_single_left_row_across_right_blocks(
+        self, local_session, monkeypatch
+    ):
+        observed_blocks = []
+
+        def fake_execute(predicate):
+            observed_blocks.append(predicate.input.to_list())
+            return pl.Series([True] * len(predicate.input))
+
+        monkeypatch.setattr(Predicate, "execute", fake_execute)
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left"], "left_payload": [1]}),
+            right_df=pl.DataFrame(
+                {"right_on": ["right-0", "right-1", "right-2"], "right_payload": [0, 1, 2]}
+            ),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=2,
+        )
+
+        result = sem_join.execute().sort("right_payload")
+
+        assert [len(block) for block in observed_blocks] == [2, 1]
+        assert result.select("right_payload").to_series().to_list() == [0, 1, 2]
+
+    def test_execute_can_stream_each_bounded_predicate_block(
+        self, local_session, monkeypatch
+    ):
+        observed_message_blocks = []
+        observed_kwargs = []
+        sem_join = Join(
+            left_df=pl.DataFrame({"left_on": ["left-0", "left-1"]}),
+            right_df=pl.DataFrame({"right_on": ["right-0", "right-1", "right-2"]}),
+            jinja_template="{{ left_on }} {{ right_on }}",
+            strict=True,
+            model=local_session._session_state.get_language_model(),
+            temperature=0,
+            pair_block_size=2,
+        )
+        monkeypatch.setattr(Predicate, "stream_requests", True)
+        monkeypatch.setattr(sem_join.model, "count_tokens", lambda _: 1)
+        monkeypatch.setattr(
+            sem_join.model,
+            "get_completions",
+            lambda *_args, **_kwargs: pytest.fail(
+                "an opted-in semantic.join Predicate must use the completion iterator"
+            ),
+        )
+
+        def fake_iter_completions(messages, **kwargs):
+            message_block = list(messages)
+            observed_message_blocks.append(message_block)
+            observed_kwargs.append(kwargs)
+            for _ in message_block:
+                response = MagicMock()
+                response.completion = '{"output": true}'
+                yield response
+
+        monkeypatch.setattr(sem_join.model, "iter_completions", fake_iter_completions)
+
+        result = sem_join.execute().sort(["left_on", "right_on"])
+
+        assert [len(block) for block in observed_message_blocks] == [2, 1, 2, 1]
+        assert all(
+            len(block) <= sem_join.pair_block_size
+            for block in observed_message_blocks
+        )
+        assert all(
+            kwargs["operation_name"] == "semantic.predicate"
+            and kwargs["batch_size"] == 100
+            for kwargs in observed_kwargs
+        )
+        assert result.to_dicts() == [
+            {"left_on": left, "right_on": right}
+            for left in ("left-0", "left-1")
+            for right in ("right-0", "right-1", "right-2")
+        ]
