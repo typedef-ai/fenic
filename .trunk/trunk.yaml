@@ -20,23 +20,23 @@ runtimes:
 lint:
   enabled:
     - gitleaks@8.30.1
-    - trufflehog-git@3.96.0
+    - trufflehog-git@3.97.1
     - actionlint@1.7.12
-    - renovate@44.11.4
+    - renovate@44.56.0
     - shellcheck@0.11.0
-    - shfmt@3.13.1
+    - shfmt@3.14.0
     # Polars 0.54.4 uses a Rust 1.95 array-length inference feature.
     - rustfmt@1.95.0
     - clippy@1.95.0
-    - ruff@0.16.1
+    - ruff@0.16.5
     - taplo@0.10.0
-    - checkov@3.3.9
+    - checkov@3.3.16
     - git-diff-check
     - markdownlint@0.49.1
-    - osv-scanner@2.4.0
+    - osv-scanner@2.5.1
     - prettier@3.9.6
-    - trivy@0.73.0
-    - trufflehog@3.96.0
+    - trivy@0.74.0
+    - trufflehog@3.97.1
     - yamllint@1.38.0
     - bandit@1.9.4
   definitions:
