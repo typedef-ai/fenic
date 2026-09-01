@@ -12,6 +12,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/fenic.svg)](https://pypi.org/project/fenic/)
 [![License](https://img.shields.io/github/license/typedef-ai/fenic.svg)](https://github.com/typedef-ai/fenic/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1381706122322513952?label=Discord&logo=discord)](https://discord.gg/GdqF3J7huR)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ftypedef-ai%2Ffenic.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ftypedef-ai%2Ffenic?ref=badge_shield)
 
 **fenic turns AI-assisted exploration of structured and unstructured data into reusable, inspectable DataFrame pipelines.**
 
@@ -403,3 +404,7 @@ Join us on [Discord](https://discord.gg/GdqF3J7huR) to ask questions and share w
 ## Contributing
 
 Contributions of all kinds are welcome — code, docs, tests, and ideas. For code changes, please open an issue to discuss your approach before sending a PR. See our [contribution guidelines](CONTRIBUTING.md) for development setup and workflow.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ftypedef-ai%2Ffenic.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Ftypedef-ai%2Ffenic?ref=badge_large)
