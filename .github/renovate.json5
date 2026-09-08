@@ -1,7 +1,46 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-  extends: ['github>typedef-ai/renovate:default.json5'],
+  extends: [
+    // Pulls in config:recommended, :configMigration, docker:pinDigests,
+    // helpers:pinGitHubActionDigests, :pinDevDependencies, abandonments:recommended,
+    // security:minimumReleaseAgeNpm and :maintainLockFilesWeekly.
+    'config:best-practices',
+    ':preserveSemverRanges',
+    ':combinePatchMinorReleases',
+    ':semanticCommitTypeAll(chore)',
+    ':enableVulnerabilityAlerts',
+    'mergeConfidence:all-badges',
+    'group:linters',
+  ],
+  timezone: 'America/Los_Angeles',
+  // 4th of each month, 14:00-14:59 PT. Lock file maintenance keeps its own
+  // weekly schedule from :maintainLockFilesWeekly.
+  schedule: ['* 14 4 * *'],
+  labels: ['dependencies'],
+  dependencyDashboardLabels: ['dependencies'],
+  semanticCommits: 'enabled',
+  semanticCommitType: 'chore',
+  semanticCommitScope: 'deps',
+  automergeStrategy: 'squash',
+  platformAutomerge: true,
+  pruneStaleBranches: true,
+  rebaseWhen: 'conflicted',
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: { enabled: true, labels: ['security'] },
   packageRules: [
+    {
+      description: 'Group and automerge GitHub Actions bumps',
+      matchManagers: ['github-actions'],
+      groupName: 'github-actions',
+      commitMessageTopic: '⬆ github-actions',
+      automerge: true,
+      prPriority: -1,
+      prBodyDefinitions: {
+        Package: '[{{{depName}}}](https://github.com/{{{depName}}})',
+        Change: '[`{{{displayFrom}}}` -> `{{{displayTo}}}`](https://github.com/{{{depName}}}/compare/{{{displayFrom}}}...{{{displayTo}}})',
+      },
+      prBodyColumns: ['Package', 'Change', 'Type', 'Update'],
+    },
     {
       // The polars Rust crate family must be upgraded in lockstep: pyo3-polars
       // pins specific polars/polars-arrow versions, so bumping any one of them
