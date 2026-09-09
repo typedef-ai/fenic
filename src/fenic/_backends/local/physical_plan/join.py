@@ -15,7 +15,7 @@ from fenic._backends.local.semantic_operators.sim_join import (
 from fenic._constants import LEFT_ON_KEY, RIGHT_ON_KEY
 from fenic.core._logical_plan.plans import CacheInfo
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
-from fenic.core.error import InternalError
+from fenic.core.error import InternalError, LineageError
 from fenic.core.types import JoinExampleCollection
 from fenic.core.types.enums import JoinType, SemanticSimilarityMetric
 
@@ -195,6 +195,14 @@ class SemanticJoinExec(PhysicalPlan):
     ) -> Tuple[OperatorLineage, pl.DataFrame]:
         left_operator, left_df = self.children[0].build_node_lineage(leaf_nodes)
         right_operator, right_df = self.children[1].build_node_lineage(leaf_nodes)
+
+        reserved_lineage_columns = {"_left_uuid", "_right_uuid"}
+        if reserved_lineage_columns.intersection(left_df.columns) or (
+            reserved_lineage_columns.intersection(right_df.columns)
+        ):
+            raise LineageError(
+                "semantic.join lineage reserves '_left_uuid' and '_right_uuid'"
+            )
 
         left_df = left_df.rename({"_uuid": "_left_uuid"})
         right_df = right_df.rename({"_uuid": "_right_uuid"})
