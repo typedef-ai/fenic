@@ -69,6 +69,7 @@ class FenicCompletionsRequest:
     structured_output: Optional[ResolvedResponseFormat]  # Resolved JSON schema
     temperature: Optional[float]
     model_profile: Optional[str] = None
+    operation_name: Optional[str] = None
 
 @dataclass
 class FenicEmbeddingsRequest:

@@ -12,6 +12,7 @@ from openai import (
     RateLimitError,
 )
 from openai.types import CompletionUsage
+from pydantic import ValidationError as PydanticValidationError
 
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionProfileConfiguration,
@@ -39,7 +40,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._inference.output_token_limits import (
     validate_effective_output_token_limit,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -141,7 +142,13 @@ class OpenAIChatCompletionsCore:
             # Choose between parse and create based on structured_output
             if request.structured_output:
                 common_params["response_format"] = request.structured_output.pydantic_model
-                response = await self._client.beta.chat.completions.parse(**common_params)
+                try:
+                    response = await self._client.beta.chat.completions.parse(**common_params)
+                except PydanticValidationError as e:
+                    # The SDK parsed the model's content against response_format and it
+                    # did not conform. Surface what actually came back, rather than an
+                    # opaque pydantic error attributed to a DataFrame expression.
+                    return FatalException(_structured_output_validation_error(self._model, request, e))
             else:
                 response = await self._client.chat.completions.create(**common_params)
 
@@ -272,3 +279,38 @@ class OpenAIChatCompletionsCore:
                 else 0
             ),
         )
+_MAX_RAW_PREVIEW_CHARS = 200
+
+
+def _structured_output_validation_error(model, request, error):
+    """Build a diagnosable error for a response that failed structured-output parsing.
+
+    The OpenAI SDK parses the model's content against response_format and raises a
+    pydantic ValidationError when it does not conform. That error is opaque by itself,
+    so this reconstructs the operator, the expected schema and a short preview of what
+    the model actually returned.
+    """
+    schema_name = (
+        request.structured_output.pydantic_model.__name__
+        if request.structured_output is not None
+        else "unknown"
+    )
+    raw_input = next(
+        (item.get("input") for item in error.errors() if "input" in item), None
+    )
+    preview = _truncate_preview(raw_input, _MAX_RAW_PREVIEW_CHARS)
+    operator = request.operation_name or "unknown operator"
+    return ExecutionError(
+        f"Structured-output validation failed for {operator}: expected {schema_name}, "
+        f"but model '{model}' returned content that does not match it: {preview}. "
+        f"This model or provider does not honour response_format. "
+        f"Original error: {error}"
+    )
+
+
+def _truncate_preview(value, max_chars):
+    """Return a capped, single-line string preview of value."""
+    text = repr(value)
+    if len(text) > max_chars:
+        text = text[: max_chars - 3] + "..."
+    return text.replace("\\n", " ")
