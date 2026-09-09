@@ -375,8 +375,12 @@ class TestJoin:
         assert [len(block) for block in observed_blocks] == [2, 1]
         assert result.select("right_payload").to_series().to_list() == [0, 1, 2]
 
+    def test_streaming_adapter_is_opt_in_by_default(self):
+        assert Join.stream_requests is False
+        assert Predicate.stream_requests is False
+
     def test_execute_can_stream_each_bounded_predicate_block(
-        self, local_session, monkeypatch
+        self, construction_only_local_session, monkeypatch
     ):
         observed_message_blocks = []
         observed_kwargs = []
@@ -385,11 +389,11 @@ class TestJoin:
             right_df=pl.DataFrame({"right_on": ["right-0", "right-1", "right-2"]}),
             jinja_template="{{ left_on }} {{ right_on }}",
             strict=True,
-            model=local_session._session_state.get_language_model(),
+            model=construction_only_local_session._session_state.get_language_model(),
             temperature=0,
             pair_block_size=2,
         )
-        monkeypatch.setattr(Predicate, "stream_requests", True)
+        monkeypatch.setattr(Join, "stream_requests", True, raising=False)
         monkeypatch.setattr(sem_join.model, "count_tokens", lambda _: 1)
         monkeypatch.setattr(
             sem_join.model,
