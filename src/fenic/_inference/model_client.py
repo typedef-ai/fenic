@@ -463,6 +463,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         logger.info(
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
+        # A previous batch on this thread may have left a recorded exception behind
+        # after surfacing it to its own caller. Clear it so this batch reports only
+        # its own failures.
+        self._clear_thread_exception()
         try:
             return self._make_batch_requests(requests, operation_name, batch_id, request_timeout=request_timeout)
         except Exception as e:
@@ -530,12 +534,22 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         token_estimate = self.estimate_tokens_for_request(request)
         return new_future, token_estimate
 
+    def _clear_thread_exception(self):
+        """Discard any exception recorded for the calling thread."""
+        with self.thread_exceptions_lock:
+            self.thread_exceptions.pop(threading.get_ident(), None)
+
     def _maybe_raise_thread_exception(self):
-        """Surface exceptions from event loop to calling thread immediately."""
+        """Surface exceptions from event loop to calling thread immediately.
+
+        The exception is removed as it is raised. It has been delivered to its
+        caller, so a later batch on the same thread must not observe it again.
+        """
         current_thread_id = threading.get_ident()
         with self.thread_exceptions_lock:
-            if current_thread_id in self.thread_exceptions:
-                raise self.thread_exceptions[current_thread_id]
+            exception = self.thread_exceptions.pop(current_thread_id, None)
+        if exception is not None:
+            raise exception
 
     def _calculate_backoff_time(self, backoff_iteration: int) -> float:
         """Calculates the backoff duration using exponential backoff with a maximum limit.
