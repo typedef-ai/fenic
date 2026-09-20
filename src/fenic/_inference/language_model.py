@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -17,6 +18,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.error import ConfigurationError
 from fenic.core.metrics import LMMetrics
+from fenic.core.types.judge import JudgeQuestion, validate_questions
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,60 @@ class LanguageModel:
             operation_name=operation_name,
             request_timeout=request_timeout,
         )
+
+    def get_judgments(
+        self,
+        states: list[Optional[str]],
+        questions: tuple[JudgeQuestion, ...],
+        model_profile: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+    ) -> list[Optional[FenicCompletionsResponse]]:
+        """Evaluate typed questions using the shared scheduler, cache, and metrics."""
+        if not self.model_parameters.supports_judge:
+            raise ConfigurationError("This provider does not support semantic.judge")
+        questions = validate_questions(questions)
+        requests = []
+        owners = []
+        failed = set()
+        for index, state in enumerate(states):
+            if state is None:
+                failed.add(index)
+                continue
+            try:
+                groups = self.client.judge_partitions(state, questions)
+            except ValueError:
+                failed.add(index)
+                continue
+            for group in groups:
+                owners.append(index)
+                requests.append(
+                    FenicCompletionsRequest(
+                        messages=LMRequestMessages(system="", examples=[], user=state),
+                        max_completion_tokens=None,
+                        top_logprobs=None,
+                        structured_output=None,
+                        temperature=None,
+                        model_profile=model_profile,
+                        judge_questions=group,
+                    )
+                )
+        responses = self.client.make_batch_requests(
+            requests, operation_name="semantic.judge", request_timeout=request_timeout
+        )
+        merged = [{} for _ in states]
+        for owner, response in zip(owners, responses, strict=True):
+            decoded = json.loads(response.completion) if response is not None else None
+            if decoded is None:
+                failed.add(owner)
+            else:
+                merged[owner].update(decoded)
+        # Per-request usage has already settled in the scheduler; do not settle again.
+        return [
+            None
+            if index in failed
+            else FenicCompletionsResponse(json.dumps(value), None)
+            for index, value in enumerate(merged)
+        ]
 
     def count_tokens(self, messages: Tokenizable) -> int:
         return self.client.count_tokens(messages)

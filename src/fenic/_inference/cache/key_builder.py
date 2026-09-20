@@ -10,6 +10,7 @@ from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicEmbeddingsRequest,
 )
+from fenic.core.types.judge import questions_json
 
 
 def compute_request_fingerprint(
@@ -47,6 +48,9 @@ def compute_request_fingerprint(
 
         if request.structured_output:
             key_data["structured_output"] = request.structured_output.schema_fingerprint
+        if request.judge_questions is not None:
+            key_data["request_kind"] = "judge-v1"
+            key_data["judge_questions"] = questions_json(request.judge_questions)
     elif isinstance(request, FenicEmbeddingsRequest):
         key_data = {
             "model": model,

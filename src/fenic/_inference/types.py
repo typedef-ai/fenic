@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 from openai.types.chat import ChatCompletionTokenLogprob
 
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
+from fenic.core.types.judge import JudgeQuestion
 
 
 @dataclass
@@ -59,6 +60,7 @@ class FenicCompletionsResponse:
     completion: str
     logprobs: Optional[List[ChatCompletionTokenLogprob]]
     usage: Optional[ResponseUsage] = None
+    cacheable: bool = True
 
 
 @dataclass
@@ -69,6 +71,7 @@ class FenicCompletionsRequest:
     structured_output: Optional[ResolvedResponseFormat]  # Resolved JSON schema
     temperature: Optional[float]
     model_profile: Optional[str] = None
+    judge_questions: Optional[Tuple[JudgeQuestion, ...]] = None
 
 @dataclass
 class FenicEmbeddingsRequest:

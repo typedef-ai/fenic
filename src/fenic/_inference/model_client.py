@@ -865,6 +865,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 and self.cache
                 and queue_item.request_fingerprint
                 and isinstance(queue_item.request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+                and getattr(maybe_response, "cacheable", True)
             ):
                 try:
                     self.cache.set(
