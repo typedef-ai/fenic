@@ -22,6 +22,7 @@ from fenic.core._serde.proto.expression_serde import (
     serialize_logical_expr,
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
+from fenic.core.error import ValidationError
 from fenic.core.types.judge import flatten_answers, judge_schema, validate_questions
 
 
@@ -328,12 +329,19 @@ def test_untyped_request_is_refused_without_transport(native_session):
     assert not calls
 
 
-def test_sdk_retries_are_disabled(monkeypatch):
+@pytest.mark.parametrize(
+    ("constructor_name", "factory_name"),
+    [
+        ("TypeSafeClient", "create_client"),
+        ("AsyncTypeSafeClient", "create_aio_client"),
+    ],
+)
+def test_sdk_retries_are_disabled(monkeypatch, constructor_name, factory_name):
     import typesafe_sdk
 
     constructor = Mock()
-    monkeypatch.setattr(typesafe_sdk, "AsyncTypeSafeClient", constructor)
-    TypeSafeModelProvider().create_aio_client()
+    monkeypatch.setattr(typesafe_sdk, constructor_name, constructor)
+    getattr(TypeSafeModelProvider(), factory_name)()
     assert constructor.call_args.kwargs["retry"].max_retries == 0
 
 
@@ -364,9 +372,63 @@ def test_connection_failure_uses_scheduler_retry(native_session):
     assert result.metrics.total_lm_metrics.num_uncached_input_tokens == 100
 
 
-@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True])
+def test_fatal_provider_error(native_session, caplog):
+    from typesafe_sdk import TypeSafeAuthenticationError, TypeSafeError
+
+    from fenic.core.error import ExecutionError
+
+    assert issubclass(TypeSafeAuthenticationError, TypeSafeError)
+    session, calls, sdk = native_session
+    attempts = []
+    private_body = "synthetic response body must remain private"
+
+    async def fatal(*_args, **_kwargs):
+        attempts.append(1)
+        raise TypeSafeError(private_body)
+
+    sdk.system_one = fatal
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=[questions()[0]])
+    )
+    with pytest.raises(ExecutionError, match="TypeSafeError") as raised:
+        frame.collect()
+    assert len(attempts) == 1
+    assert not calls
+    assert private_body not in str(raised.value)
+    assert private_body not in caplog.text
+
+
+@pytest.mark.parametrize("timeout", [0, -1, 601, float("inf"), float("nan"), True])
 def test_invalid_timeout(timeout):
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, ValidationError)):
         fc.semantic.judge(
             state="text", questions=list(questions()), request_timeout=timeout
+        )
+
+
+def test_timeout_maximum():
+    from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
+
+    expr = fc.semantic.judge(
+        state="text",
+        questions=list(questions()),
+        request_timeout=MAX_MODEL_CLIENT_TIMEOUT,
+    )
+    assert expr._logical_expr.request_timeout == MAX_MODEL_CLIENT_TIMEOUT
+    with pytest.raises(ValidationError, match="max timeout"):
+        fc.semantic.judge(
+            state="text",
+            questions=list(questions()),
+            request_timeout=MAX_MODEL_CLIENT_TIMEOUT + 0.5,
+        )
+
+
+def test_invalid_model_alias():
+    from pydantic import ValidationError as ArgumentValidationError
+
+    with pytest.raises(ArgumentValidationError, match="model_alias"):
+        fc.semantic.judge(
+            state="text",
+            questions=list(questions()),
+            model_alias=7,
         )
