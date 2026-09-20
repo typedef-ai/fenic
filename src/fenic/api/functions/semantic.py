@@ -39,12 +39,13 @@ from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
 
 
+@validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
 def judge(
     *,
     state: ColumnOrName,
     questions: List[JudgeQuestion],
     model_alias: Optional[Union[str, ModelAlias]] = None,
-    request_timeout: Optional[float] = None,
+    request_timeout: TimeoutParam = None,
 ) -> Column:
     """Evaluate closed questions about a shared state, retaining probabilities.
 
@@ -54,8 +55,9 @@ def judge(
             generated output fields must be unique.
         model_alias: Configured model supporting typed judgments. Uses the session
             default when omitted. TypeSafe System One is the initial provider.
-        request_timeout: Optional positive timeout in seconds for each request,
-            including its scheduler retries.
+        request_timeout: Optional positive timeout in seconds for each request
+            attempt, up to the system maximum of 600 seconds. Each scheduler
+            retry receives a fresh timeout.
 
     Returns:
         A struct column. Noul questions yield ``<name>_p``. Choice questions yield
@@ -65,7 +67,8 @@ def judge(
 
     Raises:
         ValueError: If questions, generated names, or the timeout are invalid.
-        ValidationError: If the selected model does not support typed judgments.
+        ValidationError: If the timeout exceeds the system limit or the selected
+            model does not support typed judgments.
         TypeMismatchError: If state is not a string column.
 
     Example:

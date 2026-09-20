@@ -109,8 +109,9 @@ class TypeSafeSystemOneClient(
         ) as error:
             # SDK error bodies can contain row text. The scheduler owns retry policy.
             return TransientException(RuntimeError(type(error).__name__))
-        except TypeSafeError:
-            return None
+        except TypeSafeError as error:
+            # Fatal errors must fail the query without exposing SDK response bodies.
+            return FatalException(RuntimeError(type(error).__name__))
 
         input_tokens = result.usage.input_tokens
         output_tokens = result.usage.output_tokens

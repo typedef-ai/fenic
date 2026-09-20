@@ -37,7 +37,9 @@ class TypeSafeModelProvider(ModelProviderClass):
     def create_client(self):
         """Create a synchronous TypeSafe client instance."""
         sync_client, _ = _import_sdk()
-        return sync_client(base_url=self._base_url)
+        from typesafe_sdk import RetryPolicy
+
+        return sync_client(base_url=self._base_url, retry=RetryPolicy(max_retries=0))
 
     def create_aio_client(self):
         """Create an asynchronous TypeSafe client instance."""
