@@ -13,6 +13,7 @@ from fenic._inference.types import (
     LMRequestMessages,
 )
 from fenic.core._inference.model_catalog import (
+    ModelProvider,
     model_catalog,
 )
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
@@ -54,6 +55,13 @@ class LanguageModel:
         operation_name: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
+        if self.provider == ModelProvider.TYPESAFE:
+            raise ConfigurationError(
+                f"The TypeSafe decision provider does not support text completion "
+                f"for {operation_name or 'this operation'}. Use semantic.judge or "
+                "a supported closed-set operator; open-ended map, extract, "
+                "summarize, and reduce are unsupported."
+            )
         # Create batch requests
         requests = []
         # Check model specific requirements for request params.

@@ -274,7 +274,8 @@ class PlanConverter:
                 session_state=self.session_state,
                 examples=logical.examples(),
                 temperature=logical.temperature,
-                model_alias=logical.model_alias
+                model_alias=logical.model_alias,
+                request_timeout=logical.request_timeout,
             )
 
         elif isinstance(logical, SemanticSimilarityJoin):
