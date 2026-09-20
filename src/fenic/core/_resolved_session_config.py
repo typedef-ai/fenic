@@ -144,7 +144,19 @@ class ResolvedOpenRouterModelConfig:
     parsing_engine: Optional[ParsingEngine] = None
 
 
+@dataclass
+class ResolvedTypeSafeModelConfig:
+    model_name: str
+    rpm: int
+    tpm: int
+    model_provider: ModelProvider = ModelProvider.TYPESAFE
+    profiles: None = None
+    default_profile: None = None
+    base_url: Optional[str] = None
+
+
 ResolvedModelConfig = Union[
+    ResolvedTypeSafeModelConfig,
     ResolvedOpenAIModelConfig,
     ResolvedAnthropicModelConfig,
     ResolvedGoogleModelConfig,

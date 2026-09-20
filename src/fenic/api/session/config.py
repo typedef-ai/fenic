@@ -48,6 +48,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenRouterProviderRouting,
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
+    ResolvedTypeSafeModelConfig,
     Verbosity,
 )
 from fenic.core.error import ConfigurationError, InternalError
@@ -1036,12 +1037,38 @@ EmbeddingModel = Union[
     GoogleDeveloperEmbeddingModel,
     CohereEmbeddingModel,
 ]
+class TypeSafeLanguageModel(BaseModel):
+    """Configure a TypeSafe model for native typed judgments.
+
+    Install ``fenic[typesafe]`` and set ``TYPESAFE_API_KEY``. These models answer
+    closed questions; they do not generate free-form map or extract output.
+    Questions carry their own instructions and criteria, not model profiles.
+
+    Attributes:
+        model_name: Provider model identifier, such as ``jev-1.13.0``.
+        rpm: Requests per minute.
+        tpm: Input tokens per minute.
+        base_url: Optional provider endpoint override.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    model_name: str = Field(..., description="TypeSafe model identifier.", min_length=1)
+    rpm: int = Field(..., description="Requests per minute limit.", gt=0)
+    tpm: int = Field(..., description="Input tokens per minute limit.", gt=0)
+    base_url: Optional[str] = Field(
+        default=None, description="Provider endpoint override."
+    )
+    profiles: None = None
+    default_profile: None = None
+
+
 LanguageModel = Union[
     OpenAILanguageModel,
     AnthropicLanguageModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexLanguageModel,
     OpenRouterLanguageModel,
+    TypeSafeLanguageModel,
 ]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
 
@@ -1726,6 +1753,13 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile,
                 )
+            elif isinstance(model, TypeSafeLanguageModel):
+                return ResolvedTypeSafeModelConfig(
+                    model_name=model.model_name,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                    base_url=model.base_url,
+                )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")
 
@@ -1918,5 +1952,7 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.COHERE
     elif isinstance(model_config, OpenRouterLanguageModel):
         return ModelProvider.OPENROUTER
+    elif isinstance(model_config, TypeSafeLanguageModel):
+        return ModelProvider.TYPESAFE
     else:
         raise InternalError(f"Unknown model type: {type(model_config)}")

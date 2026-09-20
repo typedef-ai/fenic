@@ -5,6 +5,7 @@ from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
 from fenic.core._logical_plan.expressions.basic import UnresolvedLiteralExpr
+from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 
 if TYPE_CHECKING:
     from fenic._backends.local.session_state import LocalSessionState
@@ -674,6 +675,24 @@ class ExprConverter:
             chunk_udfs[config.chunk_length_function_name], return_dtype=output_dtype
         )
 
+
+    @_convert_expr.register(SemanticJudgeExpr)
+    def _convert_semantic_judge_expr(self, logical: SemanticJudgeExpr) -> pl.Expr:
+        from fenic._backends.local.semantic_operators.judge import Judge
+
+        def judge_batch(batch: pl.Series) -> pl.Series:
+            return Judge(
+                batch,
+                logical.questions,
+                self.session_state.get_language_model(logical.model_alias),
+                logical.model_alias,
+                logical.request_timeout,
+            ).execute()
+
+        return self._convert_expr(logical.state).map_batches(
+            judge_batch,
+            return_dtype=convert_custom_dtype_to_polars(logical.return_type),
+        )
 
     @_convert_expr.register(SemanticExtractExpr)
     def _convert_semantic_extract_expr(self, logical: SemanticExtractExpr) -> pl.Expr:

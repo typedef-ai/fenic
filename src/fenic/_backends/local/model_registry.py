@@ -28,6 +28,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenAIModelConfig,
     ResolvedOpenRouterModelConfig,
     ResolvedSemanticConfig,
+    ResolvedTypeSafeModelConfig,
 )
 from fenic.core.error import ConfigurationError, InternalError, SessionError
 from fenic.core.metrics import LMMetrics, RMMetrics
@@ -375,6 +376,25 @@ class SessionModelRegistry:
                     profiles=model_config.profiles,
                     default_profile_name=model_config.default_profile,
                     cache=cache,
+                    adaptive_estimation=adaptive_estimation,
+                )
+            elif isinstance(model_config, ResolvedTypeSafeModelConfig):
+                try:
+                    from fenic._inference.typesafe.typesafe_system_one_client import (
+                        TypeSafeSystemOneClient,
+                    )
+                except ImportError as err:
+                    raise ImportError(
+                        "To use TypeSafe models, please install the required dependencies by running: pip install fenic[typesafe]"
+                    ) from err
+                rate_limit_strategy = UnifiedTokenRateLimitStrategy(
+                    rpm=model_config.rpm, tpm=model_config.tpm
+                )
+                client = TypeSafeSystemOneClient(
+                    model=model_config.model_name,
+                    rate_limit_strategy=rate_limit_strategy,
+                    cache=cache,
+                    base_url=model_config.base_url,
                     adaptive_estimation=adaptive_estimation,
                 )
             else:
