@@ -115,3 +115,64 @@ This initial operation requires a model advertising typed-judgment support.
 Other providers are unchanged. Free-form `map`, `extract`, `summarize`, and `reduce`
 remain unsupported by this decision provider. Model profiles and automatic
 operator fusion are not part of this initial implementation.
+
+## Existing closed-set operators
+
+On the local backend, a selected `TypeSafeLanguageModel` also supports these
+existing operations without changing their public return types:
+
+| Operation | Typed question | Result |
+| --- | --- | --- |
+| `semantic.predicate` | Noul over the complete rendered question or claim | Boolean, true only when probability is greater than 0.5 |
+| `DataFrame.filter(semantic.predicate(...))` | The same predicate | Rows with true predicates |
+| `DataFrame.semantic.join` | One Noul per candidate pair | Matching row pairs |
+| `semantic.classify` | Choice over the supplied labels and descriptions | Original label string |
+| `semantic.analyze_sentiment` | Choice over positive, negative, and neutral | Sentiment string |
+
+The 0.5 predicate cutoff is a fixed compatibility decision, not a calibrated
+workload-specific threshold. Ties return false. Use `semantic.judge` directly
+when you need probabilities or a different threshold.
+
+```python
+tagged = messages.with_column(
+    "topic",
+    fc.semantic.classify(
+        "text",
+        [
+            fc.ClassDefinition(label="Billing", description="Charges or invoices"),
+            fc.ClassDefinition(label="Other", description="Other requests"),
+        ],
+        model_alias="decisions",
+    ),
+)
+billing = tagged.filter(
+    fc.semantic.predicate(
+        "Does this message discuss billing? {{ message }}",
+        message=fc.col("text"),
+        model_alias="decisions",
+    )
+)
+```
+
+Operators construct typed questions from their known predicate or class-list
+contracts. They do not recover questions from response schemas or from the last
+line of a prompt. All rendered input, including multiline instructions, stays
+intact. Supplied examples, including the sentiment operator's built-in examples,
+travel as labeled input/response pairs in the state. Classification uses stable
+transport identifiers so punctuation, Unicode, and colliding normalized labels
+can round-trip unchanged. Original labels and descriptions remain in the criteria.
+
+The existing rendering and null rules still apply. Strict predicates and joins
+skip null inputs. Non-strict predicates render them as before. Classification
+and sentiment skip null and empty strings, unlike `semantic.judge`, which accepts
+an empty state. Rejected answers yield null results and are not cached; filters
+and joins do not retain null decisions. Fatal provider errors raise
+`ExecutionError` during collection.
+
+These routes use the native judgment scheduler, cache, and usage accounting.
+They do not fuse requests across different operators or reduce the join's
+candidate-pair count. Classification requires 2 through 255 labels.
+Only the default `temperature=0` is supported; model profiles and free-form
+`map`, `extract`, `summarize`, and `reduce` remain unsupported by TypeSafe.
+Unsupported operations fail clearly before a provider request.
+Other providers keep their existing completion path.

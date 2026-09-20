@@ -124,11 +124,13 @@ class SemanticJoinExec(PhysicalPlan):
         model_alias: Optional[ResolvedModelAlias] = None,
         temperature = 0.0,
         examples: Optional[JoinExampleCollection] = None,
+        request_timeout: Optional[float] = None,
     ):
         super().__init__(
             [left, right], cache_info=cache_info, session_state=session_state
         )
         self.examples = examples
+        self.request_timeout = request_timeout
         self.jinja_template = jinja_template
         self.strict = strict
         self.left_on = left_on
@@ -159,6 +161,7 @@ class SemanticJoinExec(PhysicalPlan):
             examples=self.examples,
             temperature=self.temperature,
             model_alias=self.model_alias,
+            request_timeout=self.request_timeout,
         ).execute()
 
         # Restore original column names or drop temporary columns
@@ -187,6 +190,7 @@ class SemanticJoinExec(PhysicalPlan):
             model_alias=self.model_alias,
             temperature=self.temperature,
             examples=self.examples,
+            request_timeout=self.request_timeout,
         )
 
     def build_node_lineage(
