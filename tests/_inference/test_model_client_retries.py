@@ -283,6 +283,26 @@ def test_cancelled_and_terminal_items_never_dispatch_or_requeue():
         client.shutdown()
 
 
+def test_shutdown_before_dispatch_fails_the_pending_future_without_requeueing():
+    client = _RetryClient(["success"], max_backoffs=1)
+    queue_item = _queue_item(_request("shutdown"))
+
+    async def process_after_shutdown():
+        client.shutdown_event.set()
+        await client._process_single_request(queue_item)
+
+    try:
+        _run_on_client_loop(client, process_after_shutdown())
+        assert queue_item.future.done()
+        exception = queue_item.future.exception(timeout=1)
+        assert exception is not None
+        assert "shut down" in str(exception)
+        assert client.calls == 0
+        assert client.retry_queue.empty()
+    finally:
+        client.shutdown()
+
+
 def test_shutdown_cancels_an_attempt_without_requeueing():
     client = _RetryClient(["timeout", "success"], max_backoffs=2)
     try:
