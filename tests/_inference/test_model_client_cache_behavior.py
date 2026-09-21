@@ -1244,11 +1244,13 @@ def test_iter_batch_requests_preserves_order_for_cached_live_requests():
 
 def test_iter_batch_requests_batches_cache_reads_within_initial_window():
     fake_cache = FakeCache()
+    events = []
     client = SlidingWindowCompletionClient(
         cache=fake_cache,
         rate_limit_rpm=20,
         block_second=False,
     )
+    client.set_request_lifecycle_collector(events.append)
     requests = [_make_completion_request("duplicate") for _ in range(20)]
 
     try:
@@ -1265,6 +1267,14 @@ def test_iter_batch_requests_batches_cache_reads_within_initial_window():
     assert len(results) == 20
     assert fake_cache.get_batch_call_count == 1
     assert client.call_count == 1
+    assert len(
+        [
+            event
+            for event in events
+            if event.event == "streaming_stage"
+            and event.stage == "request_dispatch"
+        ]
+    ) == 1
 
 
 def test_iter_batch_requests_preserves_none_request_positions():
