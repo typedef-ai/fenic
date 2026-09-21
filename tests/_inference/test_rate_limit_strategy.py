@@ -83,7 +83,10 @@ def test_input_token_strategy_ignores_output_for_capacity(fake_clock):
     assert strategy.check_and_consume_rate_limit(
         TokenEstimate(input_tokens=100, output_tokens=10_000)
     )
+    assert not strategy.check_and_consume_rate_limit(
+        TokenEstimate(input_tokens=1, output_tokens=10)
+    )
     with pytest.raises(ExecutionError, match="Input TPM"):
         strategy.check_and_consume_rate_limit(
-            TokenEstimate(input_tokens=101, output_tokens=0)
+            TokenEstimate(input_tokens=101, output_tokens=10)
         )

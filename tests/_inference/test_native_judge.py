@@ -179,6 +179,15 @@ def test_score_level_range_is_enforced_before_inference(level_count, valid):
                 instructions="How strong?",
                 levels=tuple(levels),
             )
+        with pytest.raises(ValueError, match="2..10"):
+            fc.JudgeQuestion.from_dict(
+                {
+                    "name": "score",
+                    "kind": "score",
+                    "instructions": "How strong?",
+                    "levels": levels,
+                }
+            )
         return
 
     question = fc.JudgeQuestion.score(
