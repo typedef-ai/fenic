@@ -83,6 +83,7 @@ class QueueItem(Generic[RequestT]):
     batch_id: str
     request_timeout: float
     request_fingerprint: Optional[str] = None
+    attempts_started: int = 0
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -134,6 +135,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             cache: Optional LLM response cache for storing/retrieving responses
             adaptive_estimation: Optional config for adaptive output-token estimation
         """
+        if isinstance(max_backoffs, bool) or not isinstance(max_backoffs, int) or max_backoffs < 0:
+            raise ValueError("max_backoffs must be a nonnegative integer")
+
         self.model = model
         self.model_provider = model_provider
         self.model_provider_class = model_provider_class
@@ -807,6 +811,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item to process.
         """
         try:
+            if queue_item.future.done() or self.shutdown_event.is_set():
+                return
+            if queue_item.attempts_started >= 1 + self.max_backoffs:
+                self._register_thread_exception(
+                    queue_item,
+                    Exception(
+                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client."
+                    ),
+                )
+                return
+            queue_item.attempts_started += 1
             try:
                 timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
@@ -817,7 +832,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 logger.warning(
                     f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
                 )
-                await self.retry_queue.put(queue_item)
+                await self._retry_or_fail(queue_item, asyncio.TimeoutError())
                 return
 
             await self._handle_response(queue_item, maybe_response)
@@ -841,18 +856,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             maybe_response: The response or exception from the request.
         """
         if isinstance(maybe_response, TransientException):
-            if self.num_backoffs >= self.max_backoffs:
-                self._register_thread_exception(
-                    queue_item,
-                    Exception(
-                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
-                        maybe_response.exception,
-                    ),
-                )
-            else:
-                await self.retry_queue.put(queue_item)
-                current_time = time.time()
-                self.last_transient_exception_time = current_time
+            await self._retry_or_fail(queue_item, maybe_response.exception)
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Model {self.model} encountered an error: {maybe_response.exception}. Request failed."
@@ -890,6 +894,26 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # Set result
             if not queue_item.future.done():
                 queue_item.future.set_result(maybe_response)
+
+    async def _retry_or_fail(self, queue_item: QueueItem[RequestT], exception: Exception):
+        """Requeue an active request while both retry limits permit another attempt."""
+        if (
+            queue_item.future.done()
+            or self.shutdown_event.is_set()
+            or queue_item.attempts_started >= 1 + self.max_backoffs
+            or self.num_backoffs >= self.max_backoffs
+        ):
+            self._register_thread_exception(
+                queue_item,
+                Exception(
+                    f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
+                    exception,
+                ),
+            )
+            return
+
+        await self.retry_queue.put(queue_item)
+        self.last_transient_exception_time = time.time()
 
     async def _maybe_backoff(self):
         """Manages the backoff period after encountering a transient exception."""
