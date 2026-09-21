@@ -3,10 +3,11 @@
 import fenic as fc
 
 
-def main() -> None:
+def main(config: fc.SessionConfig | None = None) -> None:
     """Classify, filter, join, and inspect sentiment on the local backend."""
     session = fc.Session.get_or_create(
-        fc.SessionConfig(
+        config
+        or fc.SessionConfig(
             app_name="closed_set_operators",
             semantic=fc.SemanticConfig(
                 language_models={
