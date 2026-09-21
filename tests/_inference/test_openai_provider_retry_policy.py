@@ -1,10 +1,12 @@
 """OpenAI SDK retry policy is disabled for each scheduler invocation."""
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import httpx
-from openai import AsyncOpenAI
+import pytest
+from openai import InternalServerError
 
 from fenic._inference.openai.openai_provider import OpenAIModelProvider
 
@@ -30,7 +32,7 @@ def test_async_factory_passes_zero_retries_and_preserves_transport_options(monke
     }
 
 
-def test_actual_async_openai_does_not_retry_a_retryable_response():
+def test_provider_async_client_does_not_retry_a_retryable_response(monkeypatch):
     calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -38,13 +40,20 @@ def test_actual_async_openai_does_not_retry_a_retryable_response():
         calls += 1
         return httpx.Response(503, request=request)
 
+    actual_async_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+
+    def make_http_client(**kwargs):
+        return actual_async_client(transport=transport, **kwargs)
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setattr(
+        "fenic._inference.openai.openai_provider.httpx",
+        SimpleNamespace(AsyncClient=make_http_client),
+    )
+
     async def invoke():
-        client = AsyncOpenAI(
-            api_key="test",
-            base_url="https://example.test/v1",
-            max_retries=0,
-            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-        )
+        client = OpenAIModelProvider(base_url="https://example.test/v1").create_aio_client()
         try:
             await client.chat.completions.create(
                 model="test", messages=[{"role": "user", "content": "x"}]
@@ -52,8 +61,7 @@ def test_actual_async_openai_does_not_retry_a_retryable_response():
         finally:
             await client.close()
 
-    try:
+    with pytest.raises(InternalServerError) as error:
         asyncio.run(invoke())
-    except Exception:
-        pass
+    assert error.value.status_code == 503
     assert calls == 1

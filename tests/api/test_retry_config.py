@@ -52,30 +52,31 @@ def test_retry_limit_requires_a_nonnegative_integer(model_factory, value):
         model_factory(value)
 
 
-def test_zero_round_trips_through_json_and_resolved_config():
-    original = _session_config(
-        OpenAILanguageModel(
-            model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
-        )
-    )
+@pytest.mark.parametrize(
+    ("model", "resolved_type"),
+    [
+        (
+            OpenAILanguageModel(
+                model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
+            ),
+            ResolvedOpenAIModelConfig,
+        ),
+        (
+            TypeSafeLanguageModel(
+                model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0
+            ),
+            ResolvedTypeSafeModelConfig,
+        ),
+    ],
+)
+def test_zero_round_trips_through_json_and_resolved_config(model, resolved_type):
+    original = _session_config(model)
     parsed = SessionConfig.model_validate_json(original.to_json())
     resolved = parsed._to_resolved_config()
     config = resolved.semantic.language_models.model_configs["model"]
 
     assert parsed.semantic.language_models["model"].max_backoffs == 0
-    assert isinstance(config, ResolvedOpenAIModelConfig)
-    assert config.max_backoffs == 0
-
-
-def test_type_safe_zero_reaches_its_resolved_config():
-    resolved = _session_config(
-        TypeSafeLanguageModel(
-            model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0
-        )
-    )._to_resolved_config()
-    config = resolved.semantic.language_models.model_configs["model"]
-
-    assert isinstance(config, ResolvedTypeSafeModelConfig)
+    assert isinstance(config, resolved_type)
     assert config.max_backoffs == 0
 
 
@@ -125,15 +126,37 @@ def test_registry_passes_the_resolved_limit_to_language_clients(monkeypatch):
     assert [kwargs["max_backoffs"] for _, kwargs in constructed] == [0, 0]
 
 
-def test_cloud_rejects_a_nondefault_local_retry_override():
+@pytest.mark.parametrize(
+    "model",
+    [
+        OpenAILanguageModel(
+            model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
+        ),
+        TypeSafeLanguageModel(
+            model_name="jev-1.13.0", rpm=1, tpm=1, max_backoffs=0
+        ),
+    ],
+)
+def test_cloud_rejects_a_nondefault_local_retry_override(model):
     with pytest.raises(ConfigurationError, match="max_backoffs"):
         SessionConfig(
             semantic=SemanticConfig(
-                language_models={
-                    "model": OpenAILanguageModel(
-                        model_name="gpt-4.1-nano", rpm=1, tpm=1, max_backoffs=0
-                    )
-                }
+                language_models={"model": model}
             ),
             cloud=CloudConfig(),
         )
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=1, tpm=1),
+        TypeSafeLanguageModel(model_name="jev-1.13.0", rpm=1, tpm=1),
+    ],
+)
+def test_cloud_allows_default_retry_configuration(model):
+    config = SessionConfig(
+        semantic=SemanticConfig(language_models={"model": model}),
+        cloud=CloudConfig(),
+    )
+    assert config.cloud is not None
