@@ -101,6 +101,7 @@ class ResolvedOpenAIModelConfig:
     profiles: Optional[dict[str, ResolvedOpenAIModelProfile]] = None
     default_profile: Optional[str] = None
     base_url: Optional[str] = None
+    max_backoffs: int = 10
 
 
 @dataclass
@@ -153,6 +154,7 @@ class ResolvedTypeSafeModelConfig:
     profiles: None = None
     default_profile: None = None
     base_url: Optional[str] = None
+    max_backoffs: int = 2
 
 
 ResolvedModelConfig = Union[

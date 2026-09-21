@@ -543,6 +543,12 @@ class OpenAILanguageModel(BaseModel):
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    max_backoffs: int = Field(
+        default=10,
+        ge=0,
+        strict=True,
+        description="Maximum retry attempts after the initial request.",
+    )
     base_url: Optional[str] = Field(
         default=None,
         description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
@@ -1055,6 +1061,12 @@ class TypeSafeLanguageModel(BaseModel):
     model_name: str = Field(..., description="TypeSafe model identifier.", min_length=1)
     rpm: int = Field(..., description="Requests per minute limit.", gt=0)
     tpm: int = Field(..., description="Input tokens per minute limit.", gt=0)
+    max_backoffs: int = Field(
+        default=2,
+        ge=0,
+        strict=True,
+        description="Maximum retry attempts after the initial request.",
+    )
     base_url: Optional[str] = Field(
         default=None, description="Provider endpoint override."
     )
@@ -1635,6 +1647,21 @@ class SessionConfig(BaseModel):
     semantic: Optional[SemanticConfig] = None
     cloud: Optional[CloudConfig] = None
 
+    @model_validator(mode="after")
+    def validate_cloud_retry_overrides(self) -> SessionConfig:
+        """Reject local-only retry overrides for cloud execution."""
+        if self.cloud and self.semantic and self.semantic.language_models:
+            for model in self.semantic.language_models.values():
+                if isinstance(model, OpenAILanguageModel) and model.max_backoffs != 10:
+                    raise ConfigurationError(
+                        "max_backoffs is only supported for local OpenAI language models."
+                    )
+                if isinstance(model, TypeSafeLanguageModel) and model.max_backoffs != 2:
+                    raise ConfigurationError(
+                        "max_backoffs is only supported for local TypeSafe language models."
+                    )
+        return self
+
     def to_json(self) -> str:
         """Export the session config to a JSON string."""
         return self.model_dump_json(indent=2)
@@ -1660,6 +1687,7 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile,
                     base_url=model.base_url,
+                    max_backoffs=model.max_backoffs,
                 )
             elif isinstance(model, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
                 profiles = {
@@ -1759,6 +1787,7 @@ class SessionConfig(BaseModel):
                     rpm=model.rpm,
                     tpm=model.tpm,
                     base_url=model.base_url,
+                    max_backoffs=model.max_backoffs,
                 )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")

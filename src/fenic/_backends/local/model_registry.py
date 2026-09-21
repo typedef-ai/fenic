@@ -321,6 +321,7 @@ class SessionModelRegistry:
                     cache=cache,
                     base_url=model_config.base_url,
                     adaptive_estimation=adaptive_estimation,
+                    max_backoffs=model_config.max_backoffs,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
@@ -396,6 +397,7 @@ class SessionModelRegistry:
                     cache=cache,
                     base_url=model_config.base_url,
                     adaptive_estimation=adaptive_estimation,
+                    max_backoffs=model_config.max_backoffs,
                 )
             else:
                 raise ConfigurationError(
