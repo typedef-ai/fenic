@@ -121,13 +121,13 @@ operator fusion are not part of this initial implementation.
 On the local backend, a selected `TypeSafeLanguageModel` also supports these
 existing operations without changing their public return types:
 
-| Operation | Typed question | Result |
-| --- | --- | --- |
-| `semantic.predicate` | Noul over the complete rendered question or claim | Boolean, true only when probability is greater than 0.5 |
-| `DataFrame.filter(semantic.predicate(...))` | The same predicate | Rows with true predicates |
-| `DataFrame.semantic.join` | One Noul per candidate pair | Matching row pairs |
-| `semantic.classify` | Choice over the supplied labels and descriptions | Original label string |
-| `semantic.analyze_sentiment` | Choice over positive, negative, and neutral | Sentiment string |
+| Operation                                   | Typed question                                    | Result                                                  |
+| ------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| `semantic.predicate`                        | Noul over the complete rendered question or claim | Boolean, true only when probability is greater than 0.5 |
+| `DataFrame.filter(semantic.predicate(...))` | The same predicate                                | Rows with true predicates                               |
+| `DataFrame.semantic.join`                   | One Noul per candidate pair                       | Matching row pairs                                      |
+| `semantic.classify`                         | Choice over the supplied labels and descriptions  | Original label string                                   |
+| `semantic.analyze_sentiment`                | Choice over positive, negative, and neutral       | Sentiment string                                        |
 
 The 0.5 predicate cutoff is a fixed compatibility decision, not a calibrated
 workload-specific threshold. Ties return false. Use `semantic.judge` directly
