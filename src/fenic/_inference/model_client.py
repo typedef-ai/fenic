@@ -692,17 +692,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 show_progress=False,
                 defer_thread_exceptions=True,
             )
+            record_stage(
+                "request_dispatch",
+                dispatch_started_ns,
+                stage_request_index=admitted_indices[0],
+            )
             for slot_index, request_key, req_future in zip(
                 admitted_indices,
                 admitted_keys,
                 request_futures,
                 strict=True,
             ):
-                record_stage(
-                    "request_dispatch",
-                    dispatch_started_ns,
-                    stage_request_index=slot_index,
-                )
                 advance_started_ns = stage_started_ns() if record_advance else None
                 pending[slot_index] = (req_future, request_key)
                 if request_key is not None and request_key in unique_futures:
