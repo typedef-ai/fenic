@@ -2,6 +2,7 @@ import time
 
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
+    InputTokenRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
@@ -70,3 +71,21 @@ def test_separated_settle_clamps_to_zero():
     now = time.time()
     assert s.input_tokens_bucket._get_available_capacity(now) == 0
     assert s.output_tokens_bucket._get_available_capacity(now) == 0
+
+
+def test_input_token_settlement_uses_only_input_tokens():
+    reserved = TokenEstimate(input_tokens=400, output_tokens=100)
+    same_input_a = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
+    same_input_b = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
+    changed_input = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
+    for strategy in (same_input_a, same_input_b, changed_input):
+        assert strategy.check_and_consume_rate_limit(reserved)
+
+    same_input_a.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=0))
+    same_input_b.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=900))
+    changed_input.settle(reserved, TokenEstimate(input_tokens=300, output_tokens=0))
+
+    now = time.time()
+    assert 795 <= same_input_a.unified_tokens_bucket._get_available_capacity(now) <= 805
+    assert 795 <= same_input_b.unified_tokens_bucket._get_available_capacity(now) <= 805
+    assert 695 <= changed_input.unified_tokens_bucket._get_available_capacity(now) <= 705

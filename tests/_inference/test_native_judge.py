@@ -12,6 +12,7 @@ import pytest
 import fenic as fc
 from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.model_client import FatalException
+from fenic._inference.rate_limit_strategy import InputTokenRateLimitStrategy
 from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
 from fenic._inference.typesafe.judge_requests import partition_questions
 from fenic._inference.typesafe.typesafe_provider import TypeSafeModelProvider
@@ -114,16 +115,23 @@ def native_session(tmp_path, monkeypatch):
 
 def test_public_expression_and_native_execution(native_session):
     session, calls, _ = native_session
+    client = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    ).client
+    assert isinstance(client.rate_limit_strategy, InputTokenRateLimitStrategy)
     expr = fc.semantic.judge(
         state="text", questions=list(questions()), model_alias="judge"
     )
     assert isinstance(expr._logical_expr, SemanticJudgeExpr)
     source = session.create_dataframe(pl.DataFrame({"text": ["x", "x", "", None]}))
-    result = source.with_column("j", expr).unnest("j").to_polars()
+    execution = source.with_column("j", expr).unnest("j").collect()
+    result = execution.data
     assert len(calls) == 2
     assert all(len(bodies) == len(questions()) for _, bodies in calls)
     assert result["ok_p"].to_list() == pytest.approx([0.9, 0.9, 0.9, None], nan_ok=True)
+    assert result["severity"].to_list()[:3] == pytest.approx([0.75] * 3)
     assert result["severity_premise_p"].to_list()[:3] == pytest.approx([0.9] * 3)
+    assert execution.metrics.total_lm_metrics.num_output_tokens == 40
     source.with_column("j", expr).to_polars()
     assert len(calls) == 2
 
@@ -150,6 +158,40 @@ def test_schema_roundtrip_and_equality():
         )._logical_expr
     )
     assert original.return_type == judge_schema(questions())
+
+
+@pytest.mark.parametrize(
+    ("level_count", "valid"),
+    [(1, False), (2, True), (10, True), (11, False)],
+)
+def test_score_level_range_is_enforced_before_inference(level_count, valid):
+    levels = [f"level-{index}" for index in range(level_count)]
+
+    if not valid:
+        with pytest.raises(ValueError, match="2..10"):
+            fc.JudgeQuestion.score(
+                name="score", instructions="How strong?", levels=levels
+            )
+        with pytest.raises(ValueError, match="2..10"):
+            fc.JudgeQuestion(
+                name="score",
+                kind="score",
+                instructions="How strong?",
+                levels=tuple(levels),
+            )
+        return
+
+    question = fc.JudgeQuestion.score(
+        name="score", instructions="How strong?", levels=levels
+    )
+    direct = fc.JudgeQuestion(
+        name="score",
+        kind="score",
+        instructions="How strong?",
+        levels=tuple(levels),
+    )
+    assert question == direct
+    assert fc.JudgeQuestion.from_dict(question.to_dict()) == question
 
 
 def test_cache_fingerprint_keeps_questions_order_and_endpoint():

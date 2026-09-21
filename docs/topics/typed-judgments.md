@@ -68,7 +68,7 @@ fields must be unique.
 | ---------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `JudgeQuestion.noul`   | Optional `true` and `false` descriptions   | `<name>_p`, the affirmative probability                                            |
 | `JudgeQuestion.choice` | Between 2 and 255 described string options | `<name>`, `<name>_confidence`, and `<name>_p_<option>`                             |
-| `JudgeQuestion.score`  | At least two ordered text levels           | Numeric `<name>` on the zero-based level scale, confidence, and `<name>_p_<index>` |
+| `JudgeQuestion.score`  | Between 2 and 10 ordered text levels       | Numeric `<name>` on the zero-based level scale, confidence, and `<name>_p_<index>` |
 
 Choice probability suffixes normalize punctuation to underscores and use lowercase
 ASCII. Colliding suffixes are rejected before execution. Score values may be

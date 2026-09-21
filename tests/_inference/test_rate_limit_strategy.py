@@ -4,8 +4,10 @@ import pytest
 
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
+    InputTokenRateLimitStrategy,
     TokenEstimate,
 )
+from fenic.core.error import ExecutionError
 
 
 class FakeClock:
@@ -73,3 +75,15 @@ def test_additive_increase_without_hint(fake_clock):
         assert consume_one_request(strategy, fake_clock)
         fake_clock.advance(10.0)
     assert strategy.rpm <= 120
+
+
+def test_input_token_strategy_ignores_output_for_capacity(fake_clock):
+    strategy = InputTokenRateLimitStrategy(rpm=10, tpm=100)
+
+    assert strategy.check_and_consume_rate_limit(
+        TokenEstimate(input_tokens=100, output_tokens=10_000)
+    )
+    with pytest.raises(ExecutionError, match="Input TPM"):
+        strategy.check_and_consume_rate_limit(
+            TokenEstimate(input_tokens=101, output_tokens=0)
+        )

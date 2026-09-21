@@ -15,6 +15,7 @@ from fenic._inference.openrouter.openrouter_batch_chat_completions_client import
 )
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
+    InputTokenRateLimitStrategy,
     SeparatedTokenRateLimitStrategy,
     UnifiedTokenRateLimitStrategy,
 )
@@ -388,7 +389,7 @@ class SessionModelRegistry:
                     raise ImportError(
                         "To use TypeSafe models, please install the required dependencies by running: pip install fenic[typesafe]"
                     ) from err
-                rate_limit_strategy = UnifiedTokenRateLimitStrategy(
+                rate_limit_strategy = InputTokenRateLimitStrategy(
                     rpm=model_config.rpm, tpm=model_config.tpm
                 )
                 client = TypeSafeSystemOneClient(
