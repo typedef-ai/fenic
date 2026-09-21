@@ -82,7 +82,7 @@ syncMinMaxFlag := if sync == "min" {
 # sync project dependencies - set sync=false to skip in other target deps
 sync:
   if [ "{{ sync }}" != "false" ]; then \
-    uv sync --extra=google --extra=anthropic --extra=cohere --extra=mcp {{ syncMinMaxFlag }}; \
+    uv sync --extra=google --extra=anthropic --extra=cohere --extra=mcp --extra=typesafe {{ syncMinMaxFlag }}; \
   fi
 
 alias sync-local := sync
