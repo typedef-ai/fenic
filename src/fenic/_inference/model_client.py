@@ -811,7 +811,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item to process.
         """
         try:
-            if queue_item.future.done() or self.shutdown_event.is_set():
+            if queue_item.future.done():
+                return
+            if self.shutdown_event.is_set():
+                self._register_thread_exception(
+                    queue_item, Exception(f"Model client for {self.model} has been shut down")
+                )
                 return
             if queue_item.attempts_started >= 1 + self.max_backoffs:
                 self._register_thread_exception(
