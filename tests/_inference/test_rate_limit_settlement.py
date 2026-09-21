@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from fenic._inference.rate_limit_strategy import (
     AdaptiveBackoffRateLimitStrategy,
     InputTokenRateLimitStrategy,
@@ -7,6 +9,23 @@ from fenic._inference.rate_limit_strategy import (
     TokenEstimate,
     UnifiedTokenRateLimitStrategy,
 )
+
+
+class FakeClock:
+    def __init__(self, start: float = 1_000_000.0):
+        self.current_time = float(start)
+
+    def now(self) -> float:
+        return self.current_time
+
+
+@pytest.fixture()
+def fake_clock(monkeypatch):
+    clock = FakeClock()
+    import fenic._inference.rate_limit_strategy as mod
+
+    monkeypatch.setattr(mod.time, "time", clock.now)
+    return clock
 
 
 def test_unified_settle_refunds_over_reservation():
@@ -73,19 +92,36 @@ def test_separated_settle_clamps_to_zero():
     assert s.output_tokens_bucket._get_available_capacity(now) == 0
 
 
-def test_input_token_settlement_uses_only_input_tokens():
+def test_input_token_settlement_uses_only_input_tokens(fake_clock):
     reserved = TokenEstimate(input_tokens=400, output_tokens=100)
-    same_input_a = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
-    same_input_b = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
-    changed_input = InputTokenRateLimitStrategy(rpm=100, tpm=1000)
-    for strategy in (same_input_a, same_input_b, changed_input):
+    refunded = InputTokenRateLimitStrategy(rpm=3, tpm=1000)
+    output_only = InputTokenRateLimitStrategy(rpm=3, tpm=1000)
+    charged = InputTokenRateLimitStrategy(rpm=3, tpm=1000)
+    for strategy in (refunded, output_only, charged):
         assert strategy.check_and_consume_rate_limit(reserved)
 
-    same_input_a.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=0))
-    same_input_b.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=900))
-    changed_input.settle(reserved, TokenEstimate(input_tokens=300, output_tokens=0))
+    refunded.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=0))
+    output_only.settle(reserved, TokenEstimate(input_tokens=200, output_tokens=900))
+    charged.settle(reserved, TokenEstimate(input_tokens=700, output_tokens=0))
 
-    now = time.time()
-    assert 795 <= same_input_a.unified_tokens_bucket._get_available_capacity(now) <= 805
-    assert 795 <= same_input_b.unified_tokens_bucket._get_available_capacity(now) <= 805
-    assert 695 <= changed_input.unified_tokens_bucket._get_available_capacity(now) <= 705
+    assert refunded.unified_tokens_bucket._get_available_capacity(fake_clock.now()) == 800
+    assert output_only.unified_tokens_bucket._get_available_capacity(fake_clock.now()) == 800
+    assert charged.unified_tokens_bucket._get_available_capacity(fake_clock.now()) == 300
+    for strategy in (refunded, output_only, charged):
+        assert strategy.rpm == 3
+        assert strategy.requests_bucket._get_available_capacity(fake_clock.now()) == 2
+
+    clamped_capacity = InputTokenRateLimitStrategy(rpm=3, tpm=1000)
+    clamped_capacity.settle(
+        TokenEstimate(input_tokens=10, output_tokens=10),
+        TokenEstimate(input_tokens=0, output_tokens=0),
+    )
+    clamped_zero = InputTokenRateLimitStrategy(rpm=3, tpm=1000)
+    clamped_zero.settle(
+        TokenEstimate(input_tokens=0, output_tokens=0),
+        TokenEstimate(input_tokens=1001, output_tokens=10),
+    )
+    assert clamped_capacity.unified_tokens_bucket._get_available_capacity(fake_clock.now()) == 1000
+    assert clamped_zero.unified_tokens_bucket._get_available_capacity(fake_clock.now()) == 0
+    assert clamped_capacity.requests_bucket._get_available_capacity(fake_clock.now()) == 3
+    assert clamped_zero.requests_bucket._get_available_capacity(fake_clock.now()) == 3
