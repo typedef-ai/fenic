@@ -3,10 +3,11 @@
 import fenic as fc
 
 
-def main() -> None:
+def main(config: fc.SessionConfig | None = None) -> None:
     """Run a small native judgment pipeline with the configured provider key."""
     session = fc.Session.get_or_create(
-        fc.SessionConfig(
+        config
+        or fc.SessionConfig(
             app_name="typed_judgments",
             semantic=fc.SemanticConfig(
                 language_models={

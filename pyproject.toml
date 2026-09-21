@@ -86,9 +86,7 @@ cloud = [
 ]
 mcp = ["fastmcp>=3.2.0,<4"]
 eval = ["markdown-it-py>=4.0.0"]
-typesafe = [
-    "typesafe-sdk>=0.7.0,<0.8.0",
-]
+typesafe = ["typesafe-sdk>=0.7.0,<0.8.0"]
 
 [build-system]
 requires = ["maturin>=1.8.6"]
