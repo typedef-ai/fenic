@@ -47,7 +47,7 @@ from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core.metrics import LMMetrics
 
-PARITY_ROWS = 48
+PARITY_ROWS = 290
 CONTROL_ROWS = 16
 LATENCY_SEED = 7
 LATENCY_LO_S = 0.05

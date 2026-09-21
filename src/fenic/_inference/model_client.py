@@ -674,7 +674,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 )
                 admitted_requests.append(request)
                 admitted_keys.append(
-                    self.get_request_key(request) if request is not None else None
+                    (
+                        self._safe_build_request_key(request, slot_index)
+                        or f"opaque:{id(request)}"
+                    )
+                    if request is not None
+                    else None
                 )
                 admitted_indices.append(slot_index)
 
