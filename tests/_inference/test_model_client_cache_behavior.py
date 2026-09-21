@@ -359,6 +359,11 @@ class DedupTrackingCompletionClient(SlidingWindowCompletionClient):
         return result
 
 
+class LegacyKeyOverrideCompletionClient(DedupTrackingCompletionClient):
+    def get_request_key(self, request: FenicCompletionsRequest) -> str:
+        return "deliberately-different-legacy-key"
+
+
 def _make_completion_request(prompt: str) -> FenicCompletionsRequest:
     messages = LMRequestMessages(system="system", examples=[], user=prompt)
     return FenicCompletionsRequest(
@@ -1087,6 +1092,33 @@ def test_iter_batch_requests_bounds_live_dedup_map_at_admission_watermark():
         client.release_second.set()
         executor.shutdown(wait=True, cancel_futures=True)
         client.shutdown()
+
+
+def test_iter_batch_requests_tracks_canonical_key_despite_legacy_override():
+    client = LegacyKeyOverrideCompletionClient(
+        dedup_ceiling=1,
+        rate_limit_rpm=1,
+        block_second=False,
+    )
+
+    try:
+        results = list(
+            client.iter_batch_requests(
+                [_make_completion_request("same"), _make_completion_request("same")],
+                "legacy-key-override-test",
+                batch_size=1,
+            )
+        )
+    finally:
+        client.shutdown()
+
+    assert [response.completion for response in results if response] == [
+        "response-for-same",
+        "response-for-same",
+    ]
+    assert client.physical_request_count == 2
+    assert client.max_live_dedup_entries <= 1
+    assert client.live_dedup_entries == {}
 
 
 def test_iter_batch_requests_default_rpm_is_exact_retained_slot_cap():
