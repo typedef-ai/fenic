@@ -23,7 +23,7 @@ third asynchronous execution pattern.
 
 ## Chosen Approach
 
-Use indexed slots with independent pending and completed-result caps inside the
+Use indexed pending and completed slots inside one retained-slot budget in the
 semantic model-client iterator.
 
 Each input receives a monotonically increasing submission index before it enters
@@ -31,19 +31,15 @@ the provider queue. The iterator tracks live, not-yet-transferred slots in
 `pending[index]`; a pending future can be incomplete or already settled when the
 completed buffer is full. It tracks transferred out-of-order responses in
 `completed[index]`. Admission transfers settled slots from `pending` into
-`completed`, then submits more work while both caps permit it. Emission drains
+`completed`, then submits more work while the shared budget permits it. Emission drains
 only the contiguous sequence beginning at `next_index_to_emit`; this is the
 single ordering boundary, immediately before the row-local operator appends to
 its output series.
 
-For v0, the captured look-ahead basis `L = max(batch_size, rpm)` remains an
-existing compatibility input, but it is not an admission limit. The iterator uses
-the async-UDF ratios and hard limits: `pending_admission_cap = min(1_000, 3L)`
-and `completed_result_cap = min(50_000, 10L)`. The pending admission cap bounds
-new submissions; the completed-result cap independently bounds reordered
-responses. This preserves the existing public argument and rate-limit policy
-while removing semantic batch size as the equal-sized ordered-slot gate. The
-retained execution state is bounded by the two caps rather than one FIFO window.
+The captured look-ahead basis `L = max(batch_size, rpm)` is the total retained
+slot budget. Pending and completed slots share this budget. The iterator admits
+new requests only when `len(pending) + len(completed) < L`. This matches the
+public window contract for every L, including values above 1,000.
 
 This is the smallest defensible slice: it changes only the semantic iterator's
 internal state machine. The streaming opt-in, completion API, positional series
@@ -56,10 +52,9 @@ output, queue/rate-limit integration, cache, and error boundary remain intact.
   join use. It is rejected because the existing operator boundary has no indexed
   result representation.
 
-- **Increase the fixed FIFO window.** A larger window can reduce stalls in a
-  particular workload, but it keeps admission coupled to the next ordered slot
-  and increases retained state without a separate completed-result cap. It is
-  rejected because it does not remove the serialization mechanism.
+- **Use independent pending and completed caps.** This can reduce ordered-head
+  stalls, but it lets retained state exceed the documented L window. It is
+  rejected because callers cannot rely on the public memory bound.
 
 - **Admit all work and reorder after completion.** This maximizes look-ahead but
   retains an input-sized future/result set. It is rejected because it discards
@@ -80,28 +75,17 @@ No out-of-order response record crosses this boundary.
 
 ### Bounded-state contract
 
-At every observable point, `len(pending) <= pending_admission_cap` and
-`len(completed) <= completed_result_cap`. A settled future left in `pending` because the
-completed buffer is full still counts against `pending_admission_cap`; it is not hidden
-state. A request key remains in the live dedup map until its response is emitted,
-so the dedup map is bounded by the retained slot set as well. The v0 bound is at
-most `min(1_000, 3L) + min(50_000, 10L)` retained slots plus fixed iterator
-overhead; peak RSS remains the process-level validation of that bound.
+At every observable point, `len(pending) + len(completed) <= L`. A settled
+future left in `pending` still counts against L. A request key remains in the
+live dedup map until its final retained response emits, so the dedup map is also
+bounded by L. Peak RSS remains the process-level validation of that bound.
 
 ### Completion and backpressure seam
 
-When the completed buffer has room, the iterator waits for any pending future and
-transfers no more than the remaining completed-buffer capacity into `completed`.
-Additional done futures remain indexed in `pending` and count against its cap.
-It then refills admission without requiring the earliest unresolved index to
-settle. When the completed buffer is full and the next expected index is absent,
-it waits specifically for that index; if that future is still in `pending`, its
-response is consumed directly into the ordered drain so the completed cap never
-temporarily overflows. The iterator drains the contiguous ordered prefix before
-further admission. This is the intentional convergence with
-`AsyncUDFSyncStream`'s independent pending/result buffers and next-index emission
-rule, with capacity-limited transfer required by the semantic iterator's strict
-buffer accounting.
+The iterator transfers settled pending slots into `completed` without changing
+the shared retained count. It drains the contiguous ordered prefix before
+refilling the newly free slots. A blocked early index can therefore hold the
+window at L while later completed responses wait for ordered emission.
 
 ### Error, cache, and dedup seam
 
@@ -114,45 +98,30 @@ exits, whether by exhaustion or failure. A slot failure is therefore observed wh
 its submission index reaches the emission edge, so earlier responses retain their
 positional behavior.
 
-Cache lookup/write behavior remains unchanged. The live dedup map additionally
-tracks a retained-slot count per request fingerprint. It removes a key only after
-the last pending or completed slot for that fingerprint has emitted; an original,
-a later duplicate, and an intervening slow slot therefore still share one live
-provider future when caching is disabled.
+Each bounded admission group uses one batch cache read. Cache hits, writes, and
+live deduplication retain their existing result semantics. The live dedup map
+tracks a retained-slot count per request fingerprint. It removes a key only
+after the last pending or completed slot for that fingerprint emits.
 
 ### Instrumentation seam
 
-The frozen stage instrumentation is ported with the same event coverage for
-admission, dispatch, advance, response drain, and ordered waiting. The historical
-`slot_wait` comparison field is retained, but it measures the new
-wait-for-next-expected interval: time spent blocked because the emission edge
-cannot advance. Completion collection that is not waiting for the expected index
-is not attributed to that field. A separate completed-cap-blocked counter and
-duration identify the subset where a full completed buffer prevents further
-admission. This preserves before/after comparability while making cap saturation
-observable rather than merely moving serialization to a larger buffer.
+The stage instrumentation covers admission, dispatch, advance, and response
+drain. The iterator no longer reports a separate completed-cap-blocked interval
+because pending and completed slots share one public budget.
 
 ### Test seams
 
-`None` requests receive an index and enter `completed` as an already-settled
-response; they consume completed-result capacity, preserve their input position,
-and perform no provider dispatch. An empty input terminates without a wait cycle.
+`None` requests receive an index and consume one retained slot. They preserve
+their input position and perform no provider dispatch. An empty input terminates
+without a wait cycle.
 
 Deterministic completion clients must independently control settlement order and
 release of the next expected index. Tests observe pending/completed/dedup high
 waters, ordered output, successor admission after an out-of-order completion,
-failure normalization at the emission edge, and cache behavior after a slot is
-emitted. They also cover simultaneous settlement when only one completed-buffer
-slot remains, interleaved `None` requests, and an empty request iterator. A
-blocked earliest index must also drive completed-cap saturation and done pending
-slots, proving that admission reaches the two-cap bound before it pauses. That
-case records admission progress, ordered-wait time, and completed-cap-blocked
-time. A later-index failure behind a blocked earliest index must allow successor
-admission and then raise only at its emission edge. An original/duplicate/slow
-intervening/third-duplicate case must make one provider request with caching
-disabled. A deliberately re-serialized variant must report the ordered-wait stage
-so the instrumentation can demonstrate sensitivity to the mechanism it grades.
-
+high waters, ordered output, failure normalization at the emission edge, and
+cache behavior after a slot emits. They cover L below and above 1,000,
+interleaved `None` requests, an empty request iterator, and one batch cache read
+for a duplicate-only initial window.
 The grading evidence requires both end-to-end wall-time parity against standard
 execution and the cap-saturation measurement. A reduced ordered-wait share alone
 does not pass if completed-cap backpressure leaves a residual wall-time gap.
@@ -166,7 +135,7 @@ public streaming opt-in, provider interfaces, or add a public concurrency option
 
 ## Later
 
-- Evaluate a caller-visible admission watermark only after the internal two-cap
+- Evaluate a caller-visible admission watermark only after the shared-budget
   behavior has benchmark evidence.
 - Consider sharing a private indexed-stream helper only if the two existing
   implementations converge beyond their current separate execution domains.
@@ -181,20 +150,14 @@ None.
   established async-UDF state shape.
 - **[applied]** Restore positional order at the row-local emission edge rather
   than exposing settlement order to operators.
-- **[applied]** Use the async-UDF pending and completed-buffer ratios and hard
-  limits, so admission is not capped by semantic batch size while retained state
-  remains bounded.
-- **[applied]** Limit each collection transfer to completed-buffer capacity and
-  count surplus done futures in pending state.
+- **[applied]** Bound pending and completed slots together by
+  `L = max(batch_size, rpm)`.
 - **[applied]** Defer indexed provider failures to the emission edge while
   retaining immediate handling for unowned fatal worker failures and cleanup for
   stream-owned error entries.
 - **[applied]** Keep a request fingerprint live until its final retained slot
   emits, so ordered buffering does not break duplicate suppression.
-- **[applied]** Grade completed-cap saturation separately from ordered-wait time
-  and require end-to-end parity, not a stage-share improvement alone.
-- **[applied]** Preserve the historical ordered-wait metric name while mapping it
-  to wait-for-next-expected behavior.
+- **[applied]** Batch cache reads for each bounded admission group.
 - **[applied]** Hold scope to iterator internals, instrumentation, tests, and
   evidence; do not add a public tuning option or a shared executor abstraction.
 - **[rejected]** Completion-order emission, a larger FIFO window, and unbounded
@@ -206,18 +169,16 @@ None.
 **Next step:** Build the implementation structure from this design and the
 research findings, retaining the iterator-only scope.
 
-**Approved decisions:** indexed live slots; independent pending-admission and
-completed-result caps; positional order restored at emission; per-slot error and
-dedup ownership; comparable ordered-wait instrumentation plus cap-saturation
-evidence.
+**Approved decisions:** indexed live slots; one shared retained-slot budget;
+positional order restored at emission; per-slot error and dedup ownership;
+batched cache reads.
 **Open questions (carried forward):** None.
 **Non-goals / out of scope:** a public tuning parameter, a shared executor
 abstraction, aggregation operators, provider interfaces, and child branches.
 **Evidence summary:** the current iterator couples FIFO waiting and admission;
 the local async-UDF stream already demonstrates independent indexed state.
-**Known weak assumptions:** the selected cap ratios must satisfy the parity and
-peak-RSS checks under the target workload rather than merely reduce ordered-wait
-share.
+**Known weak assumptions:** the shared budget must satisfy the parity and
+peak-RSS checks under the target workload.
 **Next artifact:** `specs/td-flow/admission-watermark/structure.md`.
 **Rollback if:** the first implementation slice cannot preserve positional output,
 bounded state, and indexed error behavior together.

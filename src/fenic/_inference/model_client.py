@@ -582,10 +582,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
         The existing ``make_batch_requests`` API remains the compatibility path for
         callers that need whole-batch behavior. The captured look-ahead basis
-        ``max(batch_size, rate_limit_strategy.rpm)`` determines separate bounds
-        for pending requests and completed responses. Completed responses are kept
-        by input index and emitted only at the ordered boundary, so a slow early
-        request no longer makes admission wait for its position in the sequence.
+        ``max(batch_size, rate_limit_strategy.rpm)`` bounds all retained pending
+        and completed responses. Completed responses are kept by input index and
+        emitted only at the ordered boundary.
 
         Request fingerprint deduplication is intentionally scoped to retained
         iterator state. Keeping an unbounded in-memory deduplication table would
@@ -597,7 +596,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         request_iter = iter(requests)
         batch_id = str(uuid.uuid4())
         look_ahead_basis = max(batch_size, self.rate_limit_strategy.rpm)
-        pending_admission_cap, completed_result_cap = self._streaming_slot_caps(
+        retained_slot_cap, completed_result_cap = self._streaming_slot_caps(
             look_ahead_basis
         )
         unique_futures: Dict[Any, Future] = {}
@@ -646,28 +645,45 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     operation_name=operation_name,
                 )
 
-        def admit_next_request(*, record_advance: bool = False) -> bool:
-            nonlocal request_index
+        def admit_available_requests(*, record_advance: bool = False) -> None:
+            nonlocal exhausted, request_index
 
-            # Stream-owned failures are represented by the indexed future below.
-            # Any other work on this thread still retains the immediate error path.
-            self._maybe_raise_thread_exception()
-            slot_index = request_index
-            admission_started_ns = stage_started_ns()
-            try:
-                request = next(request_iter)
-            except StopIteration:
-                return False
+            available_capacity = retained_slot_cap - len(pending) - len(completed)
+            if exhausted or available_capacity <= 0:
+                return
 
-            record_stage(
-                "window_admission",
-                admission_started_ns,
-                stage_request_index=slot_index,
-            )
-            request_key = self.get_request_key(request) if request is not None else None
+            admitted_requests: List[Optional[RequestT]] = []
+            admitted_keys: List[Optional[str]] = []
+            admitted_indices: List[int] = []
+            for _ in range(available_capacity):
+                # Stream-owned failures are represented by indexed futures.
+                # Any other work on this thread retains the immediate error path.
+                self._maybe_raise_thread_exception()
+                slot_index = request_index + len(admitted_requests)
+                admission_started_ns = stage_started_ns()
+                try:
+                    request = next(request_iter)
+                except StopIteration:
+                    exhausted = True
+                    break
+
+                record_stage(
+                    "window_admission",
+                    admission_started_ns,
+                    stage_request_index=slot_index,
+                )
+                admitted_requests.append(request)
+                admitted_keys.append(
+                    self.get_request_key(request) if request is not None else None
+                )
+                admitted_indices.append(slot_index)
+
+            if not admitted_requests:
+                return
+
             dispatch_started_ns = stage_started_ns()
             request_futures, _, _ = self._submit_batch_requests(
-                [request],
+                admitted_requests,
                 batch_id,
                 operation_name,
                 request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
@@ -676,41 +692,34 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 show_progress=False,
                 defer_thread_exceptions=True,
             )
-            record_stage(
-                "request_dispatch",
-                dispatch_started_ns,
-                stage_request_index=slot_index,
-            )
-            advance_started_ns = stage_started_ns() if record_advance else None
-            req_future = request_futures[0]
-            pending[slot_index] = (req_future, request_key)
-            if request_key is not None and request_key in unique_futures:
-                slot_ref_counts[request_key] = slot_ref_counts.get(request_key, 0) + 1
-            req_future.add_done_callback(
-                lambda _future, index=slot_index: settled_pending_indices.put(index)
-            )
-            request_index += 1
-            record_stage(
-                "window_advance",
-                advance_started_ns,
-                stage_request_index=slot_index,
-            )
-            return True
-
-        def can_admit() -> bool:
-            return (
-                not exhausted
-                and len(pending) < pending_admission_cap
-                and len(completed) < completed_result_cap
-            )
-
-        def admit_available_requests(*, record_advance: bool = False) -> None:
-            nonlocal exhausted
-
-            while can_admit():
-                if not admit_next_request(record_advance=record_advance):
-                    exhausted = True
-                    return
+            for slot_index, request_key, req_future in zip(
+                admitted_indices,
+                admitted_keys,
+                request_futures,
+                strict=True,
+            ):
+                record_stage(
+                    "request_dispatch",
+                    dispatch_started_ns,
+                    stage_request_index=slot_index,
+                )
+                advance_started_ns = stage_started_ns() if record_advance else None
+                pending[slot_index] = (req_future, request_key)
+                if request_key is not None and request_key in unique_futures:
+                    slot_ref_counts[request_key] = (
+                        slot_ref_counts.get(request_key, 0) + 1
+                    )
+                req_future.add_done_callback(
+                    lambda _future, index=slot_index: settled_pending_indices.put(
+                        index
+                    )
+                )
+                record_stage(
+                    "window_advance",
+                    advance_started_ns,
+                    stage_request_index=slot_index,
+                )
+            request_index += len(admitted_requests)
 
         def collect_completed_requests() -> None:
             available_capacity = completed_result_cap - len(completed)
@@ -766,28 +775,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 if not pending:
                     continue
 
-                if len(completed) >= completed_result_cap:
-                    req_future, request_key = pending.pop(next_index_to_emit)
-                    wait_started_ns = stage_started_ns()
-                    try:
-                        response = req_future.result()
-                    finally:
-                        record_stages(
-                            ("slot_wait", "completed_cap_blocked"),
-                            wait_started_ns,
-                            stage_request_index=next_index_to_emit,
-                        )
-                    drain_started_ns = stage_started_ns()
-                    release_request_key(request_key)
-                    record_stage(
-                        "response_drain",
-                        drain_started_ns,
-                        stage_request_index=next_index_to_emit,
-                    )
-                    next_index_to_emit += 1
-                    yield response
-                    continue
-
                 settled_index = settled_pending_indices.get()
                 # The completion index remains in the queue for collection on
                 # the next loop iteration. This blocks without rescanning the
@@ -799,11 +786,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
     @staticmethod
     def _streaming_slot_caps(look_ahead_basis: int) -> tuple[int, int]:
-        """Return the bounded pending and completed slot capacities for streaming."""
-        return (
-            min(1_000, 3 * look_ahead_basis),
-            min(50_000, 10 * look_ahead_basis),
-        )
+        """Return per-state ceilings for one shared retained-slot budget."""
+        return look_ahead_basis, look_ahead_basis
 
     #
     # Producer methods (run on the user thread)

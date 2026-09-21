@@ -53,8 +53,8 @@ LATENCY_SEED = 7
 LATENCY_LO_S = 0.05
 LATENCY_HI_S = 0.15
 # rpm mirrors the production OpenAI client config that defined the real shape:
-# look-ahead basis = max(batch_size, rpm) = 15_000, so the streaming caps sit
-# at (1_000, 50_000) and never bind at these row counts, exactly as measured.
+# look-ahead basis = max(batch_size, rpm) = 15_000, so the retained window does
+# not bind at these row counts.
 RPM = 15_000
 TPM = 30_000_000
 

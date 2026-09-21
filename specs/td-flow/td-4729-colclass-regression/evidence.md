@@ -26,6 +26,11 @@ streaming-stage events, with zero `window_advance`, `slot_wait`, or
 `completed_cap_blocked` events — the decomposition only works if all 300
 requests were admitted in the iterator's initial upfront loop.
 
+Those two caps describe the implementation measured in this historical
+investigation. PR review later replaced them with one 15,000-slot retained
+window so the shipped implementation matches its public contract. The measured
+300-request workload remains below either bound.
+
 **The 300-versus-290 request count (resolved, not a retry).** Solving both
 arms' event totals jointly (A: 3Q+2R+L = 900; B: 6Q+2R+L = 1,800;
 provider calls Q+R = 300) forces Q=300 queued, R=0 retries, L=0

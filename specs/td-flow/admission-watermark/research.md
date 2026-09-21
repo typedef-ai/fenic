@@ -204,9 +204,8 @@ None.
 **Approved decisions:** preserve positional result alignment at the row-local
 operator boundary; restore order at that emission edge; model the semantic
 iterator after the existing indexed async-UDF shape unless a divergence is
-explicitly justified; retain a bounded working set with separate admission and
-completed-result caps; map the existing ordered-wait timing signal to the
-new wait-for-next-expected measurement.
+explicitly justified; retain a bounded working set whose pending and completed
+slots share the documented `max(batch_size, rpm)` budget.
 **Open questions (carried forward):** None.
 **Non-goals / out of scope:** changing aggregation operators or removing the
 row-local streaming opt-in.
