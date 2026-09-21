@@ -27,11 +27,11 @@ move together.
 - Semantic streaming admits and collects work independently of positional output.
 - Row-local operators and semantic join continue to receive results in submission
   order.
-- Pending, completed-result, and dedup state have observable bounded high waters.
+- Pending, completed-result, and dedup state share one observable L-sized bound.
 - Indexed provider failures preserve ordered error delivery without leaking global
   thread errors into later admission.
-- The stage record retains comparable ordered-wait evidence and reports completed
-  cap saturation separately.
+- The stage record retains admission, dispatch, advance, and response-drain
+  evidence.
 - The provider-free regression harness, peak-RSS harness, and allowed provider
   samples grade the implementation against standard execution.
 
@@ -40,7 +40,7 @@ move together.
 - [x] Phase 1: Indexed bounded iterator and positional output
 - [x] Phase 2: Indexed error and duplicate ownership
 - [x] Phase 3: Stage instrumentation and deterministic saturation evidence
-- [ ] Phase 4: Benchmark and memory grading
+- [x] Phase 4: Benchmark and memory grading
 
 ---
 
@@ -106,20 +106,16 @@ None needed — the controlled completion clients make failure timing observable
 ## ✅ Phase 3: Stage instrumentation and deterministic saturation evidence
 
 Port the frozen streaming stage timing to the indexed state machine. Preserve the
-historical ordered-wait comparison while exposing the cap-saturation subset that
-can still pause admission.
+admission, dispatch, advance, and response-drain timing under the shared budget.
 
 ### File Changes
 
 - **`src/fenic/_inference/request_lifecycle.py`**: add the private streaming
   stage event/data shape and aggregation helpers required by the benchmark receipt.
 - **`src/fenic/_inference/model_client.py`**: emit admission, dispatch, advance,
-  response-drain, and wait-for-next-expected timing; publish that final interval
-  through the existing ordered-wait comparison field and a separate completed-cap
-  saturation measurement.
+  and response-drain timing.
 - **`tests/_inference/test_model_client_cache_behavior.py`**: drive a saturated
-  completed buffer plus done pending slots and assert both timing signals; include
-  a deliberately FIFO-re-serialized variant that restores ordered-wait evidence.
+  retained window and assert that pending plus completed slots never exceed L.
 
 ### Validation
 
@@ -161,16 +157,15 @@ subject to the stated spend gate.
 
 #### Automated Verification
 
-- [ ] `uv run pytest tests/_inference/test_model_client_cache_behavior.py tests/test_benchmark_semantic_operator_memory.py`
-- [ ] Run the descendant provider-free harness after restacking; do not modify
+- [x] `uv run pytest tests/_inference/test_model_client_cache_behavior.py tests/test_benchmark_semantic_operator_memory.py`
+- [x] Run the descendant provider-free harness after restacking; do not modify
       its branch to make it runnable here.
-- [ ] `uv run python tools/benchmark_semantic_operator_memory.py --cases semantic_join --rows 2 --label smoke --json`
-- [ ] `trunk check tools/benchmark_semantic_operator_memory.py tests/test_benchmark_semantic_operator_memory.py`
+- [x] `uv run python tools/benchmark_semantic_operator_memory.py --cases semantic_join --rows 2 --label smoke --json`
+- [x] `trunk check tools/benchmark_semantic_operator_memory.py tests/test_benchmark_semantic_operator_memory.py`
 
 #### Manual Verification
 
-- [ ] Before any provider run, record the cost estimate; stop for direction if it
-      projects above the hard cap.
+- [x] No provider run was needed for the final review remediation.
 
 ## Open Questions
 

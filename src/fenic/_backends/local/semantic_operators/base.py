@@ -110,7 +110,7 @@ class CompletionOnlyRequestSender(RequestSender[str]):
         messages: Iterable[Optional[LMRequestMessages]],
         batch_size: int,
     ) -> Iterator[Optional[str]]:
-        """Submit row-local completion messages without materializing all prompts."""
+        """Submit messages through a retained window of max(batch_size, RPM)."""
         responses = self.model.iter_completions(
             messages=messages,
             operation_name=self.operator_name,
