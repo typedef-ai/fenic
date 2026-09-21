@@ -69,9 +69,9 @@ class JudgeQuestion:
             ):
                 raise ValueError("Choice option descriptions must be strings or None")
         elif self.kind == "score":
-            if len(self.levels) < 2 or self.options or self.criteria:
+            if not 2 <= len(self.levels) <= 10 or self.options or self.criteria:
                 raise ValueError(
-                    "Score requires at least two levels and no other criteria"
+                    "Score requires 2..10 levels and no other criteria"
                 )
             if any(
                 not isinstance(level, str) or not level.strip() for level in self.levels
