@@ -1,6 +1,8 @@
 """Request-local retry limits for the shared model scheduler."""
 
 import asyncio
+import multiprocessing
+import threading
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Literal, Union
@@ -64,6 +66,7 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
         outcomes: list[Outcome] | dict[str, list[Outcome]],
         max_backoffs: int,
         cache=None,
+        close_timeout_seconds: float = 10,
     ):
         super().__init__(
             model="retry-test",
@@ -74,6 +77,7 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
             max_backoffs=max_backoffs,
             initial_backoff_seconds=0,
             cache=cache,
+            _provider_close_timeout_seconds=close_timeout_seconds,
         )
         self.outcomes = outcomes
         self.calls = 0
@@ -152,6 +156,25 @@ class _CacheProbe:
 
     def set(self, *args):
         self.writes.append(args)
+
+
+def _run_hanging_close_shutdown(close_timeout_seconds, entered, released):
+    client = _RetryClient(
+        ["success"], max_backoffs=1, close_timeout_seconds=close_timeout_seconds
+    )
+    original_release = EventLoopManager.release_loop
+
+    async def hanging_close():
+        entered.set()
+        await asyncio.Event().wait()
+
+    def release_loop(manager):
+        released.set()
+        original_release(manager)
+
+    client._close_provider = hanging_close
+    EventLoopManager.release_loop = release_loop
+    client.shutdown()
 
 
 def _request(payload="u") -> FenicCompletionsRequest:
@@ -375,10 +398,109 @@ def test_provider_close_failure_still_releases_the_shared_loop(monkeypatch, capl
         client.shutdown()
         assert client.shutdown_events == ["close", "release"]
         assert (
-            "Could not close provider resources for model retry-test during shutdown"
+            "Could not close provider resources for model retry-test during shutdown "
+            "(RuntimeError)"
             in caplog.text
         )
         assert "close failed" not in caplog.text
     finally:
         if not client.shutdown_event.is_set():
             client.shutdown()
+
+
+def test_provider_close_timeout_releases_loop_and_cancels_close_task(
+    monkeypatch, caplog
+):
+    client = _RetryClient(
+        ["success"], max_backoffs=1, close_timeout_seconds=0.01
+    )
+    entered_close = threading.Event()
+    cancelled_close = threading.Event()
+    original_release = EventLoopManager.release_loop
+
+    async def hanging_close():
+        entered_close.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled_close.set()
+            raise
+
+    def release_loop(manager):
+        client.shutdown_events.append("release")
+        original_release(manager)
+
+    monkeypatch.setattr(client, "_close_provider", hanging_close)
+    monkeypatch.setattr(EventLoopManager, "release_loop", release_loop)
+    try:
+        assert client._provider_close_timeout_seconds == 0.01
+        client.shutdown()
+        assert entered_close.is_set()
+        assert cancelled_close.is_set()
+        assert client.calls == 0
+        assert client.retry_queue.empty()
+        assert client.shutdown_events == ["release"]
+        assert (
+            "Could not close provider resources for model retry-test during shutdown "
+            "(TimeoutError)"
+            in caplog.text
+        )
+        assert "hanging_close" not in caplog.text
+    finally:
+        if not client.shutdown_event.is_set():
+            client.shutdown()
+
+
+def test_provider_close_timeout_defaults_to_ten_seconds():
+    client = _RetryClient(["success"], max_backoffs=1)
+    try:
+        assert client._provider_close_timeout_seconds == 10
+    finally:
+        client.shutdown()
+
+
+def test_hanging_close_process_exits_after_short_deadline():
+    context = multiprocessing.get_context("spawn")
+    entered = context.Event()
+    released = context.Event()
+    process = context.Process(
+        target=_run_hanging_close_shutdown,
+        args=(0.01, entered, released),
+    )
+    process.start()
+    try:
+        assert entered.wait(5), "provider close did not start"
+        process.join(1)
+        assert process.exitcode == 0
+        assert released.is_set()
+    finally:
+        if process.is_alive():
+            process.kill()
+            process.join()
+
+
+def test_provider_close_timeout_cancels_task_while_shared_loop_stays_owned():
+    client = _RetryClient(
+        ["success"], max_backoffs=1, close_timeout_seconds=0.01
+    )
+    peer = _RetryClient(["success"], max_backoffs=1)
+    cancelled_close = threading.Event()
+
+    async def hanging_close():
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled_close.set()
+            raise
+
+    client._close_provider = hanging_close
+    try:
+        client.shutdown()
+        assert cancelled_close.wait(1)
+        assert EventLoopManager().loop is peer._event_loop
+        assert peer._event_loop.is_running()
+    finally:
+        if not client.shutdown_event.is_set():
+            client.shutdown()
+        if not peer.shutdown_event.is_set():
+            peer.shutdown()

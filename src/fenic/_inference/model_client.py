@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
-from concurrent.futures import Future
+from concurrent.futures import Future, TimeoutError
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -118,6 +118,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         max_backoffs: int = 10,
         cache: Optional["LLMResponseCache"] = None,
         adaptive_estimation: Optional[ResolvedAdaptiveTokenEstimationConfig] = None,
+        _provider_close_timeout_seconds: float = 10,
     ):
         """Initialize the ModelClient with configuration for model interaction.
 
@@ -137,6 +138,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         if isinstance(max_backoffs, bool) or not isinstance(max_backoffs, int) or max_backoffs < 0:
             raise ValueError("max_backoffs must be a nonnegative integer")
+        if (
+            isinstance(_provider_close_timeout_seconds, bool)
+            or _provider_close_timeout_seconds <= 0
+        ):
+            raise ValueError("_provider_close_timeout_seconds must be positive")
 
         self.model = model
         self.model_provider = model_provider
@@ -163,6 +169,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.initial_backoff_seconds: float = initial_backoff_seconds
         self.backoff_factor: float = backoff_factor
         self.max_backoffs: int = max_backoffs
+        self._provider_close_timeout_seconds = _provider_close_timeout_seconds
         self.last_transient_exception_time: float = 0
         self.num_backoffs: int = 0
 
@@ -450,11 +457,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 close_future = asyncio.run_coroutine_threadsafe(
                     self._close_provider(), self._event_loop
                 )
-                close_future.result()
-            except Exception:
+                close_future.result(timeout=self._provider_close_timeout_seconds)
+            except Exception as exc:
+                if isinstance(exc, TimeoutError):
+                    close_future.cancel()
                 logger.warning(
-                    "Could not close provider resources for model %s during shutdown",
+                    "Could not close provider resources for model %s during shutdown (%s)",
                     self.model,
+                    type(exc).__name__,
                 )
             EventLoopManager().release_loop()
 
