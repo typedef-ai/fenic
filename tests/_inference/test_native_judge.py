@@ -4,10 +4,12 @@ import asyncio
 import socket
 from dataclasses import replace
 from types import SimpleNamespace
+from typing import get_args
 from unittest.mock import AsyncMock, Mock
 
 import polars as pl
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 import fenic as fc
 from fenic._inference.cache.key_builder import compute_request_fingerprint
@@ -16,6 +18,11 @@ from fenic._inference.rate_limit_strategy import InputTokenRateLimitStrategy
 from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
 from fenic._inference.typesafe.judge_requests import partition_questions
 from fenic._inference.typesafe.typesafe_provider import TypeSafeModelProvider
+from fenic.core._inference.model_catalog import (
+    ModelProvider,
+    TypeSafeLanguageModelName,
+    model_catalog,
+)
 from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core._serde.proto.expression_serde import (
@@ -23,7 +30,7 @@ from fenic.core._serde.proto.expression_serde import (
     serialize_logical_expr,
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
-from fenic.core.error import ValidationError
+from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.types.judge import flatten_answers, judge_schema, validate_questions
 
 
@@ -89,7 +96,9 @@ def native_session(tmp_path, monkeypatch):
         )
 
     sdk = SimpleNamespace(system_one=evaluate, aclose=AsyncMock())
-    monkeypatch.setattr(TypeSafeModelProvider, "create_aio_client", lambda self: sdk)
+    monkeypatch.setattr(
+        TypeSafeModelProvider, "create_aio_client", lambda self: sdk
+    )
     session = fc.Session.get_or_create(
         fc.SessionConfig(
             app_name="native_judge",
@@ -300,6 +309,99 @@ def test_failed_vector_is_not_cached_and_usage_is_retained(native_session):
         result = frame.collect()
         assert result.data["j"].to_list() == [None]
         assert result.metrics.total_lm_metrics.num_uncached_input_tokens == 100
+        assert result.metrics.total_lm_metrics.num_output_tokens == 20
+        assert result.metrics.total_lm_metrics.cost > 0
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    ("input_tokens", "output_tokens", "complete_usage"),
+    [
+        (100, 20, True),
+        (None, 20, False),
+        (100, None, False),
+        (None, None, False),
+    ],
+)
+def test_valid_answers_with_incomplete_usage_are_cached_without_aggregate_totals(
+    native_session, monkeypatch, caplog, input_tokens, output_tokens, complete_usage
+):
+    session, calls, sdk = native_session
+    client = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    ).client
+    reconcile = Mock(wraps=client._reconcile_completion)
+    monkeypatch.setattr(client, "_reconcile_completion", reconcile)
+    original = sdk.system_one
+
+    async def response_with_usage(state, bodies, **kwargs):
+        result = await original(state, bodies, **kwargs)
+        return SimpleNamespace(
+            answers=result.answers,
+            usage=SimpleNamespace(
+                input_tokens=input_tokens, output_tokens=output_tokens
+            ),
+        )
+
+    sdk.system_one = response_with_usage
+    frame = session.create_dataframe({"text": ["row-content-sentinel"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=list(questions()))
+    )
+    first = frame.collect()
+    second = frame.collect()
+
+    assert first.data["j"].to_list()[0] is not None
+    assert second.data["j"].to_list()[0] is not None
+    assert len(calls) == 1
+    assert first.metrics.total_lm_metrics.num_requests == 1
+    assert reconcile.call_count == int(complete_usage)
+    if complete_usage:
+        assert first.metrics.total_lm_metrics.num_uncached_input_tokens == 100
+        assert first.metrics.total_lm_metrics.num_output_tokens == 20
+    else:
+        assert first.metrics.total_lm_metrics.num_uncached_input_tokens == 0
+        assert first.metrics.total_lm_metrics.num_output_tokens == 0
+        assert first.metrics.total_lm_metrics.cost == 0
+        assert "incomplete usage" in caplog.text
+        assert "row-content-sentinel" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("input_tokens", "output_tokens"),
+    [
+        (-1, 20),
+        (100, -1),
+        (True, 20),
+        (100, True),
+        (1.5, 20),
+        (100, 1.5),
+        ("100", 20),
+        (100, "20"),
+    ],
+)
+def test_invalid_reported_usage_is_not_cached(
+    native_session, input_tokens, output_tokens
+):
+    session, calls, sdk = native_session
+    original = sdk.system_one
+
+    async def response_with_invalid_usage(state, bodies, **kwargs):
+        result = await original(state, bodies, **kwargs)
+        return SimpleNamespace(
+            answers=result.answers,
+            usage=SimpleNamespace(
+                input_tokens=input_tokens, output_tokens=output_tokens
+            ),
+        )
+
+    sdk.system_one = response_with_invalid_usage
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=list(questions()))
+    )
+    for _ in range(2):
+        result = frame.collect()
+        assert result.data["j"].to_list() == [None]
+        assert result.metrics.total_lm_metrics.num_requests == 0
     assert len(calls) == 2
 
 
@@ -390,10 +492,88 @@ def test_untyped_request_is_refused_without_transport(native_session):
 def test_sdk_retries_are_disabled(monkeypatch, constructor_name, factory_name):
     import typesafe_sdk
 
+    from fenic._constants import MAX_MODEL_CLIENT_TIMEOUT
+
     constructor = Mock()
     monkeypatch.setattr(typesafe_sdk, constructor_name, constructor)
     getattr(TypeSafeModelProvider(), factory_name)()
     assert constructor.call_args.kwargs["retry"].max_retries == 0
+    assert constructor.call_args.kwargs["timeout"] == MAX_MODEL_CLIENT_TIMEOUT
+
+
+@pytest.mark.parametrize("list_error", [None, RuntimeError("offline validation")])
+def test_validation_uses_short_lived_client_and_always_closes(monkeypatch, list_error):
+    client = SimpleNamespace(
+        models=SimpleNamespace(list=AsyncMock(side_effect=list_error)),
+        aclose=AsyncMock(),
+    )
+    factory = Mock(return_value=client)
+    provider = TypeSafeModelProvider()
+    monkeypatch.setattr(provider, "_create_aio_client", factory)
+
+    if list_error is None:
+        asyncio.run(provider.validate_api_key())
+    else:
+        with pytest.raises(RuntimeError, match="offline validation"):
+            asyncio.run(provider.validate_api_key())
+
+    factory.assert_called_once_with(timeout=10)
+    client.aclose.assert_awaited_once()
+
+
+def test_scheduler_keeps_long_requests_and_cancels_short_deadlines(native_session):
+    session, calls, sdk = native_session
+    original = sdk.system_one
+    cancellations = 0
+
+    async def provider_response(state, bodies, **kwargs):
+        nonlocal cancellations
+        if state == "long":
+            return await original(state, bodies, **kwargs)
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancellations += 1
+            raise
+
+    sdk.system_one = provider_response
+    long_result = (
+        session.create_dataframe({"text": ["long"]})
+        .with_column(
+            "j",
+            fc.semantic.judge(
+                state="text", questions=list(questions()), request_timeout=11
+            ),
+        )
+        .collect()
+    )
+    assert long_result.data["j"].to_list()[0] is not None
+    assert len(calls) == 1
+
+    short_frame = session.create_dataframe({"text": ["short"]}).with_column(
+        "j",
+        fc.semantic.judge(
+            state="text", questions=list(questions()), request_timeout=0.01
+        ),
+    )
+    with pytest.raises(ExecutionError, match="maximum number of retries"):
+        short_frame.collect()
+    assert cancellations == 3
+
+
+def test_typesafe_model_literal_matches_catalog_aliases():
+    catalog_names = set(
+        model_catalog.provider_model_collections[
+            ModelProvider.TYPESAFE
+        ].completion_models
+    )
+    assert set(get_args(TypeSafeLanguageModelName)) == catalog_names
+    assert fc.TypeSafeLanguageModel(
+        model_name="jev-latest", rpm=1, tpm=1
+    ).model_name == "jev-latest"
+    with pytest.raises(PydanticValidationError):
+        fc.TypeSafeLanguageModel(model_name="unknown", rpm=1, tpm=1)
+
 
 
 def test_connection_failure_uses_scheduler_retry(native_session):

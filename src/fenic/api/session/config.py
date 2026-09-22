@@ -24,6 +24,7 @@ from fenic.core._inference.model_catalog import (
     OpenAIEmbeddingModelName,
     OpenAILanguageModelName,
     ThinkingLevelType,
+    TypeSafeLanguageModelName,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
@@ -1058,7 +1059,9 @@ class TypeSafeLanguageModel(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-    model_name: str = Field(..., description="TypeSafe model identifier.", min_length=1)
+    model_name: TypeSafeLanguageModelName = Field(
+        ..., description="TypeSafe model identifier."
+    )
     rpm: int = Field(..., description="Requests per minute limit.", gt=0)
     tpm: int = Field(..., description="Input tokens per minute limit.", gt=0)
     max_backoffs: int = Field(

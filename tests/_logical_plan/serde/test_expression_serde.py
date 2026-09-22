@@ -144,6 +144,7 @@ from fenic.core._logical_plan.expressions.base import (
     UnparameterizedExpr,
 )
 from fenic.core._logical_plan.expressions.basic import GreatestExpr, LeastExpr
+from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 from fenic.core._logical_plan.expressions.text import (
     ChunkCharacterSet,
     ChunkLengthFunction,
@@ -173,6 +174,7 @@ from fenic.core.types.semantic_examples import (
     PredicateExample,
     PredicateExampleCollection,
 )
+from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.summarize import Paragraph
 
 
@@ -549,6 +551,17 @@ expression_examples = {
     SemanticSummarizeExpr: [
         SemanticSummarizeExpr(ColumnExpr("text_col"), format=Paragraph(max_words=100), temperature=0.1),
     ],
+    SemanticJudgeExpr: [
+        SemanticJudgeExpr(
+            ColumnExpr("state"),
+            [
+                JudgeQuestion.noul(
+                    name="acceptable", instructions="Is this acceptable?"
+                )
+            ],
+            request_timeout=17,
+        ),
+    ],
     # Text expressions
     TextractExpr: [
         TextractExpr(ColumnExpr("text_col"), "Extract ${field}"),
@@ -898,8 +911,8 @@ class TestExpressionSerde:
         assert len(array_expr.exprs) == 3
         assert nested_expr == deserialized
 
-    def test_case_all_logical_expr_subclasses_covered(self):
-        """Test that all concrete LogicalExpr subclasses are covered in the test file."""
+    def _assert_all_logical_expr_subclasses_covered(self, examples):
+        """Assert that each concrete expression has a serialization example."""
         import importlib
         import inspect
 
@@ -916,6 +929,7 @@ class TestExpressionSerde:
             "fenic.core._logical_plan.expressions.json",
             "fenic.core._logical_plan.expressions.markdown",
             "fenic.core._logical_plan.expressions.semantic",
+            "fenic.core._logical_plan.expressions.judge",
             "fenic.core._logical_plan.expressions.text",
         ]
 
@@ -934,7 +948,7 @@ class TestExpressionSerde:
                 continue
 
         # Get all tested expression classes from the expression_examples dictionary
-        tested_classes = set(cls.__name__ for cls in expression_examples.keys())
+        tested_classes = set(cls.__name__ for cls in examples.keys())
 
         # Find missing classes
         missing = concrete_subclasses - tested_classes
@@ -953,3 +967,15 @@ class TestExpressionSerde:
         # Verify coverage
         coverage = len(concrete_subclasses - missing) / len(concrete_subclasses) * 100
         assert coverage == 100.0, f"Expression coverage is {coverage:.1f}%, expected 100%"
+
+    def test_case_all_logical_expr_subclasses_covered(self):
+        """Test that all concrete LogicalExpr subclasses are covered in the test file."""
+        self._assert_all_logical_expr_subclasses_covered(expression_examples)
+
+    def test_expression_inventory_rejects_missing_judge_example(self):
+        examples_without_judge = dict(expression_examples)
+        examples_without_judge.pop(SemanticJudgeExpr)
+        with pytest.raises(
+            pytest.fail.Exception, match="SemanticJudgeExpr"
+        ):
+            self._assert_all_logical_expr_subclasses_covered(examples_without_judge)

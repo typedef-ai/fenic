@@ -13,6 +13,7 @@ from fenic._inference.model_client import (
     QueueItem,
     TransientException,
 )
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
 from fenic._inference.types import (
     FenicCompletionsRequest,
@@ -81,6 +82,8 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
         self.cancelled_attempts_by_payload: dict[str, int] = defaultdict(int)
         self.reconciled_usage: list[ResponseUsage] = []
         self.started = asyncio.Event()
+        self.shutdown_events: list[str] = []
+        self.close_error = False
         self._metrics = LMMetrics()
 
     async def make_single_request(
@@ -101,6 +104,7 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
             except asyncio.CancelledError:
                 self.cancelled_attempts += 1
                 self.cancelled_attempts_by_payload[payload] += 1
+                self.shutdown_events.append("cancelled")
                 raise
         if outcome == "transient":
             return TransientException(RuntimeError("retryable"))
@@ -132,6 +136,11 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
 
     def _reconcile_completion(self, _request, _estimated_tokens, usage):
         self.reconciled_usage.append(usage)
+
+    async def _close_provider(self):
+        self.shutdown_events.append("close")
+        if self.close_error:
+            raise RuntimeError("close failed")
 
 
 class _CacheProbe:
@@ -315,6 +324,57 @@ def test_shutdown_cancels_an_attempt_without_requeueing():
             with pytest.raises(asyncio.CancelledError):
                 future.result(1)
         assert client.calls == 1
+    finally:
+        if not client.shutdown_event.is_set():
+            client.shutdown()
+
+
+def test_shutdown_closes_provider_after_cancellation_and_before_loop_release(
+    monkeypatch,
+):
+    client = _RetryClient(["timeout", "success"], max_backoffs=2)
+    original_release = EventLoopManager.release_loop
+
+    def release_loop(manager):
+        client.shutdown_events.append("release")
+        original_release(manager)
+
+    monkeypatch.setattr(EventLoopManager, "release_loop", release_loop)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                client.make_batch_requests,
+                [_request()],
+                "shutdown-order",
+                request_timeout=60,
+            )
+            asyncio.run_coroutine_threadsafe(
+                client.started.wait(), client._event_loop
+            ).result(1)
+            client.shutdown()
+            with pytest.raises(asyncio.CancelledError):
+                future.result(1)
+        assert client.calls == 1
+        assert client.shutdown_events == ["cancelled", "close", "release"]
+    finally:
+        if not client.shutdown_event.is_set():
+            client.shutdown()
+
+
+def test_provider_close_failure_still_releases_the_shared_loop(monkeypatch, caplog):
+    client = _RetryClient(["success"], max_backoffs=1)
+    client.close_error = True
+    original_release = EventLoopManager.release_loop
+
+    def release_loop(manager):
+        client.shutdown_events.append("release")
+        original_release(manager)
+
+    monkeypatch.setattr(EventLoopManager, "release_loop", release_loop)
+    try:
+        client.shutdown()
+        assert client.shutdown_events == ["close", "release"]
+        assert "close failed" not in caplog.text
     finally:
         if not client.shutdown_event.is_set():
             client.shutdown()
