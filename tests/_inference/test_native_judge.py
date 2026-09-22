@@ -42,9 +42,7 @@ from fenic.core.types.judge import flatten_answers, judge_schema, validate_quest
 
 @pytest.fixture(autouse=True)
 def clear_typesafe_endpoint(monkeypatch):
-    from typesafe_sdk.constants import BASE_URL_ENV
-
-    monkeypatch.delenv(BASE_URL_ENV, raising=False)
+    monkeypatch.delenv("TYPESAFE_BASE_URL", raising=False)
 
 
 def questions():
@@ -588,10 +586,18 @@ def test_sdk_retries_are_disabled(monkeypatch, constructor_name, factory_name):
 
 
 def test_typesafe_provider_normalizes_effective_endpoint(monkeypatch):
+    import typesafe_sdk
     from typesafe_sdk.constants import BASE_URL_ENV, DEFAULT_BASE_URL
 
+    sync_constructor = Mock()
+    async_constructor = Mock()
+    monkeypatch.setattr(typesafe_sdk, "TypeSafeClient", sync_constructor)
+    monkeypatch.setattr(typesafe_sdk, "AsyncTypeSafeClient", async_constructor)
     monkeypatch.setenv(BASE_URL_ENV, "https://endpoint.example/")
     custom = TypeSafeModelProvider()
+    monkeypatch.setenv(BASE_URL_ENV, "https://changed.example/")
+    custom.create_client()
+    custom.create_aio_client()
     explicit = TypeSafeModelProvider("https://explicit.example/")
     monkeypatch.delenv(BASE_URL_ENV, raising=False)
     default = TypeSafeModelProvider()
@@ -602,6 +608,8 @@ def test_typesafe_provider_normalizes_effective_endpoint(monkeypatch):
     assert explicit._base_url == "https://explicit.example"
     assert default._base_url == DEFAULT_BASE_URL.rstrip("/")
     assert blank._base_url == DEFAULT_BASE_URL.rstrip("/")
+    assert sync_constructor.call_args.kwargs["base_url"] == custom._base_url
+    assert async_constructor.call_args.kwargs["base_url"] == custom._base_url
 
 
 def test_effective_endpoint_separates_typesafe_cache_identity(monkeypatch):
@@ -636,7 +644,9 @@ def test_effective_endpoint_separates_typesafe_cache_identity(monkeypatch):
     ("base_url", "env_url", "should_validate"),
     [
         (None, None, True),
+        (None, "https://api.typesafe.ai/", True),
         (None, "https://endpoint.example/", False),
+        ("https://api.typesafe.ai/", "https://endpoint.example/", True),
         ("https://explicit.example/", "https://endpoint.example/", False),
     ],
 )
