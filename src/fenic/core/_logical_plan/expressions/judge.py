@@ -57,6 +57,10 @@ class SemanticJudgeExpr(SemanticExpr):
             raise ValidationError(
                 "semantic.judge requires a provider supporting typed judgments"
             )
+        if self.model_alias and self.model_alias.profile is not None and not parameters.supports_profiles:
+            raise ValidationError(
+                "semantic.judge profiles are unsupported for the selected model"
+            )
 
     def to_column_field(self, plan, session_state: BaseSessionState) -> ColumnField:
         self._validate_completion_parameters(session_state)
