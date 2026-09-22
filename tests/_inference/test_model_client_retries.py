@@ -7,13 +7,13 @@ from typing import Literal, Union
 
 import pytest
 
+from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     QueueItem,
     TransientException,
 )
-from fenic._backends.local.async_utils import EventLoopManager
 from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
 from fenic._inference.types import (
     FenicCompletionsRequest,
@@ -374,6 +374,10 @@ def test_provider_close_failure_still_releases_the_shared_loop(monkeypatch, capl
     try:
         client.shutdown()
         assert client.shutdown_events == ["close", "release"]
+        assert (
+            "Could not close provider resources for model retry-test during shutdown"
+            in caplog.text
+        )
         assert "close failed" not in caplog.text
     finally:
         if not client.shutdown_event.is_set():

@@ -331,7 +331,11 @@ def test_valid_answers_with_incomplete_usage_are_cached_without_aggregate_totals
         ResolvedModelAlias("judge", None)
     ).client
     reconcile = Mock(wraps=client._reconcile_completion)
+    settle = Mock(wraps=client.rate_limit_strategy.settle)
+    observe = Mock(wraps=client._output_estimator.observe)
     monkeypatch.setattr(client, "_reconcile_completion", reconcile)
+    monkeypatch.setattr(client.rate_limit_strategy, "settle", settle)
+    monkeypatch.setattr(client._output_estimator, "observe", observe)
     original = sdk.system_one
 
     async def response_with_usage(state, bodies, **kwargs):
@@ -358,10 +362,21 @@ def test_valid_answers_with_incomplete_usage_are_cached_without_aggregate_totals
     if complete_usage:
         assert first.metrics.total_lm_metrics.num_uncached_input_tokens == 100
         assert first.metrics.total_lm_metrics.num_output_tokens == 20
+        assert first.metrics.total_lm_metrics.cost == pytest.approx(
+            model_catalog.calculate_completion_model_cost(
+                model_provider=ModelProvider.TYPESAFE,
+                model_name="jev-1.13.0",
+                uncached_input_tokens=100,
+                cached_input_tokens_read=0,
+                output_tokens=20,
+            )
+        )
+        assert settle.call_count == observe.call_count == 1
     else:
         assert first.metrics.total_lm_metrics.num_uncached_input_tokens == 0
         assert first.metrics.total_lm_metrics.num_output_tokens == 0
         assert first.metrics.total_lm_metrics.cost == 0
+        assert settle.call_count == observe.call_count == 0
         assert "incomplete usage" in caplog.text
         assert "row-content-sentinel" not in caplog.text
 
@@ -503,13 +518,15 @@ def test_sdk_retries_are_disabled(monkeypatch, constructor_name, factory_name):
 
 @pytest.mark.parametrize("list_error", [None, RuntimeError("offline validation")])
 def test_validation_uses_short_lived_client_and_always_closes(monkeypatch, list_error):
+    import typesafe_sdk
+
     client = SimpleNamespace(
         models=SimpleNamespace(list=AsyncMock(side_effect=list_error)),
         aclose=AsyncMock(),
     )
-    factory = Mock(return_value=client)
+    constructor = Mock(return_value=client)
     provider = TypeSafeModelProvider()
-    monkeypatch.setattr(provider, "_create_aio_client", factory)
+    monkeypatch.setattr(typesafe_sdk, "AsyncTypeSafeClient", constructor)
 
     if list_error is None:
         asyncio.run(provider.validate_api_key())
@@ -517,7 +534,8 @@ def test_validation_uses_short_lived_client_and_always_closes(monkeypatch, list_
         with pytest.raises(RuntimeError, match="offline validation"):
             asyncio.run(provider.validate_api_key())
 
-    factory.assert_called_once_with(timeout=10)
+    assert constructor.call_args.kwargs["timeout"] == 10
+    assert constructor.call_args.kwargs["retry"].max_retries == 0
     client.aclose.assert_awaited_once()
 
 

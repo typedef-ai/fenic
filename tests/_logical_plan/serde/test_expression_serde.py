@@ -168,13 +168,13 @@ from fenic.core.types import (
     TimestampType,
 )
 from fenic.core.types.datatypes import ArrayType, StructField, StructType
+from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.semantic_examples import (
     MapExample,
     MapExampleCollection,
     PredicateExample,
     PredicateExampleCollection,
 )
-from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.summarize import Paragraph
 
 
