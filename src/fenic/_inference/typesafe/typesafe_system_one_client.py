@@ -1,6 +1,5 @@
 """Typed judgments through fenic's shared request scheduler."""
 
-import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Optional, Sequence, Union
@@ -113,24 +112,38 @@ class TypeSafeSystemOneClient(
             # Fatal errors must fail the query without exposing SDK response bodies.
             return FatalException(RuntimeError(type(error).__name__))
 
-        input_tokens = result.usage.input_tokens
-        output_tokens = result.usage.output_tokens
+        provider_usage = result.usage
+        input_tokens = (
+            provider_usage.input_tokens if provider_usage is not None else None
+        )
+        output_tokens = (
+            provider_usage.output_tokens if provider_usage is not None else None
+        )
         if any(
-            type(value) is not int or value < 0
+            value is not None and (type(value) is not int or value < 0)
             for value in (input_tokens, output_tokens)
         ):
             return None
-        usage = ResponseUsage(input_tokens, output_tokens, input_tokens + output_tokens)
-        self._metrics.num_uncached_input_tokens += input_tokens
-        self._metrics.num_output_tokens += output_tokens
         self._metrics.num_requests += 1
-        self._metrics.cost += model_catalog.calculate_completion_model_cost(
-            model_provider=ModelProvider.TYPESAFE,
-            model_name=self.model,
-            uncached_input_tokens=input_tokens,
-            cached_input_tokens_read=0,
-            output_tokens=output_tokens,
-        )
+        usage = None
+        if input_tokens is not None and output_tokens is not None:
+            usage = ResponseUsage(
+                input_tokens, output_tokens, input_tokens + output_tokens
+            )
+            self._metrics.num_uncached_input_tokens += input_tokens
+            self._metrics.num_output_tokens += output_tokens
+            self._metrics.cost += model_catalog.calculate_completion_model_cost(
+                model_provider=ModelProvider.TYPESAFE,
+                model_name=self.model,
+                uncached_input_tokens=input_tokens,
+                cached_input_tokens_read=0,
+                output_tokens=output_tokens,
+            )
+        else:
+            logger.warning(
+                "TypeSafe response reported incomplete usage; excluding this request "
+                "from displayed token and cost totals."
+            )
         try:
             decoded = flatten_answers(
                 questions,
@@ -175,16 +188,6 @@ class TypeSafeSystemOneClient(
     ) -> int:
         return self._model_parameters.max_output_tokens
 
-    def shutdown(self):
-        """Close the SDK on its owning loop before stopping the scheduler."""
-        if self._event_loop.is_running():
-            try:
-                future = asyncio.run_coroutine_threadsafe(
-                    self._client.aclose(), self._event_loop
-                )
-                future.result(timeout=10)
-            except Exception:
-                logger.debug(
-                    "Could not close TypeSafe client before scheduler shutdown"
-                )
-        super().shutdown()
+    async def _close_provider(self) -> None:
+        """Close the SDK after the shared scheduler stops all in-flight work."""
+        await self._client.aclose()

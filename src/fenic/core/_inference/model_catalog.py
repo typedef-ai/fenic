@@ -287,6 +287,8 @@ CohereEmbeddingModelName = Literal[
     "embed-multilingual-light-v3.0",
 ]
 
+TypeSafeLanguageModelName = Literal["jev-1.13.0", "jev-latest", "jev-preview"]
+
 
 GoogleDeveloperLanguageModelName = Literal[
     "gemini-3.7-flash",

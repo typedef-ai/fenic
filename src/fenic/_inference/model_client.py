@@ -248,6 +248,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         return None
 
+    async def _close_provider(self) -> None:
+        """Release provider-owned async resources after in-flight cancellation."""
+        return None
+
     def _build_request_key(self, request: RequestT) -> str:
         """Build the canonical cache/deduplication key for a request."""
         profile_hash = self.get_profile_hash_for_request(request)
@@ -439,9 +443,20 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         cancel_future = asyncio.run_coroutine_threadsafe(
             self._cancel_in_flight_requests(), self._event_loop
         )
-        cancel_future.result()
-
-        EventLoopManager().release_loop()
+        try:
+            cancel_future.result()
+        finally:
+            try:
+                close_future = asyncio.run_coroutine_threadsafe(
+                    self._close_provider(), self._event_loop
+                )
+                close_future.result()
+            except Exception:
+                logger.warning(
+                    "Could not close provider resources for model %s during shutdown",
+                    self.model,
+                )
+            EventLoopManager().release_loop()
 
     def make_batch_requests(
         self,

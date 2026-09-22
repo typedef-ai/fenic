@@ -87,6 +87,9 @@ accounting. Ordered question definitions and the provider endpoint participate i
 cache identity. Identical requests can share an in-flight call. Invalid answers
 are not cached; known billed usage is retained even when an answer is rejected.
 The SDK's internal retry loop is disabled so the session scheduler owns retries.
+When a valid response omits either usage count, its answer remains cacheable and
+the request is counted, but displayed token and cost totals exclude that entire
+incompletely reported request.
 
 Null input states produce null structs without a call. Empty strings are valid
 states. Malformed or failed responses produce null structs. A failure in any
