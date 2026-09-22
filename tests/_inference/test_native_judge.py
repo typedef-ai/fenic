@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 import fenic as fc
+from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.model_client import FatalException
 from fenic._inference.rate_limit_strategy import InputTokenRateLimitStrategy
@@ -25,6 +26,11 @@ from fenic.core._inference.model_catalog import (
 )
 from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
+from fenic.core._resolved_session_config import (
+    ResolvedLanguageModelConfig,
+    ResolvedSemanticConfig,
+    ResolvedTypeSafeModelConfig,
+)
 from fenic.core._serde.proto.expression_serde import (
     deserialize_logical_expr,
     serialize_logical_expr,
@@ -32,6 +38,13 @@ from fenic.core._serde.proto.expression_serde import (
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.types.judge import flatten_answers, judge_schema, validate_questions
+
+
+@pytest.fixture(autouse=True)
+def clear_typesafe_endpoint(monkeypatch):
+    from typesafe_sdk.constants import BASE_URL_ENV
+
+    monkeypatch.delenv(BASE_URL_ENV, raising=False)
 
 
 def questions():
@@ -260,6 +273,64 @@ def test_invalid_vectors_are_refused(probabilities):
                 }
             },
         )
+
+
+@pytest.mark.parametrize(
+    ("score", "raises"),
+    [
+        (1.6000005, False),
+        (1.600002, True),
+    ],
+)
+def test_score_must_match_probability_weighted_expectation(score, raises):
+    question = fc.JudgeQuestion.score(
+        name="severity",
+        instructions="How severe?",
+        levels=["low", "medium", "high"],
+    )
+    answers = {
+        "severity": {
+            "type": "score",
+            "score": score,
+            "confidence": 0.5,
+            "probabilities": {"0": 0.1, "1": 0.2, "2": 0.7},
+        }
+    }
+    if raises:
+        with pytest.raises(ValueError, match="expectation"):
+            flatten_answers([question], answers)
+    else:
+        assert flatten_answers([question], answers)["severity"] == score
+
+
+def test_inconsistent_score_is_not_cached_and_billed_usage_is_retained(
+    native_session,
+):
+    session, calls, sdk = native_session
+    original = sdk.system_one
+
+    async def inconsistent_score(state, bodies, **kwargs):
+        result = await original(state, bodies, **kwargs)
+        answers = {
+            name: answer.model_copy(
+                update={"score": 0.25}
+            )
+            if answer.type == "score"
+            else answer
+            for name, answer in result.answers.items()
+        }
+        return result.model_copy(update={"answers": answers})
+
+    sdk.system_one = inconsistent_score
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=list(questions()))
+    )
+    for _ in range(2):
+        result = frame.collect()
+        assert result.data["j"].to_list() == [None]
+        assert result.metrics.total_lm_metrics.num_uncached_input_tokens == 100
+        assert result.metrics.total_lm_metrics.num_output_tokens == 20
+    assert len(calls) == 2
 
 
 def test_field_collision_and_missing_premise_are_refused():
@@ -516,6 +587,105 @@ def test_sdk_retries_are_disabled(monkeypatch, constructor_name, factory_name):
     assert constructor.call_args.kwargs["timeout"] == MAX_MODEL_CLIENT_TIMEOUT
 
 
+def test_typesafe_provider_normalizes_effective_endpoint(monkeypatch):
+    from typesafe_sdk.constants import BASE_URL_ENV, DEFAULT_BASE_URL
+
+    monkeypatch.setenv(BASE_URL_ENV, "https://endpoint.example/")
+    custom = TypeSafeModelProvider()
+    explicit = TypeSafeModelProvider("https://explicit.example/")
+    monkeypatch.delenv(BASE_URL_ENV, raising=False)
+    default = TypeSafeModelProvider()
+    monkeypatch.setenv(BASE_URL_ENV, "   ")
+    blank = TypeSafeModelProvider()
+
+    assert custom._base_url == "https://endpoint.example"
+    assert explicit._base_url == "https://explicit.example"
+    assert default._base_url == DEFAULT_BASE_URL.rstrip("/")
+    assert blank._base_url == DEFAULT_BASE_URL.rstrip("/")
+
+
+def test_effective_endpoint_separates_typesafe_cache_identity(monkeypatch):
+    from typesafe_sdk.constants import BASE_URL_ENV
+
+    request = FenicCompletionsRequest(
+        LMRequestMessages("", [], "state"),
+        None,
+        None,
+        None,
+        None,
+        judge_questions=questions(),
+    )
+    monkeypatch.setenv(BASE_URL_ENV, "https://one.example/")
+    first = TypeSafeModelProvider()
+    monkeypatch.setenv(BASE_URL_ENV, "https://two.example/")
+    second = TypeSafeModelProvider()
+    equivalent = TypeSafeModelProvider("https://one.example/")
+
+    first_key = compute_request_fingerprint(
+        request, "jev-1.13.0", base_url=first._base_url
+    )
+    assert first_key != compute_request_fingerprint(
+        request, "jev-1.13.0", base_url=second._base_url
+    )
+    assert first_key == compute_request_fingerprint(
+        request, "jev-1.13.0", base_url=equivalent._base_url
+    )
+
+
+@pytest.mark.parametrize(
+    ("base_url", "env_url", "should_validate"),
+    [
+        (None, None, True),
+        (None, "https://endpoint.example/", False),
+        ("https://explicit.example/", "https://endpoint.example/", False),
+    ],
+)
+def test_registry_validates_only_typesafe_default_endpoint(
+    monkeypatch, base_url, env_url, should_validate
+):
+    from typesafe_sdk.constants import BASE_URL_ENV
+
+    if env_url is None:
+        monkeypatch.delenv(BASE_URL_ENV, raising=False)
+    else:
+        monkeypatch.setenv(BASE_URL_ENV, env_url)
+    validated = []
+
+    async def validate(providers):
+        validated.append(providers)
+
+    def initialize(_self, model_config, *_args):
+        provider = TypeSafeModelProvider(model_config.base_url)
+        return SimpleNamespace(
+            client=SimpleNamespace(model_provider_class=provider)
+        )
+
+    monkeypatch.setattr(
+        "fenic._backends.local.model_registry._validate_provider_api_keys",
+        validate,
+    )
+    monkeypatch.setattr(
+        SessionModelRegistry, "_initialize_language_model", initialize
+    )
+    SessionModelRegistry(
+        ResolvedSemanticConfig(
+            language_models=ResolvedLanguageModelConfig(
+                model_configs={
+                    "judge": ResolvedTypeSafeModelConfig(
+                        model_name="jev-1.13.0",
+                        rpm=1,
+                        tpm=1,
+                        base_url=base_url,
+                    )
+                },
+                default_model="judge",
+            )
+        )
+    )
+
+    assert bool(validated) is should_validate
+
+
 @pytest.mark.parametrize("list_error", [None, RuntimeError("offline validation")])
 def test_validation_uses_short_lived_client_and_always_closes(monkeypatch, list_error):
     import typesafe_sdk
@@ -577,6 +747,20 @@ def test_scheduler_keeps_long_requests_and_cancels_short_deadlines(native_sessio
     with pytest.raises(ExecutionError, match="maximum number of retries"):
         short_frame.collect()
     assert cancellations == 3
+
+
+def test_unsupported_typesafe_profile_fails_before_provider_call(native_session):
+    session, calls, _ = native_session
+    with pytest.raises((ExecutionError, ValidationError), match="profile"):
+        session.create_dataframe({"text": ["x"]}).with_column(
+            "j",
+            fc.semantic.judge(
+                state="text",
+                questions=list(questions()),
+                model_alias=fc.ModelAlias(name="judge", profile="unsupported"),
+            ),
+        )
+    assert not calls
 
 
 def test_typesafe_model_literal_matches_catalog_aliases():

@@ -250,7 +250,7 @@ def _probability(value: Any) -> float:
 def flatten_answers(
     questions: Sequence[JudgeQuestion], answers: dict[str, Any]
 ) -> dict[str, Any]:
-    """Validate full probability vectors before decoding to the declared schema."""
+    """Validate answer vectors, allowing an absolute score-rounding error of 1e-6."""
     output: dict[str, Any] = {}
     for question in questions:
         answer = answers.get(question.name)
@@ -290,6 +290,15 @@ def flatten_answers(
                 or not 0 <= score <= len(keys) - 1
             ):
                 raise ValueError("Judge score is outside its level range")
+            expected_score = sum(
+                index * probability for index, probability in enumerate(probabilities)
+            )
+            if not math.isclose(
+                float(score), expected_score, rel_tol=0, abs_tol=1e-6
+            ):
+                raise ValueError(
+                    "Judge score does not match its probability-weighted expectation"
+                )
             output[question.name] = float(score)
         for key, probability in zip(keys, probabilities, strict=True):
             suffix = _slug(key) if question.kind == "choice" else key

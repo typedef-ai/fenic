@@ -79,10 +79,13 @@ class SessionModelRegistry:
             for alias, model_config in language_model_config.model_configs.items():
                 model = self._initialize_language_model(model_config, cache, adaptive_estimation)
                 models[alias] = model
-                # Skip API key validation for providers with custom base URLs,
-                # since the proxy may not expose the /models endpoint.
-                if not getattr(model.client.model_provider_class, "_base_url", None):
-                    validate_providers.add(model.client.model_provider_class)
+                provider = model.client.model_provider_class
+                if getattr(
+                    provider,
+                    "should_validate_api_key",
+                    not getattr(provider, "_base_url", None),
+                ):
+                    validate_providers.add(provider)
             self.language_model_registry = LanguageModelRegistry(
                 models=models,
                 default_model=models[language_model_config.default_model],
