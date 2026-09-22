@@ -28,6 +28,7 @@ from fenic.core._serde.proto.expression_serde import (
     deserialize_logical_expr,
     serialize_logical_expr,
 )
+from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core.error import ConfigurationError, ExecutionError
 
@@ -215,6 +216,31 @@ def test_join_predicate_and_timeout(decision_session, monkeypatch):
     assert (
         calls[0][0]["examples"][0]["input"] == "Compare sample left with sample right"
     )
+
+
+def test_join_timeout_survives_proto_roundtrip(decision_session, monkeypatch):
+    session, model, calls, _ = decision_session
+    submit = Mock(wraps=model.client.make_batch_requests)
+    monkeypatch.setattr(model.client, "make_batch_requests", submit)
+    left = session.create_dataframe({"left": ["good"]})
+    right = session.create_dataframe({"right": ["good"]})
+    join = left.semantic.join(
+        right,
+        "Compare {{ left_on }} with {{ right_on }}",
+        left_on=fc.col("left"),
+        right_on=fc.col("right"),
+        model_alias="decisions",
+        request_timeout=9,
+    )
+
+    result = fc.DataFrame._from_logical_plan(
+        ProtoSerde.deserialize(ProtoSerde.serialize(join._logical_plan)),
+        session._session_state,
+    ).to_polars()
+
+    assert result.to_dicts() == [{"left": "good", "right": "good"}]
+    assert len(calls) == 1
+    assert submit.call_args.kwargs["request_timeout"] == 9
 
 
 @pytest.mark.parametrize("operation", ["predicate", "classify", "sentiment"])
