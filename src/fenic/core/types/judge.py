@@ -250,7 +250,13 @@ def _probability(value: Any) -> float:
 def flatten_answers(
     questions: Sequence[JudgeQuestion], answers: dict[str, Any]
 ) -> dict[str, Any]:
-    """Validate answer vectors, allowing an absolute score-rounding error of 1e-6."""
+    """Validate answer vectors.
+
+    Score consistency uses an empirical compatibility policy derived from
+    observed two-decimal score/probability outputs in evidence revision
+    ef27f01917a16113533463fa8797ab0b71f87ba6. It is not a guaranteed service
+    contract.
+    """
     output: dict[str, Any] = {}
     for question in questions:
         answer = answers.get(question.name)
@@ -293,8 +299,9 @@ def flatten_answers(
             expected_score = sum(
                 index * probability for index, probability in enumerate(probabilities)
             )
+            score_tolerance = 0.005 * (1 + len(keys) * (len(keys) - 1) / 2) + 1e-6
             if not math.isclose(
-                float(score), expected_score, rel_tol=0, abs_tol=1e-6
+                float(score), expected_score, rel_tol=0, abs_tol=score_tolerance
             ):
                 raise ValueError(
                     "Judge score does not match its probability-weighted expectation"

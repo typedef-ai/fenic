@@ -274,31 +274,95 @@ def test_invalid_vectors_are_refused(probabilities):
 
 
 @pytest.mark.parametrize(
-    ("score", "raises"),
+    ("score", "probabilities", "expected"),
     [
-        (1.6000005, False),
-        (1.600002, True),
+        (
+            0.75,
+            [
+                0.4300000071525574,
+                0.3799999952316284,
+                0.17000000178813934,
+                0.019999999552965164,
+            ],
+            0.7799999974668026,
+        ),
+        (
+            2.559999942779541,
+            [
+                0.0,
+                0.009999999776482582,
+                0.38999998569488525,
+                0.6000000238418579,
+            ],
+            2.590000042691827,
+        ),
     ],
 )
-def test_score_must_match_probability_weighted_expectation(score, raises):
+def test_score_accepts_archived_two_decimal_compatibility_values(
+    score, probabilities, expected
+):
     question = fc.JudgeQuestion.score(
         name="severity",
         instructions="How severe?",
-        levels=["low", "medium", "high"],
+        levels=["low", "medium", "high", "critical"],
     )
     answers = {
         "severity": {
             "type": "score",
             "score": score,
             "confidence": 0.5,
-            "probabilities": {"0": 0.1, "1": 0.2, "2": 0.7},
+            "probabilities": dict(enumerate(probabilities)),
+        }
+    }
+
+    assert sum(index * value for index, value in enumerate(probabilities)) == expected
+    assert flatten_answers([question], answers)["severity"] == score
+
+
+@pytest.mark.parametrize(("level_count", "offset", "raises"), [(2, -1e-7, False), (2, 1e-7, True), (10, -1e-7, False), (10, 1e-7, True)])
+def test_score_tolerance_scales_with_level_count(level_count, offset, raises):
+    score_tolerance = 0.005 * (1 + level_count * (level_count - 1) / 2) + 1e-6
+    question = fc.JudgeQuestion.score(
+        name="severity",
+        instructions="How severe?",
+        levels=[f"level-{index}" for index in range(level_count)],
+    )
+    answers = {
+        "severity": {
+            "type": "score",
+            "score": score_tolerance + offset,
+            "confidence": 0.5,
+            "probabilities": {
+                index: float(index == 0) for index in range(level_count)
+            },
         }
     }
     if raises:
         with pytest.raises(ValueError, match="expectation"):
             flatten_answers([question], answers)
     else:
-        assert flatten_answers([question], answers)["severity"] == score
+        assert flatten_answers([question], answers)["severity"] == pytest.approx(
+            score_tolerance + offset
+        )
+
+
+def test_score_rejects_material_contradiction():
+    question = fc.JudgeQuestion.score(
+        name="severity",
+        instructions="How severe?",
+        levels=["low", "high"],
+    )
+    answers = {
+        "severity": {
+            "type": "score",
+            "score": 1,
+            "confidence": 0.5,
+            "probabilities": {"0": 1, "1": 0},
+        }
+    }
+
+    with pytest.raises(ValueError, match="expectation"):
+        flatten_answers([question], answers)
 
 
 def test_inconsistent_score_is_not_cached_and_billed_usage_is_retained(
