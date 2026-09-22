@@ -108,6 +108,7 @@ message SemanticJoin {
   float temperature = 7;
   optional ResolvedModelAlias model_alias = 8;
   optional JoinExampleCollection examples = 9;
+  optional double request_timeout = 10;
 }
 
 message SemanticSimilarityJoin {

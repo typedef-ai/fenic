@@ -90,6 +90,7 @@ def _serialize_semantic_join(
             temperature=semantic_join.temperature,
             model_alias=context.serialize_resolved_model_alias("model_alias", semantic_join.model_alias) if semantic_join.model_alias else None,
             examples=examples,
+            request_timeout=semantic_join.request_timeout,
         )
     )
 
@@ -122,6 +123,9 @@ def _deserialize_semantic_join(
         temperature=semantic_join.temperature,
         model_alias=context.deserialize_resolved_model_alias("model_alias", semantic_join.model_alias) if semantic_join.HasField("model_alias") else None,
         examples=examples,
+        request_timeout=semantic_join.request_timeout
+        if semantic_join.HasField("request_timeout")
+        else None,
         schema=schema,
     )
 
