@@ -408,14 +408,17 @@ def test_provider_close_failure_still_releases_the_shared_loop(monkeypatch, capl
             client.shutdown()
 
 
+@pytest.mark.parametrize("peer_count", [1, 2])
 def test_provider_close_timeout_releases_loop_and_cancels_close_task(
-    monkeypatch, caplog
+    monkeypatch, caplog, peer_count
 ):
     client = _RetryClient(
         ["success"], max_backoffs=1, close_timeout_seconds=0.01
     )
+    peers = [_RetryClient(["success"], max_backoffs=1) for _ in range(peer_count)]
     entered_close = threading.Event()
     cancelled_close = threading.Event()
+    released_loop = threading.Event()
     original_release = EventLoopManager.release_loop
 
     async def hanging_close():
@@ -428,6 +431,7 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
 
     def release_loop(manager):
         client.shutdown_events.append("release")
+        released_loop.set()
         original_release(manager)
 
     monkeypatch.setattr(client, "_close_provider", hanging_close)
@@ -435,11 +439,16 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
     try:
         assert client._provider_close_timeout_seconds == 0.01
         client.shutdown()
-        assert entered_close.is_set()
-        assert cancelled_close.is_set()
+        assert entered_close.wait(1), "provider close did not start"
+        assert released_loop.wait(1), "timed-out client did not release its loop reference"
+        assert cancelled_close.wait(1), "timed-out provider close task was not cancelled"
         assert client.calls == 0
         assert client.retry_queue.empty()
         assert client.shutdown_events == ["release"]
+        for peer in peers:
+            assert EventLoopManager().loop is peer._event_loop
+            assert peer._event_loop.is_running()
+            _run_on_client_loop(peer, asyncio.sleep(0))
         assert (
             "Could not close provider resources for model retry-test during shutdown "
             "(TimeoutError)"
@@ -449,6 +458,9 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
     finally:
         if not client.shutdown_event.is_set():
             client.shutdown()
+        for peer in peers:
+            if not peer.shutdown_event.is_set():
+                peer.shutdown()
 
 
 def test_provider_close_timeout_defaults_to_ten_seconds():
