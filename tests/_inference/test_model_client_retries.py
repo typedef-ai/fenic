@@ -10,6 +10,7 @@ from typing import Literal, Union
 import pytest
 
 from fenic._backends.local.async_utils import EventLoopManager
+from fenic._inference import model_client as model_client_module
 from fenic._inference.model_client import (
     FatalException,
     ModelClient,
@@ -156,6 +157,24 @@ class _CacheProbe:
 
     def set(self, *args):
         self.writes.append(args)
+
+
+class _WaitForCloseStartFuture:
+    """Begin the tested timeout only after the provider close coroutine starts."""
+
+    def __init__(self, future, entered, suppress_cancel=False):
+        self.future = future
+        self.entered = entered
+        self.suppress_cancel = suppress_cancel
+
+    def result(self, timeout=None):
+        assert self.entered.wait(1), "provider close did not start"
+        return self.future.result(timeout)
+
+    def cancel(self):
+        if self.suppress_cancel:
+            return False
+        return self.future.cancel()
 
 
 def _run_hanging_close_shutdown(close_timeout_seconds, entered, released):
@@ -420,6 +439,7 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
     cancelled_close = threading.Event()
     released_loop = threading.Event()
     original_release = EventLoopManager.release_loop
+    original_submit = model_client_module.asyncio.run_coroutine_threadsafe
 
     async def hanging_close():
         entered_close.set()
@@ -434,8 +454,17 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
         released_loop.set()
         original_release(manager)
 
+    def submit(coroutine, loop):
+        future = original_submit(coroutine, loop)
+        if coroutine.cr_code is hanging_close.__code__:
+            return _WaitForCloseStartFuture(future, entered_close)
+        return future
+
     monkeypatch.setattr(client, "_close_provider", hanging_close)
     monkeypatch.setattr(EventLoopManager, "release_loop", release_loop)
+    monkeypatch.setattr(
+        model_client_module.asyncio, "run_coroutine_threadsafe", submit
+    )
     try:
         assert client._provider_close_timeout_seconds == 0.01
         client.shutdown()
@@ -457,6 +486,122 @@ def test_provider_close_timeout_releases_loop_and_cancels_close_task(
         assert "hanging_close" not in caplog.text
     finally:
         if not client.shutdown_event.is_set():
+            client.shutdown()
+        for peer in peers:
+            if not peer.shutdown_event.is_set():
+                peer.shutdown()
+
+
+@pytest.mark.parametrize("peer_count", [1, 2])
+def test_suppressed_close_task_cancellation_is_detected_and_rescued(
+    monkeypatch, peer_count
+):
+    client = _RetryClient(
+        ["success"], max_backoffs=1, close_timeout_seconds=0.01
+    )
+    peers = [_RetryClient(["success"], max_backoffs=1) for _ in range(peer_count)]
+    entered_close = threading.Event()
+    cancelled_close = threading.Event()
+    released_loop = threading.Event()
+    close_future = None
+    original_release = EventLoopManager.release_loop
+    original_submit = model_client_module.asyncio.run_coroutine_threadsafe
+
+    async def hanging_close():
+        entered_close.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled_close.set()
+            raise
+
+    def release_loop(manager):
+        released_loop.set()
+        original_release(manager)
+
+    def submit(coroutine, loop):
+        nonlocal close_future
+        future = original_submit(coroutine, loop)
+        if coroutine.cr_code is hanging_close.__code__:
+            close_future = _WaitForCloseStartFuture(
+                future, entered_close, suppress_cancel=True
+            )
+            return close_future
+        return future
+
+    monkeypatch.setattr(client, "_close_provider", hanging_close)
+    monkeypatch.setattr(EventLoopManager, "release_loop", release_loop)
+    monkeypatch.setattr(
+        model_client_module.asyncio, "run_coroutine_threadsafe", submit
+    )
+    try:
+        client.shutdown()
+        assert entered_close.wait(1)
+        assert released_loop.wait(1)
+        assert close_future is not None
+        assert not cancelled_close.wait(0.1)
+        for peer in peers:
+            assert EventLoopManager().loop is peer._event_loop
+            _run_on_client_loop(peer, asyncio.sleep(0))
+    finally:
+        if close_future is not None:
+            close_future.future.cancel()
+            assert cancelled_close.wait(1), "negative-control task did not cancel"
+        if not client.shutdown_event.is_set():
+            client.shutdown()
+        for peer in peers:
+            if not peer.shutdown_event.is_set():
+                peer.shutdown()
+
+
+@pytest.mark.parametrize("peer_count", [1, 2])
+def test_suppressed_loop_release_is_detected_and_rescued(monkeypatch, peer_count):
+    client = _RetryClient(
+        ["success"], max_backoffs=1, close_timeout_seconds=0.01
+    )
+    peers = [_RetryClient(["success"], max_backoffs=1) for _ in range(peer_count)]
+    entered_close = threading.Event()
+    cancelled_close = threading.Event()
+    release_attempted = threading.Event()
+    release_was_suppressed = False
+    original_release = EventLoopManager.release_loop
+    original_submit = model_client_module.asyncio.run_coroutine_threadsafe
+
+    async def hanging_close():
+        entered_close.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled_close.set()
+            raise
+
+    def suppress_release(_manager):
+        release_attempted.set()
+
+    def submit(coroutine, loop):
+        future = original_submit(coroutine, loop)
+        if coroutine.cr_code is hanging_close.__code__:
+            return _WaitForCloseStartFuture(future, entered_close)
+        return future
+
+    monkeypatch.setattr(client, "_close_provider", hanging_close)
+    monkeypatch.setattr(EventLoopManager, "release_loop", suppress_release)
+    monkeypatch.setattr(
+        model_client_module.asyncio, "run_coroutine_threadsafe", submit
+    )
+    try:
+        client.shutdown()
+        release_was_suppressed = True
+        assert entered_close.wait(1)
+        assert cancelled_close.wait(1)
+        assert release_attempted.wait(1)
+        assert EventLoopManager().loop is peers[0]._event_loop
+        _run_on_client_loop(peers[0], asyncio.sleep(0))
+    finally:
+        monkeypatch.setattr(EventLoopManager, "release_loop", original_release)
+        if release_was_suppressed:
+            original_release(EventLoopManager())
+        elif not client.shutdown_event.is_set():
             client.shutdown()
         for peer in peers:
             if not peer.shutdown_event.is_set():
