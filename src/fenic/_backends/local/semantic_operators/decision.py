@@ -74,16 +74,13 @@ class DecisionRequestSender(RequestSender[str]):
         states = [
             None
             if message is None
-            else json.dumps(
-                {
-                    "input": message.user,
-                    "examples": [
-                        {"input": example.user, "response": example.assistant}
-                        for example in message.examples
-                    ],
-                },
-                ensure_ascii=False,
-            )
+            else {
+                "input": message.user,
+                "examples": [
+                    {"input": example.user, "response": example.assistant}
+                    for example in message.examples
+                ],
+            }
             for message in messages_batch
         ]
         responses = self.model.get_judgments(

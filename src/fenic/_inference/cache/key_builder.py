@@ -54,6 +54,8 @@ def compute_request_fingerprint(
         if request.judge_questions is not None:
             key_data["request_kind"] = JUDGE_DECODER_CACHE_VERSION
             key_data["judge_questions"] = questions_json(request.judge_questions)
+            if request.judge_state is not None:
+                key_data["judge_state"] = request.judge_state
     elif isinstance(request, FenicEmbeddingsRequest):
         key_data = {
             "model": model,

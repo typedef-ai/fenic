@@ -42,17 +42,17 @@ def decision_session(tmp_path, monkeypatch):
     calls = []
 
     async def evaluate(state, bodies, **_kwargs):
-        payload = json.loads(state)
-        calls.append((payload, bodies))
+        assert isinstance(state, dict)
+        calls.append((state, bodies))
         answers = {}
         for name, body in bodies.items():
             if body["type"] == "noul":
-                text = payload["input"]
+                text = state["input"]
                 probability = 0.5 if "tie" in text else 0.1 if "bad" in text else 0.9
                 answers[name] = {"type": "noul", "noul": probability}
             else:
                 keys = list(body["criteria"])
-                selected = keys[1] if "bad" in payload["input"] else keys[0]
+                selected = keys[1] if "bad" in state["input"] else keys[0]
                 answers[name] = {
                     "type": "choice",
                     "choice": selected,
