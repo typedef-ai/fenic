@@ -196,6 +196,8 @@ CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
     "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -258,6 +260,7 @@ GoogleDeveloperEmbeddingModelName = Literal[
 
 AnthropicLanguageModelName = Literal[
     "claude-fable-5-1",
+    "claude-opus-5-5",
     "claude-fable-5",
     "claude-sonnet-5",
     "claude-opus-5",
@@ -381,6 +384,24 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-5-5",
+            CompletionModelParameters(
+                input_token_cost=4.00 / 1_000_000,
+                cached_input_token_write_cost=5.00 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=20.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-fable-5-1",
@@ -568,6 +589,64 @@ class ModelCatalog:
 
     def _initialize_openai_models(self):
         """Initialize OpenAI models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-6-sol",
+            CompletionModelParameters(
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=10.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=False,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=4.00 / 1_000_000,
+                        cached_input_token_read_cost=0.40 / 1_000_000,
+                        cached_input_token_write_cost=5.00 / 1_000_000,
+                        output_token_cost=15.00 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-6-luna",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,
+                cached_input_token_write_cost=0.125 / 1_000_000,
+                cached_input_token_read_cost=0.01 / 1_000_000,
+                output_token_cost=0.50 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=False,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=0.20 / 1_000_000,
+                        cached_input_token_read_cost=0.02 / 1_000_000,
+                        cached_input_token_write_cost=0.25 / 1_000_000,
+                        output_token_cost=0.75 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
             "gpt-6-astra",

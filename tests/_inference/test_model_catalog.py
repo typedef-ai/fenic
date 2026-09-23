@@ -195,6 +195,8 @@ def test_latest_frontier_models_are_registered():
     catalog = model_catalog
 
     openai_gpt_6_astra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-astra")
+    openai_gpt_6_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-sol")
+    openai_gpt_6_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-luna")
     openai_gpt_56_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-sol")
     openai_gpt_56_terra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-terra")
     openai_gpt_56_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-luna")
@@ -208,6 +210,14 @@ def test_latest_frontier_models_are_registered():
     assert openai_gpt_6_astra.max_output_tokens == 128_000
     assert openai_gpt_6_astra.supports_max_reasoning
     assert not openai_gpt_6_astra.supports_custom_temperature
+    assert openai_gpt_6_sol.input_token_cost == 2.00 / 1_000_000
+    assert openai_gpt_6_sol.output_token_cost == 10.00 / 1_000_000
+    assert openai_gpt_6_sol.context_window_length == 1_050_000
+    assert openai_gpt_6_sol.supports_max_reasoning
+    assert openai_gpt_6_luna.input_token_cost == 0.10 / 1_000_000
+    assert openai_gpt_6_luna.output_token_cost == 0.50 / 1_000_000
+    assert openai_gpt_6_luna.context_window_length == 1_050_000
+    assert openai_gpt_6_luna.supports_max_reasoning
 
     anthropic_fable_51 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-fable-5-1")
     assert anthropic_fable_51.context_window_length == 1_000_000
@@ -215,6 +225,15 @@ def test_latest_frontier_models_are_registered():
     assert anthropic_fable_51.cached_input_token_read_cost == 0.25 / 1_000_000
     assert anthropic_fable_51.uses_adaptive_thinking
     assert anthropic_fable_51.requires_adaptive_thinking
+
+    anthropic_opus_55 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-5-5")
+    assert anthropic_opus_55.input_token_cost == 4.00 / 1_000_000
+    assert anthropic_opus_55.cached_input_token_read_cost == 0.20 / 1_000_000
+    assert anthropic_opus_55.output_token_cost == 20.00 / 1_000_000
+    assert anthropic_opus_55.context_window_length == 1_000_000
+    assert anthropic_opus_55.max_output_tokens == 128_000
+    assert anthropic_opus_55.uses_adaptive_thinking
+    assert anthropic_opus_55.requires_adaptive_thinking
 
     openai_gpt_55 = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
     openai_gpt_55_snapshot = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5-2026-04-23")
@@ -329,6 +348,15 @@ def test_gpt_55_default_profile_uses_provider_default_reasoning():
     assert profile.expected_additional_reasoning_tokens == 8192
 
 
+@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna"])
+def test_gpt_6_default_profile_uses_documented_medium_reasoning(model_name):
+    """GPT-6 models preserve their documented medium reasoning default."""
+    params = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model_name)
+    profile = OpenAICompletionsProfileManager(params).get_default_profile()
+
+    assert profile.reasoning_effort == "medium"
+
+
 @pytest.mark.parametrize(
     (
         "model_name, base_input, base_cached_read, base_cached_write, base_output, "
@@ -336,6 +364,8 @@ def test_gpt_55_default_profile_uses_provider_default_reasoning():
     ),
     [
         ("gpt-6-astra", 10, 1, 12.5, 50, 20, 2, 25, 75),
+        ("gpt-6-sol", 2, 0.2, 2.5, 10, 4, 0.4, 5, 15),
+        ("gpt-6-luna", 0.1, 0.01, 0.125, 0.5, 0.2, 0.02, 0.25, 0.75),
         ("gpt-5.6-sol", 4, 0.4, 5, 20, 8, 0.8, 10, 30),
         ("gpt-5.6-terra", 2, 0.2, 2.5, 12, 4, 0.4, 5, 18),
         ("gpt-5.6-luna", 0.2, 0.02, 0.25, 1.2, 0.4, 0.04, 0.5, 1.8),
