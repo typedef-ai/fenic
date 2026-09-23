@@ -10,7 +10,9 @@ from fenic._inference.token_counter import Tokenizable
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
+    JudgeState,
     LMRequestMessages,
+    serialize_judge_state,
 )
 from fenic.core._inference.model_catalog import (
     ModelProvider,
@@ -93,7 +95,7 @@ class LanguageModel:
 
     def get_judgments(
         self,
-        states: list[Optional[str]],
+        states: list[Optional[str | JudgeState]],
         questions: tuple[JudgeQuestion, ...],
         model_profile: Optional[str] = None,
         request_timeout: Optional[float] = None,
@@ -111,7 +113,8 @@ class LanguageModel:
                 failed.add(index)
                 continue
             try:
-                groups = self.client.judge_partitions(state, questions)
+                state_text = serialize_judge_state(state)
+                groups = self.client.judge_partitions(state_text, questions)
             except ValueError:
                 failed.add(index)
                 rejected_for_size.add(index)
@@ -120,13 +123,16 @@ class LanguageModel:
                 owners.append(index)
                 requests.append(
                     FenicCompletionsRequest(
-                        messages=LMRequestMessages(system="", examples=[], user=state),
+                        messages=LMRequestMessages(
+                            system="", examples=[], user=state_text
+                        ),
                         max_completion_tokens=None,
                         top_logprobs=None,
                         structured_output=None,
                         temperature=None,
                         model_profile=model_profile,
                         judge_questions=group,
+                        judge_state=state if isinstance(state, dict) else None,
                     )
                 )
         if rejected_for_size:

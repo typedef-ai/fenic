@@ -1,6 +1,7 @@
 """Native judge contracts with a real SDK response model and fake transport."""
 
 import asyncio
+import json
 import socket
 from dataclasses import replace
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 import fenic as fc
 from fenic._backends.local.model_registry import SessionModelRegistry
+from fenic._backends.local.semantic_operators.decision import DecisionRequestSender
 from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.model_client import FatalException
 from fenic._inference.rate_limit_strategy import InputTokenRateLimitStrategy
@@ -247,6 +249,132 @@ def test_cache_fingerprint_keeps_questions_order_and_endpoint():
     assert first != compute_request_fingerprint(
         replace(request, judge_questions=None), "judge"
     )
+
+
+def test_structured_judge_state_cache_identity_is_canonical_and_distinct_from_text():
+    question = (questions()[0],)
+    state = {
+        "input": "unicode ✓",
+        "examples": [{"input": "first", "response": ["yes", None]}],
+    }
+    serialized_state = json.dumps(
+        state, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    structured = FenicCompletionsRequest(
+        LMRequestMessages("", [], serialized_state),
+        None,
+        None,
+        None,
+        None,
+        judge_questions=question,
+        judge_state=state,
+    )
+    reordered = replace(
+        structured,
+        judge_state={
+            "examples": [{"response": ["yes", None], "input": "first"}],
+            "input": "unicode ✓",
+        },
+    )
+    literal_json_text = replace(
+        structured,
+        messages=LMRequestMessages("", [], serialized_state),
+        judge_state=None,
+    )
+
+    key = compute_request_fingerprint(structured, "judge")
+    assert key == compute_request_fingerprint(reordered, "judge")
+    assert key != compute_request_fingerprint(literal_json_text, "judge")
+
+
+def test_structured_judge_state_reaches_sdk_transport_as_object(
+    native_session, monkeypatch
+):
+    import httpx2
+    from typesafe_sdk import AsyncTypeSafeClient
+
+    session, _, _ = native_session
+    model = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    )
+    client = model.client
+    prepared_bodies = []
+    counted_values = []
+
+    async def transport(request):
+        body = json.loads(request.content)
+        prepared_bodies.append(body)
+        return httpx2.Response(
+            200,
+            json={
+                "model": "jev-1.13.0",
+                "answers": {
+                    name: {"type": "noul", "noul": 0.9}
+                    for name in body["questions"]
+                },
+                "usage": {"input_tokens": 100, "output_tokens": 20},
+            },
+            request=request,
+        )
+
+    def count_tokens(value):
+        assert isinstance(value, str)
+        counted_values.append(value)
+        return len(value)
+
+    monkeypatch.setattr(
+        client,
+        "_client",
+        AsyncTypeSafeClient(
+            api_key="test-key",
+            base_url="https://typesafe.invalid",
+            transport=httpx2.MockTransport(transport),
+        ),
+    )
+    monkeypatch.setattr(client.token_counter, "count_tokens", count_tokens)
+    state = {
+        "input": "hello ✓",
+        "examples": [
+            {"input": "nested", "response": {"label": "yes", "scores": [1, None]}}
+        ],
+    }
+    structured_response = model.get_judgments([state], (questions()[0],))[0]
+    decision_sender = DecisionRequestSender(
+        SimpleNamespace(
+            model=model,
+            inference_config=SimpleNamespace(
+                temperature=0, model_profile=None, request_timeout=None
+            ),
+        ),
+        "Is this acceptable?",
+    )
+    outputs = decision_sender.send_requests(
+        [
+            LMRequestMessages(
+                "",
+                [SimpleNamespace(user="nested", assistant='{"label":"yes"}')],
+                "hello ✓",
+            )
+        ]
+    )
+    plain_text_response = model.get_judgments(
+        ['{"this is":"plain JSON-looking text"}'], (questions()[0],)
+    )[0]
+
+    assert structured_response.completion == '{"ok_p": 0.9}'
+    assert outputs == ['{"output": true}']
+    assert plain_text_response.completion == '{"ok_p": 0.9}'
+    assert prepared_bodies[0]["state"] == state
+    assert prepared_bodies[1]["state"] == {
+        "input": "hello ✓",
+        "examples": [{"input": "nested", "response": '{"label":"yes"}'}],
+    }
+    assert prepared_bodies[2]["state"] == '{"this is":"plain JSON-looking text"}'
+    assert all(isinstance(value, str) for value in counted_values)
+    canonical_state = json.dumps(
+        state, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    assert canonical_state in counted_values
 
 
 @pytest.mark.parametrize(
