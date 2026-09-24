@@ -218,6 +218,77 @@ def test_join_predicate_and_timeout(decision_session, monkeypatch):
     )
 
 
+def test_filter_size_rejections_warn_once_and_exclude_only_rejected_rows(
+    decision_session, monkeypatch, caplog
+):
+    session, model, calls, _ = decision_session
+
+    def count_tokens(value):
+        if "filter-secret" in str(value):
+            return 32_000
+        return len(value)
+
+    monkeypatch.setattr(model.client.token_counter, "count_tokens", count_tokens)
+    predicate = fc.semantic.predicate(
+        "Check {{ text }}", text=fc.col("text"), model_alias="decisions"
+    )
+    result = (
+        session.create_dataframe({"text": ["good", "filter-secret", None]})
+        .filter(predicate)
+        .to_polars()
+    )
+
+    assert result["text"].to_list() == ["good"]
+    assert len(calls) == 1
+    warnings = [
+        record.message
+        for record in caplog.records
+        if "size or packing validation rejected" in record.message
+    ]
+    assert warnings == [
+        "Typed judgment size or packing validation rejected 1 input row(s); "
+        "returning null judgments for those rows."
+    ]
+    assert "filter-secret" not in caplog.text
+
+
+def test_join_size_rejections_warn_once_per_candidate_pair(
+    decision_session, monkeypatch, caplog
+):
+    session, model, calls, _ = decision_session
+
+    def count_tokens(value):
+        if "join-secret" in str(value):
+            return 32_000
+        return len(value)
+
+    monkeypatch.setattr(model.client.token_counter, "count_tokens", count_tokens)
+    result = (
+        session.create_dataframe({"left": ["good", "join-secret", None]})
+        .semantic.join(
+            session.create_dataframe({"right": ["good", "join-secret", None]}),
+            "Compare {{ left_on }} with {{ right_on }}",
+            left_on=fc.col("left"),
+            right_on=fc.col("right"),
+            model_alias="decisions",
+        )
+        .to_polars()
+    )
+
+    assert result.to_dicts() == [{"left": "good", "right": "good"}]
+    assert len(calls) == 1
+    warnings = [
+        record.message
+        for record in caplog.records
+        if "size or packing validation rejected" in record.message
+    ]
+    assert warnings == [
+        "Typed judgment size or packing validation rejected 3 input row(s); "
+        "returning null judgments for those rows."
+    ]
+    assert "join-secret" not in caplog.text
+
+
 def test_join_timeout_survives_proto_roundtrip(decision_session, monkeypatch):
     session, model, calls, _ = decision_session
     submit = Mock(wraps=model.client.make_batch_requests)
