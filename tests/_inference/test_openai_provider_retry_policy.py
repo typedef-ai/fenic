@@ -133,9 +133,17 @@ def _scheduler_client(monkeypatch, kind: str, statuses: list[object], max_backof
         nonlocal calls
         calls += 1
         outcome = statuses[calls - 1] if calls <= len(statuses) else 503
-        status, headers = outcome if isinstance(outcome, tuple) else (outcome, {})
+        if isinstance(outcome, tuple):
+            status, headers, *body = outcome
+        else:
+            status, headers, body = outcome, {}, []
         if status != 200:
-            return httpx.Response(status, headers=headers, request=request)
+            return httpx.Response(
+                status,
+                headers=headers,
+                json=body[0] if body else None,
+                request=request,
+            )
         return _success_response(kind, request)
 
     sdk_client = AsyncOpenAI(
@@ -202,6 +210,19 @@ def test_scheduler_retries_other_sdk_retryable_statuses(monkeypatch, status):
         asyncio.run(sdk_client.close())
 
 
+@pytest.mark.parametrize("kind", ["chat", "embedding"])
+def test_scheduler_retries_openai_429_then_success(monkeypatch, kind):
+    client, request, sdk_client, calls = _scheduler_client(
+        monkeypatch, kind, [429, 200], max_backoffs=1
+    )
+    try:
+        assert client.make_batch_requests([request], "retry-policy")[0] is not None
+        assert calls() == 2
+    finally:
+        client.shutdown()
+        asyncio.run(sdk_client.close())
+
+
 @pytest.mark.parametrize("status", [400, 401, 403])
 def test_scheduler_does_not_retry_fatal_openai_request_or_access_errors(
     monkeypatch, status
@@ -222,6 +243,7 @@ def test_scheduler_does_not_retry_fatal_openai_request_or_access_errors(
     ("status", "headers"),
     [
         pytest.param(503, {"x-should-retry": "false"}),
+        pytest.param(429, {"x-should-retry": "false"}),
         pytest.param(400, {"x-should-retry": "true"}),
     ],
 )
@@ -230,6 +252,29 @@ def test_scheduler_honors_retry_header_without_overriding_fatal_request_errors(
 ):
     client, request, sdk_client, calls = _scheduler_client(
         monkeypatch, "chat", [(status, headers)], max_backoffs=2
+    )
+    try:
+        with pytest.raises(ExecutionError):
+            client.make_batch_requests([request], "retry-policy")
+        assert calls() == 1
+    finally:
+        client.shutdown()
+        asyncio.run(sdk_client.close())
+
+
+@pytest.mark.parametrize("kind", ["chat", "embedding"])
+def test_scheduler_does_not_retry_quota_even_with_retry_header(monkeypatch, kind):
+    client, request, sdk_client, calls = _scheduler_client(
+        monkeypatch,
+        kind,
+        [
+            (
+                429,
+                {"x-should-retry": "true"},
+                {"error": {"type": "insufficient_quota"}},
+            )
+        ],
+        max_backoffs=2,
     )
     try:
         with pytest.raises(ExecutionError):

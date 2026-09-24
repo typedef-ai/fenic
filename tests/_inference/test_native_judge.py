@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from typing import get_args
 from unittest.mock import AsyncMock, Mock
 
-import httpx2
 import polars as pl
 import pytest
 from pydantic import ValidationError as PydanticValidationError
@@ -962,11 +961,13 @@ def test_fatal_provider_error(native_session, caplog):
     [
         pytest.param("TypeSafeBadRequestError", 400),
         pytest.param("TypeSafeUnprocessableEntityError", 422),
+        pytest.param("TypeSafeAPIResponseValidationError", 200),
     ],
 )
 def test_request_validation_error_returns_null_without_cache_or_usage(
     native_session, caplog, error_type, status
 ):
+    import httpx2
     import typesafe_sdk
 
     session, calls, sdk = native_session
@@ -978,6 +979,10 @@ def test_request_validation_error_returns_null_without_cache_or_usage(
     async def reject_one(state, bodies, **kwargs):
         if state == "reject":
             rejected_attempts.append(state)
+            if error_type == "TypeSafeAPIResponseValidationError":
+                raise error_class(
+                    status, {"detail": private_body}, httpx2.Headers(), "answers"
+                )
             raise error_class(
                 status, {"detail": private_body}, httpx2.Headers(), private_body
             )
@@ -1010,6 +1015,7 @@ def test_request_validation_error_returns_null_without_cache_or_usage(
 def test_access_errors_remain_fatal_and_sanitized(
     native_session, caplog, error_type, status
 ):
+    import httpx2
     import typesafe_sdk
 
     session, calls, sdk = native_session

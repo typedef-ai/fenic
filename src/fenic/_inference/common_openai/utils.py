@@ -51,7 +51,7 @@ def is_scheduler_retryable_openai_error(error: OpenAIError) -> bool:
     if should_retry == "false":
         return False
 
-    return status_code in {408, 409} or status_code >= 500
+    return status_code in {408, 409, 429} or status_code >= 500
 
 
 def handle_openai_compatible_response(
