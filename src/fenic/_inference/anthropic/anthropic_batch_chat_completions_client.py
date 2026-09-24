@@ -19,6 +19,7 @@ from anthropic import (
 )
 from anthropic.types import (
     MessageParam,
+    ToolChoiceAutoParam,
     ToolChoiceToolParam,
     ToolParam,
 )
@@ -179,19 +180,20 @@ class AnthropicBatchCompletionsClient(
             )
         if request.structured_output:
             tool_param = self.create_response_format_tool(request.structured_output)
+            if profile_configuration.uses_adaptive_thinking:
+                tool_param["strict"] = True
             messages_creation_payload.update({"tools": [tool_param]})
-            if (
-                not profile_configuration.thinking_enabled
-                or profile_configuration.uses_adaptive_thinking
-            ):
-                # Forced tool choice is incompatible with manual extended thinking,
-                # but is supported with adaptive thinking.
+            if not profile_configuration.thinking_enabled:
                 messages_creation_payload.update(
                     {
                         "tool_choice": ToolChoiceToolParam(
                             name=self._output_formatter_tool_name, type="tool"
                         )
                     }
+                )
+            elif profile_configuration.uses_adaptive_thinking:
+                messages_creation_payload["tool_choice"] = ToolChoiceAutoParam(
+                    type="auto"
                 )
 
         if (
@@ -351,6 +353,13 @@ class AnthropicBatchCompletionsClient(
             Estimated token count for the response format
         """
         tool_param = self.create_response_format_tool(response_format)
+        if self._model_parameters.uses_adaptive_thinking:
+            tool_param["strict"] = True
+            tool_choice = ToolChoiceAutoParam(type="auto")
+        else:
+            tool_choice = ToolChoiceToolParam(
+                name=self._output_formatter_tool_name, type="tool"
+            )
         approx_tool_tokens = self._sync_client.messages.count_tokens(
             model=self.model,
             messages=[
@@ -358,9 +367,7 @@ class AnthropicBatchCompletionsClient(
             ],
             system="empty",
             tools=[tool_param],
-            tool_choice=ToolChoiceToolParam(
-                name=self._output_formatter_tool_name, type="tool"
-            ),
+            tool_choice=tool_choice,
         )
         return approx_tool_tokens.input_tokens
 

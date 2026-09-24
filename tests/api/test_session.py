@@ -864,6 +864,31 @@ def test_model_profile_validation():
             language_models={"gpt-5.6-sol": OpenAILanguageModel(model_name="gpt-5.6-sol", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
         )
     )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-6-astra": OpenAILanguageModel(model_name="gpt-6-astra", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
+        )
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-6-sol": OpenAILanguageModel(model_name="gpt-6-sol", profiles={"disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")}, rpm=100, tpm=1000)}
+        )
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={"gpt-6-luna": OpenAILanguageModel(model_name="gpt-6-luna", profiles={"deep": OpenAILanguageModel.Profile(reasoning_effort="max")}, rpm=100, tpm=1000)}
+        )
+    )
+    with pytest.raises(ConfigurationError, match="Model 'gpt-6-astra' does not support 'none' \\(disabled\\) reasoning."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"gpt-6-astra": OpenAILanguageModel(model_name="gpt-6-astra", profiles={"disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")}, rpm=100, tpm=1000)}
+            )
+        )
     # Test that older OpenAI reasoning models reject xhigh reasoning
     with pytest.raises(ConfigurationError, match="Model 'gpt-5.2' does not support 'xhigh' reasoning. Please set reasoning_effort on 'deep' to 'none', 'low', 'medium', or 'high' instead."):
         SessionConfig(
@@ -887,7 +912,49 @@ def test_model_profile_validation():
                 language_models={"claude-sonnet-4-6": AnthropicLanguageModel(model_name="claude-sonnet-4-6", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
             )
         )
+    with pytest.raises(ConfigurationError, match="Model 'claude-fable-5-1' uses adaptive thinking and does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from 'deep' and set effort instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"claude-fable-5-1": AnthropicLanguageModel(model_name="claude-fable-5-1", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
+            )
+        )
+    with pytest.raises(ConfigurationError, match="Model 'claude-opus-5-5' uses adaptive thinking and does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from 'deep' and set effort instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"claude-opus-5-5": AnthropicLanguageModel(model_name="claude-opus-5-5", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
+            )
+        )
     # Test that latest Claude models support effort profiles
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-opus-5-5": AnthropicLanguageModel(
+                    model_name="claude-opus-5-5",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={"deep": AnthropicLanguageModel.Profile(effort="xhigh")},
+                ),
+            }
+        ),
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-fable-5-1": AnthropicLanguageModel(
+                    model_name="claude-fable-5-1",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={"deep": AnthropicLanguageModel.Profile(effort="xhigh")},
+                ),
+            }
+        ),
+    )
     SessionConfig(
         app_name="test_model_profile_validation",
         semantic=SemanticConfig(

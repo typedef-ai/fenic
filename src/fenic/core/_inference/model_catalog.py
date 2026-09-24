@@ -86,6 +86,7 @@ class CompletionModelParameters:
         cached_input_token_write_cost: float = 0.0,
         cached_input_token_read_cost: float = 0.0,
         tiered_token_costs: Optional[Dict[int, TieredTokenCost]] = None,
+        tiered_token_costs_use_total_input: bool = False,
         supports_profiles=True,
         supports_reasoning=False,
         supports_minimal_reasoning=False,
@@ -110,6 +111,7 @@ class CompletionModelParameters:
         self.context_window_length = context_window_length
         self.has_tiered_input_token_costs = tiered_token_costs is not None
         self.tiered_input_token_costs = tiered_token_costs
+        self.tiered_token_costs_use_total_input = tiered_token_costs_use_total_input
         self.max_output_tokens = max_output_tokens
         self.max_temperature = max_temperature
         self.supports_profiles = supports_profiles
@@ -193,6 +195,9 @@ class EmbeddingModelParameters:
 CompletionModelCollection: TypeAlias = Dict[str, CompletionModelParameters]
 EmbeddingModelCollection: TypeAlias = Dict[str, EmbeddingModelParameters]
 OpenAILanguageModelName = Literal[
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -254,6 +259,8 @@ GoogleDeveloperEmbeddingModelName = Literal[
 ]
 
 AnthropicLanguageModelName = Literal[
+    "claude-fable-5-1",
+    "claude-opus-5-5",
     "claude-fable-5",
     "claude-sonnet-5",
     "claude-opus-5",
@@ -377,6 +384,42 @@ class ModelCatalog:
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-opus-5-5",
+            CompletionModelParameters(
+                input_token_cost=4.00 / 1_000_000,
+                cached_input_token_write_cost=5.00 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=20.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-fable-5-1",
+            CompletionModelParameters(
+                input_token_cost=10.00 / 1_000_000,
+                cached_input_token_write_cost=12.50 / 1_000_000,
+                cached_input_token_read_cost=0.25 / 1_000_000,
+                output_token_cost=50.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
         self._add_model_to_catalog(
             ModelProvider.ANTHROPIC,
             "claude-opus-5",
@@ -548,12 +591,101 @@ class ModelCatalog:
         """Initialize OpenAI models in the catalog."""
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
+            "gpt-6-sol",
+            CompletionModelParameters(
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=10.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=4.00 / 1_000_000,
+                        cached_input_token_read_cost=0.40 / 1_000_000,
+                        cached_input_token_write_cost=5.00 / 1_000_000,
+                        output_token_cost=15.00 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-6-luna",
+            CompletionModelParameters(
+                input_token_cost=0.10 / 1_000_000,
+                cached_input_token_write_cost=0.125 / 1_000_000,
+                cached_input_token_read_cost=0.01 / 1_000_000,
+                output_token_cost=0.50 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=True,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                default_reasoning_effort="medium",
+                supports_custom_temperature=True,
+                supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=0.20 / 1_000_000,
+                        cached_input_token_read_cost=0.02 / 1_000_000,
+                        cached_input_token_write_cost=0.25 / 1_000_000,
+                        output_token_cost=0.75 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
+            "gpt-6-astra",
+            CompletionModelParameters(
+                input_token_cost=10.00 / 1_000_000,
+                cached_input_token_write_cost=12.50 / 1_000_000,
+                cached_input_token_read_cost=1.00 / 1_000_000,
+                output_token_cost=50.00 / 1_000_000,
+                context_window_length=1_050_000,
+                max_output_tokens=128_000,
+                supports_reasoning=True,
+                supports_minimal_reasoning=False,
+                supports_disabled_reasoning=False,
+                supports_xhigh_reasoning=True,
+                supports_max_reasoning=True,
+                supports_custom_temperature=False,
+                supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
+                tiered_token_costs={
+                    272_000: TieredTokenCost(
+                        input_token_cost=20.00 / 1_000_000,
+                        cached_input_token_read_cost=2.00 / 1_000_000,
+                        cached_input_token_write_cost=25.00 / 1_000_000,
+                        output_token_cost=75.00 / 1_000_000,
+                    )
+                },
+            ),
+        )
+
+        self._add_model_to_catalog(
+            ModelProvider.OPENAI,
             "gpt-5.6-sol",
             CompletionModelParameters(
-                input_token_cost=5.00 / 1_000_000,
-                cached_input_token_write_cost=6.25 / 1_000_000,
-                cached_input_token_read_cost=0.50 / 1_000_000,
-                output_token_cost=30.00 / 1_000_000,
+                input_token_cost=4.00 / 1_000_000,
+                cached_input_token_write_cost=5.00 / 1_000_000,
+                cached_input_token_read_cost=0.40 / 1_000_000,
+                output_token_cost=20.00 / 1_000_000,
                 context_window_length=1_050_000,
                 max_output_tokens=128_000,
                 supports_reasoning=True,
@@ -564,11 +696,13 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
-                        input_token_cost=10.00 / 1_000_000,
-                        cached_input_token_read_cost=1.00 / 1_000_000,
-                        output_token_cost=45.00 / 1_000_000,
+                        input_token_cost=8.00 / 1_000_000,
+                        cached_input_token_read_cost=0.80 / 1_000_000,
+                        cached_input_token_write_cost=10.00 / 1_000_000,
+                        output_token_cost=30.00 / 1_000_000,
                     )
                 },
             ),
@@ -578,10 +712,10 @@ class ModelCatalog:
             ModelProvider.OPENAI,
             "gpt-5.6-terra",
             CompletionModelParameters(
-                input_token_cost=2.50 / 1_000_000,
-                cached_input_token_write_cost=3.125 / 1_000_000,
-                cached_input_token_read_cost=0.25 / 1_000_000,
-                output_token_cost=15.00 / 1_000_000,
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=12.00 / 1_000_000,
                 context_window_length=1_050_000,
                 max_output_tokens=128_000,
                 supports_reasoning=True,
@@ -592,11 +726,13 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
-                        input_token_cost=5.00 / 1_000_000,
-                        cached_input_token_read_cost=0.50 / 1_000_000,
-                        output_token_cost=22.50 / 1_000_000,
+                        input_token_cost=4.00 / 1_000_000,
+                        cached_input_token_read_cost=0.40 / 1_000_000,
+                        cached_input_token_write_cost=5.00 / 1_000_000,
+                        output_token_cost=18.00 / 1_000_000,
                     )
                 },
             ),
@@ -606,10 +742,10 @@ class ModelCatalog:
             ModelProvider.OPENAI,
             "gpt-5.6-luna",
             CompletionModelParameters(
-                input_token_cost=1.00 / 1_000_000,
-                cached_input_token_write_cost=1.25 / 1_000_000,
-                cached_input_token_read_cost=0.10 / 1_000_000,
-                output_token_cost=6.00 / 1_000_000,
+                input_token_cost=0.20 / 1_000_000,
+                cached_input_token_write_cost=0.25 / 1_000_000,
+                cached_input_token_read_cost=0.02 / 1_000_000,
+                output_token_cost=1.20 / 1_000_000,
                 context_window_length=1_050_000,
                 max_output_tokens=128_000,
                 supports_reasoning=True,
@@ -620,11 +756,13 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
-                        input_token_cost=2.00 / 1_000_000,
-                        cached_input_token_read_cost=0.20 / 1_000_000,
-                        output_token_cost=9.00 / 1_000_000,
+                        input_token_cost=0.40 / 1_000_000,
+                        cached_input_token_read_cost=0.04 / 1_000_000,
+                        cached_input_token_write_cost=0.50 / 1_000_000,
+                        output_token_cost=1.80 / 1_000_000,
                     )
                 },
             ),
@@ -913,6 +1051,7 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
                         input_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
@@ -941,6 +1080,7 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
                         input_token_cost=5.00 / 1_000_000,  # $5.00 per 1M tokens
@@ -1040,9 +1180,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_VERTEX,
             "gemini-3.6-flash",
             CompletionModelParameters(
-                input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
-                cached_input_token_read_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                output_token_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1114,6 +1254,7 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
             ),
             snapshots=["gemini-3.1-pro-preview-customtools"],
         )
@@ -1175,6 +1316,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
                 supports_pdf_parsing=True,
             ),
         )
@@ -1271,9 +1413,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.7-flash",
             CompletionModelParameters(
-                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
-                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
-                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1290,9 +1432,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.6-flash",
             CompletionModelParameters(
-                input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
-                cached_input_token_read_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                output_token_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1364,6 +1506,7 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
             ),
             snapshots=["gemini-3.1-pro-preview-customtools"],
         )
@@ -1425,6 +1568,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
                 supports_pdf_parsing=True,
             ),
         )
@@ -1672,20 +1816,31 @@ class ModelCatalog:
             raise ValueError(self.generate_unsupported_completion_model_error_message(model_provider, model_name))
         input_token_cost = model_parameters.input_token_cost
         cached_input_tokens_read_cost = model_parameters.cached_input_token_read_cost
+        cached_input_tokens_write_cost = model_parameters.cached_input_token_write_cost
         output_token_cost = model_parameters.output_token_cost
         if model_parameters.has_tiered_input_token_costs:
+            tier_input_tokens = uncached_input_tokens
+            if model_parameters.tiered_token_costs_use_total_input:
+                tier_input_tokens += (
+                    cached_input_tokens_read + cached_input_tokens_written
+                )
             for tier_threshold in sorted(model_parameters.tiered_input_token_costs.keys()):
-                if uncached_input_tokens >= tier_threshold:
+                tier_matches = (
+                    tier_input_tokens > tier_threshold
+                    if model_parameters.tiered_token_costs_use_total_input
+                    else tier_input_tokens >= tier_threshold
+                )
+                if tier_matches:
                     tier_costs = model_parameters.tiered_input_token_costs[tier_threshold]
                     input_token_cost = tier_costs.input_token_cost
                     cached_input_tokens_read_cost = tier_costs.cached_input_token_read_cost
+                    cached_input_tokens_write_cost = tier_costs.cached_input_token_write_cost
                     output_token_cost = tier_costs.output_token_cost
                     break
         return (
             uncached_input_tokens * input_token_cost
             + cached_input_tokens_read * cached_input_tokens_read_cost
-            + cached_input_tokens_written
-            * model_parameters.cached_input_token_write_cost
+            + cached_input_tokens_written * cached_input_tokens_write_cost
             + output_tokens * output_token_cost
         )
 

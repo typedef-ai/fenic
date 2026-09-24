@@ -194,6 +194,9 @@ def test_latest_frontier_models_are_registered():
     """Sanity-check newly released frontier model IDs and snapshots."""
     catalog = model_catalog
 
+    openai_gpt_6_astra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-astra")
+    openai_gpt_6_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-sol")
+    openai_gpt_6_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-6-luna")
     openai_gpt_56_sol = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-sol")
     openai_gpt_56_terra = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-terra")
     openai_gpt_56_luna = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.6-luna")
@@ -201,8 +204,41 @@ def test_latest_frontier_models_are_registered():
     assert openai_gpt_56_sol.context_window_length == 1_050_000
     assert openai_gpt_56_sol.max_output_tokens == 128_000
     assert openai_gpt_56_sol.supports_max_reasoning
-    assert openai_gpt_56_terra.input_token_cost == 2.50 / 1_000_000
-    assert openai_gpt_56_luna.output_token_cost == 6.00 / 1_000_000
+    assert openai_gpt_56_terra.input_token_cost == 2.00 / 1_000_000
+    assert openai_gpt_56_luna.output_token_cost == 1.20 / 1_000_000
+    assert openai_gpt_6_astra.context_window_length == 1_050_000
+    assert openai_gpt_6_astra.max_output_tokens == 128_000
+    assert openai_gpt_6_astra.supports_max_reasoning
+    assert not openai_gpt_6_astra.supports_custom_temperature
+    assert openai_gpt_6_astra.supports_pdf_parsing
+    assert openai_gpt_6_sol.input_token_cost == 2.00 / 1_000_000
+    assert openai_gpt_6_sol.output_token_cost == 10.00 / 1_000_000
+    assert openai_gpt_6_sol.context_window_length == 1_050_000
+    assert openai_gpt_6_sol.supports_max_reasoning
+    assert openai_gpt_6_sol.supports_custom_temperature
+    assert openai_gpt_6_sol.supports_pdf_parsing
+    assert openai_gpt_6_luna.input_token_cost == 0.10 / 1_000_000
+    assert openai_gpt_6_luna.output_token_cost == 0.50 / 1_000_000
+    assert openai_gpt_6_luna.context_window_length == 1_050_000
+    assert openai_gpt_6_luna.supports_max_reasoning
+    assert openai_gpt_6_luna.supports_custom_temperature
+    assert openai_gpt_6_luna.supports_pdf_parsing
+
+    anthropic_fable_51 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-fable-5-1")
+    assert anthropic_fable_51.context_window_length == 1_000_000
+    assert anthropic_fable_51.max_output_tokens == 128_000
+    assert anthropic_fable_51.cached_input_token_read_cost == 0.25 / 1_000_000
+    assert anthropic_fable_51.uses_adaptive_thinking
+    assert anthropic_fable_51.requires_adaptive_thinking
+
+    anthropic_opus_55 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-opus-5-5")
+    assert anthropic_opus_55.input_token_cost == 4.00 / 1_000_000
+    assert anthropic_opus_55.cached_input_token_read_cost == 0.20 / 1_000_000
+    assert anthropic_opus_55.output_token_cost == 20.00 / 1_000_000
+    assert anthropic_opus_55.context_window_length == 1_000_000
+    assert anthropic_opus_55.max_output_tokens == 128_000
+    assert anthropic_opus_55.uses_adaptive_thinking
+    assert anthropic_opus_55.requires_adaptive_thinking
 
     openai_gpt_55 = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5")
     openai_gpt_55_snapshot = catalog.get_completion_model_parameters(ModelProvider.OPENAI, "gpt-5.5-2026-04-23")
@@ -248,10 +284,17 @@ def test_latest_frontier_models_are_registered():
     assert not google_37_flash.supports_custom_temperature
 
     google_36_flash = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.6-flash")
-    assert google_36_flash.input_token_cost == 1.50 / 1_000_000
-    assert google_36_flash.output_token_cost == 7.50 / 1_000_000
-    assert google_36_flash.cached_input_token_read_cost == 0.15 / 1_000_000
+    assert google_36_flash.input_token_cost == 0.75 / 1_000_000
+    assert google_36_flash.output_token_cost == 3.75 / 1_000_000
+    assert google_36_flash.cached_input_token_read_cost == 0.075 / 1_000_000
     assert not google_36_flash.supports_custom_temperature
+
+    google_vertex_36_flash = catalog.get_completion_model_parameters(
+        ModelProvider.GOOGLE_VERTEX, "gemini-3.6-flash"
+    )
+    assert google_vertex_36_flash.input_token_cost == 0.75 / 1_000_000
+    assert google_vertex_36_flash.cached_input_token_read_cost == 0.075 / 1_000_000
+    assert google_vertex_36_flash.output_token_cost == 3.75 / 1_000_000
 
     google_35_flash_lite = catalog.get_completion_model_parameters(
         ModelProvider.GOOGLE_DEVELOPER, "gemini-3.5-flash-lite"
@@ -308,6 +351,123 @@ def test_gpt_55_default_profile_uses_provider_default_reasoning():
     assert profile.reasoning_effort == "medium"
     assert profile.verbosity is None
     assert profile.expected_additional_reasoning_tokens == 8192
+
+
+@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna"])
+def test_gpt_6_default_profile_uses_documented_medium_reasoning(model_name):
+    """GPT-6 models preserve their documented medium reasoning default."""
+    params = model_catalog.get_completion_model_parameters(ModelProvider.OPENAI, model_name)
+    profile = OpenAICompletionsProfileManager(params).get_default_profile()
+
+    assert profile.reasoning_effort == "medium"
+
+
+@pytest.mark.parametrize(
+    (
+        "model_name, base_input, base_cached_read, base_cached_write, base_output, "
+        "tier_input, tier_cached_read, tier_cached_write, tier_output"
+    ),
+    [
+        ("gpt-6-astra", 10, 1, 12.5, 50, 20, 2, 25, 75),
+        ("gpt-6-sol", 2, 0.2, 2.5, 10, 4, 0.4, 5, 15),
+        ("gpt-6-luna", 0.1, 0.01, 0.125, 0.5, 0.2, 0.02, 0.25, 0.75),
+        ("gpt-5.6-sol", 4, 0.4, 5, 20, 8, 0.8, 10, 30),
+        ("gpt-5.6-terra", 2, 0.2, 2.5, 12, 4, 0.4, 5, 18),
+        ("gpt-5.6-luna", 0.2, 0.02, 0.25, 1.2, 0.4, 0.04, 0.5, 1.8),
+    ],
+)
+def test_openai_long_context_cost_uses_full_input_for_tiered_cache_write_rate(
+    model_name,
+    base_input,
+    base_cached_read,
+    base_cached_write,
+    base_output,
+    tier_input,
+    tier_cached_read,
+    tier_cached_write,
+    tier_output,
+):
+    """Select long-context rates from full input, including cache reads and writes."""
+    catalog = ModelCatalog()
+    exact_boundary_cost = catalog.calculate_completion_model_cost(
+        ModelProvider.OPENAI, model_name, 272_000 - 4, 0, 3, 4
+    )
+    cache_heavy_boundary_cost = catalog.calculate_completion_model_cost(
+        ModelProvider.OPENAI, model_name, 1_000, 271_000 - 4, 3, 4
+    )
+    cache_heavy_tier_cost = catalog.calculate_completion_model_cost(
+        ModelProvider.OPENAI, model_name, 1_000, 271_001 - 4, 3, 4
+    )
+    no_cache_tier_cost = catalog.calculate_completion_model_cost(
+        ModelProvider.OPENAI, model_name, 272_001, 0, 3, 4
+    )
+
+    assert exact_boundary_cost == pytest.approx(
+        (
+            (272_000 - 4) * base_input
+            + 4 * base_cached_write
+            + 3 * base_output
+        )
+        / 1_000_000
+    )
+    assert cache_heavy_boundary_cost == pytest.approx(
+        (
+            1_000 * base_input
+            + (271_000 - 4) * base_cached_read
+            + 4 * base_cached_write
+            + 3 * base_output
+        )
+        / 1_000_000
+    )
+    assert cache_heavy_tier_cost == pytest.approx(
+        (
+            1_000 * tier_input
+            + (271_001 - 4) * tier_cached_read
+            + 4 * tier_cached_write
+            + 3 * tier_output
+        )
+        / 1_000_000
+    )
+    assert no_cache_tier_cost == pytest.approx(
+        (272_001 * tier_input + 4 * tier_cached_write + 3 * tier_output) / 1_000_000
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "provider, model_name, threshold, base_input, base_output, "
+        "tier_input, tier_output"
+    ),
+    [
+        (ModelProvider.OPENAI, "gpt-5.5", 272_000, 5, 30, 10, 45),
+        (ModelProvider.OPENAI, "gpt-5.4", 272_000, 2.5, 15, 5, 22.5),
+        (ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-pro-preview", 200_000, 2, 12, 4, 18),
+        (ModelProvider.GOOGLE_VERTEX, "gemini-3.1-pro-preview", 200_000, 2, 12, 4, 18),
+        (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro", 200_000, 1.25, 10, 2.5, 15),
+        (ModelProvider.GOOGLE_VERTEX, "gemini-2.5-pro", 200_000, 1.25, 10, 2.5, 15),
+    ],
+)
+def test_existing_tiered_models_use_strict_full_input_boundaries(
+    provider, model_name, threshold, base_input, base_output, tier_input, tier_output
+):
+    """Existing tiered models keep the base price at the boundary."""
+    catalog = ModelCatalog()
+
+    assert catalog.calculate_completion_model_cost(
+        provider, model_name, threshold, 0, 1
+    ) == pytest.approx((threshold * base_input + base_output) / 1_000_000)
+    assert catalog.calculate_completion_model_cost(
+        provider, model_name, threshold - 1, 0, 1, 2
+    ) == pytest.approx(
+        ((threshold - 1) * tier_input + tier_output) / 1_000_000
+    )
+
+
+def test_fable_51_cost_uses_the_ordinary_five_minute_cache_rate():
+    """Price ordinary Fenic Anthropic requests at the default five-minute TTL."""
+    assert ModelCatalog().calculate_completion_model_cost(
+        ModelProvider.ANTHROPIC, "claude-fable-5-1", 1, 2, 3, 4
+    ) == pytest.approx((10 + 0.5 + 150 + 50) / 1_000_000)
 
 def test_openrouter_provider_loads_models(mock_openrouter_models):
     """Test that the OpenRouter provider can fetch the models from the OpenRouter API."""

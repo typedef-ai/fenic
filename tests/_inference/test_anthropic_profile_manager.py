@@ -160,7 +160,7 @@ def test_manual_thinking_budget_profile_still_uses_budget_tokens():
     assert profile.output_config == {"effort": "high"}
 
 
-def test_adaptive_thinking_structured_output_forces_formatter_tool(monkeypatch):
+def test_adaptive_thinking_structured_output_uses_strict_auto_tool_choice(monkeypatch):
     params = model_catalog.get_completion_model_parameters(
         ModelProvider.ANTHROPIC, "claude-opus-5"
     )
@@ -183,10 +183,48 @@ def test_adaptive_thinking_structured_output_forces_formatter_tool(monkeypatch):
 
     assert payload["thinking"] == {"type": "adaptive"}
     assert payload["output_config"] == {"effort": "high"}
-    assert payload["tool_choice"] == {
-        "name": "output_formatter",
-        "type": "tool",
-    }
+    assert payload["tool_choice"] == {"type": "auto"}
+    assert payload["tools"][0]["strict"]
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
+def test_adaptive_thinking_token_estimate_uses_strict_auto_tool_choice(
+    model_name, monkeypatch
+):
+    """Adaptive models reject forced tools, including for token counting."""
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, model_name
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={},
+        default_profile_name=None,
+        model_name=model_name,
+    )
+    captured_payload = {}
+
+    def count_tokens(**payload):
+        captured_payload.update(payload)
+        return type("TokenEstimate", (), {"input_tokens": 1})()
+
+    client._sync_client = type(
+        "SyncClient",
+        (),
+        {
+            "messages": type(
+                "Messages", (), {"count_tokens": staticmethod(count_tokens)}
+            )()
+        },
+    )()
+
+    client.estimate_response_format_tokens(
+        ResolvedResponseFormat.from_pydantic_model(
+            _StructuredResult, generate_struct_type=False
+        )
+    )
+
+    assert captured_payload["tool_choice"] == {"type": "auto"}
+    assert captured_payload["tools"][0]["strict"]
 
 
 def test_manual_thinking_structured_output_does_not_force_formatter_tool(monkeypatch):
