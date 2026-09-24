@@ -126,15 +126,16 @@ def _success_response(kind: str, request: httpx.Request) -> httpx.Response:
     )
 
 
-def _scheduler_client(monkeypatch, kind: str, statuses: list[int], max_backoffs: int):
+def _scheduler_client(monkeypatch, kind: str, statuses: list[object], max_backoffs: int):
     calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        status = statuses[calls - 1] if calls <= len(statuses) else 503
+        outcome = statuses[calls - 1] if calls <= len(statuses) else 503
+        status, headers = outcome if isinstance(outcome, tuple) else (outcome, {})
         if status != 200:
-            return httpx.Response(status, request=request)
+            return httpx.Response(status, headers=headers, request=request)
         return _success_response(kind, request)
 
     sdk_client = AsyncOpenAI(
@@ -207,6 +208,28 @@ def test_scheduler_does_not_retry_fatal_openai_request_or_access_errors(
 ):
     client, request, sdk_client, calls = _scheduler_client(
         monkeypatch, "chat", [status], max_backoffs=2
+    )
+    try:
+        with pytest.raises(ExecutionError):
+            client.make_batch_requests([request], "retry-policy")
+        assert calls() == 1
+    finally:
+        client.shutdown()
+        asyncio.run(sdk_client.close())
+
+
+@pytest.mark.parametrize(
+    ("status", "headers"),
+    [
+        pytest.param(503, {"x-should-retry": "false"}),
+        pytest.param(400, {"x-should-retry": "true"}),
+    ],
+)
+def test_scheduler_honors_retry_header_without_overriding_fatal_request_errors(
+    monkeypatch, status, headers
+):
+    client, request, sdk_client, calls = _scheduler_client(
+        monkeypatch, "chat", [(status, headers)], max_backoffs=2
     )
     try:
         with pytest.raises(ExecutionError):
