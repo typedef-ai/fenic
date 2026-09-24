@@ -78,9 +78,12 @@ class TypeSafeSystemOneClient(
         """Evaluate a typed request and account for returned usage before decoding."""
         from typesafe_sdk import (
             TypeSafeAPIConnectionError,
+            TypeSafeAPIResponseValidationError,
+            TypeSafeBadRequestError,
             TypeSafeError,
             TypeSafeInternalServerError,
             TypeSafeRateLimitError,
+            TypeSafeUnprocessableEntityError,
         )
 
         questions = request.judge_questions
@@ -108,6 +111,14 @@ class TypeSafeSystemOneClient(
         ) as error:
             # SDK error bodies can contain row text. The scheduler owns retry policy.
             return TransientException(RuntimeError(type(error).__name__))
+        except (
+            TypeSafeBadRequestError,
+            TypeSafeUnprocessableEntityError,
+            TypeSafeAPIResponseValidationError,
+        ):
+            # Request admission and validation failures are row-local. Do not cache
+            # them or manufacture usage for a request the provider rejected.
+            return None
         except TypeSafeError as error:
             # Fatal errors must fail the query without exposing SDK response bodies.
             return FatalException(RuntimeError(type(error).__name__))

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import get_args
 from unittest.mock import AsyncMock, Mock
 
+import httpx2
 import polars as pl
 import pytest
 from pydantic import ValidationError as PydanticValidationError
@@ -563,18 +564,69 @@ def test_bad_state_type(native_session):
     assert not calls
 
 
-def test_envelope_failure_has_no_call(native_session, monkeypatch):
+def test_size_rejections_warn_once_and_skip_only_rejected_rows(
+    native_session, monkeypatch, caplog
+):
     session, calls, _ = native_session
     client = session._session_state.get_language_model(
         ResolvedModelAlias("judge", None)
     ).client
     monkeypatch.setattr(client.token_counter, "count_tokens", len)
-    frame = session.create_dataframe({"text": ["x" * 32000]}).with_column(
+    secret = "valid-state-sentinel"
+    frame = session.create_dataframe(
+        {"text": [secret, "x" * 32000, None, "y" * 32000]}
+    ).with_column(
         "j",
         fc.semantic.judge(state="text", questions=[questions()[0]]),
     )
-    assert frame.to_polars()["j"].to_list() == [None]
+    result = frame.to_polars()["j"].to_list()
+    assert result[0] is not None
+    assert result[1:] == [None, None, None]
+    assert len(calls) == 1
+    warnings = [
+        record.message
+        for record in caplog.records
+        if "size or packing validation rejected" in record.message
+    ]
+    assert warnings == [
+        "Typed judgment size or packing validation rejected 2 input row(s); "
+        "returning null judgments for those rows."
+    ]
+    assert secret not in caplog.text
+
+
+def test_oversized_question_group_warns_per_input_owner(
+    native_session, monkeypatch, caplog
+):
+    session, calls, _ = native_session
+    client = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    ).client
+    monkeypatch.setattr(client.token_counter, "count_tokens", len)
+    oversized = fc.JudgeQuestion.noul(
+        name="too_large", instructions="x" * 32000
+    )
+    result = (
+        session.create_dataframe({"text": ["first", "second"]})
+        .with_column("j", fc.semantic.judge(state="text", questions=[oversized]))
+        .to_polars()
+    )
+    assert result["j"].to_list() == [None, None]
     assert not calls
+    assert caplog.text.count("size or packing validation rejected") == 1
+    assert "2 input row(s)" in caplog.text
+
+
+def test_valid_judgments_do_not_emit_size_rejection_warning(native_session, caplog):
+    session, calls, _ = native_session
+    result = (
+        session.create_dataframe({"text": ["x"]})
+        .with_column("j", fc.semantic.judge(state="text", questions=[questions()[0]]))
+        .to_polars()
+    )
+    assert result["j"].to_list()[0] is not None
+    assert len(calls) == 1
+    assert "size or packing validation rejected" not in caplog.text
 
 
 def test_settlement_once_per_request(native_session, monkeypatch):
@@ -900,6 +952,81 @@ def test_fatal_provider_error(native_session, caplog):
     with pytest.raises(ExecutionError, match="TypeSafeError") as raised:
         frame.collect()
     assert len(attempts) == 1
+    assert not calls
+    assert private_body not in str(raised.value)
+    assert private_body not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("error_type", "status"),
+    [
+        pytest.param("TypeSafeBadRequestError", 400),
+        pytest.param("TypeSafeUnprocessableEntityError", 422),
+    ],
+)
+def test_request_validation_error_returns_null_without_cache_or_usage(
+    native_session, caplog, error_type, status
+):
+    import typesafe_sdk
+
+    session, calls, sdk = native_session
+    original = sdk.system_one
+    rejected_attempts = []
+    private_body = "request-rejection-secret"
+    error_class = getattr(typesafe_sdk, error_type)
+
+    async def reject_one(state, bodies, **kwargs):
+        if state == "reject":
+            rejected_attempts.append(state)
+            raise error_class(
+                status, {"detail": private_body}, httpx2.Headers(), private_body
+            )
+        return await original(state, bodies, **kwargs)
+
+    sdk.system_one = reject_one
+    frame = session.create_dataframe({"text": ["valid", "reject"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=[questions()[0]])
+    )
+    first = frame.collect()
+    assert first.data["j"].to_list()[0] is not None
+    assert first.data["j"].to_list()[1] is None
+    assert first.metrics.total_lm_metrics.num_requests == 1
+    second = frame.collect()
+    assert second.data["j"].to_list()[0] is not None
+    assert second.data["j"].to_list()[1] is None
+    assert second.metrics.total_lm_metrics.num_requests == 0
+    assert len(calls) == 1
+    assert rejected_attempts == ["reject", "reject"]
+    assert private_body not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("error_type", "status"),
+    [
+        pytest.param("TypeSafeAuthenticationError", 401),
+        pytest.param("TypeSafePermissionDeniedError", 403),
+    ],
+)
+def test_access_errors_remain_fatal_and_sanitized(
+    native_session, caplog, error_type, status
+):
+    import typesafe_sdk
+
+    session, calls, sdk = native_session
+    private_body = "access-error-secret"
+    error_class = getattr(typesafe_sdk, error_type)
+
+    async def fail_access(*_args, **_kwargs):
+        raise error_class(
+            status, {"detail": private_body}, httpx2.Headers(), private_body
+        )
+
+    sdk.system_one = fail_access
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=[questions()[0]])
+    )
+    with pytest.raises(ExecutionError, match=error_type) as raised:
+        frame.collect()
     assert not calls
     assert private_body not in str(raised.value)
     assert private_body not in caplog.text

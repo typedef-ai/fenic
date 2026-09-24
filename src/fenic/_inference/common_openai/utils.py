@@ -1,6 +1,6 @@
 from typing import Callable, Optional, Union
 
-from openai import RateLimitError
+from openai import OpenAIError, RateLimitError
 from openai.types.chat import ChatCompletion, ParsedChatCompletion, ParsedChoice
 from openai.types.chat.chat_completion import Choice
 
@@ -28,6 +28,30 @@ def is_insufficient_quota_error(error: RateLimitError) -> bool:
         return False
     error_obj = body.get("error") if isinstance(body, dict) else None
     return isinstance(error_obj, dict) and error_obj.get("type") == "insufficient_quota"
+
+
+def is_scheduler_retryable_openai_error(error: OpenAIError) -> bool:
+    """Return whether the scheduler should retry a non-quota OpenAI HTTP error.
+
+    The OpenAI SDK's own retry policy is disabled so a scheduler attempt is one
+    provider send. Preserve the SDK's retryable HTTP status policy here while
+    leaving request, authentication, permission, and quota errors fatal.
+    """
+    response = getattr(error, "response", None)
+    if response is None:
+        return False
+
+    status_code = response.status_code
+    if status_code in {400, 401, 403, 422}:
+        return False
+
+    should_retry = response.headers.get("x-should-retry")
+    if should_retry == "true":
+        return True
+    if should_retry == "false":
+        return False
+
+    return status_code in {408, 409} or status_code >= 500
 
 
 def handle_openai_compatible_response(

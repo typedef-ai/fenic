@@ -97,6 +97,7 @@ class LanguageModel:
         requests = []
         owners = []
         failed = set()
+        rejected_for_size = set()
         for index, state in enumerate(states):
             if state is None:
                 failed.add(index)
@@ -105,6 +106,7 @@ class LanguageModel:
                 groups = self.client.judge_partitions(state, questions)
             except ValueError:
                 failed.add(index)
+                rejected_for_size.add(index)
                 continue
             for group in groups:
                 owners.append(index)
@@ -119,6 +121,12 @@ class LanguageModel:
                         judge_questions=group,
                     )
                 )
+        if rejected_for_size:
+            logger.warning(
+                "Typed judgment size or packing validation rejected %d input row(s); "
+                "returning null judgments for those rows.",
+                len(rejected_for_size),
+            )
         responses = self.client.make_batch_requests(
             requests, operation_name="semantic.judge", request_timeout=request_timeout
         )
