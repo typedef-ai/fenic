@@ -24,6 +24,7 @@ from fenic.core._inference.model_catalog import (
     OpenAIEmbeddingModelName,
     OpenAILanguageModelName,
     ThinkingLevelType,
+    TypeSafeLanguageModelName,
     model_catalog,
 )
 from fenic.core._resolved_session_config import (
@@ -48,6 +49,7 @@ from fenic.core._resolved_session_config import (
     ResolvedOpenRouterProviderRouting,
     ResolvedSemanticConfig,
     ResolvedSessionConfig,
+    ResolvedTypeSafeModelConfig,
     Verbosity,
 )
 from fenic.core.error import ConfigurationError, InternalError
@@ -542,6 +544,12 @@ class OpenAILanguageModel(BaseModel):
     )
     rpm: int = Field(..., gt=0, description="Requests per minute; must be > 0")
     tpm: int = Field(..., gt=0, description="Tokens per minute; must be > 0")
+    max_backoffs: int = Field(
+        default=10,
+        ge=0,
+        strict=True,
+        description="Maximum retry attempts after the initial request.",
+    )
     base_url: Optional[str] = Field(
         default=None,
         description="Custom base URL for the OpenAI API (e.g., for proxies or gateways)",
@@ -1036,12 +1044,46 @@ EmbeddingModel = Union[
     GoogleDeveloperEmbeddingModel,
     CohereEmbeddingModel,
 ]
+class TypeSafeLanguageModel(BaseModel):
+    """Configure a TypeSafe model for native typed judgments.
+
+    Install ``fenic[typesafe]`` and set ``TYPESAFE_API_KEY``. These models answer
+    closed questions; they do not generate free-form map or extract output.
+    Questions carry their own instructions and criteria, not model profiles.
+
+    Attributes:
+        model_name: Provider model identifier, such as ``jev-1.13.0``.
+        rpm: Requests per minute.
+        tpm: Input tokens per minute.
+        base_url: Optional provider endpoint override.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    model_name: TypeSafeLanguageModelName = Field(
+        ..., description="TypeSafe model identifier."
+    )
+    rpm: int = Field(..., description="Requests per minute limit.", gt=0)
+    tpm: int = Field(..., description="Input tokens per minute limit.", gt=0)
+    max_backoffs: int = Field(
+        default=2,
+        ge=0,
+        strict=True,
+        description="Maximum retry attempts after the initial request.",
+    )
+    base_url: Optional[str] = Field(
+        default=None, description="Provider endpoint override."
+    )
+    profiles: None = None
+    default_profile: None = None
+
+
 LanguageModel = Union[
     OpenAILanguageModel,
     AnthropicLanguageModel,
     GoogleDeveloperLanguageModel,
     GoogleVertexLanguageModel,
     OpenRouterLanguageModel,
+    TypeSafeLanguageModel,
 ]
 ModelConfig = Union[EmbeddingModel, LanguageModel]
 
@@ -1608,6 +1650,21 @@ class SessionConfig(BaseModel):
     semantic: Optional[SemanticConfig] = None
     cloud: Optional[CloudConfig] = None
 
+    @model_validator(mode="after")
+    def validate_cloud_retry_overrides(self) -> SessionConfig:
+        """Reject local-only retry overrides for cloud execution."""
+        if self.cloud and self.semantic and self.semantic.language_models:
+            for model in self.semantic.language_models.values():
+                if isinstance(model, OpenAILanguageModel) and model.max_backoffs != 10:
+                    raise ConfigurationError(
+                        "max_backoffs is only supported for local OpenAI language models."
+                    )
+                if isinstance(model, TypeSafeLanguageModel) and model.max_backoffs != 2:
+                    raise ConfigurationError(
+                        "max_backoffs is only supported for local TypeSafe language models."
+                    )
+        return self
+
     def to_json(self) -> str:
         """Export the session config to a JSON string."""
         return self.model_dump_json(indent=2)
@@ -1633,6 +1690,7 @@ class SessionConfig(BaseModel):
                     profiles=profiles,
                     default_profile=model.default_profile,
                     base_url=model.base_url,
+                    max_backoffs=model.max_backoffs,
                 )
             elif isinstance(model, (GoogleDeveloperLanguageModel, GoogleVertexLanguageModel)):
                 profiles = {
@@ -1725,6 +1783,14 @@ class SessionConfig(BaseModel):
                     model_name=model.model_name,
                     profiles=profiles,
                     default_profile=model.default_profile,
+                )
+            elif isinstance(model, TypeSafeLanguageModel):
+                return ResolvedTypeSafeModelConfig(
+                    model_name=model.model_name,
+                    rpm=model.rpm,
+                    tpm=model.tpm,
+                    base_url=model.base_url,
+                    max_backoffs=model.max_backoffs,
                 )
             else:
                 raise InternalError(f"Unknown model type: {type(model)}")
@@ -1918,5 +1984,7 @@ def _get_model_provider_for_model_config(model_config: ModelConfig) -> ModelProv
         return ModelProvider.COHERE
     elif isinstance(model_config, OpenRouterLanguageModel):
         return ModelProvider.OPENROUTER
+    elif isinstance(model_config, TypeSafeLanguageModel):
+        return ModelProvider.TYPESAFE
     else:
         raise InternalError(f"Unknown model type: {type(model_config)}")

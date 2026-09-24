@@ -31,6 +31,7 @@ class ModelProvider(Enum):
     GOOGLE_VERTEX = "google-vertex"
     COHERE = "cohere"
     OPENROUTER = "openrouter"
+    TYPESAFE = "typesafe"
 
 
 class TieredTokenCost:
@@ -103,6 +104,7 @@ class CompletionModelParameters:
         supports_pdf_parsing = False,
         supports_media_resolution = False,
         supported_parameters: Optional[set[str]] = None,
+        supports_judge: bool = False,
     ):
         self.input_token_cost = input_token_cost
         self.cached_input_token_read_cost = cached_input_token_read_cost
@@ -128,6 +130,7 @@ class CompletionModelParameters:
         self.supports_custom_temperature = supports_custom_temperature
         self.supports_verbosity = supports_verbosity
         self.supports_pdf_parsing = supports_pdf_parsing
+        self.supports_judge = supports_judge
         self.supports_media_resolution = supports_media_resolution
         # Provider-specific supported request parameters (e.g., OpenRouter "supported_parameters")
         self.supported_parameters: set[str] = supported_parameters or set()
@@ -284,6 +287,8 @@ CohereEmbeddingModelName = Literal[
     "embed-multilingual-light-v3.0",
 ]
 
+TypeSafeLanguageModelName = Literal["jev-1.13.0", "jev-latest", "jev-preview"]
+
 
 GoogleDeveloperLanguageModelName = Literal[
     "gemini-3.7-flash",
@@ -381,6 +386,31 @@ class ModelCatalog:
         self._initialize_google_gla_models()
         self._initialize_google_vertex_models()
         self._initialize_cohere_models()
+        self._initialize_typesafe_models()
+
+    def _initialize_typesafe_models(self):
+        """Initialize TypeSafe System One models in the catalog.
+
+        These models answer typed questions rather than generating text: the answer is one
+        value drawn from a set enumerated in the request. Output tokens are not billed, and
+        the request carries no temperature or reasoning controls.
+        """
+        self._add_model_to_catalog(
+            ModelProvider.TYPESAFE,
+            "jev-1.13.0",
+            CompletionModelParameters(
+                input_token_cost=0.042 / 1_000_000,  # $0.042 per 1M input tokens
+                output_token_cost=0.0,  # output tokens are not billed
+                # The published envelope is 64k per request, of which state plus the longest
+                # single question must fit in 32k (checked separately by the typed client).
+                context_window_length=64_000,
+                max_output_tokens=1_024,
+                supports_profiles=False,
+                supports_custom_temperature=False,
+                supports_judge=True,
+            ),
+            snapshots=["jev-latest", "jev-preview"],
+        )
 
     def _initialize_anthropic_models(self):
         """Initialize Anthropic models in the catalog."""

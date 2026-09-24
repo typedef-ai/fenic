@@ -409,6 +409,9 @@ from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     SemanticExtractExpr as SemanticExtractExprProto,
 )
 from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
+    SemanticJudgeExpr as SemanticJudgeExprProto,
+)
+from fenic._gen.protos.logical_plan.v1.expressions_pb2 import (
     # Semantic expressions
     SemanticMapExpr as SemanticMapExprProto,
 )
@@ -669,6 +672,7 @@ __all__ = [
     # Semantic expression classes
     "SemanticMapExprProto",
     "SemanticExtractExprProto",
+    "SemanticJudgeExprProto",
     "SemanticPredExprProto",
     "SemanticReduceExprProto",
     "SemanticClassifyExprProto",

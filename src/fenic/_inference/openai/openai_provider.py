@@ -33,6 +33,7 @@ class OpenAIModelProvider(ModelProviderClass):
         return AsyncOpenAI(
             base_url=self._base_url,
             http_client=httpx.AsyncClient(timeout=MAX_MODEL_CLIENT_TIMEOUT),
+            max_retries=0,
         )
 
     async def validate_api_key(self) -> None:

@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
-from concurrent.futures import Future
+from concurrent.futures import Future, TimeoutError
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -83,6 +83,7 @@ class QueueItem(Generic[RequestT]):
     batch_id: str
     request_timeout: float
     request_fingerprint: Optional[str] = None
+    attempts_started: int = 0
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -117,6 +118,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         max_backoffs: int = 10,
         cache: Optional["LLMResponseCache"] = None,
         adaptive_estimation: Optional[ResolvedAdaptiveTokenEstimationConfig] = None,
+        _provider_close_timeout_seconds: float = 10,
     ):
         """Initialize the ModelClient with configuration for model interaction.
 
@@ -134,6 +136,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             cache: Optional LLM response cache for storing/retrieving responses
             adaptive_estimation: Optional config for adaptive output-token estimation
         """
+        if isinstance(max_backoffs, bool) or not isinstance(max_backoffs, int) or max_backoffs < 0:
+            raise ValueError("max_backoffs must be a nonnegative integer")
+        if (
+            isinstance(_provider_close_timeout_seconds, bool)
+            or _provider_close_timeout_seconds <= 0
+        ):
+            raise ValueError("_provider_close_timeout_seconds must be positive")
+
         self.model = model
         self.model_provider = model_provider
         self.model_provider_class = model_provider_class
@@ -159,6 +169,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.initial_backoff_seconds: float = initial_backoff_seconds
         self.backoff_factor: float = backoff_factor
         self.max_backoffs: int = max_backoffs
+        self._provider_close_timeout_seconds = _provider_close_timeout_seconds
         self.last_transient_exception_time: float = 0
         self.num_backoffs: int = 0
 
@@ -242,6 +253,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Returns:
             A hash string representing the profile configuration, or None if not found/supported.
         """
+        return None
+
+    async def _close_provider(self) -> None:
+        """Release provider-owned async resources after in-flight cancellation."""
         return None
 
     def _build_request_key(self, request: RequestT) -> str:
@@ -435,9 +450,23 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         cancel_future = asyncio.run_coroutine_threadsafe(
             self._cancel_in_flight_requests(), self._event_loop
         )
-        cancel_future.result()
-
-        EventLoopManager().release_loop()
+        try:
+            cancel_future.result()
+        finally:
+            try:
+                close_future = asyncio.run_coroutine_threadsafe(
+                    self._close_provider(), self._event_loop
+                )
+                close_future.result(timeout=self._provider_close_timeout_seconds)
+            except Exception as exc:
+                if isinstance(exc, TimeoutError):
+                    close_future.cancel()
+                logger.warning(
+                    "Could not close provider resources for model %s during shutdown (%s)",
+                    self.model,
+                    type(exc).__name__,
+                )
+            EventLoopManager().release_loop()
 
     def make_batch_requests(
         self,
@@ -807,6 +836,22 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item to process.
         """
         try:
+            if queue_item.future.done():
+                return
+            if self.shutdown_event.is_set():
+                self._register_thread_exception(
+                    queue_item, Exception(f"Model client for {self.model} has been shut down")
+                )
+                return
+            if queue_item.attempts_started >= 1 + self.max_backoffs:
+                self._register_thread_exception(
+                    queue_item,
+                    Exception(
+                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client."
+                    ),
+                )
+                return
+            queue_item.attempts_started += 1
             try:
                 timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
                 maybe_response = await asyncio.wait_for(
@@ -817,7 +862,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 logger.warning(
                     f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
                 )
-                await self.retry_queue.put(queue_item)
+                await self._retry_or_fail(queue_item, asyncio.TimeoutError())
                 return
 
             await self._handle_response(queue_item, maybe_response)
@@ -841,18 +886,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             maybe_response: The response or exception from the request.
         """
         if isinstance(maybe_response, TransientException):
-            if self.num_backoffs >= self.max_backoffs:
-                self._register_thread_exception(
-                    queue_item,
-                    Exception(
-                        f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
-                        maybe_response.exception,
-                    ),
-                )
-            else:
-                await self.retry_queue.put(queue_item)
-                current_time = time.time()
-                self.last_transient_exception_time = current_time
+            await self._retry_or_fail(queue_item, maybe_response.exception)
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Model {self.model} encountered an error: {maybe_response.exception}. Request failed."
@@ -865,6 +899,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 and self.cache
                 and queue_item.request_fingerprint
                 and isinstance(queue_item.request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+                and getattr(maybe_response, "cacheable", True)
             ):
                 try:
                     self.cache.set(
@@ -889,6 +924,26 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # Set result
             if not queue_item.future.done():
                 queue_item.future.set_result(maybe_response)
+
+    async def _retry_or_fail(self, queue_item: QueueItem[RequestT], exception: Exception):
+        """Requeue an active request while both retry limits permit another attempt."""
+        if (
+            queue_item.future.done()
+            or self.shutdown_event.is_set()
+            or queue_item.attempts_started >= 1 + self.max_backoffs
+            or self.num_backoffs >= self.max_backoffs
+        ):
+            self._register_thread_exception(
+                queue_item,
+                Exception(
+                    f"Exceeded maximum number of retries for model {self.model}. If you're sharing quota with other users, reduce your TPM/RPM for this client.",
+                    exception,
+                ),
+            )
+            return
+
+        await self.retry_queue.put(queue_item)
+        self.last_transient_exception_time = time.time()
 
     async def _maybe_backoff(self):
         """Manages the backoff period after encountering a transient exception."""

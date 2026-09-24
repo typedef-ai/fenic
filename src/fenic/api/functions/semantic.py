@@ -20,6 +20,7 @@ from fenic.core._logical_plan.expressions import (
     SemanticReduceExpr,
     SemanticSummarizeExpr,
 )
+from fenic.core._logical_plan.expressions.judge import SemanticJudgeExpr
 from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
 from fenic.core._utils.structured_outputs import (
     OutputFormatValidationError,
@@ -34,7 +35,74 @@ from fenic.core.types import (
     Paragraph,
     PredicateExampleCollection,
 )
+from fenic.core.types.judge import JudgeQuestion
 from fenic.core.types.semantic import ModelAlias, _resolve_model_alias
+
+
+@validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))
+def judge(
+    *,
+    state: ColumnOrName,
+    questions: List[JudgeQuestion],
+    model_alias: Optional[Union[str, ModelAlias]] = None,
+    request_timeout: TimeoutParam = None,
+) -> Column:
+    """Evaluate closed questions about a shared state, retaining probabilities.
+
+    Args:
+        state: String column or column name containing each row's evidence.
+        questions: Nonempty list of immutable ``JudgeQuestion`` values. Names and
+            generated output fields must be unique.
+        model_alias: Configured model supporting typed judgments. Uses the session
+            default when omitted. TypeSafe System One is the initial provider.
+        request_timeout: Optional positive timeout in seconds for each request
+            attempt, up to the system maximum of 600 seconds. Each scheduler
+            retry receives a fresh timeout.
+
+    Returns:
+        A struct column. Noul questions yield ``<name>_p``. Choice questions yield
+        a label, confidence, and one probability field per option. Score questions
+        yield a numeric value, confidence, and a probability per ordinal level.
+        Use ``DataFrame.unnest`` to expose these fields as columns.
+
+    Raises:
+        ValueError: If questions, generated names, or the timeout are invalid.
+        ValidationError: If the timeout exceeds the system limit or the selected
+            model does not support typed judgments.
+        TypeMismatchError: If state is not a string column.
+
+    Example:
+        ```python
+        import fenic as fc
+
+        question = fc.JudgeQuestion.noul(
+            name="relevant",
+            instructions="Does the text discuss a billing problem?",
+        )
+        scored = df.with_column(
+            "judgment",
+            fc.semantic.judge(state="text", questions=[question]),
+        ).unnest("judgment")
+        selected = scored.filter(fc.col("relevant_p") >= 0.8)
+        ```
+
+    Notes:
+        Null states make no request; empty strings are valid states. Failed or
+        malformed answers produce a null struct and are not cached. Questions can
+        be partitioned across requests, but the state is never truncated. Token
+        bounds are estimates because the provider tokenizer is not public.
+        This expression uses session scheduling, caching, and usage accounting.
+        Probabilities are model outputs, not a guarantee of calibration or
+        cross-question consistency. Automatic operator fusion is not enabled.
+    """
+    return Column._from_logical_expr(
+        SemanticJudgeExpr(
+            Column._from_col_or_name(state)._logical_expr,
+            questions,
+            _resolve_model_alias(model_alias),
+            request_timeout,
+        )
+    )
 
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True, strict=True))

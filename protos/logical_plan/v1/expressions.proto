@@ -6,6 +6,14 @@ import "logical_plan/v1/complex_types.proto";
 import "logical_plan/v1/datatypes.proto";
 import "logical_plan/v1/enums.proto";
 
+message SemanticJudgeExpr {
+  LogicalExpr state = 1;
+  // JSON preserves each question's ordered options and every behavior-affecting field.
+  repeated string questions_json = 2;
+  optional ResolvedModelAlias model_alias = 3;
+  optional double request_timeout = 4;
+}
+
 // Base message for all logical expressions
 message LogicalExpr {
   oneof expr_type {
@@ -85,6 +93,7 @@ message LogicalExpr {
     EmbeddingsExpr embeddings = 36;
     SemanticSummarizeExpr semantic_summarize = 37;
     SemanticParsePDFExpr semantic_parse_pdf = 38;
+    SemanticJudgeExpr semantic_judge = 39;
 
     // Embedding expressions
     EmbeddingNormalizeExpr embedding_normalize = 40;

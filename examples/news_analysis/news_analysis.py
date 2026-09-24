@@ -21,42 +21,10 @@ from pydantic import BaseModel, Field
 import fenic as fc
 
 
-def main(config: Optional[fc.SessionConfig] = None):
-    """Main analysis pipeline for news article bias detection."""
-    # Configure session with semantic capabilities
-    # Set your `OPENAI_API_KEY` environment variable.
-    # Alternatively, you can run the example with an Gemini (`GOOGLE_API_KEY`) model by uncommenting the provided additional model configurations.
-    # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
-    print("🔧 Configuring fenic session...")
-    config = config or fc.SessionConfig(
-        app_name="news_analysis",
-        semantic=fc.SemanticConfig(
-            language_models={
-                "openai": fc.OpenAILanguageModel(
-                    model_name="gpt-4o-mini",
-                    rpm=500,
-                    tpm=200_000
-                ),
-                # "gemini": fc.GoogleDeveloperLanguageModel(
-                #     model_name="gemini-2.5-flash",
-                #     rpm=500,
-                #     tpm=1_000_000
-                # ),
-                # "anthropic": fc.AnthropicLanguageModel(
-                #     model_name="claude-haiku-4-5",
-                #     rpm=500,
-                #     input_tpm=80_000,
-                #     output_tpm=32_000,
-                # )
-            }
-        )
-    )
-
-    # Create session
-    session = fc.Session.get_or_create(config)
-
+def load_articles() -> list[dict[str, str]]:
+    """Return the shared synthetic news articles used by both examples."""
     # Sample news articles - multiple articles per source to show bias patterns
-    news_articles = [
+    return [
         # Global Wire Service (Neutral source, Reuters-style) - 3 articles
         {
             "source": "Global Wire Service",
@@ -198,6 +166,42 @@ def main(config: Optional[fc.SessionConfig] = None):
             "content": "Recent pharmaceutical breakthroughs demonstrate the remarkable potential of modern drug development while highlighting persistent questions about treatment accessibility and pricing. Clinical trial results show significant improvements for patients with previously challenging conditions, reflecting decades of scientific research and development investment. However, high treatment costs continue to limit access for many patients, particularly in underserved communities. Healthcare systems are exploring various policy approaches to balance innovation incentives with broader treatment access."
         }
     ]
+
+def main(config: Optional[fc.SessionConfig] = None):
+    """Main analysis pipeline for news article bias detection."""
+    # Configure session with semantic capabilities
+    # Set your `OPENAI_API_KEY` environment variable.
+    # Alternatively, you can run the example with an Gemini (`GOOGLE_API_KEY`) model by uncommenting the provided additional model configurations.
+    # Using an Anthropic model requires installing fenic with the `anthropic` extra package, and setting the `ANTHROPIC_API_KEY` environment variable
+    print("🔧 Configuring fenic session...")
+    config = config or fc.SessionConfig(
+        app_name="news_analysis",
+        semantic=fc.SemanticConfig(
+            language_models={
+                "openai": fc.OpenAILanguageModel(
+                    model_name="gpt-4o-mini",
+                    rpm=500,
+                    tpm=200_000
+                ),
+                # "gemini": fc.GoogleDeveloperLanguageModel(
+                #     model_name="gemini-2.5-flash",
+                #     rpm=500,
+                #     tpm=1_000_000
+                # ),
+                # "anthropic": fc.AnthropicLanguageModel(
+                #     model_name="claude-haiku-4-5",
+                #     rpm=500,
+                #     input_tpm=80_000,
+                #     output_tpm=32_000,
+                # )
+            }
+        )
+    )
+
+    # Create session
+    session = fc.Session.get_or_create(config)
+
+    news_articles = load_articles()
 
     # Define Pydantic model for detailed article analysis
     class ArticleAnalysis(BaseModel):
