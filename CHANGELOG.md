@@ -6,6 +6,13 @@
 
 * reduce the default install footprint by moving PDF parsing, clustering, and similarity join dependencies behind opt-in `pdf`, `cluster`, and `sim-join` extras
 
+## [0.13.1](https://github.com/typedef-ai/fenic/compare/v0.13.0...v0.13.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **inference:** refresh model catalog pricing ([#394](https://github.com/typedef-ai/fenic/issues/394)) ([9a82ef0](https://github.com/typedef-ai/fenic/commit/9a82ef06780a0271231764514d523b94d6444e7b))
+
 ## [0.13.0](https://github.com/typedef-ai/fenic/compare/v0.12.0...v0.13.0) (2026-08-18)
 
 
