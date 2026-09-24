@@ -163,7 +163,16 @@ class OpenAIChatCompletionsCore:
                 if usage.prompt_tokens_details
                 else 0
             )
-            uncached_input_tokens = usage.prompt_tokens - cached_input_tokens
+            cached_input_tokens_written = (
+                (usage.prompt_tokens_details.cache_write_tokens or 0)
+                if usage.prompt_tokens_details
+                else 0
+            )
+            uncached_input_tokens = (
+                usage.prompt_tokens
+                - cached_input_tokens
+                - cached_input_tokens_written
+            )
             total_prompt_tokens = usage.prompt_tokens
 
             # Extract reasoning (thinking) tokens if available
@@ -197,6 +206,7 @@ class OpenAIChatCompletionsCore:
                 model_name=self._model,
                 uncached_input_tokens=uncached_input_tokens,
                 cached_input_tokens_read=cached_input_tokens,
+                cached_input_tokens_written=cached_input_tokens_written,
                 output_tokens=total_output_tokens,
             )
             completion = completion_choice.message.content

@@ -176,6 +176,75 @@ def test_openai_core_accounts_for_optional_cached_tokens():
     assert core.get_metrics().num_uncached_input_tokens == 2
 
 
+def test_openai_core_separates_cache_writes_and_uses_them_for_tier_selection():
+    usage = CompletionUsage(
+        prompt_tokens=272_001,
+        completion_tokens=1,
+        total_tokens=272_002,
+        prompt_tokens_details=PromptTokensDetails(
+            cached_tokens=0,
+            cache_write_tokens=1,
+        ),
+    )
+    fake_completions = FakeOpenAICompletions(usage)
+    core = OpenAIChatCompletionsCore(
+        model="gpt-6-sol",
+        model_provider=ModelProvider.OPENAI,
+        token_counter=None,
+        client=SimpleNamespace(
+            chat=SimpleNamespace(completions=fake_completions),
+            beta=None,
+        ),
+    )
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=None,
+    )
+
+    asyncio.run(
+        core.make_single_request(
+            request, OpenAICompletionProfileConfiguration(reasoning_effort="none")
+        )
+    )
+
+    assert core.get_metrics().num_cached_input_tokens == 0
+    assert core.get_metrics().num_uncached_input_tokens == 272_000
+    assert core.get_metrics().cost == pytest.approx(
+        (272_000 * 4 + 1 * 5 + 1 * 15) / 1_000_000
+    )
+
+
+def test_openai_core_sends_temperature_for_gpt_6_when_reasoning_is_disabled():
+    fake_completions = FakeOpenAICompletions()
+    core = OpenAIChatCompletionsCore(
+        model="gpt-6-sol",
+        model_provider=ModelProvider.OPENAI,
+        token_counter=None,
+        client=SimpleNamespace(
+            chat=SimpleNamespace(completions=fake_completions),
+            beta=None,
+        ),
+    )
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=0.2,
+    )
+
+    asyncio.run(
+        core.make_single_request(
+            request, OpenAICompletionProfileConfiguration(reasoning_effort="none")
+        )
+    )
+
+    assert fake_completions.kwargs["temperature"] == 0.2
+
+
 def test_openai_core_omits_zero_temperature():
     core, fake_completions = _make_openai_core_with_fake_completions()
     request = FenicCompletionsRequest(

@@ -210,14 +210,19 @@ def test_latest_frontier_models_are_registered():
     assert openai_gpt_6_astra.max_output_tokens == 128_000
     assert openai_gpt_6_astra.supports_max_reasoning
     assert not openai_gpt_6_astra.supports_custom_temperature
+    assert openai_gpt_6_astra.supports_pdf_parsing
     assert openai_gpt_6_sol.input_token_cost == 2.00 / 1_000_000
     assert openai_gpt_6_sol.output_token_cost == 10.00 / 1_000_000
     assert openai_gpt_6_sol.context_window_length == 1_050_000
     assert openai_gpt_6_sol.supports_max_reasoning
+    assert openai_gpt_6_sol.supports_custom_temperature
+    assert openai_gpt_6_sol.supports_pdf_parsing
     assert openai_gpt_6_luna.input_token_cost == 0.10 / 1_000_000
     assert openai_gpt_6_luna.output_token_cost == 0.50 / 1_000_000
     assert openai_gpt_6_luna.context_window_length == 1_050_000
     assert openai_gpt_6_luna.supports_max_reasoning
+    assert openai_gpt_6_luna.supports_custom_temperature
+    assert openai_gpt_6_luna.supports_pdf_parsing
 
     anthropic_fable_51 = catalog.get_completion_model_parameters(ModelProvider.ANTHROPIC, "claude-fable-5-1")
     assert anthropic_fable_51.context_window_length == 1_000_000
@@ -279,9 +284,9 @@ def test_latest_frontier_models_are_registered():
     assert not google_37_flash.supports_custom_temperature
 
     google_36_flash = catalog.get_completion_model_parameters(ModelProvider.GOOGLE_DEVELOPER, "gemini-3.6-flash")
-    assert google_36_flash.input_token_cost == 1.50 / 1_000_000
-    assert google_36_flash.output_token_cost == 7.50 / 1_000_000
-    assert google_36_flash.cached_input_token_read_cost == 0.15 / 1_000_000
+    assert google_36_flash.input_token_cost == 0.75 / 1_000_000
+    assert google_36_flash.output_token_cost == 3.75 / 1_000_000
+    assert google_36_flash.cached_input_token_read_cost == 0.075 / 1_000_000
     assert not google_36_flash.supports_custom_temperature
 
     google_vertex_36_flash = catalog.get_completion_model_parameters(
@@ -382,28 +387,33 @@ def test_openai_long_context_cost_uses_full_input_for_tiered_cache_write_rate(
     tier_cached_write,
     tier_output,
 ):
-    """Select long-context rates from full input, including cached reads."""
+    """Select long-context rates from full input, including cache reads and writes."""
     catalog = ModelCatalog()
     exact_boundary_cost = catalog.calculate_completion_model_cost(
-        ModelProvider.OPENAI, model_name, 272_000, 0, 3, 4
+        ModelProvider.OPENAI, model_name, 272_000 - 4, 0, 3, 4
     )
     cache_heavy_boundary_cost = catalog.calculate_completion_model_cost(
-        ModelProvider.OPENAI, model_name, 1_000, 271_000, 3, 4
+        ModelProvider.OPENAI, model_name, 1_000, 271_000 - 4, 3, 4
     )
     cache_heavy_tier_cost = catalog.calculate_completion_model_cost(
-        ModelProvider.OPENAI, model_name, 1_000, 271_001, 3, 4
+        ModelProvider.OPENAI, model_name, 1_000, 271_001 - 4, 3, 4
     )
     no_cache_tier_cost = catalog.calculate_completion_model_cost(
         ModelProvider.OPENAI, model_name, 272_001, 0, 3, 4
     )
 
     assert exact_boundary_cost == pytest.approx(
-        (272_000 * base_input + 4 * base_cached_write + 3 * base_output) / 1_000_000
+        (
+            (272_000 - 4) * base_input
+            + 4 * base_cached_write
+            + 3 * base_output
+        )
+        / 1_000_000
     )
     assert cache_heavy_boundary_cost == pytest.approx(
         (
             1_000 * base_input
-            + 271_000 * base_cached_read
+            + (271_000 - 4) * base_cached_read
             + 4 * base_cached_write
             + 3 * base_output
         )
@@ -412,7 +422,7 @@ def test_openai_long_context_cost_uses_full_input_for_tiered_cache_write_rate(
     assert cache_heavy_tier_cost == pytest.approx(
         (
             1_000 * tier_input
-            + 271_001 * tier_cached_read
+            + (271_001 - 4) * tier_cached_read
             + 4 * tier_cached_write
             + 3 * tier_output
         )
@@ -423,16 +433,34 @@ def test_openai_long_context_cost_uses_full_input_for_tiered_cache_write_rate(
     )
 
 
-def test_existing_tiered_models_keep_uncached_input_boundary():
-    """Preserve legacy inclusive thresholds outside the explicit OpenAI opt-in."""
+@pytest.mark.parametrize(
+    (
+        "provider, model_name, threshold, base_input, base_output, "
+        "tier_input, tier_output"
+    ),
+    [
+        (ModelProvider.OPENAI, "gpt-5.5", 272_000, 5, 30, 10, 45),
+        (ModelProvider.OPENAI, "gpt-5.4", 272_000, 2.5, 15, 5, 22.5),
+        (ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-pro-preview", 200_000, 2, 12, 4, 18),
+        (ModelProvider.GOOGLE_VERTEX, "gemini-3.1-pro-preview", 200_000, 2, 12, 4, 18),
+        (ModelProvider.GOOGLE_DEVELOPER, "gemini-2.5-pro", 200_000, 1.25, 10, 2.5, 15),
+        (ModelProvider.GOOGLE_VERTEX, "gemini-2.5-pro", 200_000, 1.25, 10, 2.5, 15),
+    ],
+)
+def test_existing_tiered_models_use_strict_full_input_boundaries(
+    provider, model_name, threshold, base_input, base_output, tier_input, tier_output
+):
+    """Existing tiered models keep the base price at the boundary."""
     catalog = ModelCatalog()
 
     assert catalog.calculate_completion_model_cost(
-        ModelProvider.OPENAI, "gpt-5.5", 272_000, 0, 1
-    ) == pytest.approx((272_000 * 10 + 45) / 1_000_000)
+        provider, model_name, threshold, 0, 1
+    ) == pytest.approx((threshold * base_input + base_output) / 1_000_000)
     assert catalog.calculate_completion_model_cost(
-        ModelProvider.GOOGLE_DEVELOPER, "gemini-3.1-pro-preview", 200_000, 0, 1
-    ) == pytest.approx((200_000 * 4 + 18) / 1_000_000)
+        provider, model_name, threshold - 1, 0, 1, 2
+    ) == pytest.approx(
+        ((threshold - 1) * tier_input + tier_output) / 1_000_000
+    )
 
 
 def test_fable_51_cost_uses_the_ordinary_five_minute_cache_rate():

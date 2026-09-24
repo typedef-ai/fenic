@@ -605,7 +605,8 @@ class ModelCatalog:
                 supports_xhigh_reasoning=True,
                 supports_max_reasoning=True,
                 default_reasoning_effort="medium",
-                supports_custom_temperature=False,
+                supports_custom_temperature=True,
+                supports_pdf_parsing=True,
                 tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
@@ -634,7 +635,8 @@ class ModelCatalog:
                 supports_xhigh_reasoning=True,
                 supports_max_reasoning=True,
                 default_reasoning_effort="medium",
-                supports_custom_temperature=False,
+                supports_custom_temperature=True,
+                supports_pdf_parsing=True,
                 tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
@@ -663,6 +665,7 @@ class ModelCatalog:
                 supports_xhigh_reasoning=True,
                 supports_max_reasoning=True,
                 supports_custom_temperature=False,
+                supports_pdf_parsing=True,
                 tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
@@ -1048,6 +1051,7 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
                         input_token_cost=10.00 / 1_000_000,  # $10.00 per 1M tokens
@@ -1076,6 +1080,7 @@ class ModelCatalog:
                 supports_custom_temperature=True,
                 supports_verbosity=True,
                 supports_pdf_parsing=True,
+                tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
                         input_token_cost=5.00 / 1_000_000,  # $5.00 per 1M tokens
@@ -1175,9 +1180,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_VERTEX,
             "gemini-3.6-flash",
             CompletionModelParameters(
-                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
-                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
-                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1249,6 +1254,7 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
             ),
             snapshots=["gemini-3.1-pro-preview-customtools"],
         )
@@ -1310,6 +1316,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
                 supports_pdf_parsing=True,
             ),
         )
@@ -1406,9 +1413,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.7-flash",
             CompletionModelParameters(
-                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
-                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
-                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1425,9 +1432,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.6-flash",
             CompletionModelParameters(
-                input_token_cost=1.50 / 1_000_000,  # $1.50 per 1M tokens
-                cached_input_token_read_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
-                output_token_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
@@ -1499,6 +1506,7 @@ class ModelCatalog:
                         output_token_cost=18.00 / 1_000_000,  # $18.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
             ),
             snapshots=["gemini-3.1-pro-preview-customtools"],
         )
@@ -1560,6 +1568,7 @@ class ModelCatalog:
                         output_token_cost=15 / 1_000_000,  # $15.00 per 1M tokens
                     )
                 },
+                tiered_token_costs_use_total_input=True,
                 supports_pdf_parsing=True,
             ),
         )
@@ -1812,7 +1821,9 @@ class ModelCatalog:
         if model_parameters.has_tiered_input_token_costs:
             tier_input_tokens = uncached_input_tokens
             if model_parameters.tiered_token_costs_use_total_input:
-                tier_input_tokens += cached_input_tokens_read
+                tier_input_tokens += (
+                    cached_input_tokens_read + cached_input_tokens_written
+                )
             for tier_threshold in sorted(model_parameters.tiered_input_token_costs.keys()):
                 tier_matches = (
                     tier_input_tokens > tier_threshold
