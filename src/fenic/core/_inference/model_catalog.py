@@ -1432,9 +1432,9 @@ class ModelCatalog:
             ModelProvider.GOOGLE_DEVELOPER,
             "gemini-3.6-flash",
             CompletionModelParameters(
-                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026
-                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026
-                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026
+                input_token_cost=0.75 / 1_000_000,  # $0.75 per 1M tokens through December 31, 2026; $1.50 starting January 1, 2027
+                cached_input_token_read_cost=0.075 / 1_000_000,  # $0.075 per 1M tokens through December 31, 2026; $0.15 starting January 1, 2027
+                output_token_cost=3.75 / 1_000_000,  # $3.75 per 1M tokens through December 31, 2026; $7.50 starting January 1, 2027
                 context_window_length=1_048_576,
                 max_output_tokens=65_536,
                 max_temperature=2.0,
