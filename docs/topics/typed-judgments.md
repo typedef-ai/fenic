@@ -172,7 +172,11 @@ and joins do not retain null decisions. Fatal provider errors raise
 These routes use the native judgment scheduler, cache, and usage accounting.
 They do not fuse requests across different operators or reduce the join's
 candidate-pair count. Classification requires 2 through 255 labels.
-Only the default `temperature=0` is supported; model profiles and free-form
-`map`, `extract`, `summarize`, and `reduce` remain unsupported by TypeSafe.
-Unsupported operations fail clearly before a provider request.
+TypeSafe accepts only `temperature=0` (or no temperature) for these closed-set
+operators and does not accept model profiles. Selecting TypeSafe for free-form
+`semantic.map`, `semantic.extract`, `semantic.summarize`, or `semantic.reduce`
+raises an operator-specific validation error when the DataFrame plan is built.
+Invalid TypeSafe temperatures or profiles on predicate (including filters),
+classify, sentiment, and semantic join also fail during planning, before
+inference.
 Other providers keep their existing completion path.

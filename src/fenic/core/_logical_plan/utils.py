@@ -79,8 +79,10 @@ def fetch_model_and_completion_parameters(
 def validate_completion_parameters(
     model_alias: Optional[ResolvedModelAlias],
     resolved_session_config: ResolvedSessionConfig,
-    temperature: float,
+    temperature: Optional[float],
     max_tokens: Optional[int] = None,
+    *,
+    operator_name: Optional[str] = None,
 ):
     """Validates that the provided temperature and max_tokens are within the limits allowed by the specified language model.
 
@@ -94,12 +96,36 @@ def validate_completion_parameters(
             Sampling temperature. Must be within the model's supported range.
         max_tokens (Optional[int]):
             Maximum number of tokens to generate. Must not exceed the model's limit.
+        operator_name (Optional[str]):
+            Public semantic operator being planned, for provider-specific support checks.
 
     Raises:
         ValidationError: If temperature or max_tokens are out of bounds for the model.
     """
     model_config, model_provider, completion_parameters = fetch_model_and_completion_parameters(model_alias, resolved_session_config)
     profile_name = model_alias.profile if model_alias else None
+    if model_provider == ModelProvider.TYPESAFE:
+        if operator_name not in (
+            "semantic.predicate",
+            "semantic.classify",
+            "semantic.analyze_sentiment",
+            "semantic.join",
+        ):
+            raise ValidationError(
+                f"The TypeSafe decision provider does not support "
+                f"{operator_name or 'this operation'}; use semantic.judge or a "
+                "supported closed-set operator."
+            )
+        if temperature not in (None, 0):
+            raise ValidationError(
+                f"{operator_name} with the TypeSafe decision provider supports "
+                "only temperature=0."
+            )
+        if profile_name is not None:
+            raise ValidationError(
+                f"{operator_name} with the TypeSafe decision provider does not "
+                "support model profiles."
+            )
     estimated_reasoning_tokens = (
         estimate_reasoning_tokens_for_resolved_profile(
             model_config=model_config,
