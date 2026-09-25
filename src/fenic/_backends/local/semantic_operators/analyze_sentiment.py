@@ -8,6 +8,7 @@ from fenic._backends.local.semantic_operators.base import (
     BaseSingleColumnInputOperator,
     CompletionOnlyRequestSender,
 )
+from fenic._backends.local.semantic_operators.decision import DecisionRequestSender
 from fenic._backends.local.semantic_operators.utils import (
     create_classification_pydantic_model,
 )
@@ -15,7 +16,9 @@ from fenic._constants import (
     MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE,
 )
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.resolved_types import (
+    ResolvedClassDefinition,
     ResolvedModelAlias,
     ResolvedResponseFormat,
 )
@@ -151,6 +154,16 @@ class AnalyzeSentiment(BaseSingleColumnInputOperator[str, str]):
             ),
             EXAMPLES,
         )
+        if model.provider == ModelProvider.TYPESAFE:
+            self.request_sender = DecisionRequestSender(
+                self.request_sender,
+                self.build_system_message(),
+                [
+                    ResolvedClassDefinition(label=label, description=None)
+                    for label in ("positive", "negative", "neutral")
+                ],
+            )
+            self.output_type = pl.String
 
     def build_system_message(self) -> str:
         return self.SYSTEM_PROMPT

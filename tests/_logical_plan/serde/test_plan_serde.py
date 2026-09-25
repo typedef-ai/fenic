@@ -52,7 +52,10 @@ from fenic.core._logical_plan.plans import (
 )
 from fenic.core._serde.cloudpickle_serde import CloudPickleSerde
 from fenic.core._serde.proto.errors import SerializationError
-from fenic.core._serde.proto.plan_serde import serialize_logical_plan
+from fenic.core._serde.proto.plan_serde import (
+    deserialize_logical_plan,
+    serialize_logical_plan,
+)
 from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core._serde.serde_protocol import SupportsLogicalPlanSerde
@@ -253,6 +256,31 @@ def test_basic_plan(local_session, serde_implementation: SupportsLogicalPlanSerd
     df = local_session.create_dataframe({"a": [1, 2, 3], "b": ["x", "y", "z"]})
     plan = df._logical_plan
     _ = _test_plan_serialization(plan, local_session._session_state, serde_implementation)
+
+
+def test_semantic_join_request_timeout_proto_serde(local_session):
+    """Preserve semantic join request timeouts and old omitted fields."""
+    left = local_session.create_dataframe({"left": ["one"]})
+    right = local_session.create_dataframe({"right": ["one"]})
+    plan = left.semantic.join(
+        right,
+        "Compare {{ left_on }} with {{ right_on }}",
+        left_on=col("left"),
+        right_on=col("right"),
+        request_timeout=9,
+    )._logical_plan
+    context = SerdeContext()
+    serialized = serialize_logical_plan(plan, context)
+
+    assert serialized.semantic_join.HasField("request_timeout")
+    assert deserialize_logical_plan(
+        serialized, context
+    ).request_timeout == 9
+
+    serialized.semantic_join.ClearField("request_timeout")
+    assert deserialize_logical_plan(
+        serialized, context
+    ).request_timeout is None
 
 
 @pytest.mark.parametrize("serde_implementation", serde_implementations)

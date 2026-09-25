@@ -147,7 +147,7 @@ class Join(_message.Message):
     def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., join_type: _Optional[str] = ..., left_on: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ..., right_on: _Optional[_Iterable[_Union[_expressions_pb2.LogicalExpr, _Mapping]]] = ...) -> None: ...
 
 class SemanticJoin(_message.Message):
-    __slots__ = ("left", "right", "left_on", "right_on", "jinja_template", "strict", "temperature", "model_alias", "examples")
+    __slots__ = ("left", "right", "left_on", "right_on", "jinja_template", "strict", "temperature", "model_alias", "examples", "request_timeout")
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
     LEFT_ON_FIELD_NUMBER: _ClassVar[int]
@@ -157,6 +157,7 @@ class SemanticJoin(_message.Message):
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     MODEL_ALIAS_FIELD_NUMBER: _ClassVar[int]
     EXAMPLES_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     left: LogicalPlan
     right: LogicalPlan
     left_on: _expressions_pb2.LogicalExpr
@@ -166,7 +167,8 @@ class SemanticJoin(_message.Message):
     temperature: float
     model_alias: _complex_types_pb2.ResolvedModelAlias
     examples: _complex_types_pb2.JoinExampleCollection
-    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., jinja_template: _Optional[str] = ..., strict: bool = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.JoinExampleCollection, _Mapping]] = ...) -> None: ...
+    request_timeout: float
+    def __init__(self, left: _Optional[_Union[LogicalPlan, _Mapping]] = ..., right: _Optional[_Union[LogicalPlan, _Mapping]] = ..., left_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., right_on: _Optional[_Union[_expressions_pb2.LogicalExpr, _Mapping]] = ..., jinja_template: _Optional[str] = ..., strict: bool = ..., temperature: _Optional[float] = ..., model_alias: _Optional[_Union[_complex_types_pb2.ResolvedModelAlias, _Mapping]] = ..., examples: _Optional[_Union[_complex_types_pb2.JoinExampleCollection, _Mapping]] = ..., request_timeout: _Optional[float] = ...) -> None: ...
 
 class SemanticSimilarityJoin(_message.Message):
     __slots__ = ("left", "right", "left_on", "right_on", "k", "similarity_metric", "similarity_score_column")

@@ -102,7 +102,9 @@ class TypeSafeSystemOneClient(
             return None
         try:
             result = await self._client.system_one(
-                state, {q.name: q.body() for q in questions}, model=self.model
+                request.judge_state if request.judge_state is not None else state,
+                {q.name: q.body() for q in questions},
+                model=self.model,
             )
         except (
             TypeSafeRateLimitError,

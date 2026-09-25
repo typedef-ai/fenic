@@ -10,6 +10,7 @@ from fenic._constants import (
     RIGHT_ON_KEY,
 )
 from fenic._inference.language_model import LanguageModel
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.resolved_types import ResolvedModelAlias
 from fenic.core.types import JoinExampleCollection, PredicateExampleCollection
 
@@ -32,6 +33,7 @@ class Join:
         temperature: float,
         examples: Optional[JoinExampleCollection] = None,
         model_alias: Optional[ResolvedModelAlias] = None,
+        request_timeout: Optional[float] = None,
     ):
         self.left_df = left_df.with_row_index(LEFT_ID_KEY)
         self.right_df = right_df.with_row_index(RIGHT_ID_KEY)
@@ -41,6 +43,10 @@ class Join:
         self.temperature = temperature
         self.model = model
         self.model_alias = model_alias
+        # Keep the legacy completion route unchanged.
+        self.request_timeout = (
+            request_timeout if model.provider == ModelProvider.TYPESAFE else None
+        )
 
     def execute(self) -> pl.DataFrame:
         join_inputs = self._build_join_pairs_df()
@@ -53,6 +59,7 @@ class Join:
             temperature=self.temperature,
             model=self.model,
             model_alias=self.model_alias,
+            request_timeout=self.request_timeout,
         )
         results = semantic_predicate.execute()
         return self._postprocess(join_inputs, results)

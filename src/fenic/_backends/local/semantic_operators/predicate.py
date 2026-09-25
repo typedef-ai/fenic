@@ -10,11 +10,13 @@ from fenic._backends.local.semantic_operators.base import (
     BaseMultiColumnInputOperator,
     CompletionOnlyRequestSender,
 )
+from fenic._backends.local.semantic_operators.decision import DecisionRequestSender
 from fenic._backends.local.semantic_operators.types import (
     SimpleBooleanOutputModelResponse,
 )
 from fenic._constants import MAX_TOKENS_DETERMINISTIC_OUTPUT_SIZE
 from fenic._inference.language_model import InferenceConfiguration, LanguageModel
+from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._logical_plan.resolved_types import (
     ResolvedModelAlias,
     ResolvedResponseFormat,
@@ -64,6 +66,11 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
             jinja_template=jinja2.Template(jinja_template),
             examples=examples,
         )
+        if model.provider == ModelProvider.TYPESAFE:
+            self.request_sender = DecisionRequestSender(
+                self.request_sender, self.build_system_message()
+            )
+            self.output_type = pl.Boolean
 
     def build_system_message(self) -> str:
         return self.SYSTEM_PROMPT

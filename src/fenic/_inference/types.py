@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from openai.types.chat import ChatCompletionTokenLogprob
 
@@ -46,6 +46,16 @@ class LMRequestMessages:
         return json.dumps(data, sort_keys=True).encode('utf-8')
 
 
+JudgeState = dict[str, Any]
+
+
+def serialize_judge_state(state: str | JudgeState) -> str:
+    """Serialize structured judge state only where text is required internally."""
+    if isinstance(state, str):
+        return state
+    return json.dumps(state, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
 @dataclass
 class ResponseUsage:
     """Token usage information from API response."""
@@ -72,6 +82,7 @@ class FenicCompletionsRequest:
     temperature: Optional[float]
     model_profile: Optional[str] = None
     judge_questions: Optional[Tuple[JudgeQuestion, ...]] = None
+    judge_state: Optional[JudgeState] = None
 
 @dataclass
 class FenicEmbeddingsRequest:
