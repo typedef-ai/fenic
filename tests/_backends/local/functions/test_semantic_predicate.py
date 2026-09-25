@@ -13,6 +13,8 @@ from fenic import (
     col,
     semantic,
 )
+from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
 from fenic.api.session import (
     OpenAIEmbeddingModel,
     SemanticConfig,
@@ -380,3 +382,65 @@ def test_semantic_predicate_missing_jinja_variable(local_session):
         source.select(
             semantic.predicate("{{name}}{{details}}", name=col("name")).alias("summary")
         )
+
+
+def test_direct_semantic_predicate_can_opt_into_model_client_stream(
+    construction_only_local_session, monkeypatch
+):
+    """Exercise an opted-in transpiler-built Predicate through the iterator."""
+    model = construction_only_local_session._session_state.get_language_model()
+    captured_batches = []
+    monkeypatch.setattr(Predicate, "stream_requests", True)
+
+    monkeypatch.setattr(
+        model,
+        "get_completions",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an opted-in semantic.predicate must use the completion iterator"
+        ),
+    )
+
+    def fake_iter_batch_requests(
+        requests, operation_name, request_timeout=None, batch_size=100
+    ):
+        requests = list(requests)
+        captured_batches.append(
+            {
+                "requests": requests,
+                "operation_name": operation_name,
+                "request_timeout": request_timeout,
+                "batch_size": batch_size,
+            }
+        )
+        yield from [
+            FenicCompletionsResponse(completion='{"output": true}', logprobs=None)
+            for _ in requests
+        ]
+
+    monkeypatch.setattr(model.client, "iter_batch_requests", fake_iter_batch_requests)
+
+    result = (
+        construction_only_local_session.create_dataframe(
+            {"name": [f"name-{i}" for i in range(101)]}
+        )
+        .select(
+            semantic.predicate("Is {{ name }} present?", name=col("name")).alias(
+                "present"
+            )
+        )
+        .to_polars()
+    )
+
+    assert result["present"].to_list() == [True] * 101
+    assert [len(batch["requests"]) for batch in captured_batches] == [101]
+    assert all(
+        batch["operation_name"] == "semantic.predicate"
+        and batch["request_timeout"] is None
+        and batch["batch_size"] == 100
+        for batch in captured_batches
+    )
+    assert all(
+        isinstance(request, FenicCompletionsRequest)
+        for batch in captured_batches
+        for request in batch["requests"]
+    )
