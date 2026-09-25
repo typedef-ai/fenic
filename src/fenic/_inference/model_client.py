@@ -33,6 +33,11 @@ from fenic._inference.rate_limit_strategy import (
     RateLimitStrategy,
     TokenEstimate,
 )
+from fenic._inference.request_lifecycle import (
+    RequestLifecycleCollector,
+    RequestLifecycleEvent,
+    RequestLifecycleEventType,
+)
 from fenic._inference.token_counter import (
     TokenCounter,
     Tokenizable,
@@ -81,8 +86,11 @@ class QueueItem(Generic[RequestT]):
     future: Future
     estimated_tokens: TokenEstimate
     batch_id: str
+    operation_name: str
+    request_index: int
     request_timeout: float
     request_fingerprint: Optional[str] = None
+    was_rate_limited: bool = False
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -146,6 +154,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             enabled=_ate.enabled,
             safety_margin=_ate.safety_margin,
         )
+        self._request_lifecycle_collector: Optional[RequestLifecycleCollector] = None
+        self._request_lifecycle_execution_id: Optional[str] = None
+        self._request_lifecycle_lock = threading.Lock()
         # Async queues
         self.request_queue = asyncio.Queue(maxsize=queue_size)
         self.retry_queue = asyncio.Queue()  # No size limit to avoid deadlocking
@@ -222,6 +233,50 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             int: The number of tokens in the object
         """
         return self.token_counter.count_tokens(messages, ignore_file=ignore_file)
+
+    def set_request_lifecycle_collector(
+        self,
+        collector: Optional[RequestLifecycleCollector],
+        *,
+        execution_id: Optional[str] = None,
+    ) -> None:
+        """Set optional lifecycle instrumentation for a benchmark execution.
+
+        Collectors can receive calls on both the submitting thread and the shared
+        event-loop thread, so callers must provide a thread-safe collector. Errors
+        raised by a collector are logged and never affect model execution.
+        """
+        with self._request_lifecycle_lock:
+            self._request_lifecycle_collector = collector
+            self._request_lifecycle_execution_id = execution_id
+
+    def _emit_request_lifecycle_event(
+        self, event: RequestLifecycleEventType, queue_item: QueueItem[RequestT]
+    ) -> None:
+        # The normal product path has no collector. Avoid lock acquisition there;
+        # a collector attached concurrently observes subsequent transitions.
+        if self._request_lifecycle_collector is None:
+            return
+
+        with self._request_lifecycle_lock:
+            collector = self._request_lifecycle_collector
+            execution_id = self._request_lifecycle_execution_id
+
+        try:
+            collector(
+                RequestLifecycleEvent(
+                    event=event,
+                    timestamp_ns=time.monotonic_ns(),
+                    execution_id=execution_id,
+                    batch_id=queue_item.batch_id,
+                    request_index=queue_item.request_index,
+                    operation_name=queue_item.operation_name,
+                    model=self.model,
+                    provider=self.model_provider.value,
+                )
+            )
+        except Exception:
+            logger.warning("Request lifecycle collector raised an exception", exc_info=True)
 
     def get_profile_hash_for_request(self, request: RequestT) -> Optional[str]:
         """Get a hash of the resolved profile configuration for a request.
@@ -587,7 +642,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
         # Submit requests and get futures
         request_futures, num_unique_requests, total_token_estimate = self._submit_batch_requests(
-            requests, batch_id, request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
+            requests,
+            batch_id,
+            operation_name,
+            request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
         )
 
         logger.info(
@@ -604,9 +662,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         return responses
 
     def _submit_batch_requests(
-        self, requests: List[Optional[RequestT]], batch_id: str
-    ,
-                             request_timeout: float) -> tuple[List[Future], int, TokenEstimate]:
+        self,
+        requests: List[Optional[RequestT]],
+        batch_id: str,
+        operation_name: str,
+        request_timeout: float,
+    ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
         Args:
@@ -713,9 +774,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         future=req_future,
                         estimated_tokens=estimated_tokens,
                         batch_id=batch_id,
+                        operation_name=operation_name,
+                        request_index=idx,
                         request_fingerprint=request_fingerprint,
                         request_timeout=request_timeout,
                     )
+                    self._emit_request_lifecycle_event("queued", queue_item)
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
                         self._enqueue_request(queue_item),
                         self._event_loop,
@@ -782,6 +846,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                             self._track_inflight_task(task)
                             processed_requests.append(queue_item)
                         else:
+                            if not queue_item.was_rate_limited:
+                                self._emit_request_lifecycle_event("rate_limited", queue_item)
+                                queue_item.was_rate_limited = True
                             # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
                             await asyncio.sleep(MILLISECOND_IN_SECONDS)
 
@@ -809,6 +876,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         try:
             try:
                 timeout = queue_item.request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
+                self._emit_request_lifecycle_event("dispatched", queue_item)
                 maybe_response = await asyncio.wait_for(
                     self.make_single_request(queue_item.request),
                     timeout=timeout,
@@ -817,16 +885,28 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 logger.warning(
                     f"Request for model {self.model} in batch {queue_item.batch_id} timed out after {timeout} seconds. Retrying."
                 )
+                self._emit_request_lifecycle_event("retried", queue_item)
                 await self.retry_queue.put(queue_item)
                 return
 
             await self._handle_response(queue_item, maybe_response)
+            if isinstance(maybe_response, TransientException):
+                event: RequestLifecycleEventType = (
+                    "failed" if self.num_backoffs >= self.max_backoffs else "retried"
+                )
+            elif isinstance(maybe_response, FatalException):
+                event = "failed"
+            else:
+                event = "settled"
+            self._emit_request_lifecycle_event(event, queue_item)
         except asyncio.CancelledError:
             logger.debug(f"Request {queue_item.request} was cancelled")
             self._register_thread_exception(queue_item, asyncio.CancelledError)
+            self._emit_request_lifecycle_event("failed", queue_item)
             raise
         except Exception as e:
             self._register_thread_exception(queue_item, e)
+            self._emit_request_lifecycle_event("failed", queue_item)
             raise
 
     async def _handle_response(
