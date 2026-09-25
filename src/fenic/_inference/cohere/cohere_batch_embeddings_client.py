@@ -108,9 +108,13 @@ class CohereBatchEmbeddingsClient(
             embedding_values = response.embeddings.float[0]
 
             # Count tokens and update metrics
-            if hasattr(response, 'meta') and hasattr(response.meta, 'billed_units'):
+            # meta, billed_units and input_tokens are all Optional in the Cohere SDK,
+            # so read through them defensively rather than assuming they are populated.
+            billed_units = getattr(getattr(response, "meta", None), "billed_units", None)
+            billed_input_tokens = getattr(billed_units, "input_tokens", None)
+            if billed_input_tokens is not None:
                 # Use Cohere's billed token count if available
-                total_tokens = response.meta.billed_units.input_tokens
+                total_tokens = billed_input_tokens
             else:
                 # Fall back to our token counter
                 total_tokens = self.token_counter.count_tokens(request.doc)
