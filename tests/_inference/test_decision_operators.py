@@ -16,10 +16,13 @@ from fenic._backends.local.semantic_operators.analyze_sentiment import (
 )
 from fenic._backends.local.semantic_operators.base import CompletionOnlyRequestSender
 from fenic._backends.local.semantic_operators.classify import Classify
+from fenic._backends.local.semantic_operators.decision import DecisionRequestSender
 from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference.language_model import InferenceConfiguration
 from fenic._inference.types import FenicCompletionsResponse, LMRequestMessages
 from fenic._inference.typesafe.typesafe_provider import TypeSafeModelProvider
 from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.plans.join import SemanticJoin
 from fenic.core._logical_plan.resolved_types import (
     ResolvedClassDefinition,
     ResolvedModelAlias,
@@ -30,7 +33,7 @@ from fenic.core._serde.proto.expression_serde import (
 )
 from fenic.core._serde.proto.proto_serde import ProtoSerde
 from fenic.core._serde.proto.serde_context import SerdeContext
-from fenic.core.error import ConfigurationError, ExecutionError
+from fenic.core.error import ConfigurationError, ValidationError
 
 
 @pytest.fixture
@@ -416,42 +419,299 @@ def test_open_ended_is_refused(decision_session, operation, monkeypatch):
     assert not calls
 
 
-def test_map_and_extract_are_refused(decision_session, monkeypatch):
-    from fenic._inference.language_model import LanguageModel
-
+@pytest.mark.parametrize("operation", ["map", "extract", "summarize", "reduce"])
+@pytest.mark.parametrize("explicit_alias", [False, True], ids=["default", "explicit"])
+def test_open_ended_plans_are_refused(
+    decision_session, monkeypatch, operation, explicit_alias
+):
     class Output(BaseModel):
         value: str = Field(description="An open-ended value")
 
     session, model, calls, _ = decision_session
-    monkeypatch.setattr(
-        model, "get_completions", LanguageModel.get_completions.__get__(model)
-    )
+    get_judgments = Mock(side_effect=AssertionError("planning must not infer"))
+    monkeypatch.setattr(model, "get_judgments", get_judgments)
+    get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+    monkeypatch.setattr(session._session_state, "get_language_model", get_model)
     frame = session.create_dataframe({"text": ["text"]})
-    for expr in [
-        fc.semantic.map("Describe {{ text }}", text=fc.col("text")),
-        fc.semantic.extract("text", Output),
-    ]:
-        with pytest.raises(ExecutionError, match="unsupported") as raised:
-            frame.select(expr).to_polars()
-        assert isinstance(raised.value.__cause__, ConfigurationError)
+    model_arg = {"model_alias": "decisions"} if explicit_alias else {}
+    if operation == "map":
+        expr = fc.semantic.map(
+            "Describe {{ text }}", text=fc.col("text"), **model_arg
+        )
+    elif operation == "extract":
+        expr = fc.semantic.extract("text", Output, **model_arg)
+    elif operation == "summarize":
+        expr = fc.semantic.summarize("text", **model_arg)
+    else:
+        expr = fc.semantic.reduce(
+            "Summarize these notes", "text", **model_arg
+        )
+
+    with pytest.raises(ValidationError, match=rf"semantic\.{operation}"):
+        if operation == "reduce":
+            frame.group_by("text").agg(expr)
+        else:
+            frame.select(expr)
+    get_model.assert_not_called()
+    get_judgments.assert_not_called()
+    model.get_completions.assert_not_called()
     assert not calls
 
 
-def test_unsupported_controls(decision_session):
+def _build_closed_set_plan(frame, operation, **options):
+    if operation == "predicate":
+        return frame.select(
+            fc.semantic.predicate(
+                "Check {{ text }}", text=fc.col("text"), **options
+            )
+        )
+    if operation == "filter":
+        return frame.filter(
+            fc.semantic.predicate(
+                "Check {{ text }}", text=fc.col("text"), **options
+            )
+        )
+    if operation == "classify":
+        return frame.select(fc.semantic.classify("text", ["yes", "no"], **options))
+    if operation == "sentiment":
+        return frame.select(fc.semantic.analyze_sentiment("text", **options))
+    if operation == "join":
+        right = frame.select(fc.col("text").alias("right_text"))
+        return frame.semantic.join(
+            right,
+            "Compare {{ left_on }} and {{ right_on }}",
+            left_on=fc.col("text"),
+            right_on=fc.col("right_text"),
+            **options,
+        )
+    raise AssertionError(f"Unknown operation: {operation}")
+
+
+@pytest.mark.parametrize("operation", ["predicate", "filter", "classify", "sentiment"])
+@pytest.mark.parametrize("explicit_alias", [False, True], ids=["default", "explicit"])
+def test_typesafe_temperature_rejected_during_planning(
+    decision_session, monkeypatch, operation, explicit_alias
+):
+    session, model, calls, _ = decision_session
+    get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+    monkeypatch.setattr(session._session_state, "get_language_model", get_model)
+    get_judgments = Mock(side_effect=AssertionError("planning must not infer"))
+    monkeypatch.setattr(model, "get_judgments", get_judgments)
+    frame = session.create_dataframe({"text": ["text"]})
+    options = {"temperature": 0.2}
+    if explicit_alias:
+        options["model_alias"] = "decisions"
+    with pytest.raises(ValidationError, match="temperature=0"):
+        _build_closed_set_plan(frame, operation, **options)
+    get_model.assert_not_called()
+    get_judgments.assert_not_called()
+    model.get_completions.assert_not_called()
+    assert not calls
+
+
+@pytest.mark.parametrize("explicit_alias", [False, True], ids=["default", "explicit"])
+def test_typesafe_join_temperature_rejected_during_planning(
+    decision_session, monkeypatch, explicit_alias
+):
+    # The public join has no temperature argument, but restored logical joins do.
+    session, model, calls, _ = decision_session
+    get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+    monkeypatch.setattr(session._session_state, "get_language_model", get_model)
+    left = session.create_dataframe({"text": ["text"]})
+    right = session.create_dataframe({"right_text": ["text"]})
+    with pytest.raises(ValidationError, match="temperature=0"):
+        SemanticJoin.from_session_state(
+            left=left._logical_plan,
+            right=right._logical_plan,
+            left_on=fc.col("text")._logical_expr,
+            right_on=fc.col("right_text")._logical_expr,
+            jinja_template="Compare {{ left_on }} and {{ right_on }}",
+            strict=True,
+            temperature=0.2,
+            model_alias=ResolvedModelAlias("decisions") if explicit_alias else None,
+            session_state=session._session_state,
+        )
+    get_model.assert_not_called()
+    model.get_completions.assert_not_called()
+    assert not calls
+
+
+@pytest.mark.parametrize("operation", ["predicate", "filter", "classify", "sentiment", "join"])
+def test_typesafe_profile_rejected_during_planning(
+    decision_session, monkeypatch, operation
+):
+    session, model, calls, _ = decision_session
+    get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+    monkeypatch.setattr(session._session_state, "get_language_model", get_model)
+    get_judgments = Mock(side_effect=AssertionError("planning must not infer"))
+    monkeypatch.setattr(model, "get_judgments", get_judgments)
+    frame = session.create_dataframe({"text": ["text"]})
+    with pytest.raises(ValidationError, match="model profiles"):
+        _build_closed_set_plan(
+            frame, operation, model_alias=fc.ModelAlias(name="decisions", profile="unknown")
+        )
+    get_model.assert_not_called()
+    get_judgments.assert_not_called()
+    model.get_completions.assert_not_called()
+    assert not calls
+
+
+@pytest.mark.parametrize("operation", ["predicate", "filter", "classify", "sentiment", "join"])
+def test_typesafe_valid_controls_build_schema(decision_session, monkeypatch, operation):
+    session, model, calls, _ = decision_session
+    get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+    monkeypatch.setattr(session._session_state, "get_language_model", get_model)
+    get_judgments = Mock(side_effect=AssertionError("planning must not infer"))
+    monkeypatch.setattr(model, "get_judgments", get_judgments)
+    frame = session.create_dataframe({"text": ["text"]})
+    options = {"model_alias": "decisions"}
+    if operation != "join":
+        options["temperature"] = 0
+    result = _build_closed_set_plan(frame, operation, **options)
+    assert result.schema.column_fields
+    get_model.assert_not_called()
+    get_judgments.assert_not_called()
+    model.get_completions.assert_not_called()
+    assert not calls
+
+
+def test_typesafe_none_temperature_is_valid_for_logical_join(decision_session):
+    session, _, calls, _ = decision_session
+    left = session.create_dataframe({"text": ["text"]})
+    right = session.create_dataframe({"right_text": ["text"]})
+    join = SemanticJoin.from_session_state(
+        left=left._logical_plan,
+        right=right._logical_plan,
+        left_on=fc.col("text")._logical_expr,
+        right_on=fc.col("right_text")._logical_expr,
+        jinja_template="Compare {{ left_on }} and {{ right_on }}",
+        strict=True,
+        temperature=None,
+        session_state=session._session_state,
+    )
+    assert join.schema().column_fields
+    assert not calls
+
+
+def test_runtime_decision_controls_remain_guarded(decision_session):
+    _, model, calls, _ = decision_session
+    for temperature, profile, message in [
+        (0.2, None, "temperature=0"),
+        (0, "unknown", "model profiles"),
+    ]:
+        sender = CompletionOnlyRequestSender(
+            model,
+            "semantic.predicate",
+            InferenceConfiguration(
+                max_output_tokens=None,
+                temperature=temperature,
+                model_profile=profile,
+            ),
+        )
+        with pytest.raises(ConfigurationError, match=message):
+            DecisionRequestSender(sender, "Check this")
+    assert not calls
+
+
+def test_non_typesafe_plans_keep_temperature_and_profiles(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "offline-test-key")
+    sdk = SimpleNamespace(
+        system_one=AsyncMock(side_effect=AssertionError("planning must not infer")),
+        aclose=AsyncMock(),
+    )
+    monkeypatch.setattr(TypeSafeModelProvider, "create_aio_client", lambda self: sdk)
+    monkeypatch.setattr(
+        "fenic._backends.local.model_registry._validate_provider_api_keys", AsyncMock()
+    )
+
+    def refuse_network(*_args, **_kwargs):
+        raise AssertionError("planning must not open a connection")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse_network)
+    session = fc.Session.get_or_create(
+        fc.SessionConfig(
+            app_name="mixed_decision_planning",
+            db_path=tmp_path,
+            semantic=fc.SemanticConfig(
+                language_models={
+                    "decisions": fc.TypeSafeLanguageModel(
+                        model_name="jev-1.13.0", rpm=1200, tpm=1_000_000
+                    ),
+                    "completion": fc.AnthropicLanguageModel(
+                        model_name="claude-haiku-4-5",
+                        rpm=1200,
+                        input_tpm=1_000_000,
+                        output_tpm=1_000_000,
+                        profiles={"neutral": fc.AnthropicLanguageModel.Profile()},
+                        default_profile="neutral",
+                    ),
+                },
+                default_language_model="decisions",
+            ),
+        )
+    )
+    try:
+        get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+        monkeypatch.setattr(session._session_state, "get_language_model", get_model)
+        frame = session.create_dataframe({"text": ["text"]})
+        other_provider = fc.ModelAlias(name="completion", profile="neutral")
+
+        class Output(BaseModel):
+            value: str = Field(description="An open-ended value")
+
+        # Even with a completion-capable model in the same session, the default
+        # decision model cannot build an open-ended operation.
+        with pytest.raises(ValidationError, match=r"semantic\.map"):
+            frame.select(fc.semantic.map("Describe {{ text }}", text=fc.col("text")))
+
+        for plan in [
+            frame.select(
+                fc.semantic.map(
+                    "Describe {{ text }}", text=fc.col("text"),
+                    model_alias=other_provider, temperature=0.4,
+                )
+            ),
+            frame.select(
+                fc.semantic.extract(
+                    "text", Output, model_alias=other_provider, temperature=0.4
+                )
+            ),
+            frame.select(
+                fc.semantic.summarize(
+                    "text", model_alias=other_provider, temperature=0.4
+                )
+            ),
+            frame.group_by("text").agg(
+                fc.semantic.reduce(
+                    "Summarize these notes", "text",
+                    model_alias=other_provider, temperature=0.4,
+                )
+            ),
+            *(
+                _build_closed_set_plan(
+                    frame, operation,
+                    model_alias=other_provider,
+                    **({"temperature": 0.4} if operation != "join" else {}),
+                )
+                for operation in ("predicate", "filter", "classify", "sentiment", "join")
+            ),
+        ]:
+            assert plan.schema.column_fields
+        get_model.assert_not_called()
+        sdk.system_one.assert_not_called()
+    finally:
+        session.stop(skip_usage_summary=True)
+
+
+def test_class_count_still_rejected_by_runtime_guard(decision_session):
     session, _, calls, _ = decision_session
     frame = session.create_dataframe({"text": ["text"]})
-    for expr, message in [
-        (fc.semantic.classify("text", [str(i) for i in range(256)]), "2..255"),
-        (
-            fc.semantic.predicate(
-                "Check {{ text }}", text=fc.col("text"), temperature=0.2
-            ),
-            "temperature=0",
-        ),
-    ]:
-        with pytest.raises(ExecutionError, match=message) as raised:
-            frame.select(expr).to_polars()
-        assert isinstance(raised.value.__cause__, ConfigurationError)
+    # Class-count validation remains in the physical sender, not in TD-5624.
+    from fenic.core.error import ExecutionError
+
+    with pytest.raises(ExecutionError, match="2..255") as raised:
+        frame.select(fc.semantic.classify("text", [str(i) for i in range(256)])).to_polars()
+    assert isinstance(raised.value.__cause__, ConfigurationError)
     assert not calls
 
 
