@@ -955,6 +955,7 @@ sim-join = [
 [package.dev-dependencies]
 dev = [
     { name = "ipykernel" },
+    { name = "jsonschema" },
     { name = "lancedb" },
     { name = "maturin" },
     { name = "pymupdf" },
@@ -1018,6 +1019,7 @@ provides-extras = ["anthropic", "google", "cohere", "cluster", "pdf", "sim-join"
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=6.29.0" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "lancedb", specifier = ">=0.22.0,<0.25.0" },
     { name = "maturin", specifier = ">=1.8.6" },
     { name = "pymupdf", specifier = ">=1.26.4" },

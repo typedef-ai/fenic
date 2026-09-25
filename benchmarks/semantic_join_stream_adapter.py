@@ -27,6 +27,7 @@ dispatch concurrency. No saturation or rate-limit throughput claim is made.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import statistics
@@ -66,13 +67,22 @@ def _silent_tqdm(*args, **kwargs):
 DEFAULT_LEFT_ROWS = 512
 DEFAULT_RIGHT_ROWS = 2
 DEFAULT_PAIR_BLOCK_SIZE = 256
-DEFAULT_BLOCK_TOKEN_BUDGET = 14_000
+DEFAULT_BLOCK_TOKEN_BUDGET = 18_000
 DEFAULT_RPM = 100
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_REPETITIONS = 7
 DEFAULT_LATENCY_SECONDS = 0.01
 DEFAULT_INPUT_TOKENS = 16
 DEFAULT_OUTPUT_TOKENS = 2
+SIMULATED_JOIN_STEP = {
+    "operator": "join",
+    "input_columns": ["left_on", "right_on"],
+    "output_column": "matched",
+    "prompt_template": "{{ left_on }} -- {{ right_on }}",
+    "input_profile": "deterministic",
+    "output_profile": "deterministic-true",
+    "output_schema": None,
+}
 
 
 class PredicateSimulatedClient(SimulatedCompletionsClient):
@@ -112,6 +122,7 @@ class Workload:
     batch_size: int = DEFAULT_BATCH_SIZE
     repetitions: int = DEFAULT_REPETITIONS
     latency_seconds: float = DEFAULT_LATENCY_SECONDS
+    input_seed: int = 0
 
     @property
     def expected_requests(self) -> int:
@@ -159,21 +170,30 @@ def _new_client(workload: Workload, seed: int) -> PredicateSimulatedClient:
 def _dataframes(workload: Workload) -> tuple[pl.DataFrame, pl.DataFrame]:
     left_payload = " ".join(["alpha"] * 80)
     right_payload = " ".join(["beta"] * 20)
+    left_start = workload.input_seed * workload.left_rows
+    right_start = workload.input_seed * workload.right_rows
     return (
         pl.DataFrame(
             {
+                # Keep ``left-{i}`` as a local output-draw index; the added
+                # marker makes seeded benchmark inputs observably distinct
+                # without indexing outside the simulator's per-row draws.
                 "left_on": [
-                    f"left-{i:04d} {left_payload}" for i in range(workload.left_rows)
+                    f"left-{i:04d} seed-{workload.input_seed} {left_payload}"
+                    for i in range(workload.left_rows)
                 ],
-                "record_id": list(range(workload.left_rows)),
+                "record_id": list(range(left_start, left_start + workload.left_rows)),
             }
         ),
         pl.DataFrame(
             {
                 "right_on": [
-                    f"right-{i:02d} {right_payload}" for i in range(workload.right_rows)
+                    f"right-{i:02d} seed-{workload.input_seed} {right_payload}"
+                    for i in range(workload.right_rows)
                 ],
-                "right_id": list(range(workload.right_rows)),
+                "right_id": list(
+                    range(right_start, right_start + workload.right_rows)
+                ),
             }
         ),
     )
@@ -184,7 +204,7 @@ def _join(model: LanguageModel, workload: Workload) -> Join:
     return Join(
         left_df=left,
         right_df=right,
-        jinja_template="{{ left_on }} -- {{ right_on }}",
+        jinja_template=SIMULATED_JOIN_STEP["prompt_template"],
         strict=True,
         model=model,
         temperature=0,
@@ -201,7 +221,7 @@ def workload_geometry(workload: Workload) -> dict[str, Any]:
         join = _join(model, workload)
         documents = join._join_documents()
         if documents is None:
-            raise AssertionError("benchmark workload unexpectedly has an empty side")
+            raise AssertionError("join did not produce predicate documents")
         left_documents, right_documents = documents
         pair_blocks = list(join._iter_join_pair_blocks(left_documents, right_documents))
         token_blocks = [
@@ -232,6 +252,20 @@ def workload_geometry(workload: Workload) -> dict[str, Any]:
         }
     finally:
         client.shutdown()
+
+
+def assert_workload_geometry(workload: Workload) -> dict[str, Any]:
+    """Require a window-binding, multi-block workload before measuring it."""
+    geometry = workload_geometry(workload)
+    if not geometry["window_binds"]:
+        raise AssertionError(f"benchmark workload does not bind W: {geometry}")
+    if not geometry["multiple_pair_blocks"]:
+        raise AssertionError(f"benchmark workload has only one pair block: {geometry}")
+    if not geometry["token_budget_splits"]:
+        raise AssertionError(
+            f"benchmark workload has no token-budget split: {geometry}"
+        )
+    return geometry
 
 
 def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, Any]:
@@ -268,23 +302,33 @@ def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, A
                 live_requests -= 1
         if len(result) != workload.expected_requests:
             raise AssertionError(
-                "benchmark result-count mismatch: "
+                "join result count diverged from pair geometry: "
                 f"expected={workload.expected_requests}, actual={len(result)}"
             )
         if metrics.num_requests != workload.expected_requests:
             raise AssertionError(
-                "benchmark request-count mismatch: "
-                f"expected={workload.expected_requests}, actual={metrics.num_requests}"
+                "simulated request count diverged from pair geometry: "
+                f"expected={workload.expected_requests}, "
+                f"actual={metrics.num_requests}"
             )
         if live_requests != 0:
             raise AssertionError(
-                f"benchmark completed with {live_requests} unsettled requests"
+                "lifecycle accounting left requests unsettled: "
+                f"live_requests={live_requests}"
             )
         return {
             "arm": "streaming" if streaming else "standard",
             "repetition": repetition,
             "wall_seconds": wall,
             "result_rows": len(result),
+            "result_hash": hashlib.sha256(
+                json.dumps(
+                    result.to_dicts(),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ).encode()
+            ).hexdigest(),
             "request_count": metrics.num_requests,
             "output_tokens": metrics.num_output_tokens,
             "lifecycle_counts": dict(sorted(counts.items())),
@@ -318,15 +362,7 @@ def _summary(samples: list[float]) -> dict[str, Any]:
 
 def run(workload: Workload) -> dict[str, Any]:
     """Run all interleaved repetitions and summarize spread-aware timings."""
-    geometry = workload_geometry(workload)
-    if not geometry["window_binds"]:
-        raise AssertionError(f"benchmark workload does not bind W: {geometry}")
-    if not geometry["multiple_pair_blocks"]:
-        raise AssertionError(f"benchmark workload has only one pair block: {geometry}")
-    if not geometry["token_budget_splits"]:
-        raise AssertionError(
-            f"benchmark workload has no token-budget split: {geometry}"
-        )
+    geometry = assert_workload_geometry(workload)
 
     receipts: list[dict[str, Any]] = []
     for repetition in range(1, workload.repetitions + 1):
@@ -371,10 +407,10 @@ def run(workload: Workload) -> dict[str, Any]:
     bands_overlap = max(standard_band[0], streaming_band[0]) <= min(
         standard_band[1], streaming_band[1]
     )
-    if bands_overlap:
-        verdict = "INCONCLUSIVE"
-    elif delta <= 20:
+    if delta <= 20:
         verdict = "PASS"
+    elif bands_overlap:
+        verdict = "INCONCLUSIVE"
     else:
         verdict = "FAIL"
     return {
@@ -412,6 +448,8 @@ def main() -> None:
         )
     )
     print(json.dumps(result, indent=2, sort_keys=True))
+    if result["evidence_verdict"] not in {"PASS", "OBSERVATIONAL"}:
+        raise SystemExit(f"benchmark verdict: {result['evidence_verdict']}")
 
 
 if __name__ == "__main__":
