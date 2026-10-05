@@ -220,8 +220,10 @@ class AnthropicBatchCompletionsClient(
                 return FenicCompletionsResponse(completion="", logprobs=None)
             if usage_data:
                 # Extract usage metrics
-                num_cache_tokens_written = usage_data.cache_creation_input_tokens
-                num_pre_cached_tokens = usage_data.cache_read_input_tokens
+                # The cache token counts are Optional in the Anthropic SDK: they are
+                # absent whenever prompt caching is not in play, so treat them as zero.
+                num_cache_tokens_written = usage_data.cache_creation_input_tokens or 0
+                num_pre_cached_tokens = usage_data.cache_read_input_tokens or 0
                 num_uncached_input_tokens = usage_data.input_tokens
                 prompt_tokens = (
                     num_pre_cached_tokens
@@ -249,7 +251,7 @@ class AnthropicBatchCompletionsClient(
                     model_name=self.model,
                     uncached_input_tokens=num_uncached_input_tokens,
                     cached_input_tokens_read=num_pre_cached_tokens,
-                    cached_input_tokens_written=usage_data.cache_creation_input_tokens,
+                    cached_input_tokens_written=num_cache_tokens_written,
                     output_tokens=output_tokens,
                 )
         except RateLimitError as e:
@@ -423,7 +425,9 @@ class AnthropicBatchCompletionsClient(
             super().count_tokens(messages) * self._tokenizer_adjustment_ratio
         )
 
-    def estimate_tokens_for_request(self, request: FenicCompletionsRequest) -> TokenEstimate:
+    def estimate_tokens_for_request(
+        self, request: FenicCompletionsRequest
+    ) -> TokenEstimate:
         """Estimate the number of tokens for a request."""
         input_tokens = self.count_tokens(request.messages)
         input_tokens += self._count_auxiliary_input_tokens(request)

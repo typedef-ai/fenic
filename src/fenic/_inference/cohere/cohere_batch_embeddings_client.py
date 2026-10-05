@@ -42,7 +42,7 @@ class CohereBatchEmbeddingsClient(
         default_profile_name: Optional[str] = None,
     ):
         """Initialize the Cohere batch embeddings client.
-        
+
         Args:
             rate_limit_strategy: Strategy for handling rate limits
             model: The model to use
@@ -60,57 +60,63 @@ class CohereBatchEmbeddingsClient(
             max_backoffs=max_backoffs,
             token_counter=TiktokenTokenCounter(model_name=model),
         )
-        
+
         self._client = self.model_provider_class.create_aio_client()
         self.model = model
-        
+
         self._model_parameters = model_catalog.get_embedding_model_parameters(
             ModelProvider.COHERE, model
         )
         self._metrics = RMMetrics()
-        
+
         self._profile_manager = CohereEmbeddingsProfileManager(
             model_parameters=self._model_parameters,
             profile_configurations=profile_configurations,
             default_profile_name=default_profile_name,
         )
 
-
-
     async def make_single_request(
         self, request: FenicEmbeddingsRequest
     ) -> Union[None, List[float], TransientException, FatalException]:
         """Make a single request to the Cohere embeddings API.
-        
+
         Args:
             request: The embedding request to process
-            
+
         Returns:
             List of embedding floats, or an exception wrapper
         """
         try:
-            profile_config = self._profile_manager.get_profile_by_name(request.model_profile)
-            
+            profile_config = self._profile_manager.get_profile_by_name(
+                request.model_profile
+            )
+
             # Prepare the request parameters
             embed_params = {
                 "texts": [request.doc],
                 "model": self.model,
                 "input_type": profile_config.input_type,
-                "embedding_types": ["float"], # We only support float embeddings
+                "embedding_types": ["float"],  # We only support float embeddings
             }
-            
+
             # Add output dimensionality if specified
             if profile_config.output_dimensionality:
                 embed_params["output_dimension"] = profile_config.output_dimensionality
-            
+
             # Make the API call
             response = await self._client.embed(**embed_params)
             embedding_values = response.embeddings.float[0]
 
             # Count tokens and update metrics
-            if hasattr(response, 'meta') and hasattr(response.meta, 'billed_units'):
+            # meta, billed_units and input_tokens are all Optional in the Cohere SDK,
+            # so read through them defensively rather than assuming they are populated.
+            billed_units = getattr(
+                getattr(response, "meta", None), "billed_units", None
+            )
+            billed_input_tokens = getattr(billed_units, "input_tokens", None)
+            if billed_input_tokens is not None:
                 # Use Cohere's billed token count if available
-                total_tokens = response.meta.billed_units.input_tokens
+                total_tokens = billed_input_tokens
             else:
                 # Fall back to our token counter
                 total_tokens = self.token_counter.count_tokens(request.doc)
@@ -125,7 +131,6 @@ class CohereBatchEmbeddingsClient(
 
             return embedding_values
 
-                
         except cohere.TooManyRequestsError as e:
             # Rate limit error - retryable
             return TransientException(e)
@@ -135,30 +140,37 @@ class CohereBatchEmbeddingsClient(
         except cohere.ServiceUnavailableError as e:
             # Service unavailable - retryable
             return TransientException(e)
-        except (cohere.BadRequestError, cohere.UnauthorizedError, cohere.ForbiddenError) as e:
+        except (
+            cohere.BadRequestError,
+            cohere.UnauthorizedError,
+            cohere.ForbiddenError,
+        ) as e:
             # Client errors - not retryable
             return FatalException(e)
         except Exception as e:
             # Catch-all for other errors
             return TransientException(e)
 
-    def estimate_tokens_for_request(self, request: FenicEmbeddingsRequest) -> TokenEstimate:
+    def estimate_tokens_for_request(
+        self, request: FenicEmbeddingsRequest
+    ) -> TokenEstimate:
         """Estimate the number of tokens for a request.
-        
+
         Args:
             request: The request to estimate tokens for
-            
+
         Returns:
             TokenEstimate: The estimated token usage
         """
         return TokenEstimate(
-            input_tokens=self.token_counter.count_tokens(request.doc), 
-            output_tokens=0
+            input_tokens=self.token_counter.count_tokens(request.doc), output_tokens=0
         )
 
-    def _get_max_output_token_request_limit(self, request: FenicEmbeddingsRequest) -> int:
+    def _get_max_output_token_request_limit(
+        self, request: FenicEmbeddingsRequest
+    ) -> int:
         """Get maximum output tokens (always 0 for embeddings).
-        
+
         Returns:
             0 since embeddings don't produce text tokens
         """
@@ -170,11 +182,13 @@ class CohereBatchEmbeddingsClient(
 
     def get_metrics(self) -> RMMetrics:
         """Get the current metrics.
-        
+
         Returns:
             The current metrics
         """
         return self._metrics
 
-    def _resolve_profile_for_hash(self, profile_name: Optional[str]) -> CohereEmbeddingsProfileConfiguration:
+    def _resolve_profile_for_hash(
+        self, profile_name: Optional[str]
+    ) -> CohereEmbeddingsProfileConfiguration:
         return self._profile_manager.get_profile_by_name(profile_name)
