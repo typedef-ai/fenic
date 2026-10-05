@@ -3,6 +3,7 @@
 import asyncio
 import multiprocessing
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Literal, Union
@@ -68,6 +69,7 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
         max_backoffs: int,
         cache=None,
         close_timeout_seconds: float = 10,
+        initial_backoff_seconds: float = 0,
     ):
         super().__init__(
             model="retry-test",
@@ -76,12 +78,13 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
             rate_limit_strategy=_RateLimit(),
             token_counter=_Counter(),
             max_backoffs=max_backoffs,
-            initial_backoff_seconds=0,
+            initial_backoff_seconds=initial_backoff_seconds,
             cache=cache,
             _provider_close_timeout_seconds=close_timeout_seconds,
         )
         self.outcomes = outcomes
         self.calls = 0
+        self.call_times: list[float] = []
         self.calls_by_payload: dict[str, int] = defaultdict(int)
         self.cancelled_attempts = 0
         self.cancelled_attempts_by_payload: dict[str, int] = defaultdict(int)
@@ -96,6 +99,7 @@ class _RetryClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
     ) -> Union[None, FenicCompletionsResponse, TransientException, FatalException]:
         payload = request.messages.user or ""
         self.calls += 1
+        self.call_times.append(time.monotonic())
         self.calls_by_payload[payload] += 1
         self.started.set()
         if isinstance(self.outcomes, dict):
@@ -255,6 +259,48 @@ def test_last_permitted_attempt_can_succeed_after_elapsed_backoff():
         ]
         assert client.calls == 2
         assert client.num_backoffs == 0
+    finally:
+        client.shutdown()
+
+
+def test_retry_backoff_completes_before_dispatch_and_rate_limit_consumption():
+    client = _RetryClient(
+        ["transient", "success"], max_backoffs=1, initial_backoff_seconds=0.25
+    )
+    consumed_at = []
+    original = client.rate_limit_strategy.check_and_consume_rate_limit
+
+    def consume(estimate):
+        consumed_at.append(time.monotonic())
+        return original(estimate)
+
+    client.rate_limit_strategy.check_and_consume_rate_limit = consume
+    try:
+        response = client.make_batch_requests([_request()], "backoff")[0]
+        assert response.completion == "ok"
+        assert client.calls == 2
+        assert len(consumed_at) == 2
+        # A lower bound only: slow scheduling cannot make this test fail.
+        assert client.call_times[1] - client.call_times[0] >= 0.24
+        assert consumed_at[1] - client.call_times[0] >= 0.24
+    finally:
+        client.shutdown()
+
+
+def test_sequential_requests_have_independent_retry_allowances():
+    client = _RetryClient(
+        {
+            "first": ["transient", "success"],
+            "second": ["transient", "success"],
+        },
+        max_backoffs=1,
+        initial_backoff_seconds=0.01,
+    )
+    try:
+        for payload in ("first", "second"):
+            response = client.make_batch_requests([_request(payload)], payload)[0]
+            assert response.completion == "ok"
+        assert client.calls_by_payload == {"first": 2, "second": 2}
     finally:
         client.shutdown()
 

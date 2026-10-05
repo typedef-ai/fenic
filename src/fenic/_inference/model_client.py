@@ -86,6 +86,7 @@ class QueueItem(Generic[RequestT]):
     request_timeout: float
     request_fingerprint: Optional[str] = None
     attempts_started: int = 0
+    retry_not_before: float = 0
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -172,7 +173,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.backoff_factor: float = backoff_factor
         self.max_backoffs: int = max_backoffs
         self._provider_close_timeout_seconds = _provider_close_timeout_seconds
-        self.last_transient_exception_time: float = 0
+        # Diagnostic count only; retry allowance and delay are request-local.
         self.num_backoffs: int = 0
 
         # Batch-specific exception tracking, guarded with its active lifetime.
@@ -832,6 +833,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 processed_requests = []
                 for queue_item in self.pending_requests:
                     try:
+                        await self._maybe_backoff(queue_item)
                         if self._check_and_consume_rate_limit(
                             queue_item.estimated_tokens
                         ):
@@ -844,7 +846,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                             # Sleep for a short duration to wait for rate limit to refill to avoid busy-waiting
                             await asyncio.sleep(MILLISECOND_IN_SECONDS)
 
-                        await self._maybe_backoff()
                     except Exception as e:
                         logger.error(
                             f"Fatal error in request worker for model {self.model}: {e}",
@@ -958,12 +959,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 queue_item.future.set_result(maybe_response)
 
     async def _retry_or_fail(self, queue_item: QueueItem[RequestT], exception: Exception):
-        """Requeue an active request while both retry limits permit another attempt."""
+        """Requeue an active request while its retry allowance permits another attempt."""
         if (
             queue_item.future.done()
             or self.shutdown_event.is_set()
             or queue_item.attempts_started >= 1 + self.max_backoffs
-            or self.num_backoffs >= self.max_backoffs
         ):
             self._register_thread_exception(
                 queue_item,
@@ -974,26 +974,25 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             )
             return
 
+        queue_item.retry_not_before = time.monotonic() + self._calculate_backoff_time(
+            queue_item.attempts_started - 1
+        )
         await self.retry_queue.put(queue_item)
-        self.last_transient_exception_time = time.time()
 
-    async def _maybe_backoff(self):
-        """Manages the backoff period after encountering a transient exception."""
-        if self.last_transient_exception_time <= 0:
+    async def _maybe_backoff(self, queue_item: QueueItem[RequestT]):
+        """Complete this request's backoff before rate-limit admission and dispatch."""
+        if queue_item.retry_not_before <= 0:
             return
 
-        now = time.time()
-        backoff_time = self._calculate_backoff_time(self.num_backoffs)
-        time_since_last_transient_exception = now - self.last_transient_exception_time
-
-        if time_since_last_transient_exception < backoff_time:
+        remaining = queue_item.retry_not_before - time.monotonic()
+        if remaining > 0:
             logger.warning(
-                f"Backing off model {self.model} for {backoff_time - time_since_last_transient_exception:.2f} seconds before retrying requests due to rate limits."
+                f"Backing off model {self.model} for {remaining:.2f} seconds before retrying requests due to rate limits."
             )
-            await asyncio.sleep(backoff_time - time_since_last_transient_exception)
+            await asyncio.sleep(remaining)
             self.num_backoffs += 1
-            self.last_transient_exception_time = 0
             self.rate_limit_strategy.backoff(time.time())
+        queue_item.retry_not_before = 0
 
     async def _get_queued_requests(self) -> List[QueueItem[RequestT]]:
         """Asynchronously retrieves items from the retry queue or the request queue,

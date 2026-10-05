@@ -312,6 +312,7 @@ def test_score_accepts_archived_two_decimal_compatibility_values(
             "score": score,
             "confidence": 0.5,
             "probabilities": dict(enumerate(probabilities)),
+            "legend": dict(enumerate(question.levels)),
         }
     }
 
@@ -335,6 +336,7 @@ def test_score_tolerance_scales_with_level_count(level_count, offset, raises):
             "probabilities": {
                 index: float(index == 0) for index in range(level_count)
             },
+            "legend": dict(enumerate(question.levels)),
         }
     }
     if raises:
@@ -358,11 +360,93 @@ def test_score_rejects_material_contradiction():
             "score": 1,
             "confidence": 0.5,
             "probabilities": {"0": 1, "1": 0},
+            "legend": {"0": "low", "1": "high"},
         }
     }
 
     with pytest.raises(ValueError, match="expectation"):
         flatten_answers([question], answers)
+
+
+@pytest.mark.parametrize(
+    "legend",
+    [
+        None,
+        {},
+        {"0": "high", "1": "low"},
+        {"0": "low"},
+        {"0": "low", "1": "high", "2": "extra"},
+        {"0": "low", "1": "other"},
+    ],
+)
+def test_score_rejects_legend_that_does_not_match_requested_levels(legend):
+    question = fc.JudgeQuestion.score(
+        name="severity", instructions="How severe?", levels=["low", "high"]
+    )
+    with pytest.raises(ValueError, match="legend"):
+        flatten_answers(
+            [question],
+            {
+                "severity": {
+                    "type": "score",
+                    "score": 0,
+                    "confidence": 1,
+                    "probabilities": {"0": 1, "1": 0},
+                    "legend": legend,
+                }
+            },
+        )
+
+
+@pytest.mark.parametrize("legend", [{0: "low", 1: "high"}, {"0": "low", "1": "high"}])
+def test_score_accepts_legend_with_integer_or_json_string_indexes(legend):
+    question = fc.JudgeQuestion.score(
+        name="severity", instructions="How severe?", levels=["low", "high"]
+    )
+    result = flatten_answers(
+        [question],
+        {
+            "severity": {
+                "type": "score",
+                "score": 0,
+                "confidence": 1,
+                "probabilities": {"0": 1, "1": 0},
+                "legend": legend,
+            }
+        },
+    )
+    assert result["severity_p_0"] == 1
+    assert result["severity_p_1"] == 0
+
+
+def test_reversed_score_legend_is_not_cached_and_billed_usage_is_retained(
+    native_session,
+):
+    session, calls, sdk = native_session
+    response_type = pytest.importorskip("typesafe_sdk").SystemOneResponse
+    original = sdk.system_one
+
+    async def reversed_legend(state, bodies, **kwargs):
+        result = await original(state, bodies, **kwargs)
+        payload = result.model_dump()
+        payload["answers"]["severity"].update(
+            score=0,
+            confidence=1,
+            probabilities={0: 1, 1: 0},
+            legend={0: "high", 1: "low"},
+        )
+        return response_type.model_validate(payload)
+
+    sdk.system_one = reversed_legend
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=list(questions()))
+    )
+    for _ in range(2):
+        result = frame.collect()
+        assert result.data["j"].to_list() == [None]
+        assert result.metrics.total_lm_metrics.num_uncached_input_tokens == 100
+        assert result.metrics.total_lm_metrics.num_output_tokens == 20
+    assert len(calls) == 2
 
 
 def test_inconsistent_score_is_not_cached_and_billed_usage_is_retained(

@@ -288,6 +288,14 @@ def flatten_answers(
                 raise ValueError("Judge choice is not a highest-probability option")
             output[question.name] = selected
         else:
+            legend = answer.get("legend")
+            if (
+                not isinstance(legend, dict)
+                or len(legend) != len(keys)
+                or {str(key): value for key, value in legend.items()}
+                != dict(zip(keys, question.levels, strict=True))
+            ):
+                raise ValueError("Judge score legend does not match the requested levels")
             score = answer.get("score")
             if (
                 isinstance(score, bool)
