@@ -76,6 +76,30 @@ def test_openai_core_still_ignores_temperature_with_reasoning(caplog):
     assert "Ignoring temperature parameter." in caplog.text
 
 
+@pytest.mark.parametrize("effort", [None, "medium"])
+@pytest.mark.parametrize("temperature", [0, 0.0, None])
+def test_openai_core_omits_zero_with_reasoning_without_warning(
+    effort, temperature, caplog
+):
+    core, completions = _make_core("gpt-6-sol")
+    request = FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=None,
+        temperature=temperature,
+    )
+
+    asyncio.run(
+        core.make_single_request(
+            request, OpenAICompletionProfileConfiguration(reasoning_effort=effort)
+        )
+    )
+
+    assert "temperature" not in completions.kwargs
+    assert "Ignoring temperature parameter." not in caplog.text
+
+
 def test_gpt_5_nano_language_model_still_omits_temperature():
     core, completions = _make_core("gpt-5-nano")
     client = SimpleNamespace(
