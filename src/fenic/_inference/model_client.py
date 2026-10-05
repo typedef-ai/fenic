@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from queue import Empty, SimpleQueue
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
     Iterable,
@@ -611,6 +612,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         pending: Dict[int, tuple[Future, Optional[str]]] = {}
         completed: Dict[int, tuple[Future, Optional[str]]] = {}
         settled_pending_indices: SimpleQueue[int] = SimpleQueue()
+        enqueue_futures: Dict[int, Future] = {}
         request_index = 0
         next_index_to_emit = 0
         exhausted = False
@@ -693,8 +695,25 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             if not admitted_requests:
                 return
 
+            def register_slot(slot_index: int, req_future: Future) -> None:
+                request_key = admitted_keys[slot_index - request_index]
+                advance_started_ns = stage_started_ns() if record_advance else None
+                pending[slot_index] = (req_future, request_key)
+                if request_key is not None and request_key in unique_futures:
+                    slot_ref_counts[request_key] = (
+                        slot_ref_counts.get(request_key, 0) + 1
+                    )
+                req_future.add_done_callback(
+                    lambda _future, index=slot_index: settled_pending_indices.put(index)
+                )
+                record_stage(
+                    "window_advance",
+                    advance_started_ns,
+                    stage_request_index=slot_index,
+                )
+
             dispatch_started_ns = stage_started_ns()
-            request_futures, _, _ = self._submit_batch_requests(
+            self._submit_batch_requests(
                 admitted_requests,
                 batch_id,
                 operation_name,
@@ -703,34 +722,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_index_offset=request_index,
                 show_progress=False,
                 defer_thread_exceptions=True,
+                register_slot=register_slot,
+                enqueue_futures=enqueue_futures,
             )
             record_stage(
                 "request_dispatch",
                 dispatch_started_ns,
                 stage_request_index=admitted_indices[0],
             )
-            for slot_index, request_key, req_future in zip(
-                admitted_indices,
-                admitted_keys,
-                request_futures,
-                strict=True,
-            ):
-                advance_started_ns = stage_started_ns() if record_advance else None
-                pending[slot_index] = (req_future, request_key)
-                if request_key is not None and request_key in unique_futures:
-                    slot_ref_counts[request_key] = (
-                        slot_ref_counts.get(request_key, 0) + 1
-                    )
-                req_future.add_done_callback(
-                    lambda _future, index=slot_index: settled_pending_indices.put(
-                        index
-                    )
-                )
-                record_stage(
-                    "window_advance",
-                    advance_started_ns,
-                    stage_request_index=slot_index,
-                )
             request_index += len(admitted_requests)
 
         def collect_completed_requests() -> None:
@@ -774,6 +773,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     drain_started_ns = stage_started_ns()
                     response = req_future.result()
                     release_request_key(request_key)
+                    enqueue_futures.pop(next_index_to_emit, None)
                     record_stage(
                         "response_drain",
                         drain_started_ns,
@@ -795,6 +795,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         except Exception as e:
             # Preserve the public batch API's error boundary for Polars callbacks.
             raise ExecutionError(str(e)) from e
+        finally:
+            for enqueue_future in enqueue_futures.values():
+                enqueue_future.cancel()
 
     @staticmethod
     def _streaming_slot_caps(look_ahead_basis: int) -> tuple[int, int]:
@@ -904,6 +907,35 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         await self.request_queue.put(queue_item)
 
+    async def _enqueue_stream_request(self, queue_item: QueueItem[RequestT]):
+        """Insert a streaming slot without blocking the caller's response drain."""
+        put_task = asyncio.create_task(self._enqueue_request(queue_item))
+        shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+        settled_future = asyncio.wrap_future(queue_item.future)
+        try:
+            done, _ = await asyncio.wait(
+                (put_task, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+            )
+            if shutdown_task in done:
+                raise RuntimeError(f"Model client for {self.model} has been shut down")
+            await put_task
+            await asyncio.wait(
+                (settled_future, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+            )
+            if shutdown_task.done() and not queue_item.future.done():
+                raise RuntimeError(f"Model client for {self.model} has been shut down")
+            await settled_future
+        except asyncio.CancelledError:
+            queue_item.future.cancel()
+            raise
+        except Exception as e:
+            self._register_thread_exception(queue_item, e)
+        finally:
+            put_task.cancel()
+            shutdown_task.cancel()
+            settled_future.cancel()
+            await asyncio.gather(put_task, shutdown_task, return_exceptions=True)
+
     # TODO(rohitrastogi): We should stream the requests to the model client and pipe results back from the background thread to the main thread to avoid unnecessary memory usage.
     def _make_batch_requests(
         self,
@@ -962,6 +994,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         request_index_offset: int = 0,
         show_progress: bool = True,
         defer_thread_exceptions: bool = False,
+        register_slot: Optional[Callable[[int, Future], None]] = None,
+        enqueue_futures: Optional[Dict[int, Future]] = None,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -974,6 +1008,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             show_progress: Whether to render submission progress.
             defer_thread_exceptions: Keep queue-item failures on their futures for
                 indexed streaming emission instead of registering them globally.
+            register_slot: Register each streaming future before queue insertion.
+            enqueue_futures: Track asynchronous streaming insertions by slot index.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
@@ -1036,6 +1072,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     req_future = Future()
                     request_futures.append(req_future)
                     req_future.set_result(None)
+                    if register_slot is not None:
+                        register_slot(request_index_offset + idx, req_future)
                     pbar.update(1)
                     pbar.set_postfix(
                         estimated_input_tokens=total_token_estimate.input_tokens,
@@ -1060,6 +1098,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     req_future = Future()
                     request_futures.append(req_future)
                     req_future.set_result(cached.to_fenic_response())
+                    if register_slot is not None:
+                        register_slot(request_index_offset + idx, req_future)
                     pbar.update(1)
                     pbar.set_postfix(
                         estimated_input_tokens=total_token_estimate.input_tokens,
@@ -1072,6 +1112,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     unique_futures, request, request_fingerprint
                 )
                 request_futures.append(req_future)
+                if register_slot is not None:
+                    register_slot(request_index_offset + idx, req_future)
 
                 # Only enqueue if this is a new, unique request
                 if estimated_tokens is not None:
@@ -1095,10 +1137,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                     self._emit_request_lifecycle_event("queued", queue_item)
                     enqueue_future: Future = asyncio.run_coroutine_threadsafe(
-                        self._enqueue_request(queue_item),
+                        (
+                            self._enqueue_stream_request(queue_item)
+                            if enqueue_futures is not None
+                            else self._enqueue_request(queue_item)
+                        ),
                         self._event_loop,
                     )
-                    enqueue_future.result()
+                    if enqueue_futures is None:
+                        enqueue_future.result()
+                    else:
+                        enqueue_futures[request_index_offset + idx] = enqueue_future
 
                 pbar.update(1)
                 pbar.set_postfix(

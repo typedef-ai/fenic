@@ -535,6 +535,168 @@ def test_iter_batch_requests_admits_successor_before_a_slow_window_peer_settles(
         client.shutdown()
 
 
+@pytest.mark.parametrize(
+    "fail_head", [False, True], ids=["settled-head", "failed-head"]
+)
+def test_iter_batch_requests_drains_head_while_admission_queue_is_full(
+    monkeypatch, fail_head
+):
+    fake_cache = FakeCache()
+    client = DummyCompletionClient(cache=fake_cache, rate_limit_rpm=103)
+    reopen_limiter = threading.Event()
+    head_finished = threading.Event()
+    dispatched_indices = []
+    permitted_dispatches = 0
+
+    def allow_one_dispatch(_tokens):
+        nonlocal permitted_dispatches
+        if permitted_dispatches == 0 or reopen_limiter.is_set():
+            permitted_dispatches += 1
+            return True
+        return False
+
+    async def respond(request):
+        if fail_head and request.messages.user == "request-0":
+            return FatalException(
+                ProviderStatusError("head failed", response=object(), body={})
+            )
+        return FenicCompletionsResponse(
+            completion=f"response-for-{request.messages.user}",
+            logprobs=None,
+            usage=None,
+        )
+
+    def collect(event):
+        if event.event == "dispatched":
+            dispatched_indices.append(event.request_index)
+        if event.request_index == 0 and event.event in ("settled", "failed"):
+            head_finished.set()
+
+    monkeypatch.setattr(client, "_check_and_consume_rate_limit", allow_one_dispatch)
+    monkeypatch.setattr(client, "make_single_request", respond)
+    client.set_request_lifecycle_collector(collect)
+    executor = ThreadPoolExecutor(max_workers=1)
+    responses = client.iter_batch_requests(
+        [_make_completion_request(f"request-{index}") for index in range(103)],
+        "full-admission-queue-test",
+        batch_size=2,
+    )
+
+    try:
+        assert client.request_queue.maxsize == 100
+        head_result = executor.submit(next, responses)
+        assert head_finished.wait(timeout=2)
+        if fail_head:
+            with pytest.raises(ExecutionError, match="head failed") as exc_info:
+                head_result.result(timeout=1)
+            assert isinstance(exc_info.value.__cause__, ProviderStatusError)
+        else:
+            first = head_result.result(timeout=1)
+            assert first.completion == "response-for-request-0"
+        assert not reopen_limiter.is_set()
+        assert dispatched_indices == [0]
+        assert fake_cache.get_batch_call_count == 1
+    finally:
+        # Unblock the old implementation too, so a red assertion cannot hang.
+        reopen_limiter.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        client.shutdown()
+
+
+@pytest.mark.parametrize(
+    "shutdown", [False, True], ids=["iterator-close", "client-shutdown"]
+)
+def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shutdown):
+    # Keep the shared loop alive so global loop cleanup cannot hide leaked puts.
+    other_client = DummyCompletionClient()
+    client = DummyCompletionClient(rate_limit_rpm=103)
+    all_started = threading.Event()
+    all_finished = threading.Event()
+    blocked_put = threading.Event()
+    started_indices = set()
+    finished_indices = set()
+    original_enqueue = client._enqueue_stream_request
+    original_put = client._enqueue_request
+    permitted_dispatches = 0
+    client_stopped = False
+
+    def allow_one_dispatch(_tokens):
+        nonlocal permitted_dispatches
+        if permitted_dispatches == 0:
+            permitted_dispatches += 1
+            return True
+        return False
+
+    async def track_enqueue(queue_item):
+        started_indices.add(queue_item.request_index)
+        if len(started_indices) == 103:
+            all_started.set()
+        try:
+            await original_enqueue(queue_item)
+        finally:
+            finished_indices.add(queue_item.request_index)
+            if len(finished_indices) == 103:
+                all_finished.set()
+
+    async def track_put(queue_item):
+        if client.request_queue.full():
+            blocked_put.set()
+        await original_put(queue_item)
+
+    monkeypatch.setattr(client, "_check_and_consume_rate_limit", allow_one_dispatch)
+    monkeypatch.setattr(client, "_enqueue_stream_request", track_enqueue)
+    monkeypatch.setattr(client, "_enqueue_request", track_put)
+    executor = ThreadPoolExecutor(max_workers=1)
+    responses = client.iter_batch_requests(
+        [_make_completion_request(f"request-{index}") for index in range(103)],
+        "blocked-enqueue-cleanup-test",
+        batch_size=2,
+    )
+
+    try:
+        first = executor.submit(next, responses).result(timeout=2)
+        assert first.completion == "response-for-request-0"
+        assert all_started.wait(timeout=2)
+        assert blocked_put.wait(timeout=2)
+        assert client.request_queue.full()
+        assert not all_finished.is_set()
+        if shutdown:
+            client.shutdown()
+            client_stopped = True
+            with pytest.raises(ExecutionError, match="shut down"):
+                executor.submit(next, responses).result(timeout=2)
+        else:
+            responses.close()
+        assert all_finished.wait(timeout=2)
+        assert finished_indices == set(range(103))
+        assert permitted_dispatches == 1
+    finally:
+        if not client_stopped:
+            client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        other_client.shutdown()
+
+
+def test_iter_batch_requests_surfaces_enqueue_errors(monkeypatch):
+    client = DummyCompletionClient()
+
+    async def fail_enqueue(_queue_item):
+        raise RuntimeError("queue insertion failed")
+
+    monkeypatch.setattr(client, "_enqueue_request", fail_enqueue)
+    try:
+        with pytest.raises(ExecutionError, match="queue insertion failed"):
+            next(
+                client.iter_batch_requests(
+                    [_make_completion_request("first")], "enqueue-failure-test"
+                )
+            )
+    finally:
+        client.shutdown()
+
+
 def test_iter_batch_requests_does_not_exceed_retained_budget_behind_blocked_head():
     look_ahead_basis = 2
     client = SlidingWindowCompletionClient(
