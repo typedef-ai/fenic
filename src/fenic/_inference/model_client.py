@@ -959,6 +959,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         stream_queue.put_nowait(get_task.result())
                     break
                 queue_item = get_task.result()
+                get_task = None
+                del done
                 inserted = asyncio.Event()
                 monitor = asyncio.create_task(
                     self._enqueue_stream_request(queue_item, inserted)
@@ -983,8 +985,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     )
                 else:
                     queue_item.future.cancel()
-            for monitor in monitors:
-                monitor.cancel()
+            if not self.shutdown_event.is_set():
+                for monitor in monitors:
+                    monitor.cancel()
             await asyncio.gather(
                 *monitors,
                 shutdown_task,

@@ -725,6 +725,55 @@ def test_iter_batch_requests_surfaces_enqueue_errors(monkeypatch):
         client.shutdown()
 
 
+@pytest.mark.parametrize("blocked_insertion", [False, True])
+def test_iter_batch_requests_preserves_shutdown_error_for_unsettled_head(
+    monkeypatch, blocked_insertion
+):
+    keepalive = DummyCompletionClient()
+    client = DummyCompletionClient(rate_limit_rpm=1)
+    head_waiting = threading.Event()
+    never_release = asyncio.Event()
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    async def block_put(_queue_item):
+        head_waiting.set()
+        await never_release.wait()
+
+    async def block_provider(_request):
+        head_waiting.set()
+        await never_release.wait()
+
+    async def flush_callbacks():
+        for _ in range(20):
+            await asyncio.sleep(0)
+
+    monkeypatch.setattr(
+        client,
+        "_enqueue_request" if blocked_insertion else "make_single_request",
+        block_put if blocked_insertion else block_provider,
+    )
+    responses = client.iter_batch_requests(
+        [_make_completion_request("first")], "shutdown-head", batch_size=1
+    )
+    stopped = False
+    try:
+        head = executor.submit(next, responses)
+        assert head_waiting.wait(timeout=2)
+        asyncio.run_coroutine_threadsafe(flush_callbacks(), client._event_loop).result(
+            timeout=2
+        )
+        client.shutdown()
+        stopped = True
+        with pytest.raises(ExecutionError, match="shut down"):
+            head.result(timeout=2)
+    finally:
+        if not stopped:
+            client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        keepalive.shutdown()
+
+
 def test_iter_batch_requests_retains_opaque_request_until_final_duplicate_emits():
     class OpaqueClient(SlidingWindowCompletionClient):
         def _build_request_key(self, request):
