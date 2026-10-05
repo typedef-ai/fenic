@@ -309,8 +309,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         separates structured ops with different output schemas, and separates
         structured from unstructured ops that share a ``max_completion_tokens``.
 
-        We deliberately do NOT key on operator type: ``operation_name`` isn't on the
-        request, and finer keys fragment the sample pool — each key needs its own
+        We deliberately exclude ``operation_name`` from the key to avoid fragmenting
+        the sample pool — each finer key needs its own
         ``min_samples`` warm-up, so over-splitting just keeps the estimator cold and
         falling back to the static ceiling. Residual pooling (distinct ops sharing
         profile + max + schema with different output-length distributions) only
