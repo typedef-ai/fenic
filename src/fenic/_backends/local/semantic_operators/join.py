@@ -1,4 +1,6 @@
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Optional
 
 import polars as pl
@@ -22,7 +24,18 @@ RIGHT_ID_KEY = "__right_id__"
 DEFAULT_PAIR_BLOCK_SIZE = 1_024
 DEFAULT_BLOCK_TOKEN_BUDGET = 32_768
 
+
 class Join:
+    """Evaluate one pair tile at a time, overlapping its token sub-blocks.
+
+    The pair cap (1,024 by default) also caps join-owned provider work, even
+    when the client's RPM/look-ahead window is larger. Token sub-blocks share
+    the existing provider limiter without a settlement barrier between them.
+    Context preflight checks rendered user prompts only, not system text,
+    examples, request framing, or reserved output tokens. It does not guarantee
+    that the full request fits the model context.
+    """
+
     def __init__(
         self,
         left_df: pl.DataFrame,
@@ -60,19 +73,9 @@ class Join:
         survivor_chunks = []
         examples = self._convert_examples()
         for join_pairs in self._iter_join_pair_blocks(left_documents, right_documents):
-            for token_bounded_pairs in self._split_block_by_token_budget(join_pairs):
-                semantic_predicate = Predicate(
-                    input=token_bounded_pairs[RENDERED_INSTRUCTION_KEY],
-                    jinja_template=self.jinja_template,
-                    examples=examples,
-                    temperature=self.temperature,
-                    model=self.model,
-                    model_alias=self.model_alias,
-                )
-                results = semantic_predicate.execute()
-                survivors = self._select_survivors(token_bounded_pairs, results)
-                if not survivors.is_empty():
-                    survivor_chunks.append(survivors)
+            survivor_chunks.extend(self._execute_pair_tile(join_pairs, examples))
+            # Drop the previous rendered tile before constructing the next one.
+            del join_pairs
 
         if not survivor_chunks:
             return self._empty_result_with_schema(self.left_df, self.right_df)
@@ -81,18 +84,44 @@ class Join:
         self._assert_unique_survivor_pairs(survivor_pairs)
         return self._postprocess(survivor_pairs)
 
+    def _execute_pair_tile(
+        self, join_pairs: pl.DataFrame, examples: PredicateExampleCollection
+    ) -> list[pl.DataFrame]:
+        blocks = list(self._split_block_by_token_budget(join_pairs))
+        # A finite tile is the hard slot ceiling, independent of max(B, RPM).
+        if sum(len(block) for block in blocks) > self.pair_block_size:
+            raise InternalError("semantic.join pair tile exceeds cap")
+        evaluate = partial(self._evaluate_token_block, examples=examples)
+        if len(blocks) == 1:
+            survivors = [evaluate(blocks[0])]
+        else:
+            # One worker per sub-block avoids a token-dependent concurrency cap.
+            # All owned work drains before another tile can be built, even on error.
+            with ThreadPoolExecutor(max_workers=len(blocks)) as executor:
+                survivors = list(executor.map(evaluate, blocks))
+        return [survivor for survivor in survivors if not survivor.is_empty()]
+
+    def _evaluate_token_block(
+        self, join_pairs: pl.DataFrame, examples: PredicateExampleCollection
+    ) -> pl.DataFrame:
+        predicate = Predicate(
+            input=join_pairs[RENDERED_INSTRUCTION_KEY],
+            jinja_template=self.jinja_template,
+            examples=examples,
+            temperature=self.temperature,
+            model=self.model,
+            model_alias=self.model_alias,
+        )
+        return self._select_survivors(join_pairs, predicate.execute())
+
     def _join_documents(self) -> tuple[pl.DataFrame, pl.DataFrame] | None:
         if self.left_df.is_empty() or self.right_df.is_empty():
             return None
         left_documents = self.left_df.select([LEFT_ON_KEY, LEFT_ID_KEY])
         right_documents = self.right_df.select([RIGHT_ON_KEY, RIGHT_ID_KEY])
         if self.strict:
-            left_documents = left_documents.filter(
-                pl.col(LEFT_ON_KEY).is_not_null()
-            )
-            right_documents = right_documents.filter(
-                pl.col(RIGHT_ON_KEY).is_not_null()
-            )
+            left_documents = left_documents.filter(pl.col(LEFT_ON_KEY).is_not_null())
+            right_documents = right_documents.filter(pl.col(RIGHT_ON_KEY).is_not_null())
 
         if left_documents.is_empty() or right_documents.is_empty():
             return None
@@ -118,7 +147,9 @@ class Join:
                 "semantic.join pair block exceeds cap "
                 f"({len(joined_df)} > {self.pair_block_size})"
             )
-        render_expr = pl.struct([pl.col(LEFT_ON_KEY), pl.col(RIGHT_ON_KEY)]).jinja.render(
+        render_expr = pl.struct(
+            [pl.col(LEFT_ON_KEY), pl.col(RIGHT_ON_KEY)]
+        ).jinja.render(
             template=self.jinja_template,
             strict=self.strict,
         )
@@ -129,29 +160,34 @@ class Join:
     def _split_block_by_token_budget(
         self, join_pairs: pl.DataFrame
     ) -> Iterator[pl.DataFrame]:
-        prompt_tokens = sum(
-            self.model.count_tokens(prompt)
-            for prompt in join_pairs[RENDERED_INSTRUCTION_KEY]
-        )
-        if len(join_pairs) == 1:
-            context_limit = self.model.model_parameters.context_window_length
-            if prompt_tokens > context_limit:
+        context_limit = self.model.model_parameters.context_window_length
+        prompt_tokens = 0
+        for prompt in join_pairs[RENDERED_INSTRUCTION_KEY]:
+            pair_tokens = self.model.count_tokens(prompt)
+            if pair_tokens > context_limit:
                 raise ExecutionError(
                     "semantic.join rendered prompt is too large "
-                    f"({prompt_tokens} tokens) and exceeds the model context limit "
+                    f"({pair_tokens} tokens) and exceeds the model context limit "
                     f"({context_limit} tokens). Reduce the join inputs or use a "
                     "smaller prompt."
                 )
-            yield join_pairs
-            return
+            prompt_tokens += pair_tokens
+        yield from self._split_validated_block(join_pairs, prompt_tokens)
 
-        if prompt_tokens <= self.block_token_budget:
+    def _split_validated_block(
+        self, join_pairs: pl.DataFrame, prompt_tokens: int
+    ) -> Iterator[pl.DataFrame]:
+        if len(join_pairs) == 1 or prompt_tokens <= self.block_token_budget:
             yield join_pairs
             return
 
         split_at = len(join_pairs) // 2
-        yield from self._split_block_by_token_budget(join_pairs.slice(0, split_at))
-        yield from self._split_block_by_token_budget(join_pairs.slice(split_at))
+        for block in (join_pairs.slice(0, split_at), join_pairs.slice(split_at)):
+            tokens = sum(
+                self.model.count_tokens(prompt)
+                for prompt in block[RENDERED_INSTRUCTION_KEY]
+            )
+            yield from self._split_validated_block(block, tokens)
 
     def _convert_examples(self) -> PredicateExampleCollection:
         if not self.examples:
@@ -163,9 +199,13 @@ class Join:
     def _select_survivors(
         self, join_pairs: pl.DataFrame, results: pl.Series
     ) -> pl.DataFrame:
-        return join_pairs.with_columns(pl.Series(MATCH_RESULT_KEY, results)).filter(
-            pl.col(MATCH_RESULT_KEY)
-        ).select([LEFT_ID_KEY, RIGHT_ID_KEY])
+        return (
+            join_pairs.with_columns(
+                pl.Series(MATCH_RESULT_KEY, results, dtype=pl.Boolean)
+            )
+            .filter(pl.col(MATCH_RESULT_KEY))
+            .select([LEFT_ID_KEY, RIGHT_ID_KEY])
+        )
 
     def _assert_unique_survivor_pairs(self, survivor_pairs: pl.DataFrame) -> None:
         if survivor_pairs.select(
@@ -188,7 +228,9 @@ class Join:
             (name, dtype) for name, dtype in left.schema.items() if name != LEFT_ID_KEY
         ]
         right_schema = [
-            (name, dtype) for name, dtype in right.schema.items() if name != RIGHT_ID_KEY
+            (name, dtype)
+            for name, dtype in right.schema.items()
+            if name != RIGHT_ID_KEY
         ]
 
         schema = left_schema + right_schema
