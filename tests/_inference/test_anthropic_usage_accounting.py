@@ -88,7 +88,9 @@ def test_absent_cache_token_fields_are_treated_as_zero(monkeypatch):
     ("cache_read", "cache_written"),
     [(None, None), (0, 0), (None, 4), (4, None)],
 )
-def test_nullable_cache_token_fields_do_not_raise(monkeypatch, cache_read, cache_written):
+def test_nullable_cache_token_fields_do_not_raise(
+    monkeypatch, cache_read, cache_written
+):
     usage = Usage(
         input_tokens=5,
         output_tokens=2,

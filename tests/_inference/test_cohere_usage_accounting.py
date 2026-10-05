@@ -67,7 +67,9 @@ def test_missing_billed_units_falls_back_to_token_counter(monkeypatch, meta):
 
     assert result == [0.1, 0.2, 0.3]
     # Falls back to the local counter rather than raising or counting None.
-    assert client.get_metrics().num_input_tokens == client.token_counter.count_tokens(DOC)
+    assert client.get_metrics().num_input_tokens == client.token_counter.count_tokens(
+        DOC
+    )
     assert client.get_metrics().num_requests == 1
 
 
