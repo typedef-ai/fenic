@@ -141,14 +141,18 @@ class OpenAIChatCompletionsCore:
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
-                common_params["response_format"] = request.structured_output.pydantic_model
+                common_params["response_format"] = (
+                    request.structured_output.pydantic_model
+                )
                 try:
-                    response = await self._client.beta.chat.completions.parse(**common_params)
+                    response = await self._client.beta.chat.completions.parse(
+                        **common_params
+                    )
                 except PydanticValidationError as e:
-                    # The SDK parsed the model's content against response_format and it
-                    # did not conform. Surface what actually came back, rather than an
-                    # opaque pydantic error attributed to a DataFrame expression.
-                    return FatalException(_structured_output_validation_error(self._model, request, e))
+                    # Parsing can also fail in a custom validator, even for valid JSON.
+                    return FatalException(
+                        _structured_output_validation_error(self._model, request, e)
+                    )
             else:
                 response = await self._client.chat.completions.create(**common_params)
 
@@ -289,38 +293,58 @@ class OpenAIChatCompletionsCore:
                 else 0
             ),
         )
+
+
 _MAX_RAW_PREVIEW_CHARS = 200
+_MAX_VALIDATION_MESSAGE_CHARS = 1000
 
 
 def _structured_output_validation_error(model, request, error):
-    """Build a diagnosable error for a response that failed structured-output parsing.
-
-    The OpenAI SDK parses the model's content against response_format and raises a
-    pydantic ValidationError when it does not conform. That error is opaque by itself,
-    so this reconstructs the operator, the expected schema and a short preview of what
-    the model actually returned.
-    """
+    """Build a bounded diagnostic without blaming schema-valid custom validation."""
     schema_name = (
         request.structured_output.pydantic_model.__name__
         if request.structured_output is not None
         else "unknown"
     )
-    raw_input = next(
-        (item.get("input") for item in error.errors() if "input" in item), None
-    )
+    details = error.errors(include_url=False, include_context=False)
+    raw_input = next((item["input"] for item in details if "input" in item), None)
     preview = _truncate_preview(raw_input, _MAX_RAW_PREVIEW_CHARS)
     operator = request.operation_name or "unknown operator"
-    return ExecutionError(
-        f"Structured-output validation failed for {operator}: expected {schema_name}, "
-        f"but model '{model}' returned content that does not match it: {preview}. "
-        f"This model or provider does not honour response_format. "
-        f"Original error: {error}"
+    summary = []
+    for item in details[:3]:
+        location = _truncate_preview(item.get("loc", ()), 80)
+        error_type = _bounded_validation_text(item.get("type", "unknown"), 40)
+        # Arbitrary validator messages may embed the full input or URLs.
+        description = (
+            "Invalid JSON"
+            if error_type == "json_invalid"
+            else "Input could not be validated"
+        )
+        summary.append(f"{location} [{error_type}]: {description}")
+    if len(details) > 3:
+        summary.append("...")
+    error_count = error.error_count()
+    message = (
+        f"Structured output for {_bounded_validation_text(operator, 80)} "
+        f"from model '{_bounded_validation_text(model, 80)}' could not be validated "
+        f"against {_bounded_validation_text(schema_name, 80)}. "
+        f"Validation input preview: {preview}. "
+        f"{error_count} validation error{'s' if error_count != 1 else ''}: "
+        + "; ".join(summary)
     )
+    diagnostic = ExecutionError(
+        _bounded_validation_text(message, _MAX_VALIDATION_MESSAGE_CHARS)
+    )
+    diagnostic.__cause__ = error
+    return diagnostic
+
+
+def _bounded_validation_text(text, max_chars):
+    """Escape line breaks before bounding diagnostic text."""
+    text = str(text).replace("\r", "\\r").replace("\n", "\\n")
+    return text if len(text) <= max_chars else text[: max_chars - 3] + "..."
 
 
 def _truncate_preview(value, max_chars):
     """Return a capped, single-line string preview of value."""
-    text = repr(value)
-    if len(text) > max_chars:
-        text = text[: max_chars - 3] + "..."
-    return text.replace("\\n", " ")
+    return _bounded_validation_text(repr(value), max_chars)

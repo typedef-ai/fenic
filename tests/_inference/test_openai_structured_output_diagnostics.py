@@ -10,11 +10,14 @@ import asyncio
 import enum
 from types import SimpleNamespace
 
-from pydantic import BaseModel, create_model
+import pytest
+from pydantic import BaseModel, create_model, field_validator
 from pydantic import ValidationError as PydanticValidationError
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
+    _structured_output_validation_error,
+    _truncate_preview,
 )
 from fenic._inference.model_client import FatalException
 from fenic._inference.types import (
@@ -120,7 +123,7 @@ def test_bare_enum_value_produces_diagnosable_fatal():
     assert "semantic.classify" in message
     assert "EnumModel" in message
     assert "'toolchain'" in message
-    assert "does not honour response_format" in message
+    assert "could not be validated" in message
 
 
 def test_fenced_json_produces_diagnosable_fatal():
@@ -134,7 +137,7 @@ def test_fenced_json_produces_diagnosable_fatal():
     message = str(result.exception)
     assert "semantic.extract" in message
     assert "SvcModel" in message
-    assert "does not honour response_format" in message
+    assert "could not be validated" in message
 
 
 def test_missing_operation_name_falls_back_without_crashing():
@@ -155,3 +158,72 @@ def test_conforming_response_still_succeeds():
 
     assert not isinstance(result, FatalException)
     assert result.completion == '{"service": "api", "port": 1}'
+
+
+def test_long_multiline_input_has_one_bounded_preview():
+    raw_input = "PREVIEW_SENTINEL\n" + "payload-line\r\n" * 1000 + "TAIL_SENTINEL"
+    error = _validation_error(raw_input)
+    result = _run(_core(error), _request(ENUM_FORMAT, "semantic.classify"))
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    preview = _truncate_preview(raw_input, 200)
+    assert len(preview) == 200
+    assert preview.endswith("...")
+    assert "\\n" in preview
+    assert "\n" not in message and "\r" not in message
+    assert len(message) <= 1000
+    assert message.count("PREVIEW_SENTINEL") == 1
+    assert "TAIL_SENTINEL" not in message
+    assert raw_input not in message
+    assert "Validation input preview: " + preview in message
+    assert "1 validation error" in message and "json_invalid" in message
+    assert "https://" not in message
+    assert result.exception.__cause__ is error
+
+
+def test_custom_validator_failure_uses_neutral_wording():
+    class CustomModel(BaseModel):
+        service: str
+
+        @field_validator("service")
+        @classmethod
+        def reject_service(cls, value):
+            raise ValueError("CUSTOM_MESSAGE_SENTINEL:" + value)
+
+    with pytest.raises(PydanticValidationError) as captured:
+        CustomModel.model_validate_json('{"service": "valid-schema-value"}')
+    response_format = ResolvedResponseFormat(
+        pydantic_model=CustomModel, json_schema={}, prompt_schema_definition=""
+    )
+    result = _run(_core(captured.value), _request(response_format, "semantic.extract"))
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    assert "could not be validated" in message
+    assert "Validation input preview: 'valid-schema-value'" in message
+    assert "service" in message and "value_error" in message
+    assert message.count("valid-schema-value") == 1
+    assert "CUSTOM_MESSAGE_SENTINEL" not in message
+    assert "response_format" not in message
+    assert "does not match" not in message
+    assert result.exception.__cause__ is captured.value
+
+
+def test_many_errors_and_long_metadata_keep_the_whole_message_bounded():
+    model = create_model(
+        "LongModel", **{f"field_{index}": (int, ...) for index in range(100)}
+    )
+    with pytest.raises(PydanticValidationError) as captured:
+        model.model_validate({})
+    request = _request(ENUM_FORMAT, "operator\n" * 1000)
+    error = _structured_output_validation_error(
+        "model\r\n" * 1000, request, captured.value
+    )
+
+    assert len(str(error)) <= 1000
+    assert "\n" not in str(error) and "\r" not in str(error)
+    assert "100 validation errors" in str(error)
+    assert "field_0" in str(error) and "missing" in str(error)
+    assert "field_99" not in str(error)
+    assert "https://" not in str(error)
