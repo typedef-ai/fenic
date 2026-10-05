@@ -714,18 +714,20 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 request_key = None
                 if request is not None:
                     request_key = self._safe_build_request_key(request, slot_index)
-                    if request_key is None:
-                        request_key = f"opaque:{id(request)}"
-                        # Preserve same-object dedup without recycling a live id.
-                        opaque_requests[request_key] = request
                 admitted_keys.append(request_key)
+                if request is not None and request_key is None:
+                    # Preserve same-object dedup without recycling a live id.
+                    opaque_requests[f"opaque:{id(request)}"] = request
                 admitted_indices.append(slot_index)
 
             if not admitted_requests:
                 return
 
             def register_slot(slot_index: int, req_future: Future) -> None:
-                request_key = admitted_keys[slot_index - request_index]
+                index = slot_index - request_index
+                request_key = admitted_keys[index]
+                if request_key is None and admitted_requests[index] is not None:
+                    request_key = f"opaque:{id(admitted_requests[index])}"
                 advance_started_ns = stage_started_ns() if record_advance else None
                 pending[slot_index] = (req_future, request_key)
                 if request_key is not None and request_key in unique_futures:
@@ -753,6 +755,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 defer_thread_exceptions=True,
                 register_slot=register_slot,
                 enqueue_stream_request=enqueue_stream_request,
+                request_keys=admitted_keys,
             )
             record_stage(
                 "request_dispatch",
@@ -829,7 +832,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             raise ExecutionError(str(e)) from e
         finally:
             for req_future in unique_futures.values():
-                req_future.cancel()
+                try:
+                    self._event_loop.call_soon_threadsafe(req_future.cancel)
+                except RuntimeError:
+                    # A closed loop cannot race a worker's settlement.
+                    req_future.cancel()
             pump_future.cancel()
             opaque_requests.clear()
 
@@ -1088,6 +1095,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         defer_thread_exceptions: bool = False,
         register_slot: Optional[Callable[[int, Future], None]] = None,
         enqueue_stream_request: Optional[Callable[[QueueItem[RequestT]], None]] = None,
+        request_keys: Optional[List[Optional[str]]] = None,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -1102,6 +1110,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 indexed streaming emission instead of registering them globally.
             register_slot: Register each streaming future before queue insertion.
             enqueue_stream_request: Hand slots to the stream's ordered insertion pump.
+            request_keys: Fingerprints already built at streaming admission, if supplied.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
@@ -1112,14 +1121,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         num_unique_requests = 0
         total_token_estimate = TokenEstimate()
 
-        request_keys: List[Optional[str]] = []
-        for idx, request in enumerate(requests):
-            if request is None:
-                request_keys.append(None)
-                continue
-            request_keys.append(
+        if request_keys is None:
+            request_keys = [
                 self._safe_build_request_key(request, request_index_offset + idx)
-            )
+                if request is not None
+                else None
+                for idx, request in enumerate(requests)
+            ]
 
         cached_responses: Dict[str, CachedResponse] = {}
         if self.cache is not None:
@@ -1201,7 +1209,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
                 # Cache miss - normal processing
                 req_future, estimated_tokens = self._get_or_create_request_future(
-                    unique_futures, request, request_fingerprint
+                    unique_futures,
+                    request,
+                    request_fingerprint
+                    if request_fingerprint is not None
+                    else f"opaque:{id(request)}",
                 )
                 request_futures.append(req_future)
                 if register_slot is not None:

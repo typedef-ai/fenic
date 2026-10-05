@@ -1,9 +1,10 @@
 import asyncio
 import gc
+import sys
 import threading
 import time
 import weakref
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Dict, List, Optional, Union
 
@@ -772,6 +773,148 @@ def test_iter_batch_requests_preserves_shutdown_error_for_unsettled_head(
         executor.shutdown(wait=True, cancel_futures=True)
         responses.close()
         keepalive.shutdown()
+
+
+def test_iter_batch_requests_close_serializes_cancellation_with_worker_settlement(
+    monkeypatch,
+):
+    client = DummyCompletionClient(rate_limit_rpm=2)
+    worker_checked = threading.Event()
+    release_worker = threading.Event()
+    handler_errors = []
+    loop_errors = []
+    cancel_threads = []
+    events = []
+    original_create = client._get_or_create_request_future
+    original_handle = client._handle_response
+
+    class PausedFuture(Future):
+        def done(self):
+            result = super().done()
+            if not result and sys._getframe(1).f_code.co_name == "_handle_response":
+                worker_checked.set()
+                assert release_worker.wait(timeout=5)
+            return result
+
+        def cancel(self):
+            cancel_threads.append(threading.get_ident())
+            return super().cancel()
+
+    def create(unique_futures, request, request_key=None):
+        future, estimate = original_create(unique_futures, request, request_key)
+        if estimate is not None and request.messages.user == "racing":
+            key = next(key for key, value in unique_futures.items() if value is future)
+            future = PausedFuture()
+            unique_futures[key] = future
+        return future, estimate
+
+    async def handle(queue_item, response):
+        try:
+            await original_handle(queue_item, response)
+        except BaseException as error:
+            handler_errors.append(error)
+            raise
+
+    async def configure_loop():
+        previous = client._event_loop.get_exception_handler()
+        client._event_loop.set_exception_handler(
+            lambda _loop, context: loop_errors.append(context)
+        )
+        return previous, threading.get_ident()
+
+    async def flush_loop():
+        for _ in range(10):
+            await asyncio.sleep(0)
+        gc.collect()
+
+    previous_handler, loop_thread = asyncio.run_coroutine_threadsafe(
+        configure_loop(), client._event_loop
+    ).result(timeout=2)
+    monkeypatch.setattr(client, "_get_or_create_request_future", create)
+    monkeypatch.setattr(client, "_handle_response", handle)
+    client.set_request_lifecycle_collector(events.append)
+    responses = client.iter_batch_requests(
+        [_make_completion_request("first"), _make_completion_request("racing")],
+        "close-settlement-race",
+        batch_size=2,
+    )
+    try:
+        assert next(responses).completion == "response-for-first"
+        assert worker_checked.wait(timeout=2)
+        responses.close()
+        release_worker.set()
+        asyncio.run_coroutine_threadsafe(flush_loop(), client._event_loop).result(
+            timeout=2
+        )
+        assert not handler_errors
+        assert not loop_errors
+        assert cancel_threads and set(cancel_threads) == {loop_thread}
+        assert [
+            event.event
+            for event in events
+            if event.request_index == 1 and event.event != "streaming_stage"
+        ] == [
+            "queued",
+            "dispatched",
+            "settled",
+        ]
+        assert client.call_count == 2
+    finally:
+        release_worker.set()
+        responses.close()
+        client._event_loop.call_soon_threadsafe(
+            client._event_loop.set_exception_handler, previous_handler
+        )
+        client.shutdown()
+
+
+@pytest.mark.parametrize("key_behavior", ["odd-failure", "even-failure", "changing"])
+@pytest.mark.parametrize("with_cache", [False, True])
+def test_iter_batch_requests_builds_each_key_once_and_bounds_flaky_key_maps(
+    key_behavior, with_cache
+):
+    class FlakyKeyClient(DummyCompletionClient):
+        def __init__(self):
+            super().__init__(
+                rate_limit_rpm=4, cache=FakeCache() if with_cache else None
+            )
+            self.key_calls = {}
+
+        def _build_request_key(self, request):
+            prompt = request.messages.user
+            count = self.key_calls.get(prompt, 0) + 1
+            self.key_calls[prompt] = count
+            if (key_behavior == "odd-failure" and count % 2 == 1) or (
+                key_behavior == "even-failure" and count % 2 == 0
+            ):
+                raise RuntimeError("transient fingerprint failure")
+            return f"{count}:{super()._build_request_key(request)}"
+
+    client = FlakyKeyClient()
+    responses = client.iter_batch_requests(
+        (_make_completion_request(f"row-{index}") for index in range(300)),
+        "flaky-key-memory",
+        batch_size=4,
+    )
+    try:
+        for index in range(200):
+            assert next(responses).completion == f"response-for-row-{index}"
+            state = responses.gi_frame.f_locals
+            assert len(state["opaque_requests"]) <= 4
+            assert len(state["unique_futures"]) <= 4
+            assert len(state["slot_ref_counts"]) <= 4
+        assert set(client.key_calls.values()) == {1}
+        assert [response.completion for response in responses] == [
+            f"response-for-row-{index}" for index in range(200, 300)
+        ]
+        assert len(client.key_calls) == client.call_count == 300
+        assert set(client.key_calls.values()) == {1}
+        if with_cache:
+            assert all(not key.startswith("opaque:") for key in client.cache.store)
+            assert client.cache.get_batch_called == (key_behavior != "odd-failure")
+    finally:
+        responses.close()
+        client.shutdown()
 
 
 def test_iter_batch_requests_retains_opaque_request_until_final_duplicate_emits():
