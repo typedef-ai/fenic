@@ -1,9 +1,8 @@
 """Diagnosable failures for structured-output validation in the OpenAI core.
 
-When the OpenAI SDK's .parse() rejects a model's response against the requested
-schema, the resulting pydantic error is opaque by itself. The core should re-raise it
-as a fatal error that names the operator, the expected schema, and a preview of what
-the model actually returned.
+When the OpenAI SDK's .parse() raises a Pydantic error, the diagnostic should name
+the operator and schema without assuming provider noncompliance. Validation input
+may be only a field value, and its preview and the complete message must be bounded.
 """
 
 import asyncio
@@ -13,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel, create_model, field_validator
 from pydantic import ValidationError as PydanticValidationError
+from pydantic_core import PydanticCustomError
 
 from fenic._inference.common_openai.openai_chat_completions_core import (
     OpenAIChatCompletionsCore,
@@ -225,5 +225,37 @@ def test_many_errors_and_long_metadata_keep_the_whole_message_bounded():
     assert "\n" not in str(error) and "\r" not in str(error)
     assert "100 validation errors" in str(error)
     assert "field_0" in str(error) and "missing" in str(error)
+    assert "field_3" not in str(error)
+    assert "..." in str(error)
     assert "field_99" not in str(error)
     assert "https://" not in str(error)
+
+
+def test_final_message_cap_applies_when_all_components_are_full():
+    raw_input = "CAP_SENTINEL" + "x" * 1000
+    validation_error = PydanticValidationError.from_exception_data(
+        "LongErrors",
+        [
+            {
+                "type": PydanticCustomError("custom_type" + "x" * 1000, "not rendered"),
+                "loc": ("location_" + "x" * 1000, index),
+                "input": raw_input,
+            }
+            for index in range(3)
+        ],
+    )
+    schema = create_model("Schema" + "x" * 1000)
+    response_format = ResolvedResponseFormat(
+        pydantic_model=schema, json_schema={}, prompt_schema_definition=""
+    )
+    request = _request(response_format, "operator" + "x" * 1000)
+    diagnostic = _structured_output_validation_error(
+        "model" + "x" * 1000, request, validation_error
+    )
+
+    message = str(diagnostic)
+    assert len(message) == 1000
+    assert message.endswith("...")
+    assert message.count("CAP_SENTINEL") == 1
+    assert "3 validation errors" in message
+    assert diagnostic.__cause__ is validation_error
