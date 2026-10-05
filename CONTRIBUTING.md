@@ -157,10 +157,10 @@ uv run pytest -m "not cloud" tests
 
 Run all tests against a different **language model provider/model name**:
 
-- OpenAI/gpt-5-nano (Default, minimal reasoning)
+- OpenAI/gpt-6-luna (Default, reasoning disabled)
 
 ```bash
-uv run pytest --language-model-provider=openai --language-model-name='gpt-5-nano'
+uv run pytest --language-model-provider=openai --language-model-name='gpt-6-luna'
 ```
 
 - Anthropic/claude-haiku-4-5

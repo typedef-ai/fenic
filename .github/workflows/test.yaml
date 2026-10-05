@@ -130,10 +130,10 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.test }}" == "local" ]]; then
-            just sync=false test-local openai gpt-5-nano openai text-embedding-3-small \
+            just sync=false test-local openai gpt-6-luna openai text-embedding-3-small \
               "${{ steps.scope.outputs.marker_expr }}"
           else
-            just sync=false test-${{ matrix.test }} openai gpt-5-nano openai text-embedding-3-small
+            just sync=false test-${{ matrix.test }} openai gpt-6-luna openai text-embedding-3-small
           fi
       - name: report reduced coverage on fork PRs
         if: always() && matrix.test == 'local' && steps.scope.outputs.is_fork == 'true'
