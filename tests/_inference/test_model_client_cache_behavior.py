@@ -1,7 +1,10 @@
 import asyncio
+import gc
 import threading
 import time
+import weakref
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Union
 
 import polars as pl
@@ -11,6 +14,7 @@ from fenic._backends.local.semantic_operators.classify import Classify
 from fenic._backends.local.semantic_operators.extract import Extract
 from fenic._backends.local.semantic_operators.map import Map
 from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference import rate_limit_strategy as rate_limit_module
 from fenic._inference.cache.protocol import CachedResponse, CacheStats, LLMResponseCache
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import (
@@ -18,7 +22,11 @@ from fenic._inference.model_client import (
     ModelClient,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
+from fenic._inference.rate_limit_strategy import (
+    RateLimitStrategy,
+    TokenEstimate,
+    UnifiedTokenRateLimitStrategy,
+)
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
@@ -611,13 +619,17 @@ def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shut
     # Keep the shared loop alive so global loop cleanup cannot hide leaked puts.
     other_client = DummyCompletionClient()
     client = DummyCompletionClient(rate_limit_rpm=103)
-    all_started = threading.Event()
-    all_finished = threading.Event()
+    pump_finished = threading.Event()
     blocked_put = threading.Event()
     started_indices = set()
     finished_indices = set()
+    blocked_indices = set()
+    inserted_indices = set()
+    slot_futures = {}
     original_enqueue = client._enqueue_stream_request
     original_put = client._enqueue_request
+    original_pump = client._pump_stream_requests
+    original_submit = client._submit_batch_requests
     permitted_dispatches = 0
     client_stopped = False
 
@@ -628,24 +640,37 @@ def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shut
             return True
         return False
 
-    async def track_enqueue(queue_item):
+    async def track_enqueue(queue_item, inserted):
         started_indices.add(queue_item.request_index)
-        if len(started_indices) == 103:
-            all_started.set()
         try:
-            await original_enqueue(queue_item)
+            await original_enqueue(queue_item, inserted)
         finally:
             finished_indices.add(queue_item.request_index)
-            if len(finished_indices) == 103:
-                all_finished.set()
+
+    async def track_pump(stream_queue):
+        try:
+            await original_pump(stream_queue)
+        finally:
+            pump_finished.set()
+
+    def track_submit(*args, register_slot=None, **kwargs):
+        def register(index, future):
+            slot_futures[index] = future
+            register_slot(index, future)
+
+        return original_submit(*args, register_slot=register, **kwargs)
 
     async def track_put(queue_item):
         if client.request_queue.full():
+            blocked_indices.add(queue_item.request_index)
             blocked_put.set()
         await original_put(queue_item)
+        inserted_indices.add(queue_item.request_index)
 
     monkeypatch.setattr(client, "_check_and_consume_rate_limit", allow_one_dispatch)
     monkeypatch.setattr(client, "_enqueue_stream_request", track_enqueue)
+    monkeypatch.setattr(client, "_pump_stream_requests", track_pump)
+    monkeypatch.setattr(client, "_submit_batch_requests", track_submit)
     monkeypatch.setattr(client, "_enqueue_request", track_put)
     executor = ThreadPoolExecutor(max_workers=1)
     responses = client.iter_batch_requests(
@@ -657,10 +682,10 @@ def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shut
     try:
         first = executor.submit(next, responses).result(timeout=2)
         assert first.completion == "response-for-request-0"
-        assert all_started.wait(timeout=2)
+        assert len(slot_futures) == 103
         assert blocked_put.wait(timeout=2)
         assert client.request_queue.full()
-        assert not all_finished.is_set()
+        assert not pump_finished.is_set()
         if shutdown:
             client.shutdown()
             client_stopped = True
@@ -668,8 +693,11 @@ def test_iter_batch_requests_cleans_up_blocked_stream_enqueues(monkeypatch, shut
                 executor.submit(next, responses).result(timeout=2)
         else:
             responses.close()
-        assert all_finished.wait(timeout=2)
-        assert finished_indices == set(range(103))
+        assert pump_finished.wait(timeout=2)
+        assert finished_indices == started_indices
+        assert all(future.done() for future in slot_futures.values())
+        if not shutdown:
+            assert blocked_indices.isdisjoint(inserted_indices)
         assert permitted_dispatches == 1
     finally:
         if not client_stopped:
@@ -695,6 +723,152 @@ def test_iter_batch_requests_surfaces_enqueue_errors(monkeypatch):
             )
     finally:
         client.shutdown()
+
+
+def test_iter_batch_requests_retains_opaque_request_until_final_duplicate_emits():
+    class OpaqueClient(SlidingWindowCompletionClient):
+        def _build_request_key(self, request):
+            raise NotImplementedError
+
+    client = OpaqueClient(rate_limit_rpm=4, block_first=True, block_second=False)
+    executor = ThreadPoolExecutor(max_workers=1)
+    refs = {}
+    follower_settled = threading.Event()
+
+    def collect(event):
+        if event.event == "settled" and event.request_index == 1:
+            follower_settled.set()
+
+    def requests():
+        yield _make_completion_request("first")
+        follower = _make_completion_request("opaque")
+        refs["opaque"] = weakref.ref(follower)
+        yield follower
+        yield _make_completion_request("third")
+        yield follower
+        del follower
+        for index in range(1000):
+            yield _make_completion_request(f"row-{index}")
+
+    client.set_request_lifecycle_collector(collect)
+    responses = client.iter_batch_requests(requests(), "opaque-lifetime", batch_size=4)
+    try:
+        first = executor.submit(next, responses)
+        assert follower_settled.wait(timeout=2)
+
+        async def flush_settlement():
+            for _ in range(20):
+                await asyncio.sleep(0)
+
+        asyncio.run_coroutine_threadsafe(flush_settlement(), client._event_loop).result(
+            timeout=2
+        )
+        gc.collect()
+        # The upstream generator no longer holds the follower after refill.
+        client.release_second.set()
+        assert first.result(timeout=2).completion == "response-for-first"
+        gc.collect()
+        assert refs["opaque"]() is not None
+        assert next(responses).completion == "response-for-opaque"
+        assert next(responses).completion == "response-for-third"
+        gc.collect()
+        assert refs["opaque"]() is not None
+        assert next(responses).completion == "response-for-opaque"
+        gc.collect()
+        assert refs["opaque"]() is None
+        assert [r.completion for r in responses] == [
+            f"response-for-row-{index}" for index in range(1000)
+        ]
+        assert client.call_count == 1003
+    finally:
+        client.release_second.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+        responses.close()
+        client.shutdown()
+
+
+@pytest.mark.parametrize(
+    "rpm,queue_size,refill",
+    [(40, 2, 1), (300, 100, 300)],
+    ids=["rpm40-queue2-steady", "default-queue-burst"],
+)
+def test_iter_batch_requests_inserts_in_order_under_real_limiter_pressure(
+    monkeypatch, rpm, queue_size, refill
+):
+    client = DummyCompletionClient(rate_limit_rpm=rpm)
+    clock = SimpleNamespace(value=10_000.0)
+    monkeypatch.setattr(
+        rate_limit_module, "time", SimpleNamespace(time=lambda: clock.value)
+    )
+    limiter = UnifiedTokenRateLimitStrategy(rpm=rpm, tpm=10_000_000)
+    limiter.requests_bucket._set_capacity(1, clock.value)
+    client.rate_limit_strategy = limiter
+    client.request_queue = asyncio.Queue(maxsize=queue_size)
+    original_put = client._enqueue_request
+    release_early_put = asyncio.Event()
+    all_registered = threading.Event()
+    pressure_seen = asyncio.Event()
+    dispatch_order = []
+    dispatch_event = asyncio.Event()
+    registered = 0
+
+    def collect(event):
+        nonlocal registered
+        if event.event == "queued":
+            registered += 1
+            if registered == rpm:
+                all_registered.set()
+        elif event.event == "dispatched":
+            dispatch_order.append(event.request_index)
+            dispatch_event.set()
+
+    async def gated_put(queue_item):
+        # Force a later put to overtake slot 1 if puts compete independently.
+        # A serial insertion pump cannot start those later puts yet.
+        if queue_item.request_index == 1:
+            await release_early_put.wait()
+        if client.request_queue.full():
+            pressure_seen.set()
+        await original_put(queue_item)
+
+    async def drive_clock():
+        for _ in range(20):
+            await asyncio.sleep(0)
+        release_early_put.set()
+        await pressure_seen.wait()
+        while len(dispatch_order) < rpm:
+            dispatch_event.clear()
+            clock.value += (60 / rpm + 0.000001) * refill
+            await dispatch_event.wait()
+
+    client.set_request_lifecycle_collector(collect)
+    monkeypatch.setattr(client, "_enqueue_request", gated_put)
+    executor = ThreadPoolExecutor(max_workers=1)
+    driver = None
+    try:
+        result = executor.submit(
+            list,
+            client.iter_batch_requests(
+                (_make_completion_request(f"row-{i}") for i in range(rpm)),
+                "ordered-insertion",
+                batch_size=rpm,
+            ),
+        )
+        assert all_registered.wait(timeout=2)
+        driver = asyncio.run_coroutine_threadsafe(drive_clock(), client._event_loop)
+        responses = result.result(timeout=10)
+        driver.result(timeout=2)
+        assert [r.completion for r in responses] == [
+            f"response-for-row-{i}" for i in range(rpm)
+        ]
+        assert dispatch_order == list(range(rpm))
+        assert client.call_count == rpm
+    finally:
+        if driver is not None:
+            driver.cancel()
+        client._event_loop.call_soon_threadsafe(release_early_put.set)
+        client.shutdown()
+        executor.shutdown(wait=True, cancel_futures=True)
 
 
 def test_iter_batch_requests_does_not_exceed_retained_budget_behind_blocked_head():

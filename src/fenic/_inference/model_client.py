@@ -597,6 +597,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         Request fingerprint deduplication is intentionally scoped to retained
         iterator state. Keeping an unbounded in-memory deduplication table would
         defeat the stream's memory bound.
+
+        Each stream inserts unique uncached requests in input order, without
+        serializing provider execution. The window refills before each yield;
+        synchronous upstream work can therefore delay an already-settled result.
+        Upstream iterator errors are fail-fast and discard settled but unyielded
+        results. Errors at the iterator boundary become ``ExecutionError`` with
+        the original exception preserved as ``__cause__``.
+
+        Closing cancels unsent retained futures and blocked insertions. Requests
+        already inserted into the client queue or in flight may still be sent
+        and consume rate-limit budget.
         """
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
@@ -608,14 +619,32 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             look_ahead_basis
         )
         unique_futures: Dict[Any, Future] = {}
+        opaque_requests: Dict[str, RequestT] = {}
         slot_ref_counts: Dict[str, int] = {}
         pending: Dict[int, tuple[Future, Optional[str]]] = {}
         completed: Dict[int, tuple[Future, Optional[str]]] = {}
         settled_pending_indices: SimpleQueue[int] = SimpleQueue()
-        enqueue_futures: Dict[int, Future] = {}
+        stream_queue: asyncio.Queue[QueueItem[RequestT]] = asyncio.Queue()
         request_index = 0
         next_index_to_emit = 0
         exhausted = False
+
+        def enqueue_stream_request(queue_item: QueueItem[RequestT]) -> None:
+            def append() -> None:
+                if self.shutdown_event.is_set():
+                    self._register_thread_exception(
+                        queue_item,
+                        RuntimeError(
+                            f"Model client for {self.model} has been shut down"
+                        ),
+                    )
+                else:
+                    stream_queue.put_nowait(queue_item)
+
+            if self.shutdown_event.is_set():
+                append()
+            else:
+                self._event_loop.call_soon_threadsafe(append)
 
         def stage_started_ns() -> Optional[int]:
             if self._request_lifecycle_collector is None:
@@ -682,14 +711,14 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     stage_request_index=slot_index,
                 )
                 admitted_requests.append(request)
-                admitted_keys.append(
-                    (
-                        self._safe_build_request_key(request, slot_index)
-                        or f"opaque:{id(request)}"
-                    )
-                    if request is not None
-                    else None
-                )
+                request_key = None
+                if request is not None:
+                    request_key = self._safe_build_request_key(request, slot_index)
+                    if request_key is None:
+                        request_key = f"opaque:{id(request)}"
+                        # Preserve same-object dedup without recycling a live id.
+                        opaque_requests[request_key] = request
+                admitted_keys.append(request_key)
                 admitted_indices.append(slot_index)
 
             if not admitted_requests:
@@ -723,7 +752,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 show_progress=False,
                 defer_thread_exceptions=True,
                 register_slot=register_slot,
-                enqueue_futures=enqueue_futures,
+                enqueue_stream_request=enqueue_stream_request,
             )
             record_stage(
                 "request_dispatch",
@@ -760,7 +789,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
 
             del slot_ref_counts[request_key]
             unique_futures.pop(request_key, None)
+            opaque_requests.pop(request_key, None)
 
+        pump_future = asyncio.run_coroutine_threadsafe(
+            self._pump_stream_requests(stream_queue), self._event_loop
+        )
         try:
             admit_available_requests()
 
@@ -773,7 +806,6 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                     drain_started_ns = stage_started_ns()
                     response = req_future.result()
                     release_request_key(request_key)
-                    enqueue_futures.pop(next_index_to_emit, None)
                     record_stage(
                         "response_drain",
                         drain_started_ns,
@@ -796,8 +828,10 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             # Preserve the public batch API's error boundary for Polars callbacks.
             raise ExecutionError(str(e)) from e
         finally:
-            for enqueue_future in enqueue_futures.values():
-                enqueue_future.cancel()
+            for req_future in unique_futures.values():
+                req_future.cancel()
+            pump_future.cancel()
+            opaque_requests.clear()
 
     @staticmethod
     def _streaming_slot_caps(look_ahead_basis: int) -> tuple[int, int]:
@@ -907,7 +941,60 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """
         await self.request_queue.put(queue_item)
 
-    async def _enqueue_stream_request(self, queue_item: QueueItem[RequestT]):
+    async def _pump_stream_requests(
+        self, stream_queue: asyncio.Queue[QueueItem[RequestT]]
+    ) -> None:
+        """Own one ordered insertion pump, with concurrent settlement monitors."""
+        monitors: Set[asyncio.Task] = set()
+        shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+        get_task = None
+        try:
+            while not shutdown_task.done():
+                get_task = asyncio.create_task(stream_queue.get())
+                done, _ = await asyncio.wait(
+                    (get_task, shutdown_task), return_when=asyncio.FIRST_COMPLETED
+                )
+                if shutdown_task in done:
+                    if get_task.done():
+                        stream_queue.put_nowait(get_task.result())
+                    break
+                queue_item = get_task.result()
+                inserted = asyncio.Event()
+                monitor = asyncio.create_task(
+                    self._enqueue_stream_request(queue_item, inserted)
+                )
+                monitors.add(monitor)
+                monitor.add_done_callback(monitors.discard)
+                await inserted.wait()
+                # Do not retain a settled request while waiting for more input.
+                del queue_item, monitor
+        finally:
+            if get_task is not None:
+                get_task.cancel()
+            shutdown_task.cancel()
+            while not stream_queue.empty():
+                queue_item = stream_queue.get_nowait()
+                if self.shutdown_event.is_set():
+                    self._register_thread_exception(
+                        queue_item,
+                        RuntimeError(
+                            f"Model client for {self.model} has been shut down"
+                        ),
+                    )
+                else:
+                    queue_item.future.cancel()
+            for monitor in monitors:
+                monitor.cancel()
+            await asyncio.gather(
+                *monitors,
+                shutdown_task,
+                *([get_task] if get_task is not None else []),
+                return_exceptions=True,
+            )
+
+    async def _enqueue_stream_request(
+        self, queue_item: QueueItem[RequestT], inserted: asyncio.Event
+    ):
         """Insert a streaming slot without blocking the caller's response drain."""
         put_task = asyncio.create_task(self._enqueue_request(queue_item))
         shutdown_task = asyncio.create_task(self.shutdown_event.wait())
@@ -919,6 +1006,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             if shutdown_task in done:
                 raise RuntimeError(f"Model client for {self.model} has been shut down")
             await put_task
+            inserted.set()
             await asyncio.wait(
                 (settled_future, shutdown_task), return_when=asyncio.FIRST_COMPLETED
             )
@@ -931,6 +1019,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         except Exception as e:
             self._register_thread_exception(queue_item, e)
         finally:
+            inserted.set()
             put_task.cancel()
             shutdown_task.cancel()
             settled_future.cancel()
@@ -995,7 +1084,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         show_progress: bool = True,
         defer_thread_exceptions: bool = False,
         register_slot: Optional[Callable[[int, Future], None]] = None,
-        enqueue_futures: Optional[Dict[int, Future]] = None,
+        enqueue_stream_request: Optional[Callable[[QueueItem[RequestT]], None]] = None,
     ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
@@ -1009,7 +1098,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             defer_thread_exceptions: Keep queue-item failures on their futures for
                 indexed streaming emission instead of registering them globally.
             register_slot: Register each streaming future before queue insertion.
-            enqueue_futures: Track asynchronous streaming insertions by slot index.
+            enqueue_stream_request: Hand slots to the stream's ordered insertion pump.
         Returns:
             Tuple of (request_futures, num_unique_requests, total_token_estimate)
         """
@@ -1136,18 +1225,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                         ),
                     )
                     self._emit_request_lifecycle_event("queued", queue_item)
-                    enqueue_future: Future = asyncio.run_coroutine_threadsafe(
-                        (
-                            self._enqueue_stream_request(queue_item)
-                            if enqueue_futures is not None
-                            else self._enqueue_request(queue_item)
-                        ),
-                        self._event_loop,
-                    )
-                    if enqueue_futures is None:
+                    if enqueue_stream_request is None:
+                        enqueue_future: Future = asyncio.run_coroutine_threadsafe(
+                            self._enqueue_request(queue_item), self._event_loop
+                        )
                         enqueue_future.result()
                     else:
-                        enqueue_futures[request_index_offset + idx] = enqueue_future
+                        enqueue_stream_request(queue_item)
 
                 pbar.update(1)
                 pbar.set_postfix(

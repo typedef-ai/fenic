@@ -10,7 +10,7 @@ source_inputs:
   - src/fenic/_inference/model_client.py
   - src/fenic/_backends/local/async_udf_stream.py
   - 202a24b (frozen stage-instrumentation source)
-last_updated: 2026-08-21
+last_updated: 2026-10-05
 ---
 
 # Design: Decoupled semantic admission and ordered emission
@@ -79,13 +79,26 @@ At every observable point, `len(pending) + len(completed) <= L`. A settled
 future left in `pending` still counts against L. A request key remains in the
 live dedup map until its final retained response emits, so the dedup map is also
 bounded by L. Peak RSS remains the process-level validation of that bound.
+Opaque fallback keys retain their request objects until the final retained slot
+emits. This prevents object-id reuse while preserving same-object deduplication;
+the additional request map is bounded by L.
 
 ### Completion and backpressure seam
 
 The iterator transfers settled pending slots into `completed` without changing
-the shared retained count. It drains the contiguous ordered prefix before
-refilling the newly free slots. A blocked early index can therefore hold the
-window at L while later completed responses wait for ordered emission.
+the shared retained count. At each ordered emission, it releases the slot and
+refills the newly free capacity before yielding the response. Synchronous upstream
+work can therefore delay an already-settled result. A blocked early index can hold
+the window at L while later completed responses wait for ordered emission.
+
+One stream-owned insertion pump puts unique uncached requests into the client
+queue in input order. Queue backpressure does not block caller-side response
+draining, and provider execution remains concurrent. This orders first dispatch
+within a stream, not retries or arbitration between independent submitters.
+
+Closing cancels unsent retained futures and blocked puts. Requests already
+inserted into the client queue or in flight may still be sent and consume
+rate-limit budget; close does not promise withdrawal or a permit refund.
 
 ### Error, cache, and dedup seam
 
@@ -97,6 +110,13 @@ immediate handling. The stream-owned error entry is cleared when the generator
 exits, whether by exhaustion or failure. A slot failure is therefore observed when
 its submission index reaches the emission edge, so earlier responses retain their
 positional behavior.
+
+Upstream iterator failures are fail-fast: settled but unyielded results are
+discarded, rather than drained before the upstream error. Exceptions at the
+iterator boundary, including upstream message-building failures, are normalized
+to `ExecutionError` with the original exception preserved as `__cause__`.
+Result/order and provider-failure parity do not imply identical upstream
+message-building exception classes on the streaming and whole-batch paths.
 
 Each bounded admission group uses one batch cache read. Cache hits, writes, and
 live deduplication retain their existing result semantics. The live dedup map
