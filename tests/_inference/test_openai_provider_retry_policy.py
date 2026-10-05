@@ -1,13 +1,18 @@
 """OpenAI SDK retry policy is disabled for each scheduler invocation."""
 
 import asyncio
+import time
+from datetime import datetime, timezone
+from email.utils import format_datetime
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import httpx
 import pytest
-from openai import AsyncOpenAI, InternalServerError
+from openai import AsyncOpenAI, InternalServerError, RateLimitError
 
+from fenic._inference import model_client as model_client_module
+from fenic._inference.model_client import TransientException
 from fenic._inference.openai.openai_batch_chat_completions_client import (
     OpenAIBatchChatCompletionsClient,
 )
@@ -171,6 +176,84 @@ def _scheduler_client(monkeypatch, kind: str, statuses: list[object], max_backof
 
 
 @pytest.mark.parametrize("kind", ["chat", "embedding"])
+def test_scheduler_preserves_retry_after_with_sdk_retries_disabled(monkeypatch, kind):
+    client, request, sdk_client, calls = _scheduler_client(
+        monkeypatch, kind, [(429, {"retry-after-ms": "2500"}), 200], max_backoffs=1
+    )
+    sent_at = []
+    original = client.make_single_request
+
+    async def timed_send(item):
+        sent_at.append(time.monotonic())
+        return await original(item)
+
+    client.make_single_request = timed_send
+    try:
+        assert sdk_client.max_retries == 0
+        results = client.make_batch_requests([request, request], "retry-after")
+        assert len(results) == 2
+        assert results[0] == results[1]
+        assert calls() == 2
+        assert sent_at[1] - sent_at[0] >= 2.4
+        print(f"{kind}: retry gap={sent_at[1] - sent_at[0]:.3f}s SDK retries=0 sends=2")
+    finally:
+        client.shutdown()
+        asyncio.run(sdk_client.close())
+
+
+@pytest.mark.parametrize(
+    ("headers", "delay"),
+    [
+        ({"retry-after-ms": "2500"}, 2.5),
+        ({"retry-after": "2.5"}, 2.5),
+        ({"retry-after-ms": "2500", "retry-after": "10"}, 2.5),
+        ({"retry-after-ms": "bad", "retry-after": "3"}, 3),
+        (
+            {
+                "retry-after": format_datetime(
+                    datetime.fromtimestamp(1005, timezone.utc)
+                )
+            },
+            5,
+        ),
+        ({"retry-after": "Thu, 01 Jan 1970 00:16:45"}, 5),
+        ({"retry-after-ms": "60000"}, 60),
+        ({}, None),
+        ({"retry-after": "bad"}, None),
+        ({"retry-after-ms": "-1", "retry-after": "3"}, None),
+        ({"retry-after-ms": "0"}, None),
+        ({"retry-after-ms": "NaN"}, None),
+        ({"retry-after-ms": "inf"}, None),
+        ({"retry-after-ms": "60001"}, None),
+        ({"retry-after": "-1"}, None),
+        ({"retry-after": "0"}, None),
+        ({"retry-after": "NaN"}, None),
+        ({"retry-after": "inf"}, None),
+        ({"retry-after": "1e1000"}, None),
+        ({"retry-after": "61"}, None),
+        (
+            {"retry-after": format_datetime(datetime.fromtimestamp(999, timezone.utc))},
+            None,
+        ),
+    ],
+)
+def test_transient_retry_deadline_is_sanitized_and_bounded(monkeypatch, headers, delay):
+    monkeypatch.setattr(
+        model_client_module,
+        "time",
+        SimpleNamespace(time=lambda: 1000, monotonic=lambda: 500),
+    )
+    response = httpx.Response(
+        429, headers=headers, request=httpx.Request("POST", "https://example.test/v1")
+    )
+    error = RateLimitError("retry", response=response, body=None)
+    transient = TransientException(error)
+    deadline = getattr(transient, "retry_not_before", None)
+    assert deadline == (None if delay is None else pytest.approx(500 + delay))
+    assert transient.exception is error
+
+
+@pytest.mark.parametrize("kind", ["chat", "embedding"])
 @pytest.mark.parametrize(
     ("statuses", "max_backoffs", "succeeds"),
     [
@@ -242,9 +325,9 @@ def test_scheduler_does_not_retry_fatal_openai_request_or_access_errors(
 @pytest.mark.parametrize(
     ("status", "headers"),
     [
-        pytest.param(503, {"x-should-retry": "false"}),
-        pytest.param(429, {"x-should-retry": "false"}),
-        pytest.param(400, {"x-should-retry": "true"}),
+        pytest.param(503, {"x-should-retry": "false", "retry-after-ms": "2500"}),
+        pytest.param(429, {"x-should-retry": "false", "retry-after-ms": "2500"}),
+        pytest.param(400, {"x-should-retry": "true", "retry-after-ms": "2500"}),
     ],
 )
 def test_scheduler_honors_retry_header_without_overriding_fatal_request_errors(
@@ -270,7 +353,7 @@ def test_scheduler_does_not_retry_quota_even_with_retry_header(monkeypatch, kind
         [
             (
                 429,
-                {"x-should-retry": "true"},
+                {"x-should-retry": "true", "retry-after-ms": "2500"},
                 {"error": {"type": "insufficient_quota"}},
             )
         ],

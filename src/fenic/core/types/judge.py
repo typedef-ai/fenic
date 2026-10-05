@@ -252,6 +252,11 @@ def flatten_answers(
 ) -> dict[str, Any]:
     """Validate answer vectors.
 
+    Choice uses a bounded empirical envelope for observed two-decimal answers:
+    positive total mass within 0.01 + 1e-6 of one, independent of option count.
+    Only validated Choice vectors are normalized. This is not a guarantee of
+    provider precision; Score retains its separate consistency policy.
+
     Score consistency uses an empirical compatibility policy derived from
     observed two-decimal score/probability outputs in evidence revision
     ef27f01917a16113533463fa8797ab0b71f87ba6. It is not a guaranteed service
@@ -279,7 +284,11 @@ def flatten_answers(
                 "Judge distribution does not match the requested answer set"
             )
         probabilities = [_probability(raw[key]) for key in keys]
-        if not math.isclose(sum(probabilities), 1.0, abs_tol=1e-6):
+        total_mass = sum(probabilities)
+        mass_tolerance = 0.01 + 1e-6 if question.kind == "choice" else 1e-6
+        if total_mass <= 0 or not math.isclose(
+            total_mass, 1.0, rel_tol=0, abs_tol=mass_tolerance
+        ):
             raise ValueError("Judge distribution must sum to one")
         output[f"{question.name}_confidence"] = _probability(answer.get("confidence"))
         if question.kind == "choice":
@@ -287,6 +296,7 @@ def flatten_answers(
             if selected not in keys or raw[selected] < max(probabilities) - 1e-6:
                 raise ValueError("Judge choice is not a highest-probability option")
             output[question.name] = selected
+            probabilities = [probability / total_mass for probability in probabilities]
         else:
             legend = answer.get("legend")
             if (

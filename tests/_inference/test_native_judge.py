@@ -1,7 +1,10 @@
 """Native judge contracts with a real SDK response model and fake transport."""
 
 import asyncio
+import hashlib
+import json
 import socket
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import get_args
@@ -14,9 +17,14 @@ from pydantic import ValidationError as PydanticValidationError
 import fenic as fc
 from fenic._backends.local.model_registry import SessionModelRegistry
 from fenic._inference.cache.key_builder import compute_request_fingerprint
-from fenic._inference.model_client import FatalException
+from fenic._inference.cache.sqlite_cache import SQLiteLLMCache
+from fenic._inference.model_client import FatalException, TransientException
 from fenic._inference.rate_limit_strategy import InputTokenRateLimitStrategy
-from fenic._inference.types import FenicCompletionsRequest, LMRequestMessages
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    LMRequestMessages,
+)
 from fenic._inference.typesafe.judge_requests import partition_questions
 from fenic._inference.typesafe.typesafe_provider import TypeSafeModelProvider
 from fenic.core._inference.model_catalog import (
@@ -37,7 +45,12 @@ from fenic.core._serde.proto.expression_serde import (
 )
 from fenic.core._serde.proto.serde_context import SerdeContext
 from fenic.core.error import ExecutionError, ValidationError
-from fenic.core.types.judge import flatten_answers, judge_schema, validate_questions
+from fenic.core.types.judge import (
+    flatten_answers,
+    judge_schema,
+    questions_json,
+    validate_questions,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -249,6 +262,61 @@ def test_cache_fingerprint_keeps_questions_order_and_endpoint():
     )
 
 
+def test_judge_decoder_upgrade_misses_persistent_v1_cache(native_session, tmp_path):
+    session, calls, _ = native_session
+    client = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    ).client
+    question = replace(questions()[2], premise=None)
+    messages = LMRequestMessages("", [], "x")
+    legacy_payload = {
+        "model": client.model,
+        "base_url": client.model_provider_class._base_url,
+        "messages": messages.encode().hex(),
+        "max_tokens": None,
+        "temperature": None,
+        "model_profile": None,
+        "profile_hash": None,
+        "top_logprobs": None,
+        "request_kind": "judge-v1",
+        "judge_questions": questions_json([question]),
+    }
+    legacy_key = hashlib.sha256(
+        json.dumps(legacy_payload, sort_keys=True).encode()
+    ).hexdigest()
+    legacy_response = FenicCompletionsResponse(
+        json.dumps(
+            {
+                "severity": 0.1,
+                "severity_confidence": 0.8,
+                "severity_p_0": 0.9,
+                "severity_p_1": 0.1,
+            }
+        ),
+        None,
+    )
+    cache_path = str(tmp_path / "decoder-upgrade.db")
+    writer = SQLiteLLMCache(db_path=cache_path, namespace="upgrade")
+    assert writer.set(legacy_key, legacy_response, client.model)
+    writer.close()
+    reader = SQLiteLLMCache(db_path=cache_path, namespace="upgrade")
+    original_cache = client.cache
+    client.cache = reader
+    try:
+        frame = session.create_dataframe({"text": ["x"]}).with_column(
+            "j", fc.semantic.judge(state="text", questions=[question])
+        )
+        row = frame.collect().data["j"].to_list()[0]
+        assert len(calls) == 1, "the legacy decoded entry bypassed the new decoder"
+        assert row["severity"] == pytest.approx(0.75)
+        assert frame.collect().data["j"].to_list()[0] == row
+        assert len(calls) == 1, "the fresh namespace should still cache valid answers"
+        assert reader.get(legacy_key).completion == legacy_response.completion
+    finally:
+        client.cache = original_cache
+        reader.close()
+
+
 @pytest.mark.parametrize(
     "probabilities",
     [
@@ -271,6 +339,120 @@ def test_invalid_vectors_are_refused(probabilities):
                 }
             },
         )
+
+
+@pytest.mark.parametrize("option_count", [12, 255])
+@pytest.mark.parametrize("mass", [0.99, 1.01])
+def test_rounded_choice_vectors_are_normalized_with_bounded_mass(option_count, mass):
+    options = {f"opt{index}": None for index in range(option_count)}
+    question = fc.JudgeQuestion.choice(
+        name="kind", instructions="Which category?", options=options
+    )
+    values = [0.9, 0.06, 0.01 if mass < 1 else 0.03, 0.01, 0.01]
+    probabilities = {
+        key: values[index] if index < len(values) else 0.0
+        for index, key in enumerate(options)
+    }
+    result = flatten_answers(
+        [question],
+        {
+            "kind": {
+                "type": "choice",
+                "choice": "opt0",
+                "confidence": 0.8,
+                "probabilities": probabilities,
+            }
+        },
+    )
+    assert result["kind"] == "opt0"
+    assert sum(result[f"kind_p_{key}"] for key in options) == pytest.approx(1)
+    for key, probability in probabilities.items():
+        assert result[f"kind_p_{key}"] == pytest.approx(probability / mass)
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        "negative",
+        "nan",
+        "inf",
+        "above_one",
+        "bool",
+        "string",
+        "zero",
+        "low_mass",
+        "high_mass",
+        "missing",
+        "extra",
+        "wrong_argmax",
+    ],
+)
+@pytest.mark.parametrize("option_count", [12, 255])
+def test_rounded_choice_policy_still_rejects_malformed_vectors(malformed, option_count):
+    options = {f"opt{index}": None for index in range(option_count)}
+    question = fc.JudgeQuestion.choice(
+        name="kind", instructions="Which category?", options=options
+    )
+    probabilities = dict.fromkeys(options, 0.0)
+    probabilities["opt0"] = 0.9
+    probabilities["opt1"] = 0.1
+    invalid_values = {
+        "negative": -0.01,
+        "nan": float("nan"),
+        "inf": float("inf"),
+        "above_one": 1.01,
+        "bool": True,
+        "string": "0",
+    }
+    if malformed in invalid_values:
+        probabilities["opt2"] = invalid_values[malformed]
+    elif malformed == "zero":
+        probabilities = dict.fromkeys(options, 0.0)
+    elif malformed in {"low_mass", "high_mass"}:
+        probabilities["opt0"] = 0.87 if malformed == "low_mass" else 0.93
+    elif malformed == "missing":
+        probabilities.pop("opt2")
+    elif malformed == "extra":
+        probabilities["extra"] = 0.0
+    with pytest.raises(ValueError):
+        flatten_answers(
+            [question],
+            {
+                "kind": {
+                    "type": "choice",
+                    "choice": "opt1" if malformed == "wrong_argmax" else "opt0",
+                    "confidence": 0.8,
+                    "probabilities": probabilities,
+                }
+            },
+        )
+
+
+@pytest.mark.parametrize("mass", [0.99, 1.01, 0.97, 1.03])
+def test_rounded_choice_cache_accepts_only_validated_mass(native_session, mass):
+    session, calls, sdk = native_session
+    original = sdk.system_one
+
+    async def rounded(state, bodies, **kwargs):
+        result = await original(state, bodies, **kwargs)
+        answer = result.answers["kind"].model_copy(
+            update={"probabilities": {"a": 0.9, "b": mass - 0.9}}
+        )
+        return result.model_copy(update={"answers": {"kind": answer}})
+
+    sdk.system_one = rounded
+    frame = session.create_dataframe({"text": ["x"]}).with_column(
+        "j", fc.semantic.judge(state="text", questions=[questions()[1]])
+    )
+    valid = abs(mass - 1) <= 0.010001
+    for _ in range(2):
+        row = frame.collect().data["j"].to_list()[0]
+        if valid:
+            assert row["kind"] == "a"
+            assert row["kind_p_a"] == pytest.approx(0.9 / mass)
+        else:
+            assert row is None
+    assert len(calls) == (1 if valid else 2)
 
 
 @pytest.mark.parametrize(
@@ -1120,6 +1302,49 @@ def test_access_errors_remain_fatal_and_sanitized(
     assert not calls
     assert private_body not in str(raised.value)
     assert private_body not in caplog.text
+
+
+def test_typesafe_retry_deadline_preserves_body_sanitization(native_session, caplog):
+    import httpx2
+    from typesafe_sdk import TypeSafeRateLimitError
+
+    session, _, sdk = native_session
+    client = session._session_state.get_language_model(
+        ResolvedModelAlias("judge", None)
+    ).client
+    private_body = "synthetic-private-retry-body"
+
+    async def rate_limit(*_args, **_kwargs):
+        raise TypeSafeRateLimitError(
+            429, {"detail": private_body}, httpx2.Headers({"retry-after-ms": "2000"})
+        )
+
+    sdk.system_one = rate_limit
+    request = FenicCompletionsRequest(
+        LMRequestMessages("", [], "x"),
+        None,
+        None,
+        None,
+        None,
+        judge_questions=(questions()[0],),
+    )
+    started = time.monotonic()
+    response = asyncio.run_coroutine_threadsafe(
+        client.make_single_request(request), client._event_loop
+    ).result(1)
+    assert isinstance(response, TransientException)
+    assert response.retry_not_before >= started + 2
+    assert str(response.exception) == "TypeSafeRateLimitError"
+    assert private_body not in repr(response)
+    assert private_body not in caplog.text
+
+
+def test_choice_mass_compatibility_does_not_normalize_score_vectors():
+    question = replace(questions()[2], premise=None)
+    raw = answer(question.body())
+    raw["probabilities"] = {0: 0.24, 1: 0.75}
+    with pytest.raises(ValueError, match="sum"):
+        flatten_answers([question], {question.name: raw})
 
 
 @pytest.mark.parametrize("timeout", [0, -1, 601, float("inf"), float("nan"), True])

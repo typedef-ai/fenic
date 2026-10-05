@@ -332,6 +332,8 @@ def test_staggered_retries_share_one_rate_limit_backoff_window(monkeypatch):
             second = _queue_item(_request("second"), attempts_started=1)
             first.retry_not_before = 101
             second.retry_not_before = 101.05
+            first.retry_failed_at = 100
+            second.retry_failed_at = 100.05
             await client._maybe_backoff(first)
             await client._maybe_backoff(second)
             assert clock.now == pytest.approx(101.05)
@@ -341,6 +343,7 @@ def test_staggered_retries_share_one_rate_limit_backoff_window(monkeypatch):
             # A failure after the previous window still reduces the shared rate.
             third = _queue_item(_request("third"), attempts_started=1)
             third.retry_not_before = 102.05
+            third.retry_failed_at = 101.05
             await client._maybe_backoff(third)
             assert strategy.rpm == 14_062
             assert client.num_backoffs == 2

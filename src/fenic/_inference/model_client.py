@@ -1,12 +1,14 @@
 import asyncio
 import json
 import logging
+import math
 import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, TimeoutError
 from dataclasses import dataclass
+from email.utils import mktime_tz, parsedate_tz
 from typing import (
     Any,
     Dict,
@@ -60,11 +62,40 @@ logger = logging.getLogger(__name__)
 
 
 # Exception classes
+def retry_after_deadline(headers) -> Optional[float]:
+    """Return a monotonic Retry-After deadline using the SDK's 0 < delay <= 60 policy."""
+    if headers is None:
+        return None
+    try:
+        delay = float(headers.get("retry-after-ms")) / 1000
+    except (TypeError, ValueError):
+        try:
+            delay = float(headers.get("retry-after"))
+        except (TypeError, ValueError):
+            try:
+                retry_date = parsedate_tz(headers.get("retry-after"))
+                if retry_date is None:
+                    return None
+                delay = mktime_tz(retry_date) - time.time()
+            except (TypeError, ValueError, OverflowError):
+                return None
+    if not math.isfinite(delay) or not 0 < delay <= MINUTE_IN_SECONDS:
+        return None
+    return time.monotonic() + delay
+
+
 @dataclass
 class TransientException:
     """Represents an exception that might be resolved with a retry."""
 
     exception: Exception
+    retry_not_before: Optional[float] = None
+
+    def __post_init__(self):
+        """Preserve only sanitized pacing metadata from an SDK response."""
+        if self.retry_not_before is None:
+            response = getattr(self.exception, "response", None)
+            self.retry_not_before = retry_after_deadline(getattr(response, "headers", None))
 
 
 @dataclass
@@ -87,6 +118,7 @@ class QueueItem(Generic[RequestT]):
     request_fingerprint: Optional[str] = None
     attempts_started: int = 0
     retry_not_before: float = 0
+    retry_failed_at: float = 0
 
 
 class ModelClient(Generic[RequestT, ResponseT], ABC):
@@ -918,7 +950,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             maybe_response: The response or exception from the request.
         """
         if isinstance(maybe_response, TransientException):
-            await self._retry_or_fail(queue_item, maybe_response.exception)
+            await self._retry_or_fail(
+                queue_item, maybe_response.exception, maybe_response.retry_not_before
+            )
         elif isinstance(maybe_response, FatalException):
             logger.error(
                 f"Model {self.model} encountered an error: {maybe_response.exception}. Request failed."
@@ -959,7 +993,12 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             if not queue_item.future.done():
                 queue_item.future.set_result(maybe_response)
 
-    async def _retry_or_fail(self, queue_item: QueueItem[RequestT], exception: Exception):
+    async def _retry_or_fail(
+        self,
+        queue_item: QueueItem[RequestT],
+        exception: Exception,
+        retry_not_before: Optional[float] = None,
+    ):
         """Requeue an active request while its retry allowance permits another attempt."""
         if (
             queue_item.future.done()
@@ -975,8 +1014,11 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             )
             return
 
-        queue_item.retry_not_before = time.monotonic() + self._calculate_backoff_time(
-            queue_item.attempts_started - 1
+        queue_item.retry_failed_at = time.monotonic()
+        queue_item.retry_not_before = max(
+            queue_item.retry_failed_at
+            + self._calculate_backoff_time(queue_item.attempts_started - 1),
+            retry_not_before or 0,
         )
         await self.retry_queue.put(queue_item)
 
@@ -991,10 +1033,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 f"Backing off model {self.model} for {remaining:.2f} seconds before retrying requests due to rate limits."
             )
             await asyncio.sleep(remaining)
-            failed_at = queue_item.retry_not_before - self._calculate_backoff_time(
-                queue_item.attempts_started - 1
-            )
-            if failed_at > self._last_rate_limit_backoff_time:
+            if queue_item.retry_failed_at > self._last_rate_limit_backoff_time:
                 self._last_rate_limit_backoff_time = time.monotonic()
                 self.num_backoffs += 1
                 self.rate_limit_strategy.backoff(time.time())

@@ -12,6 +12,9 @@ from fenic._inference.types import (
 )
 from fenic.core.types.judge import questions_json
 
+# Bump when judgment validation or flattened output semantics change.
+JUDGE_DECODER_CACHE_VERSION = "judge-v2"
+
 
 def compute_request_fingerprint(
     request: Union[FenicCompletionsRequest, FenicEmbeddingsRequest],
@@ -49,7 +52,7 @@ def compute_request_fingerprint(
         if request.structured_output:
             key_data["structured_output"] = request.structured_output.schema_fingerprint
         if request.judge_questions is not None:
-            key_data["request_kind"] = "judge-v1"
+            key_data["request_kind"] = JUDGE_DECODER_CACHE_VERSION
             key_data["judge_questions"] = questions_json(request.judge_questions)
     elif isinstance(request, FenicEmbeddingsRequest):
         key_data = {

@@ -8,6 +8,7 @@ from fenic._inference.model_client import (
     FatalException,
     ModelClient,
     TransientException,
+    retry_after_deadline,
 )
 from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
 from fenic._inference.token_counter import TiktokenTokenCounter
@@ -110,7 +111,10 @@ class TypeSafeSystemOneClient(
             TypeSafeAPIConnectionError,
         ) as error:
             # SDK error bodies can contain row text. The scheduler owns retry policy.
-            return TransientException(RuntimeError(type(error).__name__))
+            return TransientException(
+                RuntimeError(type(error).__name__),
+                retry_after_deadline(getattr(error, "headers", None)),
+            )
         except (
             TypeSafeBadRequestError,
             TypeSafeUnprocessableEntityError,
