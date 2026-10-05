@@ -151,7 +151,7 @@ def pytest_addoption(parser):
     parser.addoption(
         LANGUAGE_MODEL_NAME_ARG,
         action="store",
-        default="gpt-4.1-nano",
+        default="gpt-5-nano",
         help="Model Name to run tests against",
     )
     parser.addoption(
@@ -213,7 +213,17 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
     embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
-    nano = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=250, tpm=50_000)
+    nano = OpenAILanguageModel(
+        model_name="gpt-5-nano",
+        rpm=250,
+        tpm=50_000,
+        profiles={
+            "minimal": OpenAILanguageModel.Profile(
+                reasoning_effort="minimal", verbosity="low"
+            )
+        },
+        default_profile="minimal",
+    )
 
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if language_model_provider == ModelProvider.OPENAI:
