@@ -1,13 +1,17 @@
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from copy import copy
 from functools import partial
 from typing import Optional
+from uuid import uuid4
 
 import polars as pl
+from tqdm import tqdm
 
 import fenic._backends.local.polars_plugins  # noqa: F401
 from fenic._backends.local.semantic_operators.predicate import Predicate
 from fenic._constants import (
+    DEFAULT_MODEL_CLIENT_TIMEOUT,
     LEFT_ON_KEY,
     RIGHT_ON_KEY,
 )
@@ -23,14 +27,43 @@ LEFT_ID_KEY = "__left_id__"
 RIGHT_ID_KEY = "__right_id__"
 DEFAULT_PAIR_BLOCK_SIZE = 1_024
 DEFAULT_BLOCK_TOKEN_BUDGET = 32_768
+DEFAULT_JOIN_MAX_WORKERS = 64
+
+
+class _QuietJoinBatchClient:
+    """Reuse client batch admission without creating per-sub-block bars."""
+
+    def __init__(self, client):
+        self.client = client
+
+    def __getattr__(self, name):
+        return getattr(self.client, name)
+
+    def make_batch_requests(self, requests, operation_name, request_timeout=None):
+        try:
+            futures, _, _ = self.client._submit_batch_requests(
+                requests,
+                str(uuid4()),
+                operation_name,
+                request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
+                show_progress=False,
+            )
+            # Identical ordered collection, without the client's awaiting bar.
+            return [future.result() for future in futures]
+        except Exception as exc:
+            raise ExecutionError(str(exc)) from exc
 
 
 class Join:
     """Evaluate one pair tile at a time, overlapping its token sub-blocks.
 
     The pair cap (1,024 by default) also caps join-owned provider work, even
-    when the client's RPM/look-ahead window is larger. Token sub-blocks share
-    the existing provider limiter without a settlement barrier between them.
+    when the client's RPM/look-ahead window is larger. One pool per execution
+    runs at most 64 sub-blocks at once (or the pair cap, if smaller), sharing
+    the existing provider limiter. Large singleton-pair concurrency therefore
+    cannot exceed 64 even when the provider permits more. Multi-pair blocks
+    can use higher provider concurrency, up to the pair-slot cap. One join
+    progress bar replaces non-streaming per-sub-block bars.
     Context preflight checks rendered user prompts only, not system text,
     examples, request framing, or reserved output tokens. It does not guarantee
     that the full request fits the model context.
@@ -72,10 +105,30 @@ class Join:
         left_documents, right_documents = join_documents
         survivor_chunks = []
         examples = self._convert_examples()
-        for join_pairs in self._iter_join_pair_blocks(left_documents, right_documents):
-            survivor_chunks.extend(self._execute_pair_tile(join_pairs, examples))
-            # Drop the previous rendered tile before constructing the next one.
-            del join_pairs
+        model = self.model
+        if isinstance(model, LanguageModel):
+            # Keep this progress adapter local; do not mutate the shared model.
+            model = copy(model)
+            model.client = _QuietJoinBatchClient(model.client)
+        with (
+            ThreadPoolExecutor(
+                max_workers=min(DEFAULT_JOIN_MAX_WORKERS, self.pair_block_size)
+            ) as executor,
+            tqdm(
+                total=len(left_documents) * len(right_documents),
+                desc="semantic.join",
+                unit="pair",
+            ) as progress,
+        ):
+            for join_pairs in self._iter_join_pair_blocks(
+                left_documents, right_documents
+            ):
+                survivor_chunks.extend(
+                    self._execute_pair_tile(join_pairs, examples, executor, model)
+                )
+                progress.update(len(join_pairs))
+                # Drop the previous rendered tile before constructing the next one.
+                del join_pairs
 
         if not survivor_chunks:
             return self._empty_result_with_schema(self.left_df, self.right_df)
@@ -85,31 +138,37 @@ class Join:
         return self._postprocess(survivor_pairs)
 
     def _execute_pair_tile(
-        self, join_pairs: pl.DataFrame, examples: PredicateExampleCollection
+        self,
+        join_pairs: pl.DataFrame,
+        examples: PredicateExampleCollection,
+        executor: ThreadPoolExecutor,
+        model: LanguageModel,
     ) -> list[pl.DataFrame]:
         blocks = list(self._split_block_by_token_budget(join_pairs))
         # A finite tile is the hard slot ceiling, independent of max(B, RPM).
         if sum(len(block) for block in blocks) > self.pair_block_size:
             raise InternalError("semantic.join pair tile exceeds cap")
-        evaluate = partial(self._evaluate_token_block, examples=examples)
+        evaluate = partial(self._evaluate_token_block, examples=examples, model=model)
         if len(blocks) == 1:
             survivors = [evaluate(blocks[0])]
         else:
-            # One worker per sub-block avoids a token-dependent concurrency cap.
-            # All owned work drains before another tile can be built, even on error.
-            with ThreadPoolExecutor(max_workers=len(blocks)) as executor:
-                survivors = list(executor.map(evaluate, blocks))
+            # Drain this tile before the next; the execution-owned pool also
+            # waits for running work on error, without returning a partial frame.
+            survivors = list(executor.map(evaluate, blocks))
         return [survivor for survivor in survivors if not survivor.is_empty()]
 
     def _evaluate_token_block(
-        self, join_pairs: pl.DataFrame, examples: PredicateExampleCollection
+        self,
+        join_pairs: pl.DataFrame,
+        examples: PredicateExampleCollection,
+        model: LanguageModel,
     ) -> pl.DataFrame:
         predicate = Predicate(
             input=join_pairs[RENDERED_INSTRUCTION_KEY],
             jinja_template=self.jinja_template,
             examples=examples,
             temperature=self.temperature,
-            model=self.model,
+            model=model,
             model_alias=self.model_alias,
         )
         return self._select_survivors(join_pairs, predicate.execute())

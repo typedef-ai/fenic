@@ -4,11 +4,13 @@ import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
 
 from fenic import col
+from fenic._backends.local.semantic_operators import join as join_module
 from fenic._backends.local.semantic_operators.join import (
     DEFAULT_PAIR_BLOCK_SIZE,
     LEFT_ID_KEY,
@@ -20,7 +22,11 @@ from fenic._backends.local.semantic_operators.predicate import Predicate
 from fenic._inference.language_model import LanguageModel
 from fenic._inference.model_client import ModelClient
 from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
-from fenic._inference.types import FenicCompletionsRequest, FenicCompletionsResponse
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    FenicCompletionsResponse,
+    LMRequestMessages,
+)
 from fenic.core._inference.model_catalog import ModelProvider
 from fenic.core._inference.model_provider import ModelProviderClass
 from fenic.core.error import ExecutionError
@@ -181,17 +187,22 @@ class _GatedClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
         )
         self.release = threading.Event()
         self.full = threading.Event()
+        self.oversubscribed = threading.Event()
         self.concurrency = concurrency
         self.inflight = 0
         self.peak = 0
+        self.peak_threads = 0
         self.calls = []
 
     async def make_single_request(self, request):
         self.calls.append(request.messages.user)
         self.inflight += 1
         self.peak = max(self.peak, self.inflight)
+        self.peak_threads = max(self.peak_threads, threading.active_count())
         if self.inflight == self.concurrency:
             self.full.set()
+        if self.inflight > self.concurrency:
+            self.oversubscribed.set()
         try:
             while not self.release.is_set():
                 await asyncio.sleep(0.001)
@@ -215,12 +226,18 @@ class _GatedClient(ModelClient[FenicCompletionsRequest, FenicCompletionsResponse
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-@pytest.mark.parametrize("tokens,n_pairs", [(20_000, 40), (1000, 200)])
+@pytest.mark.parametrize(
+    "tokens,n_pairs", [(20_000, 40), (20_000, 200), (1000, 200), (1000, 1025)]
+)
 def test_token_subblocks_overlap_up_to_provider_capacity(
     monkeypatch, streaming, tokens, n_pairs
 ):
     monkeypatch.setattr(Predicate, "stream_requests", streaming)
     client = _GatedClient(tokens, n_pairs)
+    expected_capacity = (
+        min(n_pairs, 64) if tokens > 16_384 else min(n_pairs, DEFAULT_PAIR_BLOCK_SIZE)
+    )
+    client.concurrency = expected_capacity
     join = Join(
         pl.DataFrame({"left_on": ["doc"]}),
         pl.DataFrame(
@@ -262,18 +279,130 @@ def test_token_subblocks_overlap_up_to_provider_capacity(
         with ThreadPoolExecutor(max_workers=1) as runner:
             future = runner.submit(join.execute)
             reached_capacity = client.full.wait(timeout=10)
+            over_capacity = client.oversubscribed.wait(timeout=0.1)
             client.release.set()
             result = future.result(timeout=20)
         assert reached_capacity, (
-            f"only {client.peak}/{n_pairs} provider calls overlapped"
+            f"only {client.peak}/{expected_capacity} provider calls overlapped"
         )
-        assert client.peak == n_pairs
-        assert peak_pairs == n_pairs
+        assert not over_capacity
+        assert client.peak == expected_capacity
+        assert peak_pairs == min(n_pairs, DEFAULT_PAIR_BLOCK_SIZE)
         assert resident_pairs == 0
         assert result.sort("payload")["payload"].to_list() == list(range(n_pairs))
         assert sorted(client.calls) == sorted(f"doc|r{i}" for i in range(n_pairs))
     finally:
         client.release.set()
+        client.shutdown()
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("pair_cap", [16, 128])
+def test_join_reuses_one_bounded_pool_across_tiles(monkeypatch, streaming, pair_cap):
+    monkeypatch.setattr(Predicate, "stream_requests", streaming)
+    pools = []
+
+    def create_pool(*args, **kwargs):
+        executor = ThreadPoolExecutor(*args, **kwargs)
+        pools.append(executor)
+        return executor
+
+    monkeypatch.setattr(join_module, "ThreadPoolExecutor", create_pool)
+    client = _GatedClient(20_000, 256)
+    worker_cap = min(pair_cap, 64)
+    client.concurrency = worker_cap
+    baseline_threads = threading.active_count()
+    join = Join(
+        pl.DataFrame({"left_on": ["doc"]}),
+        pl.DataFrame({"right_on": [f"r{i}" for i in range(3 * pair_cap)]}),
+        "{{ left_on }}|{{ right_on }}",
+        strict=True,
+        model=LanguageModel(client),
+        temperature=0,
+        pair_block_size=pair_cap,
+    )
+    resident = 0
+    peak_resident = 0
+    lock = threading.Lock()
+    original_build = join._build_join_pair_block
+    original_select = join._select_survivors
+
+    def build(left, right):
+        nonlocal resident, peak_resident
+        with lock:
+            assert resident == 0, "previous tile has not drained"
+            block = original_build(left, right)
+            resident += len(block)
+            peak_resident = max(peak_resident, resident)
+        return block
+
+    def select(block, results):
+        nonlocal resident
+        survivors = original_select(block, results)
+        with lock:
+            resident -= len(block)
+        return survivors
+
+    monkeypatch.setattr(join, "_build_join_pair_block", build)
+    monkeypatch.setattr(join, "_select_survivors", select)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as runner:
+            future = runner.submit(join.execute)
+            reached_capacity = client.full.wait(timeout=10)
+            over_capacity = client.oversubscribed.wait(timeout=0.1)
+            client.release.set()
+            result = future.result(timeout=20)
+        assert reached_capacity
+        assert not over_capacity
+        assert len(pools) == 1
+        assert pools[0]._max_workers == worker_cap
+        assert client.peak_threads - baseline_threads <= worker_cap + 2
+        assert all(not worker.is_alive() for worker in pools[0]._threads)
+        assert resident == 0
+        assert peak_resident == pair_cap
+        assert result.height == 3 * pair_cap
+        assert sorted(client.calls) == sorted(f"doc|r{i}" for i in range(3 * pair_cap))
+    finally:
+        client.release.set()
+        client.shutdown()
+
+
+def test_non_streaming_join_shows_one_progress_bar(monkeypatch):
+    bars = []
+
+    def progress(*args, **kwargs):
+        bars.append(kwargs)
+        return MagicMock()
+
+    monkeypatch.setattr("fenic._inference.model_client.tqdm", progress)
+    # The coordinator's join-level bar is separate from client batch bars.
+    monkeypatch.setattr(join_module, "tqdm", progress, raising=False)
+    client = _GatedClient(20_000, 64)
+    client.release.set()
+    model = LanguageModel(client)
+    try:
+        result = Join(
+            pl.DataFrame({"left_on": ["doc"]}),
+            pl.DataFrame({"right_on": [f"r{i}" for i in range(80)]}),
+            "{{ left_on }}|{{ right_on }}",
+            strict=True,
+            model=model,
+            temperature=0,
+            pair_block_size=40,
+        ).execute()
+        enabled = [bar for bar in bars if not bar.get("disable", False)]
+        assert result.height == 80
+        assert len(enabled) == 1
+        assert enabled[0]["desc"] == "semantic.join"
+        assert enabled[0]["total"] == 80
+        bars.clear()
+        model.get_completions(
+            [LMRequestMessages(system="control", user="outside join", examples=[])],
+            max_tokens=64,
+        )
+        # The join must not change shared-client progress for other operations.
+        assert len([bar for bar in bars if not bar.get("disable", False)]) == 2
+    finally:
         client.shutdown()
 
 
