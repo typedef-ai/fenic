@@ -47,27 +47,29 @@ FENCE = chr(96) * 3
 NL = chr(10)
 
 
-def _validation_error(raw_input: str) -> PydanticValidationError:
+def _validation_error(
+    raw_input: str, model: type[BaseModel] = EnumModel
+) -> PydanticValidationError:
     try:
-        EnumModel.model_validate_json(raw_input)
+        model.model_validate_json(raw_input)
     except PydanticValidationError as e:
         return e
     raise AssertionError("expected a validation error")
 
 
 class FakeParseCompletions:
-    def __init__(self, error=None):
+    def __init__(self, error=None, content='{"service": "api", "port": 1}'):
         self.error = error
+        self.content = content
 
     async def parse(self, **kwargs):
         if self.error is not None:
             raise self.error
+        kwargs["response_format"].model_validate_json(self.content)
         return SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(
-                        content='{"service": "api", "port": 1}', refusal=None
-                    ),
+                    message=SimpleNamespace(content=self.content, refusal=None),
                     finish_reason="stop",
                     logprobs=None,
                 )
@@ -81,7 +83,7 @@ class FakeParseCompletions:
         )
 
 
-def _core(parse_error=None):
+def _core(parse_error=None, content='{"service": "api", "port": 1}'):
     return OpenAIChatCompletionsCore(
         model="gpt-4.1-nano",
         model_provider=ModelProvider.OPENAI,
@@ -90,7 +92,7 @@ def _core(parse_error=None):
             chat=SimpleNamespace(completions=None),
             beta=SimpleNamespace(
                 chat=SimpleNamespace(
-                    completions=FakeParseCompletions(error=parse_error)
+                    completions=FakeParseCompletions(error=parse_error, content=content)
                 )
             ),
         ),
@@ -128,7 +130,8 @@ def test_bare_enum_value_produces_diagnosable_fatal():
 
 def test_fenced_json_produces_diagnosable_fatal():
     fenced = FENCE + "json" + NL + '{"service": "api"}' + NL + FENCE
-    core = _core(parse_error=_validation_error(fenced))
+    error = _validation_error(fenced, SvcModel)
+    core = _core(parse_error=error)
     request = _request(OBJECT_FORMAT, "semantic.extract")
 
     result = _run(core, request)
@@ -138,6 +141,8 @@ def test_fenced_json_produces_diagnosable_fatal():
     assert "semantic.extract" in message
     assert "SvcModel" in message
     assert "could not be validated" in message
+    assert error.title == SvcModel.__name__
+    assert result.exception.__cause__ is error
 
 
 def test_missing_operation_name_falls_back_without_crashing():
@@ -150,14 +155,34 @@ def test_missing_operation_name_falls_back_without_crashing():
     assert "unknown operator" in str(result.exception)
 
 
-def test_conforming_response_still_succeeds():
-    core = _core(parse_error=None)
-    request = _request(ENUM_FORMAT, "semantic.classify")
+@pytest.mark.parametrize(
+    ("response_format", "operation_name", "content"),
+    [
+        (OBJECT_FORMAT, "semantic.extract", '{"service": "api", "port": 1}'),
+        (ENUM_FORMAT, "semantic.classify", '{"output": "toolchain"}'),
+    ],
+    ids=["object", "enum"],
+)
+def test_conforming_response_still_succeeds(response_format, operation_name, content):
+    core = _core(content=content)
+    request = _request(response_format, operation_name)
 
     result = _run(core, request)
 
     assert not isinstance(result, FatalException)
-    assert result.completion == '{"service": "api", "port": 1}'
+    assert result.completion == content
+
+
+def test_fake_parse_rejects_nonconforming_response():
+    core = _core(content='{"service": "api", "port": "not-an-integer"}')
+    request = _request(OBJECT_FORMAT, "semantic.extract")
+
+    result = _run(core, request)
+
+    assert isinstance(result, FatalException)
+    assert isinstance(result.exception.__cause__, PydanticValidationError)
+    assert result.exception.__cause__.title == SvcModel.__name__
+    assert "port" in str(result.exception)
 
 
 def test_long_multiline_input_has_one_bounded_preview():
