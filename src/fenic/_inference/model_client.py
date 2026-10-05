@@ -175,6 +175,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self._provider_close_timeout_seconds = _provider_close_timeout_seconds
         # Diagnostic count only; retry allowance and delay are request-local.
         self.num_backoffs: int = 0
+        self._last_rate_limit_backoff_time: float = 0
 
         # Batch-specific exception tracking, guarded with its active lifetime.
         self.thread_exceptions: Dict[tuple[int, str], Exception] = {}
@@ -990,8 +991,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 f"Backing off model {self.model} for {remaining:.2f} seconds before retrying requests due to rate limits."
             )
             await asyncio.sleep(remaining)
-            self.num_backoffs += 1
-            self.rate_limit_strategy.backoff(time.time())
+            failed_at = queue_item.retry_not_before - self._calculate_backoff_time(
+                queue_item.attempts_started - 1
+            )
+            if failed_at > self._last_rate_limit_backoff_time:
+                self._last_rate_limit_backoff_time = time.monotonic()
+                self.num_backoffs += 1
+                self.rate_limit_strategy.backoff(time.time())
         queue_item.retry_not_before = 0
 
     async def _get_queued_requests(self) -> List[QueueItem[RequestT]]:

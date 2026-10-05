@@ -6,6 +6,7 @@ import threading
 import time
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
+from types import SimpleNamespace
 from typing import Literal, Union
 
 import pytest
@@ -18,7 +19,11 @@ from fenic._inference.model_client import (
     QueueItem,
     TransientException,
 )
-from fenic._inference.rate_limit_strategy import RateLimitStrategy, TokenEstimate
+from fenic._inference.rate_limit_strategy import (
+    AdaptiveBackoffRateLimitStrategy,
+    RateLimitStrategy,
+    TokenEstimate,
+)
 from fenic._inference.types import (
     FenicCompletionsRequest,
     FenicCompletionsResponse,
@@ -301,6 +306,47 @@ def test_sequential_requests_have_independent_retry_allowances():
             response = client.make_batch_requests([_request(payload)], payload)[0]
             assert response.completion == "ok"
         assert client.calls_by_payload == {"first": 2, "second": 2}
+    finally:
+        client.shutdown()
+
+
+def test_staggered_retries_share_one_rate_limit_backoff_window(monkeypatch):
+    client = _RetryClient(["success"], max_backoffs=2, initial_backoff_seconds=1)
+    strategy = AdaptiveBackoffRateLimitStrategy(rpm=25_000)
+    client.rate_limit_strategy = strategy
+
+    async def exercise():
+        clock = SimpleNamespace(now=100.05)
+
+        async def sleep(delay):
+            clock.now += delay
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                model_client_module,
+                "time",
+                SimpleNamespace(monotonic=lambda: clock.now, time=lambda: clock.now),
+            )
+            patch.setattr(model_client_module, "asyncio", SimpleNamespace(sleep=sleep))
+            first = _queue_item(_request("first"), attempts_started=1)
+            second = _queue_item(_request("second"), attempts_started=1)
+            first.retry_not_before = 101
+            second.retry_not_before = 101.05
+            await client._maybe_backoff(first)
+            await client._maybe_backoff(second)
+            assert clock.now == pytest.approx(101.05)
+            assert strategy.rpm == 18_750
+            assert client.num_backoffs == 1
+
+            # A failure after the previous window still reduces the shared rate.
+            third = _queue_item(_request("third"), attempts_started=1)
+            third.retry_not_before = 102.05
+            await client._maybe_backoff(third)
+            assert strategy.rpm == 14_062
+            assert client.num_backoffs == 2
+
+    try:
+        _run_on_client_loop(client, exercise())
     finally:
         client.shutdown()
 
