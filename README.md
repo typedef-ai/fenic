@@ -355,15 +355,28 @@ pip install "fenic[google,pdf,cluster,sim-join]"
 
 ## Providers
 
-| Provider   | Type             | Notes                                                  |
-| ---------- | ---------------- | ------------------------------------------------------ |
-| OpenAI     | LLM + embeddings | GPT, o-series, GPT-5 family; `text-embedding-3-*`      |
-| Anthropic  | LLM              | Claude (Haiku / Sonnet / Opus), with thinking budgets  |
-| Google     | LLM + embeddings | Gemini (AI Studio _and_ Vertex)                        |
-| Cohere     | Embeddings       | `embed-v4.0`                                           |
-| OpenRouter | LLM (aggregator) | provider routing, fallbacks, price/throughput controls |
+| Provider   | Type             | Notes                                                         |
+| ---------- | ---------------- | ------------------------------------------------------------- |
+| OpenAI     | LLM + embeddings | GPT, including `gpt-6.1-sol`; o-series; `text-embedding-3-*`  |
+| Anthropic  | LLM              | Claude (Haiku / Sonnet / Opus), with thinking budgets         |
+| Google     | LLM + embeddings | Gemini, including `gemini-3.8-flash` (AI Studio _and_ Vertex) |
+| Cohere     | Embeddings       | `embed-v4.0`                                                  |
+| OpenRouter | LLM (aggregator) | provider routing, fallbacks, price/throughput controls        |
 
 Reasoning/thinking effort is configurable per model via profiles, and you can register multiple models and pick per operator with `model_alias`.
+
+GPT-6.1 Sol supports `low`, `medium` (provider default), `high`, `xhigh`, and
+`max` reasoning, but not `none` or `minimal`. It supports structured outputs;
+tool calling requires OpenAI's Responses API, which fenic's OpenAI client does
+not use. Luna remains `gpt-6-luna`; OpenAI does not list a released
+`gpt-6.1-luna` API model.
+
+Gemini 3.8 Flash supports `low`, `medium`, and `high` thinking, structured
+outputs, and function calling. Fenic defaults its thinking profile to `low`.
+Neither new model supports custom temperature. Gemini 3.8 Flash's standard
+prices per million tokens are $0.75 input, $0.075 cached input, and $3.75 output
+through December 31, 2026. They become $1.50, $0.15, and $7.50 on January 1, 2027. The catalog records the future rates in comments, as for earlier Gemini
+promotions; it does not switch rates automatically.
 
 ---
 
