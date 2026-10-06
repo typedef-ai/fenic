@@ -153,6 +153,12 @@ class Session:
                 such as JSON and Markdown, and for preserving fixed-size
                 embedding arrays through local and cloud execution.
 
+        Note:
+            Without `schema`, fenic infers types from the data. Decimals,
+            times, very large integers, and all-null columns may be inferred
+            differently than expected. Provide `schema=...` to get the types
+            you intend, as shown in the explicit-schema example below.
+
         Returns:
             A DataFrame instance. With schema-free Polars input, local execution
             passes through the input frame when no ingestion coercion is needed,
@@ -167,6 +173,7 @@ class Session:
         Example: Create from Polars DataFrame
             ```python
             import polars as pl
+
             df = pl.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
             session.create_dataframe(df)
             ```
@@ -174,6 +181,7 @@ class Session:
         Example: Create from Pandas DataFrame
             ```python
             import pandas as pd
+
             df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
             session.create_dataframe(df)
             ```
@@ -185,15 +193,15 @@ class Session:
 
         Example: Create from list of dictionaries
             ```python
-            session.create_dataframe([
-                {"col1": 1, "col2": "a"},
-                {"col1": 2, "col2": "b"}
-            ])
+            session.create_dataframe(
+                [{"col1": 1, "col2": "a"}, {"col1": 2, "col2": "b"}]
+            )
             ```
 
         Example: Create from pyarrow Table
             ```python
             import pyarrow as pa
+
             table = pa.Table.from_pydict({"col1": [1, 2], "col2": ["a", "b"]})
             session.create_dataframe(table)
             ```
@@ -202,10 +210,12 @@ class Session:
             ```python
             import fenic as fc
 
-            schema = fc.Schema([
-                fc.ColumnField("age", fc.IntegerType),
-                fc.ColumnField("name", fc.StringType),
-            ])
+            schema = fc.Schema(
+                [
+                    fc.ColumnField("age", fc.IntegerType),
+                    fc.ColumnField("name", fc.StringType),
+                ]
+            )
             session.create_dataframe({"name": ["Alice"], "age": ["42"]}, schema=schema)
             ```
         """
