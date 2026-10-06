@@ -76,7 +76,15 @@ class Join:
     Context preflight checks rendered user prompts only, not system text,
     examples, request framing, or reserved output tokens. It does not guarantee
     that the full request fits the model context.
+
+    ``stream_requests`` is an additive internal opt-in. False does not veto an
+    inherited Predicate/BaseOperator opt-in; with all defaults, requests use
+    the list path. Streaming shares one decision per distinct rendered prompt
+    within each token sub-block, then scatters decisions to the original pairs.
+    It does not deduplicate across sub-blocks or tiles, or enlarge the client's
+    retained window of max(100, RPM).
     """
+
     stream_requests = False
 
     def __init__(
@@ -183,7 +191,20 @@ class Join:
         )
         if self.stream_requests:
             predicate.stream_requests = True
-        return self._select_survivors(join_pairs, predicate.execute())
+        if not predicate.stream_requests:
+            return self._select_survivors(join_pairs, predicate.execute())
+
+        # Full per-pair context preflight and token splitting already ran.
+        # Keep sharing scoped to this predicate call, as on the list path.
+        prompts = predicate.input.to_list()
+        unique_prompts = list(dict.fromkeys(prompts))
+        positions = {prompt: index for index, prompt in enumerate(unique_prompts)}
+        inverse = pl.Series([positions[prompt] for prompt in prompts], dtype=pl.UInt32)
+        predicate.input = pl.Series(
+            RENDERED_INSTRUCTION_KEY, unique_prompts, dtype=pl.String
+        )
+        results = predicate.execute().gather(inverse)
+        return self._select_survivors(join_pairs, results)
 
     def _join_documents(self) -> tuple[pl.DataFrame, pl.DataFrame] | None:
         if self.left_df.is_empty() or self.right_df.is_empty():

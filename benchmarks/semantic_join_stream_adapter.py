@@ -166,7 +166,8 @@ def _dataframes(workload: Workload) -> tuple[pl.DataFrame, pl.DataFrame]:
                     f"left-{i:04d} {left_payload}" for i in range(workload.left_rows)
                 ],
                 "record_id": list(range(workload.left_rows)),
-            }
+            },
+            schema={"left_on": pl.String, "record_id": pl.Int64},
         ),
         pl.DataFrame(
             {
@@ -174,7 +175,8 @@ def _dataframes(workload: Workload) -> tuple[pl.DataFrame, pl.DataFrame]:
                     f"right-{i:02d} {right_payload}" for i in range(workload.right_rows)
                 ],
                 "right_id": list(range(workload.right_rows)),
-            }
+            },
+            schema={"right_on": pl.String, "right_id": pl.Int64},
         ),
     )
 
