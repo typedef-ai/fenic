@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from functools import partial
+from threading import get_ident
 from typing import Optional
 from uuid import uuid4
 
@@ -40,10 +41,14 @@ class _QuietJoinBatchClient:
         return getattr(self.client, name)
 
     def make_batch_requests(self, requests, operation_name, request_timeout=None):
+        batch_id = str(uuid4())
+        batch_key = (get_ident(), batch_id)
+        with self.client.thread_exceptions_lock:
+            self.client.active_batches.add(batch_key)
         try:
             futures, _, _ = self.client._submit_batch_requests(
                 requests,
-                str(uuid4()),
+                batch_id,
                 operation_name,
                 request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
                 show_progress=False,
@@ -52,6 +57,10 @@ class _QuietJoinBatchClient:
             return [future.result() for future in futures]
         except Exception as exc:
             raise ExecutionError(str(exc)) from exc
+        finally:
+            with self.client.thread_exceptions_lock:
+                self.client.active_batches.discard(batch_key)
+                self.client.thread_exceptions.pop(batch_key, None)
 
 
 class Join:
