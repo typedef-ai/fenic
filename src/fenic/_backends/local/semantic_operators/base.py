@@ -147,12 +147,12 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
             examples (Optional[BaseExampleCollection]):
                 Optional labeled examples to include in the prompt for few-shot learning.
             output_type (Optional[pl.DataType]):
-                Optional output type for the operator.
+                Declared output type. Text operators default to String.
         """
         self.request_sender = request_sender
         self.input = input
         self.examples = examples
-        self.output_type = output_type
+        self.output_type = output_type if output_type is not None else pl.String
 
 
     def execute(self) -> pl.Series:
@@ -171,16 +171,12 @@ class BaseOperator(Generic[ModelResponseType, OperatorOutputType], ABC):
                 # postprocessors are per-response, so this retains output order
                 # while dropping each raw response after conversion.
                 postprocessed_responses.extend(self.postprocess([response]))
-            return (
-                pl.Series(postprocessed_responses, dtype=self.output_type)
-                if self.output_type
-                else pl.Series(postprocessed_responses)
-            )
+            return pl.Series(postprocessed_responses, dtype=self.output_type)
 
         prompts = self.build_request_messages_batch()
         responses = self.request_sender.send_requests(prompts)
         postprocessed_responses = self.postprocess(responses)
-        return pl.Series(postprocessed_responses, dtype=self.output_type) if self.output_type else pl.Series(postprocessed_responses)
+        return pl.Series(postprocessed_responses, dtype=self.output_type)
 
     def build_request_messages_batch(self) -> List[Optional[LMRequestMessages]]:
         return list(self.iter_request_messages())

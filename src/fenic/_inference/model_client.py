@@ -695,8 +695,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             admitted_indices: List[int] = []
             for _ in range(available_capacity):
                 # Stream-owned failures are represented by indexed futures.
-                # Any other work on this thread retains the immediate error path.
-                self._maybe_raise_thread_exception()
+                # Never surface an unrelated batch's failure on this stream.
+                self._maybe_raise_thread_exception(batch_id)
                 slot_index = request_index + len(admitted_requests)
                 admission_started_ns = stage_started_ns()
                 try:

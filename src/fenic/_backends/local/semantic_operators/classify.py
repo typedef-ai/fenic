@@ -64,6 +64,7 @@ class Classify(BaseSingleColumnInputOperator[str, str]):
                 ),
             ),
             examples,
+            output_type=pl.String,
         )
 
     def build_system_message(self) -> str:

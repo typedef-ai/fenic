@@ -63,6 +63,7 @@ class Predicate(BaseMultiColumnInputOperator[str, bool]):
             ),
             jinja_template=jinja2.Template(jinja_template),
             examples=examples,
+            output_type=pl.Boolean,
         )
 
     def build_system_message(self) -> str:
