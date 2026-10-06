@@ -59,14 +59,19 @@ def file_sha256(path: Path) -> str:
 
 def harness_sha256() -> str:
     digest = hashlib.sha256()
-    root = Path(__file__).parent
+    root = Path(__file__).resolve().parent
+    repository = root.parents[1]
     paths = [
         *root.glob("*.py"),
         root / "matrix.schema.json",
         root.parent / "semantic_join_stream_adapter.py",
+        repository / "tests/__init__.py",
+        repository / "tests/_inference/__init__.py",
+        repository / "tests/_inference/rate_limit_harness/__init__.py",
+        repository / "tests/_inference/rate_limit_harness/harness.py",
     ]
     for path in sorted(paths):
-        digest.update(path.name.encode())
+        digest.update(path.relative_to(repository).as_posix().encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
 

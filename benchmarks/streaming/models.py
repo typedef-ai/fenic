@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import socket
 import statistics
 from dataclasses import asdict, dataclass
@@ -16,6 +17,14 @@ import jsonschema
 
 SCHEMA_VERSION = "streaming-benchmark.v1"
 GATE_THRESHOLD = 0.20
+SAFE_FILENAME_ID = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+
+
+def _require_safe_filename_id(value: str) -> None:
+    _require(
+        isinstance(value, str) and re.fullmatch(SAFE_FILENAME_ID, value) is not None,
+        f"ID must use a safe filename alphabet: {value!r}",
+    )
 
 
 @dataclass(frozen=True)
@@ -36,6 +45,10 @@ class Scenario:
     execution_mode: str
     execution_shape: str
     steps: tuple[ScenarioStep, ...]
+
+    def __post_init__(self) -> None:
+        """Reject scenario IDs that could escape receipt directories."""
+        _require_safe_filename_id(self.id)
 
     @property
     def operation(self) -> str:
@@ -98,6 +111,11 @@ class Cell:
     repetition: int
     input_seed: int
     checkout: str = "candidate"
+
+    def __post_init__(self) -> None:
+        """Require path-safe IDs even for directly constructed cells."""
+        for value in (self.id, self.scenario_id, self.checkout):
+            _require_safe_filename_id(value)
 
     @property
     def cache_heavy(self) -> bool:
@@ -269,7 +287,9 @@ def load_matrix(path: Path) -> Matrix:
 
 
 def expand_cells(matrix: Matrix, *, checkout: str = "candidate") -> list[Cell]:
+    _require_safe_filename_id(checkout)
     cells = []
+    cell_ids: set[str] = set()
     for scenario in matrix.scenarios:
         if scenario.execution_mode == "disabled":
             continue
@@ -292,9 +312,15 @@ def expand_cells(matrix: Matrix, *, checkout: str = "candidate") -> list[Cell]:
                             matrix.input_seed,
                             arm,
                         )
+                        cell_id = "-".join(str(part) for part in key)
+                        _require(
+                            cell_id not in cell_ids,
+                            f"duplicate expanded cell ID: {cell_id}",
+                        )
+                        cell_ids.add(cell_id)
                         cells.append(
                             Cell(
-                                id="-".join(str(part) for part in key),
+                                id=cell_id,
                                 scenario_id=scenario.id,
                                 scenario_kind=scenario.kind,
                                 execution_mode=scenario.execution_mode,

@@ -137,7 +137,11 @@
           "steps"
         ],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+            "not": { "pattern": "[^A-Za-z0-9_.-]" }
+          },
           "kind": { "enum": ["operator", "chain"] },
           "execution_mode": { "enum": ["disabled", "simulated"] },
           "execution_shape": {

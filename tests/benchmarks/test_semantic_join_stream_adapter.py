@@ -78,6 +78,54 @@ def test_arm_receipt_hashes_actual_join_content():
     assert len(standard["result_hash"]) == 64
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+def test_copilot_each_arm_rejects_same_count_wrong_pairs(monkeypatch, streaming):
+    workload = Workload(
+        left_rows=2,
+        right_rows=2,
+        pair_block_size=4,
+        block_token_budget=14_000,
+        latency_seconds=0.001,
+        input_seed=29,
+    )
+    original_execute = adapter.Join.execute
+
+    def wrong_pairs(join):
+        return original_execute(join).with_columns(
+            (pl.col("right_id") + 1).alias("right_id")
+        )
+
+    monkeypatch.setattr(adapter.Join, "execute", wrong_pairs)
+    with pytest.raises(AssertionError, match="canonical"):
+        run_arm(workload, streaming=streaming, repetition=1)
+
+
+def test_copilot_run_rejects_matching_wrong_hashes_before_timing(monkeypatch):
+    monkeypatch.setattr(adapter, "assert_workload_geometry", lambda _: {})
+
+    def wrong_arm(workload, streaming, repetition):
+        return {
+            "arm": "streaming" if streaming else "standard",
+            "result_hash": "0" * 64,
+            "wall_seconds": 1.0,
+            "max_live_requests": workload.watermark if streaming else 128,
+        }
+
+    monkeypatch.setattr(adapter, "run_arm", wrong_arm)
+    with pytest.raises(AssertionError, match="canonical"):
+        run(Workload(repetitions=3))
+
+
+def test_canonical_oracle_accepts_all_expected_pairs_in_any_order():
+    workload = Workload(left_rows=2, right_rows=2, input_seed=29)
+    left, right = _dataframes(workload)
+    expected = left.join(right, how="cross")
+
+    assert adapter._result_hash(expected.reverse()) == adapter._expected_result_hash(
+        workload
+    )
+
+
 def test_input_seed_changes_prompt_content_without_changing_local_draw_indices():
     seeded_left, seeded_right = _dataframes(
         Workload(left_rows=2, right_rows=2, input_seed=29)
@@ -99,7 +147,7 @@ def test_input_seed_changes_prompt_content_without_changing_local_draw_indices()
 
 def test_case_receipt_uses_adapter_execution_time(monkeypatch):
     cell = Cell(
-        id="bounded-join:standard:1",
+        id="bounded-join-standard-1",
         scenario_id="bounded-join",
         scenario_kind="benchmark",
         execution_mode="simulated",
@@ -149,6 +197,7 @@ def test_adapter_preservation_verdict_precedes_overlapping_bands(monkeypatch):
             "arm": "streaming" if streaming else "standard",
             "wall_seconds": standard_seconds + (0.1 if streaming else 0),
             "max_live_requests": workload.watermark if streaming else 128,
+            "result_hash": adapter._expected_result_hash(workload),
         }
 
     monkeypatch.setattr(
@@ -172,7 +221,7 @@ def test_adapter_cli_exits_nonzero_for_nonpassing_verdict(monkeypatch) -> None:
 
 def test_case_rejects_declared_step_that_differs_from_adapter() -> None:
     matrix_cell = Cell(
-        id="bounded-join:standard:1",
+        id="bounded-join-standard-1",
         scenario_id="bounded-join",
         scenario_kind="benchmark",
         execution_mode="simulated",

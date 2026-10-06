@@ -201,6 +201,24 @@ def _dataframes(workload: Workload) -> tuple[pl.DataFrame, pl.DataFrame]:
     )
 
 
+def _result_hash(result: pl.DataFrame) -> str:
+    """Hash complete result content in canonical pair order."""
+    return hashlib.sha256(
+        json.dumps(
+            result.sort(["record_id", "right_id"]).to_dicts(),
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+    ).hexdigest()
+
+
+def _expected_result_hash(workload: Workload) -> str:
+    """Derive the all-true join oracle directly from deterministic inputs."""
+    left, right = _dataframes(workload)
+    return _result_hash(left.join(right, how="cross"))
+
+
 def _join(model: LanguageModel, workload: Workload) -> Join:
     left, right = _dataframes(workload)
     return Join(
@@ -289,6 +307,7 @@ def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, A
         BaseOperator.request_batch_size = workload.batch_size
         model_client_module.tqdm = _silent_tqdm
         join = _join(LanguageModel(client), workload)
+        expected_hash = _expected_result_hash(workload)
         started = time.monotonic()
         result = join.execute()
         wall = time.monotonic() - started
@@ -307,6 +326,9 @@ def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, A
                 "join result count diverged from pair geometry: "
                 f"expected={workload.expected_requests}, actual={len(result)}"
             )
+        result_hash = _result_hash(result)
+        if result_hash != expected_hash:
+            raise AssertionError("join result differs from canonical expected pairs")
         if metrics.num_requests != workload.expected_requests:
             raise AssertionError(
                 "simulated request count diverged from pair geometry: "
@@ -323,14 +345,7 @@ def run_arm(workload: Workload, streaming: bool, repetition: int) -> dict[str, A
             "repetition": repetition,
             "wall_seconds": wall,
             "result_rows": len(result),
-            "result_hash": hashlib.sha256(
-                json.dumps(
-                    result.to_dicts(),
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    default=str,
-                ).encode()
-            ).hexdigest(),
+            "result_hash": result_hash,
             "request_count": metrics.num_requests,
             "output_tokens": metrics.num_output_tokens,
             "lifecycle_counts": dict(sorted(counts.items())),
@@ -365,12 +380,18 @@ def _summary(samples: list[float]) -> dict[str, Any]:
 def run(workload: Workload) -> dict[str, Any]:
     """Run all interleaved repetitions and summarize spread-aware timings."""
     geometry = assert_workload_geometry(workload)
+    expected_hash = _expected_result_hash(workload)
 
     receipts: list[dict[str, Any]] = []
     for repetition in range(1, workload.repetitions + 1):
         arms = (False, True) if repetition % 2 else (True, False)
         for streaming in arms:
-            receipts.append(run_arm(workload, streaming, repetition))
+            receipt = run_arm(workload, streaming, repetition)
+            if receipt["result_hash"] != expected_hash:
+                raise AssertionError(
+                    f"{receipt['arm']} result differs from canonical expected pairs"
+                )
+            receipts.append(receipt)
 
     by_arm = {
         arm: _summary(

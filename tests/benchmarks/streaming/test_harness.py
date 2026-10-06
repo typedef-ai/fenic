@@ -23,6 +23,7 @@ from benchmarks.streaming.models import (
     median,
     median_absolute_deviation,
     parse_matrix,
+    validate_matrix_document,
 )
 
 ROOT = Path(__file__).parents[3]
@@ -65,6 +66,110 @@ def test_cell_ids_include_full_workload_identity() -> None:
     cells = expand_cells(parse_matrix(document))
 
     assert len({cell.id for cell in cells}) == len(cells)
+
+
+@pytest.mark.parametrize(
+    "unsafe_id",
+    ["../escape", "/absolute", "..", ".", r"dir\escape", "has space", "id\n", "é"],
+)
+def test_copilot_unsafe_scenario_ids_fail_schema_and_code(unsafe_id: str) -> None:
+    document = json.loads(MATRIX_PATH.read_text())
+    document["scenarios"][0]["id"] = unsafe_id
+
+    with pytest.raises(jsonschema.ValidationError):
+        validate_matrix_document(document)
+    with pytest.raises(ValueError, match="safe filename"):
+        parse_matrix(document)
+
+
+@pytest.mark.parametrize("field", ["id", "scenario_id", "checkout"])
+@pytest.mark.parametrize("unsafe_id", ["../escape", "/absolute", "id\n"])
+def test_copilot_direct_cell_ids_cannot_escape_paths(
+    field: str, unsafe_id: str
+) -> None:
+    cell = expand_cells(load_matrix(MATRIX_PATH))[0]
+    with pytest.raises(ValueError, match="safe filename"):
+        replace(cell, **{field: unsafe_id})
+
+
+def test_copilot_unsafe_checkout_id_is_rejected_before_expansion() -> None:
+    with pytest.raises(ValueError, match="safe filename"):
+        expand_cells(load_matrix(MATRIX_PATH), checkout="../escape")
+
+
+def test_safe_filename_ids_preserve_generated_cells() -> None:
+    document = json.loads(MATRIX_PATH.read_text())
+    document["scenarios"][0]["id"] = "Join_1.2-safe"
+    cells = expand_cells(validate_matrix_document(document), checkout="Baseline_1")
+
+    assert len(cells) == 6
+    assert len({cell.id for cell in cells}) == 6
+    assert all(cell.id.startswith("Join_1.2-safe-Baseline_1-") for cell in cells)
+
+
+@pytest.mark.parametrize("duplicate", ["scenario", "shape", "batch"])
+def test_copilot_duplicate_expanded_cell_ids_are_rejected(duplicate: str) -> None:
+    document = json.loads(MATRIX_PATH.read_text())
+    if duplicate == "scenario":
+        document["scenarios"].append(document["scenarios"][0])
+    elif duplicate == "shape":
+        document["workload"]["shapes"].append(document["workload"]["shapes"][0])
+    else:
+        document["workload"]["batch_sizes"].append(
+            document["workload"]["batch_sizes"][0]
+        )
+    matrix = validate_matrix_document(document)
+    with pytest.raises(ValueError, match="duplicate expanded cell ID"):
+        expand_cells(matrix)
+
+
+@pytest.mark.parametrize(
+    "dependency",
+    [
+        "tests/_inference/rate_limit_harness/harness.py",
+        "tests/__init__.py",
+        "tests/_inference/__init__.py",
+        "tests/_inference/rate_limit_harness/__init__.py",
+    ],
+)
+def test_copilot_simulator_changes_invalidate_planned_harness(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, dependency: str
+) -> None:
+    runner = tmp_path / "benchmarks/streaming/run_matrix.py"
+    runner.parent.mkdir(parents=True)
+    runner.write_text("# runner\n")
+    (runner.parent / "matrix.schema.json").write_bytes(
+        (MATRIX_PATH.parents[1] / "matrix.schema.json").read_bytes()
+    )
+    (runner.parent.parent / "semantic_join_stream_adapter.py").write_text(
+        "# adapter\n"
+    )
+    dependencies = [
+        "tests/_inference/rate_limit_harness/harness.py",
+        "tests/__init__.py",
+        "tests/_inference/__init__.py",
+        "tests/_inference/rate_limit_harness/__init__.py",
+    ]
+    for name in dependencies:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# simulator dependency\n")
+    state = {
+        "path": str(tmp_path),
+        "head": "a" * 40,
+        "expected_ref": "a" * 40,
+        "expected_commit": "a" * 40,
+        "dirty": False,
+    }
+    monkeypatch.setattr(run_matrix, "__file__", str(runner))
+    monkeypatch.setattr(run_matrix, "checkout_state", lambda *args: state)
+    plan = run_matrix.plan_document(
+        MATRIX_PATH, tmp_path, state["head"], tmp_path / "run"
+    )
+    run_matrix.verify_plan(plan)
+    (tmp_path / dependency).write_text("# changed simulator dependency\n")
+    with pytest.raises(RuntimeError, match="benchmark harness changed"):
+        run_matrix.verify_plan(plan)
 
 
 def test_full_json_schema_is_required_and_rejects_unknown_fields(
