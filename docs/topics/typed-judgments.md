@@ -165,6 +165,9 @@ can round-trip unchanged. Original labels and descriptions remain in the criteri
 For predicates and joins, each row's complete rendered question or claim is the
 Noul question's instructions, not a generic completion-output prompt. Row-specific
 questions and structured states are submitted together through one scheduler batch.
+Claims count toward input-size estimates in both the state and the question.
+Whitespace-only rendered claims keep their state and use a nonempty evaluation
+instruction rather than failing the whole query.
 
 The existing rendering and null rules still apply. Strict predicates and joins
 skip null inputs. Non-strict predicates render them as before. Classification

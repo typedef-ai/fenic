@@ -88,7 +88,14 @@ class DecisionRequestSender(RequestSender[str]):
             _row_questions=[
                 (self.question,)
                 if message is None
-                else (replace(self.question, instructions=message.user),)
+                else (
+                    replace(
+                        self.question,
+                        instructions=message.user
+                        if message.user and message.user.strip()
+                        else f"{self.question.instructions}\n{message.user or ''}",
+                    ),
+                )
                 for message in messages_batch
             ]
             if self.labels is None

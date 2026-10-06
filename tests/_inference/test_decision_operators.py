@@ -310,6 +310,61 @@ def test_row_specific_questions_validate_alignment_before_dispatch(
     assert not calls
 
 
+@pytest.mark.parametrize("operation", ["predicate", "filter"])
+def test_whitespace_claims_preserve_answers_and_nulls(
+    decision_session, monkeypatch, operation
+):
+    session, model, calls, _ = decision_session
+    submit = Mock(wraps=model.client.make_batch_requests)
+    monkeypatch.setattr(model.client, "make_batch_requests", submit)
+    source = session.create_dataframe({"text": ["good", " ", "\n", "", None]})
+    predicate = fc.semantic.predicate("{{ text }}", text=fc.col("text"))
+    if operation == "predicate":
+        result = source.select(predicate.alias("ok")).to_polars()
+        assert result["ok"].to_list() == [True, True, True, None, None]
+        assert result["ok"].dtype == pl.Boolean
+    else:
+        result = source.filter(predicate).to_polars()
+        assert result["text"].to_list() == ["good", " ", "\n"]
+    submit.assert_called_once()
+    assert len(calls) == 3
+    for state, bodies in calls:
+        assert bodies["decision"]["instructions"].endswith(state["input"])
+        assert bodies["decision"]["instructions"].strip()
+        assert "criteria" not in bodies["decision"]
+        assert state["examples"] == []
+    assert {state["input"] for state, _ in calls} == {"good", " ", "\n"}
+
+
+def test_whitespace_join_claims_preserve_answers_and_nulls(
+    decision_session, monkeypatch
+):
+    session, model, calls, _ = decision_session
+    submit = Mock(wraps=model.client.make_batch_requests)
+    monkeypatch.setattr(model.client, "make_batch_requests", submit)
+    left = session.create_dataframe({"left": ["good", " ", None]})
+    right = session.create_dataframe({"right": ["", "bad"]})
+    result = left.semantic.join(
+        right,
+        "{{ left_on }}{{ right_on }}",
+        left_on=fc.col("left"),
+        right_on=fc.col("right"),
+    ).to_polars()
+    assert result.to_dicts() == [
+        {"left": "good", "right": ""},
+        {"left": " ", "right": ""},
+    ]
+    submit.assert_called_once()
+    assert len(calls) == 4
+    whitespace = [(state, bodies) for state, bodies in calls if state["input"] == " "]
+    assert len(whitespace) == 1
+    state, bodies = whitespace[0]
+    assert bodies["decision"]["instructions"].endswith(state["input"])
+    assert bodies["decision"]["instructions"].strip()
+    assert "criteria" not in bodies["decision"]
+    assert result.schema == {"left": pl.String, "right": pl.String}
+
+
 @pytest.mark.parametrize("empty", [False, True])
 @pytest.mark.parametrize("operation", ["predicate", "classify", "sentiment"])
 def test_decision_empty_and_all_none_outputs_keep_declared_types(
