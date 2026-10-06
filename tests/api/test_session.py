@@ -20,6 +20,8 @@ from fenic import (
     IntegerType,
     JsonType,
     MarkdownType,
+    OpenAICompatibleEmbeddingModel,
+    OpenAICompatibleLanguageModel,
     OpenAIEmbeddingModel,
     OpenAILanguageModel,
     OpenRouterLanguageModel,
@@ -1293,12 +1295,12 @@ def test_openai_language_model_accepts_custom_model_with_base_url():
         app_name="test_openai_compatible_language_model",
         semantic=SemanticConfig(
             language_models={
-                "local": OpenAILanguageModel(
+                "local": OpenAICompatibleLanguageModel(
                     model_name="test-compatible-completions",
                     rpm=100,
                     tpm=100,
                     base_url="https://my-endpoint.example.com/v1",
-                    model_parameters=OpenAILanguageModel.ModelParameters(
+                    model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
                         context_window_length=32768,
                         max_output_tokens=4096,
                     ),
@@ -1312,7 +1314,7 @@ def test_openai_language_model_accepts_custom_model_with_base_url():
     assert model_config.base_url == "https://my-endpoint.example.com/v1"
 
     catalog_parameters = model_catalog.get_completion_model_parameters(
-        ModelProvider.OPENAI, "test-compatible-completions"
+        ModelProvider.OPENAI_COMPATIBLE, "test-compatible-completions"
     )
     assert catalog_parameters is not None
     assert catalog_parameters.context_window_length == 32768
@@ -1323,12 +1325,12 @@ def test_openai_language_model_accepts_custom_model_with_base_url():
 
 def test_openai_language_model_custom_model_costs_are_declared():
     """Test that declared token costs are used for a model outside the OpenAI catalog."""
-    OpenAILanguageModel(
+    OpenAICompatibleLanguageModel(
         model_name="test-compatible-priced",
         rpm=100,
         tpm=100,
         base_url="https://my-endpoint.example.com/v1",
-        model_parameters=OpenAILanguageModel.ModelParameters(
+        model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
             context_window_length=8192,
             max_output_tokens=1024,
             input_token_cost=2e-7,
@@ -1336,7 +1338,7 @@ def test_openai_language_model_custom_model_costs_are_declared():
         ),
     )
     cost = model_catalog.calculate_completion_model_cost(
-        model_provider=ModelProvider.OPENAI,
+        model_provider=ModelProvider.OPENAI_COMPATIBLE,
         model_name="test-compatible-priced",
         uncached_input_tokens=1000,
         cached_input_tokens_read=0,
@@ -1347,8 +1349,8 @@ def test_openai_language_model_custom_model_costs_are_declared():
 
 def test_openai_language_model_custom_model_requires_model_parameters():
     """Test that a model outside the OpenAI catalog is rejected without model_parameters."""
-    with pytest.raises(ConfigurationError, match="is not supported for openai"):
-        OpenAILanguageModel(
+    with pytest.raises(PydanticValidationError, match="model_parameters"):
+        OpenAICompatibleLanguageModel(
             model_name="test-compatible-undeclared",
             rpm=100,
             tpm=100,
@@ -1358,12 +1360,12 @@ def test_openai_language_model_custom_model_requires_model_parameters():
 
 def test_openai_language_model_model_parameters_requires_base_url():
     """Test that model_parameters without base_url is rejected."""
-    with pytest.raises(ConfigurationError, match="requires 'base_url'"):
-        OpenAILanguageModel(
+    with pytest.raises(PydanticValidationError, match="base_url"):
+        OpenAICompatibleLanguageModel(
             model_name="test-compatible-no-base-url",
             rpm=100,
             tpm=100,
-            model_parameters=OpenAILanguageModel.ModelParameters(
+            model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
                 context_window_length=32768,
                 max_output_tokens=4096,
             ),
@@ -1372,7 +1374,7 @@ def test_openai_language_model_model_parameters_requires_base_url():
 
 def test_openai_language_model_unknown_model_name_still_rejected():
     """Test that an unrecognized model name is still rejected when no endpoint is configured."""
-    with pytest.raises(ConfigurationError, match="is not supported for openai"):
+    with pytest.raises(PydanticValidationError, match="literal_error"):
         OpenAILanguageModel(model_name="gpt-4.1-nanoo", rpm=100, tpm=100)
 
 
@@ -1382,12 +1384,12 @@ def test_openai_embedding_model_accepts_custom_model_with_base_url():
         app_name="test_openai_compatible_embedding_model",
         semantic=SemanticConfig(
             embedding_models={
-                "local": OpenAIEmbeddingModel(
+                "local": OpenAICompatibleEmbeddingModel(
                     model_name="test-compatible-embeddings",
                     rpm=100,
                     tpm=100,
                     base_url="https://my-endpoint.example.com/v1",
-                    model_parameters=OpenAIEmbeddingModel.ModelParameters(
+                    model_parameters=OpenAICompatibleEmbeddingModel.ModelParameters(
                         output_dimensions=768,
                         max_input_size=512,
                     ),
@@ -1401,7 +1403,7 @@ def test_openai_embedding_model_accepts_custom_model_with_base_url():
     assert model_config.base_url == "https://my-endpoint.example.com/v1"
 
     catalog_parameters = model_catalog.get_embedding_model_parameters(
-        ModelProvider.OPENAI, "test-compatible-embeddings"
+        ModelProvider.OPENAI_COMPATIBLE, "test-compatible-embeddings"
     )
     assert catalog_parameters is not None
     assert catalog_parameters.default_dimensions == 768
@@ -1411,8 +1413,8 @@ def test_openai_embedding_model_accepts_custom_model_with_base_url():
 
 def test_openai_embedding_model_custom_model_requires_model_parameters():
     """Test that an embedding model outside the OpenAI catalog needs model_parameters."""
-    with pytest.raises(ConfigurationError, match="is not supported for openai"):
-        OpenAIEmbeddingModel(
+    with pytest.raises(PydanticValidationError, match="model_parameters"):
+        OpenAICompatibleEmbeddingModel(
             model_name="test-compatible-embeddings-undeclared",
             rpm=100,
             tpm=100,
@@ -1422,11 +1424,16 @@ def test_openai_embedding_model_custom_model_requires_model_parameters():
 
 def test_openai_embedding_model_custom_model_rejects_invalid_dimensions():
     """Test that non-positive embedding output dimensions are rejected."""
-    with pytest.raises(PydanticValidationError, match="output_dimensions must be positive"):
-        OpenAIEmbeddingModel.ModelParameters(output_dimensions=0, max_input_size=512)
+    with pytest.raises(
+        PydanticValidationError, match="output_dimensions must be positive"
+    ):
+        OpenAICompatibleEmbeddingModel.ModelParameters(
+            output_dimensions=0, max_input_size=512
+        )
 
 
-def test_openai_compatible_model_enforces_declared_output_token_limit():
+@pytest.mark.parametrize("model_name", ["test-compatible-output-limit", "gpt-4.1-nano"])
+def test_openai_compatible_model_enforces_declared_output_token_limit(model_name):
     """Test that a declared max_output_tokens is enforced for an out-of-catalog model.
 
     Also covers the case that matters for a self-hosted endpoint: because base_url is set,
@@ -1436,12 +1443,12 @@ def test_openai_compatible_model_enforces_declared_output_token_limit():
         app_name="test_openai_compatible_output_limit",
         semantic=SemanticConfig(
             language_models={
-                "local": OpenAILanguageModel(
-                    model_name="test-compatible-output-limit",
+                "local": OpenAICompatibleLanguageModel(
+                    model_name=model_name,
                     rpm=100,
                     tpm=100,
                     base_url="https://my-endpoint.example.com/v1",
-                    model_parameters=OpenAILanguageModel.ModelParameters(
+                    model_parameters=OpenAICompatibleLanguageModel.ModelParameters(
                         context_window_length=8192,
                         max_output_tokens=512,
                     ),

@@ -241,6 +241,7 @@ class SessionModelRegistry:
                     rate_limit_strategy=rate_limit_strategy,
                     model=model_config.model_name,
                     base_url=model_config.base_url,
+                    model_provider=model_config.model_provider,
                 )
             elif isinstance(model_config, ResolvedGoogleModelConfig):
                 try:
@@ -320,6 +321,7 @@ class SessionModelRegistry:
                     cache=cache,
                     base_url=model_config.base_url,
                     adaptive_estimation=adaptive_estimation,
+                    model_provider=model_config.model_provider,
                 )
 
             elif isinstance(model_config, ResolvedAnthropicModelConfig):
