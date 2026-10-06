@@ -12,6 +12,7 @@ pytest.importorskip("fenic_cloud")
 
 from fenic._backends.cloud.execution import CloudExecution
 from fenic.core._logical_plan.plans import InMemorySource
+from fenic.core.error import CloudExecutionError
 
 
 @pytest.mark.parametrize("height", [0, 2])
@@ -50,3 +51,21 @@ def test_cloud_arrow_null_columns_are_cast_to_logical_output_schema(
     assert result.height == height
     assert result["text"].to_list() == [None] * height
     assert result["number"].to_list() == [None] * height
+
+
+def test_cloud_schema_cast_failure_is_not_reported_as_connection_failure(monkeypatch):
+    arrow_client = MagicMock()
+    arrow_client.do_get.return_value.read_all.return_value = pa.table({"other": [1]})
+    monkeypatch.setattr(pa.flight, "connect", lambda uri: arrow_client)
+    state = MagicMock(
+        arrow_ipc_uri="localhost:1234",
+        arrow_ipc_uri_secure=False,
+        session_uuid="session",
+    )
+    operator = CloudExecution(state, MagicMock())
+    schema = Schema([ColumnField("missing", IntegerType)])
+
+    with pytest.raises(CloudExecutionError, match="declared output schema") as error:
+        operator._get_execution_result_from_arrow("execution", schema)
+
+    assert isinstance(error.value.__cause__, pl.exceptions.ColumnNotFoundError)

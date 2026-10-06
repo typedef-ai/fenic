@@ -377,7 +377,7 @@ def _normalize_data_like_to_polars(
         if isinstance(data, pd.DataFrame):
             return pl.from_pandas(data), None
         if isinstance(data, dict):
-            # User-ingestion exemption: callers derive/validate or coerce the schema before execution.
+            # User-ingestion exemption: preserve schema-free input types; the caller casts explicit schemas.
             return pl.DataFrame(data), None
         if isinstance(data, list):
             if not data:
@@ -398,7 +398,7 @@ def _normalize_data_like_to_polars(
                 row_field_names = {key for row in data for key in row.keys()}
                 # User-ingestion exemption: create_dataframe coerces this to the explicit fenic schema.
                 return pl.DataFrame(data, infer_schema_length=None), row_field_names
-            # User-ingestion exemption: InMemorySource derives and validates the fenic schema.
+            # User-ingestion exemption: preserve schema-free input types; InMemorySource validates supported types.
             return pl.DataFrame(data), None
         if isinstance(data, pa.Table):
             return pl.from_arrow(data), None

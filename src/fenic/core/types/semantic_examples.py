@@ -20,7 +20,6 @@ from fenic._constants import (
     LEFT_ON_KEY,
     RIGHT_ON_KEY,
 )
-from fenic.core._utils.schema import convert_custom_dtype_to_polars
 from fenic.core._utils.type_inference import infer_dtype_from_pyobj
 from fenic.core.error import InvalidExampleCollectionError
 from fenic.core.types.datatypes import DataType
@@ -197,19 +196,8 @@ class BaseExampleCollection(ABC, Generic[ExampleType]):
         rows = self._as_df_input()
         if not rows:
             return pl.DataFrame(schema={})
-        if isinstance(self, ClassifyExampleCollection):
-            schema = {EXAMPLE_INPUT_KEY: pl.String}
-        else:
-            schema = {
-                name: convert_custom_dtype_to_polars(dtype)
-                for name, dtype in self._type_validator.field_types.items()
-            }
-        schema[EXAMPLE_OUTPUT_KEY] = (
-            pl.Boolean
-            if isinstance(self, (PredicateExampleCollection, JoinExampleCollection))
-            else pl.String
-        )
-        return pl.DataFrame(rows, schema=schema)
+        # User-ingestion exemption: validated examples preserve user precision and timezone, not query output types.
+        return pl.DataFrame(rows)
 
     def to_pandas(self) -> pd.DataFrame:
         """Convert the collection to a Pandas DataFrame.

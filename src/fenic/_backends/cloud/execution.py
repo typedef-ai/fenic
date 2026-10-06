@@ -376,15 +376,21 @@ class CloudExecution(BaseExecution):
                 options,
             )
             table = reader.read_all()
-            return pl.from_arrow(table).cast(
-                convert_custom_schema_to_polars_schema(schema)
-            )
         except pa.flight.FlightServerError as e:
             raise CloudSessionError(
                 f"Failed to stream result for execution '{execution_id}'"
             ) from e
         except Exception as e:
             raise CloudSessionError("Failed while connecting to arrow IPC") from e
+
+        try:
+            return pl.from_arrow(table).cast(
+                convert_custom_schema_to_polars_schema(schema)
+            )
+        except (pl.exceptions.PolarsError, ValueError, TypeError) as e:
+            raise CloudExecutionError(
+                f"Result for execution '{execution_id}' does not match its declared output schema"
+            ) from e
 
     def _get_query_execution_metrics(self, execution_id: str) -> QueryMetrics:
         """Get query execution metrics from the cloud catalog."""
