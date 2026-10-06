@@ -10,6 +10,8 @@ from fenic._backends.local.semantic_operators.classify import Classify
 from fenic._backends.local.semantic_operators.extract import Extract
 from fenic._backends.local.semantic_operators.map import Map
 from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference.language_model import LanguageModel
+from fenic._inference.types import LMRequestMessages
 from fenic.core._logical_plan.resolved_types import (
     ResolvedClassDefinition,
     ResolvedResponseFormat,
@@ -85,5 +87,35 @@ def test_failed_list_or_stream_does_not_poison_next_invocation(
         ]
         assert client.active_batches == set()
         assert client.thread_exceptions == {}
+    finally:
+        client.shutdown()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_streamed_request_keeps_main_structured_output_diagnostic_metadata(
+    monkeypatch, stream
+):
+    client = FlakyCompletionClient(failures=0)
+    client.model = "gpt-4o-mini"
+    original = client.make_single_request
+    operation_names = []
+
+    async def observe(request):
+        operation_names.append(request.operation_name)
+        return await original(request)
+
+    monkeypatch.setattr(client, "make_single_request", observe)
+    try:
+        model = LanguageModel(client)
+        kwargs = {
+            "messages": [LMRequestMessages(system="s", examples=[], user="first")],
+            "max_tokens": 8,
+            "operation_name": "semantic.predicate",
+        }
+        if stream:
+            list(model.iter_completions(**kwargs))
+        else:
+            model.get_completions(**kwargs)
+        assert operation_names == ["semantic.predicate"]
     finally:
         client.shutdown()

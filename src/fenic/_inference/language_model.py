@@ -124,6 +124,7 @@ class LanguageModel:
                     structured_output=response_format,
                     temperature=temperature_param,
                     model_profile=model_profile,
+                    operation_name=operation_name,
                 )
 
         return self.client.iter_batch_requests(
