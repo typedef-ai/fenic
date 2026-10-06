@@ -1,6 +1,7 @@
 """Explicit closed-set lowering through the native judgment request path."""
 
 import json
+from dataclasses import replace
 from typing import Optional, Sequence
 
 from fenic._backends.local.semantic_operators.base import (
@@ -40,11 +41,7 @@ class DecisionRequestSender(RequestSender[str]):
         if classes is None:
             self.question = JudgeQuestion.noul(
                 name="decision",
-                instructions=instructions,
-                criteria={
-                    "true": "The input's question or claim is true.",
-                    "false": "The input's question or claim is false or unclear.",
-                },
+                instructions="Evaluate the input's question or claim.",
             )
         else:
             if not 2 <= len(classes) <= 255:
@@ -88,6 +85,14 @@ class DecisionRequestSender(RequestSender[str]):
             (self.question,),
             model_profile=self.config.model_profile,
             request_timeout=self.config.request_timeout,
+            _row_questions=[
+                (self.question,)
+                if message is None
+                else (replace(self.question, instructions=message.user),)
+                for message in messages_batch
+            ]
+            if self.labels is None
+            else None,
         )
         outputs = []
         for response in responses:

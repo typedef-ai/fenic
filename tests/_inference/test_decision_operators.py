@@ -2,6 +2,7 @@
 
 import json
 import socket
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -18,6 +19,7 @@ from fenic._backends.local.semantic_operators.base import CompletionOnlyRequestS
 from fenic._backends.local.semantic_operators.classify import Classify
 from fenic._backends.local.semantic_operators.decision import DecisionRequestSender
 from fenic._backends.local.semantic_operators.predicate import Predicate
+from fenic._inference.cache.key_builder import compute_request_fingerprint
 from fenic._inference.language_model import InferenceConfiguration
 from fenic._inference.types import FenicCompletionsResponse, LMRequestMessages
 from fenic._inference.typesafe.typesafe_provider import TypeSafeModelProvider
@@ -139,7 +141,14 @@ def test_predicate_filter_and_cache(decision_session, monkeypatch):
     ]
     question = calls[0][1]["decision"]
     assert question["type"] == "noul"
-    assert question["instructions"].startswith(Predicate.SYSTEM_PROMPT)
+    assert question["instructions"] == calls[0][0]["input"]
+    assert "criteria" not in question
+    submit.assert_called_once()
+    requests = submit.call_args.args[0]
+    assert len(requests) == 3
+    assert {request.judge_questions[0].instructions for request in requests} == {
+        state["input"] for state, _ in calls
+    }
     assert frame.filter(predicate).to_polars()["text"].to_list() == [
         "good\nkeep this line"
     ]
@@ -219,6 +228,149 @@ def test_join_predicate_and_timeout(decision_session, monkeypatch):
     assert (
         calls[0][0]["examples"][0]["input"] == "Compare sample left with sample right"
     )
+    submit.assert_called_once()
+    assert len(submit.call_args.args[0]) == 2
+    for state, bodies in calls:
+        assert bodies["decision"]["instructions"] == state["input"]
+        assert "criteria" not in bodies["decision"]
+
+
+def test_row_specific_claims_keep_one_batch_and_cache_identity(
+    decision_session, monkeypatch
+):
+    session, model, calls, _ = decision_session
+    submit = Mock(wraps=model.client.make_batch_requests)
+    monkeypatch.setattr(model.client, "make_batch_requests", submit)
+    frame = session.create_dataframe(
+        {"text": ["good", None, "bad", "good", "tie"]}
+    ).select(
+        fc.semantic.predicate(
+            "Full claim:\n{{ text }}\nDo all requirements hold?",
+            text=fc.col("text"),
+            request_timeout=11,
+        ).alias("ok")
+    )
+    result = frame.to_polars()
+    assert result["ok"].to_list() == [True, None, False, True, False]
+    assert result["ok"].dtype == pl.Boolean
+    submit.assert_called_once()
+    requests = submit.call_args.args[0]
+    assert len(requests) == 4
+    assert len(calls) == 3  # Duplicate claims share the in-flight request.
+    assert submit.call_args.kwargs["request_timeout"] == 11
+    assert submit.call_args.kwargs["operation_name"] == "semantic.judge"
+    for request in requests:
+        assert request.judge_questions[0].instructions == request.judge_state["input"]
+        assert request.judge_questions[0].criteria == ()
+        assert json.loads(request.messages.user) == request.judge_state
+    key = compute_request_fingerprint(requests[0], model=model.model)
+    duplicate_key = compute_request_fingerprint(requests[2], model=model.model)
+    assert key == duplicate_key
+    changed = replace(
+        requests[0],
+        judge_questions=(
+            replace(requests[0].judge_questions[0], instructions="Different claim."),
+        ),
+    )
+    assert compute_request_fingerprint(changed, model=model.model) != key
+    assert frame.to_polars().equals(result)
+    assert len(calls) == 3
+
+
+def test_predicate_examples_change_cache_without_changing_claim(decision_session):
+    session, _, calls, _ = decision_session
+    source = session.create_dataframe({"text": ["good"]})
+    for output in (True, False):
+        examples = fc.PredicateExampleCollection(
+            examples=[fc.PredicateExample(input={"text": "guide"}, output=output)]
+        )
+        source.select(
+            fc.semantic.predicate(
+                "Claim: {{ text }}", text=fc.col("text"), examples=examples
+            )
+        ).collect()
+    assert len(calls) == 2
+    assert calls[0][1] == calls[1][1]
+    assert calls[0][0]["input"] == calls[1][0]["input"]
+    assert calls[0][0]["examples"] != calls[1][0]["examples"]
+
+
+def test_row_specific_questions_validate_alignment_before_dispatch(
+    decision_session, monkeypatch
+):
+    _, model, calls, _ = decision_session
+    submit = Mock(wraps=model.client.make_batch_requests)
+    monkeypatch.setattr(model.client, "make_batch_requests", submit)
+    question = fc.JudgeQuestion.noul(name="decision", instructions="Claim")
+    with pytest.raises(ValueError, match="align"):
+        model.get_judgments(["good"], (question,), _row_questions=[])
+    with pytest.raises(ValueError):
+        model.get_judgments(["good"], (question,), _row_questions=[()])
+    submit.assert_not_called()
+    assert not calls
+
+
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("operation", ["predicate", "classify", "sentiment"])
+def test_decision_empty_and_all_none_outputs_keep_declared_types(
+    decision_session, operation, empty
+):
+    session, _, calls, sdk = decision_session
+    original = sdk.system_one
+
+    async def invalid(*args, **kwargs):
+        return (await original(*args, **kwargs)).model_copy(update={"answers": {}})
+
+    sdk.system_one = AsyncMock(side_effect=invalid)
+    values = [] if empty else ["good", "bad"]
+    source = session.create_dataframe(
+        pl.DataFrame({"text": values}, schema={"text": pl.String})
+    )
+    expression = {
+        "predicate": lambda: fc.semantic.predicate(
+            "Claim: {{ text }}", text=fc.col("text")
+        ),
+        "classify": lambda: fc.semantic.classify("text", ["yes", "no"]),
+        "sentiment": lambda: fc.semantic.analyze_sentiment("text"),
+    }[operation]()
+    result = source.select(expression.alias("out")).to_polars()
+    assert result["out"].to_list() == ([] if empty else [None, None])
+    assert result["out"].dtype == (
+        pl.Boolean if operation == "predicate" else pl.String
+    )
+    assert sdk.system_one.await_count == (0 if empty else 2)
+    assert len(calls) == (0 if empty else 2)
+    if operation == "predicate":
+        filtered = source.filter(expression).to_polars()
+        assert filtered.schema == {"text": pl.String}
+        assert filtered.is_empty()
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_join_empty_and_all_none_outputs_keep_declared_types(decision_session, empty):
+    session, _, calls, sdk = decision_session
+    original = sdk.system_one
+
+    async def invalid(*args, **kwargs):
+        return (await original(*args, **kwargs)).model_copy(update={"answers": {}})
+
+    sdk.system_one = AsyncMock(side_effect=invalid)
+    left = session.create_dataframe(
+        pl.DataFrame({"left": [] if empty else ["good"]}, schema={"left": pl.String})
+    )
+    right = session.create_dataframe(
+        pl.DataFrame({"right": ["good"]}, schema={"right": pl.String})
+    )
+    result = left.semantic.join(
+        right,
+        "Compare {{ left_on }} with {{ right_on }}",
+        left_on=fc.col("left"),
+        right_on=fc.col("right"),
+    ).to_polars()
+    assert result.is_empty()
+    assert result.schema == {"left": pl.String, "right": pl.String}
+    assert sdk.system_one.await_count == (0 if empty else 1)
+    assert len(calls) == (0 if empty else 1)
 
 
 def test_filter_size_rejections_warn_once_and_exclude_only_rejected_rows(
@@ -333,7 +485,10 @@ def test_null_batches_and_serde(decision_session, operation):
     )
     assert restored == expr._logical_expr
     frame = session.create_dataframe(
-        pl.DataFrame({"text": pl.Series([None, None], dtype=pl.String)})
+        pl.DataFrame(
+            {"text": pl.Series([None, None], dtype=pl.String)},
+            schema={"text": pl.String},
+        )
     )
     result = frame.select(
         fc.Column._from_logical_expr(restored).alias("out")
@@ -388,7 +543,9 @@ def test_options_and_examples_change_cache(decision_session):
 def test_non_strict_predicate(decision_session):
     session, _, calls, _ = decision_session
     frame = session.create_dataframe(
-        pl.DataFrame({"text": pl.Series([None], dtype=pl.String)})
+        pl.DataFrame(
+            {"text": pl.Series([None], dtype=pl.String)}, schema={"text": pl.String}
+        )
     )
     result = frame.select(
         fc.semantic.predicate(
@@ -435,17 +592,13 @@ def test_open_ended_plans_are_refused(
     frame = session.create_dataframe({"text": ["text"]})
     model_arg = {"model_alias": "decisions"} if explicit_alias else {}
     if operation == "map":
-        expr = fc.semantic.map(
-            "Describe {{ text }}", text=fc.col("text"), **model_arg
-        )
+        expr = fc.semantic.map("Describe {{ text }}", text=fc.col("text"), **model_arg)
     elif operation == "extract":
         expr = fc.semantic.extract("text", Output, **model_arg)
     elif operation == "summarize":
         expr = fc.semantic.summarize("text", **model_arg)
     else:
-        expr = fc.semantic.reduce(
-            "Summarize these notes", "text", **model_arg
-        )
+        expr = fc.semantic.reduce("Summarize these notes", "text", **model_arg)
 
     with pytest.raises(ValidationError, match=rf"semantic\.{operation}"):
         if operation == "reduce":
@@ -461,15 +614,11 @@ def test_open_ended_plans_are_refused(
 def _build_closed_set_plan(frame, operation, **options):
     if operation == "predicate":
         return frame.select(
-            fc.semantic.predicate(
-                "Check {{ text }}", text=fc.col("text"), **options
-            )
+            fc.semantic.predicate("Check {{ text }}", text=fc.col("text"), **options)
         )
     if operation == "filter":
         return frame.filter(
-            fc.semantic.predicate(
-                "Check {{ text }}", text=fc.col("text"), **options
-            )
+            fc.semantic.predicate("Check {{ text }}", text=fc.col("text"), **options)
         )
     if operation == "classify":
         return frame.select(fc.semantic.classify("text", ["yes", "no"], **options))
@@ -536,7 +685,9 @@ def test_typesafe_join_temperature_rejected_during_planning(
     assert not calls
 
 
-@pytest.mark.parametrize("operation", ["predicate", "filter", "classify", "sentiment", "join"])
+@pytest.mark.parametrize(
+    "operation", ["predicate", "filter", "classify", "sentiment", "join"]
+)
 def test_typesafe_profile_rejected_during_planning(
     decision_session, monkeypatch, operation
 ):
@@ -548,7 +699,9 @@ def test_typesafe_profile_rejected_during_planning(
     frame = session.create_dataframe({"text": ["text"]})
     with pytest.raises(ValidationError, match="model profiles"):
         _build_closed_set_plan(
-            frame, operation, model_alias=fc.ModelAlias(name="decisions", profile="unknown")
+            frame,
+            operation,
+            model_alias=fc.ModelAlias(name="decisions", profile="unknown"),
         )
     get_model.assert_not_called()
     get_judgments.assert_not_called()
@@ -556,7 +709,9 @@ def test_typesafe_profile_rejected_during_planning(
     assert not calls
 
 
-@pytest.mark.parametrize("operation", ["predicate", "filter", "classify", "sentiment", "join"])
+@pytest.mark.parametrize(
+    "operation", ["predicate", "filter", "classify", "sentiment", "join"]
+)
 def test_typesafe_valid_controls_build_schema(decision_session, monkeypatch, operation):
     session, model, calls, _ = decision_session
     get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
@@ -651,7 +806,9 @@ def test_non_typesafe_plans_keep_temperature_and_profiles(tmp_path, monkeypatch)
         )
     )
     try:
-        get_model = Mock(side_effect=AssertionError("planning must not resolve a client"))
+        get_model = Mock(
+            side_effect=AssertionError("planning must not resolve a client")
+        )
         monkeypatch.setattr(session._session_state, "get_language_model", get_model)
         frame = session.create_dataframe({"text": ["text"]})
         other_provider = fc.ModelAlias(name="completion", profile="neutral")
@@ -667,8 +824,10 @@ def test_non_typesafe_plans_keep_temperature_and_profiles(tmp_path, monkeypatch)
         for plan in [
             frame.select(
                 fc.semantic.map(
-                    "Describe {{ text }}", text=fc.col("text"),
-                    model_alias=other_provider, temperature=0.4,
+                    "Describe {{ text }}",
+                    text=fc.col("text"),
+                    model_alias=other_provider,
+                    temperature=0.4,
                 )
             ),
             frame.select(
@@ -683,17 +842,26 @@ def test_non_typesafe_plans_keep_temperature_and_profiles(tmp_path, monkeypatch)
             ),
             frame.group_by("text").agg(
                 fc.semantic.reduce(
-                    "Summarize these notes", "text",
-                    model_alias=other_provider, temperature=0.4,
+                    "Summarize these notes",
+                    "text",
+                    model_alias=other_provider,
+                    temperature=0.4,
                 )
             ),
             *(
                 _build_closed_set_plan(
-                    frame, operation,
+                    frame,
+                    operation,
                     model_alias=other_provider,
                     **({"temperature": 0.4} if operation != "join" else {}),
                 )
-                for operation in ("predicate", "filter", "classify", "sentiment", "join")
+                for operation in (
+                    "predicate",
+                    "filter",
+                    "classify",
+                    "sentiment",
+                    "join",
+                )
             ),
         ]:
             assert plan.schema.column_fields
@@ -710,7 +878,9 @@ def test_class_count_still_rejected_by_runtime_guard(decision_session):
     from fenic.core.error import ExecutionError
 
     with pytest.raises(ExecutionError, match="2..255") as raised:
-        frame.select(fc.semantic.classify("text", [str(i) for i in range(256)])).to_polars()
+        frame.select(
+            fc.semantic.classify("text", [str(i) for i in range(256)])
+        ).to_polars()
     assert isinstance(raised.value.__cause__, ConfigurationError)
     assert not calls
 
@@ -725,7 +895,7 @@ def test_other_provider_path_is_unchanged(operation):
         get_judgments=Mock(side_effect=AssertionError("must not use judgments")),
     )
     kwargs = {
-        "input": pl.Series(["text"]),
+        "input": pl.Series(["text"], dtype=pl.String),
         "model": model,
         "temperature": 0.4,
         "request_timeout": 5,
@@ -771,8 +941,10 @@ def test_other_provider_join():
         get_judgments=Mock(side_effect=AssertionError("must not use judgments")),
     )
     result = Join(
-        pl.DataFrame({LEFT_ON_KEY: ["first", "second"]}),
-        pl.DataFrame({RIGHT_ON_KEY: ["right"]}),
+        pl.DataFrame(
+            {LEFT_ON_KEY: ["first", "second"]}, schema={LEFT_ON_KEY: pl.String}
+        ),
+        pl.DataFrame({RIGHT_ON_KEY: ["right"]}, schema={RIGHT_ON_KEY: pl.String}),
         "Compare {{ left_on }} with {{ right_on }}",
         strict=True,
         model=model,

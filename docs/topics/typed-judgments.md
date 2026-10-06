@@ -162,6 +162,10 @@ travel as labeled input/response pairs in the state. Classification uses stable
 transport identifiers so punctuation, Unicode, and colliding normalized labels
 can round-trip unchanged. Original labels and descriptions remain in the criteria.
 
+For predicates and joins, each row's complete rendered question or claim is the
+Noul question's instructions, not a generic completion-output prompt. Row-specific
+questions and structured states are submitted together through one scheduler batch.
+
 The existing rendering and null rules still apply. Strict predicates and joins
 skip null inputs. Non-strict predicates render them as before. Classification
 and sentiment skip null and empty strings, unlike `semantic.judge`, which accepts

@@ -100,11 +100,17 @@ class LanguageModel:
         questions: tuple[JudgeQuestion, ...],
         model_profile: Optional[str] = None,
         request_timeout: Optional[float] = None,
+        *,
+        _row_questions: Optional[list[tuple[JudgeQuestion, ...]]] = None,
     ) -> list[Optional[FenicCompletionsResponse]]:
         """Evaluate typed questions using the shared scheduler, cache, and metrics."""
         if not self.model_parameters.supports_judge:
             raise ConfigurationError("This provider does not support semantic.judge")
         questions = validate_questions(questions)
+        if _row_questions is not None:
+            if len(_row_questions) != len(states):
+                raise ValueError("Row-specific questions must align with judgment states")
+            _row_questions = [validate_questions(row) for row in _row_questions]
         requests = []
         owners = []
         failed = set()
@@ -115,7 +121,10 @@ class LanguageModel:
                 continue
             try:
                 state_text = serialize_judge_state(state)
-                groups = self.client.judge_partitions(state_text, questions)
+                groups = self.client.judge_partitions(
+                    state_text,
+                    questions if _row_questions is None else _row_questions[index],
+                )
             except ValueError:
                 failed.add(index)
                 rejected_for_size.add(index)
