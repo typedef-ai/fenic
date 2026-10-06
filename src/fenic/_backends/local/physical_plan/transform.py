@@ -189,11 +189,11 @@ class UnionExec(PhysicalPlan):
 
         left_df = left_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
-            pl.Series("_uuid", new_uuids[: left_df.height]),
+            pl.Series("_uuid", new_uuids[: left_df.height], dtype=pl.String),
         )
         right_df = right_df.with_columns(
             pl.col("_uuid").alias("_backwards_uuid"),
-            pl.Series("_uuid", new_uuids[left_df.height :]),
+            pl.Series("_uuid", new_uuids[left_df.height :], dtype=pl.String),
         )
 
         materialize_df = self.execute_node([left_df, right_df])

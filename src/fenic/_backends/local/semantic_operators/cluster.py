@@ -47,7 +47,7 @@ class Cluster:
         cluster_ids = [None] * df.height
         valid_indices = valid_mask.to_numpy().nonzero()[0]
 
-        centroids = None
+        centroids = [None] * df.height if self.centroid_info is not None else None
         if not valid_df.is_empty():
             KMeans = import_optional_dependency(
                 "sklearn.cluster",
@@ -68,15 +68,14 @@ class Cluster:
             predicted = kmeans.fit_predict(embeddings)
             cluster_centroids = kmeans.cluster_centers_
 
-            if self.centroid_info is not None:
-                centroids = [None] * df.height
-
             for idx, cluster_id in zip(valid_indices, predicted, strict=True):
                 cluster_ids[idx] = cluster_id
                 if centroids is not None:
                     centroids[idx] = cluster_centroids[cluster_id]
 
-        res = df.with_columns(pl.Series(cluster_ids).alias(self.label_column))
+        res = df.with_columns(
+            pl.Series(cluster_ids, dtype=pl.Int64).alias(self.label_column)
+        )
 
         if self.centroid_info is not None:
             res = res.with_columns(

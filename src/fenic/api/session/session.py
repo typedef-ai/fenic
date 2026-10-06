@@ -377,11 +377,12 @@ def _normalize_data_like_to_polars(
         if isinstance(data, pd.DataFrame):
             return pl.from_pandas(data), None
         if isinstance(data, dict):
+            # User-ingestion exemption: callers derive/validate or coerce the schema before execution.
             return pl.DataFrame(data), None
         if isinstance(data, list):
             if not data:
                 if allow_empty_list:
-                    return pl.DataFrame(), set()
+                    return pl.DataFrame(schema={}), set()
                 raise ValidationError(
                     "Cannot create DataFrame from empty list. Provide a non-empty list of dictionaries, lists, or other supported data types."
                 )
@@ -395,7 +396,9 @@ def _normalize_data_like_to_polars(
                 )
             if validate_all_rows:
                 row_field_names = {key for row in data for key in row.keys()}
+                # User-ingestion exemption: create_dataframe coerces this to the explicit fenic schema.
                 return pl.DataFrame(data, infer_schema_length=None), row_field_names
+            # User-ingestion exemption: InMemorySource derives and validates the fenic schema.
             return pl.DataFrame(data), None
         if isinstance(data, pa.Table):
             return pl.from_arrow(data), None
@@ -433,7 +436,9 @@ def _coerce_to_schema(
 
         for name in ordered_names:
             if name not in pl_df.columns:
-                pl_df = pl_df.with_columns(pl.Series(name, [None] * pl_df.height))
+                pl_df = pl_df.with_columns(
+                    pl.Series(name, [None] * pl_df.height, dtype=target_schema[name])
+                )
 
         return pl_df.select(ordered_names).cast(target_schema)
     except (ValidationError, PlanError):
