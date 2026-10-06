@@ -384,8 +384,10 @@ class CloudExecution(BaseExecution):
             raise CloudSessionError("Failed while connecting to arrow IPC") from e
 
         try:
-            return pl.from_arrow(table).cast(
-                convert_custom_schema_to_polars_schema(schema)
+            return (
+                pl.from_arrow(table)
+                .select(schema.column_names())
+                .cast(convert_custom_schema_to_polars_schema(schema))
             )
         except (pl.exceptions.PolarsError, ValueError, TypeError) as e:
             raise CloudExecutionError(

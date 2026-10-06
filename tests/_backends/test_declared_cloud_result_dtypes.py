@@ -69,3 +69,37 @@ def test_cloud_schema_cast_failure_is_not_reported_as_connection_failure(monkeyp
         operator._get_execution_result_from_arrow("execution", schema)
 
     assert isinstance(error.value.__cause__, pl.exceptions.ColumnNotFoundError)
+
+
+def test_cloud_result_selects_logical_columns_in_order_and_drops_stray_field(
+    monkeypatch,
+):
+    table = pa.table(
+        {
+            "number": pa.array([1, 2], type=pa.int32()),
+            "internal": ["stray", "field"],
+            "text": ["first", "second"],
+        }
+    )
+    arrow_client = MagicMock()
+    arrow_client.do_get.return_value.read_all.return_value = table
+    monkeypatch.setattr(pa.flight, "connect", lambda uri: arrow_client)
+    state = MagicMock(
+        arrow_ipc_uri="localhost:1234",
+        arrow_ipc_uri_secure=False,
+        session_uuid="session",
+    )
+    schema = Schema(
+        [ColumnField("text", StringType), ColumnField("number", IntegerType)]
+    )
+
+    result = CloudExecution(state, MagicMock())._get_execution_result_from_arrow(
+        "execution", schema
+    )
+
+    assert result.columns == ["text", "number"]
+    assert result.schema == {"text": pl.String, "number": pl.Int64}
+    assert result.to_dicts() == [
+        {"text": "first", "number": 1},
+        {"text": "second", "number": 2},
+    ]

@@ -73,8 +73,9 @@ class Cluster:
                 if centroids is not None:
                     centroids[idx] = cluster_centroids[cluster_id]
 
+        # Preserve the established Int32 physical representation of cluster labels.
         res = df.with_columns(
-            pl.Series(cluster_ids, dtype=pl.Int64).alias(self.label_column)
+            pl.Series(cluster_ids, dtype=pl.Int32).alias(self.label_column)
         )
 
         if self.centroid_info is not None:

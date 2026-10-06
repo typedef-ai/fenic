@@ -67,11 +67,30 @@ def test_cluster_empty_and_none_embeddings_keep_declared_types(height, with_cent
         centroid_info=CentroidInfo("centroid", 2) if with_centroids else None,
     ).execute()
 
-    assert result["cluster"].dtype == pl.Int64
+    assert result["cluster"].dtype == pl.Int32
     assert result["cluster"].to_list() == [None] * height
     if with_centroids:
         assert result["centroid"].dtype == pl.Array(pl.Float32, 2)
         assert result["centroid"].to_list() == [None] * height
+
+
+def test_cluster_valid_embeddings_preserve_int32_labels():
+    df = pl.DataFrame(
+        {"embedding": [[1.0, 0.0], [0.0, 1.0]]},
+        schema={"embedding": pl.Array(pl.Float32, 2)},
+    )
+    result = Cluster(
+        input=df,
+        embedding_column_name="embedding",
+        num_clusters=1,
+        max_iter=10,
+        num_init=1,
+        label_column="cluster",
+        centroid_info=None,
+    ).execute()
+
+    assert result["cluster"].dtype == pl.Int32
+    assert result["cluster"].to_list() == [0, 0]
 
 
 @pytest.mark.parametrize("paths", [[], [None, None], ["document.pdf"]])
