@@ -321,6 +321,38 @@ def test_current_join_cell_runs_real_content_and_binding_geometry() -> None:
     )
 
 
+def test_standard_path_observer_counts_quiet_join_batches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fenic._backends.local.semantic_operators.join import _QuietJoinBatchClient
+    from fenic._inference.language_model import LanguageModel
+
+    matrix = load_matrix(MATRIX_PATH)
+    cell = next(cell for cell in expand_cells(matrix) if cell.arm == "standard")
+    original_quiet = _QuietJoinBatchClient.make_batch_requests
+    original_list = LanguageModel.get_completions
+    original_iterator = LanguageModel.iter_completions
+    quiet_blocks = []
+
+    def observed_quiet(client, requests, operation_name, request_timeout=None):
+        quiet_blocks.append(len(requests))
+        return original_quiet(
+            client, requests, operation_name, request_timeout=request_timeout
+        )
+
+    monkeypatch.setattr(
+        _QuietJoinBatchClient, "make_batch_requests", observed_quiet
+    )
+    receipt = run_case.execute(cell)
+
+    assert len(quiet_blocks) == receipt["geometry"]["token_bounded_block_count"]
+    assert sum(quiet_blocks) == cell.physical_requests
+    assert receipt["path_evidence"]["list_calls"] == len(quiet_blocks)
+    assert receipt["path_evidence"]["iterator_calls"] == 0
+    assert LanguageModel.get_completions is original_list
+    assert LanguageModel.iter_completions is original_iterator
+
+
 def _init_git_repo(path: Path) -> str:
     subprocess.run(["git", "init", "-q", str(path)], check=True)
     subprocess.run(

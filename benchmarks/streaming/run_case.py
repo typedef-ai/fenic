@@ -43,7 +43,7 @@ def execute(cell: Cell) -> dict[str, Any]:
         assert_workload_geometry,
         run_arm,
     )
-    from fenic._inference.model_client import ModelClient
+    from fenic._inference.language_model import LanguageModel
 
     if dict(cell.step) != SIMULATED_JOIN_STEP:
         raise AssertionError(
@@ -64,8 +64,8 @@ def execute(cell: Cell) -> dict[str, Any]:
     )
     geometry = assert_workload_geometry(workload)
     calls = {"list": 0, "iterator": 0}
-    original_list = ModelClient.make_batch_requests
-    original_iterator = ModelClient.iter_batch_requests
+    original_list = LanguageModel.get_completions
+    original_iterator = LanguageModel.iter_completions
 
     def counted_list(client: Any, *args: Any, **kwargs: Any) -> Any:
         calls["list"] += 1
@@ -75,8 +75,8 @@ def execute(cell: Cell) -> dict[str, Any]:
         calls["iterator"] += 1
         return original_iterator(client, *args, **kwargs)
 
-    ModelClient.make_batch_requests = counted_list
-    ModelClient.iter_batch_requests = counted_iterator
+    LanguageModel.get_completions = counted_list
+    LanguageModel.iter_completions = counted_iterator
     try:
         raw = run_arm(
             workload,
@@ -87,8 +87,8 @@ def execute(cell: Cell) -> dict[str, Any]:
         # lifecycle accounting, and monkeypatch cleanup out of the sample.
         wall_ms = float(raw["wall_seconds"]) * 1_000
     finally:
-        ModelClient.make_batch_requests = original_list
-        ModelClient.iter_batch_requests = original_iterator
+        LanguageModel.get_completions = original_list
+        LanguageModel.iter_completions = original_iterator
 
     counts = raw["lifecycle_counts"]
     return {
