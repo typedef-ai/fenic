@@ -51,7 +51,9 @@ from fenic.core.error import ExecutionError
 from fenic.core.metrics import LMMetrics
 
 # Type variables
-RequestT = TypeVar("RequestT", bound=Union[FenicCompletionsRequest, FenicEmbeddingsRequest])
+RequestT = TypeVar(
+    "RequestT", bound=Union[FenicCompletionsRequest, FenicEmbeddingsRequest]
+)
 ResponseT = TypeVar("ResponseT", bound=Union[FenicCompletionsResponse, list[float]])
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -162,8 +164,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self.last_transient_exception_time: float = 0
         self.num_backoffs: int = 0
 
-        # Thread-specific exception tracking
-        self.thread_exceptions: Dict[int, Exception] = {}
+        # Batch-specific exception tracking, guarded with its active lifetime.
+        self.thread_exceptions: Dict[tuple[int, str], Exception] = {}
+        self.active_batches: Set[tuple[int, str]] = set()
         self.thread_exceptions_lock = threading.Lock()
 
         # Register with the event loop manager
@@ -248,7 +251,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         """Build the canonical cache/deduplication key for a request."""
         profile_hash = self.get_profile_hash_for_request(request)
         base_url = getattr(self.model_provider_class, "_base_url", None)
-        return compute_request_fingerprint(request, self.model, profile_hash=profile_hash, base_url=base_url)
+        return compute_request_fingerprint(
+            request, self.model, profile_hash=profile_hash, base_url=base_url
+        )
 
     def _safe_build_request_key(
         self, request: RequestT, request_index: Optional[int] = None
@@ -304,8 +309,8 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         separates structured ops with different output schemas, and separates
         structured from unstructured ops that share a ``max_completion_tokens``.
 
-        We deliberately do NOT key on operator type: ``operation_name`` isn't on the
-        request, and finer keys fragment the sample pool — each key needs its own
+        We deliberately exclude ``operation_name`` from the key to avoid fragmenting
+        the sample pool — each finer key needs its own
         ``min_samples`` warm-up, so over-splitting just keeps the estimator cold and
         falling back to the static ceiling. Residual pooling (distinct ops sharing
         profile + max + schema with different output-length distributions) only
@@ -320,7 +325,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         max_tokens = getattr(request, "max_completion_tokens", None)
         structured_output = getattr(request, "structured_output", None)
         schema_fingerprint = (
-            structured_output.schema_fingerprint if structured_output is not None else None
+            structured_output.schema_fingerprint
+            if structured_output is not None
+            else None
         )
         return (
             self.get_profile_hash_for_request(request),
@@ -375,9 +382,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             )
             self.rate_limit_strategy.settle(reserved, actual)
         except Exception as e:
-            logger.warning(
-                f"Token reconciliation failed for model {self.model}: {e}"
-            )
+            logger.warning(f"Token reconciliation failed for model {self.model}: {e}")
 
     def _count_auxiliary_input_tokens(self, request: RequestT) -> int:
         """Count extra input tokens for structured output, tools, etc. Override as needed."""
@@ -443,7 +448,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         self,
         requests: List[Optional[RequestT]],
         operation_name: str,
-            request_timeout: Optional[float] = None,
+        request_timeout: Optional[float] = None,
     ) -> List[ResponseT]:
         """Submit and process a batch of requests asynchronously.
 
@@ -464,7 +469,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             f"Creating batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
         try:
-            return self._make_batch_requests(requests, operation_name, batch_id, request_timeout=request_timeout)
+            return self._make_batch_requests(
+                requests, operation_name, batch_id, request_timeout=request_timeout
+            )
         except Exception as e:
             # Model clients are invoked from Polars Python callbacks. Provider SDK
             # exceptions may require constructor arguments beyond their message
@@ -530,12 +537,17 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         token_estimate = self.estimate_tokens_for_request(request)
         return new_future, token_estimate
 
-    def _maybe_raise_thread_exception(self):
-        """Surface exceptions from event loop to calling thread immediately."""
+    def _maybe_raise_thread_exception(self, batch_id: str):
+        """Surface exceptions from event loop to calling thread immediately.
+
+        The exception is removed as it is raised. It has been delivered to its
+        caller. Only failures from this batch belong to the calling thread.
+        """
         current_thread_id = threading.get_ident()
         with self.thread_exceptions_lock:
-            if current_thread_id in self.thread_exceptions:
-                raise self.thread_exceptions[current_thread_id]
+            exception = self.thread_exceptions.pop((current_thread_id, batch_id), None)
+        if exception is not None:
+            raise exception
 
     def _calculate_backoff_time(self, backoff_iteration: int) -> float:
         """Calculates the backoff duration using exponential backoff with a maximum limit.
@@ -572,11 +584,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         await self.request_queue.put(queue_item)
 
     # TODO(rohitrastogi): We should stream the requests to the model client and pipe results back from the background thread to the main thread to avoid unnecessary memory usage.
-    def _make_batch_requests(self,
-                             requests: List[Optional[RequestT]],
-                             operation_name: str,
-                             batch_id: Optional[str] = None,
-                             request_timeout: Optional[float] = None) -> List[ResponseT]:
+    def _make_batch_requests(
+        self,
+        requests: List[Optional[RequestT]],
+        operation_name: str,
+        batch_id: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+    ) -> List[ResponseT]:
         """Standard batch processing without sampling (used by both sampling and non-sampling flows)."""
         if batch_id is None:
             batch_id = str(uuid.uuid4())
@@ -585,28 +599,40 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             f"Processing batch {batch_id} with {len(requests)} requests for {operation_name} using (model: {self.model})"
         )
 
-        # Submit requests and get futures
-        request_futures, num_unique_requests, total_token_estimate = self._submit_batch_requests(
-            requests, batch_id, request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT
-        )
+        batch_key = (threading.get_ident(), batch_id)
+        with self.thread_exceptions_lock:
+            self.active_batches.add(batch_key)
+        try:
+            # Submit requests and get futures
+            request_futures, num_unique_requests, total_token_estimate = (
+                self._submit_batch_requests(
+                    requests,
+                    batch_id,
+                    request_timeout=request_timeout or DEFAULT_MODEL_CLIENT_TIMEOUT,
+                )
+            )
 
-        logger.info(
-            f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate} with timeout: {request_timeout}"
-        )
+            logger.info(
+                f"Batch {batch_id}: Submitted {num_unique_requests} unique requests with {total_token_estimate} with timeout: {request_timeout}"
+            )
 
-        # Wait for responses
-        responses = self._collect_batch_responses(request_futures, batch_id)
+            # Wait for responses
+            responses = self._collect_batch_responses(request_futures, batch_id)
 
-        logger.info(
-            f"Batch {batch_id}: Completed with {len(responses)} responses from {self.model}"
-        )
+            logger.info(
+                f"Batch {batch_id}: Completed with {len(responses)} responses from {self.model}"
+            )
 
-        return responses
+            return responses
+        finally:
+            # Late siblings may finish, but cannot recreate an abandoned record.
+            with self.thread_exceptions_lock:
+                self.active_batches.discard(batch_key)
+                self.thread_exceptions.pop(batch_key, None)
 
     def _submit_batch_requests(
-        self, requests: List[Optional[RequestT]], batch_id: str
-    ,
-                             request_timeout: float) -> tuple[List[Future], int, TokenEstimate]:
+        self, requests: List[Optional[RequestT]], batch_id: str, request_timeout: float
+    ) -> tuple[List[Future], int, TokenEstimate]:
         """Submit all requests in a batch and return futures, unique request count, and token estimate.
 
         Args:
@@ -636,7 +662,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 if key is None:
                     continue
                 req = requests[idx]
-                if isinstance(req, FenicCompletionsRequest): # TODO(bc): remove this once we can cache embeddings requests
+                if isinstance(
+                    req, FenicCompletionsRequest
+                ):  # TODO(bc): remove this once we can cache embeddings requests
                     cacheable_keys.append(key)
 
             cache_lookups = list(dict.fromkeys(cacheable_keys))
@@ -661,7 +689,7 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
         ) as pbar:
             for idx, request in enumerate(requests):
                 # Check for exceptions from the event loop thread
-                self._maybe_raise_thread_exception()
+                self._maybe_raise_thread_exception(batch_id)
 
                 # Eagerly handle empty requests
                 if request is None:
@@ -681,7 +709,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 if (
                     self.cache is not None
                     and request_fingerprint is not None
-                    and isinstance(request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+                    and isinstance(
+                        request, FenicCompletionsRequest
+                    )  # TODO(bc): remove this once we can cache embeddings requests
                 ):
                     cached = cached_responses.get(request_fingerprint)
 
@@ -864,7 +894,9 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
                 maybe_response
                 and self.cache
                 and queue_item.request_fingerprint
-                and isinstance(queue_item.request, FenicCompletionsRequest) # TODO(bc): remove this once we can cache embeddings requests
+                and isinstance(
+                    queue_item.request, FenicCompletionsRequest
+                )  # TODO(bc): remove this once we can cache embeddings requests
             ):
                 try:
                     self.cache.set(
@@ -946,7 +978,15 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             task: The task to track.
         """
         self.inflight_requests.add(task)
-        task.add_done_callback(lambda _: self.inflight_requests.discard(task))
+
+        def _on_done(completed_task: asyncio.Task):
+            self.inflight_requests.discard(completed_task)
+            # Failures already reach the caller through its request future.
+            # Retrieve them even when a failed batch abandons its siblings.
+            if not completed_task.cancelled():
+                completed_task.exception()
+
+        task.add_done_callback(_on_done)
 
     def _register_thread_exception(
         self, queue_item: QueueItem[RequestT], exception: Exception
@@ -957,11 +997,13 @@ class ModelClient(Generic[RequestT, ResponseT], ABC):
             queue_item: The queue item associated with the exception.
             exception: The exception that occurred.
         """
+        with self.thread_exceptions_lock:
+            batch_key = (queue_item.thread_id, queue_item.batch_id)
+            if batch_key in self.active_batches:
+                self.thread_exceptions[batch_key] = exception
+
         if not queue_item.future.done():
             queue_item.future.set_exception(exception)
-
-        with self.thread_exceptions_lock:
-            self.thread_exceptions[queue_item.thread_id] = exception
 
     async def _cancel_in_flight_requests(self):
         """Cancels all inflight tasks and gathers their results."""
