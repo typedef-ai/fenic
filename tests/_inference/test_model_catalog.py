@@ -349,6 +349,7 @@ def test_latest_frontier_models_are_registered():
 RETIRED_OPENAI_MODELS_2026_10_23 = [
     "gpt-4.1-nano",
     "gpt-4.1-nano-2025-04-14",
+    "o4-mini",
 ]
 
 

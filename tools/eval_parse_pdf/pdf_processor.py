@@ -184,8 +184,8 @@ def get_model_configs():
             )},
             default_profile="minimal"
         ),
-        "o4-mini": OpenAILanguageModel(
-            model_name="o4-mini",
+        "gpt-6-luna": OpenAILanguageModel(
+            model_name="gpt-6-luna",
             rpm=100,
             tpm=200000,
             profiles={"minimal": OpenAILanguageModel.Profile(

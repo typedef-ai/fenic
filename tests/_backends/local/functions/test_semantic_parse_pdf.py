@@ -37,7 +37,7 @@ vlms_to_test = [
     #(OpenAILanguageModel, "gpt-5-nano", None),
     (OpenAILanguageModel, "gpt-4o-mini", None),
     #(OpenAILanguageModel, "o3", None),
-    (OpenAILanguageModel, "o4-mini", None),
+    (OpenAILanguageModel, "gpt-6-luna", None),
     #(GoogleDeveloperLanguageModel, "gemini-2.5-pro", None),
     (GoogleDeveloperLanguageModel, "gemini-2.5-flash-lite", None),
     (GoogleDeveloperLanguageModel, "gemini-3-flash-preview", None),

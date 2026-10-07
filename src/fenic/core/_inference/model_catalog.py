@@ -238,7 +238,6 @@ OpenAILanguageModelName = Literal[
     "o1",
     "o3",
     "o3-mini",
-    "o4-mini",
 ]
 
 OpenAIEmbeddingModelName = Literal[
@@ -937,21 +936,6 @@ class ModelCatalog:
                 max_temperature=2.0,
                 supports_reasoning=True,
                 supports_custom_temperature=False,
-            ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "o4-mini",
-            CompletionModelParameters(
-                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
-                cached_input_token_read_cost=0.275 / 1_000_000,  # $0.275 per 1M tokens
-                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=100_000,
-                max_temperature=2.0,
-                supports_reasoning=True,
-                supports_pdf_parsing=True,
             ),
         )
 
