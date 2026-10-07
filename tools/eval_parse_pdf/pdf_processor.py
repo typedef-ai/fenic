@@ -293,7 +293,7 @@ def main():
 Examples:
   python pdf_processor.py --input-glob-pattern "/data/pdfs/**/*.pdf" --app-name my_pdf_app --model-name gemini-2.5-flash --test-id experiment_1 --output-dir /output/results
   
-  python pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m o3-mini -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
+  python pdf_processor.py -i "docs/*.pdf" -a pdf_processor -m gpt-6-luna -t test_batch_2 -o ./parsed_outputs --model-alias custom_parser
   
   python pdf_processor.py --input-glob-pattern "/research/papers/**/*.pdf" --app-name research_app --model-name gemini-2.5-pro --test-id paper_analysis --output-dir /results/analysis
         """
@@ -314,7 +314,7 @@ Examples:
     parser.add_argument(
         '--model-name', '-m',
         required=True,
-        help='Name of the language model to use for parsing (e.g., gemini-2.5-flash, o3-mini)'
+        help='Name of the language model to use for parsing (e.g., gemini-2.5-flash, gpt-6-luna)'
     )
     
     parser.add_argument(

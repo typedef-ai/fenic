@@ -350,6 +350,13 @@ RETIRED_OPENAI_MODELS_2026_10_23 = [
     "gpt-4.1-nano",
     "gpt-4.1-nano-2025-04-14",
     "o4-mini",
+    "gpt-4",
+    "gpt-4-0613",
+    "gpt-4-turbo",
+    "gpt-4-turbo-2024-04-09",
+    "gpt-4o-2024-05-13",
+    "o1",
+    "o3-mini",
 ]
 
 

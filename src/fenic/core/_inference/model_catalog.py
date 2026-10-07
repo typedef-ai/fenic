@@ -228,16 +228,9 @@ OpenAILanguageModelName = Literal[
     "gpt-4o",
     "gpt-4o-2024-11-20",
     "gpt-4o-2024-08-06",
-    "gpt-4o-2024-05-13",
     "gpt-4o-mini",
     "gpt-4o-mini-2024-07-18",
-    "gpt-4-turbo",
-    "gpt-4-turbo-2024-04-09",
-    "gpt-4",
-    "gpt-4-0613",
-    "o1",
     "o3",
-    "o3-mini",
 ]
 
 OpenAIEmbeddingModelName = Literal[
@@ -803,36 +796,6 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
-            "gpt-4",
-            CompletionModelParameters(
-                input_token_cost=30 / 1_000_000,  # $30 per 1M tokens
-                cached_input_token_read_cost=0.0,  # N/A
-                output_token_cost=60 / 1_000_000,  # $60 per 1M tokens
-                context_window_length=8_192,
-                max_output_tokens=8_192,
-                max_temperature=2,
-                supports_profiles=False,
-            ),
-            snapshots=["gpt-4-0613"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "gpt-4-turbo",
-            CompletionModelParameters(
-                input_token_cost=10 / 1_000_000,  # $10 per 1M tokens
-                cached_input_token_read_cost=0.0,  # N/A
-                output_token_cost=30 / 1_000_000,  # $30 per 1M tokens
-                context_window_length=128_000,
-                max_output_tokens=4_096,
-                max_temperature=2,
-                supports_profiles=False,
-            ),
-            snapshots=["gpt-4-turbo-2024-04-09"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
             "gpt-4o-mini",
             CompletionModelParameters(
                 input_token_cost=0.15 / 1_000_000,  # $0.15 per 1M tokens
@@ -860,7 +823,7 @@ class ModelCatalog:
                 supports_profiles=False,
                 supports_pdf_parsing=True,
             ),
-            snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
+            snapshots=["gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
         )
 
         self._add_model_to_catalog(
@@ -895,21 +858,6 @@ class ModelCatalog:
 
         self._add_model_to_catalog(
             ModelProvider.OPENAI,
-            "o1",
-            CompletionModelParameters(
-                input_token_cost=15 / 1_000_000,  # $15 per 1M tokens
-                cached_input_token_read_cost=7.50 / 1_000_000,  # $7.50 per 1M tokens
-                output_token_cost=60 / 1_000_000,  # $60 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=100_000,
-                max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
-            ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
             "o3",
             CompletionModelParameters(
                 input_token_cost=2 / 1_000_000,  # $2 per 1M tokens
@@ -921,21 +869,6 @@ class ModelCatalog:
                 supports_reasoning=True,
                 supports_custom_temperature=False,
                 supports_pdf_parsing=True,
-            ),
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "o3-mini",
-            CompletionModelParameters(
-                input_token_cost=1.10 / 1_000_000,  # $1.10 per 1M tokens
-                cached_input_token_read_cost=0.55 / 1_000_000,  # $0.55 per 1M tokens
-                output_token_cost=4.40 / 1_000_000,  # $4.40 per 1M tokens
-                context_window_length=200_000,
-                max_output_tokens=100_000,
-                max_temperature=2.0,
-                supports_reasoning=True,
-                supports_custom_temperature=False,
             ),
         )
 
