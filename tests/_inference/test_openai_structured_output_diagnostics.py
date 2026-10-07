@@ -1,0 +1,286 @@
+"""Diagnosable failures for structured-output validation in the OpenAI core.
+
+When the OpenAI SDK's .parse() raises a Pydantic error, the diagnostic should name
+the operator and schema without assuming provider noncompliance. Validation input
+may be only a field value, and its preview and the complete message must be bounded.
+"""
+
+import asyncio
+import enum
+from types import SimpleNamespace
+
+import pytest
+from pydantic import BaseModel, create_model, field_validator
+from pydantic import ValidationError as PydanticValidationError
+from pydantic_core import PydanticCustomError
+
+from fenic._inference.common_openai.openai_chat_completions_core import (
+    OpenAIChatCompletionsCore,
+    _structured_output_validation_error,
+    _truncate_preview,
+)
+from fenic._inference.model_client import FatalException
+from fenic._inference.types import (
+    FenicCompletionsRequest,
+    LMRequestMessages,
+)
+from fenic.core._inference.model_catalog import ModelProvider
+from fenic.core._logical_plan.resolved_types import ResolvedResponseFormat
+
+LabelEnum = enum.Enum("LabelEnum", {"TOOLCHAIN": "toolchain", "NETWORK": "network"})
+EnumModel = create_model("EnumModel", output=(LabelEnum, ...))
+ENUM_FORMAT = ResolvedResponseFormat(
+    pydantic_model=EnumModel, json_schema={}, prompt_schema_definition=""
+)
+
+
+class SvcModel(BaseModel):
+    service: str
+    port: int
+
+
+OBJECT_FORMAT = ResolvedResponseFormat(
+    pydantic_model=SvcModel, json_schema={}, prompt_schema_definition=""
+)
+
+FENCE = chr(96) * 3
+NL = chr(10)
+
+
+def _validation_error(
+    raw_input: str, model: type[BaseModel] = EnumModel
+) -> PydanticValidationError:
+    try:
+        model.model_validate_json(raw_input)
+    except PydanticValidationError as e:
+        return e
+    raise AssertionError("expected a validation error")
+
+
+class FakeParseCompletions:
+    def __init__(self, error=None, content='{"service": "api", "port": 1}'):
+        self.error = error
+        self.content = content
+
+    async def parse(self, **kwargs):
+        if self.error is not None:
+            raise self.error
+        kwargs["response_format"].model_validate_json(self.content)
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=self.content, refusal=None),
+                    finish_reason="stop",
+                    logprobs=None,
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=1,
+                prompt_tokens_details=None,
+                completion_tokens=1,
+                completion_tokens_details=None,
+            ),
+        )
+
+
+def _core(parse_error=None, content='{"service": "api", "port": 1}'):
+    return OpenAIChatCompletionsCore(
+        model="gpt-4.1-nano",
+        model_provider=ModelProvider.OPENAI,
+        token_counter=None,
+        client=SimpleNamespace(
+            chat=SimpleNamespace(completions=None),
+            beta=SimpleNamespace(
+                chat=SimpleNamespace(
+                    completions=FakeParseCompletions(error=parse_error, content=content)
+                )
+            ),
+        ),
+    )
+
+
+def _request(response_format, operation_name):
+    return FenicCompletionsRequest(
+        messages=LMRequestMessages(system="", examples=[], user="hello"),
+        max_completion_tokens=512,
+        top_logprobs=None,
+        structured_output=response_format,
+        temperature=None,
+        operation_name=operation_name,
+    )
+
+
+def _run(core, request):
+    return asyncio.run(core.make_single_request(request, None))
+
+
+def test_bare_enum_value_produces_diagnosable_fatal():
+    core = _core(parse_error=_validation_error("toolchain"))
+    request = _request(ENUM_FORMAT, "semantic.classify")
+
+    result = _run(core, request)
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    assert "semantic.classify" in message
+    assert "EnumModel" in message
+    assert "'toolchain'" in message
+    assert "could not be validated" in message
+
+
+def test_fenced_json_produces_diagnosable_fatal():
+    fenced = FENCE + "json" + NL + '{"service": "api"}' + NL + FENCE
+    error = _validation_error(fenced, SvcModel)
+    core = _core(parse_error=error)
+    request = _request(OBJECT_FORMAT, "semantic.extract")
+
+    result = _run(core, request)
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    assert "semantic.extract" in message
+    assert "SvcModel" in message
+    assert "could not be validated" in message
+    assert error.title == SvcModel.__name__
+    assert result.exception.__cause__ is error
+
+
+def test_missing_operation_name_falls_back_without_crashing():
+    core = _core(parse_error=_validation_error("toolchain"))
+    request = _request(ENUM_FORMAT, operation_name=None)
+
+    result = _run(core, request)
+
+    assert isinstance(result, FatalException)
+    assert "unknown operator" in str(result.exception)
+
+
+@pytest.mark.parametrize(
+    ("response_format", "operation_name", "content"),
+    [
+        (OBJECT_FORMAT, "semantic.extract", '{"service": "api", "port": 1}'),
+        (ENUM_FORMAT, "semantic.classify", '{"output": "toolchain"}'),
+    ],
+    ids=["object", "enum"],
+)
+def test_conforming_response_still_succeeds(response_format, operation_name, content):
+    core = _core(content=content)
+    request = _request(response_format, operation_name)
+
+    result = _run(core, request)
+
+    assert not isinstance(result, FatalException)
+    assert result.completion == content
+
+
+def test_fake_parse_rejects_nonconforming_response():
+    core = _core(content='{"service": "api", "port": "not-an-integer"}')
+    request = _request(OBJECT_FORMAT, "semantic.extract")
+
+    result = _run(core, request)
+
+    assert isinstance(result, FatalException)
+    assert isinstance(result.exception.__cause__, PydanticValidationError)
+    assert result.exception.__cause__.title == SvcModel.__name__
+    assert "port" in str(result.exception)
+
+
+def test_long_multiline_input_has_one_bounded_preview():
+    raw_input = "PREVIEW_SENTINEL\n" + "payload-line\r\n" * 1000 + "TAIL_SENTINEL"
+    error = _validation_error(raw_input)
+    result = _run(_core(error), _request(ENUM_FORMAT, "semantic.classify"))
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    preview = _truncate_preview(raw_input, 200)
+    assert len(preview) == 200
+    assert preview.endswith("...")
+    assert "\\n" in preview
+    assert "\n" not in message and "\r" not in message
+    assert len(message) <= 1000
+    assert message.count("PREVIEW_SENTINEL") == 1
+    assert "TAIL_SENTINEL" not in message
+    assert raw_input not in message
+    assert "Validation input preview: " + preview in message
+    assert "1 validation error" in message and "json_invalid" in message
+    assert "https://" not in message
+    assert result.exception.__cause__ is error
+
+
+def test_custom_validator_failure_uses_neutral_wording():
+    class CustomModel(BaseModel):
+        service: str
+
+        @field_validator("service")
+        @classmethod
+        def reject_service(cls, value):
+            raise ValueError("CUSTOM_MESSAGE_SENTINEL:" + value)
+
+    with pytest.raises(PydanticValidationError) as captured:
+        CustomModel.model_validate_json('{"service": "valid-schema-value"}')
+    response_format = ResolvedResponseFormat(
+        pydantic_model=CustomModel, json_schema={}, prompt_schema_definition=""
+    )
+    result = _run(_core(captured.value), _request(response_format, "semantic.extract"))
+
+    assert isinstance(result, FatalException)
+    message = str(result.exception)
+    assert "could not be validated" in message
+    assert "Validation input preview: 'valid-schema-value'" in message
+    assert "service" in message and "value_error" in message
+    assert message.count("valid-schema-value") == 1
+    assert "CUSTOM_MESSAGE_SENTINEL" not in message
+    assert "response_format" not in message
+    assert "does not match" not in message
+    assert result.exception.__cause__ is captured.value
+
+
+def test_many_errors_and_long_metadata_keep_the_whole_message_bounded():
+    model = create_model(
+        "LongModel", **{f"field_{index}": (int, ...) for index in range(100)}
+    )
+    with pytest.raises(PydanticValidationError) as captured:
+        model.model_validate({})
+    request = _request(ENUM_FORMAT, "operator\n" * 1000)
+    error = _structured_output_validation_error(
+        "model\r\n" * 1000, request, captured.value
+    )
+
+    assert len(str(error)) <= 1000
+    assert "\n" not in str(error) and "\r" not in str(error)
+    assert "100 validation errors" in str(error)
+    assert "field_0" in str(error) and "missing" in str(error)
+    assert "field_3" not in str(error)
+    assert "..." in str(error)
+    assert "field_99" not in str(error)
+    assert "https://" not in str(error)
+
+
+def test_final_message_cap_applies_when_all_components_are_full():
+    raw_input = "CAP_SENTINEL" + "x" * 1000
+    validation_error = PydanticValidationError.from_exception_data(
+        "LongErrors",
+        [
+            {
+                "type": PydanticCustomError("custom_type" + "x" * 1000, "not rendered"),
+                "loc": ("location_" + "x" * 1000, index),
+                "input": raw_input,
+            }
+            for index in range(3)
+        ],
+    )
+    schema = create_model("Schema" + "x" * 1000)
+    response_format = ResolvedResponseFormat(
+        pydantic_model=schema, json_schema={}, prompt_schema_definition=""
+    )
+    request = _request(response_format, "operator" + "x" * 1000)
+    diagnostic = _structured_output_validation_error(
+        "model" + "x" * 1000, request, validation_error
+    )
+
+    message = str(diagnostic)
+    assert len(message) == 1000
+    assert message.endswith("...")
+    assert message.count("CAP_SENTINEL") == 1
+    assert "3 validation errors" in message
+    assert diagnostic.__cause__ is validation_error

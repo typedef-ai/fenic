@@ -12,6 +12,7 @@ from openai import (
     RateLimitError,
 )
 from openai.types import CompletionUsage
+from pydantic import ValidationError as PydanticValidationError
 
 from fenic._inference.common_openai.openai_profile_manager import (
     OpenAICompletionProfileConfiguration,
@@ -39,7 +40,7 @@ from fenic.core._inference.model_catalog import (
 from fenic.core._inference.output_token_limits import (
     validate_effective_output_token_limit,
 )
-from fenic.core.error import ValidationError
+from fenic.core.error import ExecutionError, ValidationError
 from fenic.core.metrics import LMMetrics
 
 logger = logging.getLogger(__name__)
@@ -110,11 +111,12 @@ class OpenAIChatCompletionsCore:
                 else None
             )
             # Temperature is only allowed when reasoning_effort is 'none' for models that support it
-            if request.temperature:
+            if request.temperature is not None:
                 if self._model_parameters.supports_reasoning and reasoning_effort != "none":
-                    logger.warning(
-                        f"Model {self._model} does not support custom temperature when reasoning is enabled.  Ignoring temperature parameter."
-                    )
+                    if request.temperature:
+                        logger.warning(
+                            f"Model {self._model} does not support custom temperature when reasoning is enabled.  Ignoring temperature parameter."
+                        )
                 else:
                     common_params.update({"temperature": request.temperature})
 
@@ -140,8 +142,18 @@ class OpenAIChatCompletionsCore:
 
             # Choose between parse and create based on structured_output
             if request.structured_output:
-                common_params["response_format"] = request.structured_output.pydantic_model
-                response = await self._client.beta.chat.completions.parse(**common_params)
+                common_params["response_format"] = (
+                    request.structured_output.pydantic_model
+                )
+                try:
+                    response = await self._client.beta.chat.completions.parse(
+                        **common_params
+                    )
+                except PydanticValidationError as e:
+                    # Parsing can also fail in a custom validator, even for valid JSON.
+                    return FatalException(
+                        _structured_output_validation_error(self._model, request, e)
+                    )
             else:
                 response = await self._client.chat.completions.create(**common_params)
 
@@ -282,3 +294,58 @@ class OpenAIChatCompletionsCore:
                 else 0
             ),
         )
+
+
+_MAX_RAW_PREVIEW_CHARS = 200
+_MAX_VALIDATION_MESSAGE_CHARS = 1000
+
+
+def _structured_output_validation_error(model, request, error):
+    """Build a bounded diagnostic without blaming schema-valid custom validation."""
+    schema_name = (
+        request.structured_output.pydantic_model.__name__
+        if request.structured_output is not None
+        else "unknown"
+    )
+    details = error.errors(include_url=False, include_context=False)
+    raw_input = next((item["input"] for item in details if "input" in item), None)
+    preview = _truncate_preview(raw_input, _MAX_RAW_PREVIEW_CHARS)
+    operator = request.operation_name or "unknown operator"
+    summary = []
+    for item in details[:3]:
+        location = _truncate_preview(item.get("loc", ()), 80)
+        error_type = _bounded_validation_text(item.get("type", "unknown"), 40)
+        # Arbitrary validator messages may embed the full input or URLs.
+        description = (
+            "Invalid JSON"
+            if error_type == "json_invalid"
+            else "Input could not be validated"
+        )
+        summary.append(f"{location} [{error_type}]: {description}")
+    if len(details) > 3:
+        summary.append("...")
+    error_count = error.error_count()
+    message = (
+        f"Structured output for {_bounded_validation_text(operator, 80)} "
+        f"from model '{_bounded_validation_text(model, 80)}' could not be validated "
+        f"against {_bounded_validation_text(schema_name, 80)}. "
+        f"Validation input preview: {preview}. "
+        f"{error_count} validation error{'s' if error_count != 1 else ''}: "
+        + "; ".join(summary)
+    )
+    diagnostic = ExecutionError(
+        _bounded_validation_text(message, _MAX_VALIDATION_MESSAGE_CHARS)
+    )
+    diagnostic.__cause__ = error
+    return diagnostic
+
+
+def _bounded_validation_text(text, max_chars):
+    """Escape line breaks before bounding diagnostic text."""
+    text = str(text).replace("\r", "\\r").replace("\n", "\\n")
+    return text if len(text) <= max_chars else text[: max_chars - 3] + "..."
+
+
+def _truncate_preview(value, max_chars):
+    """Return a capped, single-line string preview of value."""
+    return _bounded_validation_text(repr(value), max_chars)
