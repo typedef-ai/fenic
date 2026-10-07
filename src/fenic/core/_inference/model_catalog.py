@@ -613,7 +613,6 @@ class ModelCatalog:
                 default_reasoning_effort="medium",
                 supports_custom_temperature=False,
                 supports_pdf_parsing=True,
-                supported_parameters={"reasoning_effort", "response_format"},
                 tiered_token_costs_use_total_input=True,
                 tiered_token_costs={
                     272_000: TieredTokenCost(
@@ -1214,13 +1213,6 @@ class ModelCatalog:
                 supported_thinking_levels=GEMINI_3_8_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
-                supported_parameters={
-                    "thinking_config",
-                    "response_mime_type",
-                    "response_schema",
-                    "tools",
-                    "media_resolution",
-                },
             ),
         )
 
@@ -1496,13 +1488,6 @@ class ModelCatalog:
                 supported_thinking_levels=GEMINI_3_8_FLASH_THINKING_LEVELS,
                 supports_pdf_parsing=True,
                 supports_media_resolution=True,
-                supported_parameters={
-                    "thinking_config",
-                    "response_mime_type",
-                    "response_schema",
-                    "tools",
-                    "media_resolution",
-                },
             ),
         )
 

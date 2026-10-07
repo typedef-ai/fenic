@@ -9,6 +9,7 @@ from fenic.api.session.config import (
     SemanticConfig,
 )
 from fenic.core._inference.model_catalog import (
+    GEMINI_3_8_FLASH_THINKING_LEVELS,
     GEMINI_3_7_FLASH_THINKING_LEVELS,
     GEMINI_3X_FLASH_THINKING_LEVELS,
     GEMINI_3X_PRO_THINKING_LEVELS,
@@ -32,6 +33,10 @@ class TestThinkingLevelConstants:
     def test_gemini_3_7_flash_thinking_levels(self):
         """Gemini 3.7 Flash does not support the minimal thinking level."""
         assert GEMINI_3_7_FLASH_THINKING_LEVELS == {"high", "medium", "low"}
+
+    def test_gemini_3_8_flash_thinking_levels(self):
+        """Gemini 3.8 Flash does not support the minimal thinking level."""
+        assert GEMINI_3_8_FLASH_THINKING_LEVELS == {"high", "medium", "low"}
 
 
 class TestModelCatalogThinkingLevels:
@@ -76,6 +81,18 @@ class TestModelCatalogThinkingLevels:
         )
         assert params is not None
         assert params.supported_thinking_levels == GEMINI_3_7_FLASH_THINKING_LEVELS
+
+    @pytest.mark.parametrize(
+        "provider",
+        [ModelProvider.GOOGLE_DEVELOPER, ModelProvider.GOOGLE_VERTEX],
+    )
+    def test_gemini_3_8_flash_thinking_levels(self, provider):
+        """Gemini 3.8 Flash should support high, medium, and low thinking levels."""
+        params = model_catalog.get_completion_model_parameters(
+            provider, "gemini-3.8-flash"
+        )
+        assert params is not None
+        assert params.supported_thinking_levels == GEMINI_3_8_FLASH_THINKING_LEVELS
 
     def test_gemini_3_5_flash_lite_thinking_levels(self):
         """Gemini 3.5 Flash-Lite should support all four thinking levels."""
@@ -173,6 +190,28 @@ class TestAutoProfileCreation:
         assert set(model.profiles.keys()) == {"high", "medium", "low"}
         assert model.default_profile == "low"
 
+    @pytest.mark.parametrize(
+        "config_class", [GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
+    )
+    def test_gemini_3_8_flash_auto_profiles(self, config_class):
+        """Gemini 3.8 Flash should auto-create its supported thinking profiles."""
+        config = SessionConfig(
+            app_name="test_auto_profiles",
+            semantic=SemanticConfig(
+                language_models={
+                    "flash": config_class(
+                        model_name="gemini-3.8-flash",
+                        rpm=100,
+                        tpm=1000,
+                    )
+                }
+            ),
+        )
+        model = config.semantic.language_models["flash"]
+        assert model.profiles is not None
+        assert set(model.profiles.keys()) == {"high", "medium", "low"}
+        assert model.default_profile == "low"
+
     def test_case_gemini_3_5_flash_lite_auto_profiles(self):
         """Gemini 3.5 Flash-Lite should auto-create profiles for all 4 thinking levels."""
         config = SessionConfig(
@@ -231,6 +270,33 @@ class TestThinkingLevelValidation:
                             tpm=1000,
                             profiles={
                                 "invalid": GoogleDeveloperLanguageModel.Profile(
+                                    thinking_level="minimal"
+                                )
+                            },
+                        )
+                    }
+                ),
+            )
+
+    @pytest.mark.parametrize(
+        "config_class", [GoogleDeveloperLanguageModel, GoogleVertexLanguageModel]
+    )
+    def test_invalid_thinking_level_minimal_on_gemini_3_8_flash(self, config_class):
+        """Gemini 3.8 Flash should reject 'minimal' thinking level."""
+        with pytest.raises(
+            ConfigurationError,
+            match="does not support thinking_level='minimal'",
+        ):
+            SessionConfig(
+                app_name="test_validation",
+                semantic=SemanticConfig(
+                    language_models={
+                        "flash": config_class(
+                            model_name="gemini-3.8-flash",
+                            rpm=100,
+                            tpm=1000,
+                            profiles={
+                                "invalid": config_class.Profile(
                                     thinking_level="minimal"
                                 )
                             },
