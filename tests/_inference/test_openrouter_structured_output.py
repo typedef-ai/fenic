@@ -99,7 +99,7 @@ def test_usage_detail_fields_none_are_treated_as_zero():
         total_tokens=5,
     )
     client, _ = _client(
-        {"structured_outputs"}, response, model="openai/gpt-4.1-nano"
+        {"structured_outputs"}, response, model="openai/gpt-6-luna"
     )
 
     result = asyncio.run(client.make_single_request(_request()))

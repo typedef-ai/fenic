@@ -188,7 +188,7 @@ def _new_session(tmpdir: str, *, with_language_model: bool) -> Any:
         semantic_config = SemanticConfig(
             language_models={
                 "local": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
+                    model_name="gpt-6-luna",
                     rpm=1_000_000,
                     tpm=1_000_000,
                 )

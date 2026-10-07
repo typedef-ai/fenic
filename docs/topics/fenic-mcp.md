@@ -245,13 +245,13 @@ Example `session.config.json` (minimal):
   "app_name": "mcp_demo",
   "semantic": {
     "language_models": {
-      "gpt-4.1-nano": {
-        "model_name": "gpt-4.1-nano",
+      "gpt-6-luna": {
+        "model_name": "gpt-6-luna",
         "rpm": 2500,
         "tpm": 2000000
       }
     },
-    "default_language_model": "gpt-4.1-nano"
+    "default_language_model": "gpt-6-luna"
   }
 }
 ```

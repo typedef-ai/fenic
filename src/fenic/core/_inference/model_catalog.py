@@ -223,10 +223,8 @@ OpenAILanguageModelName = Literal[
     "gpt-5-nano-2025-08-07",
     "gpt-4.1",
     "gpt-4.1-mini",
-    "gpt-4.1-nano",
     "gpt-4.1-2025-04-14",
     "gpt-4.1-mini-2025-04-14",
-    "gpt-4.1-nano-2025-04-14",
     "gpt-4o",
     "gpt-4o-2024-11-20",
     "gpt-4o-2024-08-06",
@@ -864,21 +862,6 @@ class ModelCatalog:
                 supports_pdf_parsing=True,
             ),
             snapshots=["gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
-        )
-
-        self._add_model_to_catalog(
-            ModelProvider.OPENAI,
-            "gpt-4.1-nano",
-            CompletionModelParameters(
-                input_token_cost=0.100 / 1_000_000,  # $0.100 per 1M tokens
-                cached_input_token_read_cost=0.025 / 1_000_000,  # $0.025 per 1M tokens
-                output_token_cost=0.400 / 1_000_000,  # $0.400 per 1M tokens
-                context_window_length=1_000_000,
-                max_output_tokens=32_768,
-                max_temperature=2,
-                supports_profiles=False,
-            ),
-            snapshots=["gpt-4.1-nano-2025-04-14"],
         )
 
         self._add_model_to_catalog(

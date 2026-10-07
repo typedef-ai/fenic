@@ -202,7 +202,7 @@ def main():
     parser.add_argument("--rpm", type=int, default=300, help="configured client RPM")
     parser.add_argument("--max-output-tokens", type=int, default=2048,
                         help="naive per-request output cap (the static ceiling)")
-    parser.add_argument("--model", default="gpt-4.1-nano")
+    parser.add_argument("--model", default="gpt-6-luna")
     parser.add_argument("--safety-margin", type=float, default=1.15)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--settle-pause", type=float, default=15.0,

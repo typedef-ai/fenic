@@ -10,7 +10,7 @@ def main():
         semantic=SemanticConfig(
             language_models={
                 "nano": OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
+                    model_name="gpt-6-luna",
                     rpm=2500,
                     tpm=1_000_000
                 )

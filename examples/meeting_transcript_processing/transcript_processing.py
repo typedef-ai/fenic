@@ -123,7 +123,7 @@ def main(config: Optional[fc.SessionConfig] = None):
         semantic=fc.SemanticConfig(
             language_models={
                 "nano" : fc.OpenAILanguageModel(
-                    model_name="gpt-4.1-nano",
+                    model_name="gpt-6-luna",
                     rpm=500,
                     tpm=200_000,
                 )
