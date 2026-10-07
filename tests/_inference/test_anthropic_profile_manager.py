@@ -187,7 +187,35 @@ def test_adaptive_thinking_structured_output_uses_strict_auto_tool_choice(monkey
     assert payload["tools"][0]["strict"]
 
 
-@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
+def test_sonnet_55_default_profile_never_forces_formatter_tool(monkeypatch):
+    """Sonnet 5.5 rejects disabled thinking and forced tool choice."""
+    params = model_catalog.get_completion_model_parameters(
+        ModelProvider.ANTHROPIC, "claude-sonnet-5-5"
+    )
+    client = _make_anthropic_client(
+        params,
+        profiles={},
+        default_profile_name=None,
+        model_name="claude-sonnet-5-5",
+    )
+    request = _make_request(
+        max_completion_tokens=512,
+        structured_output=ResolvedResponseFormat.from_pydantic_model(
+            _StructuredResult, generate_struct_type=False
+        ),
+    )
+
+    payload = _capture_structured_output_payload(client, request, monkeypatch)
+
+    assert payload["thinking"] == {"type": "adaptive"}
+    assert payload["tool_choice"] == {"type": "auto"}
+    assert payload["tools"][0]["strict"]
+    assert "temperature" not in payload
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5"]
+)
 def test_adaptive_thinking_token_estimate_uses_strict_auto_tool_choice(
     model_name, monkeypatch
 ):

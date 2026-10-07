@@ -926,6 +926,13 @@ def test_model_profile_validation():
                 language_models={"claude-opus-5-5": AnthropicLanguageModel(model_name="claude-opus-5-5", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
             )
         )
+    with pytest.raises(ConfigurationError, match="Model 'claude-sonnet-5-5' uses adaptive thinking and does not support manual thinking_token_budget profiles. Please remove thinking_token_budget from 'deep' and set effort instead."):
+        SessionConfig(
+            app_name="test_model_profile_validation",
+            semantic=SemanticConfig(
+                language_models={"claude-sonnet-5-5": AnthropicLanguageModel(model_name="claude-sonnet-5-5", rpm=100, input_tpm=1000, output_tpm=1000, profiles={"deep": AnthropicLanguageModel.Profile(thinking_token_budget=1024)})}
+            )
+        )
     # Test that latest Claude models support effort profiles
     SessionConfig(
         app_name="test_model_profile_validation",
@@ -951,6 +958,20 @@ def test_model_profile_validation():
                     input_tpm=1000,
                     output_tpm=1000,
                     profiles={"deep": AnthropicLanguageModel.Profile(effort="xhigh")},
+                ),
+            }
+        ),
+    )
+    SessionConfig(
+        app_name="test_model_profile_validation",
+        semantic=SemanticConfig(
+            language_models={
+                "claude-sonnet-5-5": AnthropicLanguageModel(
+                    model_name="claude-sonnet-5-5",
+                    rpm=100,
+                    input_tpm=1000,
+                    output_tpm=1000,
+                    profiles={"deep": AnthropicLanguageModel.Profile(effort="max")},
                 ),
             }
         ),

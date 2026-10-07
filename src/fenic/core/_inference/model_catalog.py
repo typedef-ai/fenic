@@ -264,6 +264,7 @@ GoogleDeveloperEmbeddingModelName = Literal[
 AnthropicLanguageModelName = Literal[
     "claude-fable-5-1",
     "claude-opus-5-5",
+    "claude-sonnet-5-5",
     "claude-fable-5",
     "claude-sonnet-5",
     "claude-opus-5",
@@ -414,6 +415,25 @@ class ModelCatalog:
                 cached_input_token_write_cost=12.50 / 1_000_000,
                 cached_input_token_read_cost=0.25 / 1_000_000,
                 output_token_cost=50.00 / 1_000_000,
+                context_window_length=1_000_000,
+                max_output_tokens=128_000,
+                supports_reasoning=False,
+                supported_reasoning_efforts=ANTHROPIC_OPUS_4_7_PLUS_EFFORTS,
+                uses_adaptive_thinking=True,
+                requires_adaptive_thinking=True,
+                supports_custom_temperature=False,
+            ),
+        )
+
+        # Claude Sonnet 5.5 rejects disabled thinking, so Fenic always sends adaptive thinking.
+        self._add_model_to_catalog(
+            ModelProvider.ANTHROPIC,
+            "claude-sonnet-5-5",
+            CompletionModelParameters(
+                input_token_cost=2.00 / 1_000_000,
+                cached_input_token_write_cost=2.50 / 1_000_000,
+                cached_input_token_read_cost=0.20 / 1_000_000,
+                output_token_cost=10.00 / 1_000_000,
                 context_window_length=1_000_000,
                 max_output_tokens=128_000,
                 supports_reasoning=False,
