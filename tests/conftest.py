@@ -151,7 +151,7 @@ def pytest_addoption(parser):
     parser.addoption(
         LANGUAGE_MODEL_NAME_ARG,
         action="store",
-        default="gpt-4.1-nano",
+        default="gpt-6-luna",
         help="Model Name to run tests against",
     )
     parser.addoption(
@@ -213,19 +213,27 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
     language_model_provider = ModelProvider(request.config.getoption(LANGUAGE_MODEL_PROVIDER_ARG))
     embedding_model_provider = ModelProvider(request.config.getoption(EMBEDDING_MODEL_PROVIDER_ARG))
     embedding_model = configure_embedding_model(embedding_model_provider, request.config.getoption(EMBEDDING_MODEL_NAME_ARG))
-    nano = OpenAILanguageModel(model_name="gpt-4.1-nano", rpm=250, tpm=50_000)
+    luna = OpenAILanguageModel(
+        model_name="gpt-6-luna",
+        rpm=250,
+        tpm=50_000,
+        profiles={
+            "disabled_reasoning": OpenAILanguageModel.Profile(reasoning_effort="none")
+        },
+        default_profile="disabled_reasoning",
+    )
 
     # these limits are purposely low so we don't consume our entire project limit while running multiple tests in multiple branches
     if language_model_provider == ModelProvider.OPENAI:
         language_models = {
-            "model_1": nano,
+            "model_1": luna,
             "model_2": OpenAILanguageModel(
                 model_name="gpt-4.1-mini", rpm=250, tpm=50_000
             ),
         }
     elif language_model_provider == ModelProvider.ANTHROPIC:
         language_models = {
-            "model_1": nano,
+            "model_1": luna,
             "model_2": AnthropicLanguageModel(
                 model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=500,
@@ -235,7 +243,7 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
         }
     elif language_model_provider == ModelProvider.GOOGLE_DEVELOPER:
         language_models = {
-            "model_1": nano,
+            "model_1": luna,
             "model_2": GoogleDeveloperLanguageModel(
                 model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=1000,
@@ -244,7 +252,7 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
         }
     elif language_model_provider == ModelProvider.GOOGLE_VERTEX:
         language_models = {
-            "model_1": nano,
+            "model_1": luna,
             "model_2": GoogleVertexLanguageModel(
                 model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
                 rpm=1000,
@@ -253,7 +261,7 @@ def multi_model_local_session_config(tmp_path, app_name, request) -> SessionConf
         }
     elif language_model_provider == ModelProvider.OPENROUTER:
         language_models = {
-            "model_1": nano,
+            "model_1": luna,
             "model_2": OpenRouterLanguageModel(
                 model_name=request.config.getoption(LANGUAGE_MODEL_NAME_ARG),
             ),
