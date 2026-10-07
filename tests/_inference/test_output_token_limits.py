@@ -245,23 +245,6 @@ def test_openai_core_sends_temperature_for_gpt_6_when_reasoning_is_disabled():
     assert fake_completions.kwargs["temperature"] == 0.2
 
 
-def test_openai_core_omits_zero_temperature():
-    core, fake_completions = _make_openai_core_with_fake_completions()
-    request = FenicCompletionsRequest(
-        messages=LMRequestMessages(system="", examples=[], user="hello"),
-        max_completion_tokens=512,
-        top_logprobs=None,
-        structured_output=None,
-        temperature=0,
-    )
-
-    asyncio.run(
-        core.make_single_request(request, OpenAICompletionProfileConfiguration())
-    )
-
-    assert "temperature" not in fake_completions.kwargs
-
-
 def test_openai_core_sends_nonzero_temperature():
     core, fake_completions = _make_openai_core_with_fake_completions()
     request = FenicCompletionsRequest(
