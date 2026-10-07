@@ -9,8 +9,8 @@ from fenic.api.session.config import (
     SemanticConfig,
 )
 from fenic.core._inference.model_catalog import (
-    GEMINI_3_8_FLASH_THINKING_LEVELS,
     GEMINI_3_7_FLASH_THINKING_LEVELS,
+    GEMINI_3_8_FLASH_THINKING_LEVELS,
     GEMINI_3X_FLASH_THINKING_LEVELS,
     GEMINI_3X_PRO_THINKING_LEVELS,
     ModelProvider,
