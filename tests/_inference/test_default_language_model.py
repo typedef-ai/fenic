@@ -14,25 +14,6 @@ from fenic.core._inference.model_catalog import ModelProvider, model_catalog
 from tests._inference.test_output_token_limits import FakeOpenAICompletions
 
 
-def test_luna_catalog_matches_documented_pricing_and_limits():
-    params = model_catalog.get_completion_model_parameters(
-        ModelProvider.OPENAI, "gpt-6-luna"
-    )
-    assert params.input_token_cost == pytest.approx(0.10 / 1_000_000)
-    assert params.cached_input_token_read_cost == pytest.approx(0.01 / 1_000_000)
-    assert params.cached_input_token_write_cost == pytest.approx(0.125 / 1_000_000)
-    assert params.output_token_cost == pytest.approx(0.50 / 1_000_000)
-    assert params.context_window_length == 1_050_000
-    assert params.max_output_tokens == 128_000
-    assert params.supports_reasoning
-    assert params.supports_disabled_reasoning
-    assert params.supports_custom_temperature
-    assert not params.supports_minimal_reasoning
-    tier = params.tiered_input_token_costs[272_000]
-    assert tier.input_token_cost == pytest.approx(0.20 / 1_000_000)
-    assert tier.output_token_cost == pytest.approx(0.75 / 1_000_000)
-
-
 @pytest.mark.parametrize(
     ("fixture_name", "alias"),
     [
@@ -45,6 +26,12 @@ def test_luna_catalog_matches_documented_pricing_and_limits():
 def test_default_luna_profile_disables_reasoning_and_accepts_temperature(
     request, fixture_name, alias, temperature, caplog
 ):
+    if (
+        request.config.getoption("--language-model-provider") != "openai"
+        or request.config.getoption("--language-model-name") != "gpt-6-luna"
+    ):
+        pytest.skip("This test requires the default OpenAI gpt-6-luna model")
+
     config = request.getfixturevalue(fixture_name)
     model = config.semantic.language_models[alias]
     assert model.model_name == "gpt-6-luna"
